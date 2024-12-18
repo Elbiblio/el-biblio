@@ -726,6 +726,393 @@ export const ChevronUp: React.FC<IconProps> = ({
   </View>
 );
 
+export const ChevronDown: React.FC<IconProps> = ({ 
+  size = 24, 
+  color = theme.colors.text.secondary,
+  style,
+  strokeWidth = 1.5,
+}) => (
+  <View style={style}>
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M6 9L12 15L18 9"
+        stroke={color}
+        strokeWidth={strokeWidth}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </Svg>
+  </View>
+);
+
+export const Brain: React.FC<IconProps> = ({ 
+  size = 24, 
+  color = theme.colors.text.secondary,
+  style,
+  strokeWidth = 1.5,
+}) => (
+  <View style={style}>
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M12 4.5C10.6193 4.5 9.5 5.61929 9.5 7C9.5 8.38071 10.6193 9.5 12 9.5C13.3807 9.5 14.5 8.38071 14.5 7C14.5 5.61929 13.3807 4.5 12 4.5Z"
+        stroke={color}
+        strokeWidth={strokeWidth}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <Path
+        d="M15.5 13C15.5 11.067 13.933 9.5 12 9.5C10.067 9.5 8.5 11.067 8.5 13"
+        stroke={color}
+        strokeWidth={strokeWidth}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <Path
+        d="M19.5 7C19.5 3.96243 16.0376 1.5 12 1.5C7.96243 1.5 4.5 3.96243 4.5 7C4.5 8.77934 5.21005 10.3977 6.375 11.625C6.375 11.625 6.5 11.75 6.5 12C6.5 12.3978 6.34196 12.7794 6.06066 13.0607C5.77936 13.342 5.39782 13.5 5 13.5H3.5C3.10218 13.5 2.72064 13.658 2.43934 13.9393C2.15804 14.2206 2 14.6022 2 15V16C2 16.3978 2.15804 16.7794 2.43934 17.0607C2.72064 17.342 3.10218 17.5 3.5 17.5H4.5C5.05228 17.5 5.5 17.9477 5.5 18.5V21C5.5 21.3978 5.65804 21.7794 5.93934 22.0607C6.22064 22.342 6.60218 22.5 7 22.5H17C17.3978 22.5 17.7794 22.342 18.0607 22.0607C18.342 21.7794 18.5 21.3978 18.5 21V18.5C18.5 17.9477 18.9477 17.5 19.5 17.5H20.5C20.8978 17.5 21.2794 17.342 21.5607 17.0607C21.842 16.7794 22 16.3978 22 16V15C22 14.6022 21.842 14.2206 21.5607 13.9393C21.2794 13.658 20.8978 13.5 20.5 13.5H19C18.6022 13.5 18.2206 13.342 17.9393 13.0607C17.658 12.7794 17.5 12.3978 17.5 12C17.5 11.75 17.625 11.625 17.625 11.625C18.7899 10.3977 19.5 8.77934 19.5 7Z"
+        stroke={color}
+        strokeWidth={strokeWidth}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </Svg>
+  </View>
+);
+
+export const PrayingHands: React.FC<IconProps> = ({ 
+  size = 24, 
+  color = theme.colors.text.secondary,
+  style,
+  strokeWidth = 1.5,
+}) => (
+  <View style={style}>
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M12 2V6.5M12 6.5V12.5C12 13.88 13.12 15 14.5 15C15.88 15 17 13.88 17 12.5V7C17 5.62 15.88 4.5 14.5 4.5C13.12 4.5 12 5.62 12 6.5Z"
+        stroke={color}
+        strokeWidth={strokeWidth}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <Path
+        d="M12 6.5V12.5C12 13.88 10.88 15 9.5 15C8.12 15 7 13.88 7 12.5V7C7 5.62 8.12 4.5 9.5 4.5C10.88 4.5 12 5.62 12 6.5Z"
+        stroke={color}
+        strokeWidth={strokeWidth}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <Path
+        d="M7 12.5V16.5C7 17.8807 8.11929 19 9.5 19C10.8807 19 12 17.8807 12 16.5V12.5"
+        stroke={color}
+        strokeWidth={strokeWidth}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <Path
+        d="M17 12.5V16.5C17 17.8807 15.8807 19 14.5 19C13.1193 19 12 17.8807 12 16.5V12.5"
+        stroke={color}
+        strokeWidth={strokeWidth}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <Path
+        d="M9.5 19C9.5 19 9 21.5 10.5 22H13.5C15 21.5 14.5 19 14.5 19"
+        stroke={color}
+        strokeWidth={strokeWidth}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </Svg>
+  </View>
+);
+
+export const Crown: React.FC<IconProps> = ({ 
+  size = 24, 
+  color = theme.colors.text.secondary,
+  style,
+  strokeWidth = 1.5,
+}) => (
+  <View style={style}>
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M2.5 8L5 17H19L21.5 8L16.5 11L12 5L7.5 11L2.5 8Z"
+        stroke={color}
+        strokeWidth={strokeWidth}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <Path
+        d="M5 17H19V19C19 19.5523 18.5523 20 18 20H6C5.44772 20 5 19.5523 5 19V17Z"
+        stroke={color}
+        strokeWidth={strokeWidth}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </Svg>
+  </View>
+);
+
+// export const Bible: React.FC<IconProps> = ({ 
+//   size = 24, 
+//   color = theme.colors.text.secondary,
+//   strokeWidth = 1.5,
+//   style,
+// }) => (
+//   <View style={style}>
+//     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+//       <Path
+//         d="M12 2V7.5M12 7.5V20M12 7.5L6.5 4M12 7.5L17.5 4M3 17.2V6C3 4.89543 3.89543 4 5 4H19C20.1046 4 21 4.89543 21 6V17.2C21 18.8802 19.6569 20.2 18 20.2H6C4.34315 20.2 3 18.8802 3 17.2Z"
+//         stroke={color}
+//         strokeWidth={strokeWidth}
+//         strokeLinecap="round"
+//         strokeLinejoin="round"
+//       />
+//     </Svg>
+//   </View>
+// );
+
+// export const Dove: React.FC<IconProps> = ({ 
+//   size = 24, 
+//   color = theme.colors.text.secondary,
+//   strokeWidth = 1.5,
+//   style,
+// }) => (
+//   <View style={style}>
+//     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+//       <Path
+//         d="M20.5 7.5C20.5 9.433 18.933 11 17 11C15.067 11 13.5 9.433 13.5 7.5C13.5 5.567 15.067 4 17 4C18.933 4 20.5 5.567 20.5 7.5Z"
+//         stroke={color}
+//         strokeWidth={strokeWidth}
+//         strokeLinecap="round"
+//         strokeLinejoin="round"
+//       />
+//       <Path
+//         d="M17 11V20"
+//         stroke={color}
+//         strokeWidth={strokeWidth}
+//         strokeLinecap="round"
+//         strokeLinejoin="round"
+//       />
+//       <Path
+//         d="M17 16L3.5 13.5L6 7L12.5 8.5"
+//         stroke={color}
+//         strokeWidth={strokeWidth}
+//         strokeLinecap="round"
+//         strokeLinejoin="round"
+//       />
+//     </Svg>
+//   </View>
+// );
+
+export const Cross: React.FC<IconProps> = ({ 
+  size = 24, 
+  color = theme.colors.text.secondary,
+  strokeWidth = 1.5,
+  style,
+}) => (
+  <View style={style}>
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M12 4V20M7 9V15H17V9H7Z"
+        stroke={color}
+        strokeWidth={strokeWidth}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </Svg>
+  </View>
+);
+
+export const Peace: React.FC<IconProps> = ({ 
+  size = 24, 
+  color = theme.colors.text.secondary,
+  strokeWidth = 1.5,
+  style,
+}) => (
+  <View style={style}>
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z"
+        stroke={color}
+        strokeWidth={strokeWidth}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <Path
+        d="M12 2V22M12 12L19.0711 4.92893M12 12L4.92893 19.0711M12 12L4.92893 4.92893M12 12L19.0711 19.0711"
+        stroke={color}
+        strokeWidth={strokeWidth}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </Svg>
+  </View>
+);
+
+export const Halo: React.FC<IconProps> = ({ 
+  size = 24, 
+  color = theme.colors.text.secondary,
+  strokeWidth = 1.5,
+  style,
+}) => (
+  <View style={style}>
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M12 16C14.2091 16 16 14.2091 16 12C16 9.79086 14.2091 8 12 8C9.79086 8 8 9.79086 8 12C8 14.2091 9.79086 16 12 16Z"
+        stroke={color}
+        strokeWidth={strokeWidth}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <Path
+        d="M12 4C16.4183 4 20 7.58172 20 12C20 16.4183 16.4183 20 12 20C7.58172 20 4 16.4183 4 12C4 7.58172 7.58172 4 12 4Z"
+        stroke={color}
+        strokeWidth={strokeWidth}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <Path
+        d="M12 2C17.5228 2 22 6.47715 22 12C22 17.5228 17.5228 22 12 22C6.47715 22 2 17.5228 2 12C2 6.47715 6.47715 2 12 2Z"
+        stroke={color}
+        strokeWidth={strokeWidth}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </Svg>
+  </View>
+);
+
+export const Church: React.FC<IconProps> = ({ 
+  size = 24, 
+  color = theme.colors.text.secondary,
+  strokeWidth = 1.5,
+  style,
+}) => (
+  <View style={style}>
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M12 3V7M12 7V10M12 7L16 5M12 7L8 5M5 21V11L2 9L12 3L22 9L19 11V21H5Z"
+        stroke={color}
+        strokeWidth={strokeWidth}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <Path
+        d="M9 21V15H15V21"
+        stroke={color}
+        strokeWidth={strokeWidth}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </Svg>
+  </View>
+);
+
+export const Wheat: React.FC<IconProps> = ({ 
+  size = 24, 
+  color = theme.colors.text.secondary,
+  strokeWidth = 1.5,
+  style,
+}) => (
+  <View style={style}>
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M12 10V20M8.5 8.5C8.5 6.5 10 5 12 5C14 5 15.5 6.5 15.5 8.5C15.5 10.5 14 12 12 12C10 12 8.5 10.5 8.5 8.5Z"
+        stroke={color}
+        strokeWidth={strokeWidth}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <Path
+        d="M8.5 15.5C8.5 13.5 10 12 12 12C14 12 15.5 13.5 15.5 15.5C15.5 17.5 14 19 12 19C10 19 8.5 17.5 8.5 15.5Z"
+        stroke={color}
+        strokeWidth={strokeWidth}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </Svg>
+  </View>
+);
+
+export const Fish: React.FC<IconProps> = ({ 
+  size = 24, 
+  color = theme.colors.text.secondary,
+  strokeWidth = 1.5,
+  style,
+}) => (
+  <View style={style}>
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M19.1129 12.5C18.9388 15.0355 16.8139 17 14.2097 17C11.6056 17 9.48065 15.0355 9.30645 12.5C9.48065 9.96447 11.6056 8 14.2097 8C16.8139 8 18.9388 9.96447 19.1129 12.5Z"
+        stroke={color}
+        strokeWidth={strokeWidth}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <Path
+        d="M9.30645 12.5H3M19.1129 12.5H21"
+        stroke={color}
+        strokeWidth={strokeWidth}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <Path
+        d="M14.2097 10V11"
+        stroke={color}
+        strokeWidth={strokeWidth}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </Svg>
+  </View>
+);
+
+// export const OliveBranch: React.FC<IconProps> = ({ 
+//   size = 24, 
+//   color = theme.colors.text.secondary,
+//   strokeWidth = 1.5,
+//   style,
+// }) => (
+//   <View style={style}>
+//     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+//       <Path
+//         d="M12 4C7.5 4 4 6.5 4 10C4 12.5 6 14.5 9 15.5"
+//         stroke={color}
+//         strokeWidth={strokeWidth}
+//         strokeLinecap="round"
+//         strokeLinejoin="round"
+//       />
+//       <Path
+//         d="M12 4C16.5 4 20 6.5 20 10C20 12.5 18 14.5 15 15.5"
+//         stroke={color}
+//         strokeWidth={strokeWidth}
+//         strokeLinecap="round"
+//         strokeLinejoin="round"
+//       />
+//       <Path
+//         d="M12 4V20"
+//         stroke={color}
+//         strokeWidth={strokeWidth}
+//         strokeLinecap="round"
+//         strokeLinejoin="round"
+//       />
+//       <Path
+//         d="M8 10C8 10 9.5 11 12 11C14.5 11 16 10 16 10"
+//         stroke={color}
+//         strokeWidth={strokeWidth}
+//         strokeLinecap="round"
+//         strokeLinejoin="round"
+//       />
+//       <Path
+//         d="M8 14C8 14 9.5 15 12 15C14.5 15 16 14 16 14"
+//         stroke={color}
+//         strokeWidth={strokeWidth}
+//         strokeLinecap="round"
+//         strokeLinejoin="round"
+//       />
+//     </Svg>
+//   </View>
+// );
+
 export const X: React.FC<IconProps> = ({ 
   size = 24, 
   color = theme.colors.text.secondary,
@@ -745,11 +1132,114 @@ export const X: React.FC<IconProps> = ({
   </View>
 );
 
+export const Scroll: React.FC<IconProps> = ({ 
+  size = 24, 
+  color = theme.colors.text.secondary,
+  strokeWidth = 1.5,
+  style,
+}) => (
+  <View style={style}>
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M17 3H7C5.89543 3 5 3.89543 5 5V19C5 20.1046 5.89543 21 7 21H17C18.1046 21 19 20.1046 19 19V5C19 3.89543 18.1046 3 17 3Z"
+        stroke={color}
+        strokeWidth={strokeWidth}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <Path
+        d="M19 6C19 6 15 8 12 8C9 8 5 6 5 6"
+        stroke={color}
+        strokeWidth={strokeWidth}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <Path
+        d="M12 8V20"
+        stroke={color}
+        strokeWidth={strokeWidth}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </Svg>
+  </View>
+);
+
+export const ScrollText: React.FC<IconProps> = ({ 
+  size = 24, 
+  color = theme.colors.text.secondary,
+  strokeWidth = 1.5,
+  style,
+}) => (
+  <View style={style}>
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M19 3H7C5.89543 3 5 3.89543 5 5V16.1707C5 16.7571 5.23422 17.3214 5.65147 17.7386L8.91274 21H17C18.1046 21 19 20.1046 19 19V5C19 3.89543 18.1046 3 17 3Z"
+        stroke={color}
+        strokeWidth={strokeWidth}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <Path
+        d="M9 8H15"
+        stroke={color}
+        strokeWidth={strokeWidth}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <Path
+        d="M9 12H15"
+        stroke={color}
+        strokeWidth={strokeWidth}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <Path
+        d="M9 16H13"
+        stroke={color}
+        strokeWidth={strokeWidth}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </Svg>
+  </View>
+);
+
+export const Book: React.FC<IconProps> = ({ 
+  size = 24, 
+  color = theme.colors.text.secondary,
+  strokeWidth = 1.5,
+  style,
+}) => (
+  <View style={style}>
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M4 19.5C4 18.837 4.26339 18.2011 4.73223 17.7322C5.20107 17.2634 5.83696 17 6.5 17H20"
+        stroke={color}
+        strokeWidth={strokeWidth}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <Path
+        d="M6.5 2H20V22H6.5C5.83696 22 5.20107 21.7366 4.73223 21.2678C4.26339 20.7989 4 20.163 4 19.5V4.5C4 3.83696 4.26339 3.20107 4.73223 2.73223C5.20107 2.26339 5.83696 2 6.5 2Z"
+        stroke={color}
+        strokeWidth={strokeWidth}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </Svg>
+  </View>
+);
+
 export const ReligiousIconMap = {
   dove: Dove,
   oliveBranch: OliveBranch,
   bible: Bible,
   scroll: ScrollIcon,
+  scrollText: ScrollText,
+  church: Church,
+  prayingHands: PrayingHands,
+  cross: Cross,
 };
 
 export type ReligiousIconName = keyof typeof ReligiousIconMap;
@@ -785,6 +1275,21 @@ export const IconMap = {
   x: X,
   religious: ReligiousIconMap,
   chevronUp: ChevronUp,
+  chevronDown: ChevronDown,
+  brain: Brain,
+  prayingHands: PrayingHands,
+  crown: Crown,
+  cross: Cross,
+  peace: Peace,
+  dove: Dove,
+  oliveBranch: OliveBranch,
+  bible: Bible,
+  scroll: Scroll,
+  scrollText: ScrollText,
+  book: Book,
+  wheat: Wheat,
+  fish: Fish,
+  church: Church,
 };
 
 // Export types for TypeScript support

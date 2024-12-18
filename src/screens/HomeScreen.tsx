@@ -299,7 +299,7 @@ const HomeScreen: React.FC<HomeProps> = ({navigation}) => {
         <View style={styles.versesSection}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Today's Verses</Text>
-            <TouchableOpacity style={styles.seeAllButton}>
+            <TouchableOpacity style={styles.seeAllButton} onPress={() => navigation.navigate('DailyVersesScreen')}>
               <Text style={[styles.seeAllText, themeText]}>See all</Text>
               <ChevronRight size={16} color={theme?.colors.primary} />
             </TouchableOpacity>

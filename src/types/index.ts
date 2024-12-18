@@ -3,7 +3,9 @@ import { SharedValue } from "react-native-reanimated";
 export interface Verse {
   verse: string;
   reference: string;
-  theme?: string;
+  theme?: 'knowledge' | 'humility' | 'faith' | 'love';
+  themeDescription?: 'Knowledge and Wisdom' | 'Humility and Service' | 'Faith and Hope' | 'Love and Selflesness';
+  themeDetail?: string;
 }
 
 export interface Reflection {
@@ -41,6 +43,8 @@ export type RootStackParamList = {
   ThemeSelector: undefined;
   VerseDetail: { verseId: string };
   ReflectionDetail: { reflectionId: string };
+  IntroScreen: undefined;
+  DailyVersesScreen: undefined;
 };
 
 export interface AnimatedProps {

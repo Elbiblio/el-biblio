@@ -10,6 +10,7 @@ import ThemeSelector from './src/components/ThemeSelector';
 import HomeScreen from './src/screens/HomeScreen';
 import VerseDetail from './src/screens/VerseDetail';
 import ReflectionDetail from './src/screens/ReflectionDetail';
+import DailyVersesScreen from './src/screens/DailyVersesScreen';
 import { RootStackParamList } from './src/types';
 import { useAppFonts } from './src/hooks/useFonts';
 import { getTheme, ThemeVariant, defaultTheme } from './src/theme';
@@ -91,6 +92,7 @@ const App = () => {
                 <Stack.Screen name="Home" component={HomeScreen} />
                 <Stack.Screen name="VerseDetail" component={VerseDetail} />
                 <Stack.Screen name="ReflectionDetail" component={ReflectionDetail} />
+                <Stack.Screen name="DailyVersesScreen" component={DailyVersesScreen} />
               </Stack.Navigator>
             </NavigationContainer>
           </GestureHandlerRootView>
