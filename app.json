@@ -1,0 +1,35 @@
+{
+  "expo": {
+    "name": "El-Biblio",
+    "slug": "elbiblio",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/penheart.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "cover",
+      "backgroundColor": "#ecefef"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.robosyslive.elbiblio"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/penheart.png",
+        "backgroundColor": "#ffffff"
+      },
+      "package": "com.robosyslive.elbiblio"
+    },
+    "web": {
+      "favicon": "./assets/penheart.png"
+    },
+    "plugins": [
+      "expo-font"
+    ]
+  }
+}
