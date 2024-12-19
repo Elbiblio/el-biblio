@@ -19,6 +19,7 @@ interface AvatarStackProps {
   size?: number;
   offset?: number;
   onPress?: () => void;
+  showRemaining?: boolean;
 }
 
 export const AvatarStack: React.FC<AvatarStackProps> = ({
@@ -27,6 +28,7 @@ export const AvatarStack: React.FC<AvatarStackProps> = ({
   size = 32,
   offset = 20,
   onPress,
+  showRemaining = true,
 }) => {
   const displayUsers = users.slice(0, maxAvatars);
   const remainingCount = Math.max(0, users.length - maxAvatars);
@@ -112,7 +114,7 @@ export const AvatarStack: React.FC<AvatarStackProps> = ({
         />
       ))}
       
-      {remainingCount > 0 && (
+      {showRemaining && remainingCount > 0 && (
         <Animated.View
           style={[
             styles.remainingContainer,

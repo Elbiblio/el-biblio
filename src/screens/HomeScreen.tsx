@@ -63,11 +63,14 @@ const AnimatedBlurView = Animated.createAnimatedComponent(BlurView);
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const CARD_WIDTH = SCREEN_WIDTH * 0.9;
 
-const QuickActionCard = ({ action, index, actionStyles }: { action: any; index: number, actionStyles: any }) => {
+const QuickActionCard = ({ action, index, actionStyles, navigation }: { action: any; index: number, actionStyles: any, navigation: any }) => {
   return (
     <TouchableOpacity
       style={actionStyles.actionCard}
       activeOpacity={0.7}
+      onPress={() => {
+        navigation.navigate(action.route);
+      }}
     >
       <LinearGradient
         colors={[`${action.color}08`, `${action.color}03`]}
@@ -280,16 +283,17 @@ const HomeScreen: React.FC<HomeProps> = ({navigation}) => {
           </View>
           <View style={actionStyles.actionGrid}>
             {[
-              { icon: NotePencil, label: 'Write a Note', color: theme?.colors.primary },
-              { icon: BookmarkSimple, label: 'Saved', color: theme?.colors.secondary },
-              { icon: Users, label: 'Word Hubs', color: theme?.colors.primaryDark },
-              { icon: MessageSquare, label: 'One-on-One', color: theme?.colors.like },
+              { icon: NotePencil, label: 'Notes', color: theme?.colors.primary, route: 'NotesScreen' },
+              { icon: BookmarkSimple, label: 'Saved', color: theme?.colors.secondary, route: 'SavedItemsScreen' },
+              { icon: Users, label: 'Word Hubs', color: theme?.colors.primaryDark, route: 'WordHubsScreen' },
+              { icon: MessageSquare, label: 'One-on-One', color: theme?.colors.like, route: 'MatchScreen' },
             ].map((action, index) => (
               <QuickActionCard
                 key={action.label}
                 action={action}
                 actionStyles={actionStyles}
                 index={index}
+                navigation={navigation}
               />
             ))}
           </View>

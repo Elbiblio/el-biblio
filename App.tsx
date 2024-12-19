@@ -11,11 +11,16 @@ import HomeScreen from './src/screens/HomeScreen';
 import VerseDetail from './src/screens/VerseDetail';
 import ReflectionDetail from './src/screens/ReflectionDetail';
 import DailyVersesScreen from './src/screens/DailyVersesScreen';
+import MatchScreen from './src/screens/MatchScreen';
+import IntroScreen from './src/screens/IntroScreen';
+import WordHubsScreen from './src/screens/WordHubsScreen';
+import SavedItemsScreen from './src/screens/SavedItemsScreen';
+import NotesScreen from './src/screens/NotesScreen';
 import { RootStackParamList } from './src/types';
 import { useAppFonts } from './src/hooks/useFonts';
 import { getTheme, ThemeVariant, defaultTheme } from './src/theme';
 import { useThemeStore } from './src/theme/store';
-
+import { useWelcomeState } from './src/contexts/ThemeContext';
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const THEME_STORAGE_KEY = '@app_theme';
 
@@ -25,10 +30,17 @@ const App = () => {
   const [initialTheme, setInitialTheme] = useState(defaultTheme);
   const [showThemeSelector, setShowThemeSelector] = useState(false);
   const [isSplashComplete, setIsSplashComplete] = useState(false);
-  const theme = useThemeStore()
+  const theme = useThemeStore();
 
   useEffect(() => {
-    loadSavedTheme();
+    const initialize = async () => {
+      await Promise.all([
+        loadSavedTheme(),
+      ]);
+      setIsLoading(false);
+    };
+    
+    initialize();
   }, []);
 
   useEffect(() => {
@@ -69,6 +81,8 @@ const App = () => {
     }
   };
 
+  // Remove useWelcomeState from here since it needs ThemeProvider
+
   if (!fontsLoaded || isLoading || !isSplashComplete) {
     return (
       <ThemeProvider initialTheme={defaultTheme} onThemeChange={handleThemeChange}>
@@ -76,6 +90,32 @@ const App = () => {
       </ThemeProvider>
     );
   }
+
+  const NavigationContent = () => {
+    const { hasCompletedWelcome } = useWelcomeState();
+    
+    return (
+      <NavigationContainer>
+        <Stack.Navigator screenOptions={{ headerShown: false }}>
+          {!hasCompletedWelcome ? (
+            <Stack.Screen name="IntroScreen" component={IntroScreen} />
+          ) : (
+            <>
+              <Stack.Screen name="Home" component={HomeScreen} />
+              <Stack.Screen name="VerseDetail" component={VerseDetail} />
+              <Stack.Screen name="ReflectionDetail" component={ReflectionDetail} />
+              <Stack.Screen name="DailyVersesScreen" component={DailyVersesScreen} />
+              <Stack.Screen name="WordHubsScreen" component={WordHubsScreen} />
+              <Stack.Screen name="MatchScreen" component={MatchScreen} />
+              <Stack.Screen name="SavedItemsScreen" component={SavedItemsScreen} />
+              <Stack.Screen name="NotesScreen" component={NotesScreen} />
+              <Stack.Screen name="IntroScreen" component={IntroScreen} />
+            </>
+          )}
+        </Stack.Navigator>
+      </NavigationContainer>
+    );
+  };
 
   return (
     <SafeAreaProvider>
@@ -87,14 +127,7 @@ const App = () => {
           <ThemeSelector onSelect={handleThemeSelect} />
         ) : (
           <GestureHandlerRootView style={{ flex: 1 }}>
-            <NavigationContainer>
-              <Stack.Navigator screenOptions={{ headerShown: false }}>
-                <Stack.Screen name="Home" component={HomeScreen} />
-                <Stack.Screen name="VerseDetail" component={VerseDetail} />
-                <Stack.Screen name="ReflectionDetail" component={ReflectionDetail} />
-                <Stack.Screen name="DailyVersesScreen" component={DailyVersesScreen} />
-              </Stack.Navigator>
-            </NavigationContainer>
+            <NavigationContent />
           </GestureHandlerRootView>
         )}
       </ThemeProvider>
