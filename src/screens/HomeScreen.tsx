@@ -26,42 +26,22 @@ import {
   Users,
   MessageSquare,
   Star,
-  Heart,
-  MessageCircle,
   ChevronRight,
   Sparkle,
-  Dove,
-  OliveBranch,
   Bible,
 } from './../components/Icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { RootStackParamList, User } from '@/types';
+import { Reflection, RootStackParamList, sampleDailyVerses, User, Verse } from '@/types';
 import AvatarStack from '@/components/AvatarStack';
 import CircleButton from '@/components/CircleButton';
 import { getTheme, Theme } from '@/theme';
 import { getCurrentTheme } from '@/theme/store';
 import { useTheme } from '@/contexts/ThemeContext';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-
-interface Interaction {
-  type: 'like' | 'pray' | 'amen';
-  count: number;
-}
-
-interface VerseCard {
-  id: string;
-  verse: string;
-  reference: string;
-  reflectionCount: number;
-  commentCount: number;
-  interactions: Interaction[];
-  trending?: boolean;
-  reflectionAuthors: User[];
-}
+import { SCREEN_DIMENSIONS } from '@/constants';
 
 const AnimatedBlurView = Animated.createAnimatedComponent(BlurView);
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const CARD_WIDTH = SCREEN_WIDTH * 0.9;
+const CARD_WIDTH = SCREEN_DIMENSIONS.width * 0.9;
 
 const QuickActionCard = ({ action, index, actionStyles, navigation }: { action: any; index: number, actionStyles: any, navigation: any }) => {
   return (
@@ -105,28 +85,8 @@ const HomeScreen: React.FC<HomeProps> = ({navigation}) => {
   const styles = React.useMemo(() => createStyles(theme), [theme]);
   const actionStyles = React.useMemo(() => createActionStyles(theme), [theme]);
   const themeText = {color: theme?.colors.primary};
+  const [dailyVerses, setDailyVerses] = useState<Verse[]>(sampleDailyVerses);
 
-  const dailyVerses: VerseCard[] = [
-    {
-      id: '1',
-      verse: "But those who hope in the Lord will renew their strength. They will soar on wings like eagles; they will run and not grow weary, they will walk and not be faint.",
-      reference: "Isaiah 40:31",
-      reflectionCount: 24,
-      commentCount: 56,
-      trending: true,
-      interactions: [
-        { type: 'like', count: 342 },
-        { type: 'pray', count: 156 },
-        { type: 'amen', count: 89 },
-      ],
-      reflectionAuthors: [
-        { id: '1', first_name: 'John', last_name: 'Doe', avatar: 'https://example.com/avatar1.jpg' },
-        { id: '2', first_name: 'Jane', last_name: 'Smith', avatar: 'https://example.com/avatar2.jpg' },
-        { id: '3', first_name: 'Alice', last_name: 'Johnson', avatar: 'https://example.com/avatar3.jpg' },
-      ]
-    },
-    // ... more verses
-  ];
 
   const headerAnimatedStyle = useAnimatedStyle(() => ({
     transform: [
@@ -195,13 +155,13 @@ const HomeScreen: React.FC<HomeProps> = ({navigation}) => {
     scrollY.value = event.nativeEvent.contentOffset.y;
   };
 
-  const handleVersePress = (verseId: string) => {
-    setActiveVerse(verseId);
+  const handleVersePress = (verse: Verse) => {
+    setActiveVerse(verse.id);
     cardScale.value = withSequence(
       withTiming(0.95, { duration: 100 }),
       withTiming(1, { duration: 100 })
     );
-    navigation.navigate("VerseDetail", {verseId});
+    navigation.navigate("VerseDetail", {verse});
   };
 
   const handleVerseScroll = useCallback((event: any) => {
@@ -210,36 +170,6 @@ const HomeScreen: React.FC<HomeProps> = ({navigation}) => {
     const newIndex = Math.round(x / (CARD_WIDTH + theme?.spacing.sm));
     setCurrentVerseIndex(newIndex);
   }, []);
-
-  const renderInteractionButton = (interaction: Interaction) => {
-    const buttonScale = useSharedValue(1);
-
-    const handlePress = () => {
-      buttonScale.value = withSequence(
-        withSpring(1.2),
-        withSpring(1)
-      );
-    };
-
-    const animatedStyle = useAnimatedStyle(() => ({
-      transform: [{ scale: buttonScale.value }]
-    }));
-
-    return (
-      <Animated.View style={[styles.interactionButton, animatedStyle]}>
-        <TouchableOpacity
-          onPress={handlePress}
-          style={styles.interactionButtonContent}
-        >
-          {interaction.type === 'like' && <Heart size={16} color={theme?.colors.like} />}
-          {interaction.type === 'pray' && <Sparkle size={16} color={theme?.colors.primary} />}
-          <Text style={styles.interactionCount}>
-            {interaction.count > 999 ? `${(interaction.count / 1000).toFixed(1)}k` : interaction.count}
-          </Text>
-        </TouchableOpacity>
-      </Animated.View>
-    );
-  };
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -319,7 +249,7 @@ const HomeScreen: React.FC<HomeProps> = ({navigation}) => {
             scrollEventThrottle={16}
             pagingEnabled
           >
-            {dailyVerses.map((verse) => (
+            {dailyVerses.map((verse: Verse) => (
               <Animated.View
                 key={verse.id}
                 style={[
@@ -328,7 +258,7 @@ const HomeScreen: React.FC<HomeProps> = ({navigation}) => {
                 ]}
               >
                 <TouchableOpacity
-                  onPress={() => handleVersePress(verse.id)}
+                  onPress={() => handleVersePress(verse)}
                   activeOpacity={0.9}
                 >
                   <AnimatedBlurView intensity={10} style={styles.verseCard}>
@@ -352,7 +282,7 @@ const HomeScreen: React.FC<HomeProps> = ({navigation}) => {
                       )}
 
                       <Text style={styles.verseText} numberOfLines={3}>
-                        {verse.verse}
+                        {verse.text}
                       </Text>
 
                       <View style={styles.verseFooter}>
@@ -370,12 +300,12 @@ const HomeScreen: React.FC<HomeProps> = ({navigation}) => {
                       <View style={styles.interactionsContainer}>
                         <View style={styles.reflectionMeta}>
                           <AvatarStack
-                            users={verse.reflectionAuthors}
+                            users={verse.reflections.map((reflection: Reflection) => reflection.author)}
                             maxAvatars={3}
                             size={24}
                           />
                           <Text style={styles.reflectionCount}>
-                            {" "} +{verse.reflectionCount - 3}  others  sharing
+                            {" "} +{verse.reflections.length - 3}  others  sharing
                           </Text>
 
                         </View>

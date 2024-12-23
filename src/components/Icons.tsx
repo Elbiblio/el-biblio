@@ -276,6 +276,12 @@ export const PencilLock = ({ size = 24, color = theme.colors.text.secondary, sty
   </View>
 );
 
+export const PencilCircle = ({ size = 24, color = theme.colors.text.secondary, style }: IconProps) => (
+  <View style={style}>
+    <MaterialCommunityIcons name="pencil-circle-outline" size={size} color={color} />
+  </View>
+);
+
 export const NotePencil = ({ size = 24, color = theme.colors.text.secondary, style }: IconProps) => (
   <View style={style}>
     <Feather name="edit" size={size} color={color} />

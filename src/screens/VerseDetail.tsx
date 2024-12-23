@@ -62,6 +62,8 @@ const VerseDetail: React.FC<VerseDetailProps> = ({ navigation, route }) => {
   const [isBookmarked, setIsBookmarked] = useState(false);
   const [isLiked, setIsLiked] = useState(false);
   const styles = React.useMemo(() => createStyles(theme), [theme]);
+  const [verse, setVerse] = useState(route.params.verse);
+  const [reflections, setReflections] = useState(verse.reflections);
 
   // Animated values
   const bookmarkScale = useSharedValue(1);
@@ -72,52 +74,6 @@ const VerseDetail: React.FC<VerseDetailProps> = ({ navigation, route }) => {
   // Refs
   const flatListRef = useRef<FlatList>(null);
   const reflectionInputRef = useRef<TextInput>(null);
-
-  const verse = {
-    id: route.params.verseId,
-    text: "But those who hope in the Lord will renew their strength. They will soar on wings like eagles; they will run and not grow weary, they will walk and not be faint.",
-    reference: "Isaiah 40:31",
-    translation: "NIV",
-    likes: 342,
-    reflections: 24,
-    shares: 56,
-    trending: true,
-  };
-
-  const reflections: Reflection[] = [
-    {
-      id: '1',
-      author: {
-        id: 'user1',
-        first_name: 'Sarah',
-        last_name: 'Mitchell',
-        avatar: 'https://example.com/avatar1.jpg'
-      },
-      content: "This verse reminds me that in our most exhausting moments, God provides the strength we need. It's not about our own power, but about trusting in His timing and purposes.",
-      timestamp: '2h ago',
-      likes: 42,
-      type: 'story',
-      icon: '✨',
-      isLiked: false,
-      comments: [
-        {
-          id: 'comment1',
-          parentId: null,
-          author: {
-            id: 'user2',
-            first_name: 'John',
-            last_name: 'Doe',
-            avatar: 'https://example.com/john.jpg'
-          },
-          content: "Such a beautiful reminder of God's faithfulness. Thank you for sharing!",
-          likes: 15,
-          timestamp: '5m ago',
-          isLiked: false
-        }
-      ],
-    },
-    // Add more reflections here...
-  ];
 
   // Viewability config for FlatList
   const viewabilityConfig = useRef({
@@ -235,7 +191,7 @@ const VerseDetail: React.FC<VerseDetailProps> = ({ navigation, route }) => {
             onPress={() => setShowReflectionInput(true)}
           >
             <MessageCircle size={24} color={theme.colors.text.secondary} />
-            <Text style={styles.actionCount}>{verse.reflections}</Text>
+            <Text style={styles.actionCount}>{verse.reflections.length}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -273,9 +229,9 @@ const VerseDetail: React.FC<VerseDetailProps> = ({ navigation, route }) => {
 
   const [activeCommentReflectionId, setActiveCommentReflectionId] = useState<string | null>(null);
 
-  const handleCommentPress = useCallback((reflectionId: string) => {
-    setActiveCommentReflectionId(reflectionId);
-    navigation.navigate('ReflectionDetail', { reflectionId });
+  const handleCommentPress = useCallback((reflection: Reflection) => {
+    setActiveCommentReflectionId(reflection.id);
+    navigation.navigate('ReflectionDetail', { reflection });
   }, [navigation]);
 
   const renderReflection = useCallback(({ item, index }: { item: Reflection; index: number }) => (
@@ -287,9 +243,9 @@ const VerseDetail: React.FC<VerseDetailProps> = ({ navigation, route }) => {
         reflection={item}
         scrollX={scrollX}
         index={index}
-        onCommentPress={() => handleCommentPress(item.id)}
+        onCommentPress={() => handleCommentPress(item)}
         expanded={false}
-        onPress={() => navigation.navigate('ReflectionDetail', { reflectionId: item.id })}
+        onPress={() => navigation.navigate('ReflectionDetail', { reflection: item })}
         maxContentLines={3}
       />
     </View>

@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { useTheme } from '@/contexts/ThemeContext';
-import { AllVirtues, THEMES } from '@/types';
+import { AllVirtues, THEMES, VirtueGroups } from '@/types';
 import { IconProps } from '@/components/Icons';
 
 interface VirtuePickerProps {
@@ -17,31 +17,6 @@ interface VirtuePickerProps {
   onVirtueSelect: (virtue: AllVirtues) => void;
   onClose: () => void;
 }
-
-const VirtueGroups = {
-  foundational: {
-    title: 'Foundational Virtues',
-    virtues: ['love', 'faith', 'knowledge', 'humility'] as const,
-    icons: { love: THEMES['love'].Icon, faith: THEMES['faith'].Icon, knowledge: THEMES['knowledge'].Icon, humility: THEMES['humility'].Icon }
-  },
-  derived: {
-    title: 'Derived Virtues',
-    virtues: [
-      'wisdom', 'discernment', 'growth',
-      'self-control', 'patience', 'gentleness',
-      'trust', 'hope', 'courage',
-      'compassion', 'kindness', 'generosity'
-    ] as const
-  },
-  compound: {
-    title: 'Compound Virtues',
-    virtues: [
-      'righteousness', 'justice', 'joy',
-      'peace', 'gratitude', 'respect',
-      'honesty'
-    ] as const
-  }
-};
 
 const VirtuePicker: React.FC<VirtuePickerProps> = ({
   selectedVirtues,

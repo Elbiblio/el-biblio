@@ -31,27 +31,9 @@ import {
 import { Theme } from '@/theme';
 import { useTheme } from '@/contexts/ThemeContext';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import type { RootStackParamList, User } from '@/types';
+import { sampleWordHubs, type RootStackParamList, type User, type WordHub } from '@/types';
 import { formatTimeLeft } from '@/utils/schedule';
 import AvatarStack from '@/components/AvatarStack';
-
-interface WordHub {
-  id: string;
-  title: string;
-  description: string;
-  memberCount: number;
-  activeMembers: number; // Currently online/active
-  messageCount: number;
-  lastMessageTime: string;
-  topicCount: number;
-  authors: User[]; // Number of shared reflections/content
-  isPrivate: boolean;
-  code?: string;
-  minPoints?: number;
-  createdAt: string;
-  isBookmarked: boolean;
-  expiresAt: string;
-}
 
 const WordHubsScreen: React.FC<NativeStackScreenProps<RootStackParamList, 'WordHubsScreen'>> = ({
   navigation,
@@ -73,50 +55,7 @@ const WordHubsScreen: React.FC<NativeStackScreenProps<RootStackParamList, 'WordH
   const [hubCode, setHubCode] = useState('');
   const [minPoints, setMinPoints] = useState('');
   const [joinCode, setJoinCode] = useState('');
-
-  // Sample data - replace with API calls
-  const wordHubs: WordHub[] = [
-    {
-      id: '1',
-      title: 'Daily Scripture Reflection',
-      description: 'Join us in discussing today\'s verse about faith and perseverance. Share your thoughts and learn from others.',
-      memberCount: 156,
-      activeMembers: 23,
-      messageCount: 234,
-      lastMessageTime: new Date(Date.now() - 5 * 60000).toISOString(),
-      topicCount: 3,
-      authors: [
-        {
-          id: '1',
-          first_name: 'Sarah',
-          last_name: 'Mitchell',
-          avatar: 'https://example.com/avatar1.jpg'
-        },
-        {
-          id: '2',
-          first_name: 'John',
-          last_name: 'Doe',
-          avatar: 'https://example.com/avatar2.jpg'
-        },
-        {
-          id: '3',
-          first_name: 'Alice',
-          last_name: 'Johnson',
-          avatar: 'https://example.com/avatar3.jpg'
-        },
-        {
-          id: '4',
-          first_name: 'Michael',
-          last_name: 'Brown',
-          avatar: 'https://example.com/avatar4.jpg'
-        }
-      ],
-      isPrivate: false,
-      createdAt: new Date(Date.now() - 12 * 60 * 60000).toISOString(),
-      isBookmarked: true,
-      expiresAt: new Date(Date.now() + 24 * 60 * 60000).toISOString(),
-    },
-  ];
+  const [wordHubs, setWordHubs] = useState(sampleWordHubs);
 
   const generateHubCode = () => {
     return Math.floor(100000 + Math.random() * 900000).toString();
@@ -347,7 +286,7 @@ const WordHubsScreen: React.FC<NativeStackScreenProps<RootStackParamList, 'WordH
       >
         {isLoading ? (
           <ActivityIndicator color={theme.colors.primary} />
-        ) : wordHubs.map(renderHubCard)}
+        ) : wordHubs?.map(renderHubCard)}
       </ScrollView>
 
       {/* Create Hub Modal */}

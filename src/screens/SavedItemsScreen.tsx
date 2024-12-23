@@ -1,4 +1,4 @@
-import { Heart, HomeLight, Crown, Brain, MessageCircle, BookOpen, NotePencil, Scroll, BookmarkSimple, ArrowLeft, Sparkle, Search, X, IconProps, Clock } from "@/components/Icons";
+import { Heart, HomeLight, Crown, Brain, MessageCircle, BookOpen, NotePencil, Scroll, BookmarkSimple, ArrowLeft, Sparkle, Search, X, IconProps, Clock, Filter } from "@/components/Icons";
 import { useTheme } from "@/contexts/ThemeContext";
 import { Theme } from "@/theme";
 import { User, RootStackParamList, SavedItemType, FoundationalVirtue, SavedItem, SavedItemsFilter } from "@/types";
@@ -69,7 +69,7 @@ const SavedItemsScreen: React.FC<NativeStackScreenProps<RootStackParamList, 'Sav
   const [items, setItems] = useState<SavedItem[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [filters, setFilters] = useState<SavedItemsFilter>({});
-  const [activeTab, setActiveTab] = useState<SavedItem['type']>('clip');
+  const [activeTab, setActiveTab] = useState<SavedItem['type'] | null>(null);
   const [showFilters, setShowFilters] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [pinnedItems, setPinnedItems] = useState<SavedItem[]>([]);
@@ -149,7 +149,7 @@ const SavedItemsScreen: React.FC<NativeStackScreenProps<RootStackParamList, 'Sav
       }
 
       //exclude pinned items
-      return !item.isPinned;
+      return activeTab ? true : !item.isPinned;
     });
   }, [items, activeTab, filters]);
 
@@ -291,7 +291,7 @@ const SavedItemsScreen: React.FC<NativeStackScreenProps<RootStackParamList, 'Sav
         </TouchableOpacity>
         <Text style={styles.title}>Saved Items</Text>
         <TouchableOpacity onPress={() => setShowFilters(true)}>
-          <BookmarkSimple size={24} color={theme.colors.primary} />
+          <Filter size={24} color={theme.colors.primary} />
         </TouchableOpacity>
       </View>
 
@@ -321,7 +321,13 @@ const SavedItemsScreen: React.FC<NativeStackScreenProps<RootStackParamList, 'Sav
               styles.tab,
               activeTab === tab.value && styles.activeTab
             ]}
-            onPress={() => setActiveTab(tab.value)}
+            onPress={() => {
+              if (activeTab === tab.value) {
+                setActiveTab(null);
+              } else {
+                setActiveTab(tab.value);
+              }
+            }}
           >
             <tab.Icon
               size={16}
@@ -343,7 +349,7 @@ const SavedItemsScreen: React.FC<NativeStackScreenProps<RootStackParamList, 'Sav
         showsVerticalScrollIndicator={false}
       >
         {/* Pinned Items */}
-        {pinnedItems.length > 0 && (
+        {!activeTab && pinnedItems.length > 0 && (
           <View style={styles.pinnedSection}>
             <Text style={styles.sectionTitle}>Pinned</Text>
             {pinnedItems.map(item => renderItem({ item }))}
@@ -352,7 +358,7 @@ const SavedItemsScreen: React.FC<NativeStackScreenProps<RootStackParamList, 'Sav
 
         {/* All Items */}
         <View style={styles.allItemsSection}>
-          <Text style={styles.sectionTitle}>All Saved</Text>
+          <Text style={styles.sectionTitle}>{activeTab ? activeTab.charAt(0).toUpperCase() + activeTab.slice(1) + 's' : 'Saved Items'}</Text>
           {filteredItems.map(item => renderItem({ item }))}
         </View>
       </ScrollView>

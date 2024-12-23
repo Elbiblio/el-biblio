@@ -6,30 +6,23 @@ import {
     TouchableOpacity,
     StyleSheet,
     Platform,
-    Dimensions,
 } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { BlurView } from 'expo-blur';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
     ArrowLeft,
-    Heart,
     Star,
-    Brain,
-    Crown,
     Sparkle,
     Info,
-    IconProps,
     Upvote,
-    BookOpen,
-    HomeLight,
     Check,
 } from '../components/Icons';
 import { Theme } from '@/theme';
 import { useTheme } from '@/contexts/ThemeContext';
 import * as Haptics from 'expo-haptics';
 import VerseTooltip from '../components/VerseTooltip';
-import { DailyVerse, DayVerses, RootStackParamList, THEMES } from '@/types';
+import { DailyVerse, DayVerses, RootStackParamList, sampleCurrentVerses, sampleUpcomingVerses, THEMES } from '@/types';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useThemeOfDay } from '@/utils/schedule';
 import { getTomorrowsTheme } from '@/utils/schedule';
@@ -44,69 +37,13 @@ const DailyVersesScreen = ({ navigation }: NativeStackScreenProps<RootStackParam
     const todayTheme = useThemeOfDay();
     const tomorrowTheme = getTomorrowsTheme();
 
+    const [currentVerses, setCurrentVerses] = useState(sampleCurrentVerses);
+    const [upcomingVerses, setUpcomingVerses] = useState(sampleUpcomingVerses);
+
     const [selectedTab, setSelectedTab] = useState<'current' | 'upcoming'>('current');
     const [selectedVerse, setSelectedVerse] = useState<DailyVerse | null>(null);
     const verseRef = useRef<View>(null);
 
-    // Example data structure for verses - replace with API call
-    const currentVerses: DayVerses = {
-        date: 'Mon, Dec 18',
-        moderatorVerses: [
-            {
-                id: '1',
-                reference: 'Proverbs 2:6',
-                text: "For the Lord gives wisdom; from his mouth come knowledge and understanding.",
-                votes: 245,
-                isVoted: true,
-                translation: 'NIV',
-                theme: 'knowledge',
-                isModerator: true,
-            },
-            // Add one for each theme...
-        ],
-        randomVerses: [
-            {
-                id: '5',
-                reference: 'Romans 8:28',
-                text: "And we know that in all things God works for the good of those who love him.",
-                votes: 156,
-                isVoted: false,
-                translation: 'NIV',
-                theme: 'faith',
-                isModerator: false,
-            },
-            // Add one for each theme...
-        ],
-    };
-    const upcomingVerses: DayVerses = {
-        date: 'Tues, Dec 19',
-        moderatorVerses: [
-            {
-                id: '1',
-                reference: 'Proverbs 2:6',
-                text: "For the Lord gives wisdom; from his mouth come knowledge and understanding.",
-                votes: 245,
-                isVoted: true,
-                translation: 'NIV',
-                theme: 'knowledge',
-                isModerator: true,
-            },
-            // Add one for each theme...
-        ],
-        randomVerses: [
-            {
-                id: '5',
-                reference: 'Romans 8:28',
-                text: "And we know that in all things God works for the good of those who love him.",
-                votes: 156,
-                isVoted: false,
-                translation: 'NIV',
-                theme: 'faith',
-                isModerator: false,
-            },
-            // Add one for each theme...
-        ],
-    };
     const selectedTheme = selectedTab === 'current' ? todayTheme : tomorrowTheme;
 
     const formattedTheme = {

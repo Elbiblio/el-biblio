@@ -17,8 +17,6 @@ import Animated, {
   withRepeat,
   withTiming,
   interpolate,
-  Extrapolation,
-  runOnJS,
   cancelAnimation,
 } from 'react-native-reanimated';
 import { BlurView } from 'expo-blur';
@@ -26,11 +24,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import {
-  Heart,
-  Users,
   ArrowLeft,
   Sparkle,
-  Crown,
   ChevronRight,
   ChevronLeft,
   BookReader,
@@ -40,9 +35,9 @@ import {
   ArrowRightPlay,
   Check,
   Clock,
+  IconProps,
 } from '../components/Icons';
 import AvatarStack from '@/components/AvatarStack';
-import CircleButton from '@/components/CircleButton';
 import { Theme } from '@/theme';
 import { useTheme } from '@/contexts/ThemeContext';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -54,13 +49,13 @@ const SLIDER_KNOB_SIZE = 64;
 
 interface MatchModeOption {
   mode: 'unity' | 'diversity' | 'any';
-  icon: typeof Heart;
+  icon: React.FC<IconProps>;
   title: string;
   color: string;
 }
 
 interface CollapsedOption {
-  icon: typeof Heart;
+  icon: React.FC<IconProps>;
   label: string;
   value: string | number;
   color: string;
@@ -504,7 +499,7 @@ const MatchScreen: React.FC<NativeStackScreenProps<RootStackParamList, 'MatchScr
                 <BookReader size={32} color={theme.colors.primary} />
               </LinearGradient>
             </View>
-            <Text style={styles.introTitle}>Connect in Faith</Text>
+            <Text style={styles.introTitle}>Connect and Share</Text>
             <Text style={styles.introDescription}>
               Share a meaningful 15-minute conversation based on common or diverging views. Choose your
               preference below.

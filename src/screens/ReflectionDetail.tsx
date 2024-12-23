@@ -56,39 +56,7 @@ const ReflectionDetail: React.FC<ReflectionDetailProps> = ({ navigation, route }
   const headerOpacity = useSharedValue(1);
   const commentInputHeight = useSharedValue(0);
   const styles = React.useMemo(() => createStyles(theme), [theme]);
-
-  // Mock data - move to a data fetching hook or service in production
-  const reflection: Reflection = {
-    id: route.params.reflectionId,
-    author: {
-      id: 'user1',
-      first_name: 'Sarah',
-      last_name: 'Mitchell',
-      avatar: 'https://example.com/avatar1.jpg'
-    },
-    content: "This verse reminds me that in our most exhausting moments, God provides the strength we need. It's not about our own power, but about trusting in His timing and purposes. Sometimes we need to step back and remember who is really in control.",
-    timestamp: '2h ago',
-    likes: 42,
-    type: 'story',
-    icon: '✨',
-    isLiked: false,
-    comments: [
-      {
-        id: 'comment1',
-        parentId: null,
-        author: {
-          id: 'user2',
-          first_name: 'John',
-          last_name: 'Doe',
-          avatar: 'https://example.com/john.jpg'
-        },
-        content: "Such a beautiful reminder of God's faithfulness. Thank you for sharing!",
-        likes: 15,
-        timestamp: '5m ago',
-        isLiked: false
-      }
-    ],
-  };
+  const reflection = route.params.reflection;
 
   // Load initial data
   useEffect(() => {

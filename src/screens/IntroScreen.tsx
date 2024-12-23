@@ -5,29 +5,16 @@ import {
   ScrollView,
   TouchableOpacity,
   StyleSheet,
-  Dimensions,
   Platform,
 } from 'react-native';
 import { useSharedValue } from 'react-native-reanimated';
 import { BlurView } from 'expo-blur';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { 
-  Book, 
-  Heart, 
-  ScrollText,
-  Scroll,
   ChevronRight,
   ChevronLeft,
   X,
   Sparkle,
-  Brain,
-  PrayingHands,
-  Crown,
-  IconProps,
-  Cross,
-  DivineStrength,
-  DivineLight,
-  HomeLight,
 } from '../components/Icons';
 import { Theme } from '@/theme';
 import { useTheme, useWelcomeState } from '@/contexts/ThemeContext';
@@ -35,9 +22,9 @@ import * as Haptics from 'expo-haptics';
 import { RootStackParamList } from '@/types';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { OnboardingStep, STEPS } from '@/constants';
+import { SCREEN_DIMENSIONS } from '@/constants';
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
-
+const SCREEN_WIDTH = SCREEN_DIMENSIONS.width;
 
 type IntroScreenProps = NativeStackScreenProps<RootStackParamList, 'IntroScreen'>;
 
