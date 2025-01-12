@@ -5,7 +5,7 @@ import Animated, {
   withSpring 
 } from 'react-native-reanimated';
 import { User } from '../types';
-import { getCurrentTheme } from '@/theme/store';
+import { getCurrentTheme } from '@/stores/theme';
 
 interface AvatarGroupProps {
   users: User[];

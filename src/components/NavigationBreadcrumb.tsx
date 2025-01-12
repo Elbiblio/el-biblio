@@ -6,7 +6,7 @@ import Animated, {
   interpolateColor,
 } from 'react-native-reanimated';
 import { ChevronRight } from './Icons';
-import { getCurrentTheme } from '@/theme/store';
+import { getCurrentTheme } from '@/stores/theme';
 
 const theme = getCurrentTheme();
 

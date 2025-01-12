@@ -12,7 +12,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { ChevronRight, IconProps, Plus } from './Icons';
 import { useTheme } from '@/contexts/ThemeContext';
-import { getCurrentTheme } from '@/theme/store';
+import { getCurrentTheme } from '@/stores/theme';
 
 interface CircleButtonProps {
   size?: number;

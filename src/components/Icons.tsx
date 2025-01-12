@@ -5,7 +5,7 @@ import Feather from 'react-native-vector-icons/Feather';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import FontAwesome6 from 'react-native-vector-icons/FontAwesome6';
 import Entypo from 'react-native-vector-icons/Entypo';
-import { getCurrentTheme } from '@/theme/store';
+import { getCurrentTheme } from '@/stores/theme';
 
 const theme = getCurrentTheme();
 

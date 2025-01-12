@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
 import { themeColors, ThemeVariant } from '../theme';
 import { useTheme, useThemeVariant } from '../contexts/ThemeContext';
-import { useThemeStore } from '@/theme/store';
+import { useThemeStore } from '@/stores/theme';
 
 interface ThemeSelectorProps {
   onSelect: (variant: ThemeVariant) => void;

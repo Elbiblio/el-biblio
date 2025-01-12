@@ -8,7 +8,7 @@ import Animated, {
   Extrapolation
 } from 'react-native-reanimated';
 import { SCREEN_DIMENSIONS } from '../constants';
-import { getCurrentTheme } from '@/theme/store';
+import { getCurrentTheme } from '@/stores/theme';
 
 interface ProgressIndicatorProps {
   scrollX: SharedValue<number>;
