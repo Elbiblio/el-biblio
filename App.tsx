@@ -4,7 +4,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { ThemeProvider } from './src/contexts/ThemeContext';
+import { ThemeProvider, useTheme } from './src/contexts/ThemeContext';
 import CustomSplash from './src/components/CustomSplash';
 import ThemeSelector from './src/components/ThemeSelector';
 import HomeScreen from './src/screens/HomeScreen';
@@ -19,7 +19,7 @@ import NotesScreen from './src/screens/NotesScreen';
 import { RootStackParamList } from './src/types';
 import { useAppFonts } from './src/hooks/useFonts';
 import { getTheme, ThemeVariant, defaultTheme } from './src/theme';
-import { useThemeStore } from './src/theme/store';
+import { Toaster } from 'sonner-native';
 import { useWelcomeState } from './src/contexts/ThemeContext';
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const THEME_STORAGE_KEY = '@app_theme';
@@ -30,7 +30,7 @@ const App = () => {
   const [initialTheme, setInitialTheme] = useState(defaultTheme);
   const [showThemeSelector, setShowThemeSelector] = useState(false);
   const [isSplashComplete, setIsSplashComplete] = useState(false);
-  const theme = useThemeStore();
+  const theme = useTheme();
 
   useEffect(() => {
     const initialize = async () => {
@@ -43,9 +43,9 @@ const App = () => {
     initialize();
   }, []);
 
-  useEffect(() => {
-    theme.setTheme(initialTheme)
-  }, [initialTheme])
+  // useEffect(() => {
+  //   theme.setTheme(initialTheme)
+  // }, [initialTheme])
 
   const loadSavedTheme = async () => {
     try {
@@ -96,6 +96,7 @@ const App = () => {
     
     return (
       <NavigationContainer>
+        <Toaster />
         <Stack.Navigator screenOptions={{ headerShown: false }}>
           {!hasCompletedWelcome ? (
             <Stack.Screen name="IntroScreen" component={IntroScreen} />

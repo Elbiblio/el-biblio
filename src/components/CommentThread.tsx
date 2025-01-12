@@ -20,7 +20,7 @@ import { Theme } from '@/theme';
 interface CommentThreadProps {
   comment: Comment;
   level?: number;
-  onReply: (commentId: string) => void;
+  onReply: (comment: Comment) => void;
   onLike: (commentId: string) => void;
 }
 
@@ -110,7 +110,7 @@ const CommentThread: React.FC<CommentThreadProps> = ({
           </Animated.View>
 
           <TouchableOpacity
-            onPress={() => onReply(comment.id)}
+            onPress={() => onReply(comment)}
             style={styles.actionButton}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >

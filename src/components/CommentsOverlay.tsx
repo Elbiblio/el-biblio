@@ -21,9 +21,10 @@ import { Comment, Reflection } from '../types';
 import { useTheme } from '@/contexts/ThemeContext';
 import { X, Send } from './Icons';
 import CommentThread from './CommentThread';
-import { getCurrentTheme, useThemeStore } from '@/theme/store';
 import { SCREEN_DIMENSIONS } from '@/constants';
 import { Theme } from '@/theme';
+import { useVerseStore } from '@/stores/verse';
+import { useAuth } from '@/stores/auth';
 
 interface CommentsOverlayProps {
   visible: boolean;
@@ -38,10 +39,17 @@ const CommentsOverlay: React.FC<CommentsOverlayProps> = ({
 }) => {
   const theme = useTheme();
   const styles = React.useMemo(() => createStyles(theme), [theme]);
-  const [activeComment, setActiveComment] = useState<string | null>(null);
-  const [newComment, setNewComment] = useState('');
+  const { user } = useAuth();
+  const { createComment, createInteraction } = useVerseStore();
+  
+  // Local state
+  const [commentText, setCommentText] = useState('');
+  const [replyingTo, setReplyingTo] = useState<Comment | null>(null);
+  
+  // Animation values
   const translateY = useSharedValue(visible ? 0 : SCREEN_DIMENSIONS.height);
 
+  // Update animation when visibility changes
   React.useEffect(() => {
     translateY.value = withSpring(visible ? 0 : SCREEN_DIMENSIONS.height, {
       damping: 15,
@@ -63,27 +71,36 @@ const CommentsOverlay: React.FC<CommentsOverlayProps> = ({
     };
   });
 
-  const handleReply = useCallback((commentId: string) => {
-    setActiveComment(commentId);
+  const handleReply = useCallback((comment: Comment) => {
+    setReplyingTo(comment);
   }, []);
 
-  const handleSubmit = useCallback(() => {
-    if (newComment.trim()) {
-      // Add comment logic here
-      setNewComment('');
-      setActiveComment(null);
+  const handleSubmitComment = useCallback(async () => {
+    if (!commentText.trim() || !user || !reflection) return;
+    
+    try {
+      await createComment({
+        content: commentText.trim(),
+        reflection_id: reflection.id,
+        parent_id: replyingTo?.id,
+        user_id: user.id
+      });
+      
+      // Clear input and reply state
+      setCommentText('');
+      setReplyingTo(null);
+    } catch (error) {
+      console.error('Error submitting comment:', error);
+      // Optionally show error toast
     }
-  }, [newComment]);
+  }, [commentText, replyingTo, user, reflection, createComment]);
 
-  const renderComment = useCallback(({ item }: { item: Comment }) => (
-    <CommentThread
-      comment={item}
-      onReply={handleReply}
-      onLike={() => {}}
-    />
-  ), [handleReply]);
-
-  if (!reflection) return null;
+  const handleClose = useCallback(() => {
+    // Reset states
+    setCommentText('');
+    setReplyingTo(null);
+    onClose();
+  }, [onClose]);
 
   return (
     <KeyboardAvoidingView
@@ -93,7 +110,7 @@ const CommentsOverlay: React.FC<CommentsOverlayProps> = ({
       <BlurView intensity={20} style={StyleSheet.absoluteFill}>
         <TouchableOpacity
           style={styles.backdrop}
-          onPress={onClose}
+          onPress={handleClose}
           activeOpacity={1}
         />
       </BlurView>
@@ -103,28 +120,42 @@ const CommentsOverlay: React.FC<CommentsOverlayProps> = ({
           <View style={styles.headerContent}>
             <Text style={styles.title}>Comments</Text>
             <Text style={styles.subtitle}>
-              {reflection.comments.length} responses
+              {reflection?.comments?.length || 0} responses
             </Text>
           </View>
-          <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+          <TouchableOpacity onPress={handleClose} style={styles.closeButton}>
             <X size={24} color={theme.colors.text.secondary} />
           </TouchableOpacity>
         </View>
 
         <FlatList
-          data={reflection.comments}
-          renderItem={renderComment}
+          data={reflection?.comments || []}
+          renderItem={({ item }) => (
+            <CommentThread
+              comment={item}
+              onReply={handleReply}
+              onLike={async () => {
+                if (!user) return;
+                await createInteraction({
+                  interactable_id: item.id,
+                  interactable_type: 'App\\Models\\Comment',
+                  type: 1, // Like
+                  user_id: user.id
+                });
+              }}
+            />
+          )}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.commentsList}
         />
 
         <View style={styles.inputContainer}>
-          {activeComment && (
+          {replyingTo && (
             <View style={styles.replyingTo}>
               <Text style={styles.replyingToText}>
-                Replying to comment
+                Replying to {replyingTo.author.first_name}
               </Text>
-              <TouchableOpacity onPress={() => setActiveComment(null)}>
+              <TouchableOpacity onPress={() => setReplyingTo(null)}>
                 <Text style={styles.cancelReply}>Cancel</Text>
               </TouchableOpacity>
             </View>
@@ -134,16 +165,16 @@ const CommentsOverlay: React.FC<CommentsOverlayProps> = ({
               style={styles.input}
               placeholder="Add a comment..."
               multiline
-              value={newComment}
-              onChangeText={setNewComment}
+              value={commentText}
+              onChangeText={setCommentText}
             />
             <TouchableOpacity 
               style={[
                 styles.sendButton,
-                !newComment.trim() && styles.sendButtonDisabled
+                !commentText.trim() && styles.sendButtonDisabled
               ]}
-              onPress={handleSubmit}
-              disabled={!newComment.trim()}
+              onPress={handleSubmitComment}
+              disabled={!commentText.trim()}
             >
               <Send size={20} color={theme.colors.text.inverse} />
             </TouchableOpacity>

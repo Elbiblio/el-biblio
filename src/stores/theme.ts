@@ -1,4 +1,4 @@
-import { Theme, defaultTheme } from './index';
+import { Theme, defaultTheme } from './../theme';
 import { create } from 'zustand';
 
 interface ThemeStore {

@@ -43,6 +43,7 @@ interface NoteEditorProps {
     virtues: AllVirtues[];
   }) => void;
   onCancel: () => void;
+  onDelete?: () => Promise<void>;
   onShowVirtueSelector: () => void;
   selectedVirtues: AllVirtues[];
   isEditing?: boolean;
@@ -54,6 +55,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
   initialVirtues = [],
   onSubmit,
   onCancel,
+  onDelete,
   onShowVirtueSelector,
   selectedVirtues,
   isEditing = true,
@@ -75,6 +77,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
   const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
   const [showVerseSelector, setShowVerseSelector] = useState(false);
   const [mode, setMode] = useState<'read' | 'edit'>(isEditing ? 'edit' : 'read');
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   // Animated values
   const modalY = useSharedValue(SCREEN_DIMENSIONS.height);
@@ -318,9 +321,9 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
   }, [content, selection]);
 
   return (
-    <>
+<>
       <Animated.View style={[styles.modalContainer, containerStyle]}>
-        <BlurView intensity={20} style={[StyleSheet.absoluteFill, styles.blurBackground]} />
+        <AnimatedBlurView intensity={20} style={[StyleSheet.absoluteFill, styles.blurBackground]} />
 
         <KeyboardAvoidingView
           style={[styles.container, { paddingTop: insets.top }]}
@@ -331,17 +334,42 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
             <TouchableOpacity onPress={handleClose}>
               <X size={24} color={theme.colors.text.primary} />
             </TouchableOpacity>
-            {mode === 'edit' && (
-              <TouchableOpacity
-                style={styles.virtuesButton}
-                onPress={onShowVirtueSelector}
-              >
-                <Sparkle size={20} color={theme.colors.primary} />
-                <Text style={styles.virtuesButtonText}>
-                  {selectedVirtues.length === 0 ? 'Select Virtues' : `${selectedVirtues.length} selected`}
-                </Text>
-              </TouchableOpacity>
-            )}
+
+            <View style={styles.headerActions}>
+              {onDelete && mode === 'read' && (
+                <TouchableOpacity
+                  style={[styles.deleteButton, showDeleteConfirm && styles.deleteButtonConfirm]}
+                  onPress={() => {
+                    if (showDeleteConfirm) {
+                      onDelete();
+                    } else {
+                      setShowDeleteConfirm(true);
+                      // Auto-hide confirmation after 3 seconds
+                      setTimeout(() => setShowDeleteConfirm(false), 3000);
+                    }
+                  }}
+                >
+                  <Text style={[
+                    styles.deleteButtonText,
+                    showDeleteConfirm && styles.deleteButtonTextConfirm
+                  ]}>
+                    {showDeleteConfirm ? 'Tap again to delete' : 'Delete'}
+                  </Text>
+                </TouchableOpacity>
+              )}
+
+              {mode === 'edit' && (
+                <TouchableOpacity
+                  style={styles.virtuesButton}
+                  onPress={onShowVirtueSelector}
+                >
+                  <Sparkle size={20} color={theme.colors.primary} />
+                  <Text style={styles.virtuesButtonText}>
+                    {selectedVirtues.length === 0 ? 'Select Virtues' : `${selectedVirtues.length} selected`}
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </View>
           </View>
 
           {mode === 'read' ? (
@@ -512,6 +540,31 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     padding: theme.spacing.md,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
+  },
+
+  deleteButton: {
+    paddingVertical: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.md,
+    borderRadius: theme.borderRadius.full,
+    backgroundColor: `${theme.colors.error}15`,
+  },
+
+  deleteButtonConfirm: {
+    backgroundColor: theme.colors.error,
+  },
+
+  deleteButtonText: {
+    ...theme.typography.caption.primary,
+    color: theme.colors.error,
+  },
+
+  deleteButtonTextConfirm: {
+    color: theme.colors.text.inverse,
   },
   titleContainer: {
     paddingHorizontal: theme.spacing.md,

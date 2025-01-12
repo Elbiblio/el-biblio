@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   View,
   ScrollView,
@@ -31,14 +31,15 @@ import {
   Bible,
 } from './../components/Icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Reflection, RootStackParamList, sampleDailyVerses, User, Verse } from '@/types';
+import { DailyVerse, Reflection, RootStackParamList, sampleDailyVerses, User, Verse } from '@/types';
 import AvatarStack from '@/components/AvatarStack';
 import CircleButton from '@/components/CircleButton';
-import { getTheme, Theme } from '@/theme';
-import { getCurrentTheme } from '@/theme/store';
+import { Theme } from '@/theme';
 import { useTheme } from '@/contexts/ThemeContext';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { SCREEN_DIMENSIONS } from '@/constants';
+import axios from 'axios';
+import { useVerseStore } from '@/stores/verse';
 
 const AnimatedBlurView = Animated.createAnimatedComponent(BlurView);
 const CARD_WIDTH = SCREEN_DIMENSIONS.width * 0.9;
@@ -72,7 +73,7 @@ const QuickActionCard = ({ action, index, actionStyles, navigation }: { action: 
 
 type HomeProps = NativeStackScreenProps<RootStackParamList, 'Home'>;
 
-const HomeScreen: React.FC<HomeProps> = ({navigation}) => {
+const HomeScreen: React.FC<HomeProps> = ({ navigation }) => {
   const insets = useSafeAreaInsets();
   const pointsScale = useSharedValue(1);
   const [activeVerse, setActiveVerse] = useState<string | null>(null);
@@ -84,9 +85,18 @@ const HomeScreen: React.FC<HomeProps> = ({navigation}) => {
   const theme = useTheme()
   const styles = React.useMemo(() => createStyles(theme), [theme]);
   const actionStyles = React.useMemo(() => createActionStyles(theme), [theme]);
-  const themeText = {color: theme?.colors.primary};
-  const [dailyVerses, setDailyVerses] = useState<Verse[]>(sampleDailyVerses);
+  const themeText = { color: theme?.colors.primary };
+//  const [dailyVerses, setDailyVerses] = useState<Verse[]>(sampleDailyVerses);
 
+const { 
+  dailyVerses,
+  isDailyVersesLoading,
+  fetchDailyVerses 
+} = useVerseStore();
+
+useEffect(() => {
+  fetchDailyVerses();
+}, []);
 
   const headerAnimatedStyle = useAnimatedStyle(() => ({
     transform: [
@@ -110,7 +120,7 @@ const HomeScreen: React.FC<HomeProps> = ({navigation}) => {
   const ScrollIndicators = () => {
     return (
       <View style={styles.indicatorContainer}>
-        {dailyVerses.map((_, index) => {
+        {dailyVerses?.map((_, index) => {
           const animatedStyle = useAnimatedStyle(() => {
             const width = interpolate(
               scrollX.value,
@@ -161,7 +171,7 @@ const HomeScreen: React.FC<HomeProps> = ({navigation}) => {
       withTiming(0.95, { duration: 100 }),
       withTiming(1, { duration: 100 })
     );
-    navigation.navigate("VerseDetail", {verse});
+    navigation.navigate("VerseDetail", { verse });
   };
 
   const handleVerseScroll = useCallback((event: any) => {
@@ -249,7 +259,7 @@ const HomeScreen: React.FC<HomeProps> = ({navigation}) => {
             scrollEventThrottle={16}
             pagingEnabled
           >
-            {dailyVerses.map((verse: Verse) => (
+            {dailyVerses?.map((verse: Verse) => (
               <Animated.View
                 key={verse.id}
                 style={[
@@ -274,13 +284,15 @@ const HomeScreen: React.FC<HomeProps> = ({navigation}) => {
                     </View>
 
                     <View style={styles.verseContent}>
-                      {verse.trending && (
-                        <View style={styles.trendingBadge}>
-                          <Sparkle size={12} color={theme?.colors.primary} />
-                          <Text style={[styles.trendingText, themeText]}>345 reactions</Text>
-                        </View>
-                      )}
-
+                      <View style={styles.trendingBadge}>
+                        <Sparkle size={12} color={theme?.colors.primary} />
+                        <Text style={[styles.trendingText, themeText]}>
+                          {(() => {
+                            const totalReactions = verse.likes + verse.shares + (verse.reflections?.length ?? 0);
+                            return `${totalReactions} ${totalReactions === 1 ? 'reaction' : 'reactions'}`;
+                          })()}
+                        </Text>
+                      </View>
                       <Text style={styles.verseText} numberOfLines={3}>
                         {verse.text}
                       </Text>
@@ -295,27 +307,45 @@ const HomeScreen: React.FC<HomeProps> = ({navigation}) => {
                           <ScrollIndicators />
                         </View>
                       </View>
-
-
                       <View style={styles.interactionsContainer}>
                         <View style={styles.reflectionMeta}>
-                          <AvatarStack
-                            users={verse.reflections.map((reflection: Reflection) => reflection.author)}
-                            maxAvatars={3}
-                            size={24}
-                          />
-                          <Text style={styles.reflectionCount}>
-                            {" "} +{verse.reflections.length - 3}  others  sharing
-                          </Text>
-
+                          {verse.reflections && verse.reflections.length > 3 && (
+                            <>
+                              <AvatarStack
+                                users={verse.reflections.map((reflection: Reflection) => reflection.user)}
+                                maxAvatars={3}
+                                size={24}
+                              />
+                              <Text style={styles.reflectionCount}>
+                                {` +${verse.reflections.length - 3} ${verse.reflections.length - 3 === 1 ? 'other' : 'others'} sharing`}
+                              </Text>
+                            </>
+                          )}
+                          {verse.reflections && verse.reflections.length > 0 && verse.reflections.length <= 3 && (
+                            <>
+                              <AvatarStack
+                                users={verse.reflections.map((reflection: Reflection) => reflection.user)}
+                                maxAvatars={3}
+                                size={24}
+                              />
+                              <Text style={styles.reflectionCount}>
+                                {verse.reflections.length === 2
+                                  ? `${verse.reflections[0].user.first_name} and 1 other sharing`
+                                  : verse.reflections.length === 3
+                                    ? `${verse.reflections[0].user.first_name} and 2 others sharing`
+                                    : `${verse.reflections[0].user.first_name} sharing`
+                                }
+                              </Text>
+                            </>
+                          )}
                         </View>
-                        
+
                         <CircleButton
-                            size={32}
-                            style={styles.expandButton}
-                            Icon={ChevronRight}
-                            onPress={() => { }}
-                          />
+                          size={32}
+                          style={styles.expandButton}
+                          Icon={ChevronRight}
+                          onPress={() => { }}
+                        />
 
                       </View>
                     </View>
@@ -544,7 +574,7 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     marginBottom: theme?.spacing.md,
   },
   verseCard: {
-    height: 300,
+    paddingTop: 20,
     backgroundColor: theme?.colors.background,
     borderRadius: theme?.borderRadius.xl,
     overflow: 'hidden',
@@ -734,8 +764,8 @@ const createStyles = (theme: Theme) => StyleSheet.create({
 
   verseSymbol: {
     position: 'absolute',
-    top: theme?.spacing.md,
-    right: theme?.spacing.md,
+    top: theme?.spacing.sm,
+    right: theme?.spacing.sm,
     zIndex: 2,
   },
   symbolGradient: {

@@ -60,25 +60,33 @@ export interface SavedItemsFilter {
   searchQuery?: string;
 }
 
+export interface ThemeType {
+  id: string;
+  name: string;
+  color_code?: string;
+  display_name: string;
+  is_foundational: boolean;
+}
+
 export interface Verse {
   id: string;
   text: string;
   reference: string;
   translation?: string;
-  reflections: Reflection[];
+  reflections?: Reflection[];
   likes: number;
   shares: number;
   isLiked?: boolean;
   isBookmarked?: boolean;
-  trending?: boolean;
+  is_trending?: boolean;
 
-  theme?: FoundationalVirtue;
+  theme?: ThemeType;
 }
 
 const sampleReflections: Reflection[] = [
   {
     id: '1',
-    author: {
+    user: {
       id: 'user1',
       first_name: 'Sarah',
       last_name: 'Mitchell',
@@ -109,7 +117,7 @@ const sampleReflections: Reflection[] = [
   },
   {
     id: '2',
-    author: {
+    user: {
       id: 'user2',
       first_name: 'Alice',
       last_name: 'Johnson',
@@ -125,7 +133,7 @@ const sampleReflections: Reflection[] = [
   },
   {
     id: '3',
-    author: {
+    user: {
       id: 'user3',
       first_name: 'Bob',
       last_name: 'Manuel',
@@ -142,6 +150,13 @@ const sampleReflections: Reflection[] = [
   // Add more reflections here...
 ];
 
+export const FaithTheme: ThemeType = {
+  id: "3",
+  name: "faith",
+  display_name: "Faith",
+  is_foundational: true
+}
+
 export const sampleVerse: Verse = {
   id: '1',
   text: "But those who hope in the Lord will renew their strength. They will soar on wings like eagles; they will run and not grow weary, they will walk and not be faint.",
@@ -150,8 +165,8 @@ export const sampleVerse: Verse = {
   likes: 342,
   reflections: sampleReflections,
   shares: 56,
-  theme: 'faith',
-  trending: true,
+  theme: FaithTheme,
+  is_trending: true,
 };
 
 export const sampleDailyVerses: Verse[] = [
@@ -161,10 +176,10 @@ export const sampleDailyVerses: Verse[] = [
     reference: "Isaiah 40:31",
     translation: "ESV",
     reflections: sampleReflections,
-    trending: true,
+    is_trending: true,
     likes: 342,
     shares: 27,
-    theme: "faith"
+    theme: FaithTheme
   },
   // ... more verses
 ];
@@ -272,9 +287,9 @@ export interface Note {
   title: string;
   content: string;
   virtues: AllVirtues[];
-  createdAt: string;
-  updatedAt: string;
-  isPinned: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+  isPinned?: boolean;
   color?: string; // For note background tint
 }
 
@@ -297,7 +312,7 @@ export type DayVerses = {
 
 export interface Reflection {
   id: string;
-  author: User;
+  user: User;
   content: string;
   type: 'story' | 'insight';
   icon: string;

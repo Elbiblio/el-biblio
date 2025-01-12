@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,11 +7,8 @@ import {
   StyleSheet,
   Platform,
   TextInput,
-  Dimensions,
-  ViewToken,
-  NativeScrollEvent,
-  NativeSyntheticEvent,
   ScrollView,
+  ActivityIndicator,
 } from 'react-native';
 import Animated, {
   useSharedValue,
@@ -19,87 +16,178 @@ import Animated, {
   withSpring,
   withTiming,
   interpolate,
-  withSequence,
   Extrapolation,
 } from 'react-native-reanimated';
 import { BlurView } from 'expo-blur';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
 import {
   Heart,
   MessageCircle,
   Share,
   BookmarkSimple,
   ArrowLeft,
-  Sparkle,
   Send,
   Copy,
 } from '../components/Icons';
 import ReflectionCard from '../components/ReflectionCard';
-import ReflectionDivider from '../components/ReflectionDivider';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { Reflection, RootStackParamList } from '../types';
 import { useTheme } from '@/contexts/ThemeContext';
-import { getCurrentTheme, useThemeStore } from '@/theme/store';
 import CommentsOverlay from '@/components/CommentsOverlay';
 import { Theme } from '@/theme';
-import { SCREEN_DIMENSIONS, wp } from '@/constants';
-import ScrollIndicator from '@/components/ScrollIndicator';
+import { SCREEN_DIMENSIONS } from '@/constants';
+import { useVerseStore } from '@/stores/verse';
+import { useClipboard } from '@react-native-clipboard/clipboard';
+import { useAuth } from '@/stores/auth';
+import { toast } from 'sonner-native';
 
 type VerseDetailProps = NativeStackScreenProps<RootStackParamList, 'VerseDetail'>;
-
-interface ViewableItemsChanged {
-  viewableItems: ViewToken[];
-  changed: ViewToken[];
-}
 
 const VerseDetail: React.FC<VerseDetailProps> = ({ navigation, route }) => {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
+  const { user } = useAuth();
+  const [clipboard, setClipboard] = useClipboard();
+  const styles = React.useMemo(() => createStyles(theme), [theme]);
+  
+  // Store state and actions
+  const {
+    currentVerse,
+    isVerseLoading,
+    isReflectionsLoading,
+    fetchVerseById,
+    createInteraction,
+    createReflection,
+    createBookmark
+  } = useVerseStore();
+
+  // Local state
   const [currentReflectionIndex, setCurrentReflectionIndex] = useState(0);
   const [showReflectionInput, setShowReflectionInput] = useState(false);
   const [reflectionText, setReflectionText] = useState('');
-  const [isBookmarked, setIsBookmarked] = useState(false);
-  const [isLiked, setIsLiked] = useState(false);
-  const styles = React.useMemo(() => createStyles(theme), [theme]);
-  const [verse, setVerse] = useState(route.params.verse);
-  const [reflections, setReflections] = useState(verse.reflections);
+  const [reflectionType, setReflectionType] = useState<1 | 2>(1); // 1: story, 2: insight
+  const [activeCommentReflectionId, setActiveCommentReflectionId] = useState<string | null>(null);
 
   // Animated values
-  const bookmarkScale = useSharedValue(1);
-  const likeScale = useSharedValue(1);
-  const scrollX = useSharedValue(0);
   const scrollY = useSharedValue(0);
+  const scrollX = useSharedValue(0);
+  const headerOpacity = useSharedValue(1);
 
   // Refs
   const flatListRef = useRef<FlatList>(null);
-  const reflectionInputRef = useRef<TextInput>(null);
 
-  // Viewability config for FlatList
-  const viewabilityConfig = useRef({
-    itemVisiblePercentThreshold: 50,
-    minimumViewTime: 100,
-  }).current;
+  // Load verse data
+  useEffect(() => {
+    const loadVerse = async () => {
+      // First load verse without reflections for quick display
+      await fetchVerseById(route.params.verse.id);
+      // Then load with reflections
+      await fetchVerseById(route.params.verse.id, true);
+    };
+    loadVerse();
+  }, [route.params.verse.id]);
 
-  const onViewableItemsChanged = useCallback(({ viewableItems }: ViewableItemsChanged) => {
-    if (viewableItems.length > 0) {
-      const index = viewableItems[0].index ?? 0;
-      setCurrentReflectionIndex(index);
+  // Event handlers
+  const handleLike = async () => {
+    if (!currentVerse || !user) {
+      toast.info('Please log in to like verses');
+      return;
     }
-  }, []);
+    
+    try {
+      await createInteraction({
+        interactable_id: currentVerse.id,
+        interactable_type: 'App\\Models\\Verse',
+        type: 1, // Like
+        user_id: user.id
+      });
+      toast.success(currentVerse.isLiked ? 'Verse unliked' : 'Verse liked');
+    } catch (error) {
+      toast.warning('Failed to like verse');
+    }
+  };
 
-  const viewabilityConfigCallbackPairs = useRef([
-    { viewabilityConfig, onViewableItemsChanged },
-  ]).current;
+  const handleBookmark = async (clipText?: string) => {
+    if (!currentVerse || !user) {
+      toast.info('Please log in to bookmark verses');
+      return;
+    }
+    
+    try {
+      await createBookmark({
+        user_id: user.id,
+        bookmarkable_type: 'App\\Models\\Verse',
+        bookmarkable_id: currentVerse.id,
+        clip_text: clipText
+      });
+      toast.success(currentVerse.isBookmarked ? 'Bookmark removed' : 'Verse bookmarked');
+    } catch (error) {      
+      toast.error('Failed to bookmark verse');
+    }
+  };
+
+  const handleShare = async () => {
+    if (!currentVerse) return;
+    
+    try {
+      await createInteraction({
+        interactable_id: currentVerse.id,
+        interactable_type: 'App\\Models\\Verse',
+        type: 3, // Share
+        user_id: user?.id
+      });
+      
+      // Here you would implement the actual share functionality
+      // For example:
+      // await Share.share({
+      //   message: `${currentVerse.text} (${currentVerse.reference})`
+      // });
+      
+    } catch (error) {
+      toast.error('Failed to share verse');
+    }
+  };
+
+  const handleCopyVerse = async () => {
+    if (!currentVerse) return;
+    
+    try {
+      await setClipboard(
+        `${currentVerse.text} (${currentVerse.reference})`
+      );
+      toast.success('Verse copied to clipboard');
+    } catch (error) {
+      toast.error('Failed to copy verse');
+    }
+  };
+
+  const handleSubmitReflection = async () => {
+    if (!reflectionText.trim() || !currentVerse || !user) {
+      if (!user) {
+        toast.info('Please log in to share reflections');
+      }
+      return;
+    }
+    
+    try {
+      await createReflection({
+        content: reflectionText.trim(),
+        type: reflectionType,
+        user_id: user.id,
+        verse_id: currentVerse.id
+      });
+      
+      setReflectionText('');
+      setShowReflectionInput(false);
+      toast.success('Reflection shared successfully');
+    } catch (error) {
+      toast.error('Failed to share reflection');
+    }
+  };
 
   // Animation styles
   const headerStyle = useAnimatedStyle(() => ({
-    opacity: interpolate(
-      scrollY.value,
-      [0, 100],
-      [1, 0.2],
-      Extrapolation.CLAMP
-    ),
+    opacity: headerOpacity.value,
     transform: [{
       translateY: interpolate(
         scrollY.value,
@@ -114,142 +202,39 @@ const VerseDetail: React.FC<VerseDetailProps> = ({ navigation, route }) => {
     opacity: interpolate(
       scrollY.value,
       [0, 100],
-      [0, 1],
+      [0.8, 1],
       Extrapolation.CLAMP
     ),
+    backgroundColor: `${theme.colors.background}${
+      interpolate(scrollY.value, [0, 100], [0, 99], Extrapolation.CLAMP)
+        .toString(16)
+        .padStart(2, '0')
+    }`,
   }));
 
-  // Event handlers
-  const handleScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
-    const { x, y } = event.nativeEvent.contentOffset;
-    scrollX.value = x;
-    scrollY.value = y;
-  };
-
-  const handleBookmark = () => {
-    setIsBookmarked(!isBookmarked);
-    bookmarkScale.value = withSequence(
-      withSpring(1.2),
-      withSpring(1)
+  const handleScroll = useCallback(({ nativeEvent }: { nativeEvent: any }) => {
+    scrollY.value = nativeEvent.contentOffset.y;
+    headerOpacity.value = withTiming(
+      interpolate(
+        nativeEvent.contentOffset.y,
+        [0, 100],
+        [1, 0],
+        Extrapolation.CLAMP
+      )
     );
-  };
+  }, []);
 
-  const handleLike = () => {
-    setIsLiked(!isLiked);
-    likeScale.value = withSequence(
-      withSpring(1.2),
-      withSpring(1)
-    );
-  };
-
-  const handleShare = async () => {
-    // Implement share functionality
-  };
-
-  const handleCopyVerse = () => {
-    // Implement copy functionality
-  };
-
-  const handleSubmitReflection = () => {
-    if (reflectionText.trim()) {
-      // Submit reflection logic
-      setReflectionText('');
-      setShowReflectionInput(false);
-    }
-  };
-
-  const renderVerseHeader = useCallback(() => (
-    <Animated.View style={[styles.verseHeader, headerStyle]}>
-      <View style={styles.verseReference}>
-        <Text style={styles.referenceText}>
-          {verse.reference}
-        </Text>
-        <Text style={styles.translationText}>
-          {verse.translation}
-        </Text>
-      </View>
-      <Text style={styles.verseText}>{verse.text}</Text>
-
-      <View style={styles.verseActions}>
-        <View style={styles.actionRow}>
-          <TouchableOpacity
-            style={styles.actionButton}
-            onPress={handleLike}
-          >
-            <Animated.View style={{ transform: [{ scale: likeScale }] }}>
-              <Heart
-                size={24}
-                color={isLiked ? theme.colors.like : theme.colors.text.secondary}
-                filled={isLiked}
-              />
-            </Animated.View>
-            <Text style={styles.actionCount}>{verse.likes}</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.actionButton}
-            onPress={() => setShowReflectionInput(true)}
-          >
-            <MessageCircle size={24} color={theme.colors.text.secondary} />
-            <Text style={styles.actionCount}>{verse.reflections.length}</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.actionButton}
-            onPress={handleShare}
-          >
-            <Share size={24} color={theme.colors.text.secondary} />
-            <Text style={styles.actionCount}>{verse.shares}</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.actionButton}
-            onPress={handleBookmark}
-          >
-            <Animated.View style={{ transform: [{ scale: bookmarkScale }] }}>
-              <BookmarkSimple
-                size={24}
-                color={isBookmarked ? theme.colors.primary : theme.colors.text.secondary}
-                filled={isBookmarked}
-              />
-            </Animated.View>
-          </TouchableOpacity>
-        </View>
-
-        <TouchableOpacity
-          style={styles.copyButton}
-          onPress={handleCopyVerse}
-        >
-          <Copy size={16} color={theme.colors.text.secondary} />
-          <Text style={styles.copyText}>Copy Verse</Text>
-        </TouchableOpacity>
-      </View>
-    </Animated.View>
-  ), [verse, isLiked, isBookmarked, theme]);
-
-  const [activeCommentReflectionId, setActiveCommentReflectionId] = useState<string | null>(null);
-
-  const handleCommentPress = useCallback((reflection: Reflection) => {
-    setActiveCommentReflectionId(reflection.id);
-    navigation.navigate('ReflectionDetail', { reflection });
-  }, [navigation]);
-
+  // Reflection rendering
   const renderReflection = useCallback(({ item, index }: { item: Reflection; index: number }) => (
-    <View style={[
-      styles.reflectionWrapper,
-      { width: SCREEN_DIMENSIONS.width - theme.spacing.md * 2 }
-    ]}>
-      <ReflectionCard
-        reflection={item}
-        scrollX={scrollX}
-        index={index}
-        onCommentPress={() => handleCommentPress(item)}
-        expanded={false}
-        onPress={() => navigation.navigate('ReflectionDetail', { reflection: item })}
-        maxContentLines={3}
-      />
-    </View>
-  ), [theme.spacing.md, handleCommentPress, navigation]);
+    <ReflectionCard
+      reflection={item}
+      scrollX={scrollX}
+      index={index}
+      onCommentPress={() => setActiveCommentReflectionId(item.id)}
+      expanded={false}
+      onPress={() => navigation.navigate('ReflectionDetail', { reflection: item })}
+    />
+  ), [navigation]);
 
   const keyExtractor = useCallback((item: Reflection) => item.id, []);
 
@@ -257,89 +242,153 @@ const VerseDetail: React.FC<VerseDetailProps> = ({ navigation, route }) => {
     <View style={[styles.container, { paddingTop: insets.top }]}>
       {/* Navigation Header */}
       <Animated.View style={[styles.navigationHeader, navigationStyle]}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
+        <TouchableOpacity 
+          style={styles.backButton}
+          onPress={() => navigation.goBack()}
+        >
           <ArrowLeft size={24} color={theme.colors.text.primary} />
         </TouchableOpacity>
+        <Text style={styles.navigationTitle}>{currentVerse?.reference}</Text>
+        <View style={styles.navigationRight} />
       </Animated.View>
-  
-      {/* Main Scrollable Content */}
+
+      {/* Main Content */}
       <ScrollView
         style={styles.mainContent}
         onScroll={handleScroll}
         scrollEventThrottle={16}
         showsVerticalScrollIndicator={false}
       >
-        {/* Verse Header */}
-        {renderVerseHeader()}
-        
-        {/* Reflections Section */}
-        <View style={styles.reflectionsContainer}>
-          <Text style={styles.sectionTitle}>Reflections</Text>
-          
-          {/* Reflection Cards */}
-          <View style={styles.reflectionsWrapper}>
-            <ScrollIndicator 
-              direction="left" 
-              onPress={() => {
-                if (currentReflectionIndex > 0) {
-                  flatListRef.current?.scrollToIndex({ 
-                    index: currentReflectionIndex - 1,
-                    animated: true 
-                  });
-                }
-              }}
-              visible={currentReflectionIndex > 0}
-            />
-            
-            <FlatList
-              data={reflections}
-              renderItem={renderReflection}
-              keyExtractor={keyExtractor}
-              horizontal
-              pagingEnabled
-              showsHorizontalScrollIndicator={false}
-              onScroll={handleScroll}
-              scrollEventThrottle={16}
-              ref={flatListRef}
-              viewabilityConfigCallbackPairs={viewabilityConfigCallbackPairs}
-              snapToAlignment="center"
-              ItemSeparatorComponent={() => (
-                <View style={{ width: theme.spacing.md }} />
-              )}
-              getItemLayout={(data, index) => ({
-                length: SCREEN_DIMENSIONS.width - theme.spacing.md * 2,
-                offset: (SCREEN_DIMENSIONS.width - theme.spacing.md * 2) * index,
-                index,
-              })}
-              snapToInterval={SCREEN_DIMENSIONS.width - theme.spacing.md * 2}
-              decelerationRate="fast"
-              contentContainerStyle={styles.reflectionsList}
-            />
-  
-            <ScrollIndicator 
-              direction="right" 
-              onPress={() => {
-                if (currentReflectionIndex < reflections.length - 1) {
-                  flatListRef.current?.scrollToIndex({ 
-                    index: currentReflectionIndex + 1,
-                    animated: true 
-                  });
-                }
-              }}
-              visible={reflections.length > 1 && currentReflectionIndex < reflections.length - 1}
-            />
+        {isVerseLoading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator color={theme.colors.primary} size="large" />
           </View>
-        </View>
-        
-        {/* Bottom Padding */}
-        <View style={{ height: theme.spacing.xl }} />
+        ) : currentVerse ? (
+          <>
+            {/* Verse Content */}
+            <Animated.View style={[styles.verseContent, headerStyle]}>
+              <Text style={styles.verseTitle}>
+                {currentVerse.reference}
+                <Text style={styles.translation}> · {currentVerse.translation}</Text>
+              </Text>
+              <Text style={styles.verseText}>{currentVerse.text}</Text>
+
+              {/* Verse Actions */}
+              <View style={styles.actionRow}>
+                <View style={styles.actionGroup}>
+                  <TouchableOpacity
+                    style={styles.actionButton}
+                    onPress={handleLike}
+                  >
+                    <Heart
+                      size={24}
+                      color={currentVerse.isLiked ? theme.colors.like : theme.colors.text.secondary}
+                      filled={currentVerse.isLiked}
+                    />
+                    <Text style={styles.actionCount}>{currentVerse.likes}</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.actionButton}
+                    onPress={() => setShowReflectionInput(true)}
+                  >
+                    <MessageCircle size={24} color={theme.colors.text.secondary} />
+                    <Text style={styles.actionCount}>
+                      {currentVerse.reflections?.length || 0}
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.actionButton}
+                    onPress={handleShare}
+                  >
+                    <Share size={24} color={theme.colors.text.secondary} />
+                  </TouchableOpacity>
+                </View>
+
+                <TouchableOpacity
+                  style={styles.actionButton}
+                  onPress={() => handleBookmark()}
+                >
+                  <BookmarkSimple
+                    size={24}
+                    color={currentVerse.isBookmarked ? theme.colors.primary : theme.colors.text.secondary}
+                    filled={currentVerse.isBookmarked}
+                  />
+                </TouchableOpacity>
+              </View>
+
+              <TouchableOpacity
+                style={styles.copyButton}
+                onPress={handleCopyVerse}
+              >
+                <Copy size={16} color={theme.colors.text.secondary} />
+                <Text style={styles.copyText}>Copy Verse</Text>
+              </TouchableOpacity>
+            </Animated.View>
+
+            {/* Reflections Section */}
+            <View style={styles.reflectionsSection}>
+              <Text style={styles.sectionTitle}>Reflections</Text>
+              
+              {isReflectionsLoading ? (
+                <ActivityIndicator color={theme.colors.primary} />
+              ) : currentVerse.reflections?.length ? (
+                <FlatList
+                  data={currentVerse.reflections}
+                  renderItem={renderReflection}
+                  keyExtractor={keyExtractor}
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  snapToAlignment="center"
+                  snapToInterval={SCREEN_DIMENSIONS.width - theme.spacing.md * 2}
+                  decelerationRate="fast"
+                  ref={flatListRef}
+                  contentContainerStyle={styles.reflectionsList}
+                />
+              ) : (
+                <View style={styles.emptyState}>
+                  <Text style={styles.emptyText}>
+                    No reflections yet. Be the first to share your thoughts!
+                  </Text>
+                </View>
+              )}
+            </View>
+          </>
+        ) : null}
       </ScrollView>
-  
-      {/* Reflection Input */}
+
+      {/* Reflection Input Modal */}
       {showReflectionInput && (
-        <BlurView intensity={20} style={styles.reflectionInputContainer}>
+        <BlurView intensity={20} style={[styles.reflectionInputContainer, {paddingBottom: theme.spacing.lg + Platform.OS === "ios" ? 20 : 0 }]}>
+          <View style={styles.reflectionTypeSelector}>
+            <TouchableOpacity
+              style={[
+                styles.typeButton,
+                reflectionType === 1 && styles.typeButtonActive
+              ]}
+              onPress={() => setReflectionType(1)}
+            >
+              <Text style={[
+                styles.typeButtonText,
+                reflectionType === 1 && styles.typeButtonTextActive
+              ]}>Story</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.typeButton,
+                reflectionType === 2 && styles.typeButtonActive
+              ]}
+              onPress={() => setReflectionType(2)}
+            >
+              <Text style={[
+                styles.typeButtonText,
+                reflectionType === 2 && styles.typeButtonTextActive
+              ]}>Insight</Text>
+            </TouchableOpacity>
+          </View>
+          
           <TextInput
-            ref={reflectionInputRef}
             style={styles.reflectionInput}
             placeholder="Share your reflection..."
             multiline
@@ -348,6 +397,7 @@ const VerseDetail: React.FC<VerseDetailProps> = ({ navigation, route }) => {
             onChangeText={setReflectionText}
             autoFocus
           />
+          
           <View style={styles.inputActions}>
             <TouchableOpacity
               style={styles.cancelButton}
@@ -369,13 +419,18 @@ const VerseDetail: React.FC<VerseDetailProps> = ({ navigation, route }) => {
           </View>
         </BlurView>
       )}
-          
-    <CommentsOverlay
-      visible={activeCommentReflectionId !== null}
-      onClose={() => setActiveCommentReflectionId(null)}
-      reflection={reflections.find(r => r.id === activeCommentReflectionId)!}
-    />
-  </View>
+
+      {/* Comments Overlay */}
+      {activeCommentReflectionId && currentVerse?.reflections && (
+        <CommentsOverlay
+          visible={true}
+          onClose={() => setActiveCommentReflectionId(null)}
+          reflection={currentVerse.reflections.find(
+            (r: Reflection) => r.id === activeCommentReflectionId
+          )!}
+        />
+      )}
+    </View>
   );
 };
 
@@ -387,107 +442,70 @@ const createStyles = (theme: Theme) => StyleSheet.create({
   navigationHeader: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: theme.spacing.md,
     paddingVertical: theme.spacing.sm,
-    gap: theme.spacing.md,
-    backgroundColor: theme.colors.background,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 4,
-      },
-    }),
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: theme.colors.border,
+  },
+  backButton: {
+    padding: theme.spacing.xs,
+  },
+  navigationTitle: {
+    ...theme.typography.heading.small,
+    color: theme.colors.text.primary,
+  },
+  navigationRight: {
+    width: 40, // Balance layout with back button
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: theme.spacing.xl * 2,
   },
   mainContent: {
     flex: 1,
   },
-  reflectionsContainer: {
-    paddingTop: theme.spacing.lg,
+  verseContent: {
+    padding: theme.spacing.lg,
   },
-  reflectionsWrapper: {
-    position: 'relative',
-    paddingVertical: theme.spacing.md,
-  },
-  sectionTitle: {
-    ...theme.typography.heading.medium,
-    color: theme.colors.text.primary,
-    paddingHorizontal: theme.spacing.md,
-    marginBottom: theme.spacing.md,
-  },
-  reflectionsList: {
-    paddingHorizontal: theme.spacing.md,
-  },
-  reflectionWrapper: {
-    width: SCREEN_DIMENSIONS.width - theme.spacing.md * 2,
-  },
-  scrollContent: {
-    paddingBottom: theme.spacing.xl,
-  },
-  verseHeader: {
-    padding: theme.spacing.md,
-    backgroundColor: theme.colors.background,
-  },
-  trendingBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    alignSelf: 'flex-start',
-    backgroundColor: `${theme.colors.primary}15`,
-    paddingHorizontal: theme.spacing.sm,
-    paddingVertical: 4,
-    borderRadius: theme.borderRadius.full,
-    marginBottom: theme.spacing.sm,
-    gap: 4,
-  },
-  trendingText: {
-    ...theme.typography.caption.secondary,
+  verseTitle: {
+    ...theme.typography.verse.emphasis,
     color: theme.colors.primary,
-    fontSize: 12,
-    fontWeight: '600',
+    fontSize: 20,
+    marginBottom: theme.spacing.sm,
+  },
+  translation: {
+    ...theme.typography.caption.secondary,
+    color: theme.colors.text.secondary,
   },
   verseText: {
     ...theme.typography.verse.regular,
     color: theme.colors.text.primary,
     fontSize: 24,
     lineHeight: 36,
-    marginBottom: theme.spacing.sm,
-  },
-  verseReference: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: theme.spacing.xs,
-    marginBottom: theme.spacing.md,
-  },
-  referenceText: {
-    ...theme.typography.verse.emphasis,
-    color: theme.colors.primary,
-    fontSize: 18,
-  },
-  translationText: {
-    ...theme.typography.caption.secondary,
-    color: theme.colors.text.secondary,
-  },
-  verseActions: {
-    gap: theme.spacing.sm,
+    marginBottom: theme.spacing.lg,
   },
   actionRow: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
+    alignItems: 'center',
     paddingVertical: theme.spacing.sm,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderColor: theme.colors.border,
   },
+  actionGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.md,
+  },
   actionButton: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: theme.spacing.xs,
-    padding: theme.spacing.sm,
+    padding: theme.spacing.xs,
   },
   actionCount: {
     ...theme.typography.caption.primary,
@@ -502,22 +520,61 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     paddingHorizontal: theme.spacing.sm,
     paddingVertical: theme.spacing.xs,
     borderRadius: theme.borderRadius.full,
+    marginTop: theme.spacing.sm,
   },
   copyText: {
     ...theme.typography.caption.secondary,
     color: theme.colors.text.secondary,
   },
   reflectionsSection: {
-    padding: theme.spacing.md,
-    paddingBottom: 0,
+    paddingTop: theme.spacing.xl,
+  },
+  sectionTitle: {
+    ...theme.typography.heading.medium,
+    color: theme.colors.text.primary,
+    paddingHorizontal: theme.spacing.lg,
+    marginBottom: theme.spacing.md,
+  },
+  reflectionsList: {
+    paddingHorizontal: theme.spacing.md,
+  },
+  emptyState: {
+    padding: theme.spacing.xl,
+    alignItems: 'center',
+  },
+  emptyText: {
+    ...theme.typography.body.serif,
+    color: theme.colors.text.secondary,
+    textAlign: 'center',
   },
   reflectionInputContainer: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
-    padding: theme.spacing.md,
-    backgroundColor: `${theme.colors.background}99`,
+    padding: theme.spacing.lg,
+  },
+  reflectionTypeSelector: {
+    flexDirection: 'row',
+    gap: theme.spacing.sm,
+    marginBottom: theme.spacing.md,
+  },
+  typeButton: {
+    flex: 1,
+    padding: theme.spacing.sm,
+    borderRadius: theme.borderRadius.full,
+    backgroundColor: theme.colors.surface,
+    alignItems: 'center',
+  },
+  typeButtonActive: {
+    backgroundColor: theme.colors.primary,
+  },
+  typeButtonText: {
+    ...theme.typography.caption.primary,
+    color: theme.colors.text.primary,
+  },
+  typeButtonTextActive: {
+    color: theme.colors.text.inverse,
   },
   reflectionInput: {
     backgroundColor: theme.colors.surface,
@@ -525,6 +582,7 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     padding: theme.spacing.md,
     maxHeight: 120,
     ...theme.typography.body.sans,
+    color: theme.colors.text.primary,
   },
   inputActions: {
     flexDirection: 'row',

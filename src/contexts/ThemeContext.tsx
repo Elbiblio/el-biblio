@@ -1,6 +1,6 @@
 import React, { createContext, useContext } from 'react';
 import { Theme, ThemeVariant, defaultTheme, getTheme } from '../theme';
-import { useThemeStore } from '../theme/store';
+import { useThemeStore } from '@/stores/theme';
 import { useAppStore } from '@/stores/appStore';
 
 interface ThemeContextType {

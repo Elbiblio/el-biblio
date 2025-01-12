@@ -89,10 +89,10 @@ const ReflectionCard: React.FC<ReflectionCardProps> = ({
   // Card content
   const renderHeader = () => (
     <View style={styles.header}>
-      <Image source={{ uri: reflection.author.avatar }} style={styles.avatar} />
+      <Image source={{ uri: reflection.user.avatar }} style={styles.avatar} />
       <View style={styles.authorInfo}>
         <Text style={[styles.authorName, { color: theme.colors.text.primary }]}>
-          {`${reflection.author.first_name} ${reflection.author.last_name}`}
+          {`${reflection.user.first_name} ${reflection.user.last_name}`}
         </Text>
         <Text style={[styles.reflectionType, { color: theme.colors.text.secondary }]}>
           {reflection.type === 'story' ? 'Sharing a story' : 'Sharing an insight'}

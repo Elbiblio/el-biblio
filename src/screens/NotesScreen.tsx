@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -23,21 +23,11 @@ import {
 import { Theme } from '@/theme';
 import { useTheme } from '@/contexts/ThemeContext';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { type RootStackParamList, type AllVirtues, sampleNotes } from '@/types';
+import { type RootStackParamList, type AllVirtues, sampleNotes, Note } from '@/types';
 import NoteEditor from '@/components/NoteEditor';
 import VirtuePicker from '@/components/VirtuePicker';
 import { getNotePastel } from '@/utils/notes';
-
-interface Note {
-  id: string;
-  title: string;
-  content: string;
-  virtues: AllVirtues[];
-  createdAt: string;
-  updatedAt: string;
-  isPinned: boolean;
-  color?: string;
-}
+import { useNoteStore } from '@/stores/notes';
 
 const NotesScreen: React.FC<NativeStackScreenProps<RootStackParamList, 'NotesScreen'>> = ({
   navigation
@@ -46,8 +36,10 @@ const NotesScreen: React.FC<NativeStackScreenProps<RootStackParamList, 'NotesScr
   const insets = useSafeAreaInsets();
   const styles = React.useMemo(() => createStyles(theme), [theme]);
 
-  // States
-  const [notes, setNotes] = useState<Note[]>(sampleNotes);
+  // Replace useState with store
+  const { notes, addNote, updateNote, deleteNote, initialize } = useNoteStore();
+  
+  // Keep local UI states
   const [selectedVirtues, setSelectedVirtues] = useState<AllVirtues[]>([]);
   const [showVirtueSelector, setShowVirtueSelector] = useState(false);
   const [isGridView, setIsGridView] = useState(true);
@@ -56,10 +48,14 @@ const NotesScreen: React.FC<NativeStackScreenProps<RootStackParamList, 'NotesScr
     note: Note | null;
     mode: 'read' | 'edit' | 'create' | null;
   }>({ note: null, mode: null });
-
   const [virtueFilter, setVirtueFilter] = useState<AllVirtues[]>([]);
 
-  // Filter notes based on search query and virtues
+  // Initialize store
+  useEffect(() => {
+    initialize();
+  }, [initialize]);
+
+  // Rest of the filtering logic remains the same
   const filteredNotes = React.useMemo(() => {
     return notes.filter(note => {
       if (searchQuery) {
@@ -86,21 +82,7 @@ const NotesScreen: React.FC<NativeStackScreenProps<RootStackParamList, 'NotesScr
     return { pinned, unpinned };
   }, [filteredNotes]);
 
-  const handleCreateNote = useCallback(() => {
-    console.log('handleCreateNote');
-    setActiveNote({ note: {
-      id: Date.now().toString(),
-      title: '',
-      content: '',
-      virtues: [],
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      isPinned: false,
-      color: getNotePastel([])
-    }, mode: 'create' });
-    setSelectedVirtues([]);
-  }, []);
-
+  
   const handleViewNote = useCallback((note: Note) => {
     setActiveNote({ note, mode: 'read' });
     setSelectedVirtues(note.virtues);
@@ -111,43 +93,64 @@ const NotesScreen: React.FC<NativeStackScreenProps<RootStackParamList, 'NotesScr
     setSelectedVirtues([]);
   }, []);
 
-  const handleSaveNote = useCallback(({ title, content, virtues }: {
+  const handleCreateNote = useCallback(() => {
+    setActiveNote({
+      note: {
+        id: `local_${Date.now()}`,
+        title: '',
+        content: '',
+        virtues: [],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        isPinned: false,
+        color: getNotePastel([])
+      },
+      mode: 'create'
+    });
+    setSelectedVirtues([]);
+  }, []);
+
+  const handleSaveNote = useCallback(async ({ title, content, virtues }: {
     title: string;
     content: string;
     virtues: AllVirtues[];
   }) => {
-    const timestamp = new Date().toISOString();
-
-    if (activeNote.mode === 'edit' && activeNote.note) {
-      // Update existing note
-      setNotes(prev => prev.map(note =>
-        note.id === activeNote.note?.id
-          ? {
-            ...note,
-            title,
-            content,
-            virtues,
-            updatedAt: timestamp,
-            color: getNotePastel(virtues)
-          }
-          : note
-      ));
-    } else {
-      // Create new note
-      const newNote: Note = {
-        id: Date.now().toString(),
-        title,
-        content,
-        virtues,
-        createdAt: timestamp,
-        updatedAt: timestamp,
-        isPinned: false,
-        color: getNotePastel(virtues)
-      };
-      setNotes(prev => [newNote, ...prev]);
+    try {
+      if (activeNote.mode === 'edit' && activeNote.note) {
+        // Update existing note
+        await updateNote({
+          ...activeNote.note,
+          title,
+          content,
+          virtues,
+          updatedAt: new Date().toISOString(),
+          color: getNotePastel(virtues)
+        });
+      } else {
+        // Create new note
+        await addNote({
+          title,
+          content,
+          virtues,
+          color: getNotePastel(virtues)
+        });
+      }
+      handleCloseNote();
+    } catch (error) {
+      console.error('Error saving note:', error);
+      // You might want to show an error toast/alert here
     }
-    handleCloseNote();
-  }, [activeNote]);
+  }, [activeNote, updateNote, addNote]);
+
+  const handleDeleteNote = useCallback(async (noteId: string) => {
+    try {
+      await deleteNote(noteId);
+      handleCloseNote();
+    } catch (error) {
+      console.error('Error deleting note:', error);
+      // You might want to show an error toast/alert here
+    }
+  }, [deleteNote]);
 
   const renderNoteCard = useCallback(({ item: note }: { item: Note }) => (
     <TouchableOpacity
@@ -200,6 +203,24 @@ const NotesScreen: React.FC<NativeStackScreenProps<RootStackParamList, 'NotesScr
       </View>
     </TouchableOpacity>
   ), [isGridView, theme, handleViewNote]);
+
+  const renderNoteEditor = () => {
+    if (activeNote.mode === null) return null;
+
+    return (
+      <NoteEditor
+        initialTitle={activeNote.note?.title}
+        initialContent={activeNote.note?.content}
+        initialVirtues={activeNote.note?.virtues}
+        onSubmit={handleSaveNote}
+        onCancel={handleCloseNote}
+        onDelete={activeNote.note?.id ? () => handleDeleteNote(activeNote.note!.id) : undefined}
+        onShowVirtueSelector={() => setShowVirtueSelector(true)}
+        selectedVirtues={selectedVirtues}
+        isEditing={activeNote.mode !== 'read'}
+      />
+    );
+  };
 
   const ListEmptyComponent = useCallback(() => (
     <View style={styles.emptyState}>
@@ -286,18 +307,7 @@ const NotesScreen: React.FC<NativeStackScreenProps<RootStackParamList, 'NotesScr
       </View>
 
       {/* Note Editor Modal */}
-      {activeNote.mode !== null && (
-        <NoteEditor
-          initialTitle={activeNote.note?.title}
-          initialContent={activeNote.note?.content}
-          initialVirtues={activeNote.note?.virtues}
-          onSubmit={handleSaveNote}
-          onCancel={handleCloseNote}
-          onShowVirtueSelector={() => setShowVirtueSelector(true)}
-          selectedVirtues={selectedVirtues}
-          isEditing={activeNote.mode !== 'read'}
-        />
-      )}
+      {renderNoteEditor()}
 
       {/* Virtue Selector Modal */}
       {showVirtueSelector && (
