@@ -5,6 +5,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ThemeProvider, useTheme } from './src/contexts/ThemeContext';
+import { AuthProvider } from './src/stores/auth';
 import CustomSplash from './src/components/CustomSplash';
 import ThemeSelector from './src/components/ThemeSelector';
 import HomeScreen from './src/screens/HomeScreen';
@@ -39,7 +40,7 @@ const App = () => {
       ]);
       setIsLoading(false);
     };
-    
+
     initialize();
   }, []);
 
@@ -93,7 +94,7 @@ const App = () => {
 
   const NavigationContent = () => {
     const { hasCompletedWelcome } = useWelcomeState();
-    
+
     return (
       <NavigationContainer>
         <Toaster />
@@ -120,18 +121,21 @@ const App = () => {
 
   return (
     <SafeAreaProvider>
-      <ThemeProvider 
-        initialTheme={initialTheme}
-        onThemeChange={handleThemeChange}
-      >
-        {showThemeSelector ? (
-          <ThemeSelector onSelect={handleThemeSelect} />
-        ) : (
-          <GestureHandlerRootView style={{ flex: 1 }}>
-            <NavigationContent />
-          </GestureHandlerRootView>
-        )}
-      </ThemeProvider>
+      <AuthProvider>
+
+        <ThemeProvider
+          initialTheme={initialTheme}
+          onThemeChange={handleThemeChange}
+        >
+          {showThemeSelector ? (
+            <ThemeSelector onSelect={handleThemeSelect} />
+          ) : (
+            <GestureHandlerRootView style={{ flex: 1 }}>
+              <NavigationContent />
+            </GestureHandlerRootView>
+          )}
+        </ThemeProvider>
+      </AuthProvider>
     </SafeAreaProvider>
   );
 };

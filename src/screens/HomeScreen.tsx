@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState, useMemo } from 'react';
 import {
   View,
   ScrollView,
@@ -40,18 +40,19 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { SCREEN_DIMENSIONS } from '@/constants';
 import axios from 'axios';
 import { useVerseStore } from '@/stores/verse';
+import { useAuth } from '@/stores/auth';
+import AuthModal from '@/components/AuthModal';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const AnimatedBlurView = Animated.createAnimatedComponent(BlurView);
 const CARD_WIDTH = SCREEN_DIMENSIONS.width * 0.9;
 
-const QuickActionCard = ({ action, index, actionStyles, navigation }: { action: any; index: number, actionStyles: any, navigation: any }) => {
+const QuickActionCard = ({ action, index, actionStyles, onPress }: { action: any; index: number, actionStyles: any, onPress: any }) => {
   return (
     <TouchableOpacity
       style={actionStyles.actionCard}
       activeOpacity={0.7}
-      onPress={() => {
-        navigation.navigate(action.route);
-      }}
+      onPress={onPress}
     >
       <LinearGradient
         colors={[`${action.color}08`, `${action.color}03`]}
@@ -73,6 +74,39 @@ const QuickActionCard = ({ action, index, actionStyles, navigation }: { action: 
 
 type HomeProps = NativeStackScreenProps<RootStackParamList, 'Home'>;
 
+const getTimeBasedGreeting = () => {
+  const hour = new Date().getHours();
+  
+  if (hour >= 5 && hour < 12) {
+    return "Good morning";
+  } else if (hour >= 12 && hour < 17) {
+    return "Good afternoon";
+  } else if (hour >= 17 && hour < 22) {
+    return "Good evening";
+  } else {
+    return "Hello"; // Late night/early morning
+  }
+};
+
+// Engaging subtitles for different contexts
+const GREETING_VARIANTS = [
+  "How's your spiritual journey today?",
+  "Ready to dive into Scripture?",
+  "Let's explore God's word together",
+  "Time for reflection and growth",
+  "Find peace in His presence",
+  "Discover new insights today",
+  "Continue your faith journey",
+];
+
+const FIRST_VISIT_VARIANTS = [
+  "What would you like to explore today?",
+  "Begin your journey with purpose",
+  "Let's start this day with grace",
+  "Ready for today's reflection?",
+  "Your daily moment of peace awaits",
+];
+
 const HomeScreen: React.FC<HomeProps> = ({ navigation }) => {
   const insets = useSafeAreaInsets();
   const pointsScale = useSharedValue(1);
@@ -81,6 +115,10 @@ const HomeScreen: React.FC<HomeProps> = ({ navigation }) => {
   const scrollY = useSharedValue(0);
   const [currentVerseIndex, setCurrentVerseIndex] = useState(0);
   const scrollX = useSharedValue(0);
+  const { user } = useAuth();
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [isFirstVisitToday, setIsFirstVisitToday] = useState(false);
+  const [greeting, setGreeting] = useState('');
 
   const theme = useTheme()
   const styles = React.useMemo(() => createStyles(theme), [theme]);
@@ -97,6 +135,51 @@ const {
 useEffect(() => {
   fetchDailyVerses();
 }, []);
+
+useEffect(() => {
+  checkFirstVisit();
+}, []);
+
+const checkFirstVisit = async () => {
+  try {
+    const lastVisit = await AsyncStorage.getItem('last_visit_date');
+    const today = new Date().toDateString();
+    
+    if (lastVisit !== today) {
+      setIsFirstVisitToday(true);
+      await AsyncStorage.setItem('last_visit_date', today);
+    }
+  } catch (error) {
+    console.error('Error checking first visit:', error);
+  }
+};
+
+const { mainGreeting, subGreeting } = useMemo(() => {
+  if (!user) {
+    return {
+      mainGreeting: "Welcome to Elbiblio",
+      subGreeting: "Don't be a stranger, join us today"
+    };
+  }
+
+  let mainGreeting: string;
+  let subGreeting: string;
+
+  if (isFirstVisitToday) {
+    // First visit gets time-based greeting
+    mainGreeting = getTimeBasedGreeting();
+    subGreeting = FIRST_VISIT_VARIANTS[Math.floor(Math.random() * FIRST_VISIT_VARIANTS.length)];
+  } else {
+    // Return visits get a simple welcome back
+    mainGreeting = "Welcome back";
+    subGreeting = GREETING_VARIANTS[Math.floor(Math.random() * GREETING_VARIANTS.length)];
+  }
+
+  return {
+    mainGreeting: `${mainGreeting}, ${user.first_name}`,
+    subGreeting
+  };
+}, [user, isFirstVisitToday]);
 
   const headerAnimatedStyle = useAnimatedStyle(() => ({
     transform: [
@@ -181,6 +264,57 @@ useEffect(() => {
     setCurrentVerseIndex(newIndex);
   }, []);
 
+  const handleQuickActionPress = (route: string) => {
+    if (!user) {
+      setShowAuthModal(true);
+      return;
+    }
+    navigation.navigate(route as any);
+  };
+
+  const renderHeader = () => (
+    <Animated.View style={[styles.header, headerAnimatedStyle]}>
+      <View>
+        <Text style={styles.greeting}>
+          {mainGreeting}
+        </Text>
+        <Text style={styles.subGreeting}>
+          {subGreeting}
+        </Text>
+      </View>
+      {user ? (
+        <TouchableOpacity
+          style={styles.pointsContainer}
+          onPress={() => {
+            pointsScale.value = withSequence(
+              withSpring(1.1),
+              withSpring(1)
+            );
+          }}
+        >
+          <Animated.View style={[styles.points, { transform: [{ scale: pointsScale }] }]}>
+            <LinearGradient
+              colors={[theme?.colors.primary, theme?.colors.primaryLight]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.pointsGradient}
+            >
+              <Star size={20} color="#FFF" />
+              <Text style={styles.pointsText}>{user.points || 0}</Text>
+            </LinearGradient>
+          </Animated.View>
+        </TouchableOpacity>
+      ) : (
+        <TouchableOpacity
+          style={styles.joinButton}
+          onPress={() => setShowAuthModal(true)}
+        >
+          <Text style={styles.joinButtonText}>Join Now</Text>
+        </TouchableOpacity>
+      )}
+    </Animated.View>
+  );
+
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <ScrollView
@@ -188,34 +322,7 @@ useEffect(() => {
         scrollEventThrottle={16}
         contentContainerStyle={styles.scrollContent}
       >
-        {/* Animated Header */}
-        <Animated.View style={[styles.header, headerAnimatedStyle]}>
-          <View>
-            <Text style={styles.greeting}>Good morning, Sarah</Text>
-            <Text style={styles.subGreeting}>Ready for today's reflection?</Text>
-          </View>
-          <TouchableOpacity
-            style={styles.pointsContainer}
-            onPress={() => {
-              pointsScale.value = withSequence(
-                withSpring(1.1),
-                withSpring(1)
-              );
-            }}
-          >
-            <Animated.View style={[styles.points, { transform: [{ scale: pointsScale }] }]}>
-              <LinearGradient
-                colors={[theme?.colors.primary, theme?.colors.primaryLight]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.pointsGradient}
-              >
-                <Star size={20} color="#FFF" />
-                <Text style={styles.pointsText}>2,450</Text>
-              </LinearGradient>
-            </Animated.View>
-          </TouchableOpacity>
-        </Animated.View>
+        {renderHeader()}
 
         <View style={actionStyles.quickActionsContainer}>
           <View style={actionStyles.quickActionsHeader}>
@@ -233,7 +340,7 @@ useEffect(() => {
                 action={action}
                 actionStyles={actionStyles}
                 index={index}
-                navigation={navigation}
+                onPress={() => handleQuickActionPress(action.route)}
               />
             ))}
           </View>
@@ -363,6 +470,11 @@ useEffect(() => {
           </ScrollView>
         </View>
       </ScrollView>
+
+      <AuthModal 
+        visible={showAuthModal}
+        onClose={() => setShowAuthModal(false)}
+      />
     </View>
   );
 };
@@ -448,12 +560,12 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     backgroundColor: theme?.colors.background,
   },
   greeting: {
-    ...theme?.typography.heading.large,
-    color: theme?.colors.text.primary,
+    ...theme.typography.heading.large,
+    color: theme.colors.text.primary,
   },
   subGreeting: {
-    ...theme?.typography.caption.secondary,
-    color: theme?.colors.text.secondary,
+    ...theme.typography.caption.secondary,
+    color: theme.colors.text.secondary,
     marginTop: 4,
   },
   pointsContainer: {
@@ -786,6 +898,27 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     left: 0,
     right: 0,
     height: 100,
+  },
+  joinButton: {
+    backgroundColor: theme.colors.primary,
+    paddingHorizontal: theme.spacing.lg,
+    paddingVertical: theme.spacing.sm,
+    borderRadius: theme.borderRadius.full,
+    ...Platform.select({
+      ios: {
+        shadowColor: theme.colors.primary,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.2,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 8,
+      },
+    }),
+  },
+  joinButtonText: {
+    ...theme.typography.body.sans,
+    color: theme.colors.text.inverse,
   },
 
 });

@@ -74,6 +74,18 @@ const baseTheme = {
         fontFamily: 'PlusJakartaSans_400Regular',
       } as TypographyStyle,
     },
+    button: {
+      primary: {
+        fontSize: 16,
+        lineHeight: 24,
+        fontFamily: 'PlusJakartaSans_600SemiBold',
+      } as TypographyStyle,
+      secondary: {
+        fontSize: 14,
+        lineHeight: 20,
+        fontFamily: 'PlusJakartaSans_500Medium',
+      } as TypographyStyle,
+    },
   },
   shadows: {
     sm: {

@@ -318,6 +318,24 @@ export const X = ({ size = 24, color = theme.colors.text.secondary, style }: Ico
   </View>
 );
 
+export const XCircle = ({ size = 24, color = theme.colors.text.secondary, style }: IconProps) => (
+  <View style={style}>
+    <Feather name="x-circle" size={size} color={color} />
+  </View>
+);
+
+export const Camera = ({ size = 24, color = theme.colors.text.secondary, style }: IconProps) => (
+  <View style={style}>
+    <MaterialCommunityIcons name="camera-outline" size={size} color={color} />
+  </View>
+);
+
+export const Image = ({ size = 24, color = theme.colors.text.secondary, style }: IconProps) => (
+  <View style={style}>
+    <Feather name="image" size={size} color={color} />
+  </View>
+);
+
 export const ChevronUp = ({ size = 24, color = theme.colors.text.secondary, style }: IconProps) => (
   <View style={style}>
     <Feather name="chevron-up" size={size} color={color} />

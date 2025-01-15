@@ -12,11 +12,12 @@
     "esModuleInterop": true,
     "isolatedModules": true,
     "jsx": "react-native",
-    "lib": ["es2017"],
+    "lib": ["dom", "dom.iterable", "esnext"],
     "moduleResolution": "node",
     "noEmit": true,
     "skipLibCheck": true,
-    "resolveJsonModule": true
+    "resolveJsonModule": true,
+    "target": "es2019"
   },
   "include": [
     "src/**/*"

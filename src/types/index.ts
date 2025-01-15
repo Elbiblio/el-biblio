@@ -75,6 +75,7 @@ export interface Verse {
   translation?: string;
   reflections?: Reflection[];
   likes: number;
+  votes: number;
   shares: number;
   isLiked?: boolean;
   isBookmarked?: boolean;
@@ -163,6 +164,7 @@ export const sampleVerse: Verse = {
   reference: "Isaiah 40:31",
   translation: "NIV",
   likes: 342,
+  votes: 0,
   reflections: sampleReflections,
   shares: 56,
   theme: FaithTheme,
@@ -179,6 +181,7 @@ export const sampleDailyVerses: Verse[] = [
     is_trending: true,
     likes: 342,
     shares: 27,
+    votes: 0,
     theme: FaithTheme
   },
   // ... more verses

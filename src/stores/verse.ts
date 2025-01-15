@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import axios from 'axios';
 import { Verse, Reflection, Comment, User } from '@/types';
+import { APIResponse, DailyVersesResponse } from '@/types/api';
 
 // Types for API payloads
 type InteractionType = 1 | 2 | 3; // 1: like, 2: bookmark, 3: vote
@@ -8,7 +9,7 @@ type ReflectionType = 1 | 2; // 1: story, 2: insight
 type InteractableType = 'App\\Models\\Reflection' | 'App\\Models\\Verse' | 'App\\Models\\Comment';
 
 interface UserInteraction {
-  interactable_id: string;
+  interactable_id: string | number;
   interactable_type: InteractableType;
   type: InteractionType;
   user_id?: string;
@@ -80,28 +81,34 @@ export const useVerseStore = create<VerseState>((set, get) => ({
     try {
       set({ isDailyVersesLoading: true, dailyVersesError: null });
       
-      const response = await api.get('/verses/daily', {
+      // Using exact parameters as expected by VerseAPIController@daily
+      const response = await api.get<DailyVersesResponse>('/verses/daily', {
         params: {
-          include: 'reflections,theme',
+          include: 'theme,reflections.user,reflections.comments.author',
+          sort: '-created_at'
         }
       });
+
+      if (!response.data.success) {
+        throw new Error(response.data.message || 'Failed to fetch daily verses');
+      }
       
       set({ 
         dailyVerses: response.data.data,
         isDailyVersesLoading: false 
       });
+
     } catch (error) {
+      console.error('Error fetching daily verses:', error);
       set({ 
         isDailyVersesLoading: false,
-        dailyVersesError: 'Failed to fetch daily verses'
+        dailyVersesError: error instanceof Error ? error.message : 'Failed to fetch daily verses'
       });
-      console.error('Error fetching daily verses:', error);
     }
   },
-  
+
   fetchVerseById: async (id: string, includeReflections = false) => {
     try {
-      // Set appropriate loading states
       if (!get().currentVerse || get().currentVerse?.id !== id) {
         set({ isVerseLoading: true });
       }
@@ -110,86 +117,91 @@ export const useVerseStore = create<VerseState>((set, get) => ({
       }
       set({ verseError: null });
 
-      const response = await api.get(`/verses/${id}`, {
+      // Using exact parameters as expected by VerseAPIController@show
+      const response = await api.get<APIResponse<Verse>>(`/verses/${id}`, {
         params: {
-          include: includeReflections ? 'reflections.comments,theme' : 'theme',
+          include: includeReflections ? 
+            'theme,reflections.user,reflections.comments.author' : 'theme'
         }
       });
+
+      if (!response.data.success) {
+        throw new Error(response.data.message || 'Failed to fetch verse');
+      }
       
       set({ 
         currentVerse: response.data.data,
         isVerseLoading: false,
         isReflectionsLoading: false
       });
+
     } catch (error) {
+      console.error('Error fetching verse:', error);
       set({ 
         isVerseLoading: false,
         isReflectionsLoading: false,
-        verseError: 'Failed to fetch verse'
+        verseError: error instanceof Error ? error.message : 'Failed to fetch verse'
       });
-      console.error('Error fetching verse:', error);
     }
   },
 
   createInteraction: async (payload: UserInteraction) => {
     try {
-      await api.post('/user-interactions', payload);
-      
-      // Update local state based on interaction type
+      const response = await api.post<APIResponse<UserInteraction>>('/user_interactions', payload);
+
+      if (!response.data.success) {
+        throw new Error(response.data.message || 'Failed to create interaction');
+      }
+
+      // Optimistic update based on interaction type
       set(state => {
         const updateVerse = (verse: Verse) => {
-          if (verse.id === payload.interactable_id && payload.interactable_type === "App\\Models\\Verse") {
-            const updates: Partial<Verse> = {};
-            
+          if (verse.id === payload.interactable_id.toString()) {
             switch (payload.type) {
               case 1: // Like
-                updates.isLiked = !verse.isLiked;
-                updates.likes = verse.isLiked ? verse.likes - 1 : verse.likes + 1;
-                break;
+                return {
+                  ...verse,
+                  isLiked: !verse.isLiked,
+                  likes: verse.likes + (verse.isLiked ? -1 : 1)
+                };
               case 2: // Bookmark
-                updates.isBookmarked = !verse.isBookmarked;
-                break;
+                return {
+                  ...verse,
+                  isBookmarked: !verse.isBookmarked
+                };
+              case 3: // Vote
+                return {
+                  ...verse,
+                  votes: verse.votes + 1
+                };
+              default:
+                return verse;
             }
-            
-            return { ...verse, ...updates };
           }
           return verse;
         };
 
-        // Update verse if it's a verse interaction
-        if (payload.interactable_type === "App\\Models\\Verse") {
-          return {
-            dailyVerses: state.dailyVerses.map(updateVerse),
-            currentVerse: state.currentVerse?.id === payload.interactable_id 
-              ? updateVerse(state.currentVerse)
-              : state.currentVerse
-          };
-        }
-
-        // Update reflection if it's a reflection interaction
-        if (payload.interactable_type === "App\\Models\\Reflection" && state.currentVerse?.reflections) {
+        if (payload.interactable_type === 'App\\Models\\Verse') {
           return {
             ...state,
-            currentVerse: {
-              ...state.currentVerse,
-              reflections: state.currentVerse.reflections.map(reflection => {
-                if (reflection.id === payload.interactable_id) {
-                  return {
-                    ...reflection,
-                    isLiked: !reflection.isLiked,
-                    likes: reflection.isLiked ? reflection.likes - 1 : reflection.likes + 1
-                  };
-                }
-                return reflection;
-              })
-            }
+            dailyVerses: state.dailyVerses.map(updateVerse),
+            currentVerse: state.currentVerse?.id === payload.interactable_id.toString() ? 
+              updateVerse(state.currentVerse) : state.currentVerse
           };
         }
 
         return state;
       });
+
     } catch (error) {
       console.error('Error creating interaction:', error);
+      // Revert optimistic update on error
+      await get().fetchDailyVerses();
+      const currentVerse = get().currentVerse;
+      if (currentVerse) {
+        await get().fetchVerseById(currentVerse.id);
+      }
+      throw error;
     }
   },
 
