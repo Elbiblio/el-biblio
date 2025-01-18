@@ -17,7 +17,7 @@ import { BlurView } from 'expo-blur';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/stores/auth';
 import { Theme } from '@/theme';
-import { XCircle } from '@/components/Icons';
+import { Eye, EyeOff, XCircle } from '@/components/Icons';
 import AvatarSelectionModal from './AvatarSelectionModal';
 import { SCREEN_DIMENSIONS } from '@/constants';
 import * as Haptics from 'expo-haptics';
@@ -34,13 +34,16 @@ const AuthModal: React.FC<AuthModalProps> = ({ visible, onClose }) => {
   const [isSignUp, setIsSignUp] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showAvatarModal, setShowAvatarModal] = useState(false);
-  
+  const [showPassword, setShowPassword] = useState(false);
+
   const [formData, setFormData] = useState({
     email: '',
     password: '',
     firstName: '',
     lastName: '',
   });
+
+  const styles = React.useMemo(() => createStyles(theme), [theme]);
 
   // For temporary storage during avatar selection
   const [pendingSignupData, setPendingSignupData] = useState<{
@@ -92,13 +95,16 @@ const AuthModal: React.FC<AuthModalProps> = ({ visible, onClose }) => {
           first_name: formData.firstName.trim(),
           last_name: formData.lastName.trim(),
         });
-        
+
         // Show avatar selection immediately
         setShowAvatarModal(true);
       } else {
         try {
-          await login(formData.email.trim(), formData.password);
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          const result = await login(formData.email.trim(), formData.password);
+          if (result) {
+            toast.success('Welcome back!');
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          }
           handleClose();
         } catch (error: any) {
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
@@ -118,19 +124,25 @@ const AuthModal: React.FC<AuthModalProps> = ({ visible, onClose }) => {
       }
 
       // Attempt signup with avatar
-      await signUp({
+      const result = await signUp({
         ...pendingSignupData,
-        avatar_url: avatarUrl
+        avatar: avatarUrl
       });
 
       // Reset states
       setPendingSignupData(null);
       setShowAvatarModal(false);
       handleClose();
-      
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      toast.success('Welcome to the El-biblio community! Our community is only fun when you help make it fun. Thank you and have a great journey');
+
+      if (result) {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        toast.success('Welcome to the El-biblio community! Our community is only fun when you help make it fun. Thank you and have a great journey');
+      } else if (authError) {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        setError(authError || 'Failed to complete signup. Please try again.');  
+      }
     } catch (error: any) {
+      console.log(error);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       setError(error?.message || 'Failed to complete signup. Please try again.');
       setShowAvatarModal(false);
@@ -165,26 +177,26 @@ const AuthModal: React.FC<AuthModalProps> = ({ visible, onClose }) => {
         statusBarTranslucent
       >
         <View style={styles.container}>
-          <BlurView intensity={20} style={StyleSheet.absoluteFill} />
+          <BlurView intensity={50} style={StyleSheet.absoluteFill} />
           <Pressable style={styles.overlay} onPress={handleClose}>
             <KeyboardAvoidingView
               behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
               style={styles.keyboardView}
             >
               <Pressable style={styles.modalContainer} onPress={e => e.stopPropagation()}>
-                <BlurView intensity={10} style={styles.modalBlur}>
-                  <TouchableOpacity 
-                    style={styles.closeButton} 
+                <BlurView intensity={50} style={styles.modalBlur}>
+                  <TouchableOpacity
+                    style={styles.closeButton}
                     onPress={handleClose}
                   >
                     <XCircle size={24} color={theme.colors.text.secondary} />
                   </TouchableOpacity>
 
-                  <View style={styles.content}>
+                  <View style={styles.contentContainer}>
                     <Text style={styles.title}>
                       {isSignUp ? 'Join the Community' : 'Welcome Back'}
                     </Text>
-                    
+
                     {/* Form Fields */}
                     {isSignUp && (
                       <>
@@ -227,24 +239,29 @@ const AuthModal: React.FC<AuthModalProps> = ({ visible, onClose }) => {
                       autoComplete="email"
                     />
 
-                    <TextInput
-                      style={styles.input}
-                      placeholder="Password"
-                      value={formData.password}
-                      onChangeText={(text) => {
-                        setError(null);
-                        setFormData(prev => ({ ...prev, password: text }));
-                      }}
-                      placeholderTextColor={theme.colors.text.secondary}
-                      secureTextEntry
-                      autoCapitalize="none"
-                    />
+                    <View>
+                      <TextInput
+                        style={styles.input}
+                        placeholder="Password"
+                        value={formData.password}
+                        onChangeText={(text) => {
+                          setError(null);
+                          setFormData(prev => ({ ...prev, password: text }));
+                        }}
+                        placeholderTextColor={theme.colors.text.secondary}
+                        secureTextEntry={!showPassword}
+                        autoCapitalize="none"
+                      />
+                      <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={styles.eyeIcon}>
+                        {showPassword ? <EyeOff size={24} color={theme.colors.text.secondary} /> : <Eye size={24} color={theme.colors.text.secondary} />}
+                      </TouchableOpacity>
+                    </View>
 
                     {(error || authError) && (
                       <Text style={styles.errorText}>{error || authError}</Text>
                     )}
 
-                    <TouchableOpacity 
+                    <TouchableOpacity
                       style={[styles.submitButton, isLoading && styles.submitButtonDisabled]}
                       onPress={handleSubmit}
                       disabled={isLoading}
@@ -258,7 +275,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ visible, onClose }) => {
                       )}
                     </TouchableOpacity>
 
-                    <TouchableOpacity 
+                    <TouchableOpacity
                       onPress={() => {
                         setError(null);
                         setIsSignUp(!isSignUp);
@@ -276,7 +293,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ visible, onClose }) => {
           </Pressable>
         </View>
       </Modal>
-      
+
       <AvatarSelectionModal
         visible={showAvatarModal}
         onClose={handleAvatarModalClose}
@@ -286,29 +303,32 @@ const AuthModal: React.FC<AuthModalProps> = ({ visible, onClose }) => {
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (theme: Theme) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.75)',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)', // Dark semi-transparent background
   },
   overlay: {
     flex: 1,
     justifyContent: 'center',
-    padding: 16,
+    padding: theme.spacing.lg,
   },
   keyboardView: {
     flex: 1,
     justifyContent: 'center',
   },
   modalContainer: {
-    borderRadius: 24,
+    borderRadius: theme.borderRadius.xl,
     overflow: 'hidden',
     marginVertical: SCREEN_DIMENSIONS.height * 0.1,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    // Add a solid background color in addition to blur
+    backgroundColor: Platform.OS === 'ios' ?
+      'rgba(28, 28, 30, 0.9)' :
+      'rgba(28, 28, 30, 0.95)',
     ...Platform.select({
       ios: {
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
+        shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.25,
         shadowRadius: 24,
       },
@@ -318,55 +338,72 @@ const styles = StyleSheet.create({
     }),
   },
   modalBlur: {
-    borderRadius: 24,
+    borderRadius: theme.borderRadius.xl,
   },
-  closeButton: {
-    position: 'absolute',
-    top: 16,
-    right: 16,
-    zIndex: 1,
-    width: 32,
-    height: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
+  scrollContent: {
+    flex: 1,
   },
   content: {
     padding: 24,
     gap: 16,
   },
+  contentContainer: {
+    padding: theme.spacing.xl,
+    gap: theme.spacing.md,
+    minHeight: 200, // Ensure minimum height for content
+  },
+  closeButton: {
+    position: 'absolute',
+    top: theme.spacing.md,
+    right: theme.spacing.md,
+    zIndex: 1,
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(60, 60, 67, 0.3)',
+    borderRadius: theme.borderRadius.full,
+  },
   title: {
-    fontSize: 24,
-    fontWeight: '600',
-    color: '#FFF',
+    ...theme.typography.heading.medium,
+    color: theme.colors.text.inverse,
     textAlign: 'center',
-    marginBottom: 16,
+    marginBottom: theme.spacing.md,
   },
   input: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    padding: 16,
-    borderRadius: 16,
+    backgroundColor: 'rgba(60, 60, 67, 0.55)',
+    padding: theme.spacing.md,
+    borderRadius: theme.borderRadius.lg,
     fontSize: 16,
-    color: '#FFF',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
+    color: theme.colors.text.inverse,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    ...Platform.select({
+      android: {
+        paddingVertical: theme.spacing.md,
+      },
+      ios: {
+        paddingVertical: theme.spacing.md,
+      }
+    }),
   },
   errorText: {
-    fontSize: 14,
-    color: '#FF4444',
+    ...theme.typography.caption.primary,
+    color: theme.colors.error,
     textAlign: 'center',
-    backgroundColor: 'rgba(255, 68, 68, 0.1)',
-    padding: 8,
-    borderRadius: 16,
+    backgroundColor: 'rgba(255, 59, 48, 0.1)',
+    padding: theme.spacing.sm,
+    borderRadius: theme.borderRadius.lg,
   },
   submitButton: {
-    backgroundColor: '#556DFF',
-    padding: 16,
-    borderRadius: 999,
+    backgroundColor: theme.colors.primary,
+    padding: theme.spacing.md,
+    borderRadius: theme.borderRadius.full,
     alignItems: 'center',
-    marginTop: 16,
+    marginTop: theme.spacing.md,
     ...Platform.select({
       ios: {
-        shadowColor: '#556DFF',
+        shadowColor: theme.colors.primary,
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.2,
         shadowRadius: 8,
@@ -380,15 +417,21 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
   submitText: {
-    fontSize: 16,
+    ...theme.typography.button.primary,
+    color: theme.colors.text.inverse,
     fontWeight: '600',
-    color: '#FFF',
   },
   switchText: {
-    fontSize: 14,
-    color: '#556DFF',
+    ...theme.typography.caption.primary,
+    color: theme.colors.primary,
     textAlign: 'center',
-    marginTop: 8,
+    marginTop: theme.spacing.sm,
+  },
+  eyeIcon: {
+    position: "absolute",
+    color: theme.colors.text.inverse,
+    right: 10,
+    top: 20,
   },
 });
 

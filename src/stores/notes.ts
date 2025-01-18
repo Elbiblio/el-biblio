@@ -1,8 +1,8 @@
 import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import axios from 'axios';
 import NetInfo from '@react-native-community/netinfo';
 import { Note } from '@/types';
+import { apiClient, endpoints } from '@/api/client';
 
 type SyncAction = 'add' | 'update' | 'delete';
 
@@ -17,20 +17,12 @@ interface NoteState {
   isLoading: boolean;
   lastSync: string;
   syncQueue: SyncQueue[];
-  initialize: () => Promise<void>;
-  syncNotes: () => Promise<void>;
-  addNote: (note: Omit<Note, 'id' | 'updatedAt' | 'createdAt'>) => Promise<Note>;
-  updateNote: (note: Note) => Promise<Note>;
-  deleteNote: (noteId: string) => Promise<void>;
+  initialize: () => Promise<boolean>;
+  syncNotes: () => Promise<boolean>;
+  addNote: (note: Omit<Note, 'id' | 'updatedAt' | 'createdAt'>) => Promise<Note|null>;
+  updateNote: (note: Note) => Promise<Note|null>;
+  deleteNote: (noteId: string) => Promise<boolean>;
 }
-
-const API_URL = 'https://api.elbiblio.com/api/notes';
-const SYNC_INTERVAL = 1000 * 60 * 5; // 5 minutes
-
-const axiosInstance = axios.create({
-  baseURL: API_URL,
-  timeout: 10000,
-});
 
 const formatDate = (date: number): string => {
   return new Date(date).toISOString();
@@ -45,7 +37,9 @@ export const useNoteStore = create<NoteState>((set, get) => ({
   initialize: async () => {
     try {
       set({ isLoading: true });
+      console.log('Initializing note store...');
       
+      // Load local data
       const localData = await AsyncStorage.multiGet([
         'notes',
         'lastSync',
@@ -59,21 +53,10 @@ export const useNoteStore = create<NoteState>((set, get) => ({
 
       set({ notes, lastSync, syncQueue });
 
-      const netInfo = await NetInfo.fetch();
-      if (netInfo.isConnected) {
-        await get().syncNotes();
-      }
-
-      setInterval(() => {
-        NetInfo.fetch().then(state => {
-          if (state.isConnected) {
-            get().syncNotes();
-          }
-        });
-      }, SYNC_INTERVAL);
-
+      return true;
     } catch (error) {
-      console.error('Initialization error:', error);
+      console.error('Note store initialization error:', error);
+      return false;
     } finally {
       set({ isLoading: false });
     }
@@ -81,21 +64,34 @@ export const useNoteStore = create<NoteState>((set, get) => ({
 
   syncNotes: async () => {
     const { notes, lastSync, syncQueue } = get();
+    console.log('Syncing notes...');
     
     try {
-      const { data: serverNotes } = await axiosInstance.get(`?since=${lastSync}`);
+      // Get updates from server
+      const response = await apiClient.get<Note[]>(`${endpoints.notes.list}?since=${lastSync}`);
       
+      if (!response.success) {
+        console.error(response.message);
+        return false;
+      }
+
+      const serverNotes = response.data;
+      console.log('Fetched server notes:', serverNotes.length);
+
+      // Process sync queue
       for (const queueItem of syncQueue) {
         try {
+          console.log('Processing queue item:', queueItem.action);
+          
           switch (queueItem.action) {
             case 'add':
-              await axiosInstance.post('', queueItem.note);
+              await apiClient.post(endpoints.notes.create, queueItem.note);
               break;
             case 'update':
-              await axiosInstance.put(`/${queueItem.note.id}`, queueItem.note);
+              await apiClient.put(endpoints.notes.update(queueItem.note.id), queueItem.note);
               break;
             case 'delete':
-              await axiosInstance.delete(`/${queueItem.note.id}`);
+              await apiClient.delete(endpoints.notes.delete(queueItem.note.id));
               break;
           }
         } catch (error) {
@@ -104,6 +100,7 @@ export const useNoteStore = create<NoteState>((set, get) => ({
         }
       }
 
+      // Merge and update local state
       const mergedNotes = mergeNotes(notes, serverNotes);
       const now = formatDate(Date.now());
       
@@ -119,27 +116,38 @@ export const useNoteStore = create<NoteState>((set, get) => ({
         syncQueue: []
       });
 
+      console.log('Sync completed successfully');
+      return true;
+
     } catch (error) {
-      console.error('Sync error:', error);
+      console.error('Note sync error:', error);
+      return false;
     }
   },
 
   addNote: async (noteData) => {
-    const now = formatDate(Date.now());
-    const note: Note = {
-      ...noteData,
-      id: `local_${Date.now()}`,
-      updatedAt: now,
-      createdAt: now,
-      isPinned: false
-    };
-
     try {
       const { notes, syncQueue } = get();
       const netInfo = await NetInfo.fetch();
+      const now = formatDate(Date.now());
+
+      const note: Note = {
+        ...noteData,
+        id: `local_${Date.now()}`,
+        updatedAt: now,
+        createdAt: now,
+        isPinned: false
+      };
 
       if (netInfo.isConnected) {
-        const { data: serverNote } = await axiosInstance.post('', note);
+        const response = await apiClient.post<Note>(endpoints.notes.create, note);
+        
+        if (!response.success) {
+          console.error(response.message);
+          return null;
+        }
+
+        const serverNote = response.data;
         const updatedNotes = [...notes, serverNote];
         
         await AsyncStorage.setItem('notes', JSON.stringify(updatedNotes));
@@ -147,6 +155,7 @@ export const useNoteStore = create<NoteState>((set, get) => ({
         
         return serverNote;
       } else {
+        // Queue for later sync
         const updatedQueue: SyncQueue[] = [...syncQueue, {
           action: 'add',
           note,
@@ -169,7 +178,7 @@ export const useNoteStore = create<NoteState>((set, get) => ({
       }
     } catch (error) {
       console.error('Add note error:', error);
-      throw error;
+      return null;
     }
   },
 
@@ -185,7 +194,17 @@ export const useNoteStore = create<NoteState>((set, get) => ({
       };
 
       if (netInfo.isConnected) {
-        const { data: serverNote } = await axiosInstance.put(`/${note.id}`, updatedNote);
+        const response = await apiClient.put<Note>(
+          endpoints.notes.update(note.id),
+          updatedNote
+        );
+        
+        if (!response.success) {
+          console.error(response.message);
+          return null;
+        }
+
+        const serverNote = response.data;
         const updatedNotes = notes.map(n => n.id === serverNote.id ? serverNote : n);
         
         await AsyncStorage.setItem('notes', JSON.stringify(updatedNotes));
@@ -193,6 +212,7 @@ export const useNoteStore = create<NoteState>((set, get) => ({
         
         return serverNote;
       } else {
+        // Queue for later sync
         const updatedQueue: SyncQueue[] = [...syncQueue, {
           action: 'update',
           note: updatedNote,
@@ -215,24 +235,31 @@ export const useNoteStore = create<NoteState>((set, get) => ({
       }
     } catch (error) {
       console.error('Update note error:', error);
-      throw error;
+      return null;
     }
   },
 
-  deleteNote: async (noteId) => {
+  deleteNote: async (noteId) : Promise<boolean> => {
     try {
       const { notes, syncQueue } = get();
       const netInfo = await NetInfo.fetch();
       const noteToDelete = notes.find(n => n.id === noteId);
 
-      if (!noteToDelete) return;
+      if (!noteToDelete) return false;
 
       if (netInfo.isConnected) {
-        await axiosInstance.delete(`/${noteId}`);
-        const updatedNotes = notes.filter(n => n.id !== noteId);
+        const response = await apiClient.delete(endpoints.notes.delete(noteId));
         
+        if (!response.success) {
+          console.error(response.message);
+          return false;
+        }
+
+        const updatedNotes = notes.filter(n => n.id !== noteId);
         await AsyncStorage.setItem('notes', JSON.stringify(updatedNotes));
         set({ notes: updatedNotes });
+        
+        return true;
       } else {
         const updatedQueue: SyncQueue[] = [...syncQueue, {
           action: 'delete',
@@ -251,10 +278,12 @@ export const useNoteStore = create<NoteState>((set, get) => ({
           notes: updatedNotes,
           syncQueue: updatedQueue
         });
+        
+        return true;
       }
     } catch (error) {
       console.error('Delete note error:', error);
-      throw error;
+      return false;
     }
   }
 }));
@@ -272,6 +301,7 @@ function mergeNotes(localNotes: Note[], serverNotes: Note[]): Note[] {
   return Array.from(notesMap.values());
 }
 
+// Set up network listener
 NetInfo.addEventListener(state => {
   if (state.isConnected) {
     useNoteStore.getState().syncNotes();

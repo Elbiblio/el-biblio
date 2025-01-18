@@ -31,18 +31,29 @@ import {
   Bible,
 } from './../components/Icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { DailyVerse, Reflection, RootStackParamList, sampleDailyVerses, User, Verse } from '@/types';
+import { Reflection, RootStackParamList, Verse } from '@/types';
 import AvatarStack from '@/components/AvatarStack';
 import CircleButton from '@/components/CircleButton';
 import { Theme } from '@/theme';
 import { useTheme } from '@/contexts/ThemeContext';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { SCREEN_DIMENSIONS } from '@/constants';
-import axios from 'axios';
 import { useVerseStore } from '@/stores/verse';
 import { useAuth } from '@/stores/auth';
 import AuthModal from '@/components/AuthModal';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { AppState, AppStateStatus } from 'react-native';
+
+const WELCOME_BACK_THRESHOLD = 10 * 60 * 1000; // 10 minutes in milliseconds
+const MAX_ACTIVE_TIME = 30 * 60 * 1000; // 30 minutes in milliseconds
+const SYNC_INTERVAL = 5 * 60 * 1000; // Sync every 5 minutes
+
+interface TimeTracking {
+  lastActiveTimestamp: number;
+  totalActiveTime: number;
+  lastSyncedTime: number;
+  dayStartTimestamp: number;
+}
 
 const AnimatedBlurView = Animated.createAnimatedComponent(BlurView);
 const CARD_WIDTH = SCREEN_DIMENSIONS.width * 0.9;
@@ -76,7 +87,7 @@ type HomeProps = NativeStackScreenProps<RootStackParamList, 'Home'>;
 
 const getTimeBasedGreeting = () => {
   const hour = new Date().getHours();
-  
+
   if (hour >= 5 && hour < 12) {
     return "Good morning";
   } else if (hour >= 12 && hour < 17) {
@@ -115,71 +126,190 @@ const HomeScreen: React.FC<HomeProps> = ({ navigation }) => {
   const scrollY = useSharedValue(0);
   const [currentVerseIndex, setCurrentVerseIndex] = useState(0);
   const scrollX = useSharedValue(0);
-  const { user } = useAuth();
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [isFirstVisitToday, setIsFirstVisitToday] = useState(false);
-  const [greeting, setGreeting] = useState('');
 
   const theme = useTheme()
   const styles = React.useMemo(() => createStyles(theme), [theme]);
   const actionStyles = React.useMemo(() => createActionStyles(theme), [theme]);
   const themeText = { color: theme?.colors.primary };
-//  const [dailyVerses, setDailyVerses] = useState<Verse[]>(sampleDailyVerses);
 
-const { 
-  dailyVerses,
-  isDailyVersesLoading,
-  fetchDailyVerses 
-} = useVerseStore();
+  const [appState, setAppState] = useState(AppState.currentState);
+  const { user, updateUserTime } = useAuth();
+  const [timeTracking, setTimeTracking] = useState<TimeTracking>({
+    lastActiveTimestamp: Date.now(),
+    totalActiveTime: user?.total_active_time || 0,
+    lastSyncedTime: user?.total_active_time || 0,
+    dayStartTimestamp: new Date().setHours(0, 0, 0, 0),
+  });
 
-useEffect(() => {
-  fetchDailyVerses();
-}, []);
+  useEffect(() => {
+    loadTimeTracking();
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
 
-useEffect(() => {
-  checkFirstVisit();
-}, []);
+    // Set up periodic sync
+    const syncInterval = setInterval(() => {
+      if (appState === 'active') {
+        handleTimeSync();
+      }
+    }, SYNC_INTERVAL);
 
-const checkFirstVisit = async () => {
-  try {
-    const lastVisit = await AsyncStorage.getItem('last_visit_date');
-    const today = new Date().toDateString();
-    
-    if (lastVisit !== today) {
-      setIsFirstVisitToday(true);
-      await AsyncStorage.setItem('last_visit_date', today);
-    }
-  } catch (error) {
-    console.error('Error checking first visit:', error);
-  }
-};
-
-const { mainGreeting, subGreeting } = useMemo(() => {
-  if (!user) {
-    return {
-      mainGreeting: "Welcome to Elbiblio",
-      subGreeting: "Don't be a stranger, join us today"
+    return () => {
+      handleAppInactive();
+      subscription.remove();
+      clearInterval(syncInterval);
     };
-  }
+  }, []);
 
-  let mainGreeting: string;
-  let subGreeting: string;
+  const loadTimeTracking = async () => {
+    try {
+      const savedTracking = await AsyncStorage.getItem('time_tracking');
+      if (savedTracking) {
+        const parsed = JSON.parse(savedTracking);
+        const today = new Date().setHours(0, 0, 0, 0);
 
-  if (isFirstVisitToday) {
-    // First visit gets time-based greeting
-    mainGreeting = getTimeBasedGreeting();
-    subGreeting = FIRST_VISIT_VARIANTS[Math.floor(Math.random() * FIRST_VISIT_VARIANTS.length)];
-  } else {
-    // Return visits get a simple welcome back
-    mainGreeting = "Welcome back";
-    subGreeting = GREETING_VARIANTS[Math.floor(Math.random() * GREETING_VARIANTS.length)];
-  }
-
-  return {
-    mainGreeting: `${mainGreeting}, ${user.first_name}`,
-    subGreeting
+        // Reset tracking if it's a new day
+        if (parsed.dayStartTimestamp !== today) {
+          const newTracking = {
+            lastActiveTimestamp: Date.now(),
+            totalActiveTime: 0,
+            lastSyncedTime: 0,
+            dayStartTimestamp: today,
+          };
+          setTimeTracking(newTracking);
+          await saveTimeTracking(newTracking);
+        } else {
+          setTimeTracking(parsed);
+        }
+      }
+    } catch (error) {
+      console.error('Error loading time tracking:', error);
+    }
   };
-}, [user, isFirstVisitToday]);
+
+  const saveTimeTracking = async (tracking: TimeTracking) => {
+    try {
+      await AsyncStorage.setItem('time_tracking', JSON.stringify(tracking));
+    } catch (error) {
+      console.error('Error saving time tracking:', error);
+    }
+  };
+
+  const handleTimeSync = async () => {
+    if (!user || timeTracking.totalActiveTime <= timeTracking.lastSyncedTime) {
+      return;
+    }
+
+    try {
+      await updateUserTime(timeTracking.totalActiveTime);
+      setTimeTracking(prev => ({
+        ...prev,
+        lastSyncedTime: prev.totalActiveTime
+      }));
+    } catch (error) {
+      console.error('Error syncing time:', error);
+    }
+  };
+
+  const handleAppStateChange = (nextAppState: AppStateStatus) => {
+    if (appState === 'active' && nextAppState.match(/inactive|background/)) {
+      handleAppInactive();
+    } else if (appState.match(/inactive|background/) && nextAppState === 'active') {
+      handleAppActive();
+    }
+    setAppState(nextAppState);
+  };
+
+  const handleAppActive = () => {
+    const now = Date.now();
+    setTimeTracking(prev => ({
+      ...prev,
+      lastActiveTimestamp: now
+    }));
+  };
+
+  const handleAppInactive = async () => {
+    const now = Date.now();
+    const sessionDuration = now - timeTracking.lastActiveTimestamp;
+
+    const newTracking = {
+      ...timeTracking,
+      totalActiveTime: timeTracking.totalActiveTime + sessionDuration,
+      lastActiveTimestamp: now,
+    };
+
+    setTimeTracking(newTracking);
+    await saveTimeTracking(newTracking);
+    await handleTimeSync();
+  };
+
+
+  const {
+    dailyVerses,
+    isDailyVersesLoading,
+    fetchDailyVerses
+  } = useVerseStore();
+
+  useEffect(() => {
+    fetchDailyVerses();
+  }, []);
+
+  useEffect(() => {
+    checkFirstVisit();
+  }, []);
+
+  const checkFirstVisit = async () => {
+    try {
+      const lastVisit = await AsyncStorage.getItem('last_visit_date');
+      const today = new Date().toDateString();
+
+      if (lastVisit !== today) {
+        setIsFirstVisitToday(true);
+        await AsyncStorage.setItem('last_visit_date', today);
+      }
+    } catch (error) {
+      console.error('Error checking first visit:', error);
+    }
+  };
+
+  const shouldShowWelcomeBack = () => {
+    if (!user?.last_seen) return false;
+
+    const lastSeen = new Date(user.last_seen).getTime();
+    const timeSinceLastActive = Date.now() - lastSeen;
+    const hasMinimumBreak = timeSinceLastActive >= WELCOME_BACK_THRESHOLD;
+    const withinActiveTimeLimit = timeTracking.totalActiveTime <= MAX_ACTIVE_TIME;
+
+    return hasMinimumBreak && withinActiveTimeLimit;
+  };
+
+  const { mainGreeting, subGreeting } = useMemo(() => {
+    if (!user) {
+      return {
+        mainGreeting: "Welcome to Elbiblio",
+        subGreeting: "Don't be a stranger, join us today"
+      };
+    }
+
+    let mainGreeting: string;
+    let subGreeting: string;
+
+    if (isFirstVisitToday) {
+      mainGreeting = getTimeBasedGreeting();
+      subGreeting = FIRST_VISIT_VARIANTS[Math.floor(Math.random() * FIRST_VISIT_VARIANTS.length)];
+    } else if (shouldShowWelcomeBack()) {
+      mainGreeting = "Welcome back";
+      subGreeting = GREETING_VARIANTS[Math.floor(Math.random() * GREETING_VARIANTS.length)];
+    } else {
+      mainGreeting = getTimeBasedGreeting();
+      subGreeting = GREETING_VARIANTS[Math.floor(Math.random() * GREETING_VARIANTS.length)];
+    }
+
+    return {
+      mainGreeting: `${mainGreeting}, ${user.first_name}`,
+      subGreeting
+    };
+  }, [user, isFirstVisitToday, timeTracking]);
 
   const headerAnimatedStyle = useAnimatedStyle(() => ({
     transform: [
@@ -471,7 +601,7 @@ const { mainGreeting, subGreeting } = useMemo(() => {
         </View>
       </ScrollView>
 
-      <AuthModal 
+      <AuthModal
         visible={showAuthModal}
         onClose={() => setShowAuthModal(false)}
       />

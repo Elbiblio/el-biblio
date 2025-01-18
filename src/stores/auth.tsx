@@ -2,20 +2,8 @@ import { create } from 'zustand';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createContext, useContext, useEffect, ReactNode } from 'react';
-import * as ImagePicker from 'expo-image-picker';
-import { toast } from 'sonner-native';
 import { apiClient, endpoints } from '@/api/client';
-
-// Types
-interface User {
-  id: string;
-  email: string;
-  first_name: string | null;
-  last_name: string | null;
-  display_name?: string | null;
-  avatar: string | null;
-  points?: number;
-}
+import { User } from '@/types';
 
 interface AuthState {
   user: User | null;
@@ -23,11 +11,12 @@ interface AuthState {
   isLoading: boolean;
   isInitialized: boolean;
   error: string | null;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<boolean>;
   logout: () => Promise<void>;
   initialize: () => Promise<void>;
-  signUp: (data: SignUpData) => Promise<void>;
-  updateAvatar: (avatarUrl: string) => Promise<void>;
+  signUp: (data: SignUpData) => Promise<boolean>;
+  updateUserTime: (totalActiveTime: number) => Promise<void>;
+  updateAvatar: (avatarUrl: string) => Promise<boolean>;
 }
 
 interface SignUpData {
@@ -35,17 +24,17 @@ interface SignUpData {
   password: string;
   first_name: string;
   last_name: string;
-  avatar_url: string;
+  avatar: string;
 }
 
-interface ApiResponse {
-  success: boolean;
-  data: User;
-  message: string;
+interface LoginResponse {
+  token: string;
+  user: User;
+  expires_in: number;
 }
 
 // Create store
-const useAuthStore = create<AuthState>((set) => ({
+const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
   token: null,
   isLoading: false,
@@ -56,28 +45,30 @@ const useAuthStore = create<AuthState>((set) => ({
     try {
       set({ isLoading: true });
       const token = await AsyncStorage.getItem('auth_token');
-
+      
       if (token) {
-        // Set default auth header
         axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+        
+        const response = await apiClient.get<User>(endpoints.auth.user);
+        console.log('Initialize response:', response);
 
-        // Here you would typically validate token and get user info
-        // For now we'll use dummy user data
-        set({
-          token,
-          user: {
-            id: '1',
-            email: 'user@elbiblio.com',
-            first_name: 'Test',
-            last_name: 'User',
-            points: 0,
-            avatar: 'https://via.placeholder.com/150'
-          },
-          isInitialized: true
-        });
+        if (response.success && response.data) {
+          set({
+            token,
+            user: response.data,
+            isInitialized: true
+          });
+          console.log('Successfully initialized with user:', response.data);
+        } else {
+          console.log('Invalid response during initialization:', response);
+          await AsyncStorage.removeItem('auth_token');
+          delete axios.defaults.headers.common['Authorization'];
+        }
       }
     } catch (error) {
       console.error('Auth initialization error:', error);
+      await AsyncStorage.removeItem('auth_token');
+      delete axios.defaults.headers.common['Authorization'];
     } finally {
       set({ isLoading: false, isInitialized: true });
     }
@@ -86,18 +77,25 @@ const useAuthStore = create<AuthState>((set) => ({
   login: async (email: string, password: string) => {
     try {
       set({ isLoading: true, error: null });
+      console.log('Attempting login for:', email);
 
-      const response = await apiClient.post<{ token: string; user: User }>(
+      const response = await apiClient.post<LoginResponse>(
         endpoints.auth.login,
         { email, password }
       );
 
-      if (!response.success) {
-        throw new Error(response.message);
+      console.log('Login response:', response);
+
+      if (!response.success || !response.data) {
+        console.error('Login failed:', response.message);
+        throw new Error(response.message || 'Login failed');
       }
 
       const { token, user } = response.data;
+      console.log('Login successful for user:', user);
+      
       await AsyncStorage.setItem('auth_token', token);
+      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
 
       set({
         user,
@@ -105,92 +103,149 @@ const useAuthStore = create<AuthState>((set) => ({
         isLoading: false,
         error: null
       });
-
-      toast.success('Welcome back!');
-
+      return true;
     } catch (error) {
+      console.error('Login error:', error);
+      const message = error instanceof Error ? error.message : 'Login failed';
       set({
-        error: error instanceof Error ? error.message : 'Login failed',
+        error: message,
         isLoading: false
       });
-      throw error;
+      return false;
     }
   },
 
   signUp: async (data: SignUpData) => {
     try {
       set({ isLoading: true, error: null });
+      console.log('Attempting signup with data:', { ...data, password: '[REDACTED]' });
 
-      const response = await apiClient.post<User>(
+      const signupResponse = await apiClient.post<User>(
         endpoints.auth.signup,
         data
       );
 
-      if (!response.success) {
-        throw new Error(response.message);
+      console.log('Signup response:', signupResponse);
+
+      if (!signupResponse.success || !signupResponse.data) {
+        console.error('Signup failed:', signupResponse.message);
+        return false;
       }
 
-      // Auto login after signup
-      await useAuth().login(data.email, data.password);
-
+      console.log('Signup successful, attempting login');
+      await get().login(data.email, data.password);
+      return true;
     } catch (error) {
+      console.error('Signup error:', error);
+      const message = error instanceof Error ? error.message : 'Registration failed';
       set({
-        error: error instanceof Error ? error.message : 'Registration failed',
+        error: message,
         isLoading: false
       });
-      throw error;
+      return false;
     }
   },
 
   updateAvatar: async (avatarUrl: string) => {
     try {
       set({ isLoading: true, error: null });
-
-      const { user } = useAuth();
-      if (!user?.id) throw new Error('User not found');
-
-      const response = await apiClient.put<User>(
-        endpoints.users.avatar(user.id),
-        { avatar_url: avatarUrl }
-      );
-
-      if (!response.success) {
-        throw new Error(response.message);
+      console.log('Attempting to update avatar:', avatarUrl);
+      
+      const state = get();
+      if (!state.user?.id) {
+        throw new Error('User not found');
       }
 
-      set({
-        user: response.data,
+      const response = await apiClient.put<User>(
+        endpoints.users.avatar(state.user.id),
+        { avatar: avatarUrl }
+      );
+
+      console.log('Update avatar response:', response);
+
+      if (!response.success || !response.data) {
+        console.error('Avatar update failed:', response.message);
+        return false;
+      }
+
+      console.log('Avatar update successful');
+      set(state => ({
+        user: { ...state.user!, avatar: avatarUrl },
         isLoading: false,
         error: null
-      });
+      }));
 
-      toast.success('Avatar updated successfully');
-
+      return true;
     } catch (error) {
+      console.error('Avatar update error:', error);
+      const message = error instanceof Error ? error.message : 'Failed to update avatar';
       set({
-        error: error instanceof Error ? error.message : 'Failed to update avatar',
+        error: message,
         isLoading: false
       });
-      throw error;
+      return false;
     }
   },
+  updateUserTime: async (totalActiveTime: number) => {
+    try {
+      const state = get();
+      if (!state.user?.id) {
+        throw new Error('User not found');
+      }
 
+      const response = await apiClient.put<User>(
+        endpoints.users.update(state.user.id),
+        {
+          last_seen: new Date().toISOString(),
+          total_active_time: totalActiveTime
+        }
+      );
+
+      if (!response.success || !response.data) {
+        throw new Error(response.message || 'Failed to update user time');
+      }
+
+      set(state => ({
+        user: {
+          ...state.user!,
+          last_seen: response.data.last_seen,
+          total_active_time: response.data.total_active_time
+        }
+      }));
+
+    } catch (error) {
+      console.error('Time update error:', error);
+      // Don't throw error to prevent app disruption
+    }
+  },
   logout: async () => {
     try {
       set({ isLoading: true });
+      console.log('Attempting logout');
+      
+      try {
+        const response = await apiClient.post<void>(endpoints.auth.logout);
+        console.log('Logout response:', response);
+      } catch (error) {
+        console.error('Logout API error:', error);
+      }
 
-      // Clear token
       await AsyncStorage.removeItem('auth_token');
       delete axios.defaults.headers.common['Authorization'];
 
+      console.log('Logout successful');
       set({
         user: null,
         token: null,
-        isLoading: false
+        isLoading: false,
+        error: null
       });
     } catch (error) {
       console.error('Logout error:', error);
       set({ isLoading: false });
+      // Still clear local state even if server logout fails
+      await AsyncStorage.removeItem('auth_token');
+      delete axios.defaults.headers.common['Authorization'];
     }
   },
 }));
@@ -202,14 +257,9 @@ const AuthContext = createContext<AuthState | undefined>(undefined);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const auth = useAuthStore();
 
-  // useEffect(() => {
-  //   // Auto-login with default user in development
-  //   if (!auth.isInitialized) {
-  //     auth.login('user@elbiblio.com', 'password');
-  //   } else {
-  //     auth.initialize();
-  //   }
-  // }, []);
+  useEffect(() => {
+    auth.initialize();
+  }, []);
 
   return (
     <AuthContext.Provider value={auth}>

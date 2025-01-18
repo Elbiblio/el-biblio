@@ -31,6 +31,8 @@ import { SCREEN_DIMENSIONS } from '@/constants';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import VerseSelector from './NoteEditor/VerseSelector';
 import FormatHelp from './NoteEditor/FormatHelp';
+import VirtuePicker from './VirtuePicker';
+import FormattedContent from './NoteEditor/FormattedContent';
 
 const AnimatedBlurView = Animated.createAnimatedComponent(BlurView);
 interface NoteEditorProps {
@@ -44,8 +46,6 @@ interface NoteEditorProps {
   }) => void;
   onCancel: () => void;
   onDelete?: () => Promise<void>;
-  onShowVirtueSelector: () => void;
-  selectedVirtues: AllVirtues[];
   isEditing?: boolean;
 }
 
@@ -56,8 +56,6 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
   onSubmit,
   onCancel,
   onDelete,
-  onShowVirtueSelector,
-  selectedVirtues,
   isEditing = true,
 }) => {
   const theme = useTheme();
@@ -78,6 +76,8 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
   const [showVerseSelector, setShowVerseSelector] = useState(false);
   const [mode, setMode] = useState<'read' | 'edit'>(isEditing ? 'edit' : 'read');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [selectedVirtues, setSelectedVirtues] = useState<AllVirtues[]>(initialVirtues || []);
+  const [showVirtueSelector, setShowVirtueSelector] = useState(false);
 
   // Animated values
   const modalY = useSharedValue(SCREEN_DIMENSIONS.height);
@@ -321,7 +321,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
   }, [content, selection]);
 
   return (
-<>
+    <>
       <Animated.View style={[styles.modalContainer, containerStyle]}>
         <AnimatedBlurView intensity={20} style={[StyleSheet.absoluteFill, styles.blurBackground]} />
 
@@ -361,11 +361,11 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
               {mode === 'edit' && (
                 <TouchableOpacity
                   style={styles.virtuesButton}
-                  onPress={onShowVirtueSelector}
+                  onPress={() => setShowVirtueSelector(true)}
                 >
                   <Sparkle size={20} color={theme.colors.primary} />
                   <Text style={styles.virtuesButtonText}>
-                    {selectedVirtues.length === 0 ? 'Select Virtues' : `${selectedVirtues.length} selected`}
+                    {selectedVirtues?.length === 0 ? 'Select Virtues' : `${selectedVirtues?.length} selected`}
                   </Text>
                 </TouchableOpacity>
               )}
@@ -388,7 +388,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                   </TouchableOpacity>
                 </View>
 
-                {selectedVirtues.length > 0 && (
+                {selectedVirtues?.length > 0 && (
                   <View style={styles.virtuesContainer}>
                     {selectedVirtues.map(virtue => (
                       <View
@@ -412,9 +412,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                 <View style={styles.divider} />
               </View>
 
-              <Text style={styles.readingContent}>
-                {formattedContent || content}
-              </Text>
+              <FormattedContent content={content} theme={theme} />
             </ScrollView>
           ) : (
             <>
@@ -473,42 +471,54 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                 <TouchableOpacity
                   style={[
                     styles.saveButton,
-                    (!content.trim() || selectedVirtues.length === 0) && styles.saveButtonDisabled
+                    (!content.trim() || selectedVirtues?.length === 0) && styles.saveButtonDisabled
                   ]}
                   onPress={() => {
                     const cleanContent = content.trim();
-                    if (!cleanContent || selectedVirtues.length === 0) return;
+                    if (!cleanContent || selectedVirtues?.length === 0) return;
                     onSubmit({
                       title: title.trim(),
                       content: cleanContent,
                       virtues: selectedVirtues
                     });
                   }}
-                  disabled={!content.trim() || selectedVirtues.length === 0}
+                  disabled={!content.trim()}
                 >
                   <Text style={styles.saveButtonText}>Save Note</Text>
                 </TouchableOpacity>
               </View>
             </>
           )}
+
+          {showVirtueSelector && (
+            <VirtuePicker
+              selectedVirtues={selectedVirtues}
+              onVirtueSelect={(virtue) => {
+                setSelectedVirtues(prev =>
+                  prev.includes(virtue)
+                    ? prev.filter(v => v !== virtue)
+                    : [...prev, virtue]
+                );
+              }}
+              onClose={() => setShowVirtueSelector(false)}
+            />
+          )}
+          {showVerseSelector && (
+            <VerseSelector
+              visible={showVerseSelector}
+              onClose={() => setShowVerseSelector(false)}
+              onSelect={(reference) => {
+                const newContent =
+                  content.slice(0, selection.start) +
+                  `«${reference}»` +
+                  content.slice(selection.end);
+                setContent(newContent);
+                setShowVerseSelector(false);
+              }}
+            />
+          )}
         </KeyboardAvoidingView>
       </Animated.View>
-
-      {showVerseSelector && (
-        <VerseSelector
-          visible={showVerseSelector}
-          onClose={() => setShowVerseSelector(false)}
-          onSelect={(reference) => {
-            const newContent =
-              content.slice(0, selection.start) +
-              `«${reference}»` +
-              content.slice(selection.end);
-            setContent(newContent);
-            setShowVerseSelector(false);
-          }}
-        />
-      )}
-
       {showFormatHelp && (
         <FormatHelp
           visible={showFormatHelp}

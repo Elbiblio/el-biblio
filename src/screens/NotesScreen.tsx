@@ -10,6 +10,8 @@ import {
 } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import NetInfo from '@react-native-community/netinfo';
+
 import {
   NotePencil,
   ArrowLeft,
@@ -37,7 +39,7 @@ const NotesScreen: React.FC<NativeStackScreenProps<RootStackParamList, 'NotesScr
   const styles = React.useMemo(() => createStyles(theme), [theme]);
 
   // Replace useState with store
-  const { notes, addNote, updateNote, deleteNote, initialize } = useNoteStore();
+  const { notes, addNote, updateNote, syncNotes, deleteNote, initialize } = useNoteStore();
   
   // Keep local UI states
   const [selectedVirtues, setSelectedVirtues] = useState<AllVirtues[]>([]);
@@ -52,7 +54,31 @@ const NotesScreen: React.FC<NativeStackScreenProps<RootStackParamList, 'NotesScr
 
   // Initialize store
   useEffect(() => {
-    initialize();
+    let syncInterval: ReturnType<typeof setInterval>;
+    const initializeStore = async () => {
+      initialize();
+      const netInfo = await NetInfo.fetch();
+      if (netInfo.isConnected) {
+        await syncNotes();
+      }
+
+      // Set up periodic sync
+      syncInterval = setInterval(async () => {
+        const state = await NetInfo.fetch();
+        if (state.isConnected) {
+          syncNotes();
+        }
+      }, 1000 * 60 * 5); // 5 minutes
+    };
+    
+    initializeStore();
+    
+    // Clean up interval on unmount
+    return () => {
+      if (syncInterval) {
+        clearInterval(syncInterval);
+      }
+    };
   }, [initialize]);
 
   // Rest of the filtering logic remains the same
@@ -61,12 +87,12 @@ const NotesScreen: React.FC<NativeStackScreenProps<RootStackParamList, 'NotesScr
       if (searchQuery) {
         const searchLower = searchQuery.toLowerCase();
         const matchesTitle = note.title.toLowerCase().includes(searchLower);
-        const matchesContent = note.content.toLowerCase().includes(searchLower);
+        const matchesContent = note.text.toLowerCase().includes(searchLower);
         if (!matchesTitle && !matchesContent) return false;
       }
 
       if (virtueFilter.length > 0) {
-        if (!virtueFilter.some(virtue => note.virtues.includes(virtue))) {
+        if (!virtueFilter.some(virtue => note.virtues?.includes(virtue))) {
           return false;
         }
       }
@@ -85,7 +111,7 @@ const NotesScreen: React.FC<NativeStackScreenProps<RootStackParamList, 'NotesScr
   
   const handleViewNote = useCallback((note: Note) => {
     setActiveNote({ note, mode: 'read' });
-    setSelectedVirtues(note.virtues);
+    setSelectedVirtues(note.virtues || []);
   }, []);
 
   const handleCloseNote = useCallback(() => {
@@ -98,7 +124,7 @@ const NotesScreen: React.FC<NativeStackScreenProps<RootStackParamList, 'NotesScr
       note: {
         id: `local_${Date.now()}`,
         title: '',
-        content: '',
+        text: '',
         virtues: [],
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
@@ -121,7 +147,7 @@ const NotesScreen: React.FC<NativeStackScreenProps<RootStackParamList, 'NotesScr
         await updateNote({
           ...activeNote.note,
           title,
-          content,
+          text: content,
           virtues,
           updatedAt: new Date().toISOString(),
           color: getNotePastel(virtues)
@@ -130,7 +156,7 @@ const NotesScreen: React.FC<NativeStackScreenProps<RootStackParamList, 'NotesScr
         // Create new note
         await addNote({
           title,
-          content,
+          text: content,
           virtues,
           color: getNotePastel(virtues)
         });
@@ -138,7 +164,7 @@ const NotesScreen: React.FC<NativeStackScreenProps<RootStackParamList, 'NotesScr
       handleCloseNote();
     } catch (error) {
       console.error('Error saving note:', error);
-      // You might want to show an error toast/alert here
+      //error toast/alert
     }
   }, [activeNote, updateNote, addNote]);
 
@@ -148,7 +174,7 @@ const NotesScreen: React.FC<NativeStackScreenProps<RootStackParamList, 'NotesScr
       handleCloseNote();
     } catch (error) {
       console.error('Error deleting note:', error);
-      // You might want to show an error toast/alert here
+      //error toast/alert
     }
   }, [deleteNote]);
 
@@ -180,11 +206,11 @@ const NotesScreen: React.FC<NativeStackScreenProps<RootStackParamList, 'NotesScr
           style={styles.noteText}
           numberOfLines={isGridView ? 6 : 3}
         >
-          {note.content}
+          {note.text}
         </Text>
 
         <View style={styles.virtueContainer}>
-          {note.virtues.slice(0, 3).map((virtue, index) => (
+          {note.virtues?.slice(0, 3).map((virtue, index) => (
             <View
               key={`${note.id}-virtue-${index}`}
               style={[styles.virtueBadge, { backgroundColor: `${theme.colors.primary}15` }]}
@@ -194,9 +220,9 @@ const NotesScreen: React.FC<NativeStackScreenProps<RootStackParamList, 'NotesScr
               </Text>
             </View>
           ))}
-          {note.virtues.length > 3 && (
+          {note.virtues && note.virtues.length > 3 && (
             <Text style={styles.moreVirtues}>
-              +{note.virtues.length - 3}
+              +{note.virtues?.length - 3}
             </Text>
           )}
         </View>
@@ -210,13 +236,11 @@ const NotesScreen: React.FC<NativeStackScreenProps<RootStackParamList, 'NotesScr
     return (
       <NoteEditor
         initialTitle={activeNote.note?.title}
-        initialContent={activeNote.note?.content}
+        initialContent={activeNote.note?.text}
         initialVirtues={activeNote.note?.virtues}
         onSubmit={handleSaveNote}
         onCancel={handleCloseNote}
         onDelete={activeNote.note?.id ? () => handleDeleteNote(activeNote.note!.id) : undefined}
-        onShowVirtueSelector={() => setShowVirtueSelector(true)}
-        selectedVirtues={selectedVirtues}
         isEditing={activeNote.mode !== 'read'}
       />
     );

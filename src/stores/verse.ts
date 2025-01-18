@@ -1,3 +1,5 @@
+//stores/verse.ts
+
 import { create } from 'zustand';
 import axios from 'axios';
 import { Verse, Reflection, Comment, User } from '@/types';

@@ -324,6 +324,18 @@ export const XCircle = ({ size = 24, color = theme.colors.text.secondary, style 
   </View>
 );
 
+export const Eye = ({ size = 24, color = theme.colors.text.secondary, style }: IconProps) => (
+  <View style={style}>
+    <MaterialCommunityIcons name="eye" size={size} color={color} />
+  </View>
+);
+
+export const EyeOff = ({ size = 24, color = theme.colors.text.secondary, style }: IconProps) => (
+  <View style={style}>
+    <MaterialCommunityIcons name="eye-off" size={size} color={color} />
+  </View>
+);
+
 export const Camera = ({ size = 24, color = theme.colors.text.secondary, style }: IconProps) => (
   <View style={style}>
     <MaterialCommunityIcons name="camera-outline" size={size} color={color} />

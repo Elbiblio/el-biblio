@@ -28,6 +28,7 @@ const VirtuePicker: React.FC<VirtuePickerProps> = ({
     container: {
       flex: 1,
       marginTop: 100,
+      zIndex: 99,
       backgroundColor: `${theme.colors.background}CC`,
       justifyContent: 'flex-end',
     },
@@ -154,7 +155,7 @@ const VirtuePicker: React.FC<VirtuePickerProps> = ({
           <Text style={styles.title}>Select Virtues</Text>
         </View>
 
-        <ScrollView style={styles.scrollContent}>
+        <ScrollView style={styles.scrollContent} contentContainerStyle={{paddingBottom: 30}}>
           {Object.entries(VirtueGroups).map(([key, group]) => (
             <View key={key}>
               <Text style={styles.groupTitle}>{group.title}</Text>

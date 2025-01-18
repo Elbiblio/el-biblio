@@ -78,78 +78,13 @@ export interface Verse {
   votes: number;
   shares: number;
   isLiked?: boolean;
+  isVoted?: boolean;
   isBookmarked?: boolean;
   is_trending?: boolean;
-
+  is_featured?: boolean;
+  created_at: string;
   theme?: ThemeType;
 }
-
-const sampleReflections: Reflection[] = [
-  {
-    id: '1',
-    user: {
-      id: 'user1',
-      first_name: 'Sarah',
-      last_name: 'Mitchell',
-      avatar: 'https://example.com/avatar1.jpg'
-    },
-    content: "This verse reminds me that in our most exhausting moments, God provides the strength we need. It's not about our own power, but about trusting in His timing and purposes.",
-    timestamp: '2h ago',
-    likes: 42,
-    type: 'story',
-    icon: '✨',
-    isLiked: false,
-    comments: [
-      {
-        id: 'comment1',
-        parentId: null,
-        author: {
-          id: 'user2',
-          first_name: 'John',
-          last_name: 'Doe',
-          avatar: 'https://placehold.co/40x40'
-        },
-        content: "Such a beautiful reminder of God's faithfulness. Thank you for sharing!",
-        likes: 15,
-        timestamp: '5m ago',
-        isLiked: false
-      }
-    ],
-  },
-  {
-    id: '2',
-    user: {
-      id: 'user2',
-      first_name: 'Alice',
-      last_name: 'Johnson',
-      avatar: 'https://placehold.co/40x40'
-    },
-    content: "This verse reminds me that in our most exhausting moments, God provides the strength we need. It's not about our own power, but about trusting in His timing and purposes.",
-    timestamp: '6h ago',
-    likes: 3,
-    type: 'story',
-    icon: '✨',
-    isLiked: false,
-    comments: []
-  },
-  {
-    id: '3',
-    user: {
-      id: 'user3',
-      first_name: 'Bob',
-      last_name: 'Manuel',
-      avatar: 'https://placehold.co/40x40'
-    },
-    content: "This verse reminds me that in our most exhausting moments, God provides the strength we need. It's not about our own power, but about trusting in His timing and purposes.",
-    timestamp: '8h ago',
-    likes: 12,
-    type: 'story',
-    icon: '✨',
-    isLiked: false,
-    comments: []
-  }
-  // Add more reflections here...
-];
 
 export const FaithTheme: ThemeType = {
   id: "3",
@@ -157,35 +92,6 @@ export const FaithTheme: ThemeType = {
   display_name: "Faith",
   is_foundational: true
 }
-
-export const sampleVerse: Verse = {
-  id: '1',
-  text: "But those who hope in the Lord will renew their strength. They will soar on wings like eagles; they will run and not grow weary, they will walk and not be faint.",
-  reference: "Isaiah 40:31",
-  translation: "NIV",
-  likes: 342,
-  votes: 0,
-  reflections: sampleReflections,
-  shares: 56,
-  theme: FaithTheme,
-  is_trending: true,
-};
-
-export const sampleDailyVerses: Verse[] = [
-  {
-    id: '1',
-    text: "But those who hope in the Lord will renew their strength. They will soar on wings like eagles; they will run and not grow weary, they will walk and not be faint.",
-    reference: "Isaiah 40:31",
-    translation: "ESV",
-    reflections: sampleReflections,
-    is_trending: true,
-    likes: 342,
-    shares: 27,
-    votes: 0,
-    theme: FaithTheme
-  },
-  // ... more verses
-];
 
 export interface WordHub {
   id: string;
@@ -288,8 +194,8 @@ export const THEMES: Record<ThemeInfo['id'], ThemeInfo> = {
 export interface Note {
   id: string;
   title: string;
-  content: string;
-  virtues: AllVirtues[];
+  text: string;
+  virtues?: AllVirtues[];
   createdAt?: string;
   updatedAt?: string;
   isPinned?: boolean;
@@ -341,8 +247,15 @@ export interface User {
   first_name: string;
   last_name: string;
   avatar: string;
+  points?: number;
+  primary_language?: string;
   preferred_theme?: PreferredTheme;
   date_of_birth?: string;
+  email_verified_at?: string;
+  last_seen?: string;
+  total_active_time?: number;
+  last_login?: string;
+  created_at?: string;
 }
 
 export const VirtueGroups = {
@@ -384,7 +297,7 @@ export const sampleNotes: Note[] = [
   {
     id: '1',
     title: 'Contemplating Humility',
-    content: "Contemplating the virtue of humility today. True humility isn't thinking less of yourself, but thinking of yourself less. It creates space for others to grow and flourish.",
+    text: "Contemplating the virtue of humility today. True humility isn't thinking less of yourself, but thinking of yourself less. It creates space for others to grow and flourish.",
     virtues: ['humility', 'wisdom', 'love'],
     createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
     updatedAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
@@ -394,7 +307,7 @@ export const sampleNotes: Note[] = [
   {
     id: '2',
     title: 'Faith and Courage',
-    content: "Faith and courage go hand in hand. When we trust in God's plan, we find the strength to face uncertainties with hope and perseverance.",
+    text: "Faith and courage go hand in hand. When we trust in God's plan, we find the strength to face uncertainties with hope and perseverance.",
     virtues: ['faith', 'courage', 'hope', 'trust'],
     createdAt: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
     updatedAt: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
@@ -404,7 +317,7 @@ export const sampleNotes: Note[] = [
   {
     id: '3',
     title: 'Practicing Gratitude',
-    content: "On practicing gratitude: Found joy in the small blessings today. Even in challenges, there's always something to be thankful for.",
+    text: "On practicing gratitude: Found joy in the small blessings today. Even in challenges, there's always something to be thankful for.",
     virtues: ['gratitude', 'joy', 'peace'],
     createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
     updatedAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
