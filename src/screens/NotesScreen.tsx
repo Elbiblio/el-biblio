@@ -25,7 +25,7 @@ import {
 import { Theme } from '@/theme';
 import { useTheme } from '@/contexts/ThemeContext';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { type RootStackParamList, type AllVirtues, sampleNotes, Note } from '@/types';
+import { type RootStackParamList, type AllVirtues, Note } from '@/types';
 import NoteEditor from '@/components/NoteEditor';
 import VirtuePicker from '@/components/VirtuePicker';
 import { getNotePastel } from '@/utils/notes';

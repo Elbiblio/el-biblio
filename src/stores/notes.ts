@@ -28,6 +28,12 @@ const formatDate = (date: number): string => {
   return new Date(date).toISOString();
 };
 
+const localIdPrefix = 'local_';
+
+const isDuplicateUnsyncedNote = (notes: Note[], newNoteContent: string): boolean => {
+  return notes.some(n => n.id.startsWith(localIdPrefix) && n.text.slice(0, 100) === newNoteContent.slice(0, 100));
+};
+
 export const useNoteStore = create<NoteState>((set, get) => ({
   notes: [],
   isLoading: false,
@@ -132,11 +138,17 @@ export const useNoteStore = create<NoteState>((set, get) => ({
 
       const note: Note = {
         ...noteData,
-        id: `local_${Date.now()}`,
+        id: `${localIdPrefix}${Date.now()}`,
         updatedAt: now,
         createdAt: now,
         isPinned: false
       };
+
+      // Check for duplicates among unsynced notes
+      if (isDuplicateUnsyncedNote(notes, note.text)) {
+        console.error('Duplicate unsynced note detected.');
+        return null;
+      }
 
       if (netInfo.isConnected) {
         const response = await apiClient.post<Note>(endpoints.notes.create, note);
@@ -147,7 +159,8 @@ export const useNoteStore = create<NoteState>((set, get) => ({
         }
 
         const serverNote = response.data;
-        const updatedNotes = [...notes, serverNote];
+        // Update the local note with the new server ID
+        const updatedNotes = notes.map(n => n.id === note.id ? { ...serverNote, originalLocalId: note.id } : n);
         
         await AsyncStorage.setItem('notes', JSON.stringify(updatedNotes));
         set({ notes: updatedNotes });
@@ -192,6 +205,12 @@ export const useNoteStore = create<NoteState>((set, get) => ({
         updatedAt: now
       };
 
+      // Check for duplicates among unsynced notes
+      if (isDuplicateUnsyncedNote(notes, updatedNote.text)) {
+        console.error('Duplicate unsynced note detected during update.');
+        return null;
+      }
+
       if (netInfo.isConnected) {
         const response = await apiClient.put<Note>(
           endpoints.notes.update(note.id),
@@ -204,7 +223,8 @@ export const useNoteStore = create<NoteState>((set, get) => ({
         }
 
         const serverNote = response.data;
-        const updatedNotes = notes.map(n => n.id === serverNote.id ? serverNote : n);
+        // Update the local note with the new server ID and keep the original local ID
+        const updatedNotes = notes.map(n => n.id === note.id ? { ...serverNote, originalLocalId: note.id } : n);
         
         await AsyncStorage.setItem('notes', JSON.stringify(updatedNotes));
         set({ notes: updatedNotes });
