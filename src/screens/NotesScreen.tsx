@@ -30,6 +30,7 @@ import NoteEditor from '@/components/NoteEditor';
 import VirtuePicker from '@/components/VirtuePicker';
 import { getNotePastel } from '@/utils/notes';
 import { useNoteStore } from '@/stores/notes';
+import { toast } from 'sonner-native';
 
 const NotesScreen: React.FC<NativeStackScreenProps<RootStackParamList, 'NotesScreen'>> = ({
   navigation
@@ -40,7 +41,7 @@ const NotesScreen: React.FC<NativeStackScreenProps<RootStackParamList, 'NotesScr
 
   // Replace useState with store
   const { notes, addNote, updateNote, syncNotes, deleteNote, initialize } = useNoteStore();
-  
+
   // Keep local UI states
   const [selectedVirtues, setSelectedVirtues] = useState<AllVirtues[]>([]);
   const [showVirtueSelector, setShowVirtueSelector] = useState(false);
@@ -70,9 +71,9 @@ const NotesScreen: React.FC<NativeStackScreenProps<RootStackParamList, 'NotesScr
         }
       }, 1000 * 60 * 5); // 5 minutes
     };
-    
+
     initializeStore();
-    
+
     // Clean up interval on unmount
     return () => {
       if (syncInterval) {
@@ -108,7 +109,7 @@ const NotesScreen: React.FC<NativeStackScreenProps<RootStackParamList, 'NotesScr
     return { pinned, unpinned };
   }, [filteredNotes]);
 
-  
+
   const handleViewNote = useCallback((note: Note) => {
     setActiveNote({ note, mode: 'read' });
     setSelectedVirtues(note.virtues || []);
@@ -141,30 +142,31 @@ const NotesScreen: React.FC<NativeStackScreenProps<RootStackParamList, 'NotesScr
     content: string;
     virtues: AllVirtues[];
   }) => {
-    try {
-      if (activeNote.mode === 'edit' && activeNote.note) {
-        // Update existing note
-        await updateNote({
-          ...activeNote.note,
-          title,
-          text: content,
-          virtues,
-          updatedAt: new Date().toISOString(),
-          color: getNotePastel(virtues)
-        });
-      } else {
-        // Create new note
-        await addNote({
-          title,
-          text: content,
-          virtues,
-          color: getNotePastel(virtues)
-        });
-      }
+    let result: Note | null;
+    if (activeNote.mode === 'edit' && activeNote.note) {
+      // Update existing note using both IDs
+      result = await updateNote({
+        ...activeNote.note,
+        title,
+        text: content,
+        virtues,
+        color: getNotePastel(virtues)
+      });
+    } else {
+      // Create new note
+      result = await addNote({
+        title,
+        text: content,
+        virtues,
+        color: getNotePastel(virtues)
+      });
+    }
+    if (result) {
       handleCloseNote();
-    } catch (error) {
-      console.error('Error saving note:', error);
-      //error toast/alert
+      toast.success("Note saved successfully")
+    }
+    else {
+      toast.error("Error saving note")
     }
   }, [activeNote, updateNote, addNote]);
 

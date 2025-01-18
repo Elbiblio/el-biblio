@@ -72,7 +72,6 @@ export const useNoteStore = create<NoteState>((set, get) => ({
       
       if (!response.success) {
         console.error(response.message);
-        return false;
       }
 
       const serverNotes = response.data;
