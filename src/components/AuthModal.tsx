@@ -95,8 +95,6 @@ const AuthModal: React.FC<AuthModalProps> = ({ visible, onClose }) => {
           first_name: formData.firstName.trim(),
           last_name: formData.lastName.trim(),
         });
-
-        // Show avatar selection immediately
         setShowAvatarModal(true);
       } else {
         try {
@@ -104,8 +102,8 @@ const AuthModal: React.FC<AuthModalProps> = ({ visible, onClose }) => {
           if (result) {
             toast.success('Welcome back!');
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            handleClose();
           }
-          handleClose();
         } catch (error: any) {
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
           setError(error?.message || 'Login failed. Please try again.');
@@ -164,7 +162,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ visible, onClose }) => {
   const handleAvatarModalClose = () => {
     setPendingSignupData(null);
     setShowAvatarModal(false);
-    setError(null);
+    // Don't clear error here to preserve any signup errors
   };
 
   return (
@@ -321,15 +319,15 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     borderRadius: theme.borderRadius.xl,
     overflow: 'hidden',
     marginVertical: SCREEN_DIMENSIONS.height * 0.1,
-    // Add a solid background color in addition to blur
+    // Improved background opacity for better readability
     backgroundColor: Platform.OS === 'ios' ?
-      'rgba(28, 28, 30, 0.9)' :
-      'rgba(28, 28, 30, 0.95)',
+      'rgba(18, 18, 20, 0.95)' :
+      'rgba(18, 18, 20, 0.98)',
     ...Platform.select({
       ios: {
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.25,
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.3,
         shadowRadius: 24,
       },
       android: {
@@ -350,63 +348,56 @@ const createStyles = (theme: Theme) => StyleSheet.create({
   contentContainer: {
     padding: theme.spacing.xl,
     gap: theme.spacing.md,
-    minHeight: 200, // Ensure minimum height for content
+    minHeight: 200,
   },
   closeButton: {
     position: 'absolute',
     top: theme.spacing.md,
     right: theme.spacing.md,
     zIndex: 1,
-    width: 32,
-    height: 32,
+    width: 40,
+    height: 40,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(60, 60, 67, 0.3)',
+    backgroundColor: 'rgba(60, 60, 67, 0.5)',
     borderRadius: theme.borderRadius.full,
   },
   title: {
-    ...theme.typography.heading.medium,
+    ...theme.typography.heading.large,
     color: theme.colors.text.inverse,
     textAlign: 'center',
-    marginBottom: theme.spacing.md,
+    marginBottom: theme.spacing.lg,
   },
   input: {
-    backgroundColor: 'rgba(60, 60, 67, 0.55)',
+    backgroundColor: 'rgba(60, 60, 67, 0.35)',
     padding: theme.spacing.md,
     borderRadius: theme.borderRadius.lg,
-    fontSize: 16,
+    ...theme.typography.body.sans,
     color: theme.colors.text.inverse,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-    ...Platform.select({
-      android: {
-        paddingVertical: theme.spacing.md,
-      },
-      ios: {
-        paddingVertical: theme.spacing.md,
-      }
-    }),
+    borderColor: 'rgba(255, 255, 255, 0.15)',
   },
   errorText: {
     ...theme.typography.caption.primary,
     color: theme.colors.error,
     textAlign: 'center',
-    backgroundColor: 'rgba(255, 59, 48, 0.1)',
-    padding: theme.spacing.sm,
+    backgroundColor: 'rgba(255, 59, 48, 0.15)',
+    padding: theme.spacing.md,
     borderRadius: theme.borderRadius.lg,
   },
   submitButton: {
     backgroundColor: theme.colors.primary,
-    padding: theme.spacing.md,
+    paddingVertical: theme.spacing.md,
+    paddingHorizontal: theme.spacing.xl,
     borderRadius: theme.borderRadius.full,
     alignItems: 'center',
-    marginTop: theme.spacing.md,
+    marginTop: theme.spacing.lg,
     ...Platform.select({
       ios: {
         shadowColor: theme.colors.primary,
         shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.2,
-        shadowRadius: 8,
+        shadowOpacity: 0.3,
+        shadowRadius: 12,
       },
       android: {
         elevation: 8,
@@ -414,24 +405,28 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     }),
   },
   submitButtonDisabled: {
-    opacity: 0.5,
+    opacity: 0.6,
   },
   submitText: {
     ...theme.typography.button.primary,
     color: theme.colors.text.inverse,
+    fontSize: 16,
     fontWeight: '600',
   },
   switchText: {
-    ...theme.typography.caption.primary,
+    ...theme.typography.button.secondary,
     color: theme.colors.primary,
     textAlign: 'center',
-    marginTop: theme.spacing.sm,
+    marginTop: theme.spacing.md,
   },
   eyeIcon: {
     position: "absolute",
-    color: theme.colors.text.inverse,
-    right: 10,
-    top: 20,
+    right: theme.spacing.md,
+    top: Platform.OS === 'ios' ? 18 : 22,
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });
 

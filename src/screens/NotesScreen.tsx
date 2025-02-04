@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, memo } from 'react';
 import {
   View,
   Text,
@@ -7,10 +7,10 @@ import {
   TextInput,
   FlatList,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import NetInfo from '@react-native-community/netinfo';
 
 import {
   NotePencil,
@@ -31,18 +31,30 @@ import VirtuePicker from '@/components/VirtuePicker';
 import { getNotePastel } from '@/utils/notes';
 import { useNoteStore } from '@/stores/notes';
 import { toast } from 'sonner-native';
+import NoteCard from '@/components/NoteCard';
 
-const NotesScreen: React.FC<NativeStackScreenProps<RootStackParamList, 'NotesScreen'>> = ({
-  navigation
-}) => {
+export type NotesScreenProps = NativeStackScreenProps<RootStackParamList, 'NotesScreen'>;
+
+const NotesScreen: React.FC<NotesScreenProps> = ({ navigation, route }) => {
+  // Theme and layout hooks
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const styles = React.useMemo(() => createStyles(theme), [theme]);
 
-  // Replace useState with store
-  const { notes, addNote, updateNote, syncNotes, deleteNote, initialize } = useNoteStore();
+  // Store hooks
+  const {
+    notes,
+    isLoading,
+    fetchNote,
+    addNote,
+    updateNote,
+    deleteNote,
+    initialize,
+    syncNotes
+  } = useNoteStore();
 
-  // Keep local UI states
+  // State hooks
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
   const [selectedVirtues, setSelectedVirtues] = useState<AllVirtues[]>([]);
   const [showVirtueSelector, setShowVirtueSelector] = useState(false);
   const [isGridView, setIsGridView] = useState(true);
@@ -53,34 +65,62 @@ const NotesScreen: React.FC<NativeStackScreenProps<RootStackParamList, 'NotesScr
   }>({ note: null, mode: null });
   const [virtueFilter, setVirtueFilter] = useState<AllVirtues[]>([]);
 
-  // Initialize store
+  // Route params
+  const { noteId } = route.params || {};
+
+  // Initialize notes
   useEffect(() => {
-    let syncInterval: ReturnType<typeof setInterval>;
-    const initializeStore = async () => {
-      initialize();
-      const netInfo = await NetInfo.fetch();
-      if (netInfo.isConnected) {
-        await syncNotes();
-      }
-
-      // Set up periodic sync
-      syncInterval = setInterval(async () => {
-        const state = await NetInfo.fetch();
-        if (state.isConnected) {
-          syncNotes();
-        }
-      }, 1000 * 60 * 5); // 5 minutes
+    const initializeData = async () => {
+      await initialize();
+      setIsInitialLoad(false);
     };
 
-    initializeStore();
-
-    // Clean up interval on unmount
-    return () => {
-      if (syncInterval) {
-        clearInterval(syncInterval);
-      }
-    };
+    initializeData();
   }, [initialize]);
+
+  const loadNote = useCallback(async (id: number | string) => {
+    const localNote = notes.find(n => n.id === id);
+    if (localNote) {
+      setActiveNote({
+        note: localNote,
+        mode: 'read'
+      });
+      setSelectedVirtues(localNote.virtues || []);
+    } else {
+      const fetchedNote = await fetchNote(id.toString(10));
+      if (fetchedNote) {
+        setActiveNote({
+          note: fetchedNote,
+          mode: 'read'
+        });
+        setSelectedVirtues(fetchedNote.virtues || []);
+      } else {
+        toast.error('Note not found');
+        navigation.goBack();
+      }
+    }
+  }, [notes, fetchNote, navigation]);
+
+  //load from params
+  useEffect(() => {
+    if (noteId && !isInitialLoad) {
+      loadNote(noteId);
+    }
+  }, [noteId, isInitialLoad, loadNote]);
+
+  useEffect(() => {
+    const syncInterval = setInterval(syncNotes, 1000 * 60 * 5); // 5 minutes
+    return () => clearInterval(syncInterval);
+  }, [syncNotes]);
+
+  // Loading state
+  if (isInitialLoad) {
+    return (
+      <View style={[styles.container, styles.centerContent]}>
+        <ActivityIndicator size="large" color={theme.colors.primary} />
+      </View>
+    );
+  }
 
   // Rest of the filtering logic remains the same
   const filteredNotes = React.useMemo(() => {
@@ -144,7 +184,7 @@ const NotesScreen: React.FC<NativeStackScreenProps<RootStackParamList, 'NotesScr
   }) => {
     let result: Note | null;
     if (activeNote.mode === 'edit' && activeNote.note) {
-      // Update existing note using both IDs
+      // Update existing note
       result = await updateNote({
         ...activeNote.note,
         title,
@@ -163,10 +203,9 @@ const NotesScreen: React.FC<NativeStackScreenProps<RootStackParamList, 'NotesScr
     }
     if (result) {
       handleCloseNote();
-      toast.success("Note saved successfully")
-    }
-    else {
-      toast.error("Error saving note")
+      toast.success("Note saved successfully");
+    } else {
+      toast.error("Error saving note");
     }
   }, [activeNote, updateNote, addNote]);
 
@@ -174,63 +213,20 @@ const NotesScreen: React.FC<NativeStackScreenProps<RootStackParamList, 'NotesScr
     try {
       await deleteNote(noteId);
       handleCloseNote();
+      toast.success("Note deleted successfully");
     } catch (error) {
       console.error('Error deleting note:', error);
-      //error toast/alert
+      toast.error("Error deleting note");
     }
   }, [deleteNote]);
 
-  const renderNoteCard = useCallback(({ item: note }: { item: Note }) => (
-    <TouchableOpacity
-      key={note.id}
-      style={[
-        styles.noteCard,
-        isGridView ? styles.gridCard : styles.listCard,
-        { backgroundColor: note.color || theme.colors.surface }
-      ]}
-      onPress={() => handleViewNote(note)}
-      activeOpacity={0.7}
-    >
-      <BlurView intensity={10} style={StyleSheet.absoluteFill} />
-      <View style={styles.noteContent}>
-        {note.isPinned && (
-          <View style={styles.pinnedBadge}>
-            <Sparkle size={12} color={theme.colors.primary} />
-            <Text style={styles.pinnedText}>Pinned</Text>
-          </View>
-        )}
-
-        <Text style={styles.noteTitle} numberOfLines={1}>
-          {note.title}
-        </Text>
-
-        <Text
-          style={styles.noteText}
-          numberOfLines={isGridView ? 6 : 3}
-        >
-          {note.text}
-        </Text>
-
-        <View style={styles.virtueContainer}>
-          {note.virtues?.slice(0, 3).map((virtue, index) => (
-            <View
-              key={`${note.id}-virtue-${index}`}
-              style={[styles.virtueBadge, { backgroundColor: `${theme.colors.primary}15` }]}
-            >
-              <Text style={[styles.virtueText, { color: theme.colors.primary }]}>
-                {virtue}
-              </Text>
-            </View>
-          ))}
-          {note.virtues && note.virtues.length > 3 && (
-            <Text style={styles.moreVirtues}>
-              +{note.virtues?.length - 3}
-            </Text>
-          )}
-        </View>
-      </View>
-    </TouchableOpacity>
-  ), [isGridView, theme, handleViewNote]);
+  const renderItem = useCallback(({ item }: { item: Note }) => (
+    <NoteCard
+      note={item}
+      isGridView={isGridView}
+      onPress={handleViewNote}
+    />
+  ), [isGridView, handleViewNote]);
 
   const renderNoteEditor = () => {
     if (activeNote.mode === null) return null;
@@ -300,8 +296,8 @@ const NotesScreen: React.FC<NativeStackScreenProps<RootStackParamList, 'NotesScr
         {/* Notes List */}
         <FlatList
           data={groupedNotes.unpinned}
-          renderItem={renderNoteCard}
-          keyExtractor={item => item.id}
+          renderItem={renderItem}
+          keyExtractor={item => item.id.toString()}
           numColumns={isGridView ? 2 : 1}
           contentContainerStyle={styles.listContent}
           ListHeaderComponent={() => (
@@ -309,7 +305,13 @@ const NotesScreen: React.FC<NativeStackScreenProps<RootStackParamList, 'NotesScr
               {groupedNotes.pinned.length > 0 && (
                 <>
                   <Text style={styles.sectionTitle}>Pinned</Text>
-                  {groupedNotes.pinned.map(note => renderNoteCard({ item: note }))}
+                  <FlatList
+                    data={groupedNotes.pinned}
+                    renderItem={renderItem}
+                    keyExtractor={item => item.id.toString()}
+                    numColumns={isGridView ? 2 : 1}
+                    scrollEnabled={false}
+                  />
                   <Text style={[styles.sectionTitle, { marginTop: theme.spacing.lg }]}>
                     All Notes
                   </Text>
@@ -361,7 +363,7 @@ const NotesScreen: React.FC<NativeStackScreenProps<RootStackParamList, 'NotesScr
   );
 };
 
-const createStyles = (theme: Theme) => StyleSheet.create({
+export const createStyles = (theme: Theme) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.colors.background,
@@ -551,6 +553,16 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     padding: theme.spacing.lg,
     marginTop: 'auto',
   },
+  centerContent: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.3)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
 });
 
-export default NotesScreen;
+export default memo(NotesScreen);

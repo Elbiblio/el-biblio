@@ -141,6 +141,13 @@ export const endpoints = {
   comments: {
     create: '/comments',
   },
+  wordHubs: {
+    list: '/word_hubs',
+    create: '/word_hubs',
+    join: (id: string) => `/word_hubs/${id}/join`,
+    leave: (id: string) => `/word_hubs/${id}/leave`,
+    messages: (id: string) => `/word_hubs/${id}/messages`,
+  }
 };
 
 export const apiClient = {

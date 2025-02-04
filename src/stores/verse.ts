@@ -54,8 +54,10 @@ interface VerseState {
   // Actions
   fetchDailyVerses: () => Promise<void>;
   fetchVerseById: (id: string, includeReflections?: boolean) => Promise<void>;
+  fetchVerseOnly: (id: string, includeReflections?: boolean) => Promise<Verse | null>;
   createInteraction: (payload: UserInteraction) => Promise<void>;
   createReflection: (payload: ReflectionPayload) => Promise<void>;
+
   createComment: (payload: CommentPayload) => Promise<void>;
   createBookmark: (payload: BookmarkPayload) => Promise<void>;
 }
@@ -109,7 +111,26 @@ export const useVerseStore = create<VerseState>((set, get) => ({
     }
   },
 
-  fetchVerseById: async (id: string, includeReflections = false) => {
+  fetchVerseById: async (id: string, includeReflections = false) => {   
+    let response = await get().fetchVerseOnly(id, includeReflections);
+    if (response) {
+      set({ 
+        isVerseLoading: false,
+        isReflectionsLoading: false,
+        verseError: null
+      });
+
+    } else {
+      set({ 
+        isVerseLoading: false,
+        isReflectionsLoading: false,
+        verseError: 'Failed to fetch verse'
+      });
+    }
+  },
+
+
+  fetchVerseOnly: async (id: string, includeReflections = false) => {
     try {
       if (!get().currentVerse || get().currentVerse?.id !== id) {
         set({ isVerseLoading: true });
@@ -131,21 +152,14 @@ export const useVerseStore = create<VerseState>((set, get) => ({
         throw new Error(response.data.message || 'Failed to fetch verse');
       }
       
-      set({ 
-        currentVerse: response.data.data,
-        isVerseLoading: false,
-        isReflectionsLoading: false
-      });
-
+      return response.data.data;
     } catch (error) {
       console.error('Error fetching verse:', error);
-      set({ 
-        isVerseLoading: false,
-        isReflectionsLoading: false,
-        verseError: error instanceof Error ? error.message : 'Failed to fetch verse'
-      });
+
+      return null;
     }
   },
+
 
   createInteraction: async (payload: UserInteraction) => {
     try {

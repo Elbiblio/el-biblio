@@ -242,6 +242,17 @@ export interface Comment {
   replies?: Comment[];
 }
 
+export interface WordHubMessage {
+  id: string;
+  message: string;
+  created_at: string;
+  user: {
+    id: string;
+    name: string;
+    avatar?: string;
+  };
+}
+
 export interface User {
   id: string;
   first_name: string;
@@ -439,11 +450,48 @@ export type RootStackParamList = {
   DailyVersesScreen: undefined;
   MatchScreen: undefined;
   WordHubsScreen: undefined;
+  WordHubDetailScreen: { hubId: string };
   SavedItemsScreen: undefined;
-  NotesScreen: undefined;
+  NotesScreen: { noteId?: string | number };
 };
 
 export interface AnimatedProps {
   scrollX: SharedValue<number>;
   index: number;
+}
+
+export interface Bookmark {
+  id: number;
+  user_id: number;
+  bookmarkable_id: number;
+  bookmarkable_type: string;
+  is_pinned: boolean;
+  created_at: string;
+  updated_at: string;
+  bookmarkable?: {
+    id: number;
+    type: 'verse' | 'reflection' | 'note' | 'clip';
+    content: string;
+    reference?: string;
+    theme?: FoundationalVirtue;
+    context?: string;
+    author?: {
+      id: number;
+      first_name: string;
+      last_name: string;
+      avatar: string;
+    };
+  };
+}
+
+export interface PaginatedResponse<T> {
+  data: T[];
+  meta: {
+    current_page: number;
+    from: number;
+    last_page: number;
+    per_page: number;
+    to: number;
+    total: number;
+  };
 }

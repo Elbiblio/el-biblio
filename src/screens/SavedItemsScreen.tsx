@@ -1,78 +1,34 @@
 import { Heart, HomeLight, Crown, Brain, MessageCircle, BookOpen, NotePencil, Scroll, BookmarkSimple, ArrowLeft, Sparkle, Search, X, IconProps, Clock, Filter } from "@/components/Icons";
 import { useTheme } from "@/contexts/ThemeContext";
 import { Theme } from "@/theme";
-import { User, RootStackParamList, SavedItemType, FoundationalVirtue, SavedItem, SavedItemsFilter } from "@/types";
+import { User, RootStackParamList, SavedItemType, FoundationalVirtue, SavedItem, SavedItemsFilter, Bookmark } from "@/types";
 import { formatRelativeTime } from "@/utils/schedule";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { BlurView } from "expo-blur";
 import React, { useState, useEffect, useMemo } from "react";
 import { View, StyleSheet, Text, Image, TouchableOpacity, TextInput, ScrollView, Modal } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-
-const sampleSavedItems: SavedItem[] = [
-  {
-    id: '1',
-    type: 'clip',
-    content: "That's a profound observation about how faith and works complement each other. I hadn't considered that perspective before.",
-    theme: 'faith',
-    isPinned: true,
-    savedAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-    author: {
-      id: 'user1',
-      first_name: 'Sarah',
-      last_name: 'Mitchell',
-      avatar: 'https://placehold.co/40x40'
-    },
-    context: 'Faith Discussion Hub'
-  },
-  {
-    id: '2',
-    type: 'verse',
-    content: "But those who hope in the Lord will renew their strength. They will soar on wings like eagles; they will run and not grow weary, they will walk and not be faint.",
-    reference: "Isaiah 40:31",
-    theme: 'faith',
-    isPinned: true,
-    savedAt: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-  },
-  {
-    id: '3',
-    type: 'reflection',
-    content: "Today's verse reminds me that humility isn't about thinking less of yourself, but thinking of yourself less. It's about creating space for others to grow and flourish.",
-    theme: 'humility',
-    isPinned: false,
-    savedAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
-    author: {
-      id: 'user2',
-      first_name: 'John',
-      last_name: 'Doe',
-      avatar: 'https://placehold.co/40x40'
-    },
-  },
-  {
-    id: '4',
-    type: 'note',
-    content: "Key insights from today's study:\n- Love is patient (makrothumia) - long-suffering, enduring\n- Love is kind (chresteuomai) - actively beneficial to others\n- These are actions, not just feelings",
-    theme: 'love',
-    isPinned: false,
-    savedAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
-  }
-];
+import { useBookmarkStore } from "@/stores/bookmark";
+import { useVerseStore } from '@/stores/verse';
+import { useReflectionStore } from '@/stores/reflection';
+import { toast } from "sonner-native";
 
 const SavedItemsScreen: React.FC<NativeStackScreenProps<RootStackParamList, 'SavedItemsScreen'>> = ({
   navigation
 }) => {
-  const theme: Theme = useTheme();
+  const theme = useTheme();
   const insets = useSafeAreaInsets();
   const styles = React.useMemo(() => createStyles(theme), [theme]);
+  const { bookmarks, isLoading, fetchBookmarks, togglePin, deleteBookmark } = useBookmarkStore();
+  const { fetchVerseOnly } = useVerseStore();
+  const { fetchReflection } = useReflectionStore();
 
   // States
-  const [items, setItems] = useState<SavedItem[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [filters, setFilters] = useState<SavedItemsFilter>({});
-  const [activeTab, setActiveTab] = useState<SavedItem['type'] | null>(null);
+  const [activeTab, setActiveTab] = useState<SavedItemType | null>(null);
   const [showFilters, setShowFilters] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-  const [pinnedItems, setPinnedItems] = useState<SavedItem[]>([]);
+  const [pinnedItems, setPinnedItems] = useState<Bookmark[]>([]);
 
   // Filter options
   const THEME_OPTIONS: { value: FoundationalVirtue; label: string; Icon: React.FC<IconProps>; color: string }[] = [
@@ -90,20 +46,33 @@ const SavedItemsScreen: React.FC<NativeStackScreenProps<RootStackParamList, 'Sav
   ];
 
   useEffect(() => {
-    loadSavedItems();
+    loadBookmarks();
   }, []);
 
-  const loadSavedItems = async () => {
-    try {
-      setIsLoading(true);
-      // API call to fetch saved items
-      // For now using sample data
-      setItems(sampleSavedItems);
-      setPinnedItems(sampleSavedItems.filter(item => item.isPinned));
-    } catch (error) {
-      console.error(error);
-    } finally {
-      setIsLoading(false);
+  const loadBookmarks = async () => {
+    await fetchBookmarks({
+      include: ['bookmarkable', 'bookmarkable.author'],
+      sort: '-created_at',
+      per_page: 50
+    });
+    updatePinnedItems();
+  };
+
+  const updatePinnedItems = () => {
+    setPinnedItems(bookmarks.filter(item => item.is_pinned));
+  };
+
+  const handlePin = async (id: number) => {
+    const success = await togglePin(id);
+    if (success) {
+      updatePinnedItems();
+    }
+  };
+
+  const handleDelete = async (id: number) => {
+    const success = await deleteBookmark(id);
+    if (success) {
+      updatePinnedItems();
     }
   };
 
@@ -112,29 +81,48 @@ const SavedItemsScreen: React.FC<NativeStackScreenProps<RootStackParamList, 'Sav
     setFilters(prev => ({ ...prev, searchQuery: text }));
   };
 
-  const handlePin = async (itemId: string) => {
+  const handleItemPress = async (bookmarkable: NonNullable<Bookmark['bookmarkable']>) => {
     try {
-      // API call to toggle pin status
-      setItems(prev => prev.map(item =>
-        item.id === itemId ? { ...item, isPinned: !item.isPinned } : item
-      ));
-      await loadSavedItems(); // Refresh list to update pinned section
+      switch (bookmarkable.type) {
+        case 'verse': {
+          const verse = await fetchVerseOnly(bookmarkable.id.toString(10));
+          if (verse) {
+            navigation.navigate('VerseDetail', { verse });
+          }
+          break;
+        }
+
+        case 'reflection': {
+          const reflection = await fetchReflection(bookmarkable.id.toString(10));
+          if (reflection) {
+            navigation.navigate('ReflectionDetail', { reflection });
+          }
+          break;
+        }
+        case 'note':
+          navigation.navigate('NotesScreen', { noteId: bookmarkable.id });
+          break;
+        case 'clip':
+          // Handle clip navigation
+          break;
+      }
     } catch (error) {
-      console.error(error);
+      console.error('Navigation error:', error);
+      toast.error('Failed to load item');
     }
   };
 
   const filteredItems = useMemo(() => {
-    return items.filter(item => {
+    return bookmarks.filter(item => {
       // Type filter
-      if (activeTab && item.type !== activeTab) return false;
+      if (activeTab && item.bookmarkable?.type !== activeTab) return false;
 
       // Theme filter
-      if (filters.theme && item.theme !== filters.theme) return false;
+      if (filters.theme && item.bookmarkable?.theme !== filters.theme) return false;
 
       // Date range filter
       if (filters.dateRange) {
-        const itemDate = new Date(item.savedAt);
+        const itemDate = new Date(item.created_at);
         if (
           itemDate < filters.dateRange.start ||
           itemDate > filters.dateRange.end
@@ -144,45 +132,29 @@ const SavedItemsScreen: React.FC<NativeStackScreenProps<RootStackParamList, 'Sav
       // Search query
       if (filters.searchQuery) {
         const query = filters.searchQuery.toLowerCase();
-        const searchableContent = `${item.content} ${item.reference || ''} ${item.author?.first_name || ''} ${item.author?.last_name || ''}`.toLowerCase();
+        const searchableContent = `${item.bookmarkable?.content || ''} ${item.bookmarkable?.reference || ''} ${item.bookmarkable?.author?.first_name || ''} ${item.bookmarkable?.author?.last_name || ''}`.toLowerCase();
         if (!searchableContent.includes(query)) return false;
       }
 
       //exclude pinned items
-      return activeTab ? true : !item.isPinned;
+      return activeTab ? true : !item.is_pinned;
     });
-  }, [items, activeTab, filters]);
+  }, [bookmarks, activeTab, filters]);
 
-  const renderItem = ({ item }: { item: SavedItem }) => {
-    // Find theme option once instead of multiple times
-    const themeOption = THEME_OPTIONS.find(t => t.value === item.theme);
+  const renderItem = ({ item }: { item: Bookmark }) => {
+    const bookmarkable = item.bookmarkable;
+    if (!bookmarkable) return null;
+
+    const themeOption = THEME_OPTIONS.find(t => t.value === bookmarkable.theme);
     const ThemeIcon = themeOption?.Icon;
     const themeColor = themeOption?.color;
-
-    // Get type-specific icon
-    const TypeIcon = TYPE_TABS.find(t => t.value === item.type)?.Icon;
+    const TypeIcon = TYPE_TABS.find(t => t.value === bookmarkable.type)?.Icon;
 
     return (
       <TouchableOpacity
         key={item.id}
         style={styles.itemCard}
-        onPress={() => {
-          // Handle item press based on type
-          switch (item.type) {
-            case 'clip':
-              // Navigate to original message/context
-              break;
-            case 'reflection':
-              // Navigate to reflection detail
-              break;
-            case 'verse':
-              // Show verse detail modal
-              break;
-            case 'note':
-              // Show note detail/editor
-              break;
-          }
-        }}
+        onPress={() => handleItemPress(bookmarkable)}
       >
         <BlurView intensity={10} style={StyleSheet.absoluteFill} />
         <View style={styles.itemContent}>
@@ -193,19 +165,19 @@ const SavedItemsScreen: React.FC<NativeStackScreenProps<RootStackParamList, 'Sav
               <View style={[styles.typeBadge, { backgroundColor: theme.colors.surface }]}>
                 {TypeIcon && <TypeIcon size={14} color={theme.colors.text.secondary} />}
                 <Text style={styles.typeText}>
-                  {item.type.charAt(0).toUpperCase() + item.type.slice(1)}
+                  {bookmarkable.type.charAt(0).toUpperCase() + bookmarkable.type.slice(1)}
                 </Text>
               </View>
 
               {/* Theme Badge */}
-              {item.theme && ThemeIcon && (
+              {bookmarkable.theme && ThemeIcon && (
                 <View style={[
                   styles.themeBadge,
                   { backgroundColor: `${themeColor}15` }
                 ]}>
                   <ThemeIcon size={12} color={themeColor} />
                   <Text style={[styles.themeBadgeText, { color: themeColor }]}>
-                    {item.theme.charAt(0).toUpperCase() + item.theme.slice(1)}
+                    {bookmarkable.theme.charAt(0).toUpperCase() + bookmarkable.theme.slice(1)}
                   </Text>
                 </View>
               )}
@@ -219,8 +191,8 @@ const SavedItemsScreen: React.FC<NativeStackScreenProps<RootStackParamList, 'Sav
             >
               <BookmarkSimple
                 size={20}
-                color={item.isPinned ? theme.colors.primary : theme.colors.text.secondary}
-                filled={item.isPinned}
+                color={item.is_pinned ? theme.colors.primary : theme.colors.text.secondary}
+                filled={item.is_pinned}
               />
             </TouchableOpacity>
           </View>
@@ -228,9 +200,9 @@ const SavedItemsScreen: React.FC<NativeStackScreenProps<RootStackParamList, 'Sav
           {/* Main Content */}
           <View style={styles.mainContent}>
             {/* Reference for verses */}
-            {item.type === 'verse' && item.reference && (
+            {bookmarkable.type === 'verse' && bookmarkable.reference && (
               <Text style={styles.verseReference}>
-                {item.reference}
+                {bookmarkable.reference}
               </Text>
             )}
 
@@ -238,18 +210,18 @@ const SavedItemsScreen: React.FC<NativeStackScreenProps<RootStackParamList, 'Sav
             <Text
               style={[
                 styles.itemText,
-                item.type === 'verse' && styles.verseText
+                bookmarkable.type === 'verse' && styles.verseText
               ]}
               numberOfLines={3}
             >
-              {item.content}
+              {bookmarkable.content}
             </Text>
 
             {/* Context Badge */}
-            {item.context && (
+            {bookmarkable.context && (
               <View style={styles.contextBadge}>
                 <MessageCircle size={12} color={theme.colors.text.secondary} />
-                <Text style={styles.contextText}>{item.context}</Text>
+                <Text style={styles.contextText}>{bookmarkable.context}</Text>
               </View>
             )}
           </View>
@@ -257,14 +229,14 @@ const SavedItemsScreen: React.FC<NativeStackScreenProps<RootStackParamList, 'Sav
           {/* Footer */}
           <View style={styles.itemFooter}>
             {/* Author Info - for clips and reflections */}
-            {item.author && (
+            {bookmarkable.author && (
               <View style={styles.authorInfo}>
                 <Image
-                  source={{ uri: item.author.avatar }}
+                  source={{ uri: bookmarkable.author.avatar }}
                   style={styles.authorAvatar}
                 />
                 <Text style={styles.authorName}>
-                  {`${item.author.first_name} ${item.author.last_name}`}
+                  {`${bookmarkable.author.first_name} ${bookmarkable.author.last_name}`}
                 </Text>
               </View>
             )}
@@ -273,7 +245,7 @@ const SavedItemsScreen: React.FC<NativeStackScreenProps<RootStackParamList, 'Sav
             <View style={styles.timeContainer}>
               <Clock size={12} color={theme.colors.text.secondary} />
               <Text style={styles.savedTime}>
-                {formatRelativeTime(item.savedAt)}
+                {formatRelativeTime(item.created_at)}
               </Text>
             </View>
           </View>

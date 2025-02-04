@@ -34,6 +34,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { sampleWordHubs, type RootStackParamList, type User, type WordHub } from '@/types';
 import { formatTimeLeft } from '@/utils/schedule';
 import AvatarStack from '@/components/AvatarStack';
+import { apiClient, endpoints } from '@/api/client';
 
 const WordHubsScreen: React.FC<NativeStackScreenProps<RootStackParamList, 'WordHubsScreen'>> = ({
   navigation,
@@ -45,8 +46,10 @@ const WordHubsScreen: React.FC<NativeStackScreenProps<RootStackParamList, 'WordH
   // States
   const [searchQuery, setSearchQuery] = useState('');
   const [showCreateHub, setShowCreateHub] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'discover' | 'joined'>('discover');
+  const [wordHubs, setWordHubs] = useState<WordHub[]>([]);
+  const [error, setError] = useState<string | null>(null);
 
   // Create Hub Form States
   const [hubTitle, setHubTitle] = useState('');
@@ -55,55 +58,90 @@ const WordHubsScreen: React.FC<NativeStackScreenProps<RootStackParamList, 'WordH
   const [hubCode, setHubCode] = useState('');
   const [minPoints, setMinPoints] = useState('');
   const [joinCode, setJoinCode] = useState('');
-  const [wordHubs, setWordHubs] = useState(sampleWordHubs);
 
   const generateHubCode = () => {
     return Math.floor(100000 + Math.random() * 900000).toString();
   };
 
-  const handleCreateHub = () => {
+  const fetchWordHubs = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      const response = await apiClient.get<WordHub[]>(endpoints.wordHubs.list, {
+        params: {
+          include: 'user,bookmarks',
+          sort: '-created_at',
+          per_page: 20
+        }
+      });
+      
+      if (response.success) {
+        setWordHubs(response.data);
+      }
+    } catch (error) {
+      setError('Failed to load word hubs');
+      console.error('Error fetching word hubs:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  const handleCreateHub = async () => {
     if (!hubTitle.trim() || !hubDescription.trim()) return;
 
-    // Add validation and API call here
-    const newHub = {
-      title: hubTitle,
-      description: hubDescription,
-      isPrivate,
-      code: isPrivate ? hubCode || generateHubCode() : undefined,
-      minPoints: minPoints ? parseInt(minPoints) : undefined,
-    };
+    try {
+      setIsLoading(true);
+      const response = await apiClient.post<WordHub>(endpoints.wordHubs.create, {
+        title: hubTitle,
+        description: hubDescription,
+        is_private: isPrivate,
+        access_code: isPrivate ? hubCode || generateHubCode() : undefined,
+        min_points: minPoints ? parseInt(minPoints) : undefined,
+      });
 
-    // Reset form
-    setHubTitle('');
-    setHubDescription('');
-    setIsPrivate(false);
-    setHubCode('');
-    setMinPoints('');
-    setShowCreateHub(false);
-
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  };
-
-  const handleSearch = (text: string) => {
-    setSearchQuery(text);
-    // If input matches a 6-digit format, treat as code search
-    if (/^\d{6}$/.test(text)) {
-      // Search by code
-      // API call here
-    } else {
-      // Search by title/description
-      // API call here
+      if (response.success) {
+        setWordHubs(prev => [response.data, ...prev]);
+        setShowCreateHub(false);
+        
+        // Reset form
+        setHubTitle('');
+        setHubDescription('');
+        setIsPrivate(false);
+        setHubCode('');
+        setMinPoints('');
+        
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
+    } catch (error) {
+      console.error('Error creating hub:', error);
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const handleJoinHub = (hub: WordHub) => {
-    if (hub.isPrivate && !joinCode) {
-      // Show code input modal
-      return;
-    }
+  const handleJoinHub = async (hub: WordHub) => {
+    try {
+      setIsLoading(true);
+      const response = await apiClient.post<{ member: any }>(
+        endpoints.wordHubs.join(hub.id),
+        hub.isPrivate ? { access_code: joinCode } : undefined
+      );
 
-    // Add join logic here
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      if (response.success) {
+        // Update local state to reflect membership
+        setWordHubs(prev =>
+          prev.map(h => h.id === hub.id ? { ...h, isMember: true } : h)
+        );
+        
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        
+        // Navigate to hub detail screen
+        navigation.navigate('WordHubDetailScreen', { hubId: hub.id });
+      }
+    } catch (error) {
+      console.error('Error joining hub:', error);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleBookmark = (hubId: string) => {
@@ -223,6 +261,33 @@ const WordHubsScreen: React.FC<NativeStackScreenProps<RootStackParamList, 'WordH
       </View>
     </TouchableOpacity>
   );
+
+  useEffect(() => {
+    fetchWordHubs();
+  }, [fetchWordHubs]);
+
+  const handleSearch = useCallback(async (text: string) => {
+    setSearchQuery(text);
+    
+    try {
+      setIsLoading(true);
+      const response = await apiClient.get<WordHub[]>(endpoints.wordHubs.list, {
+        params: {
+          search: text,
+          include: 'user,bookmarks',
+          per_page: 20
+        }
+      });
+      
+      if (response.success) {
+        setWordHubs(response.data);
+      }
+    } catch (error) {
+      console.error('Error searching hubs:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -441,19 +506,8 @@ const createStyles = (theme: Theme) => StyleSheet.create({
   hubCard: {
     borderRadius: theme.borderRadius.lg,
     overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: `${theme.colors.primary}15`,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 8,
-      },
-      android: {
-        elevation: 4,
-      },
-    }),
+    borderWidth: 1.5,
+    borderColor: `${theme.colors.primary}35`,
   },
   hubContent: {
     padding: theme.spacing.md,

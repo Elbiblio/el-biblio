@@ -97,7 +97,6 @@ const App = () => {
 
     return (
       <NavigationContainer>
-        <Toaster />
         <Stack.Navigator screenOptions={{ headerShown: false }}>
           {!hasCompletedWelcome ? (
             <Stack.Screen name="IntroScreen" component={IntroScreen} />
@@ -122,18 +121,18 @@ const App = () => {
   return (
     <SafeAreaProvider>
       <AuthProvider>
-
         <ThemeProvider
           initialTheme={initialTheme}
           onThemeChange={handleThemeChange}
         >
-          {showThemeSelector ? (
-            <ThemeSelector onSelect={handleThemeSelect} />
-          ) : (
-            <GestureHandlerRootView style={{ flex: 1 }}>
+          <GestureHandlerRootView style={{ flex: 1 }}>
+            {showThemeSelector ? (
+              <ThemeSelector onSelect={handleThemeSelect} />
+            ) : (
               <NavigationContent />
-            </GestureHandlerRootView>
-          )}
+            )}
+            <Toaster />
+          </GestureHandlerRootView>
         </ThemeProvider>
       </AuthProvider>
     </SafeAreaProvider>

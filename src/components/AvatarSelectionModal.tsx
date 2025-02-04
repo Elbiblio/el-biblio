@@ -117,7 +117,7 @@ const AvatarSelectionModal: React.FC<AvatarSelectionModalProps> = ({
                   <Text style={styles.subtitle}>
                     Choose an avatar that represents you
                   </Text>
-  
+    
                   {/* Selected Avatar Preview */}
                   {selectedAvatar && (
                     <View style={styles.previewContainer}>
