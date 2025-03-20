@@ -24,7 +24,7 @@ import { BlurView } from 'expo-blur';
 import { Trophy, Lightning, Check, Star } from '@/components/Icons';
 import { Theme } from '@/theme';
 import { useTheme } from '@/contexts/ThemeContext';
-import LottieView from 'lottie-react-native';
+import ConfettiCannon from 'react-native-confetti-cannon';
 import * as Haptics from 'expo-haptics';
 
 interface PointsEarnedModalProps {
@@ -43,7 +43,7 @@ const PointsEarnedModal: React.FC<PointsEarnedModalProps> = ({
   challengeTitle,
 }) => {
   const theme = useTheme();
-  const confettiRef = useRef<LottieView>(null);
+  const confettiRef = useRef<ConfettiCannon>(null);
   const pointsScale = useSharedValue(0.3);
   const pulseValue = useSharedValue(1);
   const raysOpacity = useSharedValue(0);
@@ -63,7 +63,7 @@ const PointsEarnedModal: React.FC<PointsEarnedModalProps> = ({
       // Start animations
       setTimeout(() => {
         if (confettiRef.current) {
-          confettiRef.current.play();
+          confettiRef.current.start();
         }
         
         // Animate points counter
@@ -128,14 +128,18 @@ const PointsEarnedModal: React.FC<PointsEarnedModalProps> = ({
           entering={SlideInDown.springify().damping(15)}
           style={styles.modalContent}
         >
-          {/* Confetti animation */}
-          <LottieView
-            ref={confettiRef}
-            source={require('@/assets/animations/confetti.json')}
-            style={styles.confetti}
-            loop={false}
-            autoPlay={false}
-          />
+          {visible && (
+            <ConfettiCannon
+              ref={confettiRef}
+              count={100}
+              origin={{x: -10, y: 0}}
+              autoStart={false}
+              fallSpeed={2000}
+              explosionSpeed={350}
+              fadeOut={true}
+              colors={['#FFD700', '#FF6347', '#4169E1', '#32CD32', '#FF69B4', '#BA55D3']}
+            />
+          )}
           
           {/* Title */}
           <Animated.Text 

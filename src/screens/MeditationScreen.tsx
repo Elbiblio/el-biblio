@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   ScrollView,
   Animated,
-  Easing,
   Platform,
   BackHandler,
   DimensionValue,
@@ -33,14 +32,13 @@ import {
 } from '@/components/Icons';
 import { Theme } from '@/theme';
 import { useAuth } from '@/stores/auth';
-import LottieView from 'lottie-react-native';
 import * as Haptics from 'expo-haptics';
 import { Audio } from 'expo-av';
 import { DailyChallenge } from '@/types';
 import Svg, { Path, Circle } from 'react-native-svg';
 import AnimatedCircularProgress from '@/components/AnimatedCircularProgress';
 import AnimatedParticles from '@/components/AnimatedParticles';
-import { useSharedValue, useAnimatedProps, withTiming, withSequence, withRepeat, withDelay } from 'react-native-reanimated';
+import { useSharedValue, useAnimatedProps, withTiming, withSequence, withRepeat, withDelay, Easing } from 'react-native-reanimated';
 import { ReanimatedPath, ReanimatedCircle } from '@/components/ReanimatedSvg';
 import { useAnimatedStyle, interpolate } from 'react-native-reanimated';
 
@@ -76,13 +74,14 @@ const MeditationScreen: React.FC = () => {
   const bellAnim = useSharedValue(0);
   const fadeAnim = useSharedValue(1);
   const promptOpacity = useSharedValue(0);
-  const lottieRef = useRef<LottieView>(null);
 
   // Audio/vibration feedback refs
   const isSpeaking = useRef(false);
 
   // Add sound effect references
   const [tickSound, setTickSound] = useState<Audio.Sound | null>(null);
+  const [backgroundSound, setBackgroundSound] = useState<Audio.Sound | null>(null);
+  const [selectedBackgroundSound, setSelectedBackgroundSound] = useState<string | null>(null);
   const [breathePhase, setBreathePhase] = useState<'in' | 'hold' | 'out'>('in');
   const breatheTextOpacity = useSharedValue(1);
   const numberScale = useSharedValue(1);
@@ -254,10 +253,10 @@ const MeditationScreen: React.FC = () => {
   useEffect(() => {
     async function loadSounds() {
       try {
-        const { sound } = await Audio.Sound.createAsync(
+        const { sound: tick } = await Audio.Sound.createAsync(
           require('../../assets/sounds/tick-tock.wav')
         );
-        setTickSound(sound);
+        setTickSound(tick);
       } catch (error) {
         console.error("Failed to load sounds", error);
       }
@@ -269,8 +268,60 @@ const MeditationScreen: React.FC = () => {
       if (tickSound) {
         tickSound.unloadAsync();
       }
+      if (backgroundSound) {
+        backgroundSound.unloadAsync();
+      }
     };
   }, []);
+
+  // Load and play background sound when selected
+  useEffect(() => {
+    const loadBackgroundSound = async () => {
+      // Unload any previous background sound
+      if (backgroundSound) {
+        await backgroundSound.unloadAsync();
+      }
+
+      if (!selectedBackgroundSound) return;
+
+      try {
+        const soundAsset = selectedBackgroundSound === 'ambient' 
+          ? require('../../assets/sounds/meditation-ambient.mp3')
+          : require('../../assets/sounds/heartbeat.mp3');
+          
+        const { sound } = await Audio.Sound.createAsync(
+          soundAsset,
+          { isLooping: true, volume: 0.4 } // Lower volume to not overpower voice
+        );
+        
+        setBackgroundSound(sound);
+        
+        // Only play if in active meditation
+        if (meditationState === MeditationState.ACTIVE) {
+          await sound.playAsync();
+        }
+      } catch (error) {
+        console.error("Failed to load background sound", error);
+      }
+    };
+
+    loadBackgroundSound();
+  }, [selectedBackgroundSound]);
+
+  // Start/stop background sound based on meditation state
+  useEffect(() => {
+    const handleBackgroundSound = async () => {
+      if (!backgroundSound) return;
+
+      if (meditationState === MeditationState.ACTIVE) {
+        await backgroundSound.playAsync();
+      } else if (meditationState === MeditationState.COMPLETE) {
+        await backgroundSound.stopAsync();
+      }
+    };
+
+    handleBackgroundSound();
+  }, [meditationState, backgroundSound]);
 
   // Play tick sound during countdown
   const playTickSound = async () => {
@@ -343,6 +394,23 @@ const MeditationScreen: React.FC = () => {
     }, 200);
   };
 
+  // Synchronize speech with countdown numbers
+  const speakCountdownNumber = (number: number) => {
+    // Clear any previous speech to ensure synchronization
+    Speech.stop();
+    
+    if (number <= 3 && number > 0) {
+      // Small delay to synchronize with visual
+      setTimeout(() => {
+        Speech.speak(`${number}`, { rate: 0.8 });
+      }, 100);
+    } else if (number === 0) {
+      setTimeout(() => {
+        Speech.speak("Close your eyes, if you are able to do so. Visualize yourself calm, peaceful, empty and ready to grow spiritually.", { rate: 0.8 });
+      }, 100);
+    }
+  };
+
   // Handle countdown timer logic with animation and sound
   useEffect(() => {
     let interval: number;
@@ -351,6 +419,8 @@ const MeditationScreen: React.FC = () => {
       // Play initial tick
       playTickSound();
       animateCountdownNumber();
+      // Speak the initial number if <= 3
+      speakCountdownNumber(countdown);
 
       interval = setInterval(() => {
         setCountdown(prev => {
@@ -360,13 +430,10 @@ const MeditationScreen: React.FC = () => {
           if (newValue >= 0) {
             playTickSound();
             animateCountdownNumber();
+            speakCountdownNumber(newValue);
           }
 
-          // Speak the countdown for the last 3 seconds
-          if (newValue <= 3 && newValue > 0) {
-            Speech.speak(`${newValue}`, { rate: 0.8 });
-          } else if (newValue === 0) {
-            Speech.speak("Begin", { rate: 0.8 });
+          if (newValue === 0) {
             // Start meditation session
             setMeditationState(MeditationState.ACTIVE);
           }
@@ -471,11 +538,6 @@ const MeditationScreen: React.FC = () => {
 
     // Play bell sound (if we had a sound library)
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-
-    // Start lottie animation
-    if (lottieRef.current) {
-      lottieRef.current.play();
-    }
   };
 
   const pulseAnim = useSharedValue(0);
@@ -596,37 +658,69 @@ const MeditationScreen: React.FC = () => {
     <ScrollView style={styles.scrollContainer} showsVerticalScrollIndicator={false}>
       <Animated.View style={[styles.setupContainer, fadeAnimStyle]}>
         <Text style={styles.sectionTitle}>CHOOSE A VIRTUE</Text>
-        <View style={styles.virtuesContainer}>
-          {VIRTUES.map(virtue => (
-            <TouchableOpacity
-              key={virtue.id}
-              style={[
-                styles.virtueButton,
-                selectedVirtue === virtue.id && styles.selectedVirtueButton,
-                selectedVirtue === virtue.id && { borderColor: virtue.color }
-              ]}
+        
+        {selectedVirtue ? (
+          // Collapsed view when virtue is selected
+          <View style={styles.selectedVirtueCollapsed}>
+            <View style={styles.selectedVirtueContent}>
+              {currentVirtue && (
+                <>
+                  <View style={[
+                    styles.virtueIconContainer,
+                    { backgroundColor: `${currentVirtue.color}15` }
+                  ]}>
+                    <currentVirtue.icon size={24} color={currentVirtue.color} />
+                  </View>
+                  <Text style={[styles.virtueText, { color: currentVirtue.color }]}>
+                    {currentVirtue.name}
+                  </Text>
+                </>
+              )}
+            </View>
+            <TouchableOpacity 
+              style={styles.changeVirtueButton}
               onPress={() => {
-                setSelectedVirtue(virtue.id);
+                setSelectedVirtue(null);
                 Haptics.selectionAsync();
               }}
             >
-              <View
-                style={[
-                  styles.virtueIconContainer,
-                  { backgroundColor: `${virtue.color}15` }
-                ]}
-              >
-                <virtue.icon size={24} color={virtue.color} />
-              </View>
-              <Text style={[
-                styles.virtueText,
-                selectedVirtue === virtue.id && { color: virtue.color }
-              ]}>
-                {virtue.name}
-              </Text>
+              <Text style={styles.changeVirtueText}>Change</Text>
             </TouchableOpacity>
-          ))}
-        </View>
+          </View>
+        ) : (
+          // Expanded virtues container when no virtue is selected
+          <View style={styles.virtuesContainer}>
+            {VIRTUES.map(virtue => (
+              <TouchableOpacity
+                key={virtue.id}
+                style={[
+                  styles.virtueButton,
+                  selectedVirtue === virtue.id && styles.selectedVirtueButton,
+                  selectedVirtue === virtue.id && { borderColor: virtue.color }
+                ]}
+                onPress={() => {
+                  setSelectedVirtue(virtue.id);
+                  Haptics.selectionAsync();
+                }}
+              >
+                <View
+                  style={[
+                    styles.virtueIconContainer,
+                    { backgroundColor: `${virtue.color}15` }
+                  ]}
+                >
+                  <virtue.icon size={24} color={virtue.color} />
+                </View>
+                <Text style={[
+                  styles.virtueText,
+                  selectedVirtue === virtue.id && { color: virtue.color }
+                ]}>
+                  {virtue.name}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
 
         <Text style={styles.sectionTitle}>SESSION LENGTH</Text>
         <View style={styles.timeContainer}>
@@ -666,6 +760,105 @@ const MeditationScreen: React.FC = () => {
           ))}
         </View>
 
+        <Text style={styles.sectionTitle}>BACKGROUND SOUND</Text>
+        <View style={styles.soundContainer}>
+          <TouchableOpacity
+            style={[
+              styles.soundButton,
+              selectedBackgroundSound === 'ambient' && styles.selectedSoundButton,
+              selectedBackgroundSound === 'ambient' && {
+                borderColor: currentVirtue?.color || theme?.colors.primary
+              }
+            ]}
+            onPress={() => {
+              setSelectedBackgroundSound('ambient');
+              Haptics.selectionAsync();
+            }}
+          >
+            <View style={styles.soundButtonContent}>
+              <Bell
+                size={16}
+                color={selectedBackgroundSound === 'ambient'
+                  ? (currentVirtue?.color || theme?.colors.primary)
+                  : theme?.colors.text.secondary
+                }
+              />
+              <Text style={[
+                styles.soundText,
+                selectedBackgroundSound === 'ambient' && {
+                  color: currentVirtue?.color || theme?.colors.primary
+                }
+              ]}>
+                Ambient
+              </Text>
+            </View>
+          </TouchableOpacity>
+          
+          <TouchableOpacity
+            style={[
+              styles.soundButton,
+              selectedBackgroundSound === 'heartbeat' && styles.selectedSoundButton,
+              selectedBackgroundSound === 'heartbeat' && {
+                borderColor: currentVirtue?.color || theme?.colors.primary
+              }
+            ]}
+            onPress={() => {
+              setSelectedBackgroundSound('heartbeat');
+              Haptics.selectionAsync();
+            }}
+          >
+            <View style={styles.soundButtonContent}>
+              <Heart
+                size={16}
+                color={selectedBackgroundSound === 'heartbeat'
+                  ? (currentVirtue?.color || theme?.colors.primary)
+                  : theme?.colors.text.secondary
+                }
+              />
+              <Text style={[
+                styles.soundText,
+                selectedBackgroundSound === 'heartbeat' && {
+                  color: currentVirtue?.color || theme?.colors.primary
+                }
+              ]}>
+                Heartbeat
+              </Text>
+            </View>
+          </TouchableOpacity>
+          
+          <TouchableOpacity
+            style={[
+              styles.soundButton,
+              selectedBackgroundSound === null && styles.selectedSoundButton,
+              selectedBackgroundSound === null && {
+                borderColor: currentVirtue?.color || theme?.colors.primary
+              }
+            ]}
+            onPress={() => {
+              setSelectedBackgroundSound(null);
+              Haptics.selectionAsync();
+            }}
+          >
+            <View style={styles.soundButtonContent}>
+              <Flame
+                size={16}
+                color={selectedBackgroundSound === null
+                  ? (currentVirtue?.color || theme?.colors.primary)
+                  : theme?.colors.text.secondary
+                }
+              />
+              <Text style={[
+                styles.soundText,
+                selectedBackgroundSound === null && {
+                  color: currentVirtue?.color || theme?.colors.primary
+                }
+              ]}>
+                Silent
+              </Text>
+            </View>
+          </TouchableOpacity>
+        </View>
+
         <Text style={styles.sectionTitle}>DAILY CHALLENGE</Text>
         <View style={styles.challengeContainer}>
           {renderChallengeButtons()}
@@ -701,7 +894,8 @@ const MeditationScreen: React.FC = () => {
       >
         <Animated.Text style={[
           styles.countdownText,
-          { color: currentVirtue?.color || theme?.colors.primary }
+          { color: currentVirtue?.color || theme?.colors.primary },
+          { textShadowColor: 'rgba(0,0,0,0.2)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 2 }
         ]}>
           {countdown}
         </Animated.Text>
@@ -1207,8 +1401,9 @@ const createStyles = (theme: Theme, currentVirtue: any) => StyleSheet.create({
   },
   countdownText: {
     ...theme?.typography.heading.large,
-    fontSize: 48,
+    fontSize: 64,
     fontWeight: '700',
+    letterSpacing: -1,
   },
   countdownSubtext: {
     ...theme?.typography.body.sans,
@@ -1263,11 +1458,6 @@ const createStyles = (theme: Theme, currentVirtue: any) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  lottieAnimation: {
-    width: 200,
-    height: 200,
-    position: 'absolute',
-  },
   startButton: {
     marginTop: theme?.spacing.xl,
     marginBottom: theme?.spacing.xl,
@@ -1310,6 +1500,68 @@ const createStyles = (theme: Theme, currentVirtue: any) => StyleSheet.create({
     borderRadius: 11,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  selectedVirtueCollapsed: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: theme?.spacing.md,
+    paddingHorizontal: theme?.spacing.md,
+    borderRadius: theme?.borderRadius.md,
+    borderWidth: 1.5,
+    borderColor: currentVirtue?.color || theme?.colors.border,
+    backgroundColor: `${currentVirtue?.color || theme?.colors.primary}08`,
+    marginBottom: theme?.spacing.md,
+  },
+  selectedVirtueContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme?.spacing.md,
+  },
+  changeVirtueButton: {
+    paddingVertical: theme?.spacing.xs,
+    paddingHorizontal: theme?.spacing.sm,
+    borderRadius: theme?.borderRadius.sm,
+    backgroundColor: theme?.colors.surface,
+    borderWidth: 1,
+    borderColor: theme?.colors.border,
+  },
+  changeVirtueText: {
+    ...theme?.typography.caption.secondary,
+    color: theme?.colors.text.secondary,
+    fontWeight: '500',
+  },
+
+  // Add sound selection styles
+  soundContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: theme?.spacing.md,
+  },
+  soundButton: {
+    flex: 1,
+    paddingVertical: theme?.spacing.md,
+    borderRadius: theme?.borderRadius.md,
+    borderWidth: 1.5,
+    borderColor: theme?.colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: theme?.colors.surface,
+    marginHorizontal: theme?.spacing.xs,
+  },
+  selectedSoundButton: {
+    borderWidth: 2,
+    backgroundColor: theme?.colors.background,
+  },
+  soundButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  soundText: {
+    ...theme?.typography.body.sans,
+    fontWeight: '600',
+    color: theme?.colors.text.primary,
   },
 });
 
