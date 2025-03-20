@@ -37,6 +37,24 @@ export const MessageCircle = ({ size = 24, color = theme.colors.text.secondary, 
   </View>
 );
 
+export const FileText = ({ size = 24, color = theme.colors.text.secondary, style }: IconProps) => (
+  <View style={style}>
+    <MaterialCommunityIcons name="file-document" size={size} color={color} />
+  </View>
+);
+
+export const Award = ({ size = 24, color = theme.colors.text.secondary, style }: IconProps) => (
+  <View style={style}>
+    <MaterialCommunityIcons name="medal-outline" size={size} color={color} />
+  </View>
+);
+
+export const Edit2 = ({ size = 24, color = theme.colors.text.secondary, style }: IconProps) => (
+  <View style={style}>
+    <MaterialCommunityIcons name="pencil-outline" size={size} color={color} />
+  </View>
+);
+
 export const Share = ({ size = 24, color = theme.colors.text.secondary, style }: IconProps) => (
   <View style={style}>
     <Feather name="share-2" size={size} color={color} />

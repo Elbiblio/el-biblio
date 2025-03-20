@@ -1,7 +1,8 @@
-import React, { createContext, useContext } from 'react';
+import React, { createContext, useContext, useEffect } from 'react';
 import { Theme, ThemeVariant, defaultTheme, getTheme } from '../theme';
 import { useThemeStore } from '@/stores/theme';
 import { useAppStore } from '@/stores/appStore';
+import { usePreferences } from '@/stores/preferences';
 
 interface ThemeContextType {
   theme: Theme;
@@ -33,18 +34,34 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({
   const hasCompletedWelcome = useAppStore(state => state.hasCompletedWelcome);
   const setHasCompletedWelcome = useAppStore(state => state.setHasCompletedWelcome);
   const initializeWelcomeState = useAppStore(state => state.initializeWelcomeState);
+  const { preferredTheme, setPreferredTheme } = usePreferences();
 
   // Sync initial theme with store
-  React.useEffect(() => {
+  useEffect(() => {
     setStoreTheme(initialTheme);
     initializeWelcomeState();
   }, [initialTheme]);
 
+  // If preferences store changes, update the theme
+  useEffect(() => {
+    if (preferredTheme) {
+      const themeFromPreferences = getTheme(preferredTheme);
+      setStoreTheme(themeFromPreferences);
+    }
+  }, [preferredTheme]);
+
   const setThemeVariant = React.useCallback((variant: ThemeVariant) => {
     const newTheme = getTheme(variant);
     setStoreTheme(newTheme);
-    onThemeChange?.(variant);
-  }, [onThemeChange, setStoreTheme]);
+    
+    // Update preferences store
+    setPreferredTheme(variant);
+    
+    // Call the external onThemeChange if provided
+    if (onThemeChange) {
+      onThemeChange(variant);
+    }
+  }, [onThemeChange, setStoreTheme, setPreferredTheme]);
 
   const completeWelcome = React.useCallback(async () => {
     await setHasCompletedWelcome(true);

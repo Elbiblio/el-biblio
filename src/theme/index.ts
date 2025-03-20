@@ -138,6 +138,9 @@ export const themeColors = {
       paper: '#f2f5e9',
       paperBorder: '#d8e0d0',
       paperShadow: '#c0d0b0',
+      dividerOpacity: 0.35,
+      flourishRotation: '4deg',
+      dotSize: 6,
       surfaceVariant: '#E8EDE6',
       text: {
         primary: '#2C3830',
@@ -173,6 +176,9 @@ export const themeColors = {
       paper: '#1e2a1e',
       paperBorder: '#2e3a2e',
       paperShadow: '#0e1a0e',
+      dividerOpacity: 0.35,
+      flourishRotation: '4deg',
+      dotSize: 6,
       surfaceVariant: '#3A3E38',
       text: {
         primary: '#E6E9E4',
@@ -212,6 +218,9 @@ export const themeColors = {
       paper: '#f5ede4',
       paperBorder: '#e0d4c8',
       paperShadow: '#d0c0b0',
+      dividerOpacity: 0.3,
+      flourishRotation: '5deg',
+      dotSize: 6,
       surfaceVariant: '#EAE0D4',
       text: {
         primary: '#2C1810',
@@ -248,6 +257,9 @@ export const themeColors = {
       paper: '#2a241e',
       paperBorder: '#3a322b',
       paperShadow: '#1a1612',
+      dividerOpacity: 0.3,
+      flourishRotation: '5deg',
+      dotSize: 6,
       text: {
         primary: '#F0E6DF',
         secondary: '#D4C9C0',
@@ -286,6 +298,9 @@ export const themeColors = {
       paper: '#f0f5f9',
       paperBorder: '#d0dde8',
       paperShadow: '#b0c0d0',
+      dividerOpacity: 0.25,
+      flourishRotation: '3deg',
+      dotSize: 5,
       surfaceVariant: '#E4ECF5',
       text: {
         primary: '#2C3542',
@@ -321,6 +336,9 @@ export const themeColors = {
       paper: '#1a2833',
       paperBorder: '#2a3a47',
       paperShadow: '#0a161f',
+      dividerOpacity: 0.25,
+      flourishRotation: '3deg',
+      dotSize: 5,
       surfaceVariant: '#3A4048',
       text: {
         primary: '#E6ECF2',

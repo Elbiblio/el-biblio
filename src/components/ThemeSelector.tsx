@@ -2,20 +2,36 @@ import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
 import { themeColors, ThemeVariant } from '../theme';
 import { useTheme, useThemeVariant } from '../contexts/ThemeContext';
-import { useThemeStore } from '@/stores/theme';
+import { usePreferences } from '@/stores/preferences';
+import * as Haptics from 'expo-haptics';
 
 interface ThemeSelectorProps {
-  onSelect: (variant: ThemeVariant) => void;
+  onSelect?: (variant: ThemeVariant) => void;
+  closeAfterSelection?: boolean;
 }
 
-const ThemeSelector: React.FC<ThemeSelectorProps> = ({ onSelect }) => {
+const ThemeSelector: React.FC<ThemeSelectorProps> = ({ 
+  onSelect,
+  closeAfterSelection = false
+}) => {
+  const theme = useTheme();
   const setThemeVariant = useThemeVariant();
-  const theme = useThemeStore(state => state.current);
-
+  const { preferredTheme, setPreferredTheme } = usePreferences();
 
   const handleSelect = (variant: ThemeVariant) => {
+    // Update the theme variant in the theme context
     setThemeVariant(variant);
-    onSelect(variant);
+    
+    // Save preference to persistent storage
+    setPreferredTheme(variant);
+    
+    // Provide haptic feedback
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    
+    // Call the onSelect callback if provided
+    if (onSelect) {
+      onSelect(variant);
+    }
   };
 
   return (
@@ -24,7 +40,7 @@ const ThemeSelector: React.FC<ThemeSelectorProps> = ({ onSelect }) => {
         Choose your theme
       </Text>
       <Text style={[styles.subtitle, { color: theme.colors.text.secondary }]}>
-        Select a theme that resonates with you, or continue with our default Sage Garden theme
+        Select a theme that resonates with you
       </Text>
       
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
@@ -34,32 +50,22 @@ const ThemeSelector: React.FC<ThemeSelectorProps> = ({ onSelect }) => {
               key={variant}
               style={[
                 styles.option,
-                { backgroundColor: colors.surface },
-                variant === 'sage' && styles.defaultOption,
+                { backgroundColor: colors.light.surface },
+                preferredTheme === variant && styles.selectedOption,
               ]}
               onPress={() => handleSelect(variant)}
             >
-              <View style={[styles.colorPreview, { backgroundColor: colors.primary }]} />
+              <View style={[styles.colorPreview, { backgroundColor: colors.light.primary }]} />
               <View style={styles.textContainer}>
-                <View style={styles.titleContainer}>
-                  <Text style={[
-                    styles.optionTitle,
-                    { color: colors.text.primary }
-                  ]}>
-                    {colors.name}
-                  </Text>
-                  {variant === 'sage' && (
-                    <Text style={[
-                      styles.defaultBadge,
-                      { color: colors.primary }
-                    ]}>
-                      Default
-                    </Text>
-                  )}
-                </View>
+                <Text style={[
+                  styles.optionTitle,
+                  { color: colors.light.text.primary }
+                ]}>
+                  {colors.name}
+                </Text>
                 <Text style={[
                   styles.optionDescription,
-                  { color: colors.text.secondary }
+                  { color: colors.light.text.secondary }
                 ]}>
                   {colors.description}
                 </Text>
@@ -69,20 +75,22 @@ const ThemeSelector: React.FC<ThemeSelectorProps> = ({ onSelect }) => {
         )}
       </ScrollView>
 
-      <TouchableOpacity
-        style={[
-          styles.continueButton,
-          { backgroundColor: theme.colors.primary }
-        ]}
-        onPress={() => handleSelect('sage')}
-      >
-        <Text style={[
-          styles.continueButtonText,
-          { color: theme.colors.text.inverse }
-        ]}>
-          Continue with {theme.colors.name}
-        </Text>
-      </TouchableOpacity>
+      {closeAfterSelection && (
+        <TouchableOpacity
+          style={[
+            styles.continueButton,
+            { backgroundColor: theme.colors.primary }
+          ]}
+          onPress={() => onSelect && onSelect(preferredTheme)}
+        >
+          <Text style={[
+            styles.continueButtonText,
+            { color: theme.colors.text.inverse }
+          ]}>
+            Continue
+          </Text>
+        </TouchableOpacity>
+      )}
     </View>
   );
 };
@@ -112,9 +120,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'transparent',
   },
-  defaultOption: {
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
+  selectedOption: {
+    borderWidth: 2,
+    borderColor: '#4A6FA5', // Using ocean theme primary color as default
   },
   colorPreview: {
     width: 48,
@@ -125,19 +133,10 @@ const styles = StyleSheet.create({
   textContainer: {
     flex: 1,
   },
-  titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 4,
-  },
   optionTitle: {
     fontSize: 18,
     fontWeight: '600',
-    marginRight: 8,
-  },
-  defaultBadge: {
-    fontSize: 12,
-    fontWeight: '500',
+    marginBottom: 4,
   },
   optionDescription: {
     fontSize: 14,

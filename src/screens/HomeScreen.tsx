@@ -18,6 +18,7 @@ import Animated, {
   interpolate,
   Extrapolation,
   FadeInDown,
+  runOnJS,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BlurView } from 'expo-blur';
@@ -49,6 +50,7 @@ import AuthModal from '@/components/AuthModal';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AppState, AppStateStatus } from 'react-native';
 import PointsEarnedModal from '@/components/PointsEarnedModal';
+import { useNavigation } from '@react-navigation/native';
 
 const WELCOME_BACK_THRESHOLD = 10 * 60 * 1000; // 10 minutes in milliseconds
 const MAX_ACTIVE_TIME = 30 * 60 * 1000; // 30 minutes in milliseconds
@@ -160,7 +162,6 @@ const HomeScreen: React.FC<HomeProps> = ({ navigation, route }) => {
   const challengeOpacity = useSharedValue(0);
   const verseTranslateY = useSharedValue(20);
   const spotlightTranslateX = useSharedValue(20);
-
   useEffect(() => {
     loadTimeTracking();
     const subscription = AppState.addEventListener('change', handleAppStateChange);
@@ -433,9 +434,9 @@ const HomeScreen: React.FC<HomeProps> = ({ navigation, route }) => {
           <TouchableOpacity
             style={styles.pointsContainer}
             onPress={() => {
+              navigation.navigate('ProfileScreen');
               pointsScale.value = withSequence(
                 withSpring(1.1),
-                withSpring(1)
               );
             }}
           >

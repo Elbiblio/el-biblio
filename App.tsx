@@ -3,9 +3,9 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ThemeProvider, useTheme } from './src/contexts/ThemeContext';
 import { AuthProvider } from './src/stores/auth';
+import { PreferencesProvider, usePreferences, STORAGE_KEYS } from './src/stores/preferences';
 import { AppInitializationProvider, useAppInitialization } from './src/utils/appInitialization';
 import CustomSplash from './src/components/CustomSplash';
 import ThemeSelector from './src/components/ThemeSelector';
@@ -30,47 +30,54 @@ import VerseBuilderScreen from './src/screens/VerseBuilderScreen';
 import VirtueTriviaScreen from './src/screens/VirtueTriviaScreen';
 import MeditationScreen from './src/screens/MeditationScreen';
 import NoteDetailScreen from './src/screens/NoteDetailScreen';
-const Stack = createNativeStackNavigator<RootStackParamList>();
-const THEME_STORAGE_KEY = '@app_theme';
+import ProfileScreen from './src/screens/ProfileScreen';
+import LeaderboardScreen from './src/screens/LeaderboardScreen';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const App = () => {
-  const fontsLoaded = useAppFonts();
+const Stack = createNativeStackNavigator<RootStackParamList>();
+
+const AppContent = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [initialTheme, setInitialTheme] = useState(defaultTheme);
   const [showThemeSelector, setShowThemeSelector] = useState(false);
   const [isSplashComplete, setIsSplashComplete] = useState(false);
-  const theme = useTheme();
-
+  const { setInitialized } = useAppInitialization();
+  const fontsLoaded = useAppFonts();
+  
   useEffect(() => {
     const initialize = async () => {
-      await Promise.all([
-        loadSavedTheme(),
-      ]);
-      setIsLoading(false);
+      try {
+        const savedThemeVariant = await AsyncStorage.getItem(STORAGE_KEYS.THEME);
+        if (savedThemeVariant) {
+          setInitialTheme(getTheme(savedThemeVariant as ThemeVariant));
+        } else {
+          setShowThemeSelector(true);
+        }
+      } catch (error) {
+        console.warn('Error loading theme:', error);
+        setShowThemeSelector(true);
+      } finally {
+        setIsLoading(false);
+      }
     };
 
     initialize();
   }, []);
 
-  const loadSavedTheme = async () => {
-    try {
-      const savedThemeVariant = await AsyncStorage.getItem(THEME_STORAGE_KEY);
-      if (savedThemeVariant) {
-        setInitialTheme(getTheme(savedThemeVariant as ThemeVariant));
-      } else {
-        setShowThemeSelector(true);
-      }
-    } catch (error) {
-      console.warn('Error loading theme:', error);
-      setShowThemeSelector(true);
-    } finally {
-      setIsLoading(false);
+  useEffect(() => {
+    if (fontsLoaded && !isLoading && isSplashComplete) {
+      // Small delay to ensure all contexts are properly initialized
+      const timer = setTimeout(() => {
+        setInitialized(true);
+      }, 500);
+      
+      return () => clearTimeout(timer);
     }
-  };
+  }, [fontsLoaded, isLoading, isSplashComplete, setInitialized]);
 
   const handleThemeChange = async (variant: ThemeVariant) => {
     try {
-      await AsyncStorage.setItem(THEME_STORAGE_KEY, variant);
+      await AsyncStorage.setItem(STORAGE_KEYS.THEME, variant);
     } catch (error) {
       console.error('Error saving theme:', error);
     }
@@ -78,30 +85,12 @@ const App = () => {
 
   const handleThemeSelect = async (variant: ThemeVariant) => {
     try {
-      await AsyncStorage.setItem(THEME_STORAGE_KEY, variant);
+      await AsyncStorage.setItem(STORAGE_KEYS.THEME, variant);
       setInitialTheme(getTheme(variant));
       setShowThemeSelector(false);
     } catch (error) {
       console.error('Error saving theme:', error);
     }
-  };
-
-  // Add this component that will set the initialized state
-  const AppInitializer = () => {
-    const { setInitialized } = useAppInitialization();
-    
-    useEffect(() => {
-      if (fontsLoaded && !isLoading && isSplashComplete) {
-        // Small delay to ensure all contexts are properly initialized
-        const timer = setTimeout(() => {
-          setInitialized(true);
-        }, 500);
-        
-        return () => clearTimeout(timer);
-      }
-    }, [fontsLoaded, isLoading, isSplashComplete]);
-    
-    return null;
   };
 
   if (!fontsLoaded || isLoading || !isSplashComplete) {
@@ -134,30 +123,39 @@ const App = () => {
           <Stack.Screen name="VirtueQuizScreen" component={VirtueQuizScreen} />
           <Stack.Screen name="VerseBuilderScreen" component={VerseBuilderScreen} />
           <Stack.Screen name="BibleScreen" component={BibleScreen} />
+          <Stack.Screen name="ProfileScreen" component={ProfileScreen} />
+          <Stack.Screen name="LeaderboardScreen" component={LeaderboardScreen} />
         </Stack.Navigator>
       </NavigationContainer>
     );
   };
 
   return (
+    <ThemeProvider
+      initialTheme={initialTheme}
+      onThemeChange={handleThemeChange}
+    >
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        {showThemeSelector ? (
+          <ThemeSelector onSelect={handleThemeSelect} closeAfterSelection />
+        ) : (
+          <NavigationContent />
+        )}
+        <Toaster />
+      </GestureHandlerRootView>
+    </ThemeProvider>
+  );
+};
+
+const App = () => {
+  return (
     <SafeAreaProvider>
       <AppInitializationProvider>
-        <AuthProvider>
-          <ThemeProvider
-            initialTheme={initialTheme}
-            onThemeChange={handleThemeChange}
-          >
-            <GestureHandlerRootView style={{ flex: 1 }}>
-              <AppInitializer />
-              {showThemeSelector ? (
-                <ThemeSelector onSelect={handleThemeSelect} />
-              ) : (
-                <NavigationContent />
-              )}
-              <Toaster />
-            </GestureHandlerRootView>
-          </ThemeProvider>
-        </AuthProvider>
+        <PreferencesProvider>
+          <AuthProvider>
+            <AppContent />
+          </AuthProvider>
+        </PreferencesProvider>
       </AppInitializationProvider>
     </SafeAreaProvider>
   );
