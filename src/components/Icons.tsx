@@ -85,6 +85,18 @@ export const Trophy = ({ size = 24, color = theme.colors.text.secondary, style }
   </View>
 );
 
+export const ArrowCounterClockwise = ({ size = 24, color = theme.colors.text.secondary, style }: IconProps) => (
+  <View style={style}>
+    <MaterialCommunityIcons name="undo-variant" size={size} color={color} />
+  </View>
+);
+
+export const Fire = ({ size = 24, color = theme.colors.text.secondary, style }: IconProps) => (
+  <View style={style}>
+    <MaterialCommunityIcons name="fire" size={size} color={color} />
+  </View>
+);
+
 export const ThumbsUp = ({ size = 24, color = theme.colors.text.secondary, style }: IconProps) => (
   <View style={style}>
     <MaterialCommunityIcons name="thumbs-up-outline" size={size} color={color} />
@@ -347,6 +359,12 @@ export const PencilCircle = ({ size = 24, color = theme.colors.text.secondary, s
 export const NotePencil = ({ size = 24, color = theme.colors.text.secondary, style }: IconProps) => (
   <View style={style}>
     <Feather name="edit" size={size} color={color} />
+  </View>
+);
+
+export const Timer = ({ size = 24, color = theme.colors.text.secondary, style }: IconProps) => (
+  <View style={style}>
+    <MaterialCommunityIcons name="timer-outline" size={size} color={color} />
   </View>
 );
 

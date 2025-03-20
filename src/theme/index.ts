@@ -128,6 +128,7 @@ const baseTheme = {
 export const themeColors = {
   sage: {
     light: {
+      isDark: false,
       primary: '#638B6C',
       primaryLight: '#85A889',
       primaryDark: '#4A6B51',
@@ -148,6 +149,7 @@ export const themeColors = {
       warning: '#D9A441',
       info: '#5B7B9C',
       like: '#C85F4B',
+      shadow: '#000',
       input: {
         background: 'rgba(60, 60, 67, 0.5)',
         border: 'rgba(255, 255, 255, 0.25)',
@@ -158,6 +160,7 @@ export const themeColors = {
       },
     },
     dark: {
+      isDark: true,
       primary: '#85A889',
       primaryLight: '#A6C2A9',
       primaryDark: '#4A6B51',
@@ -178,6 +181,7 @@ export const themeColors = {
       warning: '#F0C674',
       info: '#8BAAC9',
       like: '#F0857A',
+      shadow: '#000',
       input: {
         background: 'rgba(60, 60, 67, 0.6)',
         border: 'rgba(255, 255, 255, 0.3)',
@@ -192,6 +196,7 @@ export const themeColors = {
   },
   wooden: {
     light: {
+      isDark: false,
       primary: '#8B5E3C',
       primaryLight: '#A67C52',
       primaryDark: '#6B4423',
@@ -212,6 +217,7 @@ export const themeColors = {
       warning: '#D9A441',
       info: '#5B7B9C',
       like: '#C4442A',
+      shadow: '#000',
       input: {
         background: 'rgba(60, 60, 67, 0.5)',
         border: 'rgba(255, 255, 255, 0.25)',
@@ -222,6 +228,7 @@ export const themeColors = {
       },
     },
     dark: {
+      isDark: true,
       primary: '#A67C52',
       primaryLight: '#C19A70',
       primaryDark: '#6B4423',
@@ -242,6 +249,7 @@ export const themeColors = {
       warning: '#F0C674',
       info: '#8BAAC9',
       like: '#F0857A',
+      shadow: '#000',
       input: {
         background: 'rgba(60, 60, 67, 0.6)',
         border: 'rgba(255, 255, 255, 0.3)',
@@ -256,6 +264,7 @@ export const themeColors = {
   },
   ocean: {
     light: {
+      isDark: false,
       primary: '#4A6FA5',
       primaryLight: '#6B8BB8',
       primaryDark: '#385582',
@@ -276,6 +285,7 @@ export const themeColors = {
       warning: '#D9A441',
       info: '#5B7B9C',
       like: '#E15554',
+      shadow: '#000',
       input: {
         background: 'rgba(60, 60, 67, 0.5)',
         border: 'rgba(255, 255, 255, 0.25)',
@@ -286,6 +296,7 @@ export const themeColors = {
       },
     },
     dark: {
+      isDark: true,
       primary: '#6B8BB8',
       primaryLight: '#8CA5CA',
       primaryDark: '#385582',
@@ -306,6 +317,7 @@ export const themeColors = {
       warning: '#F0C674',
       info: '#8BAAC9',
       like: '#F0857A',
+      shadow: '#000',
       input: {
         background: 'rgba(60, 60, 67, 0.6)',
         border: 'rgba(255, 255, 255, 0.3)',

@@ -1,4 +1,4 @@
-import { BookOpenFeather, Cross, Heart, HomeLight, IconProps } from "@/components/Icons";
+import { BookOpenFeather, Cross, Flame, Heart, HomeLight, IconProps, Leaf, Scales, Shield } from "@/components/Icons";
 import { SharedValue } from "react-native-reanimated";
 
 export type FoundationalVirtue = 'knowledge' | 'humility' | 'faith' | 'love';
@@ -271,6 +271,28 @@ export interface User {
   created_at?: string;
 }
 
+
+export type DailyChallenge = {
+  id: string;
+  title: string;
+  description: string;
+  type: 'virtue' | 'vice';
+  mode: 'attitude' | 'action';
+  end_time: Date | string;
+  category: 'personal' | 'community';
+  progress?: number;
+  created_at?: string;
+  expires_at?: string;
+  is_completed?: boolean;
+  participants?: number;
+  participant_avatars?: User[];
+  upvotes?: number;
+  hasJoined?: boolean;
+  hasUpvoted?: boolean;
+  is_active?: boolean;
+  is_featured?: boolean;
+};
+
 export const VirtueGroups = {
   foundational: {
     title: 'Foundational Virtues',
@@ -443,8 +465,228 @@ export const sampleUpcomingVerses: DayVerses = {
   ],
 };
 
+export const VIRTUES = [
+  {
+    id: 'love',
+    name: 'Love',
+    icon: Heart,
+    color: '#FF5E7D',
+    prompts: [
+      "Reflect on a moment when you experienced unconditional love. How did it feel?",
+      "Think of someone who challenges you. How might you extend compassion to them today?",
+      "Consider how you show love to yourself. Are there ways you could be more gentle with yourself?",
+      "Visualize love as a healing energy radiating from your heart. Where in your life does it need to flow?"
+    ]
+  },
+  {
+    id: 'courage',
+    name: 'Courage',
+    icon: Shield,
+    color: '#7C5DF9',
+    prompts: [
+      "Remember a time when you faced a fear. What strength did you discover within yourself?",
+      "What challenge in your life right now requires courage to face?",
+      "If fear wasn't holding you back, what would you do differently today?",
+      "Visualize yourself standing firm in the face of adversity, rooted like a mountain."
+    ]
+  },
+  {
+    id: 'patience',
+    name: 'Patience',
+    icon: Leaf,
+    color: '#56C288',
+    prompts: [
+      "Notice the rhythm of your breath. Can you find peace in this moment of waiting?",
+      "Think of a situation that tests your patience. What might you learn by embracing the wait?",
+      "Consider how nature demonstrates patience - seeds growing, seasons changing. What wisdom can you apply to your life?",
+      "Imagine your frustrations as leaves floating down a stream, carried away by the current."
+    ]
+  },
+  {
+    id: 'justice',
+    name: 'Justice',
+    icon: Scales,
+    color: '#EF8F35',
+    prompts: [
+      "Reflect on what justice means to you personally. How do you embody this value?",
+      "Consider a situation where you witnessed injustice. How did it affect you?",
+      "How might you use your voice or position to promote fairness in your community?",
+      "Visualize a world where justice prevails. What does it look like, and what part can you play?"
+    ]
+  },
+  {
+    id: 'wisdom',
+    name: 'Wisdom',
+    icon: Flame,
+    color: '#E63946',
+    prompts: [
+      "Recall a lesson life has taught you. How has it shaped your decisions?",
+      "Think of someone whose wisdom you admire. What qualities make them wise?",
+      "Consider a decision you're facing. What would your wisest self advise?",
+      "Imagine wisdom as a light illuminating your path. What does it reveal about your journey?"
+    ]
+  }
+];
+
+// Time options for meditation
+export const TIME_OPTIONS = [
+  { value: 7, label: '7 min' },
+  { value: 15, label: '15 min' },
+  { value: 40, label: '40 min' }
+];
+
+// Challenge templates based on virtues - conforming to DailyChallenge type
+export const CHALLENGE_TEMPLATES: Record<string, DailyChallenge[]> = {
+  love: [
+    {
+      id: 'love-1',
+      title: "Practice Compassionate Communication",
+      description: "When speaking with others today, pause before responding and choose words of kindness and understanding.",
+      type: 'virtue',
+      mode: 'attitude',
+      category: 'personal',
+      end_time: new Date(),
+    },
+    {
+      id: 'love-2',
+      title: "Send 3 Appreciation Messages",
+      description: "Take 15 minutes to write and send heartfelt messages to three people who have positively impacted your life.",
+      type: 'virtue',
+      mode: 'action',
+      category: 'personal',
+      end_time: new Date(),
+    },
+    {
+      id: 'love-3',
+      title: "Practice Self-Compassion",
+      description: "Speak to yourself as you would to a dear friend throughout the day, especially when facing challenges.",
+      type: 'virtue',
+      mode: 'attitude',
+      category: 'personal',
+      end_time: new Date(),
+    }
+  ],
+  courage: [
+    {
+      id: 'courage-1',
+      title: "Have That Difficult Conversation",
+      description: "Set aside 15 minutes today to initiate that conversation you've been avoiding, approaching it with honesty and respect.",
+      type: 'virtue',
+      mode: 'action',
+      category: 'personal',
+      end_time: new Date(),
+    },
+    {
+      id: 'courage-2',
+      title: "Embrace Discomfort Mindset",
+      description: "Throughout today, notice when you feel resistance and choose to lean into that feeling rather than away from it.",
+      type: 'virtue',
+      mode: 'attitude',
+      category: 'personal',
+      end_time: new Date(),
+    },
+    {
+      id: 'courage-3',
+      title: "Share Your True Perspective",
+      description: "In your next meeting or conversation, express your authentic viewpoint even if it differs from the majority.",
+      type: 'virtue',
+      mode: 'action',
+      category: 'personal',
+      end_time: new Date(),
+    }
+  ],
+  patience: [
+    {
+      id: 'patience-1',
+      title: "Practice Mindful Waiting",
+      description: "Whenever you encounter a wait today, take deep breaths and use it as an opportunity for mindfulness rather than frustration.",
+      type: 'virtue',
+      mode: 'attitude',
+      category: 'personal',
+      end_time: new Date(),
+    },
+    {
+      id: 'patience-2',
+      title: "Listen Without Interrupting",
+      description: "In all conversations today, practice listening fully and completely before formulating your response.",
+      type: 'virtue',
+      mode: 'attitude',
+      category: 'personal',
+      end_time: new Date(),
+    },
+    {
+      id: 'patience-3',
+      title: "Slow Down One Activity",
+      description: "Choose one 15-minute activity today to perform at half your normal pace, noticing details you usually miss.",
+      type: 'virtue',
+      mode: 'action',
+      category: 'personal',
+      end_time: new Date(),
+    }
+  ],
+  justice: [
+    {
+      id: 'justice-1',
+      title: "Support Ethical Organizations",
+      description: "Take 15 minutes to research and support a business or organization that promotes fair practices and equality.",
+      type: 'virtue',
+      mode: 'action',
+      category: 'personal',
+      end_time: new Date(),
+    },
+    {
+      id: 'justice-2',
+      title: "Advocate for the Unheard",
+      description: "Today, speak up when you notice someone's voice or perspective being overlooked or dismissed.",
+      type: 'virtue',
+      mode: 'attitude',
+      category: 'personal',
+      end_time: new Date(),
+    },
+    {
+      id: 'justice-3',
+      title: "Examine Personal Biases",
+      description: "Spend 15 minutes journaling about a bias you may hold and how it affects your interactions with others.",
+      type: 'virtue',
+      mode: 'action',
+      category: 'personal',
+      end_time: new Date(),
+    }
+  ],
+  wisdom: [
+    {
+      id: 'wisdom-1',
+      title: "Adopt a Learning Mindset",
+      description: "Approach each conversation today as an opportunity to learn something new, especially from those with different perspectives.",
+      type: 'virtue',
+      mode: 'attitude',
+      category: 'personal',
+      end_time: new Date(),
+    },
+    {
+      id: 'wisdom-2',
+      title: "Reflective Decision Making",
+      description: "Before making decisions today, pause and consider how your future self would want you to proceed.",
+      type: 'virtue',
+      mode: 'attitude',
+      category: 'personal',
+      end_time: new Date(),
+    },
+    {
+      id: 'wisdom-3',
+      title: "Seek Wise Counsel",
+      description: "Spend 15 minutes consulting with someone whose wisdom you respect about a current challenge you're facing.",
+      type: 'virtue',
+      mode: 'action',
+      category: 'personal',
+      end_time: new Date(),
+    }
+  ]
+};
+
+
 export type RootStackParamList = {
-  Home: undefined;
+  Home: undefined | { meditationComplete?: boolean, challenge?: DailyChallenge, pointsEarned?: number };
   ThemeSelector: undefined;
   VerseDetail: { verse: Verse };
   ReflectionDetail: { reflection: Reflection };
@@ -462,6 +704,7 @@ export type RootStackParamList = {
   VirtueScreen: undefined;
   LeaderboardScreen: undefined;
   VerseBuilderScreen: undefined;
+  VirtueTriviaScreen: undefined;
   VirtueQuizScreen: { virtueId?: string, level?: number };
   QuizDetail: { id: string };
   BibleScreen: {book?: string, chapter?: number, verse?: number};

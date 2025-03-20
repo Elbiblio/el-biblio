@@ -324,8 +324,8 @@ const VirtueScreen: React.FC<VirtueScreenProps> = ({ navigation, route }) => {
         </TouchableOpacity>
         
         <Text style={styles.headerTitle}>SoulForge</Text>
-        
-        <CircleButton
+        <Star size={24} color={theme?.colors.text.primary} style={{marginLeft: 10}} filled />
+        {/* <CircleButton
           Icon={Star}
           onPress={() => {
             if (!user) {
@@ -340,7 +340,7 @@ const VirtueScreen: React.FC<VirtueScreenProps> = ({ navigation, route }) => {
               backgroundColor: theme?.colors.primary,
             }
           }
-        />
+        /> */}
       </View>
       
       <View style={styles.tabContainer}>
@@ -998,12 +998,13 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: theme?.spacing.md,
+    marginBottom: theme?.spacing.xs,
   },
   sectionTitle: {
     ...theme?.typography.caption.primary,
     color: theme?.colors.text.secondary,
     fontWeight: '600',
+    marginBottom: theme?.spacing.sm,
     letterSpacing: 1,
   },
   viewAllButton: {
@@ -1517,7 +1518,7 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: theme?.spacing.md,
+    marginBottom: theme?.spacing.sm,
   },
   backButton: {
     padding: theme?.spacing.sm,

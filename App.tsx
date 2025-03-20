@@ -27,7 +27,8 @@ import DailyChallengeScreen from './src/screens/DailyChallengeScreen';
 import VirtueQuizScreen from './src/screens/VirtueQuizScreen';
 import VirtueScreen from './src/screens/VirtueScreen';
 import VerseBuilderScreen from './src/screens/VerseBuilderScreen';
-
+import VirtueTriviaScreen from './src/screens/VirtueTriviaScreen';
+import MeditationScreen from './src/screens/MeditationScreen';
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const THEME_STORAGE_KEY = '@app_theme';
 
@@ -124,7 +125,9 @@ const App = () => {
           <Stack.Screen name="MatchScreen" component={MatchScreen} />
           <Stack.Screen name="SavedItemsScreen" component={SavedItemsScreen} />
           <Stack.Screen name="NotesScreen" component={NotesScreen} />
+          <Stack.Screen name="MeditationScreen" component={MeditationScreen} />
           <Stack.Screen name="VirtueScreen" component={VirtueScreen} />
+          <Stack.Screen name="VirtueTriviaScreen" component={VirtueTriviaScreen} />
           <Stack.Screen name="VirtueQuizScreen" component={VirtueQuizScreen} />
           <Stack.Screen name="VerseBuilderScreen" component={VerseBuilderScreen} />
           <Stack.Screen name="BibleScreen" component={BibleScreen} />

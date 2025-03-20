@@ -7,6 +7,7 @@ import {
   StyleSheet,
   Dimensions,
   Platform,
+  Modal,
 } from 'react-native';
 import Animated, {
   useSharedValue,
@@ -16,6 +17,7 @@ import Animated, {
   withTiming,
   interpolate,
   Extrapolation,
+  FadeInDown,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BlurView } from 'expo-blur';
@@ -24,11 +26,14 @@ import {
   BookmarkSimple,
   NotePencil,
   Users,
+  Fire,
   MessageSquare,
   Star,
   ChevronRight,
-  Sparkle,
+  Trophy,
   Bible,
+  Flame,
+  Lightning,
 } from './../components/Icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Reflection, RootStackParamList, Verse } from '@/types';
@@ -43,6 +48,7 @@ import { useAuth } from '@/stores/auth';
 import AuthModal from '@/components/AuthModal';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AppState, AppStateStatus } from 'react-native';
+import PointsEarnedModal from '@/components/PointsEarnedModal';
 
 const WELCOME_BACK_THRESHOLD = 10 * 60 * 1000; // 10 minutes in milliseconds
 const MAX_ACTIVE_TIME = 30 * 60 * 1000; // 30 minutes in milliseconds
@@ -118,7 +124,7 @@ const FIRST_VISIT_VARIANTS = [
   "Your daily moment of peace awaits",
 ];
 
-const HomeScreen: React.FC<HomeProps> = ({ navigation }) => {
+const HomeScreen: React.FC<HomeProps> = ({ navigation, route }) => {
   const insets = useSafeAreaInsets();
   const pointsScale = useSharedValue(1);
   const [activeVerse, setActiveVerse] = useState<string | null>(null);
@@ -128,6 +134,12 @@ const HomeScreen: React.FC<HomeProps> = ({ navigation }) => {
   const scrollX = useSharedValue(0);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [isFirstVisitToday, setIsFirstVisitToday] = useState(false);
+  const [showGamesModal, setShowGamesModal] = useState(false);
+  const [showPointsModal, setShowPointsModal] = useState(false);
+
+  const meditationComplete = route.params?.meditationComplete || false;
+  const challenge = route.params?.challenge;
+  const pointsEarned = route.params?.pointsEarned || 0;
 
   const theme = useTheme()
   const styles = React.useMemo(() => createStyles(theme), [theme]);
@@ -462,12 +474,12 @@ const HomeScreen: React.FC<HomeProps> = ({ navigation }) => {
         <Text style={styles.sectionTitle}>QUICK TOOLS</Text>
         <View style={styles.toolsGrid}>
           {[
-            { icon: BookOpen, label: 'Meditation', route: 'VerseBuilderScreen', badge: 2, color: theme?.colors.primary },
-            { icon: Bible, label: 'Bible', route: 'BibleScreen', badge: null, color: theme?.colors.secondary },
-            { icon: Star, label: 'SoulForge', route: 'VirtueScreen', badge: null, color: theme?.colors.primaryDark },
+            { icon: BookOpen, label: 'Meditation', route: 'MeditationScreen', badge: 2, color: theme?.colors.primary },
+            { icon: Bible, label: 'Bible', route: 'VirtueTriviaScreen', badge: null, color: theme?.colors.secondary },
+            { icon: Fire, label: 'SoulForge', route: 'VirtueScreen', badge: null, color: theme?.colors.primaryDark },
             { icon: BookmarkSimple, label: 'Bookmarks', route: 'SavedItemsScreen', badge: 5, color: theme?.colors.like },
             { icon: NotePencil, label: 'Notes', route: 'NotesScreen', badge: 3, color: theme?.colors.error },
-            { icon: Sparkle, label: 'Challenges', route: 'DailyChallengeScreen', badge: 1, color: theme?.colors.success },
+            { icon: Trophy, label: 'Games', route: '', badge: 1, color: theme?.colors.success },
           ].map((tool, index) => (
             <TouchableOpacity
               key={tool.label}
@@ -478,7 +490,12 @@ const HomeScreen: React.FC<HomeProps> = ({ navigation }) => {
                   withTiming(0.97, { duration: 100 }),
                   withTiming(1, { duration: 100 })
                 );
-                handleQuickActionPress(tool.route);
+                
+                if (tool.label === 'Games') {
+                  setShowGamesModal(true);
+                } else {
+                  handleQuickActionPress(tool.route);
+                }
               }}
             >
               <LinearGradient
@@ -488,7 +505,7 @@ const HomeScreen: React.FC<HomeProps> = ({ navigation }) => {
                 style={styles.toolGradient}
               />
               <View style={[styles.toolIconContainer, { backgroundColor: `${tool.color}15` }]}>
-                <tool.icon size={24} color={tool.color} />
+                <tool.icon size={24} color={tool.color} strokeWidth={2} />
                 {tool.badge && (
                   <View style={styles.badgeContainer}>
                     <Text style={styles.badgeText}>{tool.badge}</Text>
@@ -499,9 +516,11 @@ const HomeScreen: React.FC<HomeProps> = ({ navigation }) => {
             </TouchableOpacity>
           ))}
         </View>
-        <Text style={styles.toolTip}>
-          Tip: Complete daily meditation to earn bonus points
-        </Text>
+        { !meditationComplete && (
+          <Text style={styles.toolTip}>
+            Tip: Complete daily meditation to earn bonus points
+          </Text>
+        )}
       </Animated.View>
     );
   };
@@ -514,7 +533,16 @@ const HomeScreen: React.FC<HomeProps> = ({ navigation }) => {
 
     return (
       <Animated.View style={[styles.section, challengeAnimatedStyle]}>
-        <Text style={styles.sectionTitle}>DAILY CHALLENGES</Text>
+        <View style={styles.sectionHeaderWithAction}>
+          <Text style={styles.sectionTitle}>DAILY CHALLENGES</Text>
+          <TouchableOpacity 
+            style={styles.viewAllButton}
+            onPress={() => navigation.navigate('DailyChallengeScreen')}
+          >
+            <Text style={styles.viewAllText}>View All</Text>
+            <ChevronRight size={16} color={theme?.colors.primary} />
+          </TouchableOpacity>
+        </View>
         
         {/* Personal Challenge */}
         <View style={styles.challengeCard}>
@@ -723,6 +751,92 @@ const HomeScreen: React.FC<HomeProps> = ({ navigation }) => {
     );
   };
 
+  // Render Games Modal
+  const renderGamesModal = () => (
+    <Modal
+      visible={showGamesModal}
+      transparent={true}
+      animationType="fade"
+      onRequestClose={() => setShowGamesModal(false)}
+    >
+      <TouchableOpacity
+        style={styles.modalOverlay}
+        activeOpacity={0.9}
+        onPress={() => setShowGamesModal(false)}
+      >
+        <BlurView intensity={80} style={StyleSheet.absoluteFill} tint={theme?.colors.isDark ? 'dark' : 'light'} />
+        <Animated.View
+          style={styles.gamesModalContainer}
+          entering={FadeInDown.duration(300)}
+        >
+          <View style={styles.gamesModalHeader}>
+            <Text style={styles.gamesModalTitle}>Select a Game</Text>
+            <TouchableOpacity onPress={() => setShowGamesModal(false)}>
+              <Text style={styles.closeButton}>✕</Text>
+            </TouchableOpacity>
+          </View>
+          
+          <TouchableOpacity 
+            style={styles.gameOption}
+            onPress={() => {
+              setShowGamesModal(false);
+              navigation.navigate('VerseBuilderScreen');
+            }}
+          >
+            <View style={[styles.gameIconContainer, { backgroundColor: `${theme?.colors.primary}15` }]}>
+              <BookOpen size={24} color={theme?.colors.primary} />
+            </View>
+            <View style={styles.gameOptionContent}>
+              <Text style={styles.gameOptionTitle}>Verse Builder</Text>
+              <Text style={styles.gameOptionDesc}>Piece together verses from memory</Text>
+            </View>
+            <ChevronRight size={18} color={theme?.colors.text.secondary} />
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={styles.gameOption}
+            onPress={() => {
+              setShowGamesModal(false);
+              navigation.navigate('VirtueTriviaScreen');
+            }}
+          >
+            <View style={[styles.gameIconContainer, { backgroundColor: `${theme?.colors.secondary}15` }]}>
+              <Flame size={24} color={theme?.colors.secondary} />
+            </View>
+            <View style={styles.gameOptionContent}>
+              <Text style={styles.gameOptionTitle}>Virtue Trivia</Text>
+              <Text style={styles.gameOptionDesc}>Test your biblical knowledge</Text>
+            </View>
+            <ChevronRight size={18} color={theme?.colors.text.secondary} />
+          </TouchableOpacity>
+        </Animated.View>
+      </TouchableOpacity>
+    </Modal>
+  );
+
+  // Check if we need to show the points modal when navigation params change
+  useEffect(() => {
+    if (meditationComplete && pointsEarned > 0) {
+      // Small delay for better UX
+      setTimeout(() => {
+        setShowPointsModal(true);
+      }, 500);
+    }
+  }, [meditationComplete, pointsEarned]);
+  
+  // Handle points modal close
+  const handlePointsModalClose = () => {
+    setShowPointsModal(false);
+    
+    // Reset the navigation params to prevent showing the modal again
+    // on subsequent renders
+    navigation.setParams({
+      meditationComplete: undefined,
+      challenge: undefined,
+      pointsEarned: undefined
+    });
+  };
+
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <ScrollView
@@ -736,6 +850,16 @@ const HomeScreen: React.FC<HomeProps> = ({ navigation }) => {
         {renderVerseOfTheDay()}
         {renderLearningSpotlight()}
       </ScrollView>
+
+      {renderGamesModal()}
+      
+      {/* Points Earned Modal */}
+      <PointsEarnedModal
+        visible={showPointsModal}
+        onClose={handlePointsModalClose}
+        pointsEarned={pointsEarned}
+        challengeTitle={challenge?.title}
+      />
 
       <AuthModal
         visible={showAuthModal}
@@ -922,24 +1046,12 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     padding: theme?.spacing.lg,
     justifyContent: 'space-between',
   },
-  // verseText: {
-  //   ...theme?.typography.verse.regular,
-  //   fontSize: 20,
-  //   lineHeight: 32,
-  //   color: theme?.colors.text.primary,
-  //   marginBottom: theme?.spacing.lg,
-  //   textAlign: 'left',
-  // },
   verseFooter: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginTop: 'auto',
   },
-  // verseReference: {
-  //   ...theme?.typography.verse.emphasis,
-  //   fontSize: 16,
-  // },
   versesScrollContent: {
     paddingRight: theme?.spacing.md,
     gap: theme?.spacing.md,
@@ -1358,6 +1470,89 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     height: 4,
     backgroundColor: theme?.colors.primary,
     borderRadius: theme?.borderRadius.full,
+  },
+  sectionHeaderWithAction: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: theme?.spacing.sm,
+  },
+  viewAllButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  viewAllText: {
+    ...theme?.typography.caption.primary,
+    color: theme?.colors.primary,
+    fontWeight: '600',
+  },
+  modalOverlay: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: theme?.spacing.lg,
+  },
+  gamesModalContainer: {
+    width: '90%',
+    backgroundColor: theme?.colors.surface,
+    borderRadius: theme?.borderRadius.lg,
+    padding: theme?.spacing.lg,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 10 },
+        shadowOpacity: 0.15,
+        shadowRadius: 20,
+      },
+      android: {
+        elevation: 10,
+      },
+    }),
+  },
+  gamesModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: theme?.spacing.lg,
+  },
+  gamesModalTitle: {
+    ...theme?.typography.heading.medium,
+    color: theme?.colors.text.primary,
+  },
+  closeButton: {
+    fontSize: 20,
+    color: theme?.colors.text.secondary,
+    padding: theme?.spacing.sm,
+  },
+  gameOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: theme?.spacing.md,
+    backgroundColor: theme?.colors.background,
+    borderRadius: theme?.borderRadius.lg,
+    marginBottom: theme?.spacing.md,
+    borderWidth: 1,
+    borderColor: theme?.colors.border,
+  },
+  gameIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: theme?.spacing.md,
+  },
+  gameOptionContent: {
+    flex: 1,
+  },
+  gameOptionTitle: {
+    ...theme?.typography.body.sans,
+    color: theme?.colors.text.primary,
+    fontWeight: '600',
+  },
+  gameOptionDesc: {
+    ...theme?.typography.caption.secondary,
+    color: theme?.colors.text.secondary,
   },
 });
 

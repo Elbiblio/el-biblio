@@ -15,6 +15,7 @@ interface AuthState {
   logout: () => Promise<void>;
   initialize: () => Promise<void>;
   signUp: (data: SignUpData) => Promise<boolean>;
+  updateUserPoints: (points: number) => Promise<void>;
   updateUserTime: (totalActiveTime: number) => Promise<void>;
   updateAvatar: (avatarUrl: string) => Promise<boolean>;
 }
@@ -184,6 +185,34 @@ const useAuthStore = create<AuthState>((set, get) => ({
         isLoading: false
       });
       return false;
+    }
+  },
+  updateUserPoints: async (points: number) => {
+    try {
+      const state = get();
+      if (!state.user?.id) {
+        throw new Error('User not found');
+      }
+
+      const response = await apiClient.put<User>(
+        endpoints.users.update(state.user.id),
+        { points }
+      );
+
+      if (!response.success || !response.data) {
+        throw new Error(response.message || 'Failed to update user points');
+      }
+
+      set(state => ({
+        user: { ...state.user!, points: response.data.points }
+      }));
+    } catch (error) {
+      console.error('Points update error:', error);
+      const message = error instanceof Error ? error.message : 'Failed to update points';
+      set({
+        error: message,
+        isLoading: false
+      });
     }
   },
   updateUserTime: async (totalActiveTime: number) => {

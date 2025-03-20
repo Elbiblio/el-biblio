@@ -37,7 +37,9 @@
     "sonner-native": "^0.16.2",
     "typescript": "^5.3.3",
     "valtio": "^2.1.2",
-    "zustand": "^5.0.2"
+    "zustand": "^5.0.2",
+    "expo-speech": "~13.0.1",
+    "lottie-react-native": "7.1.0"
   },
   "devDependencies": {
     "@babel/core": "^7.20.0",
