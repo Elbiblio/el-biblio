@@ -4,6 +4,7 @@ import NetInfo from '@react-native-community/netinfo';
 import { Note, PaginatedResponse } from '@/types';
 import { apiClient, endpoints } from '@/api/client';
 import { toast } from 'sonner-native';
+import { appState } from '@/utils/appInitialization';
 
 type SyncAction = 'add' | 'update' | 'delete';
 
@@ -119,7 +120,9 @@ export const useNoteStore = create<NoteState>((set, get) => ({
       
     } catch (error: any) {
       set({ error: error.message });
-      toast.error('Failed to fetch notes');
+      if (appState.isInitialized) {
+        toast.error('Failed to fetch notes');
+      }
     } finally {
       set({ isLoading: false });
     }
@@ -139,7 +142,9 @@ export const useNoteStore = create<NoteState>((set, get) => ({
       return newNote;
     } catch (error: any) {
       set({ error: error.message });
-      toast.error('Failed to create note');
+      if (appState.isInitialized) {
+        toast.error('Failed to create note');
+      }
       return null;
     }
   },
@@ -162,7 +167,9 @@ export const useNoteStore = create<NoteState>((set, get) => ({
       return updatedNote;
     } catch (error: any) {
       set({ error: error.message });
-      toast.error('Failed to update note');
+      if (appState.isInitialized) {
+        toast.error('Failed to update note');
+      }
       return null;
     }
   },
@@ -179,12 +186,17 @@ export const useNoteStore = create<NoteState>((set, get) => ({
       
       return true;
     } catch (error) {
-      toast.error('Failed to delete note');
+      if (appState.isInitialized) {
+        toast.error('Failed to delete note');
+      }
       return false;
     }
   },
 
   syncNotes: async () => {
+    // Don't attempt to sync if app isn't fully initialized
+    if (!appState.isInitialized) return;
+    
     try {
       set({ isLoading: true });
       
@@ -221,7 +233,9 @@ export const useNoteStore = create<NoteState>((set, get) => ({
       });
     } catch (error) {
       console.error('Sync error:', error);
-      toast.error('Failed to sync notes');
+      if (appState.isInitialized) {
+        toast.error('Failed to sync notes');
+      }
     } finally {
       set({ isLoading: false });
     }
@@ -239,7 +253,9 @@ export const useNoteStore = create<NoteState>((set, get) => ({
 
       return !!updatedNote;
     } catch (error) {
-      toast.error('Failed to update pin status');
+      if (appState.isInitialized) {
+        toast.error('Failed to update pin status');
+      }
       return false;
     }
   },
@@ -258,9 +274,9 @@ function mergeNotes(localNotes: Note[], serverNotes: Note[]): Note[] {
   return Array.from(notesMap.values());
 }
 
-// Set up network listener
+// Set up network listener with initialization check
 NetInfo.addEventListener(state => {
-  if (state.isConnected) {
+  if (state.isConnected && appState.isInitialized) {
     useNoteStore.getState().syncNotes();
   }
 });

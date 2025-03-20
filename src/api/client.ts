@@ -1,6 +1,7 @@
 import axios, { AxiosError, AxiosRequestConfig, AxiosResponse } from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { toast } from 'sonner-native';
+import { appState } from '@/utils/appInitialization';
 
 export interface APIResponse<T> {
   success: boolean;
@@ -75,7 +76,11 @@ api.interceptors.response.use(
       if (status === 401) {
         await AsyncStorage.removeItem('auth_token');
         errorResponse.message = 'Session expired. Please login again.';
-        toast.error(errorResponse.message);
+        
+        if (appState.isInitialized) {
+          toast.error(errorResponse.message);
+        }
+        
         return Promise.reject(errorResponse);
       }
 
@@ -83,13 +88,14 @@ api.interceptors.response.use(
         errorResponse.errors = response.data.errors || {};
         errorResponse.message = response.data.message || 'Validation failed';
         
-        if (errorResponse.errors) {
+        if (appState.isInitialized && errorResponse.errors) {
           Object.values(errorResponse.errors).forEach(messages => {
             if (Array.isArray(messages)) {
               messages.forEach(message => toast.error(message));
             }
           });
         }
+        
         return Promise.reject(errorResponse);
       }
 
@@ -101,7 +107,10 @@ api.interceptors.response.use(
       errorResponse.message = (error as Error).message || 'An error occurred';
     }
 
-    toast.error(errorResponse.message);
+    if (appState.isInitialized) {
+      toast.error(errorResponse.message);
+    }
+    
     return Promise.reject(errorResponse);
   }
 );

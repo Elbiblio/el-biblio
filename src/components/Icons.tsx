@@ -5,6 +5,7 @@ import Feather from 'react-native-vector-icons/Feather';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import FontAwesome6 from 'react-native-vector-icons/FontAwesome6';
 import Entypo from 'react-native-vector-icons/Entypo';
+import Ionicons from 'react-native-vector-icons/Ionicons';
 import { getCurrentTheme } from '@/stores/theme';
 
 const theme = getCurrentTheme();
@@ -66,17 +67,42 @@ export const ArrowRightBold = ({ size = 24, color = theme.colors.text.secondary,
   </View>
 );
 
+export const ArrowUp = ({ size = 24, color = theme.colors.text.secondary, style }: IconProps) => (
+  <View style={style}>
+    <MaterialCommunityIcons name="arrow-up-bold-outline" size={size} color={color} />
+  </View>
+);
+
 export const ArrowRightPlay = ({ size = 24, color = theme.colors.text.secondary, style }: IconProps) => (
   <View style={style}>
     <MaterialCommunityIcons name="arrow-right-drop-circle-outline" size={size} color={color} />
   </View>
 );
 
-export const Clock = ({ size = 24, color = theme.colors.text.secondary, style }: IconProps) => (
+export const Trophy = ({ size = 24, color = theme.colors.text.secondary, style }: IconProps) => (
   <View style={style}>
-    <MaterialCommunityIcons name="clock-outline" size={size} color={color} />
+    <MaterialCommunityIcons name="trophy-outline" size={size} color={color} />
   </View>
 );
+
+export const ThumbsUp = ({ size = 24, color = theme.colors.text.secondary, style }: IconProps) => (
+  <View style={style}>
+    <MaterialCommunityIcons name="thumbs-up-outline" size={size} color={color} />
+  </View>
+);
+
+export const ThumbsDown = ({ size = 24, color = theme.colors.text.secondary, style }: IconProps) => (
+  <View style={style}>
+    <MaterialCommunityIcons name="thumbs-down-outline" size={size} color={color} />
+  </View>
+);
+
+export const Calendar = ({ size = 24, color = theme.colors.text.secondary, style }: IconProps) => (
+  <View style={style}>
+    <MaterialCommunityIcons name="calendar-outline" size={size} color={color} />
+  </View>
+);
+
 
 export const Sparkle = ({ size = 24, color = theme.colors.text.secondary, style }: IconProps) => (
   <View style={style}>
@@ -84,9 +110,45 @@ export const Sparkle = ({ size = 24, color = theme.colors.text.secondary, style 
   </View>
 );
 
+export const Flame = ({ size = 24, color = theme.colors.text.secondary, style }: IconProps) => (
+  <View style={style}>
+    <MaterialCommunityIcons name="fire" size={size} color={color} />
+  </View>
+);
+
+export const Scales = ({ size = 24, color = theme.colors.text.secondary, style }: IconProps) => (
+  <View style={style}>
+    <MaterialCommunityIcons name="scale-balance" size={size} color={color} />
+  </View>
+);
+
+export const Leaf = ({ size = 24, color = theme.colors.text.secondary, style }: IconProps) => (
+  <View style={style}>
+    <MaterialCommunityIcons name="leaf" size={size} color={color} />
+  </View>
+);
+
+export const Shield = ({ size = 24, color = theme.colors.text.secondary, style }: IconProps) => (
+  <View style={style}>
+    <MaterialCommunityIcons name="shield-outline" size={size} color={color} />
+  </View>
+);
+
 export const Send = ({ size = 24, color = theme.colors.text.secondary, style }: IconProps) => (
   <View style={style}>
     <Feather name="send" size={size} color={color} />
+  </View>
+);
+
+export const Reply = ({ size = 24, color = theme.colors.text.secondary, style }: IconProps) => (
+  <View style={style}>
+    <MaterialCommunityIcons name="reply" size={size} color={color} />
+  </View>
+);
+
+export const Globe = ({ size = 24, color = theme.colors.text.secondary, style }: IconProps) => (
+  <View style={style}>
+    <MaterialCommunityIcons name="globe" size={size} color={color} />
   </View>
 );
 
@@ -335,6 +397,71 @@ export const EyeOff = ({ size = 24, color = theme.colors.text.secondary, style }
     <MaterialCommunityIcons name="eye-off" size={size} color={color} />
   </View>
 );
+
+
+export const SizeIncrease = ({ size = 24, color = theme.colors.text.secondary, style }: IconProps) => (
+  <View style={style}>
+    <MaterialCommunityIcons name="magnify-plus" size={size} color={color} />
+  </View>
+);
+
+export const SizeDecrease = ({ size = 24, color = theme.colors.text.secondary, style }: IconProps) => (
+  <View style={style}>
+    <MaterialCommunityIcons name="magnify-minus" size={size} color={color} />
+  </View>
+);
+
+export const Brush = ({ size = 24, color = theme.colors.text.secondary, style }: IconProps) => (
+  <View style={style}>
+    <Ionicons name="brush" size={size} color={color} />
+  </View>
+);
+
+export const BrushOutlined = ({ size = 24, color = theme.colors.text.secondary, style }: IconProps) => (
+  <View style={style}>
+    <Ionicons name="brush-outline" size={size} color={color} />
+  </View>
+);
+
+export const Lightbulb = ({ size = 24, color = theme.colors.text.secondary, style }: IconProps) => (
+  <View style={style}>
+    <MaterialCommunityIcons name="lightbulb-outline" size={size} color={color} />
+  </View>
+);
+
+export const Lightning = ({ size = 24, color = theme.colors.text.secondary, style }: IconProps) => (
+  <View style={style}>
+    <MaterialCommunityIcons name="lightning-bolt-outline" size={size} color={color} />
+  </View>
+);
+
+export const Question = ({ size = 24, color = theme.colors.text.secondary, style }: IconProps) => (
+  <View style={style}>
+    <MaterialCommunityIcons name="help-circle-outline" size={size} color={color} />
+  </View>
+);
+
+export const CaretLeft = ({ size = 24, color = theme.colors.text.secondary, style }: IconProps) => (
+  <View style={style}>
+    <MaterialCommunityIcons name="chevron-left" size={size} color={color} />
+  </View>
+);
+
+export const CaretRight = ({ size = 24, color = theme.colors.text.secondary, style }: IconProps) => (
+  <View style={style}>
+    <MaterialCommunityIcons name="chevron-right" size={size} color={color} />
+  </View>
+);
+
+export const Clock = ({ size = 24, color = theme.colors.text.secondary, style }: IconProps) => (
+  <View style={style}>
+    <MaterialCommunityIcons name="clock-outline" size={size} color={color} />
+  </View>
+);
+
+
+
+
 
 export const Camera = ({ size = 24, color = theme.colors.text.secondary, style }: IconProps) => (
   <View style={style}>

@@ -196,6 +196,8 @@ export interface Note {
   title: string;
   text: string;
   virtues?: AllVirtues[];
+  is_public?: boolean;
+  comments?: Comment[];
   createdAt?: string;
   updatedAt?: string;
   isPinned?: boolean;
@@ -448,12 +450,68 @@ export type RootStackParamList = {
   ReflectionDetail: { reflection: Reflection };
   IntroScreen: undefined;
   DailyVersesScreen: undefined;
+  NoteDetail: { noteId: string };
   MatchScreen: undefined;
   WordHubsScreen: undefined;
   WordHubDetailScreen: { hubId: string };
   SavedItemsScreen: undefined;
+  CommunityScreen: undefined;
+  ProfileScreen: undefined;
+  DailyChallengeScreen: undefined;
+  MeditationScreen: undefined;
+  VirtueScreen: undefined;
+  LeaderboardScreen: undefined;
+  VerseBuilderScreen: undefined;
+  VirtueQuizScreen: { virtueId?: string, level?: number };
+  QuizDetail: { id: string };
+  BibleScreen: {book?: string, chapter?: number, verse?: number};
   NotesScreen: { noteId?: string | number };
 };
+
+export interface BibleVersion {
+  englishName: string;
+  tableName: string;
+  shortName: string;
+  dbFilename: string;
+  downloadUrl: string;
+  preinstalled: boolean;
+}
+
+export interface BibleVerse {
+  id: string;
+  text: string;
+  reference: string;
+}
+
+export interface Book {
+  name: string;
+  abbreviation: string;
+  chapters: number;
+}
+
+export interface LocalVerseActivity {
+  isHighlighted: boolean;
+  isBookmarked: boolean;
+  interactions: {
+    reflectionCount: number;
+    commentCount: number;
+    likeCount: number;
+  };
+}
+
+export interface VerseActivityMap {
+  [verseId: string]: LocalVerseActivity;
+}
+
+export interface VerseMastery {
+  userId?: number;
+  verseId: string;
+  attempts: number;
+  correct: number;
+  firstAttempt?: number;
+  lastAttempt?: number;
+  needsReview: boolean;
+}
 
 export interface AnimatedProps {
   scrollX: SharedValue<number>;

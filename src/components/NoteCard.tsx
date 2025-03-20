@@ -1,21 +1,18 @@
 import { useTheme } from '@/contexts/ThemeContext';
-import { NotesScreenProps, createStyles } from '@/screens/NotesScreen';
-import { useNoteStore } from '@/stores/notes';
-import { type AllVirtues, Note } from '@/types';
+import { type Note } from '@/types';
 import { BlurView } from 'expo-blur';
 import React, { useState, memo } from 'react';
 import { Text, View, StyleSheet } from 'react-native';
 import { TouchableOpacity } from 'react-native-gesture-handler';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Sparkle } from './Icons';
 
-const NoteCard = memo(({ note, isGridView, onPress }: { 
+const NoteCard = memo(({ note, isGridView, onPress, styles }: {
   note: Note;
   isGridView: boolean;
   onPress: (note: Note) => void;
+  styles: StyleSheet.NamedStyles<any>;
 }) => {
   const theme = useTheme();
-  const styles = React.useMemo(() => createStyles(theme), [theme]);
 
   return (
     <TouchableOpacity

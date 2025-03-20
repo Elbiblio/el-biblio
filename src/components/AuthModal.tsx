@@ -206,7 +206,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ visible, onClose }) => {
                             setError(null);
                             setFormData(prev => ({ ...prev, firstName: text }));
                           }}
-                          placeholderTextColor={theme.colors.text.secondary}
+                          placeholderTextColor={theme.colors.text.placeholder}
                           autoCapitalize="words"
                         />
                         <TextInput
@@ -217,7 +217,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ visible, onClose }) => {
                             setError(null);
                             setFormData(prev => ({ ...prev, lastName: text }));
                           }}
-                          placeholderTextColor={theme.colors.text.secondary}
+                          placeholderTextColor={theme.colors.text.placeholder}
                           autoCapitalize="words"
                         />
                       </>
@@ -231,7 +231,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ visible, onClose }) => {
                         setError(null);
                         setFormData(prev => ({ ...prev, email: text }));
                       }}
-                      placeholderTextColor={theme.colors.text.secondary}
+                      placeholderTextColor={theme.colors.text.placeholder}
                       keyboardType="email-address"
                       autoCapitalize="none"
                       autoComplete="email"
@@ -246,7 +246,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ visible, onClose }) => {
                           setError(null);
                           setFormData(prev => ({ ...prev, password: text }));
                         }}
-                        placeholderTextColor={theme.colors.text.secondary}
+                        placeholderTextColor={theme.colors.text.placeholder}
                         secureTextEntry={!showPassword}
                         autoCapitalize="none"
                       />
@@ -304,7 +304,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ visible, onClose }) => {
 const createStyles = (theme: Theme) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)', // Dark semi-transparent background
+    backgroundColor: theme.colors.modal?.overlay,
   },
   overlay: {
     flex: 1,
@@ -319,10 +319,7 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     borderRadius: theme.borderRadius.xl,
     overflow: 'hidden',
     marginVertical: SCREEN_DIMENSIONS.height * 0.1,
-    // Improved background opacity for better readability
-    backgroundColor: Platform.OS === 'ios' ?
-      'rgba(18, 18, 20, 0.95)' :
-      'rgba(18, 18, 20, 0.98)',
+    backgroundColor: theme.colors.modal.background,
     ...Platform.select({
       ios: {
         shadowColor: '#000',
@@ -359,7 +356,7 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     height: 40,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(60, 60, 67, 0.5)',
+    backgroundColor: 'rgba(60, 60, 67, 0.6)',
     borderRadius: theme.borderRadius.full,
   },
   title: {
@@ -369,19 +366,19 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     marginBottom: theme.spacing.lg,
   },
   input: {
-    backgroundColor: 'rgba(60, 60, 67, 0.35)',
+    backgroundColor: theme.colors.input.background,
     padding: theme.spacing.md,
     borderRadius: theme.borderRadius.lg,
     ...theme.typography.body.sans,
     color: theme.colors.text.inverse,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.15)',
+    borderColor: theme.colors.input.border,
   },
   errorText: {
     ...theme.typography.caption.primary,
     color: theme.colors.error,
     textAlign: 'center',
-    backgroundColor: 'rgba(255, 59, 48, 0.15)',
+    backgroundColor: 'rgba(255, 59, 48, 0.2)',
     padding: theme.spacing.md,
     borderRadius: theme.borderRadius.lg,
   },

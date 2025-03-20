@@ -143,6 +143,12 @@ const HomeScreen: React.FC<HomeProps> = ({ navigation }) => {
     dayStartTimestamp: new Date().setHours(0, 0, 0, 0),
   });
 
+  // Add animation values for more lively UI
+  const toolsScale = useSharedValue(1);
+  const challengeOpacity = useSharedValue(0);
+  const verseTranslateY = useSharedValue(20);
+  const spotlightTranslateX = useSharedValue(20);
+
   useEffect(() => {
     loadTimeTracking();
     const subscription = AppState.addEventListener('change', handleAppStateChange);
@@ -153,6 +159,11 @@ const HomeScreen: React.FC<HomeProps> = ({ navigation }) => {
         handleTimeSync();
       }
     }, SYNC_INTERVAL);
+
+    // Animate elements when screen loads
+    challengeOpacity.value = withTiming(1, { duration: 600 });
+    verseTranslateY.value = withSpring(0);
+    spotlightTranslateX.value = withSpring(0);
 
     return () => {
       handleAppInactive();
@@ -395,7 +406,7 @@ const HomeScreen: React.FC<HomeProps> = ({ navigation }) => {
   }, []);
 
   const handleQuickActionPress = (route: string) => {
-    if (!user) {
+    if (!user && route !== 'BibleScreen') {
       setShowAuthModal(true);
       return;
     }
@@ -403,47 +414,314 @@ const HomeScreen: React.FC<HomeProps> = ({ navigation }) => {
   };
 
   const renderHeader = () => (
-    <Animated.View style={[styles.header, headerAnimatedStyle]}>
-      <View>
-        <Text style={styles.greeting}>
-          {mainGreeting}
-        </Text>
-        <Text style={styles.subGreeting}>
-          {subGreeting}
-        </Text>
+    <View style={styles.header}>
+      <View style={styles.headerContent}>
+        <Text style={styles.appTitle}>ELBIBLIO v1.1</Text>
+        {user ? (
+          <TouchableOpacity
+            style={styles.pointsContainer}
+            onPress={() => {
+              pointsScale.value = withSequence(
+                withSpring(1.1),
+                withSpring(1)
+              );
+            }}
+          >
+            <Animated.View style={[styles.points, { transform: [{ scale: pointsScale }] }]}>
+              <LinearGradient
+                colors={[theme?.colors.primary, theme?.colors.primaryLight]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.pointsGradient}
+              >
+                <Star size={16} color="#FFF" />
+                <Text style={styles.pointsText}>{user.points || 0} 🌟</Text>
+              </LinearGradient>
+            </Animated.View>
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity
+            style={styles.joinButton}
+            onPress={() => setShowAuthModal(true)}
+          >
+            <Text style={styles.joinButtonText}>Join Now</Text>
+          </TouchableOpacity>
+        )}
       </View>
-      {user ? (
-        <TouchableOpacity
-          style={styles.pointsContainer}
+    </View>
+  );
+
+  // Quick Tools Grid Section with animations
+  const renderQuickTools = () => {
+    const toolAnimatedStyle = useAnimatedStyle(() => ({
+      transform: [{ scale: toolsScale.value }]
+    }));
+
+    return (
+      <Animated.View style={[styles.section, toolAnimatedStyle]}>
+        <Text style={styles.sectionTitle}>QUICK TOOLS</Text>
+        <View style={styles.toolsGrid}>
+          {[
+            { icon: BookOpen, label: 'Meditation', route: 'VerseBuilderScreen', badge: 2, color: theme?.colors.primary },
+            { icon: Bible, label: 'Bible', route: 'BibleScreen', badge: null, color: theme?.colors.secondary },
+            { icon: Star, label: 'SoulForge', route: 'VirtueScreen', badge: null, color: theme?.colors.primaryDark },
+            { icon: BookmarkSimple, label: 'Bookmarks', route: 'SavedItemsScreen', badge: 5, color: theme?.colors.like },
+            { icon: NotePencil, label: 'Notes', route: 'NotesScreen', badge: 3, color: theme?.colors.error },
+            { icon: Sparkle, label: 'Challenges', route: 'DailyChallengeScreen', badge: 1, color: theme?.colors.success },
+          ].map((tool, index) => (
+            <TouchableOpacity
+              key={tool.label}
+              style={styles.toolButton}
+              onPress={() => {
+                // Add press animation
+                toolsScale.value = withSequence(
+                  withTiming(0.97, { duration: 100 }),
+                  withTiming(1, { duration: 100 })
+                );
+                handleQuickActionPress(tool.route);
+              }}
+            >
+              <LinearGradient
+                colors={[`${tool.color}15`, `${tool.color}05`]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.toolGradient}
+              />
+              <View style={[styles.toolIconContainer, { backgroundColor: `${tool.color}15` }]}>
+                <tool.icon size={24} color={tool.color} />
+                {tool.badge && (
+                  <View style={styles.badgeContainer}>
+                    <Text style={styles.badgeText}>{tool.badge}</Text>
+                  </View>
+                )}
+              </View>
+              <Text style={styles.toolLabel}>{tool.label}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+        <Text style={styles.toolTip}>
+          Tip: Complete daily meditation to earn bonus points
+        </Text>
+      </Animated.View>
+    );
+  };
+
+  // Daily Challenges Section with animations
+  const renderDailyChallenges = () => {
+    const challengeAnimatedStyle = useAnimatedStyle(() => ({
+      opacity: challengeOpacity.value,
+    }));
+
+    return (
+      <Animated.View style={[styles.section, challengeAnimatedStyle]}>
+        <Text style={styles.sectionTitle}>DAILY CHALLENGES</Text>
+        
+        {/* Personal Challenge */}
+        <View style={styles.challengeCard}>
+          <View style={styles.challengeHeader}>
+            <Text style={styles.challengeType}>Personal:</Text>
+          </View>
+          <Text style={styles.challengeText}>
+            <Text style={styles.challengeIcon}>🌱</Text> Write 3 gratitude notes
+          </Text>
+          <View style={styles.progressContainer}>
+            <View style={styles.progressBar}>
+              <View style={[styles.progressFill, { width: '80%' }]} />
+            </View>
+            <Text style={styles.progressText}>80%</Text>
+          </View>
+          <TouchableOpacity 
+            style={styles.completeButton}
+            onPress={() => {
+              // Add animation on press
+              challengeOpacity.value = withSequence(
+                withTiming(0.7, { duration: 100 }),
+                withTiming(1, { duration: 100 })
+              );
+            }}
+          >
+            <Text style={styles.completeButtonText}>✅ Complete</Text>
+          </TouchableOpacity>
+        </View>
+        
+        {/* Community Challenge */}
+        <View style={styles.challengeCard}>
+          <View style={styles.challengeHeader}>
+            <Text style={styles.challengeType}>Community:</Text>
+          </View>
+          <Text style={styles.challengeText}>
+            <Text style={styles.challengeIcon}>🤝</Text> Group fasting till 3pm
+          </Text>
+          <View style={styles.communityStats}>
+            <View style={styles.avatarContainer}>
+              <AvatarStack
+                users={[
+                  { id: '1', avatar: '', first_name: 'User1', last_name: 'User1' },
+                  { id: '2', avatar: '', first_name: 'User2', last_name: 'User2' },
+                  { id: '3', avatar: '', first_name: 'User3', last_name: 'User3' },
+                ]}
+                maxAvatars={3}
+                size={24}
+              />
+            </View>
+            <Text style={styles.participantsText}>23 people joined</Text>
+          </View>
+          <TouchableOpacity 
+            style={styles.joinChallengeButton}
+            onPress={() => {
+              // Add animation on press
+              challengeOpacity.value = withSequence(
+                withTiming(0.7, { duration: 100 }),
+                withTiming(1, { duration: 100 })
+              );
+            }}
+          >
+            <Text style={styles.joinChallengeText}>✨ Join Challenge</Text>
+          </TouchableOpacity>
+        </View>
+      </Animated.View>
+    );
+  };
+
+  // Verse of the Day Section with animations
+  const renderVerseOfTheDay = () => {
+    const verseAnimatedStyle = useAnimatedStyle(() => ({
+      transform: [{ translateY: verseTranslateY.value }],
+      opacity: interpolate(verseTranslateY.value, [20, 0], [0, 1]),
+    }));
+
+    if (!dailyVerses || dailyVerses.length === 0) {
+      return (
+        <Animated.View style={[styles.section, verseAnimatedStyle]}>
+          <Text style={styles.sectionTitle}>VERSE OF THE DAY</Text>
+          <View style={styles.verseCard}>
+            <Text style={styles.loadingText}>Loading today's verse...</Text>
+          </View>
+        </Animated.View>
+      );
+    }
+
+    const verse = dailyVerses[0];
+    return (
+      <Animated.View style={[styles.section, verseAnimatedStyle]}>
+        <Text style={styles.sectionTitle}>VERSE OF THE DAY</Text>
+        <TouchableOpacity 
+          style={styles.verseCard}
           onPress={() => {
-            pointsScale.value = withSequence(
-              withSpring(1.1),
-              withSpring(1)
+            verseTranslateY.value = withSequence(
+              withTiming(5, { duration: 100 }),
+              withTiming(0, { duration: 100 })
             );
+            handleVersePress(verse);
           }}
         >
-          <Animated.View style={[styles.points, { transform: [{ scale: pointsScale }] }]}>
-            <LinearGradient
-              colors={[theme?.colors.primary, theme?.colors.primaryLight]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.pointsGradient}
-            >
-              <Star size={20} color="#FFF" />
-              <Text style={styles.pointsText}>{user.points || 0}</Text>
-            </LinearGradient>
-          </Animated.View>
+          <LinearGradient
+            colors={[`${theme?.colors.primary}10`, `${theme?.colors.primary}02`]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.cardGradient}
+          />
+          <Text style={styles.verseReference}>{verse.reference}</Text>
+          <Text style={styles.verseText} numberOfLines={3}>
+            {verse.text}
+          </Text>
+          <View style={styles.verseStats}>
+            <View style={styles.statItem}>
+              <MessageSquare size={16} color={theme?.colors.primary} />
+              <Text style={styles.statText}>
+                {verse.reflections?.length || 0} Reflections
+              </Text>
+            </View>
+            <View style={styles.statItem}>
+              <BookmarkSimple size={16} color={theme?.colors.secondary} />
+              <Text style={styles.statText}>
+                {verse.likes || 0} Saves
+              </Text>
+            </View>
+          </View>
+          
+          <View style={styles.interactionsContainer}>
+            <View style={styles.reflectionMeta}>
+              {verse.reflections && verse.reflections.length > 0 && (
+                <>
+                  <AvatarStack
+                    users={verse.reflections.map((reflection: Reflection) => reflection.user)}
+                    maxAvatars={3}
+                    size={24}
+                  />
+                  <Text style={styles.reflectionCount}>
+                    {verse.reflections.length > 3 
+                      ? `+${verse.reflections.length - 3} others sharing`
+                      : `${verse.reflections.length} sharing`}
+                  </Text>
+                </>
+              )}
+            </View>
+          </View>
         </TouchableOpacity>
-      ) : (
-        <TouchableOpacity
-          style={styles.joinButton}
-          onPress={() => setShowAuthModal(true)}
+      </Animated.View>
+    );
+  };
+
+  // Learning Spotlight Section with animations
+  const renderLearningSpotlight = () => {
+    const spotlightAnimatedStyle = useAnimatedStyle(() => ({
+      transform: [{ translateX: spotlightTranslateX.value }],
+      opacity: interpolate(spotlightTranslateX.value, [20, 0], [0, 1]),
+    }));
+
+    return (
+      <Animated.View style={[styles.section, spotlightAnimatedStyle]}>
+        <Text style={styles.sectionTitle}>LEARNING SPOTLIGHT</Text>
+        
+        <TouchableOpacity 
+          style={styles.spotlightCard}
+          onPress={() => {
+            spotlightTranslateX.value = withSequence(
+              withTiming(5, { duration: 100 }),
+              withTiming(0, { duration: 100 })
+            );
+            navigation.navigate('NotesScreen', { noteId: 'featured-note-id' });
+          }}
         >
-          <Text style={styles.joinButtonText}>Join Now</Text>
+          <View style={styles.spotlightIconContainer}>
+            <BookOpen size={20} color={theme?.colors.primary} />
+          </View>
+          <View style={styles.spotlightContent}>
+            <Text style={styles.spotlightLabel}>Featured Note</Text>
+            <Text style={styles.spotlightTitle}>"Understanding Mercy"</Text>
+          </View>
+          <ChevronRight size={16} color={theme?.colors.text.secondary} />
         </TouchableOpacity>
-      )}
-    </Animated.View>
-  );
+        
+        <TouchableOpacity 
+          style={styles.spotlightCard}
+          onPress={() => {
+            spotlightTranslateX.value = withSequence(
+              withTiming(5, { duration: 100 }),
+              withTiming(0, { duration: 100 })
+            );
+            navigation.navigate('QuizDetail', { id: 'beatitudes-quiz-id' });
+          }}
+        >
+          <View style={[styles.spotlightIconContainer, { backgroundColor: `${theme?.colors.secondary}15` }]}>
+            <Bible size={20} color={theme?.colors.secondary} />
+          </View>
+          <View style={styles.spotlightContent}>
+            <Text style={styles.spotlightLabel}>Quiz</Text>
+            <Text style={styles.spotlightTitle}>Beatitudes Mastery</Text>
+            <View style={styles.quizProgress}>
+              <View style={styles.quizProgressBar}>
+                <View style={[styles.quizProgressFill, { width: '75%' }]} />
+              </View>
+              <Text style={styles.quizProgressText}>75%</Text>
+            </View>
+          </View>
+          <ChevronRight size={16} color={theme?.colors.text.secondary} />
+        </TouchableOpacity>
+      </Animated.View>
+    );
+  };
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -453,152 +731,10 @@ const HomeScreen: React.FC<HomeProps> = ({ navigation }) => {
         contentContainerStyle={styles.scrollContent}
       >
         {renderHeader()}
-
-        <View style={actionStyles.quickActionsContainer}>
-          <View style={actionStyles.quickActionsHeader}>
-            <Text style={actionStyles.quickActionsTitle}>Quick Actions</Text>
-          </View>
-          <View style={actionStyles.actionGrid}>
-            {[
-              { icon: NotePencil, label: 'Notes', color: theme?.colors.primary, route: 'NotesScreen' },
-              { icon: BookmarkSimple, label: 'Saved', color: theme?.colors.secondary, route: 'SavedItemsScreen' },
-              { icon: Users, label: 'Word Hubs', color: theme?.colors.primaryDark, route: 'WordHubsScreen' },
-              { icon: MessageSquare, label: 'One-on-One', color: theme?.colors.like, route: 'MatchScreen' },
-            ].map((action, index) => (
-              <QuickActionCard
-                key={action.label}
-                action={action}
-                actionStyles={actionStyles}
-                index={index}
-                onPress={() => handleQuickActionPress(action.route)}
-              />
-            ))}
-          </View>
-        </View>
-
-        {/* Daily Verses Section */}
-        <View style={styles.versesSection}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Today's Verses</Text>
-            <TouchableOpacity style={styles.seeAllButton} onPress={() => navigation.navigate('DailyVersesScreen')}>
-              <Text style={[styles.seeAllText, themeText]}>See all</Text>
-              <ChevronRight size={16} color={theme?.colors.primary} />
-            </TouchableOpacity>
-          </View>
-
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.versesScrollContent}
-            decelerationRate="fast"
-            snapToInterval={CARD_WIDTH + theme?.spacing.sm}
-            onScroll={handleVerseScroll}
-            scrollEventThrottle={16}
-            pagingEnabled
-          >
-            {dailyVerses?.map((verse: Verse) => (
-              <Animated.View
-                key={verse.id}
-                style={[
-                  styles.verseCardContainer,
-                  { transform: [{ scale: activeVerse === verse.id ? cardScale : 1 }] }
-                ]}
-              >
-                <TouchableOpacity
-                  onPress={() => handleVersePress(verse)}
-                  activeOpacity={0.9}
-                >
-                  <AnimatedBlurView intensity={10} style={styles.verseCard}>
-                    <View style={styles.verseSymbol}>
-                      <LinearGradient
-                        colors={[`${theme?.colors.primary}20`, `${theme?.colors.primary}05`]}
-                        style={styles.symbolGradient}
-                        start={{ x: 0, y: 0 }}
-                        end={{ x: 1, y: 1 }}
-                      >
-                        <Bible size={24} color={theme?.colors.primary} />
-                      </LinearGradient>
-                    </View>
-
-                    <View style={styles.verseContent}>
-                      <View style={styles.trendingBadge}>
-                        <Sparkle size={12} color={theme?.colors.primary} />
-                        <Text style={[styles.trendingText, themeText]}>
-                          {(() => {
-                            const totalReactions = verse.likes + verse.shares + (verse.reflections?.length ?? 0);
-                            return `${totalReactions} ${totalReactions === 1 ? 'reaction' : 'reactions'}`;
-                          })()}
-                        </Text>
-                      </View>
-                      <Text style={styles.verseText} numberOfLines={3}>
-                        {verse.text}
-                      </Text>
-
-                      <View style={styles.verseFooter}>
-                        <Text style={[styles.verseReference, themeText]}>
-                          {verse.reference}
-                        </Text>
-
-                        {/* Scroll Indicators */}
-                        <View style={styles.indicatorsWrapper}>
-                          <ScrollIndicators />
-                        </View>
-                      </View>
-                      <View style={styles.interactionsContainer}>
-                        <View style={styles.reflectionMeta}>
-                          {verse.reflections && verse.reflections.length > 3 && (
-                            <>
-                              <AvatarStack
-                                users={verse.reflections.map((reflection: Reflection) => reflection.user)}
-                                maxAvatars={3}
-                                size={24}
-                              />
-                              <Text style={styles.reflectionCount}>
-                                {` +${verse.reflections.length - 3} ${verse.reflections.length - 3 === 1 ? 'other' : 'others'} sharing`}
-                              </Text>
-                            </>
-                          )}
-                          {verse.reflections && verse.reflections.length > 0 && verse.reflections.length <= 3 && (
-                            <>
-                              <AvatarStack
-                                users={verse.reflections.map((reflection: Reflection) => reflection.user)}
-                                maxAvatars={3}
-                                size={24}
-                              />
-                              <Text style={styles.reflectionCount}>
-                                {verse.reflections.length === 2
-                                  ? `${verse.reflections[0].user.first_name} and 1 other sharing`
-                                  : verse.reflections.length === 3
-                                    ? `${verse.reflections[0].user.first_name} and 2 others sharing`
-                                    : `${verse.reflections[0].user.first_name} sharing`
-                                }
-                              </Text>
-                            </>
-                          )}
-                        </View>
-
-                        <CircleButton
-                          size={32}
-                          style={styles.expandButton}
-                          Icon={ChevronRight}
-                          onPress={() => { }}
-                        />
-
-                      </View>
-                    </View>
-
-                    <LinearGradient
-                      colors={['transparent', `${theme?.colors.background}40`]}
-                      style={styles.cardGradient}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 0, y: 1 }}
-                    />
-                  </AnimatedBlurView>
-                </TouchableOpacity>
-              </Animated.View>
-            ))}
-          </ScrollView>
-        </View>
+        {renderQuickTools()}
+        {renderDailyChallenges()}
+        {renderVerseOfTheDay()}
+        {renderLearningSpotlight()}
       </ScrollView>
 
       <AuthModal
@@ -682,25 +818,38 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     backgroundColor: theme?.colors.background,
   },
   header: {
+    paddingHorizontal: theme?.spacing.md,
+    paddingVertical: theme?.spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: theme?.colors.border,
+  },
+  headerContent: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: theme?.spacing.md,
-    paddingVertical: theme?.spacing.lg,
-    backgroundColor: theme?.colors.background,
   },
-  greeting: {
-    ...theme.typography.heading.large,
-    color: theme.colors.text.primary,
-  },
-  subGreeting: {
-    ...theme.typography.caption.secondary,
-    color: theme.colors.text.secondary,
-    marginTop: 4,
+  appTitle: {
+    ...theme?.typography.heading.medium,
+    color: theme?.colors.primary,
+    fontWeight: '700',
   },
   pointsContainer: {
     overflow: 'hidden',
     borderRadius: theme?.borderRadius.full,
+  },
+  points: {
+    borderRadius: theme?.borderRadius.full,
+    ...Platform.select({
+      ios: {
+        shadowColor: theme?.colors.primary,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.2,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 4,
+      },
+    }),
   },
   pointsGradient: {
     flexDirection: 'row',
@@ -709,77 +858,24 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     paddingVertical: theme?.spacing.sm,
     gap: theme?.spacing.xs,
   },
-  points: {
-    borderRadius: theme?.borderRadius.full,
-    ...Platform.select({
-      ios: {
-        shadowColor: theme?.colors.primary,
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.2,
-        shadowRadius: 8,
-      },
-      android: {
-        elevation: 8,
-      },
-    }),
-  },
   pointsText: {
     ...theme?.typography.caption.primary,
     color: '#FFF',
     fontWeight: '600',
   },
-  footer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingLeft: theme?.spacing.md,
-    paddingRight: theme?.spacing.lg,
-    paddingVertical: theme?.spacing.md,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: theme?.colors.border,
-    marginTop: 'auto', // Push to bottom
-  },
-
-  footerStats: {
-    flex: 1,
-    marginRight: theme?.spacing.md,
-  },
-
-  scrollContent: {
-    paddingBottom: theme?.spacing.xl,
-  },
-  quickActions: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+  joinButton: {
+    backgroundColor: theme?.colors.primary,
     paddingHorizontal: theme?.spacing.md,
     paddingVertical: theme?.spacing.sm,
-    gap: theme?.spacing.sm,
+    borderRadius: theme?.borderRadius.full,
   },
-  actionCard: {
-    flex: 1,
-    minWidth: '45%',
-    aspectRatio: 1.5,
-    borderRadius: theme?.borderRadius.lg,
-    padding: theme?.spacing.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: theme?.spacing.sm,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 3,
-      },
-    }),
-  },
-  actionText: {
+  joinButtonText: {
     ...theme?.typography.caption.primary,
-    textAlign: 'center',
+    color: '#FFF',
     fontWeight: '600',
+  },
+  scrollContent: {
+    paddingBottom: theme?.spacing.xl,
   },
   versesSection: {
     padding: theme?.spacing.md,
@@ -793,6 +889,7 @@ const createStyles = (theme: Theme) => StyleSheet.create({
   sectionTitle: {
     ...theme?.typography.heading.medium,
     color: theme?.colors.text.primary,
+    marginBottom: theme?.spacing.sm,
   },
   seeAllButton: {
     flexDirection: 'row',
@@ -802,37 +899,50 @@ const createStyles = (theme: Theme) => StyleSheet.create({
   seeAllText: {
     ...theme?.typography.caption.primary
   },
-  cardContent: {
-    flex: 1,
-    padding: theme?.spacing.lg,
-  },
-  versesScrollContent: {
-    paddingRight: theme?.spacing.md,
-    gap: theme?.spacing.md,
-  },
   verseCardContainer: {
     width: CARD_WIDTH,
     marginRight: theme?.spacing.md,
     marginBottom: theme?.spacing.md,
   },
-  verseCard: {
-    paddingTop: 20,
-    backgroundColor: theme?.colors.background,
-    borderRadius: theme?.borderRadius.xl,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: `${theme?.colors.primary}15`,
-    ...Platform.select({
-      ios: {
-        shadowColor: theme?.colors.primary,
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.1,
-        shadowRadius: 12,
-      },
-      android: {
-        elevation: 4,
-      },
-    }),
+  verseSymbol: {
+    position: 'absolute',
+    top: theme?.spacing.sm,
+    right: theme?.spacing.sm,
+    zIndex: 2,
+  },
+  symbolGradient: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  verseContent: {
+    flex: 1,
+    padding: theme?.spacing.lg,
+    justifyContent: 'space-between',
+  },
+  // verseText: {
+  //   ...theme?.typography.verse.regular,
+  //   fontSize: 20,
+  //   lineHeight: 32,
+  //   color: theme?.colors.text.primary,
+  //   marginBottom: theme?.spacing.lg,
+  //   textAlign: 'left',
+  // },
+  verseFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 'auto',
+  },
+  // verseReference: {
+  //   ...theme?.typography.verse.emphasis,
+  //   fontSize: 16,
+  // },
+  versesScrollContent: {
+    paddingRight: theme?.spacing.md,
+    gap: theme?.spacing.md,
   },
   trendingBadge: {
     flexDirection: 'row',
@@ -849,71 +959,6 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     ...theme?.typography.caption.secondary,
     fontSize: 12,
     fontWeight: '600',
-  },
-  verseContent: {
-    flex: 1,
-    padding: theme?.spacing.lg,
-    justifyContent: 'space-between',
-  },
-  verseText: {
-    ...theme?.typography.verse.regular,
-    fontSize: 20,
-    lineHeight: 32,
-    color: theme?.colors.text.primary,
-    marginBottom: theme?.spacing.lg,
-    textAlign: 'left',
-  },
-  verseFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: 'auto',
-  },
-  verseReference: {
-    ...theme?.typography.verse.emphasis,
-    fontSize: 16,
-  },
-  verseMeta: {
-    gap: theme?.spacing.md,
-  },
-  indicatorContainer: {
-    position: 'absolute',
-    bottom: theme?.spacing.md,
-    left: 0,
-    right: 0,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: theme?.spacing.xs,
-  },
-  indicator: {
-    height: 3,
-    backgroundColor: theme?.colors.primary,
-    borderRadius: theme?.borderRadius.full,
-    opacity: 0.6,
-  },
-  interactionsContainer: {
-    marginTop: theme?.spacing.md,
-    paddingTop: theme?.spacing.md,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: theme?.colors.border,
-    gap: theme?.spacing.sm,
-  },
-  interactionRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: theme?.spacing.sm,
-  },
-  reflectionMeta: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: theme?.spacing.sm,
-  },
-  reflectionCount: {
-    ...theme?.typography.caption.secondary,
-    color: theme?.colors.text.secondary,
-    marginTop: 0 - theme?.spacing.sm,
-    fontSize: 12,
   },
   indicatorsWrapper: {
     position: 'absolute',
@@ -1003,54 +1048,317 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     backgroundColor: theme?.colors.surface,
     marginBottom: theme?.spacing.lg,
   },
-
-  verseSymbol: {
-    position: 'absolute',
-    top: theme?.spacing.sm,
-    right: theme?.spacing.sm,
-    zIndex: 2,
+  section: {
+    marginTop: theme?.spacing.lg,
+    paddingHorizontal: theme?.spacing.md,
   },
-  symbolGradient: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  footerContent: {
+  toolsGrid: {
     flexDirection: 'row',
-    alignItems: 'center',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
     gap: theme?.spacing.sm,
   },
-  cardGradient: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: 100,
-  },
-  joinButton: {
-    backgroundColor: theme.colors.primary,
-    paddingHorizontal: theme.spacing.lg,
-    paddingVertical: theme.spacing.sm,
-    borderRadius: theme.borderRadius.full,
+  toolButton: {
+    width: '31%',
+    aspectRatio: 0.9,
+    backgroundColor: theme?.colors.surface,
+    borderRadius: theme?.borderRadius.lg,
+    padding: theme?.spacing.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: theme?.colors.border,
+    overflow: 'hidden',
     ...Platform.select({
       ios: {
-        shadowColor: theme.colors.primary,
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.2,
-        shadowRadius: 8,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 4,
       },
       android: {
-        elevation: 8,
+        elevation: 2,
       },
     }),
   },
-  joinButtonText: {
-    ...theme.typography.body.sans,
-    color: theme.colors.text.inverse,
+  toolGradient: {
+    ...StyleSheet.absoluteFillObject,
   },
-
+  toolIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: theme?.spacing.sm,
+  },
+  toolLabel: {
+    ...theme?.typography.caption.primary,
+    color: theme?.colors.text.primary,
+    textAlign: 'center',
+    fontWeight: '600',
+  },
+  badgeContainer: {
+    position: 'absolute',
+    top: -5,
+    right: -5,
+    backgroundColor: theme?.colors.error,
+    borderRadius: theme?.borderRadius.full,
+    width: 18,
+    height: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  badgeText: {
+    ...theme?.typography.caption.secondary,
+    fontSize: 10,
+    color: '#FFF',
+    fontWeight: '700',
+  },
+  toolTip: {
+    ...theme?.typography.caption.secondary,
+    color: theme?.colors.text.secondary,
+    marginTop: theme?.spacing.md,
+    textAlign: 'center',
+    fontStyle: 'italic',
+  },
+  challengeCard: {
+    backgroundColor: theme?.colors.surface,
+    borderRadius: theme?.borderRadius.lg,
+    padding: theme?.spacing.md,
+    marginBottom: theme?.spacing.md,
+    borderWidth: 1,
+    borderColor: theme?.colors.border,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 2,
+      },
+    }),
+  },
+  challengeHeader: {
+    marginBottom: theme?.spacing.sm,
+  },
+  challengeType: {
+    ...theme?.typography.caption.primary,
+    color: theme?.colors.text.secondary,
+    fontWeight: '600',
+  },
+  challengeText: {
+    ...theme?.typography.body.sans,
+    color: theme?.colors.text.primary,
+    marginBottom: theme?.spacing.md,
+  },
+  challengeIcon: {
+    fontSize: 16,
+    marginRight: theme?.spacing.sm,
+  },
+  progressContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: theme?.spacing.md,
+  },
+  progressBar: {
+    flex: 1,
+    height: 8,
+    backgroundColor: `${theme?.colors.primary}20`,
+    borderRadius: theme?.borderRadius.full,
+    marginRight: theme?.spacing.sm,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    backgroundColor: theme?.colors.primary,
+    borderRadius: theme?.borderRadius.full,
+  },
+  progressText: {
+    ...theme?.typography.caption.secondary,
+    color: theme?.colors.text.secondary,
+    fontWeight: '600',
+  },
+  completeButton: {
+    alignSelf: 'flex-end',
+    paddingHorizontal: theme?.spacing.md,
+    paddingVertical: theme?.spacing.sm,
+    borderRadius: theme?.borderRadius.full,
+    backgroundColor: `${theme?.colors.success}15`,
+  },
+  completeButtonText: {
+    ...theme?.typography.caption.primary,
+    color: theme?.colors.success,
+    fontWeight: '600',
+  },
+  joinChallengeButton: {
+    alignSelf: 'flex-end',
+    paddingHorizontal: theme?.spacing.md,
+    paddingVertical: theme?.spacing.sm,
+    borderRadius: theme?.borderRadius.full,
+    backgroundColor: theme?.colors.primary,
+  },
+  joinChallengeText: {
+    ...theme?.typography.caption.primary,
+    color: '#FFF',
+    fontWeight: '600',
+  },
+  communityStats: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: theme?.spacing.md,
+  },
+  avatarContainer: {
+    marginRight: theme?.spacing.sm,
+  },
+  participantsText: {
+    ...theme?.typography.caption.secondary,
+    color: theme?.colors.text.secondary,
+  },
+  verseCard: {
+    backgroundColor: theme?.colors.surface,
+    borderRadius: theme?.borderRadius.lg,
+    padding: theme?.spacing.lg,
+    borderWidth: 1,
+    borderColor: `${theme?.colors.primary}20`,
+    overflow: 'hidden',
+    ...Platform.select({
+      ios: {
+        shadowColor: theme?.colors.primary,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
+  },
+  cardGradient: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  verseReference: {
+    ...theme?.typography.verse.emphasis,
+    color: theme?.colors.primary,
+    marginBottom: theme?.spacing.sm,
+  },
+  verseText: {
+    ...theme?.typography.verse.regular,
+    color: theme?.colors.text.primary,
+    marginBottom: theme?.spacing.md,
+  },
+  verseStats: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: theme?.spacing.md,
+  },
+  statItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme?.spacing.xs,
+  },
+  statText: {
+    ...theme?.typography.caption.secondary,
+    color: theme?.colors.text.secondary,
+  },
+  loadingText: {
+    ...theme?.typography.body.sans,
+    color: theme?.colors.text.secondary,
+    textAlign: 'center',
+    padding: theme?.spacing.md,
+  },
+  interactionsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  reflectionMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  reflectionCount: {
+    ...theme?.typography.caption.secondary,
+    color: theme?.colors.text.secondary,
+    marginLeft: theme?.spacing.xs,
+  },
+  spotlightCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme?.colors.surface,
+    borderRadius: theme?.borderRadius.lg,
+    padding: theme?.spacing.md,
+    marginBottom: theme?.spacing.md,
+    borderWidth: 1,
+    borderColor: theme?.colors.border,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 2,
+      },
+    }),
+  },
+  spotlightIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: `${theme?.colors.primary}15`,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: theme?.spacing.md,
+  },
+  spotlightContent: {
+    flex: 1,
+  },
+  spotlightLabel: {
+    ...theme?.typography.caption.secondary,
+    color: theme?.colors.text.secondary,
+  },
+  spotlightTitle: {
+    ...theme?.typography.body.sans,
+    color: theme?.colors.text.primary,
+    fontWeight: '600',
+  },
+  quizProgress: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: theme?.spacing.xs,
+  },
+  quizProgressBar: {
+    width: 80,
+    height: 4,
+    backgroundColor: `${theme?.colors.secondary}20`,
+    borderRadius: theme?.borderRadius.full,
+    marginRight: theme?.spacing.sm,
+    overflow: 'hidden',
+  },
+  quizProgressFill: {
+    height: '100%',
+    backgroundColor: theme?.colors.secondary,
+    borderRadius: theme?.borderRadius.full,
+  },
+  quizProgressText: {
+    ...theme?.typography.caption.secondary,
+    fontSize: 10,
+    color: theme?.colors.text.secondary,
+  },
+  indicatorContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: theme?.spacing.xs,
+  },
+  indicator: {
+    height: 4,
+    backgroundColor: theme?.colors.primary,
+    borderRadius: theme?.borderRadius.full,
+  },
 });
 
 export default HomeScreen;

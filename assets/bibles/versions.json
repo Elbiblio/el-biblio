@@ -1,0 +1,66 @@
+[
+    {
+        "englishName": "American Standard Version",
+        "tableName": "eng_asv_vpl",
+        "shortName": "ASV",
+        "dbFilename": "asv.db",
+        "downloadUrl": "https:\/\/api.elbiblio.com\/dbs\/asv.db",
+        "preinstalled": false
+    },
+    {
+        "englishName": "King James Version",
+        "tableName": "eng_kjv_vpl",
+        "shortName": "KJV",
+        "dbFilename": "kjv.db",
+        "downloadUrl": "https:\/\/api.elbiblio.com\/dbs\/kjv.db",
+        "preinstalled": false
+    },
+    {
+        "englishName": "Revised Version",
+        "tableName": "eng_rv_vpl",
+        "shortName": "RV",
+        "dbFilename": "rv.db",
+        "downloadUrl": "https:\/\/api.elbiblio.com\/dbs\/rv.db",
+        "preinstalled": true
+    },
+    {
+        "englishName": "Amplified Bible",
+        "tableName": "eng_amp_vpl",
+        "shortName": "AMP",
+        "dbFilename": "amp.db",
+        "downloadUrl": "https:\/\/api.elbiblio.com\/dbs\/amp.db",
+        "preinstalled": false
+    },
+    {
+        "englishName": "World English Bible",
+        "tableName": "eng_web_c_vpl",
+        "shortName": "WEB",
+        "dbFilename": "webc.db",
+        "downloadUrl": "https:\/\/api.elbiblio.com\/dbs\/webc.db",
+        "preinstalled": false
+    },
+    {
+        "englishName": "Berean Standard Bible",
+        "tableName": "engbsb_vpl",
+        "shortName": "BSB",
+        "dbFilename": "engbsb.db",
+        "downloadUrl": "https:\/\/api.elbiblio.com\/dbs\/engbsb.db",
+        "preinstalled": false
+    },
+    {
+        "englishName": "Young's Literal Translation",
+        "tableName": "engylt_vpl",
+        "shortName": "YLT",
+        "dbFilename": "engylt.db",
+        "downloadUrl": "https:\/\/api.elbiblio.com\/dbs\/engylt.db",
+        "preinstalled": false
+    },
+    {
+        "englishName": "Douay-Rheims",
+        "tableName": "engdra_vpl",
+        "shortName": "DR",
+        "dbFilename": "engdra.db",
+        "downloadUrl": "https:\/\/api.elbiblio.com\/dbs\/engdra.db",
+        "preinstalled": false
+    }
+]

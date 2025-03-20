@@ -12,7 +12,15 @@
       "backgroundColor": "#ecefef"
     },
     "assetBundlePatterns": [
-      "**/*"
+      "**/*",
+      "./assets/bibles/rv.db",
+      "./assets/bibles/versions.json",
+      "./assets/sounds/streak.wav",
+      "./assets/sounds/tick-tock.wav",
+      "./assets/sounds/timeout.mp3",
+      "./assets/sounds/game-over.mp3",
+      "./assets/sounds/correct.mp3",
+      "./assets/sounds/cheers.mp3"
     ],
     "ios": {
       "supportsTablet": true,
@@ -34,6 +42,15 @@
         "expo-image-picker",
         {
           "photosPermission": "The app accesses your photos to let you share them with your friends."
+        }
+      ],
+      "expo-sqlite",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "kotlinVersion": "1.9.25"
+          }
         }
       ]
     ]

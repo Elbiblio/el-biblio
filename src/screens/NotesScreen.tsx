@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, memo } from 'react';
+import React, { useState, useCallback, useEffect, memo, useMemo } from 'react';
 import {
   View,
   Text,
@@ -8,9 +8,11 @@ import {
   FlatList,
   Platform,
   ActivityIndicator,
+  StatusBar,
 } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useNavigation } from '@react-navigation/native';
 
 import {
   NotePencil,
@@ -21,6 +23,7 @@ import {
   ViewGrid,
   ViewList,
   Sparkle,
+  Globe,
 } from '../components/Icons';
 import { Theme } from '@/theme';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -36,24 +39,23 @@ import NoteCard from '@/components/NoteCard';
 export type NotesScreenProps = NativeStackScreenProps<RootStackParamList, 'NotesScreen'>;
 
 const NotesScreen: React.FC<NotesScreenProps> = ({ navigation, route }) => {
-  // Theme and layout hooks
   const theme = useTheme();
   const insets = useSafeAreaInsets();
-  const styles = React.useMemo(() => createStyles(theme), [theme]);
+  const navigationNative = useNavigation();
+  const styles = useMemo(() => createStyles(theme), [theme]);
 
-  // Store hooks
   const {
     notes,
     isLoading,
-    fetchNote,
+    fetchNotes,
     addNote,
     updateNote,
     deleteNote,
+    togglePin,
     initialize,
     syncNotes
   } = useNoteStore();
 
-  // State hooks
   const [isInitialLoad, setIsInitialLoad] = useState(true);
   const [selectedVirtues, setSelectedVirtues] = useState<AllVirtues[]>([]);
   const [showVirtueSelector, setShowVirtueSelector] = useState(false);
@@ -62,13 +64,13 @@ const NotesScreen: React.FC<NotesScreenProps> = ({ navigation, route }) => {
   const [activeNote, setActiveNote] = useState<{
     note: Note | null;
     mode: 'read' | 'edit' | 'create' | null;
-  }>({ note: null, mode: null });
+    isEditing: boolean;
+  }>({ note: null, mode: null, isEditing: false });
   const [virtueFilter, setVirtueFilter] = useState<AllVirtues[]>([]);
+  const [showPublicNotes, setShowPublicNotes] = useState(false);
 
-  // Route params
   const { noteId } = route.params || {};
 
-  // Initialize notes
   useEffect(() => {
     const initializeData = async () => {
       await initialize();
@@ -78,42 +80,15 @@ const NotesScreen: React.FC<NotesScreenProps> = ({ navigation, route }) => {
     initializeData();
   }, [initialize]);
 
-  const loadNote = useCallback(async (id: number | string) => {
-    const localNote = notes.find(n => n.id === id);
-    if (localNote) {
-      setActiveNote({
-        note: localNote,
-        mode: 'read'
-      });
-      setSelectedVirtues(localNote.virtues || []);
-    } else {
-      const fetchedNote = await fetchNote(id.toString(10));
-      if (fetchedNote) {
-        setActiveNote({
-          note: fetchedNote,
-          mode: 'read'
-        });
-        setSelectedVirtues(fetchedNote.virtues || []);
-      } else {
-        toast.error('Note not found');
-        navigation.goBack();
-      }
-    }
-  }, [notes, fetchNote, navigation]);
-
-  //load from params
   useEffect(() => {
-    if (noteId && !isInitialLoad) {
-      loadNote(noteId);
-    }
-  }, [noteId, isInitialLoad, loadNote]);
+    fetchNotes({ include: ['virtues'] });
+  }, [fetchNotes]);
 
   useEffect(() => {
     const syncInterval = setInterval(syncNotes, 1000 * 60 * 5); // 5 minutes
     return () => clearInterval(syncInterval);
   }, [syncNotes]);
 
-  // Loading state
   if (isInitialLoad) {
     return (
       <View style={[styles.container, styles.centerContent]}>
@@ -122,57 +97,50 @@ const NotesScreen: React.FC<NotesScreenProps> = ({ navigation, route }) => {
     );
   }
 
-  // Rest of the filtering logic remains the same
-  const filteredNotes = React.useMemo(() => {
+  const filteredNotes = useMemo(() => {
     return notes.filter(note => {
-      if (searchQuery) {
-        const searchLower = searchQuery.toLowerCase();
-        const matchesTitle = note.title.toLowerCase().includes(searchLower);
-        const matchesContent = note.text.toLowerCase().includes(searchLower);
-        if (!matchesTitle && !matchesContent) return false;
-      }
-
-      if (virtueFilter.length > 0) {
-        if (!virtueFilter.some(virtue => note.virtues?.includes(virtue))) {
-          return false;
-        }
-      }
-
-      return true;
+      const matchesSearch = 
+        searchQuery === '' || 
+        note.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        note.text.toLowerCase().includes(searchQuery.toLowerCase());
+      
+      const matchesVirtues = 
+        virtueFilter.length === 0 || 
+        virtueFilter.every(v => note.virtues?.includes(v));
+      
+      const matchesVisibility = 
+        !showPublicNotes || 
+        (showPublicNotes && note.is_public);
+      
+      return matchesSearch && matchesVirtues && matchesVisibility;
     });
-  }, [notes, searchQuery, virtueFilter]);
+  }, [notes, searchQuery, virtueFilter, showPublicNotes]);
 
-  // Group notes by pinned status
-  const groupedNotes = React.useMemo(() => {
+  const groupedNotes = useMemo(() => {
     const pinned = filteredNotes.filter(note => note.isPinned);
     const unpinned = filteredNotes.filter(note => !note.isPinned);
     return { pinned, unpinned };
   }, [filteredNotes]);
 
-
   const handleViewNote = useCallback((note: Note) => {
-    setActiveNote({ note, mode: 'read' });
+    setActiveNote({
+      note,
+      mode: 'read',
+      isEditing: false,
+    });
     setSelectedVirtues(note.virtues || []);
   }, []);
 
   const handleCloseNote = useCallback(() => {
-    setActiveNote({ note: null, mode: null });
+    setActiveNote({ note: null, mode: null, isEditing: false });
     setSelectedVirtues([]);
   }, []);
 
   const handleCreateNote = useCallback(() => {
     setActiveNote({
-      note: {
-        id: `local_${Date.now()}`,
-        title: '',
-        text: '',
-        virtues: [],
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        isPinned: false,
-        color: getNotePastel([])
-      },
-      mode: 'create'
+      note: null,
+      mode: 'create',
+      isEditing: true,
     });
     setSelectedVirtues([]);
   }, []);
@@ -190,7 +158,8 @@ const NotesScreen: React.FC<NotesScreenProps> = ({ navigation, route }) => {
         title,
         text: content,
         virtues,
-        color: getNotePastel(virtues)
+        color: getNotePastel(virtues),
+        is_public: activeNote.note.is_public
       });
     } else {
       // Create new note
@@ -198,7 +167,8 @@ const NotesScreen: React.FC<NotesScreenProps> = ({ navigation, route }) => {
         title,
         text: content,
         virtues,
-        color: getNotePastel(virtues)
+        color: getNotePastel(virtues),
+        is_public: false
       });
     }
     if (result) {
@@ -220,64 +190,88 @@ const NotesScreen: React.FC<NotesScreenProps> = ({ navigation, route }) => {
     }
   }, [deleteNote]);
 
+  const handleToggleVisibility = useCallback(async () => {
+    if (activeNote.note) {
+      await updateNote({
+        ...activeNote.note,
+        is_public: !activeNote.note.is_public
+      });
+      setActiveNote(prev => ({
+        ...prev,
+        note: prev.note ? { ...prev.note, is_public: !prev.note.is_public } : null
+      }));
+    }
+  }, [activeNote, updateNote]);
+
   const renderItem = useCallback(({ item }: { item: Note }) => (
     <NoteCard
       note={item}
+      styles={styles}
       isGridView={isGridView}
       onPress={handleViewNote}
     />
   ), [isGridView, handleViewNote]);
 
-  const renderNoteEditor = () => {
-    if (activeNote.mode === null) return null;
-
+  const renderNoteEditor = useCallback(() => {
+    if (!activeNote.note && !activeNote.isEditing) return null;
+    
     return (
       <NoteEditor
-        initialTitle={activeNote.note?.title}
-        initialContent={activeNote.note?.text}
-        initialVirtues={activeNote.note?.virtues}
+        initialTitle={activeNote.note?.title || ''}
+        initialContent={activeNote.note?.text || ''}
+        initialVirtues={selectedVirtues}
         onSubmit={handleSaveNote}
         onCancel={handleCloseNote}
-        onDelete={activeNote.note?.id ? () => handleDeleteNote(activeNote.note!.id) : undefined}
-        isEditing={activeNote.mode !== 'read'}
+        onDelete={() => handleDeleteNote(activeNote.note?.id || '')}
+        isEditing={activeNote.isEditing}
+        isPublic={activeNote.note?.is_public || false}
+        onToggleVisibility={handleToggleVisibility}
       />
     );
-  };
+  }, [activeNote, selectedVirtues, handleSaveNote, handleCloseNote, handleDeleteNote, handleToggleVisibility]);
 
   const ListEmptyComponent = useCallback(() => (
     <View style={styles.emptyState}>
-      <NotePencil size={48} color={theme.colors.text.secondary} />
       <Text style={styles.emptyStateText}>
-        No notes found. Start capturing your thoughts and reflections.
+        {searchQuery || virtueFilter.length > 0
+          ? "No notes match your search criteria."
+          : "You haven't created any notes yet. Tap the + button to get started."}
       </Text>
     </View>
-  ), [theme, styles]);
+  ), [searchQuery, virtueFilter, styles]);
 
   return (
     <>
-
+      <StatusBar barStyle="dark-content" />
       <View style={[styles.container, { paddingTop: insets.top }]}>
-        {/* Header */}
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()}>
+          <TouchableOpacity onPress={() => navigationNative.goBack()}>
             <ArrowLeft size={24} color={theme.colors.text.primary} />
           </TouchableOpacity>
           <Text style={styles.title}>Notes</Text>
-          <TouchableOpacity onPress={() => setIsGridView(!isGridView)}>
-            {isGridView ?
-              <ViewGrid size={24} color={theme.colors.text.primary} /> :
-              <ViewList size={24} color={theme.colors.text.primary} />
-            }
-          </TouchableOpacity>
+          <View style={styles.headerActions}>
+            <TouchableOpacity 
+              style={[styles.visibilityToggle, showPublicNotes && styles.activeToggle]}
+              onPress={() => setShowPublicNotes(!showPublicNotes)}
+            >
+              <Globe size={20} color={showPublicNotes ? theme.colors.text.inverse : theme.colors.text.secondary} />
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setIsGridView(!isGridView)}>
+              {isGridView ?
+                <ViewGrid size={24} color={theme.colors.text.primary} /> :
+                <ViewList size={24} color={theme.colors.text.primary} />
+              }
+            </TouchableOpacity>
+          </View>
         </View>
 
-        {/* Search and Filter */}
         <View style={styles.searchContainer}>
           <View style={styles.searchBar}>
             <Search size={20} color={theme.colors.text.secondary} />
             <TextInput
               style={styles.searchInput}
               placeholder="Search notes"
+              placeholderTextColor={theme.colors.text.placeholder}
               value={searchQuery}
               onChangeText={setSearchQuery}
             />
@@ -293,7 +287,6 @@ const NotesScreen: React.FC<NotesScreenProps> = ({ navigation, route }) => {
           </TouchableOpacity>
         </View>
 
-        {/* Notes List */}
         <FlatList
           data={groupedNotes.unpinned}
           renderItem={renderItem}
@@ -302,6 +295,11 @@ const NotesScreen: React.FC<NotesScreenProps> = ({ navigation, route }) => {
           contentContainerStyle={styles.listContent}
           ListHeaderComponent={() => (
             <>
+              {showPublicNotes && (
+                <Text style={styles.sectionTitle}>
+                  Community Notes
+                </Text>
+              )}
               {groupedNotes.pinned.length > 0 && (
                 <>
                   <Text style={styles.sectionTitle}>Pinned</Text>
@@ -324,7 +322,6 @@ const NotesScreen: React.FC<NotesScreenProps> = ({ navigation, route }) => {
           key={isGridView ? 'grid' : 'list'}
         />
 
-        {/* Add Note Button */}
         <TouchableOpacity
           style={styles.addButton}
           onPress={handleCreateNote}
@@ -334,10 +331,8 @@ const NotesScreen: React.FC<NotesScreenProps> = ({ navigation, route }) => {
 
       </View>
 
-      {/* Note Editor Modal */}
       {renderNoteEditor()}
 
-      {/* Virtue Selector Modal */}
       {showVirtueSelector && (
         <VirtuePicker
           selectedVirtues={activeNote.note ? selectedVirtues : virtueFilter}
@@ -375,6 +370,11 @@ export const createStyles = (theme: Theme) => StyleSheet.create({
     paddingHorizontal: theme.spacing.md,
     paddingVertical: theme.spacing.sm,
   },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
+  },
   title: {
     ...theme.typography.heading.small,
     color: theme.colors.text.primary,
@@ -409,8 +409,19 @@ export const createStyles = (theme: Theme) => StyleSheet.create({
     justifyContent: 'center',
   },
   activeFilter: {
-    backgroundColor: `${theme.colors.primary}`,
-    color: theme.colors.text.inverse,
+    backgroundColor: theme.colors.primary,
+  },
+  visibilityToggle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: theme.colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: theme.spacing.xs,
+  },
+  activeToggle: {
+    backgroundColor: theme.colors.primary,
   },
   listContent: {
     padding: theme.spacing.md,

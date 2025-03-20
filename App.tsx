@@ -6,6 +6,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ThemeProvider, useTheme } from './src/contexts/ThemeContext';
 import { AuthProvider } from './src/stores/auth';
+import { AppInitializationProvider, useAppInitialization } from './src/utils/appInitialization';
 import CustomSplash from './src/components/CustomSplash';
 import ThemeSelector from './src/components/ThemeSelector';
 import HomeScreen from './src/screens/HomeScreen';
@@ -17,11 +18,16 @@ import IntroScreen from './src/screens/IntroScreen';
 import WordHubsScreen from './src/screens/WordHubsScreen';
 import SavedItemsScreen from './src/screens/SavedItemsScreen';
 import NotesScreen from './src/screens/NotesScreen';
+import BibleScreen from './src/screens/BibleScreen';
 import { RootStackParamList } from './src/types';
 import { useAppFonts } from './src/hooks/useFonts';
 import { getTheme, ThemeVariant, defaultTheme } from './src/theme';
 import { Toaster } from 'sonner-native';
-import { useWelcomeState } from './src/contexts/ThemeContext';
+import DailyChallengeScreen from './src/screens/DailyChallengeScreen';
+import VirtueQuizScreen from './src/screens/VirtueQuizScreen';
+import VirtueScreen from './src/screens/VirtueScreen';
+import VerseBuilderScreen from './src/screens/VerseBuilderScreen';
+
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const THEME_STORAGE_KEY = '@app_theme';
 
@@ -43,10 +49,6 @@ const App = () => {
 
     initialize();
   }, []);
-
-  // useEffect(() => {
-  //   theme.setTheme(initialTheme)
-  // }, [initialTheme])
 
   const loadSavedTheme = async () => {
     try {
@@ -82,7 +84,23 @@ const App = () => {
     }
   };
 
-  // Remove useWelcomeState from here since it needs ThemeProvider
+  // Add this component that will set the initialized state
+  const AppInitializer = () => {
+    const { setInitialized } = useAppInitialization();
+    
+    useEffect(() => {
+      if (fontsLoaded && !isLoading && isSplashComplete) {
+        // Small delay to ensure all contexts are properly initialized
+        const timer = setTimeout(() => {
+          setInitialized(true);
+        }, 500);
+        
+        return () => clearTimeout(timer);
+      }
+    }, [fontsLoaded, isLoading, isSplashComplete]);
+    
+    return null;
+  };
 
   if (!fontsLoaded || isLoading || !isSplashComplete) {
     return (
@@ -93,26 +111,23 @@ const App = () => {
   }
 
   const NavigationContent = () => {
-    const { hasCompletedWelcome } = useWelcomeState();
-
     return (
       <NavigationContainer>
         <Stack.Navigator screenOptions={{ headerShown: false }}>
-          {!hasCompletedWelcome ? (
-            <Stack.Screen name="IntroScreen" component={IntroScreen} />
-          ) : (
-            <>
-              <Stack.Screen name="Home" component={HomeScreen} />
-              <Stack.Screen name="VerseDetail" component={VerseDetail} />
-              <Stack.Screen name="ReflectionDetail" component={ReflectionDetail} />
-              <Stack.Screen name="DailyVersesScreen" component={DailyVersesScreen} />
-              <Stack.Screen name="WordHubsScreen" component={WordHubsScreen} />
-              <Stack.Screen name="MatchScreen" component={MatchScreen} />
-              <Stack.Screen name="SavedItemsScreen" component={SavedItemsScreen} />
-              <Stack.Screen name="NotesScreen" component={NotesScreen} />
-              <Stack.Screen name="IntroScreen" component={IntroScreen} />
-            </>
-          )}
+          <Stack.Screen name="IntroScreen" component={IntroScreen} />
+          <Stack.Screen name="Home" component={HomeScreen} />
+          <Stack.Screen name="VerseDetail" component={VerseDetail} />
+          <Stack.Screen name="ReflectionDetail" component={ReflectionDetail} />
+          <Stack.Screen name="DailyVersesScreen" component={DailyVersesScreen} />
+          <Stack.Screen name="DailyChallengeScreen" component={DailyChallengeScreen} />
+          <Stack.Screen name="WordHubsScreen" component={WordHubsScreen} />
+          <Stack.Screen name="MatchScreen" component={MatchScreen} />
+          <Stack.Screen name="SavedItemsScreen" component={SavedItemsScreen} />
+          <Stack.Screen name="NotesScreen" component={NotesScreen} />
+          <Stack.Screen name="VirtueScreen" component={VirtueScreen} />
+          <Stack.Screen name="VirtueQuizScreen" component={VirtueQuizScreen} />
+          <Stack.Screen name="VerseBuilderScreen" component={VerseBuilderScreen} />
+          <Stack.Screen name="BibleScreen" component={BibleScreen} />
         </Stack.Navigator>
       </NavigationContainer>
     );
@@ -120,21 +135,24 @@ const App = () => {
 
   return (
     <SafeAreaProvider>
-      <AuthProvider>
-        <ThemeProvider
-          initialTheme={initialTheme}
-          onThemeChange={handleThemeChange}
-        >
-          <GestureHandlerRootView style={{ flex: 1 }}>
-            {showThemeSelector ? (
-              <ThemeSelector onSelect={handleThemeSelect} />
-            ) : (
-              <NavigationContent />
-            )}
-            <Toaster />
-          </GestureHandlerRootView>
-        </ThemeProvider>
-      </AuthProvider>
+      <AppInitializationProvider>
+        <AuthProvider>
+          <ThemeProvider
+            initialTheme={initialTheme}
+            onThemeChange={handleThemeChange}
+          >
+            <GestureHandlerRootView style={{ flex: 1 }}>
+              <AppInitializer />
+              {showThemeSelector ? (
+                <ThemeSelector onSelect={handleThemeSelect} />
+              ) : (
+                <NavigationContent />
+              )}
+              <Toaster />
+            </GestureHandlerRootView>
+          </ThemeProvider>
+        </AuthProvider>
+      </AppInitializationProvider>
     </SafeAreaProvider>
   );
 };

@@ -47,6 +47,8 @@ interface NoteEditorProps {
   onCancel: () => void;
   onDelete?: () => Promise<void>;
   isEditing?: boolean;
+  isPublic?: boolean;
+  onToggleVisibility?: () => void;
 }
 
 const NoteEditor: React.FC<NoteEditorProps> = ({
@@ -57,6 +59,8 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
   onCancel,
   onDelete,
   isEditing = true,
+  isPublic = false,
+  onToggleVisibility,
 }) => {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
@@ -354,6 +358,20 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                     showDeleteConfirm && styles.deleteButtonTextConfirm
                   ]}>
                     {showDeleteConfirm ? 'Tap again to delete' : 'Delete'}
+                  </Text>
+                </TouchableOpacity>
+              )}
+
+              {onToggleVisibility && mode === 'read' && (
+                <TouchableOpacity
+                  style={[styles.visibilityButton, isPublic && styles.visibilityButtonActive]}
+                  onPress={onToggleVisibility}
+                >
+                  <Text style={[
+                    styles.visibilityButtonText,
+                    isPublic && styles.visibilityButtonTextActive
+                  ]}>
+                    {isPublic ? 'Public' : 'Private'}
                   </Text>
                 </TouchableOpacity>
               )}
@@ -861,6 +879,23 @@ const createStyles = (theme: Theme) => StyleSheet.create({
   readingDate: {
     ...theme.typography.caption.secondary,
     color: theme.colors.text.secondary,
+  },
+  visibilityButton: {
+    backgroundColor: theme.colors.surface,
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.xs,
+    borderRadius: theme.borderRadius.full,
+    marginRight: theme.spacing.sm,
+  },
+  visibilityButtonActive: {
+    backgroundColor: theme.colors.primary,
+  },
+  visibilityButtonText: {
+    ...theme.typography.caption.primary,
+    color: theme.colors.text.secondary,
+  },
+  visibilityButtonTextActive: {
+    color: theme.colors.text.inverse,
   },
 });
 
