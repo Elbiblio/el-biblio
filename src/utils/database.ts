@@ -1,6 +1,6 @@
 import { SQLiteDatabase, openDatabaseAsync, deleteDatabaseAsync } from 'expo-sqlite';
 import * as FileSystem from 'expo-file-system';
-import { BibleVersion, Book } from '@/types';
+import { BibleVersion, Book, UserLevel, VerseResult } from '@/types';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { bibleBooks } from '@/constants/bibleBooks';
 import * as Asset from 'expo-asset';
@@ -53,14 +53,6 @@ const bookCodeMap: { [key: string]: string } = {
 
 const DB_PREFIX = 'bible_';
 const CDN_BASE = 'https://api.elbiblio.com/dbs/';
-
-interface VerseResult {
-  verseID: string;
-  verseText: string;
-}
-
-// Define user levels and corresponding verse constraints
-type UserLevel = 'novice' | 'beginner' | 'intermediate' | 'advanced' | 'expert';
 
 interface LevelConfig {
   minWords: number;

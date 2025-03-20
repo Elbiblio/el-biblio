@@ -503,6 +503,14 @@ export interface VerseActivityMap {
   [verseId: string]: LocalVerseActivity;
 }
 
+export interface VerseResult {
+  verseID: string;
+  verseText: string;
+}
+
+// Define user levels and corresponding verse constraints
+export type UserLevel = 'novice' | 'beginner' | 'intermediate' | 'advanced' | 'expert';
+
 export interface VerseMastery {
   userId?: number;
   verseId: string;
