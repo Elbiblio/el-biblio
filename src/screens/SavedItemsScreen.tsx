@@ -100,7 +100,7 @@ const SavedItemsScreen: React.FC<NativeStackScreenProps<RootStackParamList, 'Sav
           break;
         }
         case 'note':
-          navigation.navigate('NotesScreen', { noteId: bookmarkable.id });
+          navigation.navigate('NoteDetail', { noteId: bookmarkable.id });
           break;
         case 'clip':
           // Handle clip navigation

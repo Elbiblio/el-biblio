@@ -135,6 +135,9 @@ export const themeColors = {
       secondary: '#8B847D',
       background: '#FDFAF6',
       surface: '#F5F7F3',
+      paper: '#f2f5e9',
+      paperBorder: '#d8e0d0',
+      paperShadow: '#c0d0b0',
       surfaceVariant: '#E8EDE6',
       text: {
         primary: '#2C3830',
@@ -167,6 +170,9 @@ export const themeColors = {
       secondary: '#A39C96',
       background: '#1A1C19',
       surface: '#2A2E28',
+      paper: '#1e2a1e',
+      paperBorder: '#2e3a2e',
+      paperShadow: '#0e1a0e',
       surfaceVariant: '#3A3E38',
       text: {
         primary: '#E6E9E4',
@@ -203,6 +209,9 @@ export const themeColors = {
       secondary: '#7D7468',
       background: '#FDF8F3',
       surface: '#F5EDE4',
+      paper: '#f5ede4',
+      paperBorder: '#e0d4c8',
+      paperShadow: '#d0c0b0',
       surfaceVariant: '#EAE0D4',
       text: {
         primary: '#2C1810',
@@ -236,6 +245,9 @@ export const themeColors = {
       background: '#1A1410',
       surface: '#2A2420',
       surfaceVariant: '#3A3430',
+      paper: '#2a241e',
+      paperBorder: '#3a322b',
+      paperShadow: '#1a1612',
       text: {
         primary: '#F0E6DF',
         secondary: '#D4C9C0',
@@ -271,6 +283,9 @@ export const themeColors = {
       secondary: '#798089',
       background: '#F8FBFF',
       surface: '#F0F5FA',
+      paper: '#f0f5f9',
+      paperBorder: '#d0dde8',
+      paperShadow: '#b0c0d0',
       surfaceVariant: '#E4ECF5',
       text: {
         primary: '#2C3542',
@@ -303,6 +318,9 @@ export const themeColors = {
       secondary: '#A3AAB3',
       background: '#1A1E24',
       surface: '#2A3038',
+      paper: '#1a2833',
+      paperBorder: '#2a3a47',
+      paperShadow: '#0a161f',
       surfaceVariant: '#3A4048',
       text: {
         primary: '#E6ECF2',

@@ -68,8 +68,8 @@ const NotesScreen: React.FC<NotesScreenProps> = ({ navigation, route }) => {
   }>({ note: null, mode: null, isEditing: false });
   const [virtueFilter, setVirtueFilter] = useState<AllVirtues[]>([]);
   const [showPublicNotes, setShowPublicNotes] = useState(false);
-
-  const { noteId } = route.params || {};
+  const [showFeaturedOnly, setShowFeaturedOnly] = useState(false);
+  const [isSearchingCommunity, setIsSearchingCommunity] = useState(false);
 
   useEffect(() => {
     const initializeData = async () => {
@@ -108,13 +108,23 @@ const NotesScreen: React.FC<NotesScreenProps> = ({ navigation, route }) => {
         virtueFilter.length === 0 || 
         virtueFilter.every(v => note.virtues?.includes(v));
       
-      const matchesVisibility = 
-        !showPublicNotes || 
-        (showPublicNotes && note.is_public);
-      
-      return matchesSearch && matchesVirtues && matchesVisibility;
+      // Filter based on visibility settings
+      if (!showPublicNotes) {
+        // Show only user's personal notes
+        return matchesSearch && matchesVirtues && !note.is_public;
+      } else {
+        // Show only public/community notes
+        const isPublicNote = note.is_public;
+        const isFeatured = note.is_featured || false;
+        
+        if (showFeaturedOnly) {
+          return matchesSearch && matchesVirtues && isPublicNote && isFeatured;
+        } else {
+          return matchesSearch && matchesVirtues && isPublicNote;
+        }
+      }
     });
-  }, [notes, searchQuery, virtueFilter, showPublicNotes]);
+  }, [notes, searchQuery, virtueFilter, showPublicNotes, showFeaturedOnly]);
 
   const groupedNotes = useMemo(() => {
     const pinned = filteredNotes.filter(note => note.isPinned);
@@ -240,6 +250,17 @@ const NotesScreen: React.FC<NotesScreenProps> = ({ navigation, route }) => {
     </View>
   ), [searchQuery, virtueFilter, styles]);
 
+  const toggleCommunitySearch = useCallback(() => {
+    // Clear search when switching modes
+    setSearchQuery('');
+    setIsSearchingCommunity(!isSearchingCommunity);
+    
+    // When enabling community search, make sure we're viewing public notes
+    if (!isSearchingCommunity && !showPublicNotes) {
+      setShowPublicNotes(true);
+    }
+  }, [isSearchingCommunity, showPublicNotes]);
+
   return (
     <>
       <StatusBar barStyle="dark-content" />
@@ -248,14 +269,36 @@ const NotesScreen: React.FC<NotesScreenProps> = ({ navigation, route }) => {
           <TouchableOpacity onPress={() => navigationNative.goBack()}>
             <ArrowLeft size={24} color={theme.colors.text.primary} />
           </TouchableOpacity>
-          <Text style={styles.title}>Notes</Text>
+          <Text style={styles.title}>
+            {showPublicNotes ? 'Community Notes' : 'My Notes'}
+          </Text>
           <View style={styles.headerActions}>
             <TouchableOpacity 
               style={[styles.visibilityToggle, showPublicNotes && styles.activeToggle]}
-              onPress={() => setShowPublicNotes(!showPublicNotes)}
+              onPress={() => {
+                setShowPublicNotes(!showPublicNotes);
+                // Reset featured filter when switching between personal/community
+                if (!showPublicNotes) {
+                  setShowFeaturedOnly(false);
+                }
+                // Reset community search when switching to personal notes
+                if (showPublicNotes && isSearchingCommunity) {
+                  setIsSearchingCommunity(false);
+                }
+              }}
             >
               <Globe size={20} color={showPublicNotes ? theme.colors.text.inverse : theme.colors.text.secondary} />
             </TouchableOpacity>
+            
+            {showPublicNotes && (
+              <TouchableOpacity 
+                style={[styles.featuredToggle, showFeaturedOnly && styles.activeToggle]}
+                onPress={() => setShowFeaturedOnly(!showFeaturedOnly)}
+              >
+                <Sparkle size={20} color={showFeaturedOnly ? theme.colors.text.inverse : theme.colors.text.secondary} />
+              </TouchableOpacity>
+            )}
+            
             <TouchableOpacity onPress={() => setIsGridView(!isGridView)}>
               {isGridView ?
                 <ViewGrid size={24} color={theme.colors.text.primary} /> :
@@ -266,16 +309,25 @@ const NotesScreen: React.FC<NotesScreenProps> = ({ navigation, route }) => {
         </View>
 
         <View style={styles.searchContainer}>
-          <View style={styles.searchBar}>
+          <View style={[
+            styles.searchBar,
+            isSearchingCommunity && styles.communitySearchBar
+          ]}>
             <Search size={20} color={theme.colors.text.secondary} />
             <TextInput
               style={styles.searchInput}
-              placeholder="Search notes"
+              placeholder={isSearchingCommunity ? "Search community notes" : "Search notes"}
               placeholderTextColor={theme.colors.text.placeholder}
               value={searchQuery}
               onChangeText={setSearchQuery}
             />
+            {isSearchingCommunity && (
+              <View style={styles.communityBadge}>
+                <Text style={styles.communityBadgeText}>Community</Text>
+              </View>
+            )}
           </View>
+          
           <TouchableOpacity
             style={[
               styles.filterButton,
@@ -284,6 +336,16 @@ const NotesScreen: React.FC<NotesScreenProps> = ({ navigation, route }) => {
             onPress={() => setShowVirtueSelector(!showVirtueSelector)}
           >
             <Filter size={20} color={virtueFilter.length > 0 ? theme.colors.text.inverse : theme.colors.text.secondary} />
+          </TouchableOpacity>
+          
+          <TouchableOpacity
+            style={[
+              styles.searchModeButton,
+              isSearchingCommunity && styles.activeSearchMode
+            ]}
+            onPress={toggleCommunitySearch}
+          >
+            <Globe size={20} color={isSearchingCommunity ? theme.colors.text.inverse : theme.colors.text.secondary} />
           </TouchableOpacity>
         </View>
 
@@ -296,11 +358,25 @@ const NotesScreen: React.FC<NotesScreenProps> = ({ navigation, route }) => {
           ListHeaderComponent={() => (
             <>
               {showPublicNotes && (
-                <Text style={styles.sectionTitle}>
-                  Community Notes
-                </Text>
+                <View style={styles.communityHeader}>
+                  <Text style={styles.sectionTitle}>
+                    {showFeaturedOnly ? 'Featured Community Notes' : 'All Community Notes'}
+                  </Text>
+                  {!isSearchingCommunity && (
+                    <TouchableOpacity 
+                      style={styles.searchCommunityButton}
+                      onPress={toggleCommunitySearch}
+                    >
+                      <Search size={16} color={theme.colors.primary} />
+                      <Text style={styles.searchCommunityButtonText}>
+                        Search Community
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
               )}
-              {groupedNotes.pinned.length > 0 && (
+              
+              {!showPublicNotes && groupedNotes.pinned.length > 0 && (
                 <>
                   <Text style={styles.sectionTitle}>Pinned</Text>
                   <FlatList
@@ -322,13 +398,14 @@ const NotesScreen: React.FC<NotesScreenProps> = ({ navigation, route }) => {
           key={isGridView ? 'grid' : 'list'}
         />
 
-        <TouchableOpacity
-          style={styles.addButton}
-          onPress={handleCreateNote}
-        >
-          <Plus size={24} color={theme.colors.text.inverse} />
-        </TouchableOpacity>
-
+        {!showPublicNotes && (
+          <TouchableOpacity
+            style={styles.addButton}
+            onPress={handleCreateNote}
+          >
+            <Plus size={24} color={theme.colors.text.inverse} />
+          </TouchableOpacity>
+        )}
       </View>
 
       {renderNoteEditor()}
@@ -573,6 +650,62 @@ export const createStyles = (theme: Theme) => StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.3)',
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  communityHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: theme.spacing.md,
+  },
+  searchCommunityButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: `${theme.colors.primary}15`,
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: 4,
+    borderRadius: theme.borderRadius.full,
+    gap: 4,
+  },
+  searchCommunityButtonText: {
+    ...theme.typography.caption.primary,
+    color: theme.colors.primary,
+    fontSize: 12,
+  },
+  communitySearchBar: {
+    borderWidth: 1,
+    borderColor: theme.colors.primary,
+  },
+  communityBadge: {
+    backgroundColor: `${theme.colors.primary}15`,
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: 2,
+    borderRadius: theme.borderRadius.full,
+    marginLeft: 'auto',
+  },
+  communityBadgeText: {
+    ...theme.typography.caption.primary,
+    color: theme.colors.primary,
+    fontSize: 10,
+  },
+  featuredToggle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: theme.colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: theme.spacing.xs,
+  },
+  searchModeButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: theme.colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  activeSearchMode: {
+    backgroundColor: theme.colors.primary,
   },
 });
 

@@ -362,6 +362,18 @@ export const NotePencil = ({ size = 24, color = theme.colors.text.secondary, sty
   </View>
 );
 
+export const User = ({ size = 24, color = theme.colors.text.secondary, style }: IconProps) => (
+  <View style={style}>
+    <Feather name="user" size={size} color={color} />
+  </View>
+);
+
+export const Pin = ({ size = 24, color = theme.colors.text.secondary, style }: IconProps) => (
+  <View style={style}>
+    <Feather name="pin" size={size} color={color} />
+  </View>
+);
+
 export const Timer = ({ size = 24, color = theme.colors.text.secondary, style }: IconProps) => (
   <View style={style}>
     <MaterialCommunityIcons name="timer-outline" size={size} color={color} />

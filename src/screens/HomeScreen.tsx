@@ -475,7 +475,7 @@ const HomeScreen: React.FC<HomeProps> = ({ navigation, route }) => {
         <View style={styles.toolsGrid}>
           {[
             { icon: BookOpen, label: 'Meditation', route: 'MeditationScreen', badge: 2, color: theme?.colors.primary },
-            { icon: Bible, label: 'Bible', route: 'VirtueTriviaScreen', badge: null, color: theme?.colors.secondary },
+            { icon: Bible, label: 'Bible', route: 'BibleScreen', badge: null, color: theme?.colors.secondary },
             { icon: Fire, label: 'SoulForge', route: 'VirtueScreen', badge: null, color: theme?.colors.primaryDark },
             { icon: BookmarkSimple, label: 'Bookmarks', route: 'SavedItemsScreen', badge: 5, color: theme?.colors.like },
             { icon: NotePencil, label: 'Notes', route: 'NotesScreen', badge: 3, color: theme?.colors.error },
@@ -709,7 +709,7 @@ const HomeScreen: React.FC<HomeProps> = ({ navigation, route }) => {
               withTiming(5, { duration: 100 }),
               withTiming(0, { duration: 100 })
             );
-            navigation.navigate('NotesScreen', { noteId: 'featured-note-id' });
+            navigation.navigate('NoteDetail', { noteId: 'featured-note-id' });
           }}
         >
           <View style={styles.spotlightIconContainer}>

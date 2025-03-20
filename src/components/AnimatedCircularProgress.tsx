@@ -1,70 +1,75 @@
-// components/AnimatedCircularProgress.tsx
 import React from 'react';
-import { View } from 'react-native';
-import Svg, { Circle, Path } from 'react-native-svg';
-import Animated, { useAnimatedProps } from 'react-native-reanimated';
-import { ReanimatedCircle, ReanimatedPath } from './ReanimatedSvg';
+import { View, StyleSheet } from 'react-native';
+import Svg, { Circle } from 'react-native-svg';
+import { useAnimatedProps } from 'react-native-reanimated';
+import { SharedValue } from 'react-native-reanimated';
+import { ReanimatedCircle } from './ReanimatedSvg';
 
-type AnimatedCircularProgressProps = {
+interface AnimatedCircularProgressProps {
   size: number;
   width: number;
-  fill: Animated.SharedValue<number>;
+  fill: SharedValue<number>; // Progress from 0 to 1
   tintColor: string;
-  backgroundColor?: string;
+  backgroundColor: string;
   rotation?: number;
   lineCap?: 'butt' | 'round' | 'square';
   children?: React.ReactNode;
-};
+  innerBackgroundColor?: string;
+}
 
 const AnimatedCircularProgress: React.FC<AnimatedCircularProgressProps> = ({
   size,
   width,
   fill,
   tintColor,
-  backgroundColor = '#EEE',
+  backgroundColor,
   rotation = 0,
   lineCap = 'round',
   children,
+  innerBackgroundColor = 'transparent',
 }) => {
   const radius = (size - width) / 2;
-  const circumference = radius * 2 * Math.PI;
-  
-  const animatedProps = useAnimatedProps(() => {
-    const strokeDashoffset = circumference - (circumference * fill.value) / 100;
-    return {
-      strokeDashoffset
-    };
-  });
+  const circumference = 2 * Math.PI * radius;
+
+  const animatedProps = useAnimatedProps(() => ({
+    strokeDashoffset: circumference * (1 - fill.value),
+  }));
 
   return (
-    <View style={{ width: size, height: size }}>
-      <Svg width={size} height={size} style={{ transform: [{ rotate: `${rotation}deg` }] }}>
+    <View style={{ width: size, height: size, transform: [{ rotate: `${rotation}deg` }] }}>
+      <Svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
         <Circle
           cx={size / 2}
           cy={size / 2}
           r={radius}
           stroke={backgroundColor}
           strokeWidth={width}
-          fill="transparent"
         />
-        <ReanimatedPath
-          animatedProps={animatedProps}
-          d={`M ${size / 2} ${width / 2} A ${radius} ${radius} 0 1 1 ${width / 2} ${size / 2}`}
+        <ReanimatedCircle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
           stroke={tintColor}
           strokeWidth={width}
+          strokeDasharray={circumference}
           strokeLinecap={lineCap}
-          fill="transparent"
-          strokeDasharray={`${circumference} ${circumference}`}
+          animatedProps={animatedProps}
         />
       </Svg>
       {children && (
-        <View style={{
-          position: 'absolute',
-          width: '100%',
-          height: '100%',
-          justifyContent: 'center',
-          alignItems: 'center',
-        }}>
+        <View
+          style={[
+            styles.childrenContainer,
+            {
+              width: size - 2 * width,
+              height: size - 2 * width,
+              top: width,
+              left: width,
+              borderRadius: (size - 2 * width) / 2,
+              backgroundColor: innerBackgroundColor,
+            }
+          ]}
+        >
           {children}
         </View>
       )}
@@ -72,4 +77,13 @@ const AnimatedCircularProgress: React.FC<AnimatedCircularProgressProps> = ({
   );
 };
 
-export default React.memo(AnimatedCircularProgress);
+const styles = StyleSheet.create({
+  childrenContainer: {
+    position: 'absolute',
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  }
+});
+
+export default AnimatedCircularProgress;

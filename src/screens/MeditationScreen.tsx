@@ -5,10 +5,8 @@ import {
   StyleSheet,
   TouchableOpacity,
   ScrollView,
-  Animated,
   Platform,
   BackHandler,
-  DimensionValue,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -28,19 +26,24 @@ import {
   Clock,
   Bell,
   Check,
-  Timer as TimerIcon,
 } from '@/components/Icons';
 import { Theme } from '@/theme';
 import { useAuth } from '@/stores/auth';
 import * as Haptics from 'expo-haptics';
 import { Audio } from 'expo-av';
 import { DailyChallenge } from '@/types';
-import Svg, { Path, Circle } from 'react-native-svg';
 import AnimatedCircularProgress from '@/components/AnimatedCircularProgress';
 import AnimatedParticles from '@/components/AnimatedParticles';
-import { useSharedValue, useAnimatedProps, withTiming, withSequence, withRepeat, withDelay, Easing } from 'react-native-reanimated';
-import { ReanimatedPath, ReanimatedCircle } from '@/components/ReanimatedSvg';
-import { useAnimatedStyle, interpolate } from 'react-native-reanimated';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+  withSequence,
+  withRepeat,
+  withDelay,
+  Easing,
+  interpolate,
+} from 'react-native-reanimated';
 
 enum MeditationState {
   SETUP = 'setup',
@@ -54,13 +57,8 @@ const MeditationScreen: React.FC = () => {
   const theme = useTheme();
   const { user, updateUserPoints } = useAuth();
 
-  const [selectedVirtue, setSelectedVirtue] = useState<string | null>(null);
-  const currentVirtue = VIRTUES.find(v => v.id === selectedVirtue);
-
-
-  const styles = React.useMemo(() => createStyles(theme, currentVirtue), [theme, currentVirtue]);
-
   // State management
+  const [selectedVirtue, setSelectedVirtue] = useState<string | null>(null);
   const [selectedTime, setSelectedTime] = useState<number | null>(null);
   const [selectedChallenge, setSelectedChallenge] = useState<DailyChallenge | null>(null);
   const [meditationState, setMeditationState] = useState<MeditationState>(MeditationState.SETUP);
@@ -68,188 +66,53 @@ const MeditationScreen: React.FC = () => {
   const [meditationTimer, setMeditationTimer] = useState(0);
   const [currentPromptIndex, setCurrentPromptIndex] = useState(0);
   const [showPrompt, setShowPrompt] = useState(false);
-
-  // Animation values
-  const breatheAnim = useSharedValue(0);
-  const bellAnim = useSharedValue(0);
-  const fadeAnim = useSharedValue(1);
-  const promptOpacity = useSharedValue(0);
-
-  // Audio/vibration feedback refs
-  const isSpeaking = useRef(false);
-
-  // Add sound effect references
-  const [tickSound, setTickSound] = useState<Audio.Sound | null>(null);
-  const [backgroundSound, setBackgroundSound] = useState<Audio.Sound | null>(null);
   const [selectedBackgroundSound, setSelectedBackgroundSound] = useState<string | null>(null);
   const [breathePhase, setBreathePhase] = useState<'in' | 'hold' | 'out'>('in');
-  const breatheTextOpacity = useSharedValue(1);
+  const [challengeExpanded, setChallengeExpanded] = useState(false);
+//  const [completionSound, setCompletionSound] = useState<Audio.Sound | null>(null);
+
+  // Animation values
+  const fadeAnim = useSharedValue(1);
+  const breatheTextOpacity = useSharedValue(0);
   const numberScale = useSharedValue(1);
   const numberOpacity = useSharedValue(1);
+  const pulseAnim = useSharedValue(0);
+  const progressAnim = useSharedValue(0);
+  const promptOpacity = useSharedValue(0);
+  const bellScale = useSharedValue(1);
 
-  // Get current prompt
-  const currentPrompt = currentVirtue?.prompts[currentPromptIndex];
+  // Audio refs
+  const [tickSound, setTickSound] = useState<Audio.Sound | null>(null);
+  const [backgroundSound, setBackgroundSound] = useState<Audio.Sound | null>(null);
+  const isSpeaking = useRef(false);
 
-  // Calculate meditation parameters
-  const totalMeditationSeconds = (selectedTime || 0) * 60;
+  // Add these new state variables and refs
+  const [bellSound, setBellSound] = useState<Audio.Sound | null>(null);
+  const [meditationBellSound, setMeditationBellSound] = useState<Audio.Sound | null>(null);
+  const isEndingPhase = useRef(false);
+  const hasReadChallenge = useRef(false);
+  const hasStartedFinalCountdown = useRef(false);
+  const firstTwoMinutesCompleted = useRef(false);
+
+  // Derived values
+  const currentVirtue = React.useMemo(
+    () => VIRTUES.find((v) => v.id === selectedVirtue),
+    [selectedVirtue]
+  );
+  const totalMeditationSeconds = React.useMemo(
+    () => (selectedTime || 0) * 60,
+    [selectedTime]
+  );
   const promptInterval = totalMeditationSeconds > 0 ? Math.floor(totalMeditationSeconds / 4) : 0;
-
-  const AnimatedPath = Animated.createAnimatedComponent(Path);
-  const AnimatedCircle = Animated.createAnimatedComponent(Circle);
-
-  const AnimatedCheckmark = () => {
-    const checkProgress = useSharedValue(0);
-    const circleProgress = useSharedValue(0);
-    const pulseScale = useSharedValue(1);
-
-    useEffect(() => {
-      // Checkmark drawing animation
-      checkProgress.value = 0;
-      circleProgress.value = 0;
-      
-      // Sequence the animations
-      setTimeout(() => {
-        circleProgress.value = withTiming(1, { duration: 800, easing: Easing.out(Easing.quad) });
-        
-        setTimeout(() => {
-          checkProgress.value = withTiming(1, { duration: 600, easing: Easing.out(Easing.quad) });
-        }, 800);
-      }, 0);
-
-      // Loop pulse animation
-      const loop = () => {
-        pulseScale.value = withTiming(1.2, { duration: 1000, easing: Easing.inOut(Easing.ease) });
-        
-        setTimeout(() => {
-          pulseScale.value = withTiming(1, { duration: 1000, easing: Easing.inOut(Easing.ease) });
-          
-          setTimeout(loop, 0);
-        }, 1000);
-      };
-      
-      loop();
-
-      return () => {
-        // Cleanup if needed
-      };
-    }, []);
-
-    const checkPath = `
-      M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z
-    `;
-
-    const circleAnimatedProps = useAnimatedProps(() => {
-      return {
-        strokeOpacity: 0.1 * circleProgress.value,
-        transform: [{
-          scale: 0.8 + 0.2 * circleProgress.value,
-        }],
-      };
-    });
-
-    const pulseAnimatedProps = useAnimatedProps(() => {
-      return {
-        strokeOpacity: 0.3 * (1 - ((pulseScale.value - 1) / 0.2)),
-        transform: [{ scale: pulseScale.value }],
-      };
-    });
-
-    const pathAnimatedProps = useAnimatedProps(() => {
-      return {
-        strokeDashoffset: 100 - (checkProgress.value * 100),
-      };
-    });
-
-    return (
-      <Svg width={150} height={150} viewBox="0 0 24 24">
-        {/* Background circle */}
-        <ReanimatedCircle
-          cx="12"
-          cy="12"
-          r="10"
-          fill="none"
-          stroke={currentVirtue?.color || theme.colors.primary}
-          strokeWidth="2"
-          animatedProps={circleAnimatedProps}
-        />
-
-        {/* Outer pulse circle */}
-        <ReanimatedCircle
-          cx="12"
-          cy="12"
-          r="10"
-          fill="none"
-          stroke={currentVirtue?.color || theme.colors.primary}
-          strokeWidth="2"
-          animatedProps={pulseAnimatedProps}
-        />
-
-        {/* Animated checkmark */}
-        <ReanimatedPath
-          d={checkPath}
-          fill="none"
-          stroke={currentVirtue?.color || theme.colors.primary}
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeDasharray="100"
-          animatedProps={pathAnimatedProps}
-        />
-      </Svg>
-    );
-  };
-
-  const renderCompleteScreen = () => (
-    <View style={styles.completeContainer}>
-      <View style={styles.completeBanner}>
-        <AnimatedCheckmark />
-        <Text style={styles.completeTitle}>Meditation Complete</Text>
-        <Text style={styles.completeSubtitle}>
-          Take a moment to reflect on your experience
-        </Text>
-      </View>
-
-      <View style={styles.bellContainer}>
-        <TouchableOpacity
-          style={styles.bellButton}
-          onPress={createChallenge}
-        >
-          <LinearGradient
-            colors={[
-              `${currentVirtue?.color}15`,
-              `${currentVirtue?.color}05`
-            ]}
-            style={styles.bellIconContainer}
-          >
-            <Bell size={40} color={currentVirtue?.color || theme.colors.primary} />
-          </LinearGradient>
-          <Text style={styles.bellText}>Activate Daily Challenge</Text>
-        </TouchableOpacity>
-      </View>
-
-      <View style={styles.challengeSummaryContainer}>
-        <Text style={styles.challengeSummaryTitle}>Your Selected Challenge:</Text>
-        <View style={styles.challengeSummaryCard}>
-          <LinearGradient
-            colors={[
-              `${currentVirtue?.color}15`,
-              `${currentVirtue?.color}05`
-            ]}
-            style={StyleSheet.absoluteFill}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-          />
-          <Text style={styles.challengeSummaryText}>{selectedChallenge?.title}</Text>
-          <Text style={styles.challengeDuration}>
-            For the next {selectedTime} {selectedTime === 1 ? 'hour' : 'hours'}
-          </Text>
-        </View>
-      </View>
-    </View>
+  const currentPrompt = currentVirtue?.prompts[currentPromptIndex];
+  const styles = React.useMemo(
+    () => createStyles(theme, currentVirtue),
+    [theme, currentVirtue]
   );
 
+  const [introCompleted, setIntroCompleted] = useState(false);
 
-  // Load sound effects
+  // Load sounds
   useEffect(() => {
     async function loadSounds() {
       try {
@@ -257,73 +120,96 @@ const MeditationScreen: React.FC = () => {
           require('../../assets/sounds/tick-tock.wav')
         );
         setTickSound(tick);
+
+        // const { sound: completion } = await Audio.Sound.createAsync(
+        //   require('../../assets/sounds/correct.mp3')
+        // );
+        // setCompletionSound(completion);
+        
+        // Load bell sounds
+        const { sound: bell } = await Audio.Sound.createAsync(
+          require('../../assets/sounds/bell.wav')
+        );
+        setBellSound(bell);
+        
+        const { sound: meditationBell } = await Audio.Sound.createAsync(
+          require('../../assets/sounds/bell-meditation.mp3')
+        );
+        setMeditationBellSound(meditationBell);
       } catch (error) {
-        console.error("Failed to load sounds", error);
+        console.error('Failed to load sounds', error);
       }
     }
-
     loadSounds();
 
     return () => {
-      if (tickSound) {
-        tickSound.unloadAsync();
-      }
-      if (backgroundSound) {
-        backgroundSound.unloadAsync();
-      }
+      if (tickSound) tickSound.unloadAsync();
+      if (backgroundSound) backgroundSound.unloadAsync();
+      // if (completionSound) completionSound.unloadAsync();
+      if (bellSound) bellSound.unloadAsync();
+      if (meditationBellSound) meditationBellSound.unloadAsync();
     };
   }, []);
 
-  // Load and play background sound when selected
   useEffect(() => {
     const loadBackgroundSound = async () => {
-      // Unload any previous background sound
+      // Stop and unload previous sound if it exists
       if (backgroundSound) {
+        await backgroundSound.stopAsync();
         await backgroundSound.unloadAsync();
       }
 
       if (!selectedBackgroundSound) return;
 
       try {
-        const soundAsset = selectedBackgroundSound === 'ambient' 
-          ? require('../../assets/sounds/meditation-ambient.mp3')
-          : require('../../assets/sounds/heartbeat.mp3');
-          
-        const { sound } = await Audio.Sound.createAsync(
-          soundAsset,
-          { isLooping: true, volume: 0.4 } // Lower volume to not overpower voice
-        );
-        
+        const soundAsset =
+          selectedBackgroundSound === 'ambient'
+            ? require('../../assets/sounds/meditation-ambient.mp3')
+            : require('../../assets/sounds/heartbeat.mp3');
+        const { sound } = await Audio.Sound.createAsync(soundAsset, {
+          isLooping: true,
+          volume: 0.6,
+        });
         setBackgroundSound(sound);
-        
-        // Only play if in active meditation
-        if (meditationState === MeditationState.ACTIVE) {
+
+        // Play preview if we're in setup mode
+        if (meditationState === MeditationState.SETUP) {
+          await sound.playAsync();
+        } else if (meditationState === MeditationState.ACTIVE) {
           await sound.playAsync();
         }
       } catch (error) {
-        console.error("Failed to load background sound", error);
+        console.error('Failed to load background sound', error);
       }
     };
-
     loadBackgroundSound();
   }, [selectedBackgroundSound]);
 
-  // Start/stop background sound based on meditation state
+  // Stop preview when meditation state changes or when component unmounts
   useEffect(() => {
     const handleBackgroundSound = async () => {
       if (!backgroundSound) return;
 
       if (meditationState === MeditationState.ACTIVE) {
         await backgroundSound.playAsync();
+      } else if (meditationState === MeditationState.COUNTDOWN) {
+        // Stop preview when countdown starts
+        await backgroundSound.stopAsync();
       } else if (meditationState === MeditationState.COMPLETE) {
         await backgroundSound.stopAsync();
       }
     };
-
     handleBackgroundSound();
+
+    // Clean up sound on unmount
+    return () => {
+      if (backgroundSound) {
+        backgroundSound.stopAsync();
+      }
+    };
   }, [meditationState, backgroundSound]);
 
-  // Play tick sound during countdown
+  // Play tick sound
   const playTickSound = async () => {
     try {
       if (tickSound) {
@@ -331,344 +217,361 @@ const MeditationScreen: React.FC = () => {
         await tickSound.playAsync();
       }
     } catch (error) {
-      console.error("Failed to play tick sound", error);
+      console.error('Failed to play tick sound', error);
     }
   };
 
-  // Animate countdown numbers
+  // Countdown animation
   const animateCountdownNumber = () => {
-    numberScale.value = 1;
-    numberOpacity.value = 1;
-    
-    // Sequence: grow then shrink
     numberScale.value = withSequence(
       withTiming(1.2, { duration: 300, easing: Easing.out(Easing.quad) }),
       withTiming(0.8, { duration: 700, easing: Easing.inOut(Easing.quad) })
     );
-    
-    // Fade in then slightly fade out
     numberOpacity.value = withSequence(
       withTiming(1, { duration: 100, easing: Easing.out(Easing.quad) }),
       withTiming(0.5, { duration: 700, easing: Easing.inOut(Easing.quad) })
     );
   };
 
-  // Handle breathing animation with text cues
-  useEffect(() => {
-    if (meditationState === MeditationState.ACTIVE) {
-      const breathingCycle = () => {
-        // Breathe in phase - 4 seconds
-        setBreathePhase('in');
-        animateBreathText();
-
-        setTimeout(() => {
-          // Hold phase - 4 seconds
-          setBreathePhase('hold');
-          animateBreathText();
-
-          setTimeout(() => {
-            // Breathe out phase - 4 seconds
-            setBreathePhase('out');
-            animateBreathText();
-          }, 4000);
-        }, 4000);
-      };
-
-      // Start breathing cycle
-      breathingCycle();
-      // Repeat cycle every 12 seconds (4s in + 4s hold + 4s out)
-      const interval = setInterval(breathingCycle, 12000);
-
-      return () => clearInterval(interval);
-    }
-  }, [meditationState]);
-
-  // Animate breath text opacity
   const animateBreathText = () => {
-    // Fade out current text
-    breatheTextOpacity.value = withTiming(0, { duration: 200 });
-    
-    // Then fade in new text
-    setTimeout(() => {
-      breatheTextOpacity.value = withTiming(1, { duration: 400 });
-    }, 200);
+    breatheTextOpacity.value = withSequence(
+      withTiming(1, { duration: 500 }), // Fade in (500ms)
+      withDelay(3000, withTiming(0, { duration: 500 })) // Stay visible (3000ms), fade out (500ms)
+    );
   };
 
-  // Synchronize speech with countdown numbers
-  const speakCountdownNumber = (number: number) => {
-    // Clear any previous speech to ensure synchronization
-    Speech.stop();
-    
-    if (number <= 3 && number > 0) {
-      // Small delay to synchronize with visual
-      setTimeout(() => {
-        Speech.speak(`${number}`, { rate: 0.8 });
-      }, 100);
-    } else if (number === 0) {
-      setTimeout(() => {
-        Speech.speak("Close your eyes, if you are able to do so. Visualize yourself calm, peaceful, empty and ready to grow spiritually.", { rate: 0.8 });
-      }, 100);
+  useEffect(() => {
+    if (meditationState === MeditationState.ACTIVE && introCompleted) {
+      // Start breathing cycle logic
+      let currentPhase: 'in' | 'hold' | 'out' = 'in';
+      setBreathePhase(currentPhase);
+      animateBreathText();
+      
+      const phaseInterval = setInterval(() => {
+        currentPhase = currentPhase === 'in' ? 'hold' : currentPhase === 'hold' ? 'out' : 'in';
+        setBreathePhase(currentPhase);
+        if (currentPhase === 'out' && !firstTwoMinutesCompleted.current) {  
+          playBellSound();
+        }
+        animateBreathText();
+      }, 4000);
+
+      pulseAnim.value = 0;
+
+      // Create precise breathing animation sequence - exactly 4 seconds for each phase
+      pulseAnim.value = withRepeat(
+        withSequence(
+          // Breathe in - expand precisely over 4 seconds
+          withTiming(1, {
+            duration: 4000,
+            easing: Easing.inOut(Easing.quad)
+          }),
+          // Hold - maintain expanded state for exactly 4 seconds
+          withTiming(1, {
+            duration: 1000,
+            easing: Easing.inOut(Easing.quad)
+          }),
+          // Breathe out - contract precisely over 4 seconds
+          withTiming(0, {
+            duration: 7000,
+            easing: Easing.inOut(Easing.quad)
+          })
+        ),
+        -1, // Infinite repeat
+        false
+      );
+  
+      return () => clearInterval(phaseInterval);
     }
-  };
+  }, [meditationState, introCompleted]);
 
-  // Handle countdown timer logic with animation and sound
+  // Enhanced breathing circle style with better animation match
+  const breathingCircleStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: interpolate(pulseAnim.value, [0, 1], [0.7, 1.6]) }],
+    opacity: interpolate(pulseAnim.value, [0, 1], [0.5, 0.9]),
+  }));
+
+  // Countdown logic
   useEffect(() => {
     let interval: number;
-
     if (meditationState === MeditationState.COUNTDOWN && countdown > 0) {
-      // Play initial tick
       playTickSound();
       animateCountdownNumber();
-      // Speak the initial number if <= 3
       speakCountdownNumber(countdown);
-
       interval = setInterval(() => {
-        setCountdown(prev => {
+        setCountdown((prev) => {
           const newValue = prev - 1;
-
-          // Play tick sound and animate for each countdown number
           if (newValue >= 0) {
             playTickSound();
             animateCountdownNumber();
             speakCountdownNumber(newValue);
           }
-
           if (newValue === 0) {
-            // Start meditation session
             setMeditationState(MeditationState.ACTIVE);
+            progressAnim.value = 0;
+            setMeditationTimer(0);
           }
-
           return newValue;
         });
       }, 1000);
     }
-
     return () => clearInterval(interval);
   }, [meditationState, countdown]);
 
-  // Handle meditation timer and prompts
+  // Meditation timer and progress with end-session enhancements
   useEffect(() => {
     let interval: number;
-
     if (meditationState === MeditationState.ACTIVE && selectedTime) {
-      // Start session with first prompt
       showAndSpeakPrompt(0);
-
+      firstTwoMinutesCompleted.current = false;
+      hasReadChallenge.current = false;
+      hasStartedFinalCountdown.current = false;
+      isEndingPhase.current = false;
+      
       interval = setInterval(() => {
-        setMeditationTimer(prev => {
+        setMeditationTimer((prev) => {
           const newValue = prev + 1;
-
-          // Show a new prompt at calculated intervals
-          if (newValue % promptInterval === 0 && newValue < totalMeditationSeconds) {
-            const nextPromptIndex = Math.floor(newValue / promptInterval);
-            if (nextPromptIndex < 4) {
-              showAndSpeakPrompt(nextPromptIndex);
-            }
+          progressAnim.value = newValue / totalMeditationSeconds;
+          
+          // Mark first 2 minutes as complete
+          if (newValue >= 120 && !firstTwoMinutesCompleted.current) {
+            firstTwoMinutesCompleted.current = true;
           }
-
-          // End meditation when time is up
+          
+          // Regular prompts during the session
+          if (newValue % promptInterval === 0 && newValue < totalMeditationSeconds - 30) {
+            const nextPromptIndex = Math.floor(newValue / promptInterval);
+            if (nextPromptIndex < 4) showAndSpeakPrompt(nextPromptIndex);
+          }
+          
+          // Read challenge 30 seconds before the end
+          if (totalMeditationSeconds - newValue <= 30 && !hasReadChallenge.current) {
+            hasReadChallenge.current = true;
+            isEndingPhase.current = true;
+            
+            if (isSpeaking.current) Speech.stop();
+            setTimeout(() => {
+              Speech.speak("Your challenge is:", {
+                rate: 0.85, onDone: () => {
+                  if (selectedChallenge) {
+                    Speech.speak(selectedChallenge.title, {
+                      rate: 0.85, onDone: () => {
+                        Speech.speak(selectedChallenge.description, {
+                          rate: 0.85
+                        });
+                      }
+                    });
+                  }
+                }
+              });
+            }, 500);
+          }
+          
+          // Start final countdown 10 seconds before the end
+          if (totalMeditationSeconds - newValue <= 10 && !hasStartedFinalCountdown.current) {
+            hasStartedFinalCountdown.current = true;
+            if (isSpeaking.current) Speech.stop();
+            
+            Speech.speak("You resolve to do better today.", {
+              rate: 0.85, onDone: () => {
+                // Start the bell-based countdown
+                let countdownNumber = 10;
+                playMeditationBellSound();
+                const countdownInterval = setInterval(() => {
+                  // Play bell sound instead of tick                  
+                  countdownNumber--;
+                  if (countdownNumber <= 3 && countdownNumber > 0) {
+                    setTimeout(() => Speech.speak(`${countdownNumber}`, { rate: 0.8 }), 500);
+                  } else if (countdownNumber === 0) {
+                    setTimeout(() => Speech.speak("Open your eyes", { rate: 0.8 }), 500);
+                    clearInterval(countdownInterval);
+                  }
+                }, 1000);
+              }
+            });
+          }
+          
           if (newValue >= totalMeditationSeconds) {
             endMeditation();
             clearInterval(interval);
           }
-
           return newValue;
         });
       }, 1000);
     }
-
     return () => clearInterval(interval);
   }, [meditationState, selectedTime]);
+
+  // Bell animation on complete
+  useEffect(() => {
+    if (meditationState === MeditationState.COMPLETE) {
+      bellScale.value = withRepeat(
+        withSequence(
+          withTiming(1.05, { duration: 1000 }),
+          withTiming(1, { duration: 1000 })
+        ),
+        -1
+      );
+    }
+  }, [meditationState]);
+
+  // Handlers
+  const speakCountdownNumber = (number: number) => {
+    Speech.stop();
+    if (number <= 3 && number > 0) {
+      setTimeout(() => Speech.speak(`${number}`, { rate: 0.8 }), 100);
+    } else if (number === 0) {
+      setTimeout(() => Speech.speak('Close your eyes if you are able to do so...', {
+        rate: 0.8, onDone: () => {
+          setTimeout(() => {
+            Speech.speak('Visualize yourself calm. Peaceful. Empty; and ready to grow spiritually...', {
+              rate: 0.8, onDone: () => {
+                setTimeout(() => {
+                  playMeditationBellSound();
+                  setTimeout(() => {
+                    Speech.speak('Breathe in...', {
+                      rate: 0.8, onDone: () => {
+                        setTimeout(() => {
+                          Speech.speak('Keep still...', {
+                            rate: 0.8, onDone: () => {
+                              setTimeout(() => {
+                                Speech.speak('Breathe out...', {
+                                  rate: 0.8, onDone: () => {
+                                    setIntroCompleted(true);
+                                    setBreathePhase('in');
+                                  }
+                                });
+                              }, 4000);
+                            }
+                          });
+                        }, 4000);
+                      }
+                    });
+                  }, 500);
+                }, 1000);
+              }
+            });
+          }, 1000);
+        }
+      }), 2000);
+    }
+  };
 
   const showAndSpeakPrompt = (index: number) => {
     setCurrentPromptIndex(index);
     setShowPrompt(false);
+    const introWord = index === 0 ? "Begin" : "Now";
 
-    // Fade out any current prompt
     promptOpacity.value = withTiming(0, { duration: 500 });
-    
-    // Then fade in the new prompt
     setTimeout(() => {
       setShowPrompt(true);
       promptOpacity.value = withTiming(1, { duration: 1000 });
-
-      // Speak the prompt
       if (currentVirtue?.prompts[index]) {
         isSpeaking.current = true;
-        Speech.speak(currentVirtue.prompts[index], {
-          rate: 0.85,
-          onDone: () => {
-            isSpeaking.current = false;
+        Speech.speak(`${introWord}...`, {
+          rate: 0.85, onDone: () => {
+            setTimeout(() => {
+              Speech.speak(currentVirtue.prompts[index], {
+                rate: 0.85,
+                onDone: () => { isSpeaking.current = false },
+              });
+            }, 1000);
           }
-        });
+        })
       }
     }, 500);
   };
 
   const startMeditation = () => {
     if (!selectedVirtue || !selectedTime || !selectedChallenge) {
-      // Animate to highlight missing selections
-      fadeAnim.value = withSequence(
-        withTiming(0.3, { duration: 200 }),
-        withTiming(1, { duration: 200 })
-      );
-
-      // Provide haptic feedback for error
+      fadeAnim.value = withSequence(withTiming(0.3, { duration: 200 }), withTiming(1, { duration: 200 }));
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       return;
     }
-
-    // Begin countdown
+    progressAnim.value = 0;
     setMeditationState(MeditationState.COUNTDOWN);
-    // Provide haptic feedback for success
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   };
 
   const endMeditation = () => {
     setMeditationState(MeditationState.COMPLETE);
-
-    // Stop any ongoing speech
-    if (isSpeaking.current) {
-      Speech.stop();
-      isSpeaking.current = false;
-    }
-
-    // Trigger bell animation with Reanimated
-    bellAnim.value = withTiming(1, { duration: 1000 });
-
-    // Play bell sound (if we had a sound library)
+    if (isSpeaking.current) Speech.stop();
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+    // // Play completion sound
+    // if (completionSound) {
+    //   completionSound.setPositionAsync(0);
+    //   completionSound.playAsync();
+    // }
   };
 
-  const pulseAnim = useSharedValue(0);
-  const progressAnim = useSharedValue(0);
-
-  useEffect(() => {
-    // Start continuous loop for the breathing animation
-    const startPulseAnimation = () => {
-      pulseAnim.value = 0;
-      pulseAnim.value = withRepeat(
-        withSequence(
-          withTiming(1, { duration: 4000, easing: Easing.inOut(Easing.ease) }),
-          withTiming(0, { duration: 8000, easing: Easing.inOut(Easing.ease) })
-        ),
-        -1, // infinite repeat
-        false // don't reverse
-      );
-    };
-    
-    startPulseAnimation();
-  }, []);
-
-  const handlePauseOrStop = () => {
-    // This would handle pausing or stopping meditation
-    // For simplicity, we're just ending the session
-    navigation.goBack();
-  };
-
-  // Calculate end time for the challenge when creating it
-  const calculateEndTime = (): Date => {
-    const endTime = new Date();
-    if (selectedTime) {
-      // If time is in minutes, convert to hours for the challenge duration
-      endTime.setHours(endTime.getHours() + (selectedTime === 40 ? 24 : selectedTime === 15 ? 6 : 3));
-    }
-    return endTime;
-  };
-
-  // Updated with DailyChallenge type
   const createChallenge = async () => {
-    // Create challenge with calculated end time
     if (!selectedChallenge) return;
-
-    // Award points based on time spent
     const pointsEarned = selectedTime === 7 ? 15 : selectedTime === 15 ? 25 : 50;
-
-    // Update the end_time for the selected challenge
-    const challenge = {
-      ...selectedChallenge,
-      end_time: calculateEndTime()
-    };
+    const endTime = new Date();
+    endTime.setHours(endTime.getHours() + (selectedTime === 40 ? 24 : selectedTime === 15 ? 6 : 3));
+    const challenge = { ...selectedChallenge, end_time: endTime };
 
     if (user) {
-      try {
-        await updateUserPoints(user.points || 0 + pointsEarned);
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      } catch (error) {
-        console.error("Failed to update points", error);
-      }
+      await updateUserPoints((user.points || 0) + pointsEarned);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     }
-
-    // Navigate back to home with success message
-    navigation.navigate('Home', {
-      meditationComplete: true,
-      challenge: challenge,
-      pointsEarned
-    });
+    navigation.navigate('Home', { meditationComplete: true, challenge, pointsEarned });
   };
 
-  // Create animated styles for components that use the animated values
-  const countdownNumberStyle = useAnimatedStyle(() => {
-    return {
-      transform: [{ scale: numberScale.value }],
-      opacity: numberOpacity.value
-    };
-  });
+  // Animated styles
+  const fadeAnimStyle = useAnimatedStyle(() => ({ opacity: fadeAnim.value }));
+  const countdownNumberStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: numberScale.value }],
+    opacity: numberOpacity.value,
+  }));
+  const breatheTextStyle = useAnimatedStyle(() => ({ opacity: breatheTextOpacity.value }));
+  const promptAnimStyle = useAnimatedStyle(() => ({
+    opacity: promptOpacity.value,
+    transform: [{ translateY: interpolate(promptOpacity.value, [0, 1], [20, 0]) }],
+  }));
+  const bellButtonStyle = useAnimatedStyle(() => ({ transform: [{ scale: bellScale.value }] }));
 
-  // Create animated style for fade animations
-  const fadeAnimStyle = useAnimatedStyle(() => {
-    return {
-      opacity: fadeAnim.value
-    };
-  });
+  // Play bell sound
+  const playBellSound = async () => {
+    try {
+      if (bellSound) {
+        await bellSound.setPositionAsync(0);
+        await bellSound.playAsync();
+      }
+    } catch (error) {
+      console.error('Failed to play bell sound', error);
+    }
+  };
+  
+  // Play meditation bell sound
+  const playMeditationBellSound = async () => {
+    try {
+      if (meditationBellSound) {
+        await meditationBellSound.setPositionAsync(0);
+        await meditationBellSound.playAsync();
+      }
+    } catch (error) {
+      console.error('Failed to play meditation bell sound', error);
+    }
+  };
 
-  // Create animated style for prompts
-  const promptAnimStyle = useAnimatedStyle(() => {
-    return {
-      opacity: promptOpacity.value,
-      transform: [{
-        translateY: interpolate(
-          promptOpacity.value,
-          [0, 1],
-          [20, 0]
-        )
-      }]
-    };
-  });
-
-  // Create animated style for breathing text
-  const breatheTextStyle = useAnimatedStyle(() => {
-    return {
-      opacity: breatheTextOpacity.value
-    };
-  });
-
-  // Create animated style for breathing circle
-  const breathingCircleStyle = useAnimatedStyle(() => {
-    return {
-      transform: [
-        { scale: interpolate(pulseAnim.value, [0, 1], [1, 1.3]) }
-      ],
-      opacity: interpolate(pulseAnim.value, [0, 1], [0.3, 0.6])
-    };
-  });
-
-  // Render different screen states
+  // Render functions
   const renderSetupScreen = () => (
     <ScrollView style={styles.scrollContainer} showsVerticalScrollIndicator={false}>
       <Animated.View style={[styles.setupContainer, fadeAnimStyle]}>
         <Text style={styles.sectionTitle}>CHOOSE A VIRTUE</Text>
-        
         {selectedVirtue ? (
-          // Collapsed view when virtue is selected
           <View style={styles.selectedVirtueCollapsed}>
             <View style={styles.selectedVirtueContent}>
               {currentVirtue && (
                 <>
-                  <View style={[
-                    styles.virtueIconContainer,
-                    { backgroundColor: `${currentVirtue.color}15` }
-                  ]}>
+                  <View
+                    style={[
+                      styles.virtueIconContainer,
+                      { backgroundColor: `${currentVirtue.color}15` },
+                    ]}
+                  >
                     <currentVirtue.icon size={24} color={currentVirtue.color} />
                   </View>
                   <Text style={[styles.virtueText, { color: currentVirtue.color }]}>
@@ -677,7 +580,7 @@ const MeditationScreen: React.FC = () => {
                 </>
               )}
             </View>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.changeVirtueButton}
               onPress={() => {
                 setSelectedVirtue(null);
@@ -688,33 +591,29 @@ const MeditationScreen: React.FC = () => {
             </TouchableOpacity>
           </View>
         ) : (
-          // Expanded virtues container when no virtue is selected
           <View style={styles.virtuesContainer}>
-            {VIRTUES.map(virtue => (
+            {VIRTUES.map((virtue) => (
               <TouchableOpacity
                 key={virtue.id}
                 style={[
                   styles.virtueButton,
                   selectedVirtue === virtue.id && styles.selectedVirtueButton,
-                  selectedVirtue === virtue.id && { borderColor: virtue.color }
+                  selectedVirtue === virtue.id && { borderColor: virtue.color },
                 ]}
                 onPress={() => {
                   setSelectedVirtue(virtue.id);
                   Haptics.selectionAsync();
                 }}
               >
-                <View
-                  style={[
-                    styles.virtueIconContainer,
-                    { backgroundColor: `${virtue.color}15` }
-                  ]}
-                >
+                <View style={[styles.virtueIconContainer, { backgroundColor: `${virtue.color}15` }]}>
                   <virtue.icon size={24} color={virtue.color} />
                 </View>
-                <Text style={[
-                  styles.virtueText,
-                  selectedVirtue === virtue.id && { color: virtue.color }
-                ]}>
+                <Text
+                  style={[
+                    styles.virtueText,
+                    selectedVirtue === virtue.id && { color: virtue.color },
+                  ]}
+                >
                   {virtue.name}
                 </Text>
               </TouchableOpacity>
@@ -724,15 +623,15 @@ const MeditationScreen: React.FC = () => {
 
         <Text style={styles.sectionTitle}>SESSION LENGTH</Text>
         <View style={styles.timeContainer}>
-          {TIME_OPTIONS.map((option: { value: number, label: string }) => (
+          {TIME_OPTIONS.map((option) => (
             <TouchableOpacity
               key={option.value}
               style={[
                 styles.timeButton,
                 selectedTime === option.value && styles.selectedTimeButton,
                 selectedTime === option.value && {
-                  borderColor: currentVirtue?.color || theme?.colors.primary
-                }
+                  borderColor: currentVirtue?.color || theme?.colors.primary,
+                },
               ]}
               onPress={() => {
                 setSelectedTime(option.value);
@@ -742,17 +641,20 @@ const MeditationScreen: React.FC = () => {
               <View style={styles.timeButtonContent}>
                 <Clock
                   size={16}
-                  color={selectedTime === option.value
-                    ? (currentVirtue?.color || theme?.colors.primary)
-                    : theme?.colors.text.secondary
+                  color={
+                    selectedTime === option.value
+                      ? currentVirtue?.color || theme?.colors.primary
+                      : theme?.colors.text.secondary
                   }
                 />
-                <Text style={[
-                  styles.timeText,
-                  selectedTime === option.value && {
-                    color: currentVirtue?.color || theme?.colors.primary
-                  }
-                ]}>
+                <Text
+                  style={[
+                    styles.timeText,
+                    selectedTime === option.value && {
+                      color: currentVirtue?.color || theme?.colors.primary,
+                    },
+                  ]}
+                >
                   {option.label}
                 </Text>
               </View>
@@ -762,116 +664,133 @@ const MeditationScreen: React.FC = () => {
 
         <Text style={styles.sectionTitle}>BACKGROUND SOUND</Text>
         <View style={styles.soundContainer}>
-          <TouchableOpacity
-            style={[
-              styles.soundButton,
-              selectedBackgroundSound === 'ambient' && styles.selectedSoundButton,
-              selectedBackgroundSound === 'ambient' && {
-                borderColor: currentVirtue?.color || theme?.colors.primary
-              }
-            ]}
-            onPress={() => {
-              setSelectedBackgroundSound('ambient');
-              Haptics.selectionAsync();
-            }}
-          >
-            <View style={styles.soundButtonContent}>
-              <Bell
-                size={16}
-                color={selectedBackgroundSound === 'ambient'
-                  ? (currentVirtue?.color || theme?.colors.primary)
-                  : theme?.colors.text.secondary
-                }
-              />
-              <Text style={[
-                styles.soundText,
-                selectedBackgroundSound === 'ambient' && {
-                  color: currentVirtue?.color || theme?.colors.primary
-                }
-              ]}>
-                Ambient
-              </Text>
-            </View>
-          </TouchableOpacity>
-          
-          <TouchableOpacity
-            style={[
-              styles.soundButton,
-              selectedBackgroundSound === 'heartbeat' && styles.selectedSoundButton,
-              selectedBackgroundSound === 'heartbeat' && {
-                borderColor: currentVirtue?.color || theme?.colors.primary
-              }
-            ]}
-            onPress={() => {
-              setSelectedBackgroundSound('heartbeat');
-              Haptics.selectionAsync();
-            }}
-          >
-            <View style={styles.soundButtonContent}>
-              <Heart
-                size={16}
-                color={selectedBackgroundSound === 'heartbeat'
-                  ? (currentVirtue?.color || theme?.colors.primary)
-                  : theme?.colors.text.secondary
-                }
-              />
-              <Text style={[
-                styles.soundText,
-                selectedBackgroundSound === 'heartbeat' && {
-                  color: currentVirtue?.color || theme?.colors.primary
-                }
-              ]}>
-                Heartbeat
-              </Text>
-            </View>
-          </TouchableOpacity>
-          
-          <TouchableOpacity
-            style={[
-              styles.soundButton,
-              selectedBackgroundSound === null && styles.selectedSoundButton,
-              selectedBackgroundSound === null && {
-                borderColor: currentVirtue?.color || theme?.colors.primary
-              }
-            ]}
-            onPress={() => {
-              setSelectedBackgroundSound(null);
-              Haptics.selectionAsync();
-            }}
-          >
-            <View style={styles.soundButtonContent}>
-              <Flame
-                size={16}
-                color={selectedBackgroundSound === null
-                  ? (currentVirtue?.color || theme?.colors.primary)
-                  : theme?.colors.text.secondary
-                }
-              />
-              <Text style={[
-                styles.soundText,
-                selectedBackgroundSound === null && {
-                  color: currentVirtue?.color || theme?.colors.primary
-                }
-              ]}>
-                Silent
-              </Text>
-            </View>
-          </TouchableOpacity>
+          {[
+            { id: 'ambient', label: 'Ambient', icon: Bell },
+            { id: 'heartbeat', label: 'Heartbeat', icon: Heart },
+            { id: null, label: 'Silent', icon: Flame },
+          ].map(({ id, label, icon: Icon }) => (
+            <TouchableOpacity
+              key={label}
+              style={[
+                styles.soundButton,
+                selectedBackgroundSound === id && styles.selectedSoundButton,
+                selectedBackgroundSound === id && {
+                  borderColor: currentVirtue?.color || theme?.colors.primary,
+                },
+              ]}
+              onPress={() => {
+                setSelectedBackgroundSound(id);
+                Haptics.selectionAsync();
+              }}
+            >
+              <View style={styles.soundButtonContent}>
+                <Icon
+                  size={16}
+                  color={
+                    selectedBackgroundSound === id
+                      ? currentVirtue?.color || theme?.colors.primary
+                      : theme?.colors.text.secondary
+                  }
+                />
+                <Text
+                  style={[
+                    styles.soundText,
+                    selectedBackgroundSound === id && {
+                      color: currentVirtue?.color || theme?.colors.primary,
+                    },
+                  ]}
+                >
+                  {label}
+                </Text>
+              </View>
+            </TouchableOpacity>
+          ))}
         </View>
 
         <Text style={styles.sectionTitle}>DAILY CHALLENGE</Text>
         <View style={styles.challengeContainer}>
-          {renderChallengeButtons()}
+          {selectedVirtue ? (
+            selectedChallenge ? (
+              <View style={[
+                styles.selectedChallengeCollapsed,
+                { borderColor: currentVirtue?.color || theme?.colors.border }
+              ]}>
+                <View style={styles.selectedChallengeContent}>
+                  <Text style={[
+                    styles.challengeTitle,
+                    { color: currentVirtue?.color || theme?.colors.primary }
+                  ]}>
+                    {selectedChallenge.title}
+                  </Text>
+                  <Text style={styles.challengeDescriptionCollapsed}>
+                    {selectedChallenge.description.length > 80
+                      ? selectedChallenge.description.substring(0, 80) + '...'
+                      : selectedChallenge.description}
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  style={styles.changeChallengeButton}
+                  onPress={() => {
+                    setSelectedChallenge(null);
+                    Haptics.selectionAsync();
+                  }}
+                >
+                  <Text style={styles.changeChallengeText}>Change</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              CHALLENGE_TEMPLATES[selectedVirtue]?.map((challenge: DailyChallenge) => (
+                <TouchableOpacity
+                  key={challenge.id}
+                  style={[
+                    styles.challengeButton,
+                    selectedChallenge && (selectedChallenge as DailyChallenge).id ? {
+                      ...styles.selectedChallengeButton,
+                      borderColor: currentVirtue?.color || theme?.colors.primary,
+                    } : undefined,
+                  ]}
+                  onPress={() => {
+                    setSelectedChallenge(challenge);
+                    Haptics.selectionAsync();
+                  }}
+                >
+                  <LinearGradient
+                    colors={[`${currentVirtue?.color}15`, `${currentVirtue?.color}05`]}
+                    style={StyleSheet.absoluteFill}
+                  />
+                  <Text style={[
+                    styles.challengeTitle,
+                    selectedChallenge && (selectedChallenge as DailyChallenge).id ? {
+                      color: currentVirtue?.color || theme?.colors.primary,
+                    } : undefined,
+                  ]}>
+                    {challenge.title}
+                  </Text>
+                  <Text style={styles.challengeDescription}>{challenge.description}</Text>                  
+                  {selectedChallenge && (selectedChallenge as DailyChallenge).id === challenge.id && (
+                    <View
+                      style={[
+                        styles.checkmarkIcon,
+                        { backgroundColor: currentVirtue?.color || theme?.colors.primary },
+                      ]}
+                    >
+                      <Check size={12} color="#FFFFFF" />
+                    </View>
+                  )}
+                </TouchableOpacity>
+              ))
+            )
+          ) : (
+            <Text style={styles.placeholderText}>
+              Select a virtue to see challenge options
+            </Text>
+          )}
         </View>
 
         <TouchableOpacity
           style={[
             styles.startButton,
-            {
-              backgroundColor: currentVirtue
-                ? currentVirtue.color
-                : theme?.colors.primary
-            }
+            { backgroundColor: currentVirtue?.color || theme?.colors.primary },
           ]}
           onPress={startMeditation}
         >
@@ -886,171 +805,147 @@ const MeditationScreen: React.FC = () => {
       <Animated.View
         style={[
           styles.countdownCircle,
-          {
-            borderColor: currentVirtue?.color || theme?.colors.primary,
-          },
-          countdownNumberStyle
+          { borderColor: currentVirtue?.color || theme?.colors.primary },
+          countdownNumberStyle,
         ]}
       >
-        <Animated.Text style={[
-          styles.countdownText,
-          { color: currentVirtue?.color || theme?.colors.primary },
-          { textShadowColor: 'rgba(0,0,0,0.2)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 2 }
-        ]}>
+        <Text
+          style={[
+            styles.countdownText,
+            { color: currentVirtue?.color || theme?.colors.primary },
+          ]}
+        >
           {countdown}
-        </Animated.Text>
+        </Text>
       </Animated.View>
-      <Text style={styles.countdownSubtext}>
-        Preparing your meditation...
-      </Text>
-      <Text style={styles.breatheText}>
-        Take a deep breath
-      </Text>
+      <Text style={styles.countdownSubtext}>Preparing your meditation...</Text>
+      <Text style={styles.breatheText}>Take a deep breath</Text>
     </View>
   );
 
-  const renderActiveScreen = () => {
-    return (
-      <View style={styles.activeContainer}>
-        <AnimatedCircularProgress
-          size={250}
-          width={4}
-          fill={progressAnim}
-          tintColor={currentVirtue?.color || theme?.colors.primary}
-          backgroundColor={theme.colors.border}
-          rotation={0}
-          lineCap="round"
-        >
-          {(
-            <View style={styles.breathCircleContainer}>
-              <Animated.View style={[styles.breathGradient, breathingCircleStyle]}>
-                <LinearGradient
-                  colors={[`${currentVirtue?.color}33`, `${currentVirtue?.color}00`]}
-                  style={StyleSheet.absoluteFill}
-                />
-              </Animated.View>
-              <AnimatedParticles
-                count={20}
-                color={currentVirtue?.color || theme?.colors.primary}
-                speed={0.5}
-                radius={2}
-                anim={pulseAnim}
-              />
-            </View>
-          )}
-        </AnimatedCircularProgress>
+  const renderActiveScreen = () => (
+    <View style={styles.activeContainer}>
+      <AnimatedParticles
+        count={25}
+        color={currentVirtue?.color || theme?.colors.primary}
+        speed={0.6}
+        radius={2.5}
+        anim={pulseAnim}
+      />
 
-        {/* Enhanced prompt animation */}
-        <Animated.View style={[styles.promptContainer, promptAnimStyle]}>
-          <Text style={styles.promptText}>{currentPrompt}</Text>
-          {/* Add progress dots */}
-          <View style={styles.promptProgress}>
-            {currentVirtue?.prompts.map((_, i) => (
-              <View key={i} style={[
+      <AnimatedCircularProgress
+        size={250}
+        width={4}
+        fill={progressAnim}
+        tintColor={currentVirtue?.color || theme?.colors.primary}
+        backgroundColor={theme.colors.border}
+        innerBackgroundColor="transparent"
+        rotation={0}
+        lineCap="round"
+      >
+        <View style={styles.breathCircleContainer}>
+          {/* Base circle for better contrast */}
+          <View style={[styles.baseCircle, { backgroundColor: theme.colors.background }]} />
+
+          {/* Improved breathing circle with better visibility */}
+          <Animated.View style={[styles.breathGradient, breathingCircleStyle]}>
+            <LinearGradient
+              colors={[
+                `${currentVirtue?.color || theme?.colors.primary}90`,
+                `${currentVirtue?.color || theme?.colors.primary}30`
+              ]}
+              style={StyleSheet.absoluteFill}
+            />
+          </Animated.View>
+        </View>
+      </AnimatedCircularProgress>
+      <Animated.View style={[styles.breatheInstructionContainer, breatheTextStyle]}>
+        <View style={styles.breatheInstructionBackground}>
+          <Text style={styles.breatheInstruction}>
+            {breathePhase === 'in' ? 'Breathe In' : breathePhase === 'hold' ? 'Keep still' : 'Breathe Out'}
+          </Text>
+        </View>
+      </Animated.View>
+
+      <Animated.View style={[styles.promptContainer, promptAnimStyle]}>
+        <Text style={styles.promptText}>{currentPrompt}</Text>
+        <View style={styles.promptProgress}>
+          {currentVirtue?.prompts.map((_, i) => (
+            <View
+              key={i}
+              style={[
                 styles.progressDot,
                 i === currentPromptIndex && styles.activeProgressDot,
-                i === currentPromptIndex && { backgroundColor: currentVirtue.color }
-              ]} />
-            ))}
-          </View>
-        </Animated.View>
-      </View>
-    );
-  };
-  // Render challenge buttons with DailyChallenge structure
-  const renderChallengeButtons = () => {
-    if (!selectedVirtue) {
-      return (
-        <Text style={styles.placeholderText}>
-          Select a virtue to see challenge options
-        </Text>
-      );
-    }
+                i === currentPromptIndex && { backgroundColor: currentVirtue.color },
+              ]}
+            />
+          ))}
+        </View>
+      </Animated.View>
+    </View>
+  );
 
-    return CHALLENGE_TEMPLATES[selectedVirtue]?.map((challenge, index) => (
-      <TouchableOpacity
-        key={challenge.id}
-        style={[
-          styles.challengeButton,
-          selectedChallenge?.id === challenge.id && styles.selectedChallengeButton,
-          selectedChallenge?.id === challenge.id && {
-            borderColor: currentVirtue?.color || theme?.colors.primary
-          }
-        ]}
-        onPress={() => {
-          setSelectedChallenge(challenge);
-          Haptics.selectionAsync();
-        }}
-      >
-        <LinearGradient
-          colors={[
-            `${currentVirtue?.color || theme?.colors.primary}10`,
-            `${currentVirtue?.color || theme?.colors.primary}03`
-          ]}
-          style={[
-            StyleSheet.absoluteFill,
-            styles.challengeGradient,
-            selectedChallenge?.id === challenge.id && { opacity: 0.5 }
-          ]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-        />
-        <View style={styles.challengeContentContainer}>
-          <Text style={[
-            styles.challengeTitle,
-            selectedChallenge?.id === challenge.id && {
-              color: currentVirtue?.color || theme?.colors.primary
-            }
-          ]}>
-            {challenge.title}
-          </Text>
-          <Text style={styles.challengeDescription}>
-            {challenge.description}
-          </Text>
-          <View style={styles.challengeMetaContainer}>
-            <View style={[
-              styles.challengeTypeBadge,
-              {
-                backgroundColor: challenge.mode === 'attitude' ?
-                  `${theme?.colors.secondary}20` :
-                  `${theme?.colors.primary}20`
-              }
-            ]}>
-              <Text style={[
-                styles.challengeTypeBadgeText,
-                {
-                  color: challenge.mode === 'attitude' ?
-                    theme?.colors.secondary :
-                    theme?.colors.primary
-                }
-              ]}>
-                {challenge.mode === 'attitude' ? 'Mindset' : 'Action'}
-              </Text>
-            </View>
+  const renderCompleteScreen = () => (
+    <View style={styles.completeContainer}>
+      <View style={styles.completeBanner}>
+        <Text style={styles.completeTitle}>Meditation Complete</Text>
+        <View style={styles.checkmarkContainer}>
+          <View style={styles.checkCircle}>
+            <Check size={36} color="#FFFFFF" />
           </View>
         </View>
+        <Text style={styles.completeSubtitle}>Take a moment to reflect on your experience</Text>
+      </View>
 
-        {selectedChallenge?.id === challenge.id && (
-          <View style={[
-            styles.checkmarkIcon,
-            { backgroundColor: currentVirtue?.color || theme?.colors.primary }
-          ]}>
-            <Check size={12} color="#FFFFFF" />
-          </View>
-        )}
+      <TouchableOpacity style={styles.bellButton} onPress={createChallenge}>
+        <Animated.View style={[styles.bellIconContainer, bellButtonStyle]}>
+          <Bell size={40} color={currentVirtue?.color || theme.colors.primary} />
+        </Animated.View>
+        <Text style={styles.bellText}>Activate Daily Challenge</Text>
       </TouchableOpacity>
-    ));
-  };
+
+      <TouchableOpacity
+        style={styles.challengeSummaryContainer}
+        onPress={() => setChallengeExpanded(!challengeExpanded)}
+      >
+        <Text style={styles.challengeSummaryTitle}>Your Selected Challenge:</Text>
+        <View style={styles.challengeSummaryCard}>
+          <LinearGradient
+            colors={[`${currentVirtue?.color}15`, `${currentVirtue?.color}05`]}
+            style={StyleSheet.absoluteFill}
+          />
+          <Text style={styles.challengeSummaryText}>{selectedChallenge?.title}</Text>
+          <Text style={styles.challengeDuration}>
+            For the next {selectedTime} {selectedTime === 1 ? 'hour' : 'hours'}
+          </Text>
+
+          {challengeExpanded && (
+            <View style={styles.expandedChallengeInfo}>
+              <Text style={styles.expandedChallengeDescription}>
+                {selectedChallenge?.description}
+              </Text>
+              {selectedVirtue && (
+                <View style={styles.virtueTagContainer}>
+                  <View style={[styles.virtueTag, { backgroundColor: `${currentVirtue?.color}20` }]}>
+                    {currentVirtue?.icon && <currentVirtue.icon size={14} color={currentVirtue?.color} />}
+                    <Text style={[styles.virtueTagText, { color: currentVirtue?.color }]}>
+                      {currentVirtue?.name}
+                    </Text>
+                  </View>
+                </View>
+              )}
+            </View>
+          )}
+        </View>
+      </TouchableOpacity>
+    </View>
+  );
 
   return (
     <View style={styles.container}>
-      {/* Header */}
       {meditationState === MeditationState.SETUP && (
         <View style={styles.header}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => navigation.goBack()}
-          >
+          <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
             <ArrowLeft size={24} color={theme?.colors.text.primary} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Daily Meditation</Text>
@@ -1058,7 +953,6 @@ const MeditationScreen: React.FC = () => {
         </View>
       )}
 
-      {/* Content based on state */}
       {meditationState === MeditationState.SETUP && renderSetupScreen()}
       {meditationState === MeditationState.COUNTDOWN && renderCountdownScreen()}
       {meditationState === MeditationState.ACTIVE && renderActiveScreen()}
@@ -1067,502 +961,410 @@ const MeditationScreen: React.FC = () => {
   );
 };
 
-const createStyles = (theme: Theme, currentVirtue: any) => StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: theme?.colors.background,
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: theme?.spacing.md,
-    paddingVertical: theme?.spacing.lg,
-    borderBottomWidth: 1,
-    borderBottomColor: theme?.colors.border,
-  },
-  headerTitle: {
-    ...theme?.typography.heading.medium,
-    color: theme?.colors.text.primary,
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  scrollContainer: {
-    flex: 1,
-  },
-  setupContainer: {
-    padding: theme?.spacing.md,
-  },
-  sectionTitle: {
-    ...theme?.typography.caption.secondary,
-    color: theme?.colors.text.secondary,
-    marginTop: theme?.spacing.lg,
-    marginBottom: theme?.spacing.sm,
-    fontWeight: '600',
-  },
-  virtuesContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    gap: theme?.spacing.sm,
-  },
-  virtueButton: {
-    width: '48%',
-    paddingVertical: theme?.spacing.md,
-    paddingHorizontal: theme?.spacing.sm,
-    borderRadius: theme?.borderRadius.md,
-    borderWidth: 1.5,
-    borderColor: theme?.colors.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: theme?.colors.surface,
-    marginBottom: theme?.spacing.sm,
-  },
-  selectedVirtueButton: {
-    borderWidth: 2,
-    backgroundColor: theme?.colors.background,
-  },
-  virtueIconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: theme?.spacing.sm,
-  },
-  virtueText: {
-    ...theme?.typography.body.sans,
-    fontWeight: '600',
-    color: theme?.colors.text.primary,
-  },
-  timeContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  timeButton: {
-    flex: 1,
-    paddingVertical: theme?.spacing.md,
-    borderRadius: theme?.borderRadius.md,
-    borderWidth: 1.5,
-    borderColor: theme?.colors.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: theme?.colors.surface,
-    marginHorizontal: theme?.spacing.xs,
-  },
-  selectedTimeButton: {
-    borderWidth: 2,
-    backgroundColor: theme?.colors.background,
-  },
-  timeButtonContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  timeText: {
-    ...theme?.typography.body.sans,
-    fontWeight: '600',
-    color: theme?.colors.text.primary,
-  },
+const createStyles = (theme: Theme, currentVirtue: any) =>
+  StyleSheet.create({
+    container: { flex: 1, backgroundColor: theme?.colors.background },
+    header: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingHorizontal: theme?.spacing.md,
+      paddingVertical: theme?.spacing.lg,
+      borderBottomWidth: 1,
+      borderBottomColor: theme?.colors.border,
+    },
+    headerTitle: { ...theme?.typography.heading.medium, color: theme?.colors.text.primary },
+    backButton: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    scrollContainer: { flex: 1 },
+    setupContainer: { padding: theme?.spacing.md },
+    sectionTitle: {
+      ...theme?.typography.caption.secondary,
+      color: theme?.colors.text.secondary,
+      marginTop: theme?.spacing.lg,
+      marginBottom: theme?.spacing.sm,
+      fontWeight: '600',
+    },
+    virtuesContainer: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      justifyContent: 'space-between',
+      gap: theme?.spacing.sm,
+    },
+    virtueButton: {
+      width: '48%',
+      paddingVertical: theme?.spacing.md,
+      paddingHorizontal: theme?.spacing.sm,
+      borderRadius: theme?.borderRadius.md,
+      borderWidth: 1.5,
+      borderColor: theme?.colors.border,
+      alignItems: 'center',
+      backgroundColor: theme?.colors.surface,
+      marginBottom: theme?.spacing.sm,
+    },
+    selectedVirtueButton: { borderWidth: 2, backgroundColor: theme?.colors.background },
+    virtueIconContainer: {
+      width: 48,
+      height: 48,
+      borderRadius: 24,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: theme?.spacing.sm,
+    },
+    virtueText: {
+      ...theme?.typography.body.sans,
+      fontWeight: '600',
+      color: theme?.colors.text.primary,
+    },
+    timeContainer: { flexDirection: 'row', justifyContent: 'space-between' },
+    timeButton: {
+      flex: 1,
+      paddingVertical: theme?.spacing.md,
+      borderRadius: theme?.borderRadius.md,
+      borderWidth: 1.5,
+      borderColor: theme?.colors.border,
+      alignItems: 'center',
+      backgroundColor: theme?.colors.surface,
+      marginHorizontal: theme?.spacing.xs,
+    },
+    selectedTimeButton: { borderWidth: 2, backgroundColor: theme?.colors.background },
+    timeButtonContent: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+    timeText: { ...theme?.typography.body.sans, fontWeight: '600', color: theme?.colors.text.primary },
+    soundContainer: { flexDirection: 'row', justifyContent: 'space-between' },
+    soundButton: {
+      flex: 1,
+      paddingVertical: theme?.spacing.md,
+      borderRadius: theme?.borderRadius.md,
+      borderWidth: 1.5,
+      borderColor: theme?.colors.border,
+      alignItems: 'center',
+      backgroundColor: theme?.colors.surface,
+      marginHorizontal: theme?.spacing.xs,
+    },
+    selectedSoundButton: { borderWidth: 2, backgroundColor: theme?.colors.background },
+    soundButtonContent: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+    soundText: { ...theme?.typography.body.sans, fontWeight: '600', color: theme?.colors.text.primary },
+    challengeContainer: { gap: theme?.spacing.sm },
+    challengeButton: {
+      padding: theme?.spacing.md,
+      borderRadius: theme?.borderRadius.md,
+      borderWidth: 1.5,
+      borderColor: theme?.colors.border,
+      backgroundColor: theme?.colors.surface,
+      overflow: 'hidden',
+    },
+    selectedChallengeButton: { borderWidth: 2 },
+    challengeGradient: { borderRadius: theme?.borderRadius.md - 1 },
+    challengeTitle: {
+      ...theme?.typography.body.sans,
+      fontWeight: '600',
+      color: theme?.colors.text.primary,
+      marginBottom: 4,
+    },
+    challengeDescription: {
+      ...theme?.typography.caption.secondary,
+      color: theme?.colors.text.secondary,
+    },
+    checkmarkIcon: {
+      position: 'absolute',
+      top: theme?.spacing.sm,
+      right: theme?.spacing.sm,
+      width: 22,
+      height: 22,
+      borderRadius: 11,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    startButton: {
+      marginVertical: theme?.spacing.xl,
+      paddingVertical: theme?.spacing.md,
+      paddingHorizontal: theme?.spacing.xl,
+      borderRadius: theme?.borderRadius.lg,
+      alignItems: 'center',
+      ...Platform.select({
+        ios: { shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 8 },
+        android: { elevation: 6 },
+      }),
+    },
+    startButtonText: {
+      ...theme?.typography.body.sans,
+      fontWeight: '700',
+      color: '#FFFFFF',
+      fontSize: 16,
+    },
+    countdownContainer: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: theme?.spacing.lg
+    },
+    countdownCircle: {
+      width: 160,
+      height: 160,
+      borderRadius: 80,
+      borderWidth: 4,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: theme?.spacing.xl,
+      backgroundColor: `${theme?.colors.background}E6`,
+    },
+    countdownText: {
+      ...theme?.typography.heading.large,
+      fontSize: 72,
+      fontWeight: '700',
+      textAlign: 'center',
+      includeFontPadding: false,
+      lineHeight: 80,
+    },
+    countdownSubtext: {
+      ...theme?.typography.body.sans,
+      color: theme?.colors.text.primary,
+      fontSize: 18,
+      marginBottom: theme?.spacing.md,
+    },
+    breatheText: { ...theme?.typography.caption.secondary, color: theme?.colors.text.secondary },
+    activeContainer: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      padding: theme?.spacing.lg,
+      paddingTop: theme?.spacing.xl * 1.5
+    },
+    breathCircleContainer: {
+      alignItems: 'center',
+      justifyContent: 'center',
+      width: '100%',
+      height: '100%',
+      position: 'relative',
+    },
+    baseCircle: {
+      position: 'absolute',
+      width: '90%',
+      height: '90%',
+      borderRadius: 1000,
+      opacity: 0.9,
+    },
+    breathGradient: {
+      width: '100%',
+      height: '100%',
+      borderRadius: 1000,
+      overflow: 'hidden',
+      position: 'absolute',
+      borderWidth: 1,
+      borderColor: `${currentVirtue?.color || theme?.colors.primary}40`,
+    },
+    breatheInstructionContainer: {
+      width: '100%',
+      alignItems: 'center',
+      justifyContent: 'center',
+      zIndex: 10, // Ensure this is on top
+    },
+    breatheInstructionBackground: {
+      backgroundColor: `${theme.colors.background}CC`, // More opaque background
+      paddingHorizontal: 18,
+      paddingVertical: 8,
+      borderRadius: 18,
+      borderWidth: 1,
+      borderColor: `${currentVirtue?.color || theme?.colors.primary}40`,
+      ...Platform.select({
+        ios: {
+          shadowColor: theme.colors.text.primary,
+          shadowOffset: { width: 0, height: 1 },
+          shadowOpacity: 0.2,
+          shadowRadius: 3
+        },
+        android: { elevation: 2 },
+      }),
+    },
+    breatheInstruction: {
+      ...theme?.typography.body.sans,
+      color: currentVirtue?.color || theme?.colors.primary,
+      fontSize: 20,
+      fontWeight: '700',
+      minWidth: 170,
+      textAlign: 'center',
+      textShadowColor: 'rgba(255, 255, 255, 0.5)',
+      textShadowOffset: { width: 0, height: 0 },
+      textShadowRadius: 2,
+    },
+    promptContainer: {
+      padding: theme?.spacing.lg,
+      borderRadius: theme?.borderRadius.lg,
+      backgroundColor: theme?.colors.surface,
+      width: '100%',
+      alignItems: 'center',
+      ...Platform.select({
+        ios: { shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4 },
+        android: { elevation: 2 },
+      }),
+    },
+    promptText: {
+      ...theme?.typography.body.sans,
+      color: theme?.colors.text.primary,
+      textAlign: 'center',
+      lineHeight: 24,
+      fontWeight: '600',
+      fontSize: 18,
+    },
+    promptProgress: { flexDirection: 'row', marginTop: theme?.spacing.md, gap: theme?.spacing.xs },
+    progressDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: theme?.colors.border },
+    activeProgressDot: { width: 16 },
+    completeContainer: { flex: 1, alignItems: 'center', justifyContent: 'space-between', padding: theme.spacing.lg },
+    completeBanner: { width: '100%', alignItems: 'center', marginTop: theme.spacing.xl },
+    completeTitle: {
+      ...theme.typography.heading.medium,
+      color: theme.colors.text.primary,
+      marginVertical: theme.spacing.md,
+    },
+    completeSubtitle: {
+      ...theme.typography.body.sans,
+      color: theme.colors.text.secondary,
+      textAlign: 'center',
+    },
+    bellButton: { alignItems: 'center' },
+    bellIconContainer: {
+      width: 80,
+      height: 80,
+      borderRadius: 40,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: theme.spacing.md,
+    },
+    bellText: {
+      ...theme.typography.caption.primary,
+      color: theme.colors.text.primary,
+      fontWeight: '600',
+    },
+    challengeSummaryContainer: { width: '100%', marginBottom: theme.spacing.xl },
+    challengeSummaryTitle: {
+      ...theme.typography.caption.secondary,
+      color: theme.colors.text.secondary,
+      marginBottom: theme.spacing.sm,
+    },
+    challengeSummaryCard: {
+      padding: theme.spacing.lg,
+      borderRadius: theme.borderRadius.lg,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      backgroundColor: theme.colors.surface,
+      overflow: 'hidden',
+    },
+    challengeSummaryText: {
+      ...theme.typography.body.sans,
+      color: theme.colors.text.primary,
+      fontWeight: '600',
+      marginBottom: theme.spacing.sm,
+    },
+    challengeDuration: { ...theme.typography.caption.secondary, color: theme.colors.text.secondary },
+    placeholderText: {
+      ...theme?.typography.body.sans,
+      color: theme?.colors.text.secondary,
+      textAlign: 'center',
+      paddingVertical: theme?.spacing.xl,
+    },
+    selectedVirtueCollapsed: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      padding: theme?.spacing.md,
+      borderRadius: theme?.borderRadius.md,
+      borderWidth: 1.5,
+      backgroundColor: `${currentVirtue?.color || theme?.colors.primary}08`,
+      marginBottom: theme?.spacing.md,
+    },
+    selectedVirtueContent: { flexDirection: 'row', alignItems: 'center', gap: theme?.spacing.md },
+    changeVirtueButton: {
+      paddingVertical: theme?.spacing.xs,
+      paddingHorizontal: theme?.spacing.sm,
+      borderRadius: theme?.borderRadius.sm,
+      backgroundColor: theme?.colors.surface,
+      borderWidth: 1,
+      borderColor: theme?.colors.border,
+    },
+    changeVirtueText: {
+      ...theme?.typography.caption.secondary,
+      color: theme?.colors.text.secondary,
+      fontWeight: '500',
+    },
+    checkmarkContainer: {
+      marginVertical: theme.spacing.lg,
+      alignItems: 'center',
+    },
+    checkCircle: {
+      width: 70,
+      height: 70,
+      borderRadius: 35,
+      backgroundColor: '#4CAF50',
+      alignItems: 'center',
+      justifyContent: 'center',
+      ...Platform.select({
+        ios: { shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 4 },
+        android: { elevation: 4 },
+      }),
+    },
+    expandedChallengeInfo: {
+      marginTop: theme.spacing.md,
+      paddingTop: theme.spacing.md,
+      borderTopWidth: 1,
+      borderTopColor: `${theme.colors.border}80`,
+    },
+    expandedChallengeDescription: {
+      ...theme.typography.body.sans,
+      color: theme.colors.text.secondary,
+      marginBottom: theme.spacing.md,
+      lineHeight: 22,
+    },
+    virtueTagContainer: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+    },
+    virtueTag: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingVertical: theme.spacing.xs,
+      paddingHorizontal: theme.spacing.sm,
+      borderRadius: theme.borderRadius.md,
+      marginRight: theme.spacing.xs,
+    },
+    virtueTagText: {
+      ...theme.typography.caption.secondary,
+      fontWeight: '600',
+      marginLeft: 4,
+    },
+    selectedChallengeCollapsed: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      padding: theme?.spacing.md,
+      borderRadius: theme?.borderRadius.md,
+      borderWidth: 1.5,
+      backgroundColor: `${currentVirtue?.color || theme?.colors.primary}08`,
+      marginBottom: theme?.spacing.md,
+    },
+    selectedChallengeContent: { flex: 1, marginRight: theme?.spacing.md },
+    challengeDescriptionCollapsed: {
+      ...theme?.typography.caption.secondary,
+      color: theme?.colors.text.secondary,
+      marginTop: theme?.spacing.xs,
+    },
+    changeChallengeButton: {
+      paddingVertical: theme?.spacing.xs,
+      paddingHorizontal: theme?.spacing.sm,
+      borderRadius: theme?.borderRadius.sm,
+      backgroundColor: theme?.colors.surface,
+      borderWidth: 1,
+      borderColor: theme?.colors.border,
+    },
+    changeChallengeText: {
+      ...theme?.typography.caption.secondary,
+      color: theme?.colors.text.secondary,
+      fontWeight: '500',
+    },
+  });
 
-  completeContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: theme.spacing.lg,
-  },
-  completeBanner: {
-    width: '100%',
-    alignItems: 'center',
-    marginTop: theme.spacing.xl,
-  },
-  completeTitle: {
-    ...theme.typography.heading.medium,
-    color: theme.colors.text.primary,
-    marginVertical: theme.spacing.md,
-  },
-  completeSubtitle: {
-    ...theme.typography.body.sans,
-    color: theme.colors.text.secondary,
-    textAlign: 'center',
-    marginBottom: theme.spacing.xl,
-  },
-  bellContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  bellButton: {
-    alignItems: 'center',
-  },
-  bellIconContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: theme.spacing.md,
-  },
-  bellText: {
-    ...theme.typography.caption.primary,
-    color: theme.colors.text.primary,
-    fontWeight: '600',
-  },
-  challengeSummaryContainer: {
-    width: '100%',
-    marginBottom: theme.spacing.xl,
-  },
-  challengeSummaryTitle: {
-    ...theme.typography.caption.secondary,
-    color: theme.colors.text.secondary,
-    marginBottom: theme.spacing.sm,
-  },
-  challengeSummaryCard: {
-    padding: theme.spacing.lg,
-    borderRadius: theme.borderRadius.lg,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    backgroundColor: theme.colors.surface,
-    overflow: 'hidden',
-  },
-  challengeSummaryText: {
-    ...theme.typography.body.sans,
-    color: theme.colors.text.primary,
-    fontWeight: '600',
-    marginBottom: theme.spacing.sm,
-  },
-  challengeDuration: {
-    ...theme.typography.caption.secondary,
-    color: theme.colors.text.secondary,
-  },
-
-  challengeContainer: {
-    gap: theme?.spacing.sm,
-  },
-  challengeButton: {
-    padding: theme?.spacing.md,
-    borderRadius: theme?.borderRadius.md,
-    borderWidth: 1.5,
-    borderColor: theme?.colors.border,
-    backgroundColor: theme?.colors.surface,
-    overflow: 'hidden',
-    marginBottom: theme?.spacing.sm,
-  },
-  selectedChallengeButton: {
-    borderWidth: 2,
-    backgroundColor: `${theme?.colors.surface}80`,
-  },
-  challengeGradient: {
-    borderRadius: theme?.borderRadius.md - 1,
-  },
-  challengeContentContainer: {
-    flex: 1,
-  },
-  challengeTitle: {
-    ...theme?.typography.body.sans,
-    fontWeight: '600',
-    color: theme?.colors.text.primary,
-    marginBottom: 4,
-  },
-  challengeDescription: {
-    ...theme?.typography.caption.secondary,
-    color: theme?.colors.text.secondary,
-    marginBottom: 8,
-  },
-  challengeMetaContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  challengeTypeBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 12,
-    marginRight: 8,
-  },
-  challengeTypeBadgeText: {
-    ...theme?.typography.caption.secondary,
-    fontSize: 10,
-    fontWeight: '600',
-  },
-  breathGradient: {
-    width: 200,
-    height: 200,
-    borderRadius: 100,
-    overflow: 'hidden',
-  },
-  promptProgress: {
-    flexDirection: 'row',
-    marginTop: theme.spacing.md,
-    gap: theme.spacing.xs,
-  },
-  progressDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: theme.colors.border,
-  },
-  activeProgressDot: {
-    width: 16,
-  },
-  challengeButtonGradient: {
-    padding: theme.spacing.xl,
-    alignItems: 'center',
-    paddingHorizontal: theme.spacing.xxl,
-  },
-  challengeButtonText: {
-    ...theme.typography.heading.small,
-    color: '#FFF',
-    marginVertical: theme.spacing.md,
-  },
-  challengeDurationText: {
-    ...theme.typography.caption.secondary,
-    color: '#FFFFFFAA',
-    textAlign: 'center',
-  },
-  motivationText: {
-    ...theme.typography.body.serif,
-    color: theme.colors.text.secondary,
-    textAlign: 'center',
-    lineHeight: 24,
-    marginTop: theme.spacing.xl,
-  },
-  successAnimation: {
-    width: 150,
-    height: 150,
-  },
-  breatheInstruction: {
-    ...theme?.typography.caption.primary,
-    color: theme?.colors.text.primary,
-    position: 'absolute',
-    bottom: -30,
-    fontWeight: '600',
-  },
-  promptContainer: {
-    padding: theme?.spacing.lg,
-    marginVertical: theme?.spacing.xl,
-    borderRadius: theme?.borderRadius.lg,
-    backgroundColor: theme?.colors.surface,
-    width: '100%',
-    alignItems: 'center',
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 2,
-      },
-    }),
-  },
-  promptText: {
-    ...theme?.typography.body.sans,
-    color: theme?.colors.text.primary,
-    textAlign: 'center',
-    lineHeight: 24,
-    fontWeight: '600',
-    fontSize: 18,
-  },
-  progressBarContainer: {
-    width: '100%',
-    marginBottom: theme?.spacing.lg,
-  },
-  progressBar: {
-    height: 6,
-    backgroundColor: theme?.colors.border,
-    borderRadius: 3,
-    overflow: 'hidden',
-  },
-  progressFill: {
-    height: '100%',
-  },
-
-  // Countdown screen styles
-  countdownContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: theme?.spacing.lg,
-  },
-  countdownCircle: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    borderWidth: 4,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: theme?.spacing.xl,
-  },
-  countdownText: {
-    ...theme?.typography.heading.large,
-    fontSize: 64,
-    fontWeight: '700',
-    letterSpacing: -1,
-  },
-  countdownSubtext: {
-    ...theme?.typography.body.sans,
-    color: theme?.colors.text.primary,
-    fontSize: 18,
-    marginBottom: theme?.spacing.md,
-  },
-  breatheText: {
-    ...theme?.typography.caption.secondary,
-    color: theme?.colors.text.secondary,
-  },
-
-  // Active meditation styles
-  activeContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: theme?.spacing.lg,
-  },
-  meditationHeader: {
-    width: '100%',
-    flexDirection: 'row',
-    justifyContent: 'center',
-    marginBottom: theme?.spacing.xl,
-  },
-  timerContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: theme?.spacing.md,
-    paddingVertical: theme?.spacing.sm,
-    borderRadius: theme?.borderRadius.full,
-    backgroundColor: theme?.colors.surface,
-    gap: theme?.spacing.xs,
-  },
-  timerText: {
-    ...theme?.typography.caption.primary,
-    color: theme?.colors.text.secondary,
-    fontWeight: '600',
-  },
-  breathCircleContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    flex: 1,
-  },
-  breatheCircle: {
-    width: 200,
-    height: 200,
-    borderRadius: 100,
-  },
-  virtueIconWrapper: {
-    position: 'absolute',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  startButton: {
-    marginTop: theme?.spacing.xl,
-    marginBottom: theme?.spacing.xl,
-    paddingVertical: theme?.spacing.md,
-    paddingHorizontal: theme?.spacing.xl,
-    borderRadius: theme?.borderRadius.lg,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: currentVirtue?.color || theme?.colors.primary,
-    ...Platform.select({
-      ios: {
-        shadowColor: theme?.colors.primary,
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.2,
-        shadowRadius: 8,
-      },
-      android: {
-        elevation: 6,
-      },
-    }),
-  },
-  startButtonText: {
-    ...theme?.typography.body.sans,
-    fontWeight: '700',
-    color: '#FFFFFF',
-    fontSize: 16,
-  },
-  placeholderText: {
-    ...theme?.typography.body.sans,
-    color: theme?.colors.text.secondary,
-    textAlign: 'center',
-    paddingVertical: theme?.spacing.xl,
-  },
-  checkmarkIcon: {
-    position: 'absolute',
-    top: theme?.spacing.sm,
-    right: theme?.spacing.sm,
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  selectedVirtueCollapsed: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: theme?.spacing.md,
-    paddingHorizontal: theme?.spacing.md,
-    borderRadius: theme?.borderRadius.md,
-    borderWidth: 1.5,
-    borderColor: currentVirtue?.color || theme?.colors.border,
-    backgroundColor: `${currentVirtue?.color || theme?.colors.primary}08`,
-    marginBottom: theme?.spacing.md,
-  },
-  selectedVirtueContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: theme?.spacing.md,
-  },
-  changeVirtueButton: {
-    paddingVertical: theme?.spacing.xs,
-    paddingHorizontal: theme?.spacing.sm,
-    borderRadius: theme?.borderRadius.sm,
-    backgroundColor: theme?.colors.surface,
-    borderWidth: 1,
-    borderColor: theme?.colors.border,
-  },
-  changeVirtueText: {
-    ...theme?.typography.caption.secondary,
-    color: theme?.colors.text.secondary,
-    fontWeight: '500',
-  },
-
-  // Add sound selection styles
-  soundContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: theme?.spacing.md,
-  },
-  soundButton: {
-    flex: 1,
-    paddingVertical: theme?.spacing.md,
-    borderRadius: theme?.borderRadius.md,
-    borderWidth: 1.5,
-    borderColor: theme?.colors.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: theme?.colors.surface,
-    marginHorizontal: theme?.spacing.xs,
-  },
-  selectedSoundButton: {
-    borderWidth: 2,
-    backgroundColor: theme?.colors.background,
-  },
-  soundButtonContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  soundText: {
-    ...theme?.typography.body.sans,
-    fontWeight: '600',
-    color: theme?.colors.text.primary,
-  },
-});
-
-export default MeditationScreen; 
+export default MeditationScreen;

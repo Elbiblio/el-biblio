@@ -7,7 +7,7 @@ export type PreferredTheme = 'sage' | 'ocean' | 'wooden';
 
 // Virtues directly derived from one foundational virtue
 export type DerivedVirtues = {
-  knowledge: 'wisdom' | 'discernment' | 'growth'
+  knowledge: 'wisdom' | 'discernment' | 'prudence'
   humility: 'self-control' | 'self-restraint' | 'patience' | 'gentleness' | 'obedience'
   faith: 'trust' | 'hope' | 'perseverance' | 'courage' | 'fortitude'
   love: 'compassion' | 'kindness' | 'generosity' | 'goodness' | 'selflessness'
@@ -197,6 +197,8 @@ export interface Note {
   text: string;
   virtues?: AllVirtues[];
   is_public?: boolean;
+  is_featured?: boolean;
+  author?: User;
   comments?: Comment[];
   createdAt?: string;
   updatedAt?: string;
@@ -302,7 +304,7 @@ export const VirtueGroups = {
   derived: {
     title: 'Derived Virtues',
     virtues: [
-      'wisdom', 'discernment', 'growth',
+      'wisdom', 'discernment', 'prudence',
       'self-control', 'patience', 'gentleness',
       'trust', 'hope', 'courage',
       'compassion', 'kindness', 'generosity'
@@ -319,10 +321,10 @@ export const VirtueGroups = {
 };
 
 export const VirtueGroupsWorld = {
-  wisdom: ['knowledge', 'wisdom', 'discernment', 'growth'] as AllVirtues[],
+  wisdom: ['knowledge', 'wisdom', 'discernment'] as AllVirtues[],
   character: ['humility', 'respect', 'honesty', 'patience', 'self-control', 'self-restraint'] as AllVirtues[],
   strength: ['courage', 'fortitude', 'perseverance', 'hope'] as AllVirtues[],
-  love: ['compassion', 'kindness', 'generosity', 'selflessness', 'love'] as AllVirtues[],
+  love: ['compassion', 'kindness', 'charity', 'selflessness', 'love'] as AllVirtues[],
   spirit: ['faith', 'trust', 'obedience', 'gratitude'] as AllVirtues[],
   fruit: ['peace', 'joy', 'goodness', 'gentleness'] as AllVirtues[],
   society: ['justice', 'righteousness'] as AllVirtues[],
@@ -690,9 +692,10 @@ export type RootStackParamList = {
   ThemeSelector: undefined;
   VerseDetail: { verse: Verse };
   ReflectionDetail: { reflection: Reflection };
+  NoteDetail: { noteId: string | number };
   IntroScreen: undefined;
   DailyVersesScreen: undefined;
-  NoteDetail: { noteId: string };
+  NotesScreen: undefined;
   MatchScreen: undefined;
   WordHubsScreen: undefined;
   WordHubDetailScreen: { hubId: string };
@@ -708,7 +711,6 @@ export type RootStackParamList = {
   VirtueQuizScreen: { virtueId?: string, level?: number };
   QuizDetail: { id: string };
   BibleScreen: {book?: string, chapter?: number, verse?: number};
-  NotesScreen: { noteId?: string | number };
 };
 
 export interface BibleVersion {

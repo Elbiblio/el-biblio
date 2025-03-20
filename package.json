@@ -19,6 +19,7 @@
     "expo-image-picker": "~16.0.6",
     "expo-linear-gradient": "~14.0.2",
     "expo-notifications": "~0.29.14",
+    "expo-speech": "~13.0.1",
     "expo-splash-screen": "~0.29.22",
     "expo-sqlite": "~15.1.2",
     "expo-status-bar": "~2.0.1",
@@ -37,8 +38,7 @@
     "sonner-native": "^0.16.2",
     "typescript": "^5.3.3",
     "valtio": "^2.1.2",
-    "zustand": "^5.0.2",
-    "expo-speech": "~13.0.1"
+    "zustand": "^5.0.2"
   },
   "devDependencies": {
     "@babel/core": "^7.20.0",
