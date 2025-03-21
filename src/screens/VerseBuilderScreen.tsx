@@ -27,6 +27,7 @@ import BibleDBService from '@/utils/database';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { shuffleArray } from '@/utils/helpers';
 import { Audio } from 'expo-av';
+import { useGameStore } from '@/stores/game';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const WORD_SIZE = SCREEN_WIDTH / 5;
@@ -369,78 +370,46 @@ const VerseBuilderGame: React.FC = () => {
   // Check Answer
   const checkAnswer = useCallback(async () => {
     if (!gameState || !isPlaying || gameState.poolWords.length > 0) return;
-
+  
     const isCorrect = gameState.arrangedWords.join(' ').trim() === gameState.text.trim();
-
+  
     await updateMastery(gameState.id, isCorrect);
-
+  
     if (isCorrect) {
       setIsPlaying(false);
       soundsRef.current.correct?.setPositionAsync(0).then(() => soundsRef.current.correct?.playAsync());
-      
-      // Update streak
+  
       const newStreak = streak + 1;
       setStreak(newStreak);
-
-      // Play streak sound only on multiples of 5
+  
       if (newStreak > 1 && newStreak % 5 === 0) {
         soundsRef.current.streak?.setPositionAsync(0).then(() => soundsRef.current.streak?.playAsync());
       }
-
-      // Level up if streak reaches LEVEL_UP_STREAK (40)
-      if (newStreak >= LEVEL_UP_STREAK) {
-        const nextLevelMap: Partial<Record<UserLevel, UserLevel>> = {
-          'novice': 'beginner',
-          'beginner': 'intermediate',
-          'intermediate': 'advanced',
-          'advanced': 'expert',
-        };
-        
-        // Only level up if there's a next level
-        if (nextLevelMap[userLevel]) {
-          const newLevel = nextLevelMap[userLevel] as UserLevel;
-          setUserLevel(newLevel);
-          
-          // Save new level to AsyncStorage
-          const progressData = await AsyncStorage.getItem('userProgress');
-          const progress = progressData ? JSON.parse(progressData) : {};
-          await AsyncStorage.setItem('userProgress', JSON.stringify({ 
-            ...progress, 
-            level: newLevel 
-          }));
-          
-          // Reset streak and load new verses appropriate for the new level
-          setStreak(0);
-          verseQueueRef.current = []; // Clear current queue
-          await loadVerseBatch(); // Load new verses for new level
-        }
-      }
-
-      // Update score
+  
       const timeBonus = Math.floor(timeLeft * 2);
       const newScore = score + 100 + timeBonus;
       setScore(newScore);
-      
-      // Update high score if needed
+  
+      // Submit score to gameStore
+      useGameStore.getState().submitScore('verse_builder', newScore);
+  
       if (newScore > highScore) {
         setHighScore(newScore);
         await AsyncStorage.setItem('highScore', newScore.toString());
         soundsRef.current.cheers?.setPositionAsync(0).then(() => soundsRef.current.cheers?.playAsync());
       }
-      
-      // Show success feedback
+  
       setShowSuccess(true);
       setTimeout(() => {
         setShowSuccess(false);
         startNewRound();
       }, 3500);
     } else {
-      // Wrong answer
       setStreak(0);
       setShowCorrectAnswer(true);
       setIsPlaying(false);
     }
-  }, [gameState, isPlaying, streak, timeLeft, score, highScore, userLevel, startNewRound, updateMastery, loadVerseBatch]);
+  }, [gameState, isPlaying, streak, timeLeft, score, highScore, startNewRound, updateMastery]);
 
   // Select Word from Pool
   const selectWordFromPool = useCallback(

@@ -18,6 +18,7 @@ import { shuffleArray } from '@/utils/helpers';
 import BibleDBService, { parseVPLId } from '@/utils/database';
 import { bibleBooks } from '@/constants/bibleBooks';
 import { ScrollView } from 'react-native-gesture-handler';
+import { useGameStore } from '@/stores/game';
 
 // Constants
 const MAX_QUESTIONS = 10;
@@ -347,7 +348,9 @@ const VirtueTriviaScreen: React.FC = () => {
     if (gameState.answered) return;
     
     const isCorrect = answer === gameState.correctAnswer;
-    const currentQuestion = gameState.questions[gameState.currentQuestionIndex];
+    // const currentQuestion = gameState.questions[gameState.currentQuestionIndex];
+
+
     
     // Play sound
     if (isCorrect) {
@@ -429,6 +432,8 @@ const VirtueTriviaScreen: React.FC = () => {
             soundsRef.current.gameOver?.playAsync()
           );
         }
+
+        useGameStore.getState().submitScore('virtue_trivia', newScore);
         
         // Update virtues progress
         setVirtuesProgress(prev => {

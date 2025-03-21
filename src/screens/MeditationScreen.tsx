@@ -14,7 +14,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import * as Speech from 'expo-speech';
 import { useTheme } from '@/contexts/ThemeContext';
-import { CHALLENGE_TEMPLATES, RootStackParamList, TIME_OPTIONS, VIRTUES } from '@/types';
+import { CHALLENGE_TEMPLATES, MeditationSession, RootStackParamList, TIME_OPTIONS, VIRTUES } from '@/types';
 import {
   ArrowLeft,
   Heart,
@@ -44,6 +44,7 @@ import Animated, {
   Easing,
   interpolate,
 } from 'react-native-reanimated';
+import { useMeditationStore } from '@/stores/meditation';
 
 enum MeditationState {
   SETUP = 'setup',
@@ -493,16 +494,22 @@ const MeditationScreen: React.FC = () => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   };
 
+  useEffect(() => {
+    useMeditationStore.getState().initialize();
+  }, []);
+
   const endMeditation = () => {
     setMeditationState(MeditationState.COMPLETE);
     if (isSpeaking.current) Speech.stop();
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-
-    // // Play completion sound
-    // if (completionSound) {
-    //   completionSound.setPositionAsync(0);
-    //   completionSound.playAsync();
-    // }
+  
+    const session: MeditationSession = {
+      virtue_id: selectedVirtue!,
+      duration_minutes: selectedTime!,
+      started_at: new Date(Date.now() - selectedTime! * 60 * 1000).toISOString(),
+      ended_at: new Date().toISOString(),
+    };
+    useMeditationStore.getState().recordSession(session);
   };
 
   const createChallenge = async () => {
@@ -511,9 +518,10 @@ const MeditationScreen: React.FC = () => {
     const endTime = new Date();
     endTime.setHours(endTime.getHours() + (selectedTime === 40 ? 24 : selectedTime === 15 ? 6 : 3));
     const challenge = { ...selectedChallenge, end_time: endTime };
-
+  
     if (user) {
       await updateUserPoints((user.points || 0) + pointsEarned);
+      await useMeditationStore.getState().joinChallenge(selectedChallenge.id);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     }
     navigation.navigate('Home', { meditationComplete: true, challenge, pointsEarned });

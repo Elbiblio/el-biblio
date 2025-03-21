@@ -116,8 +116,8 @@ const NoteDetailScreen: React.FC<NativeStackScreenProps<RootStackParamList, 'Not
     );
   }
 
-  const dateFormatted = note.updatedAt
-    ? formatDistanceToNow(new Date(note.updatedAt), { addSuffix: true })
+  const dateFormatted = note.updated_at
+    ? formatDistanceToNow(new Date(note.updated_at), { addSuffix: true })
     : '';
 
   return (

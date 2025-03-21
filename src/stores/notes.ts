@@ -266,7 +266,7 @@ function mergeNotes(localNotes: Note[], serverNotes: Note[]): Note[] {
   
   [...localNotes, ...serverNotes].forEach(note => {
     const existing = notesMap.get(note.id);
-    if (!existing || new Date(existing.updatedAt || Date.now()) < new Date(note.updatedAt || 0)) {
+    if (!existing || new Date(existing.updated_at || Date.now()) < new Date(note.updated_at || 0)) {
       notesMap.set(note.id, note);
     }
   });

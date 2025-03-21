@@ -1,4 +1,4 @@
-import { BookOpenFeather, Cross, Flame, Heart, HomeLight, IconProps, Leaf, Scales, Shield } from "@/components/Icons";
+import { BookOpenFeather, Cross, Flame, Heart, HomeLight, IconProps, Leaf, Lightbulb, Scales, Shield } from "@/components/Icons";
 import { SharedValue } from "react-native-reanimated";
 
 export type FoundationalVirtue = 'knowledge' | 'humility' | 'faith' | 'love';
@@ -60,12 +60,21 @@ export interface SavedItemsFilter {
   searchQuery?: string;
 }
 
-export interface ThemeType {
+export interface Virtue {
   id: string;
   name: string;
+  description: string;
   color_code?: string;
-  display_name: string;
-  is_foundational: boolean;
+  display_name?: string;
+  is_foundational?: boolean;
+  userProgress?: number;
+  totalUsers?: number;
+  scriptureReference?: string;
+}
+
+export interface AppVirtue extends Virtue {
+  icon: React.FC<IconProps>;
+  color_code: string;
 }
 
 export interface Verse {
@@ -83,10 +92,10 @@ export interface Verse {
   is_trending?: boolean;
   is_featured?: boolean;
   created_at: string;
-  theme?: ThemeType;
+  theme?: Virtue;
 }
 
-export const FaithTheme: ThemeType = {
+export const FaithTheme: Virtue = {
   id: "3",
   name: "faith",
   display_name: "Faith",
@@ -139,7 +148,7 @@ export const THEMES: Record<ThemeInfo['id'], ThemeInfo> = {
     ],
     reflection: "Think about how the suggested verses help you in knowing God and His divine purpose",
     color: '#8B5E3C', // Wooden theme
-    Icon: BookOpenFeather,
+    Icon: Lightbulb,
   },
   faith: {
     id: 'faith',
@@ -194,14 +203,21 @@ export const THEMES: Record<ThemeInfo['id'], ThemeInfo> = {
 export interface Note {
   id: string;
   title: string;
-  text: string;
+  text?: string;
+  excerpt?: string;
+  user?: User;
   virtues?: AllVirtues[];
+  theme?: Virtue;
+  theme_id?: string;
   is_public?: boolean;
   is_featured?: boolean;
   author?: User;
+  denomination?: Denomination;
   comments?: Comment[];
-  createdAt?: string;
-  updatedAt?: string;
+  likes?: number;
+  shares?: number;
+  created_at?: string;
+  updated_at?: string;
   isPinned?: boolean;
   color?: string; // For note background tint
 }
@@ -257,6 +273,54 @@ export interface WordHubMessage {
   };
 }
 
+export interface Denomination {
+  id: string;
+  name: string;
+  color: string;
+}
+
+export type DenominationType = 'all' | 'catholic' | 'evangelical' | 'protestant' | 'orthodox' | 'other';
+
+
+export const CatholicDenomination: Denomination = {
+  id: 'catholic',
+  name: 'Catholic',
+  color: '#9C27B0'
+}
+
+export const ProtestantDenomination: Denomination = {
+  id: 'protestant',
+  name: 'Protestant',
+  color: '#2196F3'
+}
+
+export const OrthodoxDenomination: Denomination = {
+  id: 'orthodox',
+  name: 'Orthodox',
+  color: '#FF9800'
+}
+
+export const EvangelicalDenomination: Denomination = {
+  id: 'evangelical',
+  name: 'Evangelical',
+  color: '#4CAF50'
+}
+
+export const OtherDenomination: Denomination = {
+  id: 'other',
+  name: 'Other',
+  color: '#607D8B'
+}
+
+export const DENOMINATIONS: Denomination[] = [
+    CatholicDenomination,
+    ProtestantDenomination,
+    OrthodoxDenomination,
+    EvangelicalDenomination,
+    OtherDenomination
+];
+
+
 export interface User {
   id: string;
   first_name: string;
@@ -266,6 +330,7 @@ export interface User {
   primary_language?: string;
   preferred_theme?: PreferredTheme;
   date_of_birth?: string;
+  denomination?: DenominationType;
   email_verified_at?: string;
   last_seen?: string;
   total_active_time?: number;
@@ -273,27 +338,39 @@ export interface User {
   created_at?: string;
 }
 
-
-export type DailyChallenge = {
+export interface Challenge {
   id: string;
   title: string;
   description: string;
   type: 'virtue' | 'vice';
   mode: 'attitude' | 'action';
-  end_time: Date | string;
+  frequency?: 'd' | 'w' | 'm' | 'o';
+  start_date?: Date | string;
+  end_date?: Date | string;
+  start_time?: string;
+  end_time?: string;
+  level?: number;
   category: 'personal' | 'community';
-  progress?: number;
-  created_at?: string;
-  expires_at?: string;
-  is_completed?: boolean;
-  participants?: number;
-  participant_avatars?: User[];
-  upvotes?: number;
-  hasJoined?: boolean;
-  hasUpvoted?: boolean;
   is_active?: boolean;
   is_featured?: boolean;
 };
+
+export interface DailyChallenge extends Challenge {
+  frequency?: 'd';
+  participants?: User[];
+  upvotes?: number;
+  hasJoined?: boolean;
+  hasUpvoted?: boolean;
+};
+
+export interface MeditationSession {
+  id?: string;
+  virtue_id: string;
+  user_id?: string;
+  duration_minutes: number;
+  started_at: string;
+  ended_at: string;
+}
 
 export const VirtueGroups = {
   foundational: {
@@ -336,8 +413,8 @@ export const sampleNotes: Note[] = [
     title: 'Contemplating Humility',
     text: "Contemplating the virtue of humility today. True humility isn't thinking less of yourself, but thinking of yourself less. It creates space for others to grow and flourish.",
     virtues: ['humility', 'wisdom', 'love'],
-    createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-    updatedAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+    created_at: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+    updated_at: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
     isPinned: true,
     color: '#F5F0FF',
   },
@@ -346,8 +423,8 @@ export const sampleNotes: Note[] = [
     title: 'Faith and Courage',
     text: "Faith and courage go hand in hand. When we trust in God's plan, we find the strength to face uncertainties with hope and perseverance.",
     virtues: ['faith', 'courage', 'hope', 'trust'],
-    createdAt: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-    updatedAt: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+    created_at: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+    updated_at: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
     isPinned: false,
     color: '#F0F7FF',
   },
@@ -356,8 +433,8 @@ export const sampleNotes: Note[] = [
     title: 'Practicing Gratitude',
     text: "On practicing gratitude: Found joy in the small blessings today. Even in challenges, there's always something to be thankful for.",
     virtues: ['gratitude', 'joy', 'peace'],
-    createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
-    updatedAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
+    created_at: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
+    updated_at: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
     isPinned: false,
     color: '#FFF0F0',
   },
@@ -547,7 +624,7 @@ export const CHALLENGE_TEMPLATES: Record<string, DailyChallenge[]> = {
       type: 'virtue',
       mode: 'attitude',
       category: 'personal',
-      end_time: new Date(),
+      end_time: "18:00",
     },
     {
       id: 'love-2',
@@ -556,7 +633,7 @@ export const CHALLENGE_TEMPLATES: Record<string, DailyChallenge[]> = {
       type: 'virtue',
       mode: 'action',
       category: 'personal',
-      end_time: new Date(),
+      end_time: "18:00",
     },
     {
       id: 'love-3',
@@ -565,7 +642,8 @@ export const CHALLENGE_TEMPLATES: Record<string, DailyChallenge[]> = {
       type: 'virtue',
       mode: 'attitude',
       category: 'personal',
-      end_time: new Date(),
+      end_time: "18:00",
+      frequency: 'd',
     }
   ],
   courage: [
@@ -576,7 +654,7 @@ export const CHALLENGE_TEMPLATES: Record<string, DailyChallenge[]> = {
       type: 'virtue',
       mode: 'action',
       category: 'personal',
-      end_time: new Date(),
+      end_time: "18:00",
     },
     {
       id: 'courage-2',
@@ -585,7 +663,7 @@ export const CHALLENGE_TEMPLATES: Record<string, DailyChallenge[]> = {
       type: 'virtue',
       mode: 'attitude',
       category: 'personal',
-      end_time: new Date(),
+      end_time: "18:00",
     },
     {
       id: 'courage-3',
@@ -594,7 +672,7 @@ export const CHALLENGE_TEMPLATES: Record<string, DailyChallenge[]> = {
       type: 'virtue',
       mode: 'action',
       category: 'personal',
-      end_time: new Date(),
+      end_time: "18:00",
     }
   ],
   patience: [
@@ -605,7 +683,7 @@ export const CHALLENGE_TEMPLATES: Record<string, DailyChallenge[]> = {
       type: 'virtue',
       mode: 'attitude',
       category: 'personal',
-      end_time: new Date(),
+      end_time: "19:00",
     },
     {
       id: 'patience-2',
@@ -614,7 +692,7 @@ export const CHALLENGE_TEMPLATES: Record<string, DailyChallenge[]> = {
       type: 'virtue',
       mode: 'attitude',
       category: 'personal',
-      end_time: new Date(),
+      end_time: "19:00",
     },
     {
       id: 'patience-3',
@@ -623,7 +701,7 @@ export const CHALLENGE_TEMPLATES: Record<string, DailyChallenge[]> = {
       type: 'virtue',
       mode: 'action',
       category: 'personal',
-      end_time: new Date(),
+      end_time: "19:00",
     }
   ],
   justice: [
@@ -634,7 +712,7 @@ export const CHALLENGE_TEMPLATES: Record<string, DailyChallenge[]> = {
       type: 'virtue',
       mode: 'action',
       category: 'personal',
-      end_time: new Date(),
+      end_time: "19:00",
     },
     {
       id: 'justice-2',
@@ -643,7 +721,7 @@ export const CHALLENGE_TEMPLATES: Record<string, DailyChallenge[]> = {
       type: 'virtue',
       mode: 'attitude',
       category: 'personal',
-      end_time: new Date(),
+      end_time: "19:00",
     },
     {
       id: 'justice-3',
@@ -652,7 +730,7 @@ export const CHALLENGE_TEMPLATES: Record<string, DailyChallenge[]> = {
       type: 'virtue',
       mode: 'action',
       category: 'personal',
-      end_time: new Date(),
+      end_time: "19:00",
     }
   ],
   wisdom: [
@@ -663,7 +741,7 @@ export const CHALLENGE_TEMPLATES: Record<string, DailyChallenge[]> = {
       type: 'virtue',
       mode: 'attitude',
       category: 'personal',
-      end_time: new Date(),
+      end_time: "19:00",
     },
     {
       id: 'wisdom-2',
@@ -672,7 +750,7 @@ export const CHALLENGE_TEMPLATES: Record<string, DailyChallenge[]> = {
       type: 'virtue',
       mode: 'attitude',
       category: 'personal',
-      end_time: new Date(),
+      end_time: "19:00",
     },
     {
       id: 'wisdom-3',
@@ -681,10 +759,91 @@ export const CHALLENGE_TEMPLATES: Record<string, DailyChallenge[]> = {
       type: 'virtue',
       mode: 'action',
       category: 'personal',
-      end_time: new Date(),
+      end_time: "19:00",
     }
   ]
 };
+
+
+
+// Sample data for virtue notes
+export const VIRTUE_NOTES: Note[] = [
+  {
+    id: 'note1',
+    title: 'Patience in Modern Times',
+    excerpt: 'In our fast-paced world, patience has become increasingly rare yet more valuable than ever...',
+    author: {
+      id: '1',
+      first_name: 'Dr.',
+      last_name: 'Johnson',
+      avatar: 'https://example.com/avatar1.jpg'
+    },
+    denomination: ProtestantDenomination,
+    theme_id: 'patience',
+    likes: 342,
+    created_at: '2023-08-15',
+  },
+  {
+    id: 'note2',
+    title: 'The Heart of Kindness',
+    excerpt: 'Kindness is not merely an action but a reflection of the heart transformed by grace...',
+    author: {
+      id: '1',
+      first_name: 'Fr.',
+      last_name: 'Michael Thomas',
+      avatar: 'https://example.com/avatar1.jpg'
+    },
+    denomination: CatholicDenomination,
+    theme_id: 'kindness',
+    likes: 287,
+    created_at: '2023-09-02',
+  },
+  {
+    id: 'note3',
+    title: 'Humility: The Foundation of Virtue',
+    excerpt: 'Without humility, no other virtue can truly flourish. It is the soil in which all spiritual growth begins...',
+    author: {
+      id: '1',
+      first_name: 'Elder',
+      last_name: 'Nikolai',
+      avatar: 'https://example.com/avatar1.jpg'
+    },
+    denomination: OrthodoxDenomination,
+    theme_id: 'humility',
+    likes: 198,
+    created_at: '2023-07-28',
+  },
+  {
+    id: 'note4',
+    title: 'Wisdom in the Digital Age',
+    excerpt: 'Discerning truth from falsehood requires a wisdom that transcends information overload...',
+    author: {
+      id: '1',
+      first_name: 'Pastor',
+      last_name: 'James Wilson',
+      avatar: 'https://example.com/avatar1.jpg'
+    },
+    denomination: EvangelicalDenomination,
+    theme_id: 'wisdom',
+    likes: 256,
+    created_at: '2023-08-30',
+  },
+  {
+    id: 'note5',
+    title: 'Patience and Spiritual Growth',
+    excerpt: 'The journey of faith requires patience with ourselves and others as we grow in grace...',
+    author: {
+      id: '1',
+      first_name: 'Bishop',
+      last_name: 'Robert Greene',
+      avatar: 'https://example.com/avatar1.jpg'
+    },
+    denomination: CatholicDenomination,
+    theme_id: 'patience',
+    likes: 175,
+    created_at: '2023-09-10',
+  },
+];
 
 
 export type RootStackParamList = {

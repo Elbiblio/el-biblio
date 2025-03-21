@@ -43,95 +43,12 @@ import {
 } from '@/components/Icons';
 import { Theme } from '@/theme';
 import { useTheme } from '@/contexts/ThemeContext';
-import { RootStackParamList, THEMES, VirtueGroups } from '@/types';
+import { Denomination, RootStackParamList, THEMES, Virtue, VIRTUE_NOTES, VirtueGroups } from '@/types';
 import { useAuth } from '@/stores/auth';
 import CircleButton from '@/components/CircleButton';
 import AvatarStack from '@/components/AvatarStack';
 import AuthModal from '@/components/AuthModal';
 
-// Types
-interface Virtue {
-  id: string;
-  name: string;
-  description: string;
-  icon: any;
-  color: string;
-  levels: number;
-  userProgress: number;
-  totalUsers?: number;
-  scriptureReference?: string;
-}
-
-interface Denomination {
-  id: string;
-  name: string;
-  color: string;
-}
-
-interface VirtueNote {
-  id: string;
-  title: string;
-  excerpt: string;
-  author: string;
-  denomination: string;
-  virtueId: string;
-  likes: number;
-  dateCreated: string;
-}
-
-// Sample data for virtue notes
-const VIRTUE_NOTES: VirtueNote[] = [
-    {
-      id: 'note1',
-      title: 'Patience in Modern Times',
-      excerpt: 'In our fast-paced world, patience has become increasingly rare yet more valuable than ever...',
-      author: 'Dr. Sarah Johnson',
-      denomination: 'protestant',
-      virtueId: 'patience',
-      likes: 342,
-      dateCreated: '2023-08-15',
-    },
-    {
-      id: 'note2',
-      title: 'The Heart of Kindness',
-      excerpt: 'Kindness is not merely an action but a reflection of the heart transformed by grace...',
-      author: 'Fr. Michael Thomas',
-      denomination: 'catholic',
-      virtueId: 'kindness',
-      likes: 287,
-      dateCreated: '2023-09-02',
-    },
-    {
-      id: 'note3',
-      title: 'Humility: The Foundation of Virtue',
-      excerpt: 'Without humility, no other virtue can truly flourish. It is the soil in which all spiritual growth begins...',
-      author: 'Elder Nikolai',
-      denomination: 'orthodox',
-      virtueId: 'humility',
-      likes: 198,
-      dateCreated: '2023-07-28',
-    },
-    {
-      id: 'note4',
-      title: 'Wisdom in the Digital Age',
-      excerpt: 'Discerning truth from falsehood requires a wisdom that transcends information overload...',
-      author: 'Pastor James Wilson',
-      denomination: 'evangelical',
-      virtueId: 'wisdom',
-      likes: 256,
-      dateCreated: '2023-08-30',
-    },
-    {
-      id: 'note5',
-      title: 'Patience and Spiritual Growth',
-      excerpt: 'The journey of faith requires patience with ourselves and others as we grow in grace...',
-      author: 'Bishop Robert Greene',
-      denomination: 'catholic',
-      virtueId: 'patience',
-      likes: 175,
-      dateCreated: '2023-09-10',
-    },
-  ];
 
 const VIRTUES = [
     ...VirtueGroups.foundational.virtues.map(id => ({
@@ -162,14 +79,6 @@ const VIRTUES = [
     })),
   ];  
 
-const DENOMINATIONS: Denomination[] = [
-  { id: 'all', name: 'All Denominations', color: '#607D8B' },
-  { id: 'catholic', name: 'Catholic', color: '#9C27B0' },
-  { id: 'protestant', name: 'Protestant', color: '#2196F3' },
-  { id: 'orthodox', name: 'Orthodox', color: '#FF9800' },
-  { id: 'evangelical', name: 'Evangelical', color: '#4CAF50' },
-];
-
 type VirtueScreenProps = NativeStackScreenProps<RootStackParamList, 'VirtueScreen'>;
 
 type TabType = 'explore' | 'learn' | 'notes';
@@ -194,7 +103,7 @@ const VirtueScreen: React.FC<VirtueScreenProps> = ({ navigation, route }) => {
   
   const [activeTab, setActiveTab] = useState<TabType>('explore');
   const [selectedVirtue, setSelectedVirtue] = useState<Virtue | null>(null);
-  const [selectedDenomination, setSelectedDenomination] = useState<string>('all');
+  const [selectedDenomination, setSelectedDenomination] = useState<string>(DenominationType);
   const [loading, setLoading] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
   
@@ -208,11 +117,11 @@ const VirtueScreen: React.FC<VirtueScreenProps> = ({ navigation, route }) => {
     let notes = [...VIRTUE_NOTES];
     
     if (selectedVirtue) {
-      notes = notes.filter(note => note.virtueId === selectedVirtue.id);
+      notes = notes.filter(note => note.theme_id === selectedVirtue.id);
     }
     
     if (selectedDenomination !== 'all') {
-      notes = notes.filter(note => note.denomination === selectedDenomination);
+      notes = notes.filter(note => note.denomination?.name === selectedDenomination);
     }
     
     return notes;
