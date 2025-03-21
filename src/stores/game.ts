@@ -136,7 +136,8 @@ export const useGameStore = create<GameState>((set, get) => ({
       ];
       const currentBest = state.personalBests[gameId] || 0;
 
-      let newState = { unsyncedScores: newUnsyncedScores };
+      // Define newState as a partial of GameState to allow adding any state properties
+      let newState: Partial<GameState> = { unsyncedScores: newUnsyncedScores };
       if (score > currentBest) {
         const newPersonalBests = { ...state.personalBests, [gameId]: score };
         newState = { ...newState, personalBests: newPersonalBests };

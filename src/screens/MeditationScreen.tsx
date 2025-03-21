@@ -31,7 +31,7 @@ import { Theme } from '@/theme';
 import { useAuth } from '@/stores/auth';
 import * as Haptics from 'expo-haptics';
 import { Audio } from 'expo-av';
-import { DailyChallenge } from '@/types';
+import { DailyChallenge, Challenge } from '@/types';
 import AnimatedCircularProgress from '@/components/AnimatedCircularProgress';
 import AnimatedParticles from '@/components/AnimatedParticles';
 import Animated, {
@@ -517,7 +517,7 @@ const MeditationScreen: React.FC = () => {
     const pointsEarned = selectedTime === 7 ? 15 : selectedTime === 15 ? 25 : 50;
     const endTime = new Date();
     endTime.setHours(endTime.getHours() + (selectedTime === 40 ? 24 : selectedTime === 15 ? 6 : 3));
-    const challenge = { ...selectedChallenge, end_time: endTime };
+    const challenge = { ...selectedChallenge, end_time: endTime.toISOString() };
   
     if (user) {
       await updateUserPoints((user.points || 0) + pointsEarned);

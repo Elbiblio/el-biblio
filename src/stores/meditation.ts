@@ -115,7 +115,7 @@ export const useMeditationStore = create<MeditationState>((set, get) => ({
 
   joinChallenge: async (challengeId: string) => {
     try {
-      await apiClient.post('/challenges/join', { challenge_id: challengeId });
+      await apiClient.post(`/challenges/${challengeId}/join`);
       set((state) => ({
         joinedChallenges: [...state.joinedChallenges, challengeId],
       }));
@@ -124,9 +124,9 @@ export const useMeditationStore = create<MeditationState>((set, get) => ({
     }
   },
 
-  completeChallenge: async (challengeId: string) => {
+  completeChallenge: async (challengeId: string, notes?: string) => {
     try {
-      await apiClient.post('/challenges/complete', { challenge_id: challengeId });
+      await apiClient.post(`/challenges/${challengeId}/complete`, { notes });
       set((state) => ({
         joinedChallenges: state.joinedChallenges.filter((id) => id !== challengeId),
       }));

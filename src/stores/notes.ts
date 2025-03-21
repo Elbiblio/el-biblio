@@ -43,9 +43,9 @@ const formatDate = (date: number): string => {
 
 const localIdPrefix = 'local_';
 
-const isDuplicateUnsyncedNote = (notes: Note[], newNoteContent: string): boolean => {
-  return notes.some(n => n.id.startsWith(localIdPrefix) && n.text.slice(0, 100) === newNoteContent.slice(0, 100));
-};
+// const isDuplicateUnsyncedNote = (notes: Note[], newNoteContent: string): boolean => {
+//   return notes.some(n => n.id.startsWith(localIdPrefix) && n.text?.slice?.(0, 100) === newNoteContent.slice?.(0, 100));
+// };
 
 const STORAGE_KEY = '@notes';
 const LAST_SYNCED_KEY = '@notes_last_synced';

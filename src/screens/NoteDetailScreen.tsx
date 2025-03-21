@@ -224,7 +224,7 @@ const NoteDetailScreen: React.FC<NativeStackScreenProps<RootStackParamList, 'Not
             </Animated.View>
 
             {/* Note content */}
-            <FormattedContent content={note.text} theme={theme} />
+            <FormattedContent content={note.text || ''} theme={theme} />
 
             {/* Footer with page number */}
             <View style={styles.pageFooter}>

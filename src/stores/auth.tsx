@@ -81,7 +81,7 @@ const useAuthStore = create<AuthState>((set, get) => ({
       console.log('Attempting login for:', email);
 
       const response = await apiClient.post<LoginResponse>(
-        endpoints.auth.login,
+        endpoints.auth.login + '?include=user.active_challenges,user.user_virtues',
         { email, password }
       );
 

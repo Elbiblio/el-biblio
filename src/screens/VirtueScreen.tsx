@@ -43,41 +43,55 @@ import {
 } from '@/components/Icons';
 import { Theme } from '@/theme';
 import { useTheme } from '@/contexts/ThemeContext';
-import { Denomination, RootStackParamList, THEMES, Virtue, VIRTUE_NOTES, VirtueGroups } from '@/types';
+import { AppVirtue, DENOMINATIONS, DenominationType, Note, RootStackParamList, THEMES, Virtue, VIRTUE_NOTES, VirtueGroups } from '@/types';
 import { useAuth } from '@/stores/auth';
-import CircleButton from '@/components/CircleButton';
 import AvatarStack from '@/components/AvatarStack';
 import AuthModal from '@/components/AuthModal';
 
-
-const VIRTUES = [
-    ...VirtueGroups.foundational.virtues.map(id => ({
-      id,
-      name: THEMES[id]?.title.split(' ')[0] || id,
-      description: THEMES[id]?.description || '',
-      icon: THEMES[id]?.Icon || Star,
-      color: THEMES[id]?.color || '#9C27B0',
-      levels: 3,
-      userProgress: Math.floor(Math.random() * 3),
-      totalUsers: Math.floor(Math.random() * 3000) + 500,
-      scriptureReference: 'Romans 12:2',
-    })),
-    ...VirtueGroups.derived.virtues.slice(0, 8).map(id => ({
-      id,
-      name: id.charAt(0).toUpperCase() + id.slice(1),
-      description: `The virtue of ${id} helps us grow in our spiritual journey.`,
-      icon: id.includes('wisdom') || id.includes('discernment') ? Lightbulb :
-            id.includes('patience') || id.includes('self-control') ? Clock :
-            id.includes('hope') || id.includes('trust') ? HomeLight : Heart,
-      color: id.includes('wisdom') || id.includes('discernment') ? THEMES.knowledge.color :
-             id.includes('patience') || id.includes('self-control') ? THEMES.humility.color :
-             id.includes('hope') || id.includes('trust') ? THEMES.faith.color : THEMES.love.color,
-      levels: 3,
-      userProgress: Math.floor(Math.random() * 3),
-      totalUsers: Math.floor(Math.random() * 2000) + 300,
-      scriptureReference: 'Galatians 5:22-23',
-    })),
-  ];  
+const VIRTUES: AppVirtue[] = [
+  ...VirtueGroups.foundational.virtues.map(id => ({
+    id,
+    name: THEMES[id]?.title.split(' ')[0] || id,
+    description: THEMES[id]?.description || '',
+    color_code: THEMES[id]?.color || '#9C27B0',
+    icon: THEMES[id]?.Icon || Star,
+    userProgress: {
+      current_level: Math.floor(Math.random() * 3),
+      theme_id: id,
+      virtue: id,
+      level: Math.floor(Math.random() * 3),
+      total_minutes: 0,
+      total_points: 0,
+      total_challenges: 0, 
+      total_levels: 3
+    },
+    totalUsers: Math.floor(Math.random() * 3000) + 500,
+    scriptureReference: 'Romans 12:2',
+  })),
+  ...VirtueGroups.derived.virtues.slice(0, 8).map(id => ({
+    id,
+    name: id.charAt(0).toUpperCase() + id.slice(1),
+    description: `The virtue of ${id} helps us grow in our spiritual journey.`,
+    color_code: id.includes('wisdom') || id.includes('discernment') ? THEMES.knowledge.color :
+           id.includes('patience') || id.includes('self-control') ? THEMES.humility.color :
+           id.includes('hope') || id.includes('trust') ? THEMES.faith.color : THEMES.love.color,
+    icon: id.includes('wisdom') || id.includes('discernment') ? Lightbulb :
+          id.includes('patience') || id.includes('self-control') ? Clock :
+          id.includes('hope') || id.includes('trust') ? HomeLight : Heart,
+    userProgress: {
+      current_level: Math.floor(Math.random() * 3),
+      theme_id: id,
+      virtue: id,
+      level: Math.floor(Math.random() * 3),
+      total_minutes: 0,
+      total_points: 0,
+      total_challenges: 0,
+      total_levels: 3
+    },
+    totalUsers: Math.floor(Math.random() * 2000) + 300,
+    scriptureReference: 'Galatians 5:22-23',
+  })),
+];  
 
 type VirtueScreenProps = NativeStackScreenProps<RootStackParamList, 'VirtueScreen'>;
 
@@ -102,8 +116,8 @@ const VirtueScreen: React.FC<VirtueScreenProps> = ({ navigation, route }) => {
   const { user } = useAuth();
   
   const [activeTab, setActiveTab] = useState<TabType>('explore');
-  const [selectedVirtue, setSelectedVirtue] = useState<Virtue | null>(null);
-  const [selectedDenomination, setSelectedDenomination] = useState<string>(DenominationType);
+  const [selectedVirtue, setSelectedVirtue] = useState<AppVirtue | null>(null);
+  const [selectedDenomination, setSelectedDenomination] = useState<DenominationType>('all');
   const [loading, setLoading] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
   
@@ -141,7 +155,7 @@ const VirtueScreen: React.FC<VirtueScreenProps> = ({ navigation, route }) => {
     setActiveTab(tab);
   };
   
-  const handleVirtuePress = (virtue: Virtue) => {
+  const handleVirtuePress = (virtue: AppVirtue) => {
     if (!user) {
       setShowAuthModal(true);
       return;
@@ -167,11 +181,11 @@ const VirtueScreen: React.FC<VirtueScreenProps> = ({ navigation, route }) => {
     
     navigation.navigate('VirtueQuizScreen', {
       virtueId: virtue.id,
-      level: level || virtue.userProgress + 1
+      level: level || (virtue.userProgress?.current_level || 0) + 1
     });
   };
   
-  const viewNote = (note: VirtueNote) => {
+  const viewNote = (note: Note) => {
     if (!user) {
       setShowAuthModal(true);
       return;
@@ -305,15 +319,15 @@ const VirtueScreen: React.FC<VirtueScreenProps> = ({ navigation, route }) => {
           onPress={() => handleVirtuePress(VIRTUES[0])}
         >
           <LinearGradient
-            colors={[`${VIRTUES[0].color}20`, `${VIRTUES[0].color}05`]}
+            colors={[`${VIRTUES[0].color_code}20`, `${VIRTUES[0].color_code}05`]}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
             style={styles.featuredGradient}
           />
           
           <View style={styles.featuredContent}>
-            <View style={[styles.featuredIconContainer, { backgroundColor: `${VIRTUES[0].color}20` }]}>
-              <DynamicIcon icon={VIRTUES[0].icon} size={32} color={VIRTUES[0].color} />
+            <View style={[styles.featuredIconContainer, { backgroundColor: `${VIRTUES[0].color_code}20` }]}>
+              <DynamicIcon icon={VIRTUES[0].icon} size={32} color={VIRTUES[0].color_code} />
             </View>
             
             <View style={styles.featuredTextContainer}>
@@ -342,7 +356,7 @@ const VirtueScreen: React.FC<VirtueScreenProps> = ({ navigation, route }) => {
           
           <View style={styles.featuredActions}>
             <TouchableOpacity
-              style={[styles.actionButton, { backgroundColor: VIRTUES[0].color }]}
+              style={[styles.actionButton, { backgroundColor: VIRTUES[0].color_code }]}
               onPress={() => startQuiz(VIRTUES[0])}
             >
               <Text style={styles.actionButtonText}>Start Quiz</Text>
@@ -363,27 +377,27 @@ const VirtueScreen: React.FC<VirtueScreenProps> = ({ navigation, route }) => {
               onPress={() => handleVirtuePress(virtue)}
             >
               <LinearGradient
-                colors={[`${virtue.color}15`, `${virtue.color}05`]}
+                colors={[`${virtue.color_code}15`, `${virtue.color_code}05`]}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
                 style={styles.virtueGridGradient}
               />
               
-              <View style={[styles.virtueIconContainer, { backgroundColor: `${virtue.color}20` }]}>
-                <DynamicIcon icon={virtue.icon} size={24} color={virtue.color} />
+              <View style={[styles.virtueIconContainer, { backgroundColor: `${virtue.color_code}20` }]}>
+                <DynamicIcon icon={virtue.icon} size={24} color={virtue.color_code} />
               </View>
               
               <Text style={styles.virtueGridName}>{virtue.name}</Text>
               
-              {virtue.userProgress > 0 && (
+              {virtue.userProgress && virtue.userProgress.current_level > 0 && (
                 <View style={styles.progressIndicator}>
                   <View style={styles.progressBar}>
                     <View 
                       style={[
                         styles.progressFill, 
                         { 
-                          width: `${(virtue.userProgress / virtue.levels) * 100}%`,
-                          backgroundColor: virtue.color 
+                          width: `${(virtue.userProgress.current_level / virtue.userProgress.total_levels) * 100}%`,
+                          backgroundColor: virtue.color_code 
                         }
                       ]} 
                     />
@@ -448,34 +462,34 @@ const VirtueScreen: React.FC<VirtueScreenProps> = ({ navigation, route }) => {
           <Text style={styles.sectionTitle}>SELECT A VIRTUE TO LEARN</Text>
           
           <View style={styles.virtuesGrid}>
-            {VIRTUES.map(virtue => (
+            {VIRTUES.map((virtue: AppVirtue) => (
               <TouchableOpacity
                 key={virtue.id}
                 style={styles.virtueGridCard}
                 onPress={() => setSelectedVirtue(virtue)}
               >
                 <LinearGradient
-                  colors={[`${virtue.color}15`, `${virtue.color}05`]}
+                  colors={[`${virtue.color_code}15`, `${virtue.color_code}05`]}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 1 }}
                   style={styles.virtueGridGradient}
                 />
                 
-                <View style={[styles.virtueIconContainer, { backgroundColor: `${virtue.color}20` }]}>
-                  <DynamicIcon icon={virtue.icon} size={24} color={virtue.color} />
+                <View style={[styles.virtueIconContainer, { backgroundColor: `${virtue.color_code}20` }]}>
+                  <DynamicIcon icon={virtue.icon} size={24} color={virtue.color_code} />
                 </View>
                 
                 <Text style={styles.virtueGridName}>{virtue.name}</Text>
                 
-                {virtue.userProgress > 0 && (
+                {virtue.userProgress && virtue.userProgress.current_level > 0 && (
                   <View style={styles.progressIndicator}>
                     <View style={styles.progressBar}>
                       <View 
                         style={[
                           styles.progressFill, 
                           { 
-                            width: `${(virtue.userProgress / virtue.levels) * 100}%`,
-                            backgroundColor: virtue.color 
+                            width: `${(virtue.userProgress.current_level / virtue.userProgress.total_levels) * 100}%`,
+                            backgroundColor: virtue.color_code 
                           }
                         ]} 
                       />
@@ -499,22 +513,22 @@ const VirtueScreen: React.FC<VirtueScreenProps> = ({ navigation, route }) => {
                 <Text style={styles.backToVirtuesText}>All Virtues</Text>
               </TouchableOpacity>
               
-              <Text style={[styles.virtueDetailTitle, { color: selectedVirtue.color }]}>
+              <Text style={[styles.virtueDetailTitle, { color: selectedVirtue.color_code }]}>
                 {selectedVirtue.name}
               </Text>
             </View>
             
             <View style={styles.virtueDetailCard}>
               <LinearGradient
-                colors={[`${selectedVirtue.color}15`, `${selectedVirtue.color}05`]}
+                colors={[`${selectedVirtue.color_code}15`, `${selectedVirtue.color_code}05`]}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
                 style={styles.virtueDetailGradient}
               />
               
               <View style={styles.virtueDetailContent}>
-                <View style={[styles.virtueDetailIconContainer, { backgroundColor: `${selectedVirtue.color}20` }]}>
-                  <DynamicIcon icon={selectedVirtue.icon} size={32} color={selectedVirtue.color} />
+                <View style={[styles.virtueDetailIconContainer, { backgroundColor: `${selectedVirtue.color_code}20` }]}>
+                  <DynamicIcon icon={selectedVirtue.icon} size={32} color={selectedVirtue.color_code} />
                 </View>
                 
                 <Text style={styles.virtueDetailDescription}>
@@ -522,7 +536,7 @@ const VirtueScreen: React.FC<VirtueScreenProps> = ({ navigation, route }) => {
                 </Text>
                 
                 <View style={styles.scriptureContainer}>
-                  <BookOpen size={16} color={selectedVirtue.color} />
+                  <BookOpen size={16} color={selectedVirtue.color_code} />
                   <Text style={styles.scriptureText}>
                     {selectedVirtue.scriptureReference}
                   </Text>
@@ -535,14 +549,14 @@ const VirtueScreen: React.FC<VirtueScreenProps> = ({ navigation, route }) => {
                       style={[
                         styles.progressFill, 
                         { 
-                          width: `${(selectedVirtue.userProgress / selectedVirtue.levels) * 100}%`,
-                          backgroundColor: selectedVirtue.color 
+                          width: `${((selectedVirtue.userProgress?.current_level || 0) / (selectedVirtue.userProgress?.total_levels || 1)) * 100}%`,
+                          backgroundColor: selectedVirtue.color_code 
                         }
                       ]} 
                     />
                   </View>
                   <Text style={styles.progressText}>
-                    Level {selectedVirtue.userProgress}/{selectedVirtue.levels} Completed
+                    Level {selectedVirtue.userProgress?.current_level || 0}/{selectedVirtue.userProgress?.total_levels || 3} Completed
                   </Text>
                 </View>
               </View>
@@ -554,10 +568,10 @@ const VirtueScreen: React.FC<VirtueScreenProps> = ({ navigation, route }) => {
             <Text style={styles.sectionTitle}>QUIZ LEVELS</Text>
             
             <View style={styles.levelsContainer}>
-              {[...Array(selectedVirtue.levels)].map((_, index) => {
+              {[...Array(selectedVirtue.userProgress?.total_levels || 3)].map((_, index) => {
                 const level = index + 1;
-                const isCompleted = selectedVirtue.userProgress >= level;
-                const isLocked = selectedVirtue.userProgress + 1 < level;
+                const isCompleted = (selectedVirtue.userProgress?.current_level || 0) >= level;
+                const isLocked = (selectedVirtue.userProgress?.current_level || 0) + 1 < level;
                 
                 return (
                   <TouchableOpacity
@@ -578,8 +592,8 @@ const VirtueScreen: React.FC<VirtueScreenProps> = ({ navigation, route }) => {
                   >
                     <LinearGradient
                       colors={[
-                        isCompleted ? `${selectedVirtue.color}30` : `${selectedVirtue.color}15`,
-                        isCompleted ? `${selectedVirtue.color}10` : `${selectedVirtue.color}05`
+                        isCompleted ? `${selectedVirtue.color_code}30` : `${selectedVirtue.color_code}15`,
+                        isCompleted ? `${selectedVirtue.color_code}10` : `${selectedVirtue.color_code}05`
                       ]}
                       start={{ x: 0, y: 0 }}
                       end={{ x: 1, y: 1 }}
@@ -594,7 +608,7 @@ const VirtueScreen: React.FC<VirtueScreenProps> = ({ navigation, route }) => {
                       <Text 
                         style={[
                           styles.levelNumber, 
-                          { color: isCompleted ? selectedVirtue.color : theme?.colors.text.primary }
+                          { color: isCompleted ? selectedVirtue.color_code : theme?.colors.text.primary }
                         ]}
                       >
                         {level}
@@ -611,7 +625,7 @@ const VirtueScreen: React.FC<VirtueScreenProps> = ({ navigation, route }) => {
                     </Text>
                     
                     {isCompleted && (
-                      <View style={[styles.completedBadge, { backgroundColor: selectedVirtue.color }]}>
+                      <View style={[styles.completedBadge, { backgroundColor: selectedVirtue.color_code }]}>
                         <Sparkle size={12} color="#FFF" />
                       </View>
                     )}
@@ -620,13 +634,13 @@ const VirtueScreen: React.FC<VirtueScreenProps> = ({ navigation, route }) => {
               })}
             </View>
             
-            {selectedVirtue.userProgress < selectedVirtue.levels && (
+            {selectedVirtue.userProgress && selectedVirtue.userProgress.current_level < (selectedVirtue.userProgress.total_levels || 3) && (
               <TouchableOpacity
-                style={[styles.continueButton, { backgroundColor: selectedVirtue.color }]}
+                style={[styles.continueButton, { backgroundColor: selectedVirtue.color_code }]}
                 onPress={() => startQuiz(selectedVirtue)}
               >
                 <Text style={styles.continueButtonText}>
-                  {selectedVirtue.userProgress === 0 
+                  {!selectedVirtue.userProgress || selectedVirtue.userProgress.current_level === 0 
                     ? 'Start Learning' 
                     : 'Continue Learning'}
                 </Text>
@@ -648,7 +662,7 @@ const VirtueScreen: React.FC<VirtueScreenProps> = ({ navigation, route }) => {
               </TouchableOpacity>
             </View>
             
-            {filteredNotes.filter(note => note.virtueId === selectedVirtue.id)
+            {filteredNotes.filter(note => note.theme_id === selectedVirtue.name)
               .slice(0, 2)
               .map(note => (
                 <TouchableOpacity
@@ -661,7 +675,7 @@ const VirtueScreen: React.FC<VirtueScreenProps> = ({ navigation, route }) => {
                     {note.excerpt}
                   </Text>
                   <View style={styles.noteMeta}>
-                    <Text style={styles.noteAuthor}>{note.author}</Text>
+                    <Text style={styles.noteAuthor}>{note.author?.first_name}</Text>
                     <View style={styles.noteLikes}>
                       <Heart size={14} color={theme?.colors.like} />
                       <Text style={styles.noteLikesCount}>{note.likes}</Text>
@@ -707,15 +721,15 @@ const VirtueScreen: React.FC<VirtueScreenProps> = ({ navigation, route }) => {
                 style={[
                   styles.filterChip,
                   selectedVirtue?.id === virtue.id && styles.activeFilterChip,
-                  selectedVirtue?.id === virtue.id && { borderColor: virtue.color }
+                  selectedVirtue?.id === virtue.id && { borderColor: virtue.color_code }
                 ]}
                 onPress={() => setSelectedVirtue(virtue)}
               >
-                <DynamicIcon icon={virtue.icon} size={16} color={selectedVirtue?.id === virtue.id ? virtue.color : theme?.colors.text.secondary} />
+                <DynamicIcon icon={virtue.icon} size={16} color={selectedVirtue?.id === virtue.id ? virtue.color_code : theme?.colors.text.secondary} />
                 <Text style={[
                   styles.filterChipText,
                   selectedVirtue?.id === virtue.id && styles.activeFilterChipText,
-                  selectedVirtue?.id === virtue.id && { color: virtue.color }
+                  selectedVirtue?.id === virtue.id && { color: virtue.color_code }
                 ]}>
                   {virtue.name}
                 </Text>
@@ -739,7 +753,7 @@ const VirtueScreen: React.FC<VirtueScreenProps> = ({ navigation, route }) => {
                   selectedDenomination === denom.id && styles.activeFilterChip,
                   selectedDenomination === denom.id && { borderColor: denom.color }
                 ]}
-                onPress={() => setSelectedDenomination(denom.id)}
+                onPress={() => setSelectedDenomination(denom.name as DenominationType)}
               >
                 <View 
                   style={[
@@ -784,16 +798,16 @@ const VirtueScreen: React.FC<VirtueScreenProps> = ({ navigation, route }) => {
                   style={[
                     styles.denominationTag, 
                     { 
-                      backgroundColor: DENOMINATIONS.find(d => d.id === note.denomination)?.color + '20',
-                      borderColor: DENOMINATIONS.find(d => d.id === note.denomination)?.color + '40'
+                      backgroundColor: DENOMINATIONS.find(d => d.id === note.denomination?.id)?.color + '20',
+                      borderColor: DENOMINATIONS.find(d => d.id === note.denomination?.id)?.color + '40'
                     }
                   ]}
                 >
                   <Text style={[
                     styles.denominationTagText,
-                    { color: DENOMINATIONS.find(d => d.id === note.denomination)?.color }
+                    { color: DENOMINATIONS.find(d => d.id === note.denomination?.id)?.color }
                   ]}>
-                    {DENOMINATIONS.find(d => d.id === note.denomination)?.name}
+                    {DENOMINATIONS.find(d => d.id === note.denomination?.id)?.name}
                   </Text>
                 </View>
               </View>
@@ -804,9 +818,9 @@ const VirtueScreen: React.FC<VirtueScreenProps> = ({ navigation, route }) => {
               
               <View style={styles.noteFooter}>
                 <View style={styles.noteAuthorContainer}>
-                  <Text style={styles.noteAuthor}>{note.author}</Text>
+                  <Text style={styles.noteAuthor}>{note.author?.first_name}</Text>
                   <Text style={styles.noteDate}>
-                    {new Date(note.dateCreated).toLocaleDateString('en-US', {
+                    {new Date(note.created_at || Date.now()).toLocaleDateString('en-US', {
                       month: 'short',
                       day: 'numeric',
                       year: 'numeric'

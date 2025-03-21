@@ -37,7 +37,7 @@ import {
   Lightning,
 } from './../components/Icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Reflection, RootStackParamList, Verse } from '@/types';
+import { Challenge, Reflection, RootStackParamList, Verse } from '@/types';
 import AvatarStack from '@/components/AvatarStack';
 import CircleButton from '@/components/CircleButton';
 import { Theme } from '@/theme';
@@ -51,6 +51,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AppState, AppStateStatus } from 'react-native';
 import PointsEarnedModal from '@/components/PointsEarnedModal';
 import { useNavigation } from '@react-navigation/native';
+import { useMeditationStore } from '@/stores/meditation';
 
 const WELCOME_BACK_THRESHOLD = 10 * 60 * 1000; // 10 minutes in milliseconds
 const MAX_ACTIVE_TIME = 30 * 60 * 1000; // 30 minutes in milliseconds
@@ -149,7 +150,8 @@ const HomeScreen: React.FC<HomeProps> = ({ navigation, route }) => {
   const themeText = { color: theme?.colors.primary };
 
   const [appState, setAppState] = useState(AppState.currentState);
-  const { user, updateUserTime } = useAuth();
+  const { user, updateUserTime, updateUserPoints } = useAuth();
+  const { completeChallenge } = useMeditationStore();
   const [timeTracking, setTimeTracking] = useState<TimeTracking>({
     lastActiveTimestamp: Date.now(),
     totalActiveTime: user?.total_active_time || 0,
@@ -526,11 +528,79 @@ const HomeScreen: React.FC<HomeProps> = ({ navigation, route }) => {
     );
   };
 
-  // Daily Challenges Section with animations
+  // Calculate challenge progress based on time
+  const calculateChallengeProgress = (challenge: Challenge): number => {
+    if (!challenge.start_time || !challenge.end_time) return 0;
+    
+    const now = new Date().getTime();
+    const startTime = new Date(challenge.start_time).getTime();
+    const endTime = new Date(challenge.end_time).getTime();
+    
+    // If challenge is completed or time has passed
+    if (now >= endTime) return 100;
+    
+    // If challenge hasn't started yet
+    if (now < startTime) return 0;
+    
+    // Calculate progress percentage
+    const totalDuration = endTime - startTime;
+    const elapsed = now - startTime;
+    return Math.min(Math.round((elapsed / totalDuration) * 100), 100);
+  };
+  
+  // Handle challenge completion
+  const handleCompleteChallenge = async (challengeId: string) => {
+    try {
+      await completeChallenge(challengeId);
+      // Update user points after completion
+      if (user) {
+        await updateUserPoints((user.points || 0) + 25); // Award points for completion
+      }
+    } catch (error) {
+      console.error('Failed to complete challenge:', error);
+    }
+  };
+  
+  // Render Daily Challenges Section with data from user store
   const renderDailyChallenges = () => {
     const challengeAnimatedStyle = useAnimatedStyle(() => ({
       opacity: challengeOpacity.value,
     }));
+    
+    // Get active challenges from user data
+    const activeChallenges = user?.activeChallenges || [];
+    // Filter for daily challenges
+    const dailyChallenges = activeChallenges.filter(
+      challenge => challenge.frequency === 'd' || challenge.category === 'personal'
+    );
+    
+    // Use fallback challenge if none found
+    const personalChallenge = dailyChallenges.find(c => c.category === 'personal') || {
+      id: 'default-personal',
+      title: 'Write 3 gratitude notes',
+      description: 'Practice gratitude by writing 3 gratitude notes',
+      category: 'personal',
+      emoji: '🌱',
+      type: 'virtue' as const,
+      mode: 'attitude' as const,
+    };
+    
+    // Get community challenge
+    const communityChallenge = dailyChallenges.find(c => c.category === 'community') || {
+      id: 'default-community',
+      title: 'Group fasting till 3pm',
+      description: 'Join a group of people to fast till 3pm',
+      category: 'community',
+      emoji: '🤝',
+      type: 'virtue' as const,
+      mode: 'action' as const,
+      total_participants: 23,
+      top_participants: [],
+    };
+    
+    // Calculate progress for personal challenge
+    const personalProgress = calculateChallengeProgress(personalChallenge);
+    const isPersonalChallengeComplete = personalProgress >= 100;
 
     return (
       <Animated.View style={[styles.section, challengeAnimatedStyle]}>
@@ -551,25 +621,32 @@ const HomeScreen: React.FC<HomeProps> = ({ navigation, route }) => {
             <Text style={styles.challengeType}>Personal:</Text>
           </View>
           <Text style={styles.challengeText}>
-            <Text style={styles.challengeIcon}>🌱</Text> Write 3 gratitude notes
+            <Text style={styles.challengeIcon}>{personalChallenge.emoji || '🌱'}</Text> {personalChallenge.title}
           </Text>
           <View style={styles.progressContainer}>
             <View style={styles.progressBar}>
-              <View style={[styles.progressFill, { width: '80%' }]} />
+              <View style={[styles.progressFill, { width: `${personalProgress}%` }]} />
             </View>
-            <Text style={styles.progressText}>80%</Text>
+            <Text style={styles.progressText}>{personalProgress}%</Text>
           </View>
           <TouchableOpacity 
-            style={styles.completeButton}
+            style={[styles.completeButton, 
+              isPersonalChallengeComplete ? styles.completeButtonActive : {}]}
             onPress={() => {
-              // Add animation on press
-              challengeOpacity.value = withSequence(
-                withTiming(0.7, { duration: 100 }),
-                withTiming(1, { duration: 100 })
-              );
+              if (isPersonalChallengeComplete && personalChallenge.id) {
+                handleCompleteChallenge(personalChallenge.id);
+              } else {
+                // Add animation on press
+                challengeOpacity.value = withSequence(
+                  withTiming(0.7, { duration: 100 }),
+                  withTiming(1, { duration: 100 })
+                );
+              }
             }}
           >
-            <Text style={styles.completeButtonText}>✅ Complete</Text>
+            <Text style={styles.completeButtonText}>
+              {isPersonalChallengeComplete ? '✅ Complete' : '⏳ In Progress'}
+            </Text>
           </TouchableOpacity>
         </View>
         
@@ -579,12 +656,12 @@ const HomeScreen: React.FC<HomeProps> = ({ navigation, route }) => {
             <Text style={styles.challengeType}>Community:</Text>
           </View>
           <Text style={styles.challengeText}>
-            <Text style={styles.challengeIcon}>🤝</Text> Group fasting till 3pm
+            <Text style={styles.challengeIcon}>{communityChallenge.emoji || '🤝'}</Text> {communityChallenge.title}
           </Text>
           <View style={styles.communityStats}>
             <View style={styles.avatarContainer}>
               <AvatarStack
-                users={[
+                users={communityChallenge.top_participants || [
                   { id: '1', avatar: '', first_name: 'User1', last_name: 'User1' },
                   { id: '2', avatar: '', first_name: 'User2', last_name: 'User2' },
                   { id: '3', avatar: '', first_name: 'User3', last_name: 'User3' },
@@ -593,7 +670,9 @@ const HomeScreen: React.FC<HomeProps> = ({ navigation, route }) => {
                 size={24}
               />
             </View>
-            <Text style={styles.participantsText}>23 people joined</Text>
+            <Text style={styles.participantsText}>
+              {communityChallenge.total_participants || 0} people joined
+            </Text>
           </View>
           <TouchableOpacity 
             style={styles.joinChallengeButton}
@@ -603,6 +682,7 @@ const HomeScreen: React.FC<HomeProps> = ({ navigation, route }) => {
                 withTiming(0.7, { duration: 100 }),
                 withTiming(1, { duration: 100 })
               );
+              navigation.navigate('DailyChallengeScreen');
             }}
           >
             <Text style={styles.joinChallengeText}>✨ Join Challenge</Text>
@@ -1554,6 +1634,9 @@ const createStyles = (theme: Theme) => StyleSheet.create({
   gameOptionDesc: {
     ...theme?.typography.caption.secondary,
     color: theme?.colors.text.secondary,
+  },
+  completeButtonActive: {
+    backgroundColor: `${theme?.colors.success}15`,
   },
 });
 

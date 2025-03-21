@@ -67,9 +67,20 @@ export interface Virtue {
   color_code?: string;
   display_name?: string;
   is_foundational?: boolean;
-  userProgress?: number;
+  userProgress?: VirtueProgress;
   totalUsers?: number;
   scriptureReference?: string;
+}
+
+export interface VirtueProgress {
+  current_level: number;
+  theme_id: string;
+  virtue: string;
+  level: number;
+  total_minutes: number;
+  total_points: number;
+  total_challenges: number;
+  total_levels: number;
 }
 
 export interface AppVirtue extends Virtue {
@@ -99,7 +110,8 @@ export const FaithTheme: Virtue = {
   id: "3",
   name: "faith",
   display_name: "Faith",
-  is_foundational: true
+  is_foundational: true,
+  description: "Faith is the strength of our belief in the supremacy and omniscience of God, and the confidence that we can trust in God's love and justice and align our attitudes and actions accordingly.",
 }
 
 export interface WordHub {
@@ -334,6 +346,8 @@ export interface User {
   email_verified_at?: string;
   last_seen?: string;
   total_active_time?: number;
+  userVirtues?: VirtueProgress[];
+  activeChallenges?: Challenge[];
   last_login?: string;
   created_at?: string;
 }
@@ -345,19 +359,21 @@ export interface Challenge {
   type: 'virtue' | 'vice';
   mode: 'attitude' | 'action';
   frequency?: 'd' | 'w' | 'm' | 'o';
+  category: 'personal' | 'community';
   start_date?: Date | string;
+  emoji?: string;
   end_date?: Date | string;
   start_time?: string;
   end_time?: string;
   level?: number;
-  category: 'personal' | 'community';
+  top_participants?: User[];//top 5 participants
+  total_participants?: number;
   is_active?: boolean;
   is_featured?: boolean;
 };
 
 export interface DailyChallenge extends Challenge {
   frequency?: 'd';
-  participants?: User[];
   upvotes?: number;
   hasJoined?: boolean;
   hasUpvoted?: boolean;
