@@ -16,6 +16,7 @@ import {
   X,
   Sparkle,
 } from '../components/Icons';
+import GuestChoiceModal from '../components/GuestChoiceModal';
 import { Theme } from '@/theme';
 import { useTheme, useWelcomeState } from '@/contexts/ThemeContext';
 import * as Haptics from 'expo-haptics';
@@ -23,6 +24,7 @@ import { RootStackParamList } from '@/types';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { OnboardingStep, STEPS } from '@/constants';
 import { SCREEN_DIMENSIONS } from '@/constants';
+import { useAuth } from '@/stores/auth';
 
 const SCREEN_WIDTH = SCREEN_DIMENSIONS.width;
 
@@ -37,10 +39,12 @@ const IntroScreen: React.FC<IntroScreenProps> = ({
   const styles = React.useMemo(() => createStyles(theme), [theme]);
   
   const [currentStep, setCurrentStep] = useState(0);
+  const [showGuestChoice, setShowGuestChoice] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
   const scrollX = useSharedValue(0);
 
   const { completeWelcome, hasCompletedWelcome } = useWelcomeState();
+  const { createGuestAccount } = useAuth();
 
   const onClose = async () => {
     if (!hasCompletedWelcome) {
@@ -54,7 +58,7 @@ const IntroScreen: React.FC<IntroScreenProps> = ({
 
   const handleNext = () => {
     if (currentStep === (STEPS.length - 1)) {
-        onClose()
+        setShowGuestChoice(true);
         return;
     }
     
@@ -81,6 +85,23 @@ const IntroScreen: React.FC<IntroScreenProps> = ({
 
   const handleScroll = (event: any) => {
     scrollX.value = event.nativeEvent.contentOffset.x;
+  };
+
+  const handleRegister = () => {
+    setShowGuestChoice(false);
+    navigation.navigate('RegistrationScreen');
+  };
+
+  const handleContinueAsGuest = async () => {
+    setShowGuestChoice(false);
+    try {
+      const success = await createGuestAccount();
+      if (success) {
+        onClose();
+      }
+    } catch (error) {
+      console.error('Failed to create guest account:', error);
+    }
   };
 
   const renderStep = (step: OnboardingStep, index: number) => {
@@ -197,6 +218,13 @@ const IntroScreen: React.FC<IntroScreenProps> = ({
       >
         {STEPS.map(renderStep)}
       </ScrollView>
+
+      <GuestChoiceModal
+        visible={showGuestChoice}
+        onClose={() => setShowGuestChoice(false)}
+        onRegister={handleRegister}
+        onContinueAsGuest={handleContinueAsGuest}
+      />
     </View>
   );
 };

@@ -32,6 +32,7 @@ import MeditationScreen from './src/screens/MeditationScreen';
 import NoteDetailScreen from './src/screens/NoteDetailScreen';
 import ProfileScreen from './src/screens/ProfileScreen';
 import LeaderboardScreen from './src/screens/LeaderboardScreen';
+import RegistrationScreen from './src/screens/RegistrationScreen';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -106,6 +107,7 @@ const AppContent = () => {
       <NavigationContainer>
         <Stack.Navigator screenOptions={{ headerShown: false }}>
           <Stack.Screen name="IntroScreen" component={IntroScreen} />
+          <Stack.Screen name="RegistrationScreen" component={RegistrationScreen} />
           <Stack.Screen name="Home" component={HomeScreen} />
           <Stack.Screen name="VerseDetail" component={VerseDetail} />
           <Stack.Screen name="ReflectionDetail" component={ReflectionDetail} />

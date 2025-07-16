@@ -178,7 +178,7 @@ export const STEPS: OnboardingStep[] = [
     subtitle: 'The Fullness',
     description: 'Supported by knowledge, humility, and faith, love brings all virtues to their fullness. It transforms our relationships with God and others. Combined with other virtues, it produces joy, kindness, and goodness.',
     practices: [
-      'Identify at least one person in need around you a week',
+      'Identify at least one person in need around you per week',
       'Put their needs before your own comfort',
       'Show compassion and/or share your resources with them'
     ],

@@ -35,6 +35,8 @@ import { getNotePastel } from '@/utils/notes';
 import { useNoteStore } from '@/stores/notes';
 import { toast } from 'sonner-native';
 import NoteCard from '@/components/NoteCard';
+import { useGuestRestrictions } from '@/hooks/useGuestRestrictions';
+import GuestRestrictionModal from '@/components/GuestRestrictionModal';
 
 export type NotesScreenProps = NativeStackScreenProps<RootStackParamList, 'NotesScreen'>;
 
@@ -70,6 +72,8 @@ const NotesScreen: React.FC<NotesScreenProps> = ({ navigation, route }) => {
   const [showPublicNotes, setShowPublicNotes] = useState(false);
   const [showFeaturedOnly, setShowFeaturedOnly] = useState(false);
   const [isSearchingCommunity, setIsSearchingCommunity] = useState(false);
+  const [showRestrictionModal, setShowRestrictionModal] = useState(false);
+  const { restrictions } = useGuestRestrictions();
 
   useEffect(() => {
     const initializeData = async () => {
@@ -102,7 +106,7 @@ const NotesScreen: React.FC<NotesScreenProps> = ({ navigation, route }) => {
       const matchesSearch = 
         searchQuery === '' || 
         note.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        note.text.toLowerCase().includes(searchQuery.toLowerCase());
+        (note.text && note.text.toLowerCase().includes(searchQuery.toLowerCase()));
       
       const matchesVirtues = 
         virtueFilter.length === 0 || 
@@ -147,13 +151,18 @@ const NotesScreen: React.FC<NotesScreenProps> = ({ navigation, route }) => {
   }, []);
 
   const handleCreateNote = useCallback(() => {
+    if (!restrictions.canPostNotes) {
+      setShowRestrictionModal(true);
+      return;
+    }
+    
     setActiveNote({
       note: null,
       mode: 'create',
       isEditing: true,
     });
     setSelectedVirtues([]);
-  }, []);
+  }, [restrictions.canPostNotes]);
 
   const handleSaveNote = useCallback(async ({ title, content, virtues }: {
     title: string;
@@ -276,6 +285,11 @@ const NotesScreen: React.FC<NotesScreenProps> = ({ navigation, route }) => {
             <TouchableOpacity 
               style={[styles.visibilityToggle, showPublicNotes && styles.activeToggle]}
               onPress={() => {
+                if (!showPublicNotes && !restrictions.canViewNotes) {
+                  setShowRestrictionModal(true);
+                  return;
+                }
+                
                 setShowPublicNotes(!showPublicNotes);
                 // Reset featured filter when switching between personal/community
                 if (!showPublicNotes) {
@@ -431,6 +445,12 @@ const NotesScreen: React.FC<NotesScreenProps> = ({ navigation, route }) => {
           onClose={() => setShowVirtueSelector(false)}
         />
       )}
+
+      <GuestRestrictionModal
+        visible={showRestrictionModal}
+        onClose={() => setShowRestrictionModal(false)}
+        feature="creating notes"
+      />
     </>
   );
 };
