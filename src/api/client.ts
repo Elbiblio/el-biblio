@@ -422,6 +422,17 @@ export const endpoints = {
     addToPersonal: (id: string) => `/challenges/${id}/add-to-personal`,
     participants: (id: string) => `/challenges/${id}/participants`,
   },
+
+  // Prayer Requests
+  prayerRequests: {
+    list: '/prayer-requests',
+    show: (id: string) => `/prayer-requests/${id}`,
+    create: '/prayer-requests',
+    update: (id: string) => `/prayer-requests/${id}`,
+    delete: (id: string) => `/prayer-requests/${id}`,
+    pray: (id: string) => `/prayer-requests/${id}/pray`,
+    byUser: (userId: string) => `/users/${userId}/prayer-requests`,
+  },
 };
 
 export const apiClient = {

@@ -34,6 +34,8 @@ import NoteDetailScreen from './src/screens/NoteDetailScreen';
 import ProfileScreen from './src/screens/ProfileScreen';
 import LeaderboardScreen from './src/screens/LeaderboardScreen';
 import RegistrationScreen from './src/screens/RegistrationScreen';
+import CommunityScreen from './src/screens/CommunityScreen';
+import PrayerRequestsScreen from './src/screens/PrayerRequestsScreen';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAppStore } from './src/stores/appStore';
 
@@ -147,6 +149,8 @@ const AppContent = () => {
           <Stack.Screen name="MatchScreen" component={MatchScreen} />
           <Stack.Screen name="SavedItemsScreen" component={SavedItemsScreen} />
           <Stack.Screen name="NotesScreen" component={NotesScreen} />
+          <Stack.Screen name="CommunityScreen" component={CommunityScreen} />
+          <Stack.Screen name="PrayerRequestsScreen" component={PrayerRequestsScreen} />
           {/* @ts-ignore */}
           <Stack.Screen name="NoteDetail" component={NoteDetailScreen} />
           <Stack.Screen name="MeditationScreen" component={MeditationScreen} />

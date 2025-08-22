@@ -12,6 +12,20 @@ export enum UserRole {
   Admin = 99
 }
 
+// Prayer Requests
+export interface PrayerRequest {
+  id: string;
+  user_id?: string;
+  user?: User;
+  content: string; // request detail/body
+  category?: string;
+  visibility?: 'public' | 'community' | 'private';
+  prayed_users?: User[];
+  prayed_count?: number;
+  created_at: string;
+  updated_at?: string;
+}
+
 export enum ActivityType {
   Create = 1,
   Comment = 2,
@@ -573,6 +587,7 @@ export type RootStackParamList = {
   WordHubDetailScreen: { hubId: string };
   SavedItemsScreen: undefined;
   CommunityScreen: undefined;
+  PrayerRequestsScreen: undefined;
   ProfileScreen: undefined;
   DailyChallengeScreen: undefined;
   MeditationScreen: undefined;

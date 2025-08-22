@@ -73,7 +73,7 @@ const NotesScreen: React.FC<NotesScreenProps> = ({ navigation, route }) => {
     isEditing: boolean;
   }>({ note: null, mode: null, isEditing: false });
   const [virtueFilter, setVirtueFilter] = useState<AllVirtues[]>([]);
-  const [showPublicNotes, setShowPublicNotes] = useState(false);
+  const [showPublicNotes, setShowPublicNotes] = useState(true);
   const [showFeaturedOnly, setShowFeaturedOnly] = useState(false);
   const [isSearchingCommunity, setIsSearchingCommunity] = useState(false);
   const [showRestrictionModal, setShowRestrictionModal] = useState(false);
@@ -148,11 +148,24 @@ const NotesScreen: React.FC<NotesScreenProps> = ({ navigation, route }) => {
     });
   }, [notes, searchQuery, virtueFilter, showPublicNotes, showFeaturedOnly]);
 
+  // Priority display: when in community mode and not filtering to featured only,
+  // sort featured notes to the top.
+  const prioritizedNotes = useMemo(() => {
+    if (!showPublicNotes || showFeaturedOnly) return filteredNotes;
+    const arr = [...filteredNotes];
+    arr.sort((a, b) => Number(!!b.is_featured) - Number(!!a.is_featured));
+    return arr;
+  }, [filteredNotes, showPublicNotes, showFeaturedOnly]);
+
   const groupedNotes = useMemo(() => {
+    if (showPublicNotes) {
+      // No pinning concept for community notes in UI; just prioritized list
+      return { pinned: [], unpinned: prioritizedNotes };
+    }
     const pinned = filteredNotes.filter(note => note.isPinned);
     const unpinned = filteredNotes.filter(note => !note.isPinned);
     return { pinned, unpinned };
-  }, [filteredNotes]);
+  }, [filteredNotes, prioritizedNotes, showPublicNotes]);
 
   const handleViewNote = useCallback((note: Note) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);

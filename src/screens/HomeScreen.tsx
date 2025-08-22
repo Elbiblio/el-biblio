@@ -59,7 +59,7 @@ import { useNavigation } from '@react-navigation/native';
 import { useMeditationStore } from '@/stores/meditation';
 import { useWebSocket } from '@/services/websocket';
 import * as Haptics from 'expo-haptics';
-
+import { useCommunityStore } from '@/stores/community';
 
 const WELCOME_BACK_THRESHOLD = 10 * 60 * 1000; // 10 minutes in milliseconds
 const MAX_ACTIVE_TIME = 30 * 60 * 1000; // 30 minutes in milliseconds
@@ -167,6 +167,7 @@ const HomeScreen: React.FC<HomeProps> = ({ navigation, route }) => {
   const { user, updateUserTime, updateUserPoints } = useAuth();
   const { completeChallenge } = useMeditationStore();
   const { isConnected } = useWebSocket();
+  const { unreadCount, computeUnreadFromReflections } = useCommunityStore();
   const [timeTracking, setTimeTracking] = useState<TimeTracking>({
     lastActiveTimestamp: Date.now(),
     totalActiveTime: user?.total_active_time || 0,
@@ -305,6 +306,8 @@ const HomeScreen: React.FC<HomeProps> = ({ navigation, route }) => {
     fetchGlobalLeaderboard,
   } = useLeaderboardStore();
 
+  const { meditationState, meditationTimer, selectedChallenge } = useMeditationStore();
+
   useEffect(() => {
     fetchDailyVerses();
     fetchPersonalChallenges(1);
@@ -312,6 +315,11 @@ const HomeScreen: React.FC<HomeProps> = ({ navigation, route }) => {
     fetchReflections(1, { sortBy: 'likes', sortOrder: 'desc' });
     fetchGlobalLeaderboard();
   }, [fetchDailyVerses, fetchPersonalChallenges, fetchCommunityChallenges, fetchReflections, fetchGlobalLeaderboard]);
+
+  // Recompute community unread badge whenever reflections list updates
+  useEffect(() => {
+    computeUnreadFromReflections(reflections as unknown as Reflection[]);
+  }, [reflections, computeUnreadFromReflections]);
 
   useEffect(() => {
     checkFirstVisit();
@@ -478,6 +486,22 @@ const HomeScreen: React.FC<HomeProps> = ({ navigation, route }) => {
     }
   };
 
+  // Badge: show when there's an unfinished meditation or the selected personal challenge is incomplete
+  const hasUnfinishedMeditation = useMemo(() => {
+    const sessionInProgress = meditationState === 'countdown' || meditationState === 'active';
+    const startedButNotCompleted = meditationTimer > 0 && meditationState !== 'complete';
+    const selectedIncomplete = selectedChallenge
+      ? (personalChallenges || []).some(c => c.id === (selectedChallenge as any).id && !c.isCompleted)
+      : false;
+    return sessionInProgress || startedButNotCompleted || selectedIncomplete;
+  }, [meditationState, meditationTimer, selectedChallenge, personalChallenges]);
+
+  // Community unread badge value
+  const communityUnreadBadge = useMemo(() => {
+    if (!unreadCount || unreadCount <= 0) return null;
+    return unreadCount > 99 ? '99+' : unreadCount;
+  }, [unreadCount]);
+
   const renderHeader = () => (
     <View style={styles.header}>
       <View style={styles.headerContent}>
@@ -508,7 +532,7 @@ const HomeScreen: React.FC<HomeProps> = ({ navigation, route }) => {
                 style={styles.pointsGradient}
               >
                 <Star size={16} color="#FFF" />
-                <Text style={styles.pointsText}>{user.points || 0} 🌟</Text>
+                <Text style={styles.pointsText}>{user.points || 0} </Text>
               </LinearGradient>
             </Animated.View>
           </TouchableOpacity>
@@ -535,12 +559,12 @@ const HomeScreen: React.FC<HomeProps> = ({ navigation, route }) => {
         <Text style={styles.sectionTitle}>QUICK TOOLS</Text>
         <View style={styles.toolsGrid}>
           {[
-            { icon: BookOpen, label: 'Meditation', route: 'MeditationScreen', badge: 2, color: theme?.colors.primary },
+            { icon: BookOpen, label: 'Meditation', route: 'MeditationScreen', badge: hasUnfinishedMeditation ? 1 : null, color: theme?.colors.primary },
             { icon: Bible, label: 'Bible', route: 'BibleScreen', badge: null, color: theme?.colors.secondary },
             { icon: Fire, label: 'SoulForge', route: 'VirtueScreen', badge: null, color: theme?.colors.primaryDark },
-            { icon: BookmarkSimple, label: 'Bookmarks', route: 'SavedItemsScreen', badge: 5, color: theme?.colors.like },
-            { icon: NotePencil, label: 'Notes', route: 'NotesScreen', badge: 3, color: theme?.colors.error },
-            { icon: Trophy, label: 'Games', route: '', badge: 1, color: theme?.colors.success },
+            { icon: BookmarkSimple, label: 'Bookmarks', route: 'SavedItemsScreen', badge: null, color: theme?.colors.like },
+            { icon: Users, label: 'Community', route: 'CommunityScreen', badge: communityUnreadBadge, color: theme?.colors.success },
+            { icon: Trophy, label: 'Games', route: '', badge: null, color: theme?.colors.success },
           ].map((tool, index) => (
             <TouchableOpacity
               key={tool.label}
