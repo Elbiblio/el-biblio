@@ -51,6 +51,7 @@ import { useAuth } from '@/stores/auth';
 import { useChallengeStore } from '@/stores/challenge';
 import { useReflectionStore } from '@/stores/reflection';
 import { useLeaderboardStore } from '@/stores/leaderboard';
+import { useGameBadgeStore } from '@/stores/gameBadge';
 import AuthModal from '@/components/AuthModal';
 
 import { AppState, AppStateStatus } from 'react-native';
@@ -168,6 +169,7 @@ const HomeScreen: React.FC<HomeProps> = ({ navigation, route }) => {
   const { completeChallenge } = useMeditationStore();
   const { isConnected } = useWebSocket();
   const { unreadCount, computeUnreadFromReflections } = useCommunityStore();
+  const { shouldShowBadge, updateRank } = useGameBadgeStore();
   const [timeTracking, setTimeTracking] = useState<TimeTracking>({
     lastActiveTimestamp: Date.now(),
     totalActiveTime: user?.total_active_time || 0,
@@ -304,6 +306,7 @@ const HomeScreen: React.FC<HomeProps> = ({ navigation, route }) => {
   const {
     globalLeaderboard,
     fetchGlobalLeaderboard,
+    fetchUserRank,
   } = useLeaderboardStore();
 
   const { meditationState, meditationTimer, selectedChallenge } = useMeditationStore();
@@ -314,7 +317,24 @@ const HomeScreen: React.FC<HomeProps> = ({ navigation, route }) => {
     fetchCommunityChallenges(1);
     fetchReflections(1, { sortBy: 'likes', sortOrder: 'desc' });
     fetchGlobalLeaderboard();
+    // Initial rank check for Games badge
+    if (user?.id) {
+      fetchUserRank(user.id, 'all').then((res) => {
+        if (res?.rank) updateRank('all', res.rank);
+      }).catch(() => {});
+    }
   }, [fetchDailyVerses, fetchPersonalChallenges, fetchCommunityChallenges, fetchReflections, fetchGlobalLeaderboard]);
+
+  // Poll user rank periodically to detect changes and toggle Games badge
+  useEffect(() => {
+    if (!user?.id) return;
+    const id = setInterval(() => {
+      fetchUserRank(user.id!, 'all').then((res) => {
+        if (res?.rank) updateRank('all', res.rank);
+      }).catch(() => {});
+    }, 2 * 60 * 1000); // every 2 minutes
+    return () => clearInterval(id);
+  }, [user?.id, fetchUserRank, updateRank]);
 
   // Recompute community unread badge whenever reflections list updates
   useEffect(() => {
@@ -564,7 +584,7 @@ const HomeScreen: React.FC<HomeProps> = ({ navigation, route }) => {
             { icon: Fire, label: 'SoulForge', route: 'VirtueScreen', badge: null, color: theme?.colors.primaryDark },
             { icon: BookmarkSimple, label: 'Bookmarks', route: 'SavedItemsScreen', badge: null, color: theme?.colors.like },
             { icon: Users, label: 'Community', route: 'CommunityScreen', badge: communityUnreadBadge, color: theme?.colors.success },
-            { icon: Trophy, label: 'Games', route: '', badge: null, color: theme?.colors.success },
+            { icon: Trophy, label: 'Games', route: 'GameScreen', badge: shouldShowBadge ? 1 : null, color: theme?.colors.success },
           ].map((tool, index) => (
             <TouchableOpacity
               key={tool.label}
@@ -575,12 +595,7 @@ const HomeScreen: React.FC<HomeProps> = ({ navigation, route }) => {
                   withTiming(0.97, { duration: 100 }),
                   withTiming(1, { duration: 100 })
                 );
-                
-                if (tool.label === 'Games') {
-                  setShowGamesModal(true);
-                } else {
-                  handleQuickActionPress(tool.route);
-                }
+                handleQuickActionPress(tool.route);
               }}
             >
               <LinearGradient

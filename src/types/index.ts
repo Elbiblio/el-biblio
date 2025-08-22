@@ -592,6 +592,7 @@ export type RootStackParamList = {
   DailyChallengeScreen: undefined;
   MeditationScreen: undefined;
   VirtueScreen: undefined;
+  GameScreen: undefined;
   LeaderboardScreen: undefined;
   VerseBuilderScreen: undefined;
   VirtueTriviaScreen: undefined;
