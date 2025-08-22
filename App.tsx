@@ -4,9 +4,10 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ThemeProvider, useTheme } from './src/contexts/ThemeContext';
-import { AuthProvider } from './src/stores/auth';
+import { AuthProvider, useAuth } from './src/stores/auth';
 import { PreferencesProvider, usePreferences, STORAGE_KEYS } from './src/stores/preferences';
 import { AppInitializationProvider, useAppInitialization } from './src/utils/appInitialization';
+import { WebSocketProvider } from './src/components/WebSocketProvider';
 import CustomSplash from './src/components/CustomSplash';
 import ThemeSelector from './src/components/ThemeSelector';
 import HomeScreen from './src/screens/HomeScreen';
@@ -34,6 +35,7 @@ import ProfileScreen from './src/screens/ProfileScreen';
 import LeaderboardScreen from './src/screens/LeaderboardScreen';
 import RegistrationScreen from './src/screens/RegistrationScreen';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useAppStore } from './src/stores/appStore';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -44,6 +46,8 @@ const AppContent = () => {
   const [isSplashComplete, setIsSplashComplete] = useState(false);
   const { setInitialized } = useAppInitialization();
   const fontsLoaded = useAppFonts();
+  const { isInitialized: authInitialized, user, token } = useAuth();
+  const { hasCompletedWelcome, initializeWelcomeState } = useAppStore();
   
   useEffect(() => {
     const initialize = async () => {
@@ -54,6 +58,8 @@ const AppContent = () => {
         } else {
           setShowThemeSelector(true);
         }
+        // Initialize welcome state
+        await initializeWelcomeState();
       } catch (error) {
         console.warn('Error loading theme:', error);
         setShowThemeSelector(true);
@@ -66,7 +72,7 @@ const AppContent = () => {
   }, []);
 
   useEffect(() => {
-    if (fontsLoaded && !isLoading && isSplashComplete) {
+    if (fontsLoaded && !isLoading && isSplashComplete && authInitialized) {
       // Small delay to ensure all contexts are properly initialized
       const timer = setTimeout(() => {
         setInitialized(true);
@@ -74,7 +80,9 @@ const AppContent = () => {
       
       return () => clearTimeout(timer);
     }
-  }, [fontsLoaded, isLoading, isSplashComplete, setInitialized]);
+  }, [fontsLoaded, isLoading, isSplashComplete, authInitialized, setInitialized]);
+
+
 
   const handleThemeChange = async (variant: ThemeVariant) => {
     try {
@@ -94,7 +102,7 @@ const AppContent = () => {
     }
   };
 
-  if (!fontsLoaded || isLoading || !isSplashComplete) {
+  if (!fontsLoaded || isLoading || !isSplashComplete || !authInitialized) {
     return (
       <ThemeProvider initialTheme={defaultTheme} onThemeChange={handleThemeChange}>
         <CustomSplash onAnimationComplete={() => setIsSplashComplete(true)} />
@@ -103,9 +111,31 @@ const AppContent = () => {
   }
 
   const NavigationContent = () => {
+    // Determine the initial route based on authentication and welcome state
+    const getInitialRoute = () => {
+      // If user is authenticated and has completed welcome, go to Home
+      if (user && token && hasCompletedWelcome) {
+        return 'Home';
+      }
+      // If user is authenticated but hasn't completed welcome, go to Intro
+      if (user && token && !hasCompletedWelcome) {
+        return 'IntroScreen';
+      }
+      // If no user or token, go to Intro
+      return 'IntroScreen';
+    };
+
+    const initialRoute = getInitialRoute();
+    // Create a key that changes when the route should change to force re-render
+    const navigatorKey = `${user?.id || 'no-user'}-${hasCompletedWelcome ? 'welcome-completed' : 'welcome-pending'}`;
+
     return (
       <NavigationContainer>
-        <Stack.Navigator screenOptions={{ headerShown: false }}>
+        <Stack.Navigator 
+          key={navigatorKey}
+          screenOptions={{ headerShown: false }}
+          initialRouteName={initialRoute}
+        >
           <Stack.Screen name="IntroScreen" component={IntroScreen} />
           <Stack.Screen name="RegistrationScreen" component={RegistrationScreen} />
           <Stack.Screen name="Home" component={HomeScreen} />
@@ -155,7 +185,9 @@ const App = () => {
       <AppInitializationProvider>
         <PreferencesProvider>
           <AuthProvider>
-            <AppContent />
+            <WebSocketProvider>
+              <AppContent />
+            </WebSocketProvider>
           </AuthProvider>
         </PreferencesProvider>
       </AppInitializationProvider>

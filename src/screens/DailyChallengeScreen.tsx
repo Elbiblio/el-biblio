@@ -8,7 +8,8 @@ import {
   Platform,
   TextInput,
   Alert,
-  RefreshControl
+  RefreshControl,
+  ActivityIndicator
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
@@ -39,8 +40,10 @@ import { format, isToday, parseISO, differenceInHours, addDays } from 'date-fns'
 import { AvatarStack } from '../components/AvatarStack';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/stores/auth';
+import { useChallengeStore } from '@/stores/challenge';
 import { Theme } from '@/theme';
 import { Challenge, ChallengeType } from '@/types/challenges';
+import * as Haptics from 'expo-haptics';
 
 type DailyChallengesProps = {
   navigation: any;
@@ -63,12 +66,48 @@ const DailyChallengesScreen: React.FC<DailyChallengesProps> = ({ navigation }) =
   const styles = React.useMemo(() => createStyles(theme), [theme]);
   const { user } = useAuth();
   
-  const [activeCategory, setActiveCategory] = useState<string>('personal');
-  const [refreshing, setRefreshing] = useState(false);
-  const [personalChallenges, setPersonalChallenges] = useState<Challenge[]>([]);
-  const [communityChallenges, setCommunityChallenges] = useState<Challenge[]>([]);
-  const [suggestedChallenges, setSuggestedChallenges] = useState<Challenge[]>([]);
-  const [showNewChallengeForm, setShowNewChallengeForm] = useState(false);
+  const {
+    // State
+    personalChallenges,
+    communityChallenges,
+    suggestedChallenges,
+    activeCategory,
+    showNewChallengeForm,
+    refreshing,
+    
+    // Loading states
+    isPersonalLoading,
+    isCommunityLoading,
+    isSuggestedLoading,
+    isCreatingLoading,
+    isJoiningLoading,
+    isUpvotingLoading,
+    
+    // Error states
+    personalError,
+    communityError,
+    suggestedError,
+    createError,
+    
+    // Actions
+    fetchPersonalChallenges,
+    fetchCommunityChallenges,
+    fetchSuggestedChallenges,
+    createChallenge,
+    joinChallenge,
+    leaveChallenge,
+    upvoteChallenge,
+    completeChallenge,
+    addSuggestedToPersonal,
+    
+    // State management
+    setActiveCategory,
+    setShowNewChallengeForm,
+    setRefreshing,
+    clearErrors,
+    refreshAll,
+  } = useChallengeStore();
+  
   const [newChallenge, setNewChallenge] = useState({
     title: '',
     type: 'virtue' as ChallengeType,
@@ -94,112 +133,10 @@ const DailyChallengesScreen: React.FC<DailyChallengesProps> = ({ navigation }) =
     setRefreshing(true);
     
     try {
-      // In a real app, these would be API calls
-      // For now, we'll use mock data
-      setPersonalChallenges([
-        {
-          id: '1',
-          title: 'Morning prayer for 15 minutes',
-          description: 'Start the day with focused prayer time',
-          type: 'virtue',
-          category: 'personal',
-          progress: 80,
-          endTime: '09:00',
-          createdAt: new Date().toISOString(),
-          expiresAt: addDays(new Date(), 1).toISOString(),
-          isCompleted: false,
-          userId: user?.id || '',
-        },
-        {
-          id: '2',
-          title: 'Avoid social media until noon',
-          description: 'Focus on productive work in the morning',
-          type: 'vice',
-          category: 'personal',
-          progress: 50,
-          endTime: '12:00',
-          createdAt: new Date().toISOString(),
-          expiresAt: addDays(new Date(), 1).toISOString(),
-          isCompleted: false,
-          userId: user?.id || '',
-        },
-      ]);
-      
-      setCommunityChallenges([
-        {
-          id: '3',
-          title: 'Group fasting till 3pm',
-          description: 'Join the community in fasting until mid-afternoon',
-          type: 'virtue',
-          category: 'community',
-          progress: 65,
-          endTime: '15:00',
-          createdAt: new Date().toISOString(),
-          expiresAt: addDays(new Date(), 1).toISOString(),
-          isCompleted: false,
-          userId: 'community',
-          participants: 23,
-          participantAvatars: [
-            { id: '1', avatar: '', first_name: 'User1', last_name: 'User1' },
-            { id: '2', avatar: '', first_name: 'User2', last_name: 'User2' },
-            { id: '3', avatar: '', first_name: 'User3', last_name: 'User3' },
-          ],
-          upvotes: 45,
-          hasJoined: false,
-          hasUpvoted: false,
-        },
-        {
-          id: '4',
-          title: 'Scripture memorization - Psalm 23',
-          description: 'Memorize Psalm 23 together',
-          type: 'virtue',
-          category: 'community',
-          progress: 30,
-          endTime: '20:00',
-          createdAt: new Date().toISOString(),
-          expiresAt: addDays(new Date(), 1).toISOString(),
-          isCompleted: false,
-          userId: 'community',
-          participants: 17,
-          participantAvatars: [
-            { id: '4', avatar: '', first_name: 'User4', last_name: 'User4' },
-            { id: '5', avatar: '', first_name: 'User5', last_name: 'User5' },
-          ],
-          upvotes: 32,
-          hasJoined: true,
-          hasUpvoted: true,
-        },
-      ]);
-      
-      setSuggestedChallenges([
-        {
-          id: '5',
-          title: 'Practice patience in traffic',
-          description: 'Remain calm and patient during commute',
-          type: 'virtue',
-          category: 'suggested',
-          endTime: '18:00',
-          createdAt: new Date().toISOString(),
-          expiresAt: addDays(new Date(), 1).toISOString(),
-          isCompleted: false,
-          userId: 'system',
-          upvotes: 12,
-          hasUpvoted: false,
-        },
-        {
-          id: '6',
-          title: 'Limit screen time before bed',
-          description: 'No screens 1 hour before sleep',
-          type: 'vice',
-          category: 'suggested',
-          endTime: '22:00',
-          createdAt: new Date().toISOString(),
-          expiresAt: addDays(new Date(), 1).toISOString(),
-          isCompleted: false,
-          userId: 'system',
-          upvotes: 28,
-          hasUpvoted: true,
-        },
+      await Promise.all([
+        fetchPersonalChallenges(1),
+        fetchCommunityChallenges(1),
+        fetchSuggestedChallenges(1),
       ]);
     } catch (error) {
       console.error('Error loading challenges:', error);
@@ -207,11 +144,11 @@ const DailyChallengesScreen: React.FC<DailyChallengesProps> = ({ navigation }) =
     } finally {
       setRefreshing(false);
     }
-  }, [user]);
+  }, [fetchPersonalChallenges, fetchCommunityChallenges, fetchSuggestedChallenges, setRefreshing]);
   
   const onRefresh = useCallback(() => {
-    loadChallenges();
-  }, [loadChallenges]);
+    refreshAll();
+  }, [refreshAll]);
   
   const toggleNewChallengeForm = () => {
     if (showNewChallengeForm) {
@@ -223,114 +160,70 @@ const DailyChallengesScreen: React.FC<DailyChallengesProps> = ({ navigation }) =
     }
   };
   
-  const handleCreateChallenge = () => {
+  const handleCreateChallenge = async () => {
     if (!newChallenge.title.trim()) {
       Alert.alert('Error', 'Please enter a challenge title');
       return;
     }
     
-    const challenge: Challenge = {
-      id: Date.now().toString(),
+    const result = await createChallenge({
       title: newChallenge.title,
       description: newChallenge.description || 'No description provided',
       type: newChallenge.type,
       category: 'personal',
-      progress: 0,
       endTime: newChallenge.endTime,
-      createdAt: new Date().toISOString(),
-      expiresAt: addDays(new Date(), 1).toISOString(),
-      isCompleted: false,
-      userId: user?.id || '',
-    };
-    
-    setPersonalChallenges(prev => [challenge, ...prev]);
-    
-    // Reset form
-    setNewChallenge({
-      title: '',
-      type: 'virtue',
-      endTime: '21:00',
-      description: '',
     });
     
-    toggleNewChallengeForm();
-  };
-  
-  const handleCompleteChallenge = (challenge: Challenge, isCompleted: boolean) => {
-    const updatedChallenge = { ...challenge, isCompleted };
-    
-    if (challenge.category === 'personal') {
-      setPersonalChallenges(prev => 
-        prev.map(c => c.id === challenge.id ? updatedChallenge : c)
-      );
+    if (result) {
+      // Reset form
+      setNewChallenge({
+        title: '',
+        type: 'virtue',
+        endTime: '21:00',
+        description: '',
+      });
+      
+      toggleNewChallengeForm();
     }
-    
-    // In a real app, you would update this on the server
-    Alert.alert(
-      isCompleted ? 'Challenge Completed!' : 'Challenge Marked Incomplete',
-      isCompleted 
-        ? 'Great job! You\'ve earned points for completing this challenge.' 
-        : 'Don\'t worry, you can try again tomorrow.'
-    );
   };
   
-  const handleJoinChallenge = (challenge: Challenge) => {
-    const updatedChallenge = { 
-      ...challenge, 
-      hasJoined: !challenge.hasJoined,
-      participants: challenge.hasJoined 
-        ? (challenge.participants || 1) - 1 
-        : (challenge.participants || 0) + 1
-    };
+  const handleCompleteChallenge = async (challenge: Challenge, isCompleted: boolean) => {
+    const success = await completeChallenge(challenge.id, isCompleted);
     
-    setCommunityChallenges(prev => 
-      prev.map(c => c.id === challenge.id ? updatedChallenge : c)
-    );
-    
-    // In a real app, you would update this on the server
-    Alert.alert(
-      updatedChallenge.hasJoined ? 'Challenge Joined!' : 'Left Challenge',
-      updatedChallenge.hasJoined 
-        ? 'You\'ve joined this community challenge.' 
-        : 'You\'ve left this community challenge.'
-    );
-  };
-  
-  const handleUpvoteChallenge = (challenge: Challenge) => {
-    const updatedChallenge = { 
-      ...challenge, 
-      hasUpvoted: !challenge.hasUpvoted,
-      upvotes: challenge.hasUpvoted 
-        ? (challenge.upvotes || 1) - 1 
-        : (challenge.upvotes || 0) + 1
-    };
-    
-    if (challenge.category === 'community') {
-      setCommunityChallenges(prev => 
-        prev.map(c => c.id === challenge.id ? updatedChallenge : c)
-      );
-    } else if (challenge.category === 'suggested') {
-      setSuggestedChallenges(prev => 
-        prev.map(c => c.id === challenge.id ? updatedChallenge : c)
+    if (success) {
+      Haptics.notificationAsync(
+        isCompleted 
+          ? Haptics.NotificationFeedbackType.Success 
+          : Haptics.NotificationFeedbackType.Warning
       );
     }
   };
   
-  const handleAddSuggestedChallenge = (challenge: Challenge) => {
-    const personalChallenge: Challenge = {
-      ...challenge,
-      id: Date.now().toString(),
-      category: 'personal',
-      userId: user?.id || '',
-      progress: 0,
-    };
-    
-    setPersonalChallenges(prev => [personalChallenge, ...prev]);
-    
-    Alert.alert(
-      'Challenge Added',
-      'This challenge has been added to your personal challenges.'
+  const handleJoinChallenge = async (challenge: Challenge) => {
+    const success = await (challenge.hasJoined 
+      ? leaveChallenge(challenge.id)
+      : joinChallenge(challenge.id)
     );
+    
+    if (success) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    }
+  };
+  
+  const handleUpvoteChallenge = async (challenge: Challenge) => {
+    const success = await upvoteChallenge(challenge.id);
+    
+    if (success) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    }
+  };
+  
+  const handleAddSuggestedChallenge = async (challenge: Challenge) => {
+    const success = await addSuggestedToPersonal(challenge.id);
+    
+    if (success) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    }
   };
   
   const handleSuggestCommunityChallenge = () => {
@@ -481,7 +374,7 @@ const DailyChallengesScreen: React.FC<DailyChallengesProps> = ({ navigation }) =
             <View style={styles.participantsContainer}>
               {challenge.participantAvatars && (
                 <AvatarStack
-                  users={challenge.participantAvatars}
+                  users={challenge.participantAvatars as any}
                   maxAvatars={3}
                   size={24}
                 />
@@ -581,17 +474,60 @@ const DailyChallengesScreen: React.FC<DailyChallengesProps> = ({ navigation }) =
   
   const renderChallenges = () => {
     let challenges: Challenge[] = [];
+    let isLoading = false;
+    let error: string | null = null;
     
     switch (activeCategory) {
       case 'personal':
         challenges = personalChallenges;
+        isLoading = isPersonalLoading;
+        error = personalError;
         break;
       case 'community':
         challenges = communityChallenges;
+        isLoading = isCommunityLoading;
+        error = communityError;
         break;
       case 'suggested':
         challenges = suggestedChallenges;
+        isLoading = isSuggestedLoading;
+        error = suggestedError;
         break;
+    }
+    
+    if (isLoading && challenges.length === 0) {
+      return (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={theme?.colors.primary} />
+          <Text style={styles.loadingText}>Loading challenges...</Text>
+        </View>
+      );
+    }
+    
+    if (error && challenges.length === 0) {
+      return (
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorText}>{error}</Text>
+          <TouchableOpacity 
+            style={styles.retryButton}
+            onPress={() => {
+              switch (activeCategory) {
+                case 'personal':
+                  fetchPersonalChallenges(1);
+                  break;
+                case 'community':
+                  fetchCommunityChallenges(1);
+                  break;
+                case 'suggested':
+                  fetchSuggestedChallenges(1);
+                  break;
+              }
+            }}
+          >
+            <Text style={styles.retryButtonText}>Retry</Text>
+          </TouchableOpacity>
+        </View>
+      );
     }
     
     if (challenges.length === 0) {
@@ -669,6 +605,10 @@ const DailyChallengesScreen: React.FC<DailyChallengesProps> = ({ navigation }) =
           />
         </View>
         
+        {createError && (
+          <Text style={styles.errorText}>{createError}</Text>
+        )}
+        
         <View style={styles.formActions}>
           <TouchableOpacity 
             style={[styles.formButton, styles.cancelButton]}
@@ -678,10 +618,15 @@ const DailyChallengesScreen: React.FC<DailyChallengesProps> = ({ navigation }) =
           </TouchableOpacity>
           
           <TouchableOpacity 
-            style={[styles.formButton, styles.createButton]}
+            style={[styles.formButton, styles.createButton, isCreatingLoading && { opacity: 0.6 }]}
             onPress={handleCreateChallenge}
+            disabled={isCreatingLoading}
           >
-            <Text style={styles.createButtonText}>Create Challenge</Text>
+            {isCreatingLoading ? (
+              <ActivityIndicator size="small" color={theme?.colors.text.inverse} />
+            ) : (
+              <Text style={styles.createButtonText}>Create Challenge</Text>
+            )}
           </TouchableOpacity>
         </View>
       </Animated.View>
@@ -718,7 +663,7 @@ const DailyChallengesScreen: React.FC<DailyChallengesProps> = ({ navigation }) =
               styles.categoryTab,
               activeCategory === category.id && styles.activeTab
             ]}
-            onPress={() => setActiveCategory(category.id)}
+            onPress={() => setActiveCategory(category.id as 'personal' | 'community' | 'suggested')}
           >
             <Text style={[
               styles.categoryText,
@@ -1112,6 +1057,42 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     color: theme?.colors.primary,
     fontWeight: '600',
     marginLeft: theme?.spacing.xs,
+  },
+  
+  // Loading and error states
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: theme?.spacing.xl,
+  },
+  loadingText: {
+    ...theme?.typography.body.sans,
+    color: theme?.colors.text.secondary,
+    marginTop: theme?.spacing.md,
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: theme?.spacing.xl,
+  },
+  errorText: {
+    ...theme?.typography.body.sans,
+    color: theme?.colors.error,
+    textAlign: 'center',
+    marginBottom: theme?.spacing.md,
+  },
+  retryButton: {
+    backgroundColor: theme?.colors.primary,
+    paddingHorizontal: theme?.spacing.lg,
+    paddingVertical: theme?.spacing.md,
+    borderRadius: 8,
+  },
+  retryButtonText: {
+    ...theme?.typography.body.sans,
+    color: theme?.colors.text.inverse,
+    fontWeight: '600',
   },
 });
 

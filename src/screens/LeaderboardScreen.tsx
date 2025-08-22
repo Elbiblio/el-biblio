@@ -7,91 +7,134 @@ import {
   Image,
   TouchableOpacity,
   ActivityIndicator,
-  Platform
+  Platform,
+  RefreshControl
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
 import { Theme, ThemeVariant } from '@/theme';
 import { useAuth } from '@/stores/auth';
+import { useLeaderboardStore } from '@/stores/leaderboard';
 import * as Haptics from 'expo-haptics';
-import { ArrowLeft, Award, ChevronUp, ChevronDown, Filter } from '../components/Icons';
-import { AllVirtues } from '@/types';
+import { ArrowLeft, Award, ChevronUp, ChevronDown, Filter, Users, Fire, Calendar } from '../components/Icons';
+import { AllVirtues, LeaderboardEntry } from '@/types';
+import { toast } from 'sonner-native';
 
-type LeaderboardEntry = {
-  id: string;
-  name: string;
-  avatar: string;
-  points: number;
-  rank: number;
-  previousRank: number;
-  topVirtue: AllVirtues;
-};
-
-type TimeFilter = 'all' | 'week' | 'month';
-type VirtueFilter = 'all' | AllVirtues;
+type TimeFilter = 'all' | 'day' | 'week' | 'month';
+type LeaderboardType = 'global' | 'theme' | 'timeframe';
 
 const LeaderboardScreen = ({ navigation }: any) => {
   const theme = useTheme();
   const { user } = useAuth();
   const styles = useMemo(() => createStyles(theme), [theme]);
-  const [loading, setLoading] = useState(true);
-  const [timeFilter, setTimeFilter] = useState<TimeFilter>('all');
-  const [virtueFilter, setVirtueFilter] = useState<VirtueFilter>('all');
-  const [filterMenuOpen, setFilterMenuOpen] = useState(false);
   
-  // Mock leaderboard data - replace with API call
-  const [leaderboardData, setLeaderboardData] = useState<LeaderboardEntry[]>([]);
-  const [userRank, setUserRank] = useState<LeaderboardEntry | null>(null);
+  // Leaderboard store
+  const {
+    globalLeaderboard,
+    themeLeaderboard,
+    timeframeLeaderboard,
+    isGlobalLoading,
+    isThemeLoading,
+    isTimeframeLoading,
+    globalError,
+    themeError,
+    timeframeError,
+    pagination,
+    filters,
+    fetchGlobalLeaderboard,
+    fetchThemeLeaderboard,
+    fetchTimeframeLeaderboard,
+    fetchUserRank,
+    clearErrors,
+    setFilters,
+  } = useLeaderboardStore();
+
+  const [timeFilter, setTimeFilter] = useState<TimeFilter>('all');
+  const [leaderboardType, setLeaderboardType] = useState<LeaderboardType>('global');
+  const [filterMenuOpen, setFilterMenuOpen] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [userRank, setUserRank] = useState<{
+    rank: number;
+    total_users: number;
+    user: any;
+  } | null>(null);
+
+  // Get current leaderboard data based on type
+  const currentLeaderboard = useMemo(() => {
+    switch (leaderboardType) {
+      case 'global':
+        return globalLeaderboard;
+      case 'theme':
+        return themeLeaderboard;
+      case 'timeframe':
+        return timeframeLeaderboard;
+      default:
+        return globalLeaderboard;
+    }
+  }, [leaderboardType, globalLeaderboard, themeLeaderboard, timeframeLeaderboard]);
+
+  const isLoading = isGlobalLoading || isThemeLoading || isTimeframeLoading;
+  const error = globalError || themeError || timeframeError;
 
   useEffect(() => {
-    // Simulates API fetch
-    const fetchLeaderboardData = async () => {
-      setLoading(true);
-      try {
-        // Mock data - would be replaced with actual API call
-        await new Promise(resolve => setTimeout(resolve, 800));
-        
-        const mockData: LeaderboardEntry[] = Array.from({ length: 100 }, (_, i) => ({
-          id: `user-${i+1}`,
-          name: i === 0 ? 'Sarah Johnson' : 
-                i === 1 ? 'Marcus Chen' : 
-                i === 2 ? 'Olivia Rodriguez' : 
-                `User ${i+1}`,
-          avatar: `https://api.elbiblio.com/avatars/${(i % 8) + 1}.png`,
-          points: Math.floor(10000 - (i * 50) + (Math.random() * 20)),
-          rank: i + 1,
-          previousRank: i + 1 + (Math.floor(Math.random() * 5) - 2),
-          topVirtue: (['love', 'wisdom', 'perseverance', 'patience', 'knowledge', 'humility'] as AllVirtues[])[i % 6]
-        }));
-        
-        // Insert current user if not already in top 100
-        const currentUserInList = mockData.find(entry => entry.id === user?.id);
-        if (!currentUserInList && user) {
-          const userPosition = Math.floor(Math.random() * 50) + 100; // Random position after top 100
-          const userEntry: LeaderboardEntry = {
-            id: user.id,
-            name: `${user.first_name} ${user.last_name}`,
-            avatar: user.avatar || 'https://api.elbiblio.com/avatars/1.png',
-            points: 9000 - userPosition * 10,
-            rank: userPosition,
-            previousRank: userPosition + (Math.floor(Math.random() * 5) - 2),
-            topVirtue: 'perseverance'
-          };
-          setUserRank(userEntry);
-        } else if (currentUserInList) {
-          setUserRank(currentUserInList);
-        }
-        
-        setLeaderboardData(mockData);
-      } catch (error) {
-        console.error('Error fetching leaderboard data', error);
-      } finally {
-        setLoading(false);
+    loadLeaderboard();
+    if (user?.id) {
+      loadUserRank();
+    }
+  }, [leaderboardType, timeFilter]);
+
+  useEffect(() => {
+    if (error) {
+      toast.error(error);
+      clearErrors();
+    }
+  }, [error]);
+
+  const loadLeaderboard = async (page = 1) => {
+    try {
+      switch (leaderboardType) {
+        case 'global':
+          await fetchGlobalLeaderboard(page, timeFilter);
+          break;
+        case 'timeframe':
+          await fetchTimeframeLeaderboard(timeFilter, page);
+          break;
+        case 'theme':
+          // For theme leaderboard, you might want to add theme selection
+          // For now, using a default theme ID
+          await fetchThemeLeaderboard('1', page);
+          break;
       }
-    };
+    } catch (error) {
+      console.error('Error loading leaderboard:', error);
+    }
+  };
+
+  const loadUserRank = async () => {
+    if (!user?.id) return;
     
-    fetchLeaderboardData();
-  }, [timeFilter, virtueFilter, user]);
+    try {
+      const rankData = await fetchUserRank(user.id, timeFilter);
+      setUserRank(rankData);
+    } catch (error) {
+      console.error('Error loading user rank:', error);
+    }
+  };
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await loadLeaderboard(1);
+    if (user?.id) {
+      await loadUserRank();
+    }
+    setRefreshing(false);
+  };
+
+  const handleLoadMore = () => {
+    if (pagination.hasMore && !isLoading) {
+      loadLeaderboard(pagination.currentPage + 1);
+    }
+  };
 
   const getVirtueColor = (virtue: AllVirtues): string => {
     if (['love', 'compassion', 'kindness', 'generosity'].includes(virtue)) {
@@ -120,19 +163,24 @@ const LeaderboardScreen = ({ navigation }: any) => {
     navigation.goBack();
   };
 
-  const handleFilterPress = (filter: TimeFilter | VirtueFilter, type: 'time' | 'virtue') => {
+  const handleFilterPress = (filter: TimeFilter, type: 'time') => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     if (type === 'time') {
-      setTimeFilter(filter as TimeFilter);
-    } else {
-      setVirtueFilter(filter as VirtueFilter);
+      setTimeFilter(filter);
+      setFilters({ timeframe: filter });
     }
     setFilterMenuOpen(false);
   };
 
+  const handleLeaderboardTypeChange = (type: LeaderboardType) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setLeaderboardType(type);
+    setFilterMenuOpen(false);
+  };
+
   const renderLeaderboardItem = ({ item, index }: { item: LeaderboardEntry, index: number }) => {
-    const isCurrentUser = item.id === user?.id;
-    const rankDiff = item.previousRank - item.rank;
+    const isCurrentUser = item.user?.id === user?.id;
+    const rank = item.rank || index + 1;
     
     return (
       <View style={[
@@ -143,48 +191,35 @@ const LeaderboardScreen = ({ navigation }: any) => {
         <View style={styles.rankContainer}>
           {index < 3 ? (
             <View style={[styles.medalContainer, { backgroundColor: getMedalColor(index + 1) }]}>
-              <Text style={styles.medalText}>{index + 1}</Text>
+              <Text style={styles.medalText}>{rank}</Text>
             </View>
           ) : (
-            <Text style={styles.rankText}>{item.rank}</Text>
-          )}
-          {rankDiff !== 0 && (
-            <View style={styles.rankChangeContainer}>
-              {rankDiff > 0 ? (
-                <ChevronUp size={14} color={theme.colors.success} />
-              ) : (
-                <ChevronDown size={14} color={theme.colors.error} />
-              )}
-              <Text style={[
-                styles.rankChangeText,
-                { color: rankDiff > 0 ? theme.colors.success : theme.colors.error }
-              ]}>
-                {Math.abs(rankDiff)}
-              </Text>
-            </View>
+            <Text style={styles.rankText}>{rank}</Text>
           )}
         </View>
         
-        <Image source={{ uri: item.avatar }} style={styles.avatar} />
+        <Image 
+          source={{ uri: item.user?.avatar || 'https://api.elbiblio.com/avatars/1.png' }} 
+          style={styles.avatar} 
+        />
         
         <View style={styles.userInfoContainer}>
           <Text 
             style={[styles.nameText, isCurrentUser && styles.currentUserText]} 
             numberOfLines={1}
           >
-            {item.name}
+            {`${item.user?.first_name || ''} ${item.user?.last_name || ''}`.trim()}
             {isCurrentUser && ' (You)'}
           </Text>
           
-          <View style={styles.virtueChip}>
-            <View 
-              style={[
-                styles.virtueIndicator, 
-                { backgroundColor: getVirtueColor(item.topVirtue) }
-              ]} 
-            />
-            <Text style={styles.virtueText}>
-              {item.topVirtue.charAt(0).toUpperCase() + item.topVirtue.slice(1)}
+          <View style={styles.statsContainer}>
+            <Text style={styles.statsText}>
+              {leaderboardType === 'global' ? 
+                `${item.verses_read || 0} verses` :
+                leaderboardType === 'theme' ?
+                `${item.reflections_count || 0} reflections` :
+                `${item.activities_count || 0} activities`
+              }
             </Text>
           </View>
         </View>
@@ -195,7 +230,10 @@ const LeaderboardScreen = ({ navigation }: any) => {
             styles.pointsText,
             index < 3 && { fontWeight: '600' }
           ]}>
-            {item.points.toLocaleString()}
+            {leaderboardType === 'timeframe' ? 
+              (item.points_earned || 0).toLocaleString() :
+              (item.points || 0).toLocaleString()
+            }
           </Text>
         </View>
       </View>
@@ -205,6 +243,38 @@ const LeaderboardScreen = ({ navigation }: any) => {
   const ListHeader = () => (
     <View style={styles.headerContainer}>
       <View style={styles.filterSection}>
+        <View style={styles.leaderboardTypeButtons}>
+          <TouchableOpacity 
+            style={[styles.typeButton, leaderboardType === 'global' && styles.selectedTypeButton]}
+            onPress={() => handleLeaderboardTypeChange('global')}
+          >
+            <Users size={16} color={leaderboardType === 'global' ? theme.colors.text.inverse : theme.colors.text.secondary} />
+            <Text style={[styles.typeButtonText, leaderboardType === 'global' && styles.selectedTypeButtonText]}>
+              Global
+            </Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={[styles.typeButton, leaderboardType === 'timeframe' && styles.selectedTypeButton]}
+            onPress={() => handleLeaderboardTypeChange('timeframe')}
+          >
+            <Fire size={16} color={leaderboardType === 'timeframe' ? theme.colors.text.inverse : theme.colors.text.secondary} />
+            <Text style={[styles.typeButtonText, leaderboardType === 'timeframe' && styles.selectedTypeButtonText]}>
+              Trending
+            </Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={[styles.typeButton, leaderboardType === 'theme' && styles.selectedTypeButton]}
+            onPress={() => handleLeaderboardTypeChange('theme')}
+          >
+            <Calendar size={16} color={leaderboardType === 'theme' ? theme.colors.text.inverse : theme.colors.text.secondary} />
+            <Text style={[styles.typeButtonText, leaderboardType === 'theme' && styles.selectedTypeButtonText]}>
+              Theme
+            </Text>
+          </TouchableOpacity>
+        </View>
+
         <TouchableOpacity 
           style={styles.filterButton}
           onPress={() => {
@@ -217,7 +287,6 @@ const LeaderboardScreen = ({ navigation }: any) => {
             {timeFilter !== 'all' ? 
               `${timeFilter.charAt(0).toUpperCase() + timeFilter.slice(1)}` : 
               'All Time'}
-            {virtueFilter !== 'all' && ` • ${virtueFilter.charAt(0).toUpperCase() + virtueFilter.slice(1)}`}
           </Text>
         </TouchableOpacity>
 
@@ -232,6 +301,12 @@ const LeaderboardScreen = ({ navigation }: any) => {
                 <Text style={styles.filterOptionText}>All Time</Text>
               </TouchableOpacity>
               <TouchableOpacity 
+                style={[styles.filterOption, timeFilter === 'day' && styles.selectedFilter]}
+                onPress={() => handleFilterPress('day', 'time')}
+              >
+                <Text style={styles.filterOptionText}>Today</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
                 style={[styles.filterOption, timeFilter === 'week' && styles.selectedFilter]}
                 onPress={() => handleFilterPress('week', 'time')}
               >
@@ -244,98 +319,98 @@ const LeaderboardScreen = ({ navigation }: any) => {
                 <Text style={styles.filterOptionText}>This Month</Text>
               </TouchableOpacity>
             </View>
-
-            <Text style={styles.filterMenuTitle}>Virtue Category</Text>
-            <View style={styles.filterOptions}>
-              <TouchableOpacity 
-                style={[styles.filterOption, virtueFilter === 'all' && styles.selectedFilter]}
-                onPress={() => handleFilterPress('all', 'virtue')}
-              >
-                <Text style={styles.filterOptionText}>All Virtues</Text>
-              </TouchableOpacity>
-              <TouchableOpacity 
-                style={[styles.filterOption, virtueFilter === 'love' && styles.selectedFilter]}
-                onPress={() => handleFilterPress('love', 'virtue')}
-              >
-                <Text style={styles.filterOptionText}>Love</Text>
-              </TouchableOpacity>
-              <TouchableOpacity 
-                style={[styles.filterOption, virtueFilter === 'wisdom' && styles.selectedFilter]}
-                onPress={() => handleFilterPress('wisdom', 'virtue')}
-              >
-                <Text style={styles.filterOptionText}>Wisdom</Text>
-              </TouchableOpacity>
-              <TouchableOpacity 
-                style={[styles.filterOption, virtueFilter === 'perseverance' && styles.selectedFilter]}
-                onPress={() => handleFilterPress('perseverance', 'virtue')}
-              >
-                <Text style={styles.filterOptionText}>Perseverance</Text>
-              </TouchableOpacity>
-            </View>
           </View>
         )}
       </View>
 
-      <View style={styles.listHeaderRow}>
-        <Text style={styles.headerRankText}>Rank</Text>
-        <Text style={styles.headerNameText}>User</Text>
-        <Text style={styles.headerPointsText}>Points</Text>
-      </View>
+      {userRank && (
+        <View style={styles.userRankCard}>
+          <Text style={styles.userRankTitle}>Your Ranking</Text>
+          <View style={styles.userRankContent}>
+            <Text style={styles.userRankText}>
+              #{userRank.rank} of {userRank.total_users} users
+            </Text>
+            <Text style={styles.userRankSubtext}>
+              {leaderboardType === 'global' ? 'Global leaderboard' :
+               leaderboardType === 'timeframe' ? `${timeFilter} activity` :
+               'Theme leaderboard'}
+            </Text>
+          </View>
+        </View>
+      )}
     </View>
   );
 
-  const UserRankFooter = () => {
-    if (!userRank || leaderboardData.find(entry => entry.id === user?.id)) return null;
-    
-    return (
-      <View style={styles.userRankSection}>
-        <View style={styles.userRankDivider}>
-          <View style={styles.dividerLine} />
-          <Text style={styles.dividerText}>Your Ranking</Text>
-          <View style={styles.dividerLine} />
+  const ListFooter = () => {
+    if (isLoading && pagination.currentPage > 1) {
+      return (
+        <View style={styles.loadingFooter}>
+          <ActivityIndicator color={theme.colors.primary} />
+          <Text style={styles.loadingText}>Loading more...</Text>
         </View>
-        
-        {renderLeaderboardItem({ item: userRank, index: -1 })}
+      );
+    }
+    return null;
+  };
+
+  const ListEmpty = () => {
+    if (isLoading) {
+      return (
+        <View style={styles.emptyContainer}>
+          <ActivityIndicator size="large" color={theme.colors.primary} />
+          <Text style={styles.emptyText}>Loading leaderboard...</Text>
+        </View>
+      );
+    }
+
+    if (error) {
+      return (
+        <View style={styles.emptyContainer}>
+          <Text style={styles.errorText}>Failed to load leaderboard</Text>
+          <TouchableOpacity style={styles.retryButton} onPress={() => loadLeaderboard(1)}>
+            <Text style={styles.retryButtonText}>Retry</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+
+    return (
+      <View style={styles.emptyContainer}>
+        <Text style={styles.emptyText}>No leaderboard data available</Text>
       </View>
     );
   };
 
-  if (loading) {
-    return (
-      <SafeAreaView style={styles.loadingContainer} edges={['top']}>
-        <View style={styles.header}>
-          <TouchableOpacity style={styles.backButton} onPress={handleGoBack}>
-            <ArrowLeft size={24} color={theme.colors.text.primary} />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Leaderboard</Text>
-          <View style={styles.headerSpacer} />
-        </View>
-        <ActivityIndicator size="large" color={theme.colors.primary} />
-      </SafeAreaView>
-    );
-  }
-
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.container}>
+      {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.backButton} onPress={handleGoBack}>
           <ArrowLeft size={24} color={theme.colors.text.primary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Leaderboard</Text>
-        <View style={styles.headerSpacer} />
+        <View style={styles.placeholder} />
       </View>
-      
+
       <FlatList
-        data={leaderboardData}
+        data={currentLeaderboard}
         renderItem={renderLeaderboardItem}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.listContent}
+        keyExtractor={(item) => item.user?.id || item.rank?.toString()}
         ListHeaderComponent={ListHeader}
-        ListFooterComponent={UserRankFooter}
-        stickyHeaderIndices={[0]}
-        initialNumToRender={10}
-        maxToRenderPerBatch={10}
-        windowSize={10}
+        ListFooterComponent={ListFooter}
+        ListEmptyComponent={ListEmpty}
+        onEndReached={handleLoadMore}
+        onEndReachedThreshold={0.1}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            colors={[theme.colors.primary]}
+            tintColor={theme.colors.primary}
+          />
+        }
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.listContent}
       />
     </SafeAreaView>
   );
@@ -579,6 +654,108 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     ...theme.typography.caption.primary,
     color: theme.colors.text.secondary,
     marginHorizontal: theme.spacing.md,
+  },
+  leaderboardTypeButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginBottom: theme.spacing.md,
+    paddingHorizontal: theme.spacing.sm,
+  },
+  typeButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: theme.spacing.xs,
+    paddingHorizontal: theme.spacing.md,
+    borderRadius: theme.borderRadius.full,
+    backgroundColor: theme.colors.surfaceVariant,
+  },
+  selectedTypeButton: {
+    backgroundColor: theme.colors.primary,
+  },
+  typeButtonText: {
+    ...theme.typography.caption.primary,
+    color: theme.colors.text.secondary,
+    marginLeft: theme.spacing.xs,
+  },
+  selectedTypeButtonText: {
+    color: theme.colors.text.inverse,
+  },
+  userRankCard: {
+    backgroundColor: theme.colors.surface,
+    padding: theme.spacing.md,
+    borderRadius: theme.borderRadius.lg,
+    marginHorizontal: theme.spacing.lg,
+    marginBottom: theme.spacing.md,
+    ...theme.shadows.sm,
+  },
+  userRankTitle: {
+    ...theme.typography.body.sans,
+    color: theme.colors.text.primary,
+    fontWeight: '600',
+    marginBottom: theme.spacing.sm,
+  },
+  userRankContent: {
+    alignItems: 'center',
+  },
+  userRankText: {
+    ...theme.typography.heading.small,
+    color: theme.colors.text.primary,
+    fontWeight: '700',
+  },
+  userRankSubtext: {
+    ...theme.typography.caption.secondary,
+    color: theme.colors.text.secondary,
+    marginTop: theme.spacing.xs,
+  },
+  loadingFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: theme.spacing.md,
+  },
+  loadingText: {
+    ...theme.typography.caption.primary,
+    color: theme.colors.text.secondary,
+    marginLeft: theme.spacing.xs,
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: theme.spacing.xxl,
+  },
+  emptyText: {
+    ...theme.typography.body.sans,
+    color: theme.colors.text.secondary,
+    marginTop: theme.spacing.md,
+  },
+  errorText: {
+    ...theme.typography.body.sans,
+    color: theme.colors.error,
+    textAlign: 'center',
+    marginBottom: theme.spacing.md,
+  },
+  retryButton: {
+    paddingVertical: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.lg,
+    backgroundColor: theme.colors.primary,
+    borderRadius: theme.borderRadius.full,
+  },
+  retryButtonText: {
+    ...theme.typography.caption.primary,
+    color: theme.colors.text.inverse,
+  },
+  placeholder: {
+    width: 40,
+  },
+  statsContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  statsText: {
+    ...theme.typography.caption.secondary,
+    color: theme.colors.text.secondary,
   },
 });
 

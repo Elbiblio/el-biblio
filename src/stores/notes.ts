@@ -1,282 +1,612 @@
 import { create } from 'zustand';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import NetInfo from '@react-native-community/netinfo';
-import { Note, PaginatedResponse } from '@/types';
 import { apiClient, endpoints } from '@/api/client';
-import { toast } from 'sonner-native';
-import { appState } from '@/utils/appInitialization';
+import { Note, User, PaginatedResponse } from '@/types';
 
-type SyncAction = 'add' | 'update' | 'delete';
-
-interface SyncQueue {
-  action: SyncAction;
-  note: Note;
-  timestamp: string;
-}
-
-interface NoteState {
+interface NotesState {
+  // Notes list
   notes: Note[];
-  isLoading: boolean;
-  error: string | null;
-  lastSynced: string | null;
-  syncQueue: SyncQueue[];
-  initialize: () => Promise<void>;
-  syncNotes: () => Promise<void>;
-  addNote: (data: Partial<Note>) => Promise<Note | null>;
-  updateNote: (data: Partial<Note>) => Promise<Note | null>;
+  isNotesLoading: boolean;
+  notesError: string | null;
+  
+  // Single note
+  currentNote: Note | null;
+  isNoteLoading: boolean;
+  noteError: string | null;
+  
+  // Pagination
+  pagination: {
+    currentPage: number;
+    lastPage: number;
+    perPage: number;
+    total: number;
+    hasMore: boolean;
+  };
+  
+  // Filters
+  filters: {
+    theme?: string;
+    isPublic?: boolean;
+    isFeatured?: boolean;
+    searchQuery?: string;
+    sortBy?: 'created_at' | 'updated_at' | 'title' | 'likes';
+    sortOrder?: 'asc' | 'desc';
+  };
+  
+  // Actions
+  fetchNotes: (page?: number, filters?: Partial<NotesState['filters']>) => Promise<void>;
+  fetchNoteById: (id: string) => Promise<Note | null>;
+  createNote: (data: {
+    title?: string;
+    text?: string;
+    theme_id?: string;
+    is_public?: boolean;
+    virtues?: string[];
+  }) => Promise<Note | null>;
+  updateNote: (id: string, data: Partial<Note>) => Promise<boolean>;
   deleteNote: (id: string) => Promise<boolean>;
-  fetchNote: (id: string) => Promise<Note | null>;
-
-  fetchNotes: (params?: {
-    include?: string[];
-    sort?: string;
-    per_page?: number;
-    page?: number;
-  }) => Promise<void>;
-  togglePin: (id: string) => Promise<boolean>;
+  searchNotes: (query: string, limit?: number) => Promise<Note[]>;
+  fetchPublicNotes: (page?: number) => Promise<void>;
+  fetchFeaturedNotes: (page?: number) => Promise<void>;
+  fetchNotesByUser: (userId: string, page?: number) => Promise<void>;
+  fetchNotesByTheme: (themeId: string, page?: number) => Promise<void>;
+  
+  // Note interactions
+  likeNote: (noteId: string) => Promise<boolean>;
+  shareNote: (noteId: string) => Promise<boolean>;
+  pinNote: (noteId: string) => Promise<boolean>;
+  bookmarkNote: (noteId: string) => Promise<boolean>;
+  
+  // State management
+  clearCurrentNote: () => void;
+  clearErrors: () => void;
+  setFilters: (filters: Partial<NotesState['filters']>) => void;
+  resetFilters: () => void;
 }
 
-
-const formatDate = (date: number): string => {
-  return new Date(date).toISOString();
-};
-
-const localIdPrefix = 'local_';
-
-// const isDuplicateUnsyncedNote = (notes: Note[], newNoteContent: string): boolean => {
-//   return notes.some(n => n.id.startsWith(localIdPrefix) && n.text?.slice?.(0, 100) === newNoteContent.slice?.(0, 100));
-// };
-
-const STORAGE_KEY = '@notes';
-const LAST_SYNCED_KEY = '@notes_last_synced';
-
-export const useNoteStore = create<NoteState>((set, get) => ({
+export const useNotesStore = create<NotesState>((set, get) => ({
+  // Initial State
   notes: [],
-  isLoading: false,
-  error: null,
-  lastSynced: null,
-  syncQueue: [],
-
-  initialize: async () => {
+  isNotesLoading: false,
+  notesError: null,
+  
+  currentNote: null,
+  isNoteLoading: false,
+  noteError: null,
+  
+  pagination: {
+    currentPage: 1,
+    lastPage: 1,
+    perPage: 20,
+    total: 0,
+    hasMore: false,
+  },
+  
+  filters: {
+    sortBy: 'created_at',
+    sortOrder: 'desc',
+  },
+  
+  // Actions
+  fetchNotes: async (page = 1, filters = {}) => {
     try {
-      set({ isLoading: true });
-      // Load cached notes
-      const storedNotes = await AsyncStorage.getItem(STORAGE_KEY);
-      const lastSynced = await AsyncStorage.getItem(LAST_SYNCED_KEY);
+      set({ isNotesLoading: true, notesError: null });
       
-      if (storedNotes) {
-        set({ 
-          notes: JSON.parse(storedNotes),
-          lastSynced: lastSynced
-        });
+      const currentFilters = { ...get().filters, ...filters };
+      const sortParam = `${currentFilters.sortOrder === 'desc' ? '-' : ''}${currentFilters.sortBy}`;
+      
+      const params: any = {
+        include: ['user', 'theme', 'comments.user'],
+        sort: sortParam,
+        per_page: get().pagination.perPage,
+        page,
+      };
+      
+      // Add filters
+      if (currentFilters.theme) {
+        params.theme_id = currentFilters.theme;
       }
+      if (currentFilters.isPublic !== undefined) {
+        params.is_public = currentFilters.isPublic;
+      }
+      if (currentFilters.isFeatured !== undefined) {
+        params.is_featured = currentFilters.isFeatured;
+      }
+      if (currentFilters.searchQuery) {
+        params.q = currentFilters.searchQuery;
+      }
+      
+      const response = await apiClient.get<PaginatedResponse<Note>>(
+        endpoints.notes.list,
+        params
+      );
+
+      if (!response.success) {
+        throw new Error(response.message || 'Failed to fetch notes');
+      }
+      
+      const { data, meta } = response.data;
+      
+      set({
+        notes: page === 1 ? data : [...get().notes, ...data],
+        pagination: {
+          currentPage: (meta && typeof meta.current_page === 'number') ? meta.current_page : (page ?? get().pagination.currentPage ?? 1),
+          lastPage: (meta && typeof meta.last_page === 'number') ? meta.last_page : ((meta && typeof meta.current_page === 'number') ? meta.current_page : (page ?? get().pagination.lastPage ?? 1)),
+          perPage: (meta && typeof meta.per_page === 'number') ? meta.per_page : (get().pagination.perPage ?? 20),
+          total: (meta && typeof meta.total === 'number') ? meta.total : (get().pagination.total ?? (Array.isArray(data) ? data.length : 0)),
+          hasMore: (meta && typeof meta.current_page === 'number' && typeof meta.last_page === 'number')
+            ? meta.current_page < meta.last_page
+            : (Array.isArray(data) ? data.length >= ((meta && typeof meta.per_page === 'number') ? meta.per_page : (get().pagination.perPage ?? 20)) : false),
+        },
+        filters: currentFilters,
+        isNotesLoading: false,
+      });
+
     } catch (error) {
-      console.error('Error initializing notes:', error);
-    } finally {
-      set({ isLoading: false });
+      console.error('Error fetching notes:', error);
+      set({
+        isNotesLoading: false,
+        notesError: error instanceof Error ? error.message : 'Failed to fetch notes',
+      });
     }
   },
 
-  fetchNote: async (id) => {
+  fetchNoteById: async (id: string) => {
     try {
-      set({ isLoading: true, error: null });
-      const response = await apiClient.get<{ data: Note }>(`${endpoints.notes.list}/${id}?include=virtues`);
-      const note = response.data.data;
+      set({ isNoteLoading: true, noteError: null });
       
-      // Update local state if note exists
+      const response = await apiClient.get<Note>(
+        endpoints.notes.show(id),
+        {
+          include: ['user', 'theme', 'comments.user', 'comments.replies.user'],
+        }
+      );
+
+      if (!response.success) {
+        throw new Error(response.message || 'Failed to fetch note');
+      }
+      
+      set({
+        currentNote: response.data,
+        isNoteLoading: false,
+      });
+      
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching note:', error);
+      set({
+        isNoteLoading: false,
+        noteError: error instanceof Error ? error.message : 'Failed to fetch note',
+      });
+      return null;
+    }
+  },
+
+  createNote: async (data) => {
+    try {
+      const response = await apiClient.post<Note>(
+        endpoints.notes.create,
+        data
+      );
+
+      if (!response.success) {
+        throw new Error(response.message || 'Failed to create note');
+      }
+
+      const newNote = response.data;
+      
+      // Add to notes list
       set(state => ({
-        notes: state.notes.map(n => n.id === id ? note : n)
+        notes: [newNote, ...state.notes],
+        currentNote: newNote,
       }));
-      
-      return note;
-    } catch (error: any) {
-      set({ error: error.message });
-      return null;
-    } finally {
-      set({ isLoading: false });
-    }
-  },
 
-  fetchNotes: async (params) => {
-    try {
-      set({ isLoading: true, error: null });
-      
-      const queryParams = new URLSearchParams();
-      if (params?.include) {
-        queryParams.append('include', params.include.join(','));
-      }
-      if (params?.sort) {
-        queryParams.append('sort', params.sort);
-      }
-      if (params?.per_page) {
-        queryParams.append('per_page', params.per_page.toString());
-      }
-
-      const response = await apiClient.get<PaginatedResponse<Note>>(`${endpoints.notes.list}?${queryParams}`);
-      const notes = response.data.data;
-      
-      set({ notes });
-      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(notes));
-      
-    } catch (error: any) {
-      set({ error: error.message });
-      if (appState.isInitialized) {
-        toast.error('Failed to fetch notes');
-      }
-    } finally {
-      set({ isLoading: false });
-    }
-  },
-
-  addNote: async (data) => {
-    try {
-      const response = await apiClient.post<{ data: Note }>(endpoints.notes.create, data);
-      const newNote = response.data.data;
-      
-      set(state => {
-        const updatedNotes = [newNote, ...state.notes];
-        AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updatedNotes));
-        return { notes: updatedNotes };
-      });
-      
       return newNote;
-    } catch (error: any) {
-      set({ error: error.message });
-      if (appState.isInitialized) {
-        toast.error('Failed to create note');
-      }
+    } catch (error) {
+      console.error('Error creating note:', error);
       return null;
     }
   },
 
-  updateNote: async (data) => {
-    if (!data.id) return null;
-    
+  updateNote: async (id: string, data: Partial<Note>) => {
     try {
-      const response = await apiClient.put<{ data: Note }>(endpoints.notes.update(data.id), data);
-      const updatedNote = response.data.data;
-      
-      set(state => {
-        const updatedNotes = state.notes.map(note =>
-          note.id === data.id ? updatedNote : note
-        );
-        AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updatedNotes));
-        return { notes: updatedNotes };
-      });
-      
-      return updatedNote;
-    } catch (error: any) {
-      set({ error: error.message });
-      if (appState.isInitialized) {
-        toast.error('Failed to update note');
-      }
-      return null;
-    }
-  },
+      const response = await apiClient.put<Note>(
+        endpoints.notes.update(id),
+        data
+      );
 
-  deleteNote: async (id) => {
-    try {
-      await apiClient.delete(endpoints.notes.delete(id));
+      if (!response.success) {
+        throw new Error(response.message || 'Failed to update note');
+      }
+
+      const updatedNote = response.data;
       
-      set(state => {
-        const updatedNotes = state.notes.filter(note => note.id !== id);
-        AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updatedNotes));
-        return { notes: updatedNotes };
-      });
-      
+      // Update in notes list and current note
+      set(state => ({
+        notes: state.notes.map(note => 
+          note.id === id ? updatedNote : note
+        ),
+        currentNote: state.currentNote?.id === id ? updatedNote : state.currentNote,
+      }));
+
       return true;
     } catch (error) {
-      if (appState.isInitialized) {
-        toast.error('Failed to delete note');
-      }
+      console.error('Error updating note:', error);
       return false;
     }
   },
 
-  syncNotes: async () => {
-    // Don't attempt to sync if app isn't fully initialized
-    if (!appState.isInitialized) return;
-    
+  deleteNote: async (id: string) => {
     try {
-      set({ isLoading: true });
-      
-      // Get last sync timestamp
-      const lastSynced = await AsyncStorage.getItem(LAST_SYNCED_KEY);
-      
-      // Fetch only notes updated since last sync
-      const response = await apiClient.get<PaginatedResponse<Note>>(endpoints.notes.list, {
-        params: {
-          updated_after: lastSynced || undefined,
-          include: ['virtues'],
-          per_page: 100
+      const response = await apiClient.delete(
+        endpoints.notes.delete(id)
+      );
+
+      if (!response.success) {
+        throw new Error(response.message || 'Failed to delete note');
+      }
+
+      // Remove from notes list and clear current note if it's the deleted one
+      set(state => ({
+        notes: state.notes.filter(note => note.id !== id),
+        currentNote: state.currentNote?.id === id ? null : state.currentNote,
+      }));
+
+      return true;
+    } catch (error) {
+      console.error('Error deleting note:', error);
+      return false;
+    }
+  },
+
+  searchNotes: async (query: string, limit = 20) => {
+    try {
+      const response = await apiClient.get<Note[]>(
+        endpoints.notes.search,
+        {
+          q: query,
+          include: ['user', 'theme'],
+          per_page: limit,
+          sort: '-created_at',
         }
+      );
+
+      if (!response.success) {
+        throw new Error(response.message || 'Failed to search notes');
+      }
+      
+      return response.data;
+    } catch (error) {
+      console.error('Error searching notes:', error);
+      return [];
+    }
+  },
+
+  fetchPublicNotes: async (page = 1) => {
+    try {
+      set({ isNotesLoading: true, notesError: null });
+      
+      const response = await apiClient.get<PaginatedResponse<Note>>(
+        endpoints.notes.public,
+        {
+          include: ['user', 'theme'],
+          per_page: get().pagination.perPage,
+          page,
+          sort: '-created_at',
+        }
+      );
+
+      if (!response.success) {
+        throw new Error(response.message || 'Failed to fetch public notes');
+      }
+      
+      const { data, meta } = response.data;
+      
+      set({
+        notes: page === 1 ? data : [...get().notes, ...data],
+        pagination: {
+          currentPage: (meta && typeof meta.current_page === 'number') ? meta.current_page : (page ?? get().pagination.currentPage ?? 1),
+          lastPage: (meta && typeof meta.last_page === 'number') ? meta.last_page : ((meta && typeof meta.current_page === 'number') ? meta.current_page : (page ?? get().pagination.lastPage ?? 1)),
+          perPage: (meta && typeof meta.per_page === 'number') ? meta.per_page : (get().pagination.perPage ?? 20),
+          total: (meta && typeof meta.total === 'number') ? meta.total : (get().pagination.total ?? (Array.isArray(data) ? data.length : 0)),
+          hasMore: (meta && typeof meta.current_page === 'number' && typeof meta.last_page === 'number')
+            ? meta.current_page < meta.last_page
+            : (Array.isArray(data) ? data.length >= ((meta && typeof meta.per_page === 'number') ? meta.per_page : (get().pagination.perPage ?? 20)) : false),
+        },
+        isNotesLoading: false,
       });
 
-      set(state => {
-        // Merge new notes with existing ones, preferring server versions
-        const existingNoteIds = new Set(state.notes.map(n => n.id));
-        const newNotes = response.data.data;
-        
-        const mergedNotes = [
-          ...newNotes,
-          ...state.notes.filter(note => !existingNoteIds.has(note.id))
-        ];
+    } catch (error) {
+      console.error('Error fetching public notes:', error);
+      set({
+        isNotesLoading: false,
+        notesError: error instanceof Error ? error.message : 'Failed to fetch public notes',
+      });
+    }
+  },
 
-        // Update storage
-        AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(mergedNotes));
-        AsyncStorage.setItem(LAST_SYNCED_KEY, new Date().toISOString());
-        
+  fetchFeaturedNotes: async (page = 1) => {
+    try {
+      set({ isNotesLoading: true, notesError: null });
+      
+      const response = await apiClient.get<PaginatedResponse<Note>>(
+        endpoints.notes.featured,
+        {
+          include: ['user', 'theme'],
+          per_page: get().pagination.perPage,
+          page,
+          sort: '-likes',
+        }
+      );
+
+      if (!response.success) {
+        throw new Error(response.message || 'Failed to fetch featured notes');
+      }
+      
+      const { data, meta } = response.data;
+      
+      set({
+        notes: page === 1 ? data : [...get().notes, ...data],
+        pagination: {
+          currentPage: (meta && typeof meta.current_page === 'number') ? meta.current_page : (page ?? get().pagination.currentPage ?? 1),
+          lastPage: (meta && typeof meta.last_page === 'number') ? meta.last_page : ((meta && typeof meta.current_page === 'number') ? meta.current_page : (page ?? get().pagination.lastPage ?? 1)),
+          perPage: (meta && typeof meta.per_page === 'number') ? meta.per_page : (get().pagination.perPage ?? 20),
+          total: (meta && typeof meta.total === 'number') ? meta.total : (get().pagination.total ?? (Array.isArray(data) ? data.length : 0)),
+          hasMore: (meta && typeof meta.current_page === 'number' && typeof meta.last_page === 'number')
+            ? meta.current_page < meta.last_page
+            : (Array.isArray(data) ? data.length >= ((meta && typeof meta.per_page === 'number') ? meta.per_page : (get().pagination.perPage ?? 20)) : false),
+        },
+        isNotesLoading: false,
+      });
+
+    } catch (error) {
+      console.error('Error fetching featured notes:', error);
+      set({
+        isNotesLoading: false,
+        notesError: error instanceof Error ? error.message : 'Failed to fetch featured notes',
+      });
+    }
+  },
+
+  fetchNotesByUser: async (userId: string, page = 1) => {
+    try {
+      set({ isNotesLoading: true, notesError: null });
+      
+      const response = await apiClient.get<PaginatedResponse<Note>>(
+        endpoints.notes.byUser(userId),
+        {
+          include: ['user', 'theme'],
+          per_page: get().pagination.perPage,
+          page,
+          sort: '-created_at',
+        }
+      );
+
+      if (!response.success) {
+        throw new Error(response.message || 'Failed to fetch user notes');
+      }
+      
+      const { data, meta } = response.data;
+      
+      set({
+        notes: page === 1 ? data : [...get().notes, ...data],
+        pagination: {
+          currentPage: (meta && typeof meta.current_page === 'number') ? meta.current_page : (page ?? get().pagination.currentPage ?? 1),
+          lastPage: (meta && typeof meta.last_page === 'number') ? meta.last_page : ((meta && typeof meta.current_page === 'number') ? meta.current_page : (page ?? get().pagination.lastPage ?? 1)),
+          perPage: (meta && typeof meta.per_page === 'number') ? meta.per_page : (get().pagination.perPage ?? 20),
+          total: (meta && typeof meta.total === 'number') ? meta.total : (get().pagination.total ?? (Array.isArray(data) ? data.length : 0)),
+          hasMore: (meta && typeof meta.current_page === 'number' && typeof meta.last_page === 'number')
+            ? meta.current_page < meta.last_page
+            : (Array.isArray(data) ? data.length >= ((meta && typeof meta.per_page === 'number') ? meta.per_page : (get().pagination.perPage ?? 20)) : false),
+        },
+        isNotesLoading: false,
+      });
+
+    } catch (error) {
+      console.error('Error fetching user notes:', error);
+      set({
+        isNotesLoading: false,
+        notesError: error instanceof Error ? error.message : 'Failed to fetch user notes',
+      });
+    }
+  },
+
+  fetchNotesByTheme: async (themeId: string, page = 1) => {
+    try {
+      set({ isNotesLoading: true, notesError: null });
+      
+      const response = await apiClient.get<PaginatedResponse<Note>>(
+        endpoints.notes.list,
+        {
+          include: ['user', 'theme'],
+          theme_id: themeId,
+          per_page: get().pagination.perPage,
+          page,
+          sort: '-created_at',
+        }
+      );
+
+      if (!response.success) {
+        throw new Error(response.message || 'Failed to fetch theme notes');
+      }
+      
+      const { data, meta } = response.data;
+      
+      set({
+        notes: page === 1 ? data : [...get().notes, ...data],
+        pagination: {
+          currentPage: (meta && typeof meta.current_page === 'number') ? meta.current_page : (page ?? get().pagination.currentPage ?? 1),
+          lastPage: (meta && typeof meta.last_page === 'number') ? meta.last_page : ((meta && typeof meta.current_page === 'number') ? meta.current_page : (page ?? get().pagination.lastPage ?? 1)),
+          perPage: (meta && typeof meta.per_page === 'number') ? meta.per_page : (get().pagination.perPage ?? 20),
+          total: (meta && typeof meta.total === 'number') ? meta.total : (get().pagination.total ?? (Array.isArray(data) ? data.length : 0)),
+          hasMore: (meta && typeof meta.current_page === 'number' && typeof meta.last_page === 'number')
+            ? meta.current_page < meta.last_page
+            : (Array.isArray(data) ? data.length >= ((meta && typeof meta.per_page === 'number') ? meta.per_page : (get().pagination.perPage ?? 20)) : false),
+        },
+        isNotesLoading: false,
+      });
+
+    } catch (error) {
+      console.error('Error fetching theme notes:', error);
+      set({
+        isNotesLoading: false,
+        notesError: error instanceof Error ? error.message : 'Failed to fetch theme notes',
+      });
+    }
+  },
+
+  likeNote: async (noteId: string) => {
+    try {
+      const response = await apiClient.post(
+        endpoints.notes.like(noteId)
+      );
+
+      if (!response.success) {
+        throw new Error(response.message || 'Failed to like note');
+      }
+
+      // Update local state
+      set(state => {
+        const updateNote = (note: Note) => {
+          if (note.id === noteId) {
+            return {
+              ...note,
+              likes: (note.likes || 0) + 1,
+            };
+          }
+          return note;
+        };
+
         return {
-          notes: mergedNotes,
-          lastSynced: new Date().toISOString()
+          notes: state.notes.map(updateNote),
+          currentNote: state.currentNote ? updateNote(state.currentNote) : null,
         };
       });
+
+      return true;
     } catch (error) {
-      console.error('Sync error:', error);
-      if (appState.isInitialized) {
-        toast.error('Failed to sync notes');
-      }
-    } finally {
-      set({ isLoading: false });
-    }
-  },
-
-  togglePin: async (id) => {
-    try {
-      const note = get().notes.find(n => n.id === id);
-      if (!note) return false;
-
-      const updatedNote = await get().updateNote({
-        ...note,
-        isPinned: !note.isPinned
-      });
-
-      return !!updatedNote;
-    } catch (error) {
-      if (appState.isInitialized) {
-        toast.error('Failed to update pin status');
-      }
+      console.error('Error liking note:', error);
       return false;
     }
   },
-}));
 
-function mergeNotes(localNotes: Note[], serverNotes: Note[]): Note[] {
-  const notesMap = new Map<string, Note>();
-  
-  [...localNotes, ...serverNotes].forEach(note => {
-    const existing = notesMap.get(note.id);
-    if (!existing || new Date(existing.updated_at || Date.now()) < new Date(note.updated_at || 0)) {
-      notesMap.set(note.id, note);
+  shareNote: async (noteId: string) => {
+    try {
+      const response = await apiClient.post(
+        endpoints.notes.share(noteId)
+      );
+
+      if (!response.success) {
+        throw new Error(response.message || 'Failed to share note');
+      }
+
+      // Update local state
+      set(state => {
+        const updateNote = (note: Note) => {
+          if (note.id === noteId) {
+            return {
+              ...note,
+              shares: (note.shares || 0) + 1,
+            };
+          }
+          return note;
+        };
+
+        return {
+          notes: state.notes.map(updateNote),
+          currentNote: state.currentNote ? updateNote(state.currentNote) : null,
+        };
+      });
+
+      return true;
+    } catch (error) {
+      console.error('Error sharing note:', error);
+      return false;
     }
-  });
-  
-  return Array.from(notesMap.values());
-}
+  },
 
-// Set up network listener with initialization check
-NetInfo.addEventListener(state => {
-  if (state.isConnected && appState.isInitialized) {
-    useNoteStore.getState().syncNotes();
-  }
-});
+  pinNote: async (noteId: string) => {
+    try {
+      const response = await apiClient.post(
+        endpoints.notes.pin(noteId)
+      );
+
+      if (!response.success) {
+        throw new Error(response.message || 'Failed to pin note');
+      }
+
+      // Update local state
+      set(state => {
+        const updateNote = (note: Note) => {
+          if (note.id === noteId) {
+            return {
+              ...note,
+              isPinned: !note.isPinned,
+            };
+          }
+          return note;
+        };
+
+        return {
+          notes: state.notes.map(updateNote),
+          currentNote: state.currentNote ? updateNote(state.currentNote) : null,
+        };
+      });
+
+      return true;
+    } catch (error) {
+      console.error('Error pinning note:', error);
+      return false;
+    }
+  },
+
+  bookmarkNote: async (noteId: string) => {
+    try {
+      const response = await apiClient.post(
+        endpoints.bookmarks.create,
+        {
+          bookmarkable_id: noteId,
+          bookmarkable_type: 'App\\Models\\Note',
+        }
+      );
+
+      if (!response.success) {
+        throw new Error(response.message || 'Failed to bookmark note');
+      }
+
+      return true;
+    } catch (error) {
+      console.error('Error bookmarking note:', error);
+      return false;
+    }
+  },
+
+  clearCurrentNote: () => {
+    set({
+      currentNote: null,
+      isNoteLoading: false,
+      noteError: null,
+    });
+  },
+
+  clearErrors: () => {
+    set({
+      notesError: null,
+      noteError: null,
+    });
+  },
+
+  setFilters: (filters) => {
+    set(state => ({
+      filters: { ...state.filters, ...filters },
+    }));
+  },
+
+  resetFilters: () => {
+    set({
+      filters: {
+        sortBy: 'created_at',
+        sortOrder: 'desc',
+      },
+    });
+  },
+}));

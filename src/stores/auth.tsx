@@ -3,7 +3,7 @@ import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createContext, useContext, useEffect, ReactNode } from 'react';
 import { apiClient, endpoints } from '@/api/client';
-import { User } from '@/types';
+import { User, UserRole } from '@/types';
 
 interface AuthState {
   user: User | null;
@@ -12,6 +12,8 @@ interface AuthState {
   isInitialized: boolean;
   error: string | null;
   isGuest: boolean;
+  isEmailVerified: boolean;
+  userRole: UserRole;
   login: (email: string, password: string) => Promise<boolean>;
   loginWithDeviceToken: (deviceToken: string) => Promise<boolean>;
   logout: () => Promise<void>;
@@ -22,6 +24,13 @@ interface AuthState {
   updateUserPoints: (points: number) => Promise<void>;
   updateUserTime: (totalActiveTime: number) => Promise<void>;
   updateAvatar: (avatarUrl: string) => Promise<boolean>;
+  refreshToken: () => Promise<boolean>;
+  verifyEmail: (token: string) => Promise<boolean>;
+  resendVerificationEmail: () => Promise<boolean>;
+  forgotPassword: (email: string) => Promise<boolean>;
+  resetPassword: (token: string, password: string) => Promise<boolean>;
+  updateUserProfile: (data: Partial<User>) => Promise<boolean>;
+  checkGuestStatus: (email: string) => boolean;
 }
 
 interface SignUpData {
@@ -29,16 +38,16 @@ interface SignUpData {
   password: string;
   first_name: string;
   last_name: string;
-  avatar: string;
-  device_token?: string;
-  is_guest?: boolean;
+  avatar?: string;
+  primary_language?: string;
+  english_fluency?: number;
+  date_of_birth?: string;
+  denomination?: string;
 }
 
 interface LoginResponse {
-  token?: string;
-  access_token?: string;
+  token: string;
   user: User;
-  expires_in?: number;
 }
 
 // Create store
@@ -49,6 +58,12 @@ const useAuthStore = create<AuthState>((set, get) => ({
   isInitialized: false,
   error: null,
   isGuest: false,
+  isEmailVerified: false,
+  userRole: UserRole.User,
+
+  checkGuestStatus: (email: string) => {
+    return email.endsWith('@elbiblio.com');
+  },
 
   initialize: async () => {
     try {
@@ -59,17 +74,24 @@ const useAuthStore = create<AuthState>((set, get) => ({
       if (token) {
         axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
         
-        const response = await apiClient.get<User>(endpoints.auth.user);
+        const response = await apiClient.get<User>(endpoints.auth.user, {
+          include: ['userVirtues', 'activeChallenges']
+        });
         console.log('Initialize response:', response);
 
         if (response.success && response.data) {
+          const user = response.data;
+          const isGuest = get().checkGuestStatus(user.email || '');
+          
           set({
             token,
-            user: response.data,
-            isGuest: response.data.is_guest || false,
+            user,
+            isGuest,
+            isEmailVerified: !!user.email_verified_at,
+            userRole: user.role,
             isInitialized: true
           });
-          console.log('Successfully initialized with user:', response.data);
+          console.log('Successfully initialized with user:', user);
         } else {
           console.log('Invalid response during initialization:', response);
           await AsyncStorage.removeItem('auth_token');
@@ -100,8 +122,13 @@ const useAuthStore = create<AuthState>((set, get) => ({
       console.log('Attempting login for:', email);
 
       const response = await apiClient.post<LoginResponse>(
-        endpoints.auth.login + '?include=user.active_challenges,user.user_virtues',
-        { email, password }
+        endpoints.auth.login,
+        { email, password },
+        {
+          params: {
+            include: 'userVirtues,activeChallenges'
+          }
+        }
       );
 
       console.log('Login response:', response);
@@ -122,10 +149,14 @@ const useAuthStore = create<AuthState>((set, get) => ({
       await AsyncStorage.setItem('auth_token', token);
       axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
 
+      const isGuest = get().checkGuestStatus(user.email || '');
+
       set({
         user,
         token,
-        isGuest: user.is_guest || false,
+        isGuest,
+        isEmailVerified: !!user.email_verified_at,
+        userRole: user.role,
         isLoading: false,
         error: null
       });
@@ -163,26 +194,36 @@ const useAuthStore = create<AuthState>((set, get) => ({
   signUp: async (data: SignUpData) => {
     try {
       set({ isLoading: true, error: null });
-      console.log('Attempting signup with data:', { ...data, password: '[REDACTED]' });
+      console.log('Attempting signup for:', data.email);
 
-      const signupResponse = await apiClient.post<User>(
+      const response = await apiClient.post<User>(
         endpoints.auth.signup,
         data
       );
 
-      console.log('Signup response:', signupResponse);
+      console.log('Signup response:', response);
 
-      if (!signupResponse.success || !signupResponse.data) {
-        console.error('Signup failed:', signupResponse.message);
-        return false;
+      if (!response.success || !response.data) {
+        console.error('Signup failed:', response.message);
+        throw new Error(response.message || 'Signup failed');
       }
 
-      console.log('Signup successful, attempting login');
-      await get().login(data.email, data.password);
-      return true;
+      const user = response.data;
+      console.log('Signup successful for user:', user);
+
+      // Auto-login after successful signup
+      const loginSuccess = await get().login(data.email, data.password);
+      
+      if (loginSuccess) {
+        console.log('Auto-login after signup successful');
+        return true;
+      } else {
+        console.error('Auto-login after signup failed');
+        return false;
+      }
     } catch (error) {
       console.error('Signup error:', error);
-      const message = error instanceof Error ? error.message : 'Registration failed';
+      const message = error instanceof Error ? error.message : 'Signup failed';
       set({
         error: message,
         isLoading: false
@@ -207,13 +248,13 @@ const useAuthStore = create<AuthState>((set, get) => ({
       const guestResponse = await apiClient.post<User>(
         endpoints.auth.signup,
         {
-          device_token: deviceToken,
-          is_guest: true,
-          first_name: 'Guest',
-          last_name: 'User',
           email,
           password,
-          avatar: 'https://elbiblio.com/avatars/user.png' // Default avatar
+          first_name: 'Guest',
+          last_name: 'User',
+          avatar: 'https://elbiblio.com/avatars/user.png', // Default avatar
+          primary_language: 'en',
+          is_guest: true
         }
       );
 
@@ -251,43 +292,42 @@ const useAuthStore = create<AuthState>((set, get) => ({
   updateGuestToUser: async (data: SignUpData) => {
     try {
       set({ isLoading: true, error: null });
-      console.log('Updating guest account to user account');
-
       const state = get();
+      
       if (!state.user?.id) {
-        throw new Error('No user found');
+        throw new Error('User not found');
       }
 
-      const updateResponse = await apiClient.put<User>(
+      console.log('Updating guest to user:', data.email);
+
+      const response = await apiClient.put<User>(
         endpoints.users.update(state.user.id),
         {
-          email: data.email,
-          password: data.password,
-          first_name: data.first_name,
-          last_name: data.last_name,
-          avatar: data.avatar,
+          ...data,
           is_guest: false
         }
       );
 
-      console.log('Guest to user update response:', updateResponse);
-
-      if (!updateResponse.success || !updateResponse.data) {
-        console.error('Guest to user update failed:', updateResponse.message);
-        return false;
+      if (!response.success || !response.data) {
+        throw new Error(response.message || 'Failed to update guest to user');
       }
 
+      const updatedUser = response.data;
+      const isGuest = get().checkGuestStatus(updatedUser.email || '');
+
       set({
-        user: updateResponse.data,
-        isGuest: false,
+        user: updatedUser,
+        isGuest,
+        isEmailVerified: !!updatedUser.email_verified_at,
+        userRole: updatedUser.role,
         isLoading: false,
         error: null
       });
 
-      console.log('Guest account successfully updated to user account');
+      console.log('Successfully updated guest to user');
       return true;
     } catch (error) {
-      console.error('Guest to user update error:', error);
+      console.error('Update guest to user error:', error);
       const message = error instanceof Error ? error.message : 'Failed to update account';
       set({
         error: message,
@@ -297,46 +337,6 @@ const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
 
-  updateAvatar: async (avatarUrl: string) => {
-    try {
-      set({ isLoading: true, error: null });
-      console.log('Attempting to update avatar:', avatarUrl);
-      
-      const state = get();
-      if (!state.user?.id) {
-        throw new Error('User not found');
-      }
-
-      const response = await apiClient.put<User>(
-        endpoints.users.avatar(state.user.id),
-        { avatar: avatarUrl }
-      );
-
-      console.log('Update avatar response:', response);
-
-      if (!response.success || !response.data) {
-        console.error('Avatar update failed:', response.message);
-        return false;
-      }
-
-      console.log('Avatar update successful');
-      set(state => ({
-        user: { ...state.user!, avatar: avatarUrl },
-        isLoading: false,
-        error: null
-      }));
-
-      return true;
-    } catch (error) {
-      console.error('Avatar update error:', error);
-      const message = error instanceof Error ? error.message : 'Failed to update avatar';
-      set({
-        error: message,
-        isLoading: false
-      });
-      return false;
-    }
-  },
   updateUserPoints: async (points: number) => {
     try {
       const state = get();
@@ -346,7 +346,9 @@ const useAuthStore = create<AuthState>((set, get) => ({
 
       const response = await apiClient.put<User>(
         endpoints.users.update(state.user.id),
-        { points }
+        {
+          points: (parseInt(state.user.points) + points).toString()
+        }
       );
 
       if (!response.success || !response.data) {
@@ -354,17 +356,18 @@ const useAuthStore = create<AuthState>((set, get) => ({
       }
 
       set(state => ({
-        user: { ...state.user!, points: response.data.points }
+        user: {
+          ...state.user!,
+          points: response.data.points
+        }
       }));
+
     } catch (error) {
       console.error('Points update error:', error);
-      const message = error instanceof Error ? error.message : 'Failed to update points';
-      set({
-        error: message,
-        isLoading: false
-      });
+      // Don't throw error to prevent app disruption
     }
   },
+
   updateUserTime: async (totalActiveTime: number) => {
     try {
       const state = get();
@@ -397,6 +400,162 @@ const useAuthStore = create<AuthState>((set, get) => ({
       // Don't throw error to prevent app disruption
     }
   },
+
+  updateAvatar: async (avatarUrl: string) => {
+    try {
+      const state = get();
+      if (!state.user?.id) {
+        throw new Error('User not found');
+      }
+
+      const response = await apiClient.put<User>(
+        endpoints.users.avatar(state.user.id),
+        { avatar: avatarUrl }
+      );
+
+      if (!response.success || !response.data) {
+        throw new Error(response.message || 'Failed to update avatar');
+      }
+
+      set(state => ({
+        user: {
+          ...state.user!,
+          avatar: response.data.avatar
+        }
+      }));
+
+      return true;
+    } catch (error) {
+      console.error('Avatar update error:', error);
+      return false;
+    }
+  },
+
+  refreshToken: async () => {
+    try {
+      const response = await apiClient.post<{ token: string }>(
+        endpoints.auth.refresh
+      );
+
+      if (response.success && response.data.token) {
+        const newToken = response.data.token;
+        await AsyncStorage.setItem('auth_token', newToken);
+        axios.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
+        
+        set({ token: newToken });
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error('Token refresh error:', error);
+      return false;
+    }
+  },
+
+  verifyEmail: async (token: string) => {
+    try {
+      const response = await apiClient.post<{ success: boolean }>(
+        endpoints.auth.verifyEmail,
+        { token }
+      );
+
+      if (response.success) {
+        set(state => ({
+          user: state.user ? {
+            ...state.user,
+            email_verified_at: new Date().toISOString()
+          } : null,
+          isEmailVerified: true
+        }));
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error('Email verification error:', error);
+      return false;
+    }
+  },
+
+  resendVerificationEmail: async () => {
+    try {
+      const state = get();
+      if (!state.user?.email) {
+        throw new Error('User email not found');
+      }
+
+      const response = await apiClient.post<{ success: boolean }>(
+        endpoints.auth.verifyEmail,
+        { email: state.user.email }
+      );
+
+      return response.success;
+    } catch (error) {
+      console.error('Resend verification email error:', error);
+      return false;
+    }
+  },
+
+  forgotPassword: async (email: string) => {
+    try {
+      const response = await apiClient.post<{ success: boolean }>(
+        endpoints.auth.forgotPassword,
+        { email }
+      );
+
+      return response.success;
+    } catch (error) {
+      console.error('Forgot password error:', error);
+      return false;
+    }
+  },
+
+  resetPassword: async (token: string, password: string) => {
+    try {
+      const response = await apiClient.post<{ success: boolean }>(
+        endpoints.auth.resetPassword,
+        { token, password }
+      );
+
+      return response.success;
+    } catch (error) {
+      console.error('Reset password error:', error);
+      return false;
+    }
+  },
+
+  updateUserProfile: async (data: Partial<User>) => {
+    try {
+      const state = get();
+      if (!state.user?.id) {
+        throw new Error('User not found');
+      }
+
+      const response = await apiClient.put<User>(
+        endpoints.users.update(state.user.id),
+        data
+      );
+
+      if (!response.success || !response.data) {
+        throw new Error(response.message || 'Failed to update profile');
+      }
+
+      const updatedUser = response.data;
+      const isGuest = get().checkGuestStatus(updatedUser.email || '');
+
+      set({
+        user: updatedUser,
+        isGuest,
+        isEmailVerified: !!updatedUser.email_verified_at,
+        userRole: updatedUser.role
+      });
+
+      return true;
+    } catch (error) {
+      console.error('Profile update error:', error);
+      return false;
+    }
+  },
+
   logout: async () => {
     try {
       set({ isLoading: true });
@@ -418,6 +577,8 @@ const useAuthStore = create<AuthState>((set, get) => ({
         user: null,
         token: null,
         isGuest: false,
+        isEmailVerified: false,
+        userRole: UserRole.User,
         isLoading: false,
         error: null
       });
@@ -436,7 +597,7 @@ const useAuthStore = create<AuthState>((set, get) => ({
 const AuthContext = createContext<AuthState | undefined>(undefined);
 
 // Provider component
-export function AuthProvider({ children }: { children: ReactNode }) {
+export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const auth = useAuthStore();
 
   useEffect(() => {
@@ -448,15 +609,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       {children}
     </AuthContext.Provider>
   );
-}
+};
 
-// Hook for using auth context
-export function useAuth() {
+// Hook to use auth context
+export const useAuth = () => {
   const context = useContext(AuthContext);
-  if (!context) {
+  if (context === undefined) {
     throw new Error('useAuth must be used within an AuthProvider');
   }
   return context;
-}
+};
 
 export default useAuthStore;

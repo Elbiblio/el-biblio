@@ -25,6 +25,8 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { OnboardingStep, STEPS } from '@/constants';
 import { SCREEN_DIMENSIONS } from '@/constants';
 import { useAuth } from '@/stores/auth';
+import { useAppStore } from '@/stores/appStore';
+import { toast } from 'sonner-native';
 
 const SCREEN_WIDTH = SCREEN_DIMENSIONS.width;
 
@@ -44,14 +46,26 @@ const IntroScreen: React.FC<IntroScreenProps> = ({
   const scrollX = useSharedValue(0);
 
   const { completeWelcome, hasCompletedWelcome } = useWelcomeState();
-  const { createGuestAccount } = useAuth();
+  const { createGuestAccount, isLoading, error } = useAuth();
+  const { setHasCompletedWelcome } = useAppStore();
 
   const onClose = async () => {
-    if (!hasCompletedWelcome) {
-      await completeWelcome();
-    } else if (navigation.canGoBack()) {
-      navigation.goBack();
-    } else {
+    try {
+      if (!hasCompletedWelcome) {
+        await completeWelcome();
+        await setHasCompletedWelcome(true);
+        // Track onboarding completion
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        // Navigate to Home after completing welcome
+        navigation.replace('Home');
+      } else if (navigation.canGoBack()) {
+        navigation.goBack();
+      } else {
+        navigation.replace('Home');
+      }
+    } catch (error) {
+      console.error('Error completing welcome:', error);
+      // Fallback navigation
       navigation.replace('Home');
     }
   };
@@ -59,12 +73,18 @@ const IntroScreen: React.FC<IntroScreenProps> = ({
   const handleNext = () => {
     if (currentStep === (STEPS.length - 1)) {
         setShowGuestChoice(true);
+        // Track onboarding completion
+        console.log('Onboarding completed, showing guest choice');
         return;
     }
     
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     const nextStep = currentStep + 1;
     setCurrentStep(nextStep);
+    
+    // Track step progression
+    console.log(`Onboarding step: ${currentStep + 1} -> ${nextStep + 1}`);
+    
     scrollRef.current?.scrollTo({
       x: nextStep * SCREEN_WIDTH,
       animated: true,
@@ -88,19 +108,29 @@ const IntroScreen: React.FC<IntroScreenProps> = ({
   };
 
   const handleRegister = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setShowGuestChoice(false);
+    // Track registration choice
+    console.log('User chose to register');
     navigation.navigate('RegistrationScreen');
   };
 
   const handleContinueAsGuest = async () => {
     setShowGuestChoice(false);
     try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       const success = await createGuestAccount();
       if (success) {
-        onClose();
+        await setHasCompletedWelcome(true);
+        toast.success('Welcome to El-biblio!');
+        // Navigate directly to Home after successful guest account creation
+        navigation.replace('Home');
+      } else {
+        toast.error('Failed to create guest account. Please try again.');
       }
     } catch (error) {
       console.error('Failed to create guest account:', error);
+      toast.error('Failed to create guest account. Please try again.');
     }
   };
 
@@ -198,10 +228,21 @@ const IntroScreen: React.FC<IntroScreenProps> = ({
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
+      {/* Loading Overlay */}
+      {isLoading && (
+        <View style={styles.loadingOverlay}>
+          <BlurView intensity={20} style={StyleSheet.absoluteFill} />
+          <View style={styles.loadingContent}>
+            <Text style={styles.loadingText}>Setting up your account...</Text>
+          </View>
+        </View>
+      )}
+      
       {/* Close Button */}
       <TouchableOpacity 
         style={styles.closeButton}
         onPress={onClose}
+        disabled={isLoading}
       >
         <X size={24} color={theme.colors.text.primary} />
       </TouchableOpacity>
@@ -351,6 +392,27 @@ const createStyles = (theme: Theme) => StyleSheet.create({
   activeDot: {
     backgroundColor: theme.colors.primary,
     width: 24,
+  },
+  loadingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 1000,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingContent: {
+    backgroundColor: theme.colors.surface,
+    padding: theme.spacing.xl,
+    borderRadius: theme.borderRadius.lg,
+    alignItems: 'center',
+  },
+  loadingText: {
+    ...theme.typography.body.sans,
+    color: theme.colors.text.primary,
+    textAlign: 'center',
   },
 });
 

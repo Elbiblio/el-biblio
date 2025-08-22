@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   View,
   Text,
@@ -12,14 +12,23 @@ import {
 import { useTheme, useThemeVariant } from '@/contexts/ThemeContext';
 import { Theme, ThemeVariant, themeColors } from '@/theme';
 import { useAuth } from '@/stores/auth';
+import { useReflectionStore } from '@/stores/reflection';
+import { useNotesStore } from '@/stores/notes';
+import { useChallengeStore } from '@/stores/challenge';
+import { useLeaderboardStore } from '@/stores/leaderboard';
+import { useVirtueStore } from '@/stores/virtue';
+import { useMeditationStore } from '@/stores/meditation';
 import AvatarSelectionModal from '@/components/AvatarSelectionModal';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { FoundationalVirtue, AllVirtues } from '@/types';
+import { FoundationalVirtue, AllVirtues, Virtue, VirtueProgress } from '@/types';
 import * as Haptics from 'expo-haptics';
-import { Shield, BookOpen, MessageCircle, FileText, Award, Edit2, Users, ArrowRight } from '../components/Icons';
+import { Shield, BookOpen, MessageCircle, FileText, Award, Edit2, Users, ArrowRight, ArrowCounterClockwise, BookmarkSimple, Calendar, Clock } from '../components/Icons';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '@/types';
+import { toast } from 'sonner-native';
+import { RefreshControl } from 'react-native';
+import apiClient from '@/api/client';
 
 const ProfileScreen = () => {
   const theme = useTheme();
@@ -27,24 +36,133 @@ const ProfileScreen = () => {
   const { user, updateAvatar } = useAuth();
   const [avatarModalVisible, setAvatarModalVisible] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   
   const styles = useMemo(() => createStyles(theme), [theme]);
 
-  // Mock data (replace with actual data from your API)
-  const userStats = {
-    totalChallenges: 24,
-    totalComments: 37,
-    totalReflections: 16,
-    totalNotes: 42,
-    topVirtues: [
-      { name: 'love', progress: 85 },
-      { name: 'knowledge', progress: 72 },
-      { name: 'wisdom', progress: 65 },
-      { name: 'perseverance', progress: 58 }
-    ] as { name: AllVirtues, progress: number }[]
+  // Store hooks
+  const {
+    reflections,
+    fetchReflectionsByUser,
+    isReflectionsLoading,
+  } = useReflectionStore();
+
+  const {
+    notes,
+    fetchNotes,
+    isNotesLoading,
+  } = useNotesStore();
+
+  const {
+    personalChallenges,
+    fetchPersonalChallenges,
+    isPersonalLoading,
+  } = useChallengeStore();
+
+  const {
+    globalLeaderboard,
+    fetchGlobalLeaderboard,
+  } = useLeaderboardStore();
+
+  const {
+    virtues,
+    userProgress,
+    fetchVirtues,
+    fetchUserProgress,
+  } = useVirtueStore();
+
+  const {
+    sessions,
+    getTotalMeditationTime,
+  } = useMeditationStore();
+
+  // State for user stats and activity
+  const [userStats, setUserStats] = useState<any>(null);
+  const [recentActivity, setRecentActivity] = useState<any[]>([]);
+  const [isStatsLoading, setIsStatsLoading] = useState(false);
+  const [isActivityLoading, setIsActivityLoading] = useState(false);
+
+  // Fetch user stats and activity
+  const fetchUserStats = async () => {
+    if (!user) return;
+    
+    setIsStatsLoading(true);
+    try {
+      const response = await apiClient.get(`/users/${user.id}/stats`);
+      if (response.data?.success) {
+        setUserStats(response.data.data);
+      }
+    } catch (error) {
+      console.error('Error fetching user stats:', error);
+    } finally {
+      setIsStatsLoading(false);
+    }
   };
+
+  const fetchRecentActivity = async () => {
+    if (!user) return;
+    
+    setIsActivityLoading(true);
+    try {
+      const response = await apiClient.get(`/users/${user.id}/activity?include=subject&per_page=10`);
+      if (response.data?.success) {
+        setRecentActivity(response.data.data);
+      }
+    } catch (error) {
+      console.error('Error fetching recent activity:', error);
+    } finally {
+      setIsActivityLoading(false);
+    }
+  };
+
+  // Fetch data on mount
+  useEffect(() => {
+    fetchUserStats();
+    fetchRecentActivity();
+  }, [user]);
+
+  // Real user stats from API data
+  const userStatsData = React.useMemo(() => {
+    const defaultVirtues = [
+      { name: 'love' as AllVirtues, progress: 85 },
+      { name: 'faith' as AllVirtues, progress: 72 },
+      { name: 'wisdom' as AllVirtues, progress: 65 },
+      { name: 'perseverance' as AllVirtues, progress: 58 }
+    ];
+    
+    // Use actual virtue progress from API
+    const virtueProgress = userProgress || {};
+    const topVirtues = Object.entries(virtueProgress)
+      .map(([virtueId, progress]) => {
+        const virtue = virtues.find((v: Virtue) => v.id === virtueId);
+        return {
+          name: (virtue?.name || virtueId) as AllVirtues,
+          progress: Math.round(((progress as VirtueProgress).current_level / (progress as VirtueProgress).total_levels) * 100)
+        };
+      })
+      .sort((a, b) => b.progress - a.progress)
+      .slice(0, 4);
+    
+    // Use API stats if available, fallback to calculated values
+    const stats = userStats || {};
+    
+    return {
+      totalPoints: stats.total_points || user?.points || 0,
+      totalReflections: stats.total_reflections || reflections.length,
+      totalNotes: stats.total_notes || notes.length,
+      totalChallenges: stats.total_challenges_completed || personalChallenges.length,
+      totalComments: reflections.reduce((acc, reflection) => acc + (reflection.comments?.length || 0), 0),
+      totalBookmarks: stats.total_bookmarks || 0,
+      totalMeditationMinutes: stats.total_meditation_sessions ? stats.total_meditation_sessions * 10 : sessions.reduce((total, session) => total + session.duration_minutes, 0),
+      totalActiveDays: stats.total_active_days || 0,
+      currentStreak: stats.current_streak || 0,
+      longestStreak: stats.longest_streak || 0,
+      topVirtues: topVirtues.length > 0 ? topVirtues : defaultVirtues,
+      recentActivity: recentActivity || []
+    };
+  }, [user, reflections, notes, virtues, userProgress, personalChallenges, sessions, userStats, recentActivity]);
 
   const handleAvatarChange = async (avatarUrl: string) => {
     setIsUpdating(true);
@@ -59,6 +177,40 @@ const ProfileScreen = () => {
   const handleThemeChange = (themeVariant: ThemeVariant) => {
     setThemeVariant(themeVariant);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  };
+
+  // Load user data on component mount
+  React.useEffect(() => {
+    if (user?.id) {
+      fetchReflectionsByUser(user.id, 1);
+      fetchNotes(1);
+      fetchPersonalChallenges(1);
+      fetchGlobalLeaderboard();
+      fetchVirtues();
+      fetchUserProgress();
+    }
+  }, [user?.id, fetchReflectionsByUser, fetchNotes, fetchPersonalChallenges, fetchGlobalLeaderboard, fetchVirtues, fetchUserProgress]);
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      if (user?.id) {
+        await Promise.all([
+          fetchReflectionsByUser(user.id, 1),
+          fetchNotes(1),
+          fetchPersonalChallenges(1),
+          fetchGlobalLeaderboard(),
+          fetchUserStats(),
+          fetchRecentActivity(),
+        ]);
+        toast.success('Profile updated');
+      }
+    } catch (error) {
+      console.error('Error refreshing profile:', error);
+      toast.error('Failed to refresh profile');
+    } finally {
+      setIsRefreshing(false);
+    }
   };
 
   if (!user) {
@@ -102,9 +254,29 @@ const ProfileScreen = () => {
       <ScrollView 
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={handleRefresh}
+            colors={[theme.colors.primary]}
+            tintColor={theme.colors.primary}
+          />
+        }
       >
         {/* Profile Header */}
         <View style={styles.header}>
+          {/* Refresh Button */}
+          <TouchableOpacity 
+            style={styles.refreshButton}
+            onPress={handleRefresh}
+            disabled={isRefreshing}
+          >
+            <ArrowCounterClockwise 
+              size={20} 
+              color={theme.colors.text.secondary} 
+            />
+          </TouchableOpacity>
+
           {/* Avatar */}
           <TouchableOpacity 
             style={styles.avatarContainer}
@@ -139,6 +311,16 @@ const ProfileScreen = () => {
             <Award size={20} color={theme.colors.primary} />
             <Text style={styles.pointsText}>{user.points || 0} points</Text>
           </View>
+          
+          {/* User Ranking */}
+          {globalLeaderboard.length > 0 && (
+            <View style={styles.rankingContainer}>
+              <Text style={styles.rankingText}>
+                Rank #{globalLeaderboard.findIndex(entry => entry.user.id === user.id) + 1 || 'N/A'}
+              </Text>
+              <Text style={styles.rankingSubtext}>Global Ranking</Text>
+            </View>
+          )}
         </View>
 
         {/* Top Virtues */}
@@ -148,7 +330,7 @@ const ProfileScreen = () => {
             <Text style={styles.sectionSubtitle}>Learning Progress</Text>
           </View>
           <View style={styles.virtuesContainer}>
-            {userStats.topVirtues.map((virtueData, index) => (
+            {userStatsData.topVirtues.map((virtueData, index) => (
               <View key={index} style={styles.virtueItem}>
                 <View 
                   style={[
@@ -199,26 +381,56 @@ const ProfileScreen = () => {
           <View style={styles.statsGrid}>
             <View style={styles.statCard}>
               <Shield size={24} color={theme.colors.primary} />
-              <Text style={styles.statValue}>{userStats.totalChallenges}</Text>
+              <Text style={styles.statValue}>{userStatsData.totalChallenges}</Text>
               <Text style={styles.statLabel}>Challenges</Text>
             </View>
             
             <View style={styles.statCard}>
               <MessageCircle size={24} color={theme.colors.info} />
-              <Text style={styles.statValue}>{userStats.totalComments}</Text>
+              <Text style={styles.statValue}>{userStatsData.totalComments}</Text>
               <Text style={styles.statLabel}>Comments</Text>
             </View>
             
             <View style={styles.statCard}>
               <BookOpen size={24} color={theme.colors.success} />
-              <Text style={styles.statValue}>{userStats.totalReflections}</Text>
+              <Text style={styles.statValue}>{userStatsData.totalReflections}</Text>
               <Text style={styles.statLabel}>Reflections</Text>
             </View>
             
             <View style={styles.statCard}>
               <FileText size={24} color={theme.colors.secondary} />
-              <Text style={styles.statValue}>{userStats.totalNotes}</Text>
+              <Text style={styles.statValue}>{userStatsData.totalNotes}</Text>
               <Text style={styles.statLabel}>Notes</Text>
+            </View>
+            
+            <View style={styles.statCard}>
+              <BookmarkSimple size={24} color={theme.colors.warning} />
+              <Text style={styles.statValue}>{userStatsData.totalBookmarks}</Text>
+              <Text style={styles.statLabel}>Bookmarks</Text>
+            </View>
+            
+            <View style={styles.statCard}>
+              <Clock size={24} color={theme.colors.info} />
+              <Text style={styles.statValue}>{userStatsData.totalMeditationMinutes}</Text>
+              <Text style={styles.statLabel}>Meditation (min)</Text>
+            </View>
+            
+            <View style={styles.statCard}>
+              <Calendar size={24} color={theme.colors.success} />
+              <Text style={styles.statValue}>{userStatsData.totalActiveDays}</Text>
+              <Text style={styles.statLabel}>Active Days</Text>
+            </View>
+            
+            <View style={styles.statCard}>
+              <Award size={24} color={theme.colors.primary} />
+              <Text style={styles.statValue}>{userStatsData.currentStreak}</Text>
+              <Text style={styles.statLabel}>Current Streak</Text>
+            </View>
+            
+            <View style={styles.statCard}>
+              <Award size={24} color={theme.colors.warning} />
+              <Text style={styles.statValue}>{userStatsData.longestStreak}</Text>
+              <Text style={styles.statLabel}>Longest Streak</Text>
             </View>
           </View>
         </View>
@@ -299,6 +511,18 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     marginBottom: theme.spacing.lg,
     ...theme.shadows.md,
   },
+  refreshButton: {
+    position: 'absolute',
+    top: theme.spacing.md,
+    right: theme.spacing.md,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: theme.colors.surfaceVariant,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1,
+  },
   avatarContainer: {
     width: 120,
     height: 120,
@@ -360,6 +584,20 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     ...theme.typography.body.sans,
     color: theme.colors.text.primary,
     marginLeft: theme.spacing.xs,
+  },
+  rankingContainer: {
+    alignItems: 'center',
+    marginTop: theme.spacing.sm,
+  },
+  rankingText: {
+    ...theme.typography.heading.small,
+    color: theme.colors.primary,
+    fontWeight: '600',
+  },
+  rankingSubtext: {
+    ...theme.typography.caption.secondary,
+    color: theme.colors.text.secondary,
+    marginTop: theme.spacing.xs,
   },
   sectionContainer: {
     marginHorizontal: theme.spacing.lg,

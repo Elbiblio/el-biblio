@@ -18,16 +18,18 @@ import Animated, {
 import { BlurView } from 'expo-blur';
 import { Theme } from '@/theme';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useVerseStore } from '@/stores/verse';
 import { Clock, Sparkle, Trophy, ArrowCounterClockwise } from '../components/Icons';
 import { FlatList } from 'react-native';
-import { VerseMastery, UserLevel } from '@/types';
+import { VerseMastery, UserLevel, VerseResult } from '@/types';
 import { bibleBooks } from '@/constants/bibleBooks';
 import { parseVPLId } from '@/utils/database';
 import BibleDBService from '@/utils/database';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+
 import { shuffleArray } from '@/utils/helpers';
 import { Audio } from 'expo-av';
 import { useGameStore } from '@/stores/game';
+import { useAuth } from '@/stores/auth';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const WORD_SIZE = SCREEN_WIDTH / 5;
@@ -62,6 +64,15 @@ type PowerUpType = 'grace' | 'discernment';
 const VerseBuilderGame: React.FC = () => {
   const theme = useTheme();
   const styles = createStyles(theme);
+  const { user } = useAuth();
+  const {
+    dailyVerses,
+    isDailyVersesLoading,
+    dailyVersesError,
+    fetchDailyVerses,
+    fetchVerseById,
+    createInteraction,
+  } = useVerseStore();
 
   // State
   const [availableVersions, setAvailableVersions] = useState<string[]>([]);
@@ -71,7 +82,6 @@ const VerseBuilderGame: React.FC = () => {
   const [score, setScore] = useState(0);
   const [highScore, setHighScore] = useState(0);
   const [powerUps, setPowerUps] = useState({ grace: 3, discernment: 2 });
-  const [masteredVerses, setMasteredVerses] = useState<VerseMastery[]>([]);
   const [isPlaying, setIsPlaying] = useState(false);
   const [streak, setStreak] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
@@ -83,6 +93,7 @@ const VerseBuilderGame: React.FC = () => {
   const [wordsToLeave, setWordsToLeave] = useState(3);
   const [nextGameState, setNextGameState] = useState<VerseGame | null>(null);
   const [isTransitioning, setIsTransitioning] = useState(false);
+  const [userProgress, setUserProgress] = useState<Record<string, VerseMastery>>({});
 
   // Animation Values
   const progressWidth = useSharedValue(100);
@@ -109,16 +120,21 @@ const VerseBuilderGame: React.FC = () => {
     timeLeftRef.current = timeLeft;
   }, [timeLeft]);
 
+  // Fetch verses on mount
+  useEffect(() => {
+    fetchDailyVerses();
+  }, []);
+
   // Adjust difficulty based on streak and level
   useEffect(() => {
     // Adjust game time - decrease by 1 second for every 5 questions correctly answered
     const timeReduction = Math.floor(streak / 5);
     const newTime = Math.max(INITIAL_TIME - timeReduction, MIN_TIME);
     setInitialGameTime(newTime);
-    
+
     // Set words to leave based on level and streak progression
     const [minWords, maxWords] = WORDS_BY_LEVEL[userLevel];
-    
+
     // For the first 20 questions use min words, then gradually increase
     let wordsToUse = minWords;
     if (streak > 20 && maxWords > minWords) {
@@ -129,27 +145,26 @@ const VerseBuilderGame: React.FC = () => {
         maxWords
       );
     }
-    
+
     setWordsToLeave(wordsToUse);
   }, [streak, userLevel]);
 
   // Process Verse
   const processVerse = useCallback(
-    (verse: any): VerseGame | null => {
+    (verse: VerseResult): VerseGame | null => {
       if (!verse?.verseID || !verse.verseText) return null;
       try {
         const { bookAbbr, chapter, verse: v } = parseVPLId(verse.verseID);
         const book = bibleBooks.find((b) => b.abbreviation === bookAbbr);
         if (!book) throw new Error(`Invalid book abbreviation: ${bookAbbr}`);
         const words = verse.verseText.split(' ').filter((w: string) => w.length > 0);
-        const mastery =
-          masteredVerses.find((m) => m.verseId === verse.verseID) || {
-            verseId: verse.verseID,
-            attempts: 0,
-            correct: 0,
-            lastAttempt: 0,
-            needsReview: true,
-          };
+        const mastery = userProgress[verse.verseID] || {
+          verseId: verse.verseID,
+          attempts: 0,
+          correct: 0,
+          lastAttempt: 0,
+          needsReview: true,
+        };
         return {
           id: verse.verseID,
           text: verse.verseText,
@@ -165,24 +180,24 @@ const VerseBuilderGame: React.FC = () => {
         return null;
       }
     },
-    [masteredVerses]
+    [userProgress]
   );
 
   // Load batch of verses for the current level
   const loadVerseBatch = useCallback(async () => {
     if (!selectedVersion) return;
     setIsLoading(true);
-    
+
     try {
       console.log(`Loading batch of verses for ${userLevel} level...`);
       const verses = await BibleDBService.getRandomVerses(selectedVersion, 40);
       const processedVerses = verses
         .map(processVerse)
         .filter(Boolean) as VerseGame[];
-      
+
       verseQueueRef.current = processedVerses;
       console.log(`Loaded ${processedVerses.length} verses for gameplay`);
-      
+
       if (processedVerses.length === 0) {
         throw new Error('No suitable verses found for the current level');
       }
@@ -194,65 +209,26 @@ const VerseBuilderGame: React.FC = () => {
     }
   }, [selectedVersion, userLevel, processVerse]);
 
-  // Initialize App
+  // Initialize game data
   useEffect(() => {
-    const initializeApp = async () => {
-      if (hasInitialized.current) return;
-      hasInitialized.current = true;
-      setIsLoading(true);
-
+    const initializeGame = async () => {
       try {
-        // Load sound effects
-        const soundPaths = {
-          tickTock: require('../../assets/sounds/tick-tock.wav'),
-          timeout: require('../../assets/sounds/timeout.mp3'),
-          correct: require('../../assets/sounds/correct.mp3'),
-          streak: require('../../assets/sounds/streak.wav'),
-          retry: require('../../assets/sounds/game-over.mp3'),
-          cheers: require('../../assets/sounds/cheers.mp3'),
-        };
-        for (const [key, path] of Object.entries(soundPaths)) {
-          const sound = new Audio.Sound();
-          await sound.loadAsync(path);
-          soundsRef.current[key as keyof typeof soundsRef.current] = sound;
-        }
+        // Load user data from API instead of local storage
+        await fetchDailyVerses();
 
-        // Get available Bible versions
-        const versions = await BibleDBService.getInstalledVersions();
-        setAvailableVersions(versions);
-        if (versions.length > 0) {
-          setSelectedVersion(versions[0]);
-        }
+        // Set default level
+        setUserLevel('novice');
 
-        // Load user data
-        const [masteryData, progressData, highScoreData] = await Promise.all([
-          AsyncStorage.getItem('verseMastery'),
-          AsyncStorage.getItem('userProgress'),
-          AsyncStorage.getItem('highScore'),
-        ]);
-        
-        if (masteryData) setMasteredVerses(JSON.parse(masteryData));
-        if (progressData) {
-          const userData = JSON.parse(progressData);
-          setUserLevel(userData.level || 'beginner');
-        }
-        if (highScoreData) setHighScore(parseInt(highScoreData, 10));
-      } catch (err) {
-        console.error('Initialization error:', err);
-        setError('Failed to initialize app. Please restart.');
-      } finally {
-        setIsLoading(false);
+        // Initialize game state
+        setGameState(null);
+      } catch (error) {
+        console.error('Failed to initialize game:', error);
+        setError('Failed to initialize game. Please restart.');
       }
     };
-    
-    initializeApp();
 
-    return () => {
-      Object.values(soundsRef.current).forEach(sound => 
-        sound?.unloadAsync().catch(console.error)
-      );
-    };
-  }, []);
+    initializeGame();
+  }, [fetchDailyVerses]);
 
   // Load initial verses after initialization is complete and version is selected
   useEffect(() => {
@@ -265,7 +241,7 @@ const VerseBuilderGame: React.FC = () => {
   const startNewRound = useCallback(async () => {
     if (!selectedVersion) return;
     setError(null);
-    
+
     // Don't show loading indicator during transitions between rounds
     const showLoading = !gameState;
     if (showLoading) setIsLoading(true);
@@ -275,7 +251,7 @@ const VerseBuilderGame: React.FC = () => {
       if (verseQueueRef.current.length === 0) {
         await loadVerseBatch();
       }
-      
+
       // Get the next verse
       const verse = verseQueueRef.current.shift();
       if (!verse) {
@@ -295,7 +271,7 @@ const VerseBuilderGame: React.FC = () => {
         arrangedWords,
         prefilledCount: prefillCount,
       };
-      
+
       if (!gameState) {
         // First round, just set the state directly
         setGameState(newGameState);
@@ -309,7 +285,7 @@ const VerseBuilderGame: React.FC = () => {
         // Transition to next verse with animation
         setNextGameState(newGameState);
         setIsTransitioning(true);
-        
+
         // Fade out current verse
         fadeAnim.value = withTiming(0, { duration: 300 }, () => {
           runOnJS(completeTransition)(newGameState);
@@ -333,7 +309,7 @@ const VerseBuilderGame: React.FC = () => {
     setShowCorrectAnswer(false);
     progressWidth.value = 100;
     timerColorAnim.value = 0;
-    
+
     // Fade in the new verse
     fadeAnim.value = withTiming(1, { duration: 300 }, () => {
       runOnJS(setIsTransitioning)(false);
@@ -343,62 +319,73 @@ const VerseBuilderGame: React.FC = () => {
   // Update Mastery
   const updateMastery = useCallback(
     async (verseId: string, correct: boolean) => {
-      const updated = [...masteredVerses];
-      const existing = updated.find((m) => m.verseId === verseId);
+      const updated = { ...userProgress };
+      const existing = updated[verseId];
       if (existing) {
         existing.attempts += 1;
         existing.correct += correct ? 1 : 0;
         existing.lastAttempt = Date.now();
-        existing.needsReview = existing.attempts < MAX_ATTEMPTS || Date.now() - existing.lastAttempt > REVIEW_PERIOD;
+        existing.needsReview = existing.correct < 3;
       } else {
-        updated.push({
+        updated[verseId] = {
           verseId,
           attempts: 1,
           correct: correct ? 1 : 0,
           lastAttempt: Date.now(),
           needsReview: true,
-        });
+        };
       }
-      setMasteredVerses(updated);
-      await AsyncStorage.setItem('verseMastery', JSON.stringify(updated)).catch((err) =>
-        console.error('Save mastery error:', err)
-      );
+
+      setUserProgress(updated);
+
+      if (user?.id) {
+        try {
+          await createInteraction({
+            interactable_id: verseId,
+            interactable_type: 'verse',
+            type: correct ? 1 : 0, // 1 for correct, 0 for incorrect
+            user_id: user?.id,
+          });
+        } catch (err) {
+          console.error('Failed to submit interaction:', err);
+        }
+      }
     },
-    [masteredVerses]
+    [user, createInteraction, userProgress]
   );
 
   // Check Answer
   const checkAnswer = useCallback(async () => {
     if (!gameState || !isPlaying || gameState.poolWords.length > 0) return;
-  
+
     const isCorrect = gameState.arrangedWords.join(' ').trim() === gameState.text.trim();
-  
+
     await updateMastery(gameState.id, isCorrect);
-  
+
     if (isCorrect) {
       setIsPlaying(false);
       soundsRef.current.correct?.setPositionAsync(0).then(() => soundsRef.current.correct?.playAsync());
-  
+
       const newStreak = streak + 1;
       setStreak(newStreak);
-  
+
       if (newStreak > 1 && newStreak % 5 === 0) {
         soundsRef.current.streak?.setPositionAsync(0).then(() => soundsRef.current.streak?.playAsync());
       }
-  
+
       const timeBonus = Math.floor(timeLeft * 2);
       const newScore = score + 100 + timeBonus;
       setScore(newScore);
-  
+
       // Submit score to gameStore
       useGameStore.getState().submitScore('verse_builder', newScore);
-  
+
       if (newScore > highScore) {
         setHighScore(newScore);
-        await AsyncStorage.setItem('highScore', newScore.toString());
+        // High score tracking moved to API
         soundsRef.current.cheers?.setPositionAsync(0).then(() => soundsRef.current.cheers?.playAsync());
       }
-  
+
       setShowSuccess(true);
       setTimeout(() => {
         setShowSuccess(false);

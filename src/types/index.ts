@@ -5,6 +5,48 @@ export type FoundationalVirtue = 'knowledge' | 'humility' | 'faith' | 'love';
 
 export type PreferredTheme = 'sage' | 'ocean' | 'wooden';
 
+// API Enums
+export enum UserRole {
+  Moderator = 1,
+  User = 2,
+  Admin = 99
+}
+
+export enum ActivityType {
+  Create = 1,
+  Comment = 2,
+  Like = 3
+}
+
+export enum UserInteractionType {
+  Like = 1,
+  Bookmark = 2,
+  Vote = 3
+}
+
+export enum MatchStatus {
+  Pending = 1,
+  Matched = 2,
+  Expired = 3,
+  Cancelled = 4
+}
+
+export enum MatchType {
+  Unity = 1,
+  Diversity = 2,
+  Any = 3
+}
+
+export enum NotificationType {
+  Public = 1,
+  User = 2
+}
+
+export enum ReflectionType {
+  Story = 1,
+  Insight = 2
+}
+
 // Virtues directly derived from one foundational virtue
 export type DerivedVirtues = {
   knowledge: 'wisdom' | 'discernment' | 'prudence'
@@ -92,18 +134,22 @@ export interface Verse {
   id: string;
   text: string;
   reference: string;
-  translation?: string;
-  reflections?: Reflection[];
-  likes: number;
+  date: string;
+  translation: string;
+  theme_id?: string;
+  theme?: Virtue;
   votes: number;
+  likes: number;
   shares: number;
+  is_trending: boolean;
+  is_active: boolean;
+  is_featured: boolean;
+  reflections?: Reflection[];
   isLiked?: boolean;
   isVoted?: boolean;
   isBookmarked?: boolean;
-  is_trending?: boolean;
-  is_featured?: boolean;
   created_at: string;
-  theme?: Virtue;
+  updated_at: string;
 }
 
 export const FaithTheme: Virtue = {
@@ -118,18 +164,21 @@ export interface WordHub {
   id: string;
   title: string;
   description: string;
+  creator_id: string;
+  is_private: boolean;
+  access_code: string;
+  min_points?: number;
+  expires_at: string;
   memberCount: number;
   activeMembers: number; // Currently online/active
   messageCount: number;
   lastMessageTime: string;
   topicCount: number;
   authors: User[]; // Number of shared reflections/content
-  isPrivate: boolean;
-  code?: string;
-  minPoints?: number;
-  createdAt: string;
   isBookmarked: boolean;
-  expiresAt: string;
+  created_at: string;
+  updated_at: string;
+  deleted_at?: string;
 }
 
 export interface ThemeInfo {
@@ -214,13 +263,14 @@ export const THEMES: Record<ThemeInfo['id'], ThemeInfo> = {
 
 export interface Note {
   id: string;
-  title: string;
+  title?: string;
   text?: string;
   excerpt?: string;
+  user_id?: string;
   user?: User;
   virtues?: AllVirtues[];
-  theme?: Virtue;
   theme_id?: string;
+  theme?: Virtue;
   is_public?: boolean;
   is_featured?: boolean;
   author?: User;
@@ -248,30 +298,40 @@ export interface DailyVerse {
 export type DayVerses = {
   date: string;
   moderatorVerses: DailyVerse[];
-  randomVerses: DailyVerse[];
+  userVerses: DailyVerse[];
 };
 
 export interface Reflection {
   id: string;
+  user_id: string;
   user: User;
+  verse_id: string;
   content: string;
-  type: 'story' | 'insight';
-  icon: string;
+  type: ReflectionType;
+  icon?: string;
   likes: number;
+  shares: number;
   comments: Comment[];
   isLiked: boolean;
   timestamp: string;
+  created_at: string;
+  updated_at: string;
+  deleted_at?: string;
 }
 
 export interface Comment {
   id: string;
-  parentId: string | null;
-  author: User;
+  user_id: string;
+  reflection_id: string;
+  parent_id?: string;
   content: string;
   likes: number;
   timestamp: string;
   isLiked: boolean;
   replies?: Comment[];
+  created_at: string;
+  updated_at: string;
+  deleted_at?: string;
 }
 
 export interface WordHubMessage {
@@ -293,64 +353,22 @@ export interface Denomination {
 
 export type DenominationType = 'all' | 'catholic' | 'evangelical' | 'protestant' | 'orthodox' | 'other';
 
-
-export const CatholicDenomination: Denomination = {
-  id: 'catholic',
-  name: 'Catholic',
-  color: '#9C27B0'
-}
-
-export const ProtestantDenomination: Denomination = {
-  id: 'protestant',
-  name: 'Protestant',
-  color: '#2196F3'
-}
-
-export const OrthodoxDenomination: Denomination = {
-  id: 'orthodox',
-  name: 'Orthodox',
-  color: '#FF9800'
-}
-
-export const EvangelicalDenomination: Denomination = {
-  id: 'evangelical',
-  name: 'Evangelical',
-  color: '#4CAF50'
-}
-
-export const OtherDenomination: Denomination = {
-  id: 'other',
-  name: 'Other',
-  color: '#607D8B'
-}
-
-export const DENOMINATIONS: Denomination[] = [
-    CatholicDenomination,
-    ProtestantDenomination,
-    OrthodoxDenomination,
-    EvangelicalDenomination,
-    OtherDenomination
-];
-
-
 export interface User {
   id: string;
   first_name: string;
   last_name: string;
   avatar: string;
-  points?: number;
-  primary_language?: string;
-  preferred_theme?: PreferredTheme;
-  date_of_birth?: string;
-  denomination?: DenominationType;
-  email_verified_at?: string;
-  last_seen?: string;
+  points: number;
+  role: UserRole;
+  is_active: boolean;
+  primary_language: string;
+  email?: string;
   total_active_time?: number;
-  userVirtues?: VirtueProgress[];
+  last_seen?: string;
   activeChallenges?: Challenge[];
-  last_login?: string;
-  created_at?: string;
-  is_guest?: boolean;
+  created_at: string;
+  updated_at: string;
+  password?: string; // Make password optional for API responses
 }
 
 export interface Challenge {
@@ -389,479 +407,156 @@ export interface MeditationSession {
   ended_at: string;
 }
 
-export const VirtueGroups = {
-  foundational: {
-    title: 'Foundational Virtues',
-    virtues: ['love', 'faith', 'knowledge', 'humility'] as const,
-    icons: { love: THEMES['love'].Icon, faith: THEMES['faith'].Icon, knowledge: THEMES['knowledge'].Icon, humility: THEMES['humility'].Icon }
-  },
-  derived: {
-    title: 'Derived Virtues',
-    virtues: [
-      'wisdom', 'discernment', 'prudence',
-      'self-control', 'patience', 'gentleness',
-      'trust', 'hope', 'courage',
-      'compassion', 'kindness', 'generosity'
-    ] as const
-  },
-  compound: {
-    title: 'Compound Virtues',
-    virtues: [
-      'righteousness', 'justice', 'joy',
-      'peace', 'gratitude', 'respect',
-      'honesty'
-    ] as const
-  }
+export interface Activity {
+  id: string;
+  user_id: string;
+  subject_type: string;
+  subject_id: string;
+  type: ActivityType;
+  points_earned: number;
+  metadata?: any;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Bookmark {
+  id: number;
+  user_id: number;
+  bookmarkable_id: number;
+  bookmarkable_type: string;
+  clip_text?: string;
+  created_at: string;
+  updated_at: string;
+  bookmarkable?: {
+    id: number;
+    type: 'verse' | 'reflection' | 'note' | 'clip';
+    content: string;
+    reference?: string;
+    theme?: FoundationalVirtue;
+    context?: string;
+    author?: {
+      id: number;
+      first_name: string;
+      last_name: string;
+      avatar: string;
+    };
+  };
+}
+
+export interface UserInteraction {
+  id: string;
+  user_id: string;
+  interactable_type: string;
+  interactable_id: string;
+  type: UserInteractionType;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Notification {
+  id: string;
+  notifiable_type: string;
+  notifiable_id: string;
+  user_id: string;
+  data?: string;
+  read_at?: string;
+  type?: NotificationType;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Match {
+  id: string;
+  user_id: string;
+  match_type: MatchType;
+  wait_time_minutes: number;
+  matched_user_id?: string;
+  matched_at?: string;
+  expires_at: string;
+  status: MatchStatus;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Language {
+  id: string;
+  code: string;
+  name: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Cache {
+  key: string;
+  value: string;
+  expiration: number;
+}
+
+export interface Job {
+  id: string;
+  queue: string;
+  payload: string;
+  attempts: number;
+  reserved_at?: number;
+  available_at: number;
+  created_at: number;
+}
+
+export type LeaderboardEntry = {
+  user: User; // required
+  points?: number;
+  rank?: number;
+  verses_read?: number;
+  reflections_count?: number;
+  bookmarks_count?: number;
+  activities_count?: number;
+  points_earned?: number;
 };
 
-export const VirtueGroupsWorld = {
-  wisdom: ['knowledge', 'wisdom', 'discernment'] as AllVirtues[],
-  character: ['humility', 'respect', 'honesty', 'patience', 'self-control', 'self-restraint'] as AllVirtues[],
-  strength: ['courage', 'fortitude', 'perseverance', 'hope'] as AllVirtues[],
-  love: ['compassion', 'kindness', 'charity', 'selflessness', 'love'] as AllVirtues[],
-  spirit: ['faith', 'trust', 'obedience', 'gratitude'] as AllVirtues[],
-  fruit: ['peace', 'joy', 'goodness', 'gentleness'] as AllVirtues[],
-  society: ['justice', 'righteousness'] as AllVirtues[],
-};
+export interface LeaderboardFilter {
+  timeframe: 'daily' | 'weekly' | 'monthly' | 'all';
+  virtue?: AllVirtues;
+  limit?: number;
+}
 
-export const sampleNotes: Note[] = [
-  {
-    id: '1',
-    title: 'Contemplating Humility',
-    text: "Contemplating the virtue of humility today. True humility isn't thinking less of yourself, but thinking of yourself less. It creates space for others to grow and flourish.",
-    virtues: ['humility', 'wisdom', 'love'],
-    created_at: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-    updated_at: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-    isPinned: true,
-    color: '#F5F0FF',
-  },
-  {
-    id: '2',
-    title: 'Faith and Courage',
-    text: "Faith and courage go hand in hand. When we trust in God's plan, we find the strength to face uncertainties with hope and perseverance.",
-    virtues: ['faith', 'courage', 'hope', 'trust'],
-    created_at: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-    updated_at: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-    isPinned: false,
-    color: '#F0F7FF',
-  },
-  {
-    id: '3',
-    title: 'Practicing Gratitude',
-    text: "On practicing gratitude: Found joy in the small blessings today. Even in challenges, there's always something to be thankful for.",
-    virtues: ['gratitude', 'joy', 'peace'],
-    created_at: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
-    updated_at: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
-    isPinned: false,
-    color: '#FFF0F0',
-  },
-];
+export interface UserStats {
+  totalPoints: number;
+  totalReflections: number;
+  totalNotes: number;
+  totalBookmarks: number;
+  totalMeditationMinutes: number;
+  totalActiveDays: number;
+  currentStreak: number;
+  longestStreak: number;
+  topVirtues: Array<{
+    virtue: AllVirtues;
+    points: number;
+    level: number;
+  }>;
+  recentActivity: Activity[];
+}
 
-export const sampleWordHubs: WordHub[] = [
-  {
-    id: '1',
-    title: 'Daily Scripture Reflection',
-    description: 'Join us in discussing today\'s verse about faith and perseverance. Share your thoughts and learn from others.',
-    memberCount: 156,
-    activeMembers: 23,
-    messageCount: 234,
-    lastMessageTime: new Date(Date.now() - 5 * 60000).toISOString(),
-    topicCount: 3,
-    authors: [
-      {
-        id: '1',
-        first_name: 'Sarah',
-        last_name: 'Mitchell',
-        avatar: 'https://example.com/avatar1.jpg'
-      },
-      {
-        id: '2',
-        first_name: 'John',
-        last_name: 'Doe',
-        avatar: 'https://example.com/avatar2.jpg'
-      },
-      {
-        id: '3',
-        first_name: 'Alice',
-        last_name: 'Johnson',
-        avatar: 'https://example.com/avatar3.jpg'
-      },
-      {
-        id: '4',
-        first_name: 'Michael',
-        last_name: 'Brown',
-        avatar: 'https://example.com/avatar4.jpg'
-      }
-    ],
-    isPrivate: false,
-    createdAt: new Date(Date.now() - 12 * 60 * 60000).toISOString(),
-    isBookmarked: true,
-    expiresAt: new Date(Date.now() + 24 * 60 * 60000).toISOString(),
-  },
-];
+export interface SearchResult {
+  verses: Verse[];
+  notes: Note[];
+  reflections: Reflection[];
+  users: User[];
+  totalResults: number;
+  searchQuery: string;
+}
 
-
-// Example data structure for verses - replace with API call
-export const sampleCurrentVerses: DayVerses = {
-  date: 'Mon, Dec 18',
-  moderatorVerses: [
-    {
-      id: '1',
-      reference: 'Proverbs 2:6',
-      text: "For the Lord gives wisdom; from his mouth come knowledge and understanding.",
-      votes: 245,
-      isVoted: true,
-      translation: 'NIV',
-      theme: 'knowledge',
-      isModerator: true,
-    },
-    // Add one for each theme...
-  ],
-  randomVerses: [
-    {
-      id: '5',
-      reference: 'Romans 8:28',
-      text: "And we know that in all things God works for the good of those who love him.",
-      votes: 156,
-      isVoted: false,
-      translation: 'NIV',
-      theme: 'faith',
-      isModerator: false,
-    },
-    // Add one for each theme...
-  ],
-};
-export const sampleUpcomingVerses: DayVerses = {
-  date: 'Tues, Dec 19',
-  moderatorVerses: [
-    {
-      id: '1',
-      reference: 'Proverbs 2:6',
-      text: "For the Lord gives wisdom; from his mouth come knowledge and understanding.",
-      votes: 245,
-      isVoted: true,
-      translation: 'NIV',
-      theme: 'knowledge',
-      isModerator: true,
-    },
-    // Add one for each theme...
-  ],
-  randomVerses: [
-    {
-      id: '5',
-      reference: 'Romans 8:28',
-      text: "And we know that in all things God works for the good of those who love him.",
-      votes: 156,
-      isVoted: false,
-      translation: 'NIV',
-      theme: 'faith',
-      isModerator: false,
-    },
-    // Add one for each theme...
-  ],
-};
-
-export const VIRTUES = [
-  {
-    id: 'love',
-    name: 'Love',
-    icon: Heart,
-    color: '#FF5E7D',
-    prompts: [
-      "Reflect on a moment when you experienced unconditional love. How did it feel?",
-      "Think of someone who challenges you. How might you extend compassion to them today?",
-      "Consider how you show love to yourself. Are there ways you could be more gentle with yourself?",
-      "Visualize love as a healing energy radiating from your heart. Where in your life does it need to flow?"
-    ]
-  },
-  {
-    id: 'courage',
-    name: 'Courage',
-    icon: Shield,
-    color: '#7C5DF9',
-    prompts: [
-      "Remember a time when you faced a fear. What strength did you discover within yourself?",
-      "What challenge in your life right now requires courage to face?",
-      "If fear wasn't holding you back, what would you do differently today?",
-      "Visualize yourself standing firm in the face of adversity, rooted like a mountain."
-    ]
-  },
-  {
-    id: 'patience',
-    name: 'Patience',
-    icon: Leaf,
-    color: '#56C288',
-    prompts: [
-      "Notice the rhythm of your breath. Can you find peace in this moment of waiting?",
-      "Think of a situation that tests your patience. What might you learn by embracing the wait?",
-      "Consider how nature demonstrates patience - seeds growing, seasons changing. What wisdom can you apply to your life?",
-      "Imagine your frustrations as leaves floating down a stream, carried away by the current."
-    ]
-  },
-  {
-    id: 'justice',
-    name: 'Justice',
-    icon: Scales,
-    color: '#EF8F35',
-    prompts: [
-      "Reflect on what justice means to you personally. How do you embody this value?",
-      "Consider a situation where you witnessed injustice. How did it affect you?",
-      "How might you use your voice or position to promote fairness in your community?",
-      "Visualize a world where justice prevails. What does it look like, and what part can you play?"
-    ]
-  },
-  {
-    id: 'wisdom',
-    name: 'Wisdom',
-    icon: Flame,
-    color: '#E63946',
-    prompts: [
-      "Recall a lesson life has taught you. How has it shaped your decisions?",
-      "Think of someone whose wisdom you admire. What qualities make them wise?",
-      "Consider a decision you're facing. What would your wisest self advise?",
-      "Imagine wisdom as a light illuminating your path. What does it reveal about your journey?"
-    ]
-  }
-];
-
-// Time options for meditation
-export const TIME_OPTIONS = [
-  { value: 7, label: '7 min' },
-  { value: 15, label: '15 min' },
-  { value: 40, label: '40 min' }
-];
-
-// Challenge templates based on virtues - conforming to DailyChallenge type
-export const CHALLENGE_TEMPLATES: Record<string, DailyChallenge[]> = {
-  love: [
-    {
-      id: 'love-1',
-      title: "Practice Compassionate Communication",
-      description: "When speaking with others today, pause before responding and choose words of kindness and understanding.",
-      type: 'virtue',
-      mode: 'attitude',
-      category: 'personal',
-      end_time: "18:00",
-    },
-    {
-      id: 'love-2',
-      title: "Send 3 Appreciation Messages",
-      description: "Take 15 minutes to write and send heartfelt messages to three people who have positively impacted your life.",
-      type: 'virtue',
-      mode: 'action',
-      category: 'personal',
-      end_time: "18:00",
-    },
-    {
-      id: 'love-3',
-      title: "Practice Self-Compassion",
-      description: "Speak to yourself as you would to a dear friend throughout the day, especially when facing challenges.",
-      type: 'virtue',
-      mode: 'attitude',
-      category: 'personal',
-      end_time: "18:00",
-      frequency: 'd',
-    }
-  ],
-  courage: [
-    {
-      id: 'courage-1',
-      title: "Have That Difficult Conversation",
-      description: "Set aside 15 minutes today to initiate that conversation you've been avoiding, approaching it with honesty and respect.",
-      type: 'virtue',
-      mode: 'action',
-      category: 'personal',
-      end_time: "18:00",
-    },
-    {
-      id: 'courage-2',
-      title: "Embrace Discomfort Mindset",
-      description: "Throughout today, notice when you feel resistance and choose to lean into that feeling rather than away from it.",
-      type: 'virtue',
-      mode: 'attitude',
-      category: 'personal',
-      end_time: "18:00",
-    },
-    {
-      id: 'courage-3',
-      title: "Share Your True Perspective",
-      description: "In your next meeting or conversation, express your authentic viewpoint even if it differs from the majority.",
-      type: 'virtue',
-      mode: 'action',
-      category: 'personal',
-      end_time: "18:00",
-    }
-  ],
-  patience: [
-    {
-      id: 'patience-1',
-      title: "Practice Mindful Waiting",
-      description: "Whenever you encounter a wait today, take deep breaths and use it as an opportunity for mindfulness rather than frustration.",
-      type: 'virtue',
-      mode: 'attitude',
-      category: 'personal',
-      end_time: "19:00",
-    },
-    {
-      id: 'patience-2',
-      title: "Listen Without Interrupting",
-      description: "In all conversations today, practice listening fully and completely before formulating your response.",
-      type: 'virtue',
-      mode: 'attitude',
-      category: 'personal',
-      end_time: "19:00",
-    },
-    {
-      id: 'patience-3',
-      title: "Slow Down One Activity",
-      description: "Choose one 15-minute activity today to perform at half your normal pace, noticing details you usually miss.",
-      type: 'virtue',
-      mode: 'action',
-      category: 'personal',
-      end_time: "19:00",
-    }
-  ],
-  justice: [
-    {
-      id: 'justice-1',
-      title: "Support Ethical Organizations",
-      description: "Take 15 minutes to research and support a business or organization that promotes fair practices and equality.",
-      type: 'virtue',
-      mode: 'action',
-      category: 'personal',
-      end_time: "19:00",
-    },
-    {
-      id: 'justice-2',
-      title: "Advocate for the Unheard",
-      description: "Today, speak up when you notice someone's voice or perspective being overlooked or dismissed.",
-      type: 'virtue',
-      mode: 'attitude',
-      category: 'personal',
-      end_time: "19:00",
-    },
-    {
-      id: 'justice-3',
-      title: "Examine Personal Biases",
-      description: "Spend 15 minutes journaling about a bias you may hold and how it affects your interactions with others.",
-      type: 'virtue',
-      mode: 'action',
-      category: 'personal',
-      end_time: "19:00",
-    }
-  ],
-  wisdom: [
-    {
-      id: 'wisdom-1',
-      title: "Adopt a Learning Mindset",
-      description: "Approach each conversation today as an opportunity to learn something new, especially from those with different perspectives.",
-      type: 'virtue',
-      mode: 'attitude',
-      category: 'personal',
-      end_time: "19:00",
-    },
-    {
-      id: 'wisdom-2',
-      title: "Reflective Decision Making",
-      description: "Before making decisions today, pause and consider how your future self would want you to proceed.",
-      type: 'virtue',
-      mode: 'attitude',
-      category: 'personal',
-      end_time: "19:00",
-    },
-    {
-      id: 'wisdom-3',
-      title: "Seek Wise Counsel",
-      description: "Spend 15 minutes consulting with someone whose wisdom you respect about a current challenge you're facing.",
-      type: 'virtue',
-      mode: 'action',
-      category: 'personal',
-      end_time: "19:00",
-    }
-  ]
-};
-
-
-
-// Sample data for virtue notes
-export const VIRTUE_NOTES: Note[] = [
-  {
-    id: 'note1',
-    title: 'Patience in Modern Times',
-    excerpt: 'In our fast-paced world, patience has become increasingly rare yet more valuable than ever...',
-    author: {
-      id: '1',
-      first_name: 'Dr.',
-      last_name: 'Johnson',
-      avatar: 'https://example.com/avatar1.jpg'
-    },
-    denomination: ProtestantDenomination,
-    theme_id: 'patience',
-    likes: 342,
-    created_at: '2023-08-15',
-  },
-  {
-    id: 'note2',
-    title: 'The Heart of Kindness',
-    excerpt: 'Kindness is not merely an action but a reflection of the heart transformed by grace...',
-    author: {
-      id: '1',
-      first_name: 'Fr.',
-      last_name: 'Michael Thomas',
-      avatar: 'https://example.com/avatar1.jpg'
-    },
-    denomination: CatholicDenomination,
-    theme_id: 'kindness',
-    likes: 287,
-    created_at: '2023-09-02',
-  },
-  {
-    id: 'note3',
-    title: 'Humility: The Foundation of Virtue',
-    excerpt: 'Without humility, no other virtue can truly flourish. It is the soil in which all spiritual growth begins...',
-    author: {
-      id: '1',
-      first_name: 'Elder',
-      last_name: 'Nikolai',
-      avatar: 'https://example.com/avatar1.jpg'
-    },
-    denomination: OrthodoxDenomination,
-    theme_id: 'humility',
-    likes: 198,
-    created_at: '2023-07-28',
-  },
-  {
-    id: 'note4',
-    title: 'Wisdom in the Digital Age',
-    excerpt: 'Discerning truth from falsehood requires a wisdom that transcends information overload...',
-    author: {
-      id: '1',
-      first_name: 'Pastor',
-      last_name: 'James Wilson',
-      avatar: 'https://example.com/avatar1.jpg'
-    },
-    denomination: EvangelicalDenomination,
-    theme_id: 'wisdom',
-    likes: 256,
-    created_at: '2023-08-30',
-  },
-  {
-    id: 'note5',
-    title: 'Patience and Spiritual Growth',
-    excerpt: 'The journey of faith requires patience with ourselves and others as we grow in grace...',
-    author: {
-      id: '1',
-      first_name: 'Bishop',
-      last_name: 'Robert Greene',
-      avatar: 'https://example.com/avatar1.jpg'
-    },
-    denomination: CatholicDenomination,
-    theme_id: 'patience',
-    likes: 175,
-    created_at: '2023-09-10',
-  },
-];
-
+export interface PaginatedResponse<T> {
+  data: T[];
+  meta: {
+    current_page: number;
+    from: number;
+    last_page: number;
+    per_page: number;
+    to: number;
+    total: number;
+  };
+}
 
 export type RootStackParamList = {
   Home: undefined | { meditationComplete?: boolean, challenge?: DailyChallenge, pointsEarned?: number };
@@ -919,6 +614,10 @@ export interface LocalVerseActivity {
     commentCount: number;
     likeCount: number;
   };
+  likeCount?: number;
+  shareCount?: number;
+  reflectionCount?: number;
+  isLiked?: boolean;
 }
 
 export interface VerseActivityMap {
@@ -930,7 +629,6 @@ export interface VerseResult {
   verseText: string;
 }
 
-// Define user levels and corresponding verse constraints
 export type UserLevel = 'novice' | 'beginner' | 'intermediate' | 'advanced' | 'expert';
 
 export interface VerseMastery {
@@ -948,38 +646,132 @@ export interface AnimatedProps {
   index: number;
 }
 
-export interface Bookmark {
-  id: number;
-  user_id: number;
-  bookmarkable_id: number;
-  bookmarkable_type: string;
-  is_pinned: boolean;
+export type GameId = 'verse_builder' | 'virtue_trivia' | 'virtue_quiz' | string;
+
+export interface GameScore {
+  id?: string;
+  gameId: GameId;
+  userId?: string;
+  score: number;
+  level?: number;
+  timeSpent?: number;
+  correctAnswers?: number;
+  totalQuestions?: number;
+  timestamp: string;
+}
+
+export interface GameLeaderboard {
+  gameId: string;
+  entries: Array<{
+    userId: string;
+    userName: string;
+    userAvatar: string;
+    score: number;
+    rank: number;
+    timestamp: string;
+  }>;
+}
+
+export interface GameState {
+  questions: Array<{
+    id: string;
+    question: string;
+    options: string[];
+    correctAnswer: string;
+    explanation?: string;
+    verseReference?: string;
+  }>;
+  currentQuestionIndex: number;
+  score: number;
+  streak: number;
+  answered: boolean;
+  selectedAnswer: string | null;
+  correctAnswer: string;
+  gameOver: boolean;
+  correctAnswersCount: number;
+}
+
+export type TimeFilter = 'all' | 'today' | 'week' | 'month';
+
+export type VirtueFilter = 'all' | FoundationalVirtue | AllVirtues;
+
+export interface SignUpData {
+  email: string;
+  password: string;
+  first_name: string;
+  last_name: string;
+  avatar?: string;
+  primary_language?: string;
+  english_fluency?: number;
+  date_of_birth?: string;
+  denomination?: DenominationType;
+}
+
+export interface LoginResponse {
+  token: string;
+  user: User;
+}
+
+export interface Theme {
+  id: string;
+  name: string;
+  display_name: string;
+  color_code: string;
+  is_foundational: boolean;
   created_at: string;
   updated_at: string;
-  bookmarkable?: {
-    id: number;
-    type: 'verse' | 'reflection' | 'note' | 'clip';
-    content: string;
-    reference?: string;
-    theme?: FoundationalVirtue;
-    context?: string;
-    author?: {
-      id: number;
-      first_name: string;
-      last_name: string;
-      avatar: string;
-    };
+}
+
+export interface VIRTUE_NOTES {
+  id: string;
+  title: string;
+  content: string;
+  theme_id: FoundationalVirtue;
+  denomination?: Denomination;
+  author: User;
+  likes: number;
+  created_at: string;
+}
+
+export interface VirtueGroups {
+  foundational: {
+    name: string;
+    virtues: FoundationalVirtue[];
+  };
+  derived: {
+    name: string;
+    virtues: AllDerivedVirtues[];
+  };
+  compound: {
+    name: string;
+    virtues: CompoundVirtueNames[];
   };
 }
 
-export interface PaginatedResponse<T> {
-  data: T[];
-  meta: {
-    current_page: number;
-    from: number;
-    last_page: number;
-    per_page: number;
-    to: number;
-    total: number;
-  };
-}
+export const VirtueGroups: VirtueGroups = {
+  foundational: {
+    name: 'Foundational Virtues',
+    virtues: ['knowledge', 'humility', 'faith', 'love']
+  },
+  derived: {
+    name: 'Derived Virtues',
+    virtues: ['wisdom', 'discernment', 'prudence', 'self-control', 'self-restraint', 'patience', 'gentleness', 'obedience', 'trust', 'hope', 'perseverance', 'courage', 'fortitude', 'compassion', 'kindness', 'generosity', 'goodness', 'selflessness']
+  },
+  compound: {
+    name: 'Compound Virtues',
+    virtues: ['righteousness', 'justice', 'joy', 'peace', 'gratitude', 'respect', 'honesty']
+  }
+};
+
+export const DENOMINATIONS: Denomination[] = [
+  { id: '1', name: 'Catholic', color: '#E74C3C' },
+  { id: '2', name: 'Evangelical', color: '#3498DB' },
+  { id: '3', name: 'Protestant', color: '#2ECC71' },
+  { id: '4', name: 'Orthodox', color: '#F39C12' },
+  { id: '5', name: 'Other', color: '#9B59B6' },
+];
+
+export const SCREEN_DIMENSIONS = {
+  width: 375,
+  height: 812,
+};

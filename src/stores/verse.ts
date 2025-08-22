@@ -1,74 +1,85 @@
 //stores/verse.ts
 
 import { create } from 'zustand';
-import axios from 'axios';
-import { Verse, Reflection, Comment, User } from '@/types';
-import { APIResponse, DailyVersesResponse } from '@/types/api';
-
-// Types for API payloads
-type InteractionType = 1 | 2 | 3; // 1: like, 2: bookmark, 3: vote
-type ReflectionType = 1 | 2; // 1: story, 2: insight
-type InteractableType = 'App\\Models\\Reflection' | 'App\\Models\\Verse' | 'App\\Models\\Comment';
-
-interface UserInteraction {
-  interactable_id: string | number;
-  interactable_type: InteractableType;
-  type: InteractionType;
-  user_id?: string;
-}
-
-interface ReflectionPayload {
-  content: string;
-  icon?: string;
-  type: ReflectionType;
-  user_id: string;
-  verse_id: string;
-}
-
-interface CommentPayload {
-  content: string;
-  parent_id?: string;
-  reflection_id: string;
-  user_id: string;
-}
-
-interface BookmarkPayload {
-  user_id: string;
-  bookmarkable_type: InteractableType;
-  bookmarkable_id: string;
-  clip_text?: string;
-}
+import { apiClient, endpoints, PaginatedResponse } from '@/api/client';
+import { Verse, Reflection, UserInteraction, Bookmark, PaginatedResponse as AppPaginatedResponse } from '@/types';
 
 interface VerseState {
-  // Daily Verses State
+  // Daily verses
   dailyVerses: Verse[];
   isDailyVersesLoading: boolean;
   dailyVersesError: string | null;
   
-  // Individual Verse State
+  // Single verse
   currentVerse: Verse | null;
   isVerseLoading: boolean;
   isReflectionsLoading: boolean;
   verseError: string | null;
   
+  // Trending and featured verses
+  trendingVerses: Verse[];
+  featuredVerses: Verse[];
+  isTrendingLoading: boolean;
+  isFeaturedLoading: boolean;
+  
+  // User interactions
+  userInteractions: Map<string, UserInteraction>;
+  bookmarks: Map<string, Bookmark>;
+  
+  // Real-time updates
+  isConnected: boolean;
+  lastUpdate: Date | null;
+  
   // Actions
   fetchDailyVerses: () => Promise<void>;
-  fetchVerseById: (id: string, includeReflections?: boolean) => Promise<void>;
+  fetchVerseById: (id: string, includeReflections?: boolean) => Promise<Verse | null>;
   fetchVerseOnly: (id: string, includeReflections?: boolean) => Promise<Verse | null>;
-  createInteraction: (payload: UserInteraction) => Promise<void>;
-  createReflection: (payload: ReflectionPayload) => Promise<void>;
-
-  createComment: (payload: CommentPayload) => Promise<void>;
-  createBookmark: (payload: BookmarkPayload) => Promise<void>;
+  fetchTrendingVerses: (limit?: number) => Promise<void>;
+  fetchFeaturedVerses: (limit?: number) => Promise<void>;
+  fetchVersesByTheme: (themeId: string, limit?: number) => Promise<Verse[]>;
+  searchVerses: (query: string, limit?: number) => Promise<Verse[]>;
+  
+  // User interactions
+  createInteraction: (data: {
+    interactable_id: string;
+    interactable_type: string;
+    type: number;
+    user_id: string;
+  }) => Promise<boolean>;
+  createBookmark: (data: {
+    bookmarkable_id: string;
+    bookmarkable_type: string;
+    user_id: string;
+    clip_text?: string;
+  }) => Promise<boolean>;
+  removeBookmark: (bookmarkableId: string, bookmarkableType: string) => Promise<boolean>;
+  voteVerse: (verseId: string) => Promise<boolean>;
+  likeVerse: (verseId: string) => Promise<boolean>;
+  shareVerse: (verseId: string) => Promise<boolean>;
+  
+  // Reflections
+  createReflection: (data: {
+    content: string;
+    type: number;
+    user_id: string;
+    verse_id: string;
+    icon?: string;
+  }) => Promise<Reflection | null>;
+  
+  // Real-time updates
+  updateVerseVotes: (verseId: string, votes: number, isVoted: boolean) => void;
+  updateVerseLikes: (verseId: string, likes: number, isLiked: boolean) => void;
+  updateVerseShares: (verseId: string, shares: number) => void;
+  addNewVerse: (verse: Verse) => void;
+  updateVerse: (verse: Verse) => void;
+  
+  // State management
+  clearCurrentVerse: () => void;
+  clearErrors: () => void;
+  setConnectionStatus: (isConnected: boolean) => void;
 }
 
 // API Configuration
-const API_BASE_URL = 'https://api.elbiblio.com/api';
-const api = axios.create({
-  baseURL: API_BASE_URL,
-  timeout: 10000,
-});
-
 export const useVerseStore = create<VerseState>((set, get) => ({
   // Initial State
   dailyVerses: [],
@@ -80,25 +91,38 @@ export const useVerseStore = create<VerseState>((set, get) => ({
   isReflectionsLoading: false,
   verseError: null,
   
+  trendingVerses: [],
+  featuredVerses: [],
+  isTrendingLoading: false,
+  isFeaturedLoading: false,
+  
+  userInteractions: new Map(),
+  bookmarks: new Map(),
+  
+  // Real-time updates
+  isConnected: false,
+  lastUpdate: null,
+  
   // Actions
   fetchDailyVerses: async () => {
     try {
       set({ isDailyVersesLoading: true, dailyVersesError: null });
       
-      // Using exact parameters as expected by VerseAPIController@daily
-      const response = await api.get<DailyVersesResponse>('/verses/daily', {
-        params: {
-          include: 'theme,reflections.user,reflections.comments.author',
-          sort: '-created_at'
+      const response = await apiClient.get<Verse[]>(
+        endpoints.verses.daily,
+        {
+          include: ['theme', 'reflections.user', 'reflections.comments.user'],
+          sort: '-created_at',
+          per_page: 10
         }
-      });
+      );
 
-      if (!response.data.success) {
-        throw new Error(response.data.message || 'Failed to fetch daily verses');
+      if (!response.success) {
+        throw new Error(response.message || 'Failed to fetch daily verses');
       }
       
       set({ 
-        dailyVerses: response.data.data,
+        dailyVerses: response.data,
         isDailyVersesLoading: false 
       });
 
@@ -119,163 +143,463 @@ export const useVerseStore = create<VerseState>((set, get) => ({
         isReflectionsLoading: false,
         verseError: null
       });
-
+      return response;
     } else {
       set({ 
         isVerseLoading: false,
         isReflectionsLoading: false,
         verseError: 'Failed to fetch verse'
       });
-    }
-  },
-
-
-  fetchVerseOnly: async (id: string, includeReflections = false) => {
-    try {
-      if (!get().currentVerse || get().currentVerse?.id !== id) {
-        set({ isVerseLoading: true });
-      }
-      if (includeReflections) {
-        set({ isReflectionsLoading: true });
-      }
-      set({ verseError: null });
-
-      // Using exact parameters as expected by VerseAPIController@show
-      const response = await api.get<APIResponse<Verse>>(`/verses/${id}`, {
-        params: {
-          include: includeReflections ? 
-            'theme,reflections.user,reflections.comments.author' : 'theme'
-        }
-      });
-
-      if (!response.data.success) {
-        throw new Error(response.data.message || 'Failed to fetch verse');
-      }
-      
-      return response.data.data;
-    } catch (error) {
-      console.error('Error fetching verse:', error);
-
       return null;
     }
   },
 
-
-  createInteraction: async (payload: UserInteraction) => {
+  fetchVerseOnly: async (id: string, includeReflections = false) => {
     try {
-      const response = await api.post<APIResponse<UserInteraction>>('/user_interactions', payload);
+      set({ isVerseLoading: true, verseError: null });
+      
+      const includes = ['theme'];
+      if (includeReflections) {
+        includes.push('reflections.user', 'reflections.comments.user');
+      }
+      
+      const response = await apiClient.get<Verse>(
+        endpoints.verses.show(id),
+        {
+          include: includes
+        }
+      );
 
-      if (!response.data.success) {
-        throw new Error(response.data.message || 'Failed to create interaction');
+      if (!response.success) {
+        throw new Error(response.message || 'Failed to fetch verse');
+      }
+      
+      set({ 
+        currentVerse: response.data,
+        isVerseLoading: false 
+      });
+      
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching verse:', error);
+      set({ 
+        isVerseLoading: false,
+        verseError: error instanceof Error ? error.message : 'Failed to fetch verse'
+      });
+      return null;
+    }
+  },
+
+  fetchTrendingVerses: async (limit = 10) => {
+    try {
+      set({ isTrendingLoading: true });
+      
+      const response = await apiClient.get<Verse[]>(
+        endpoints.verses.trending,
+        {
+          include: ['theme'],
+          per_page: limit,
+          sort: '-votes'
+        }
+      );
+
+      if (!response.success) {
+        throw new Error(response.message || 'Failed to fetch trending verses');
+      }
+      
+      set({ 
+        trendingVerses: response.data,
+        isTrendingLoading: false 
+      });
+
+    } catch (error) {
+      console.error('Error fetching trending verses:', error);
+      set({ isTrendingLoading: false });
+    }
+  },
+
+  fetchFeaturedVerses: async (limit = 10) => {
+    try {
+      set({ isFeaturedLoading: true });
+      
+      const response = await apiClient.get<Verse[]>(
+        endpoints.verses.featured,
+        {
+          include: ['theme'],
+          per_page: limit,
+          sort: '-created_at'
+        }
+      );
+
+      if (!response.success) {
+        throw new Error(response.message || 'Failed to fetch featured verses');
+      }
+      
+      set({ 
+        featuredVerses: response.data,
+        isFeaturedLoading: false 
+      });
+
+    } catch (error) {
+      console.error('Error fetching featured verses:', error);
+      set({ isFeaturedLoading: false });
+    }
+  },
+
+  fetchVersesByTheme: async (themeId: string, limit = 20) => {
+    try {
+      const response = await apiClient.get<Verse[]>(
+        endpoints.verses.byTheme(themeId),
+        {
+          include: ['theme'],
+          per_page: limit,
+          sort: '-created_at'
+        }
+      );
+
+      if (!response.success) {
+        throw new Error(response.message || 'Failed to fetch verses by theme');
+      }
+      
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching verses by theme:', error);
+      return [];
+    }
+  },
+
+  searchVerses: async (query: string, limit = 20) => {
+    try {
+      const response = await apiClient.get<Verse[]>(
+        endpoints.verses.search,
+        {
+          q: query,
+          include: ['theme'],
+          per_page: limit,
+          sort: '-created_at'
+        }
+      );
+
+      if (!response.success) {
+        throw new Error(response.message || 'Failed to search verses');
+      }
+      
+      return response.data;
+    } catch (error) {
+      console.error('Error searching verses:', error);
+      return [];
+    }
+  },
+
+  createInteraction: async (data) => {
+    try {
+      const response = await apiClient.post<UserInteraction>(
+        endpoints.interactions.create,
+        data
+      );
+
+      if (!response.success) {
+        throw new Error(response.message || 'Failed to create interaction');
       }
 
-      // Optimistic update based on interaction type
-      set(state => {
-        const updateVerse = (verse: Verse) => {
-          if (verse.id === payload.interactable_id.toString()) {
-            switch (payload.type) {
-              case 1: // Like
-                return {
-                  ...verse,
-                  isLiked: !verse.isLiked,
-                  likes: verse.likes + (verse.isLiked ? -1 : 1)
-                };
-              case 2: // Bookmark
-                return {
-                  ...verse,
-                  isBookmarked: !verse.isBookmarked
-                };
-              case 3: // Vote
-                return {
-                  ...verse,
-                  votes: verse.votes + 1
-                };
-              default:
-                return verse;
-            }
-          }
-          return verse;
-        };
+      // Update local state
+      const interaction = response.data;
+      set(state => ({
+        userInteractions: new Map(state.userInteractions).set(
+          `${interaction.interactable_type}_${interaction.interactable_id}`,
+          interaction
+        )
+      }));
 
-        if (payload.interactable_type === 'App\\Models\\Verse') {
+      return true;
+    } catch (error) {
+      console.error('Error creating interaction:', error);
+      return false;
+    }
+  },
+
+  createBookmark: async (data) => {
+    try {
+      const response = await apiClient.post<Bookmark>(
+        endpoints.bookmarks.create,
+        data
+      );
+
+      if (!response.success) {
+        throw new Error(response.message || 'Failed to create bookmark');
+      }
+
+      // Update local state
+      const bookmark = response.data;
+      set(state => ({
+        bookmarks: new Map(state.bookmarks).set(
+          `${bookmark.bookmarkable_type}_${bookmark.bookmarkable_id}`,
+          bookmark
+        )
+      }));
+
+      return true;
+    } catch (error) {
+      console.error('Error creating bookmark:', error);
+      return false;
+    }
+  },
+
+  removeBookmark: async (bookmarkableId: string, bookmarkableType: string) => {
+    try {
+      const state = get();
+      const bookmarkKey = `${bookmarkableType}_${bookmarkableId}`;
+      const bookmark = state.bookmarks.get(bookmarkKey);
+      
+      if (!bookmark) {
+        return false;
+      }
+
+      const response = await apiClient.delete(
+        endpoints.bookmarks.delete(bookmark.id.toString())
+      );
+
+      if (!response.success) {
+        throw new Error(response.message || 'Failed to remove bookmark');
+      }
+
+      // Update local state
+      set(state => {
+        const newBookmarks = new Map(state.bookmarks);
+        newBookmarks.delete(bookmarkKey);
+        return { bookmarks: newBookmarks };
+      });
+
+      return true;
+    } catch (error) {
+      console.error('Error removing bookmark:', error);
+      return false;
+    }
+  },
+
+  voteVerse: async (verseId: string) => {
+    try {
+      const response = await apiClient.post(
+        endpoints.verses.vote(verseId)
+      );
+
+      if (!response.success) {
+        throw new Error(response.message || 'Failed to vote for verse');
+      }
+
+      // Update local verse state
+      set(state => {
+        if (state.currentVerse?.id === verseId) {
           return {
-            ...state,
-            dailyVerses: state.dailyVerses.map(updateVerse),
-            currentVerse: state.currentVerse?.id === payload.interactable_id.toString() ? 
-              updateVerse(state.currentVerse) : state.currentVerse
+            currentVerse: {
+              ...state.currentVerse,
+              votes: state.currentVerse.votes + 1,
+              isVoted: true
+            }
           };
         }
-
         return state;
       });
 
+      return true;
     } catch (error) {
-      console.error('Error creating interaction:', error);
-      // Revert optimistic update on error
-      await get().fetchDailyVerses();
-      const currentVerse = get().currentVerse;
-      if (currentVerse) {
-        await get().fetchVerseById(currentVerse.id);
-      }
-      throw error;
+      console.error('Error voting for verse:', error);
+      return false;
     }
   },
 
-  createReflection: async (payload: ReflectionPayload) => {
+  likeVerse: async (verseId: string) => {
     try {
-      const response = await api.post('/reflections', payload);
-      
-      // Refresh verse with new reflection
-      await get().fetchVerseById(payload.verse_id, true);
+      const response = await apiClient.post(
+        endpoints.verses.like(verseId)
+      );
+
+      if (!response.success) {
+        throw new Error(response.message || 'Failed to like verse');
+      }
+
+      // Update local verse state
+      set(state => {
+        if (state.currentVerse?.id === verseId) {
+          return {
+            currentVerse: {
+              ...state.currentVerse,
+              likes: state.currentVerse.likes + 1,
+              isLiked: true
+            }
+          };
+        }
+        return state;
+      });
+
+      return true;
+    } catch (error) {
+      console.error('Error liking verse:', error);
+      return false;
+    }
+  },
+
+  shareVerse: async (verseId: string) => {
+    try {
+      const response = await apiClient.post(
+        endpoints.verses.share(verseId)
+      );
+
+      if (!response.success) {
+        throw new Error(response.message || 'Failed to share verse');
+      }
+
+      // Update local verse state
+      set(state => {
+        if (state.currentVerse?.id === verseId) {
+          return {
+            currentVerse: {
+              ...state.currentVerse,
+              shares: state.currentVerse.shares + 1
+            }
+          };
+        }
+        return state;
+      });
+
+      return true;
+    } catch (error) {
+      console.error('Error sharing verse:', error);
+      return false;
+    }
+  },
+
+  createReflection: async (data) => {
+    try {
+      const response = await apiClient.post<Reflection>(
+        endpoints.reflections.create,
+        data
+      );
+
+      if (!response.success) {
+        throw new Error(response.message || 'Failed to create reflection');
+      }
+
+      const reflection = response.data;
+
+      // Update local verse state with new reflection
+      set(state => {
+        if (state.currentVerse) {
+          return {
+            currentVerse: {
+              ...state.currentVerse,
+              reflections: [reflection, ...(state.currentVerse.reflections || [])]
+            }
+          };
+        }
+        return state;
+      });
+
+      return reflection;
     } catch (error) {
       console.error('Error creating reflection:', error);
+      return null;
     }
   },
 
-  createComment: async (payload: CommentPayload) => {
-    try {
-      const response = await api.post('/comments', payload);
-      
-      // Update local state with new comment
-      set(state => {
-        if (!state.currentVerse?.reflections) return state;
-        
-        return {
-          currentVerse: {
-            ...state.currentVerse,
-            reflections: state.currentVerse.reflections.map(reflection => {
-              if (reflection.id === payload.reflection_id) {
-                return {
-                  ...reflection,
-                  comments: [
-                    response.data.data,
-                    ...(reflection.comments || [])
-                  ]
-                };
-              }
-              return reflection;
-            })
-          }
-        };
-      });
-    } catch (error) {
-      console.error('Error creating comment:', error);
-    }
+  clearCurrentVerse: () => {
+    set({
+      currentVerse: null,
+      isVerseLoading: false,
+      isReflectionsLoading: false,
+      verseError: null
+    });
   },
 
-  createBookmark: async (payload: BookmarkPayload) => {
-    try {
-      await api.post('/bookmarks', payload);
-      
-      // Create corresponding user interaction
-      await get().createInteraction({
-        interactable_id: payload.bookmarkable_id,
-        interactable_type: payload.bookmarkable_type,
-        type: 2, // Bookmark
-        user_id: payload.user_id
-      });
-    } catch (error) {
-      console.error('Error creating bookmark:', error);
-    }
+  clearErrors: () => {
+    set({
+      dailyVersesError: null,
+      verseError: null
+    });
+  },
+
+  // Real-time updates
+  updateVerseVotes: (verseId: string, votes: number, isVoted: boolean) => {
+    set(state => {
+      const updateVerse = (verse: Verse) => {
+        if (verse.id === verseId) {
+          return { ...verse, votes, isVoted };
+        }
+        return verse;
+      };
+
+      return {
+        dailyVerses: state.dailyVerses.map(updateVerse),
+        trendingVerses: state.trendingVerses.map(updateVerse),
+        featuredVerses: state.featuredVerses.map(updateVerse),
+        currentVerse: state.currentVerse ? updateVerse(state.currentVerse) : null,
+        lastUpdate: new Date(),
+      };
+    });
+  },
+
+  updateVerseLikes: (verseId: string, likes: number, isLiked: boolean) => {
+    set(state => {
+      const updateVerse = (verse: Verse) => {
+        if (verse.id === verseId) {
+          return { ...verse, likes, isLiked };
+        }
+        return verse;
+      };
+
+      return {
+        dailyVerses: state.dailyVerses.map(updateVerse),
+        trendingVerses: state.trendingVerses.map(updateVerse),
+        featuredVerses: state.featuredVerses.map(updateVerse),
+        currentVerse: state.currentVerse ? updateVerse(state.currentVerse) : null,
+        lastUpdate: new Date(),
+      };
+    });
+  },
+
+  updateVerseShares: (verseId: string, shares: number) => {
+    set(state => {
+      const updateVerse = (verse: Verse) => {
+        if (verse.id === verseId) {
+          return { ...verse, shares };
+        }
+        return verse;
+      };
+
+      return {
+        dailyVerses: state.dailyVerses.map(updateVerse),
+        trendingVerses: state.trendingVerses.map(updateVerse),
+        featuredVerses: state.featuredVerses.map(updateVerse),
+        currentVerse: state.currentVerse ? updateVerse(state.currentVerse) : null,
+        lastUpdate: new Date(),
+      };
+    });
+  },
+
+  addNewVerse: (verse: Verse) => {
+    set(state => ({
+      dailyVerses: [verse, ...state.dailyVerses],
+      lastUpdate: new Date(),
+    }));
+  },
+
+  updateVerse: (verse: Verse) => {
+    set(state => {
+      const updateVerseInList = (verses: Verse[]) => {
+        return verses.map(v => v.id === verse.id ? verse : v);
+      };
+
+      return {
+        dailyVerses: updateVerseInList(state.dailyVerses),
+        trendingVerses: updateVerseInList(state.trendingVerses),
+        featuredVerses: updateVerseInList(state.featuredVerses),
+        currentVerse: state.currentVerse?.id === verse.id ? verse : state.currentVerse,
+        lastUpdate: new Date(),
+      };
+    });
+  },
+
+  setConnectionStatus: (isConnected: boolean) => {
+    set({ isConnected });
   },
 }));

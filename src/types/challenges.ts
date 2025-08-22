@@ -21,6 +21,13 @@ export interface Challenge {
     avatar: string;
     first_name: string;
     last_name: string;
+    points?: number;
+    role?: string;
+    is_active?: boolean;
+    primary_language?: string;
+    email?: string;
+    created_at?: string;
+    updated_at?: string;
   }>;
   hasJoined?: boolean;
   
@@ -41,4 +48,21 @@ export interface ChallengeFilters {
   category?: ChallengeCategory;
   completed?: boolean;
   timeRange?: 'today' | 'week' | 'month' | 'all';
+}
+
+export interface DailyChallenge {
+  id: string;
+  title: string;
+  description?: string;
+  type: ChallengeType;
+  category: ChallengeCategory;
+  endTime: string;
+  createdAt: string;
+  expiresAt: string;
+  isCompleted: boolean;
+  userId: string;
+  participants?: number;
+  upvotes?: number;
+  hasJoined?: boolean;
+  hasUpvoted?: boolean;
 }

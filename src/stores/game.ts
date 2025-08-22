@@ -1,63 +1,76 @@
 import { create } from 'zustand';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import NetInfo from '@react-native-community/netinfo';
-import { apiClient } from '@/api/client';
-import { toast } from 'sonner-native';
-
-// Type definitions
-type GameId = 'verse_builder' | 'virtue_trivia' | string; // Extend as needed
-
-interface ScoreEntry {
-  gameId: GameId;
-  score: number;
-  timestamp: string;
-}
-
-interface LeaderboardEntry {
-  userId: string;
-  username: string;
-  score: number;
-}
+import { apiClient, endpoints } from '@/api/client';
+import { GameId, GameScore, LeaderboardEntry, PaginatedResponse } from '@/types';
 
 interface GameState {
+  // Game data
   personalBests: Record<GameId, number>;
-  unsyncedScores: ScoreEntry[];
+  unsyncedScores: GameScore[];
   leaderboards: Record<GameId, LeaderboardEntry[]>;
-  lastSynced: string | null;
+  lastSynced: Date | null;
+  
+  // Loading states
   isLoading: boolean;
+  isSyncing: boolean;
+  
+  // Error states
   error: string | null;
+  
+  // Pagination
+  pagination: {
+    currentPage: number;
+    lastPage: number;
+    perPage: number;
+    total: number;
+    hasMore: boolean;
+  };
+  
+  // Actions
   initialize: () => Promise<void>;
   sync: () => Promise<void>;
-  submitScore: (gameId: GameId, score: number) => void;
-  getPersonalBest: (gameId: GameId) => number | undefined;
-  getLeaderboard: (gameId: GameId) => LeaderboardEntry[] | undefined;
+  submitScore: (gameId: GameId, score: number) => Promise<boolean>;
+  getPersonalBest: (gameId: GameId) => number;
+  getLeaderboard: (gameId: GameId) => LeaderboardEntry[];
+  fetchLeaderboard: (gameId: GameId, page?: number) => Promise<void>;
+  clearErrors: () => void;
 }
 
-const STORAGE_KEY = '@game_data';
-
-// Create the store
 export const useGameStore = create<GameState>((set, get) => ({
+  // Initial State
   personalBests: {},
   unsyncedScores: [],
   leaderboards: {},
   lastSynced: null,
   isLoading: false,
+  isSyncing: false,
   error: null,
+  pagination: {
+    currentPage: 1,
+    lastPage: 1,
+    perPage: 20,
+    total: 0,
+    hasMore: false,
+  },
 
-  // Initialize the store by loading data from AsyncStorage
   initialize: async () => {
     try {
-      set({ isLoading: true });
-      const storedData = await AsyncStorage.getItem(STORAGE_KEY);
-      if (storedData) {
-        const data = JSON.parse(storedData);
-        set({
-          personalBests: data.personalBests || {},
-          unsyncedScores: data.unsyncedScores || [],
-          leaderboards: data.leaderboards || {},
-          lastSynced: data.lastSynced || null,
-        });
+      set({ isLoading: true, error: null });
+      
+      // Fetch user's game data from API
+      const [personalBestsResponse, leaderboardsResponse] = await Promise.all([
+        apiClient.get<{ scores: Record<GameId, number> }>('/game/personal-bests'),
+        apiClient.get<{ leaderboards: Record<GameId, LeaderboardEntry[]> }>('/game/leaderboards'),
+      ]);
+
+      if (personalBestsResponse.success) {
+        set({ personalBests: personalBestsResponse.data?.scores || {} });
       }
+
+      if (leaderboardsResponse.success) {
+        set({ leaderboards: leaderboardsResponse.data?.leaderboards || {} });
+      }
+
+      set({ lastSynced: new Date() });
     } catch (error) {
       console.error('Error initializing game data:', error);
       set({ error: 'Failed to initialize game data' });
@@ -66,103 +79,106 @@ export const useGameStore = create<GameState>((set, get) => ({
     }
   },
 
-  // Sync scores with the server when online
   sync: async () => {
     const { unsyncedScores } = get();
     if (unsyncedScores.length === 0) return;
 
-    const { isConnected } = await NetInfo.fetch();
-    if (!isConnected) return;
-
     try {
-      set({ isLoading: true, error: null });
+      set({ isSyncing: true, error: null });
 
-      // Group scores by gameId for batch submission
-      const scoresByGame: Record<GameId, ScoreEntry[]> = {};
-      unsyncedScores.forEach((score) => {
-        scoresByGame[score.gameId] = scoresByGame[score.gameId] || [];
-        scoresByGame[score.gameId].push(score);
-      });
-
-      // Submit scores for each game
-      for (const gameId in scoresByGame) {
-        const scores = scoresByGame[gameId].map((s) => ({
-          score: s.score,
-          timestamp: s.timestamp,
-        }));
-        await apiClient.post(`/games/${gameId}/scores/batch`, { scores });
+      // Submit all unsynced scores
+      for (const score of unsyncedScores) {
+        await apiClient.post('/game/scores', {
+          game_id: score.gameId,
+          score: score.score,
+          timestamp: score.timestamp,
+        });
       }
 
-      // Fetch updated personal bests and leaderboards
-      const personalBestsResponse = await apiClient.get('/user/scores');
-      const leaderboardsResponse = await apiClient.get('/leaderboards');
+      // Fetch updated data
+      const [personalBestsResponse, leaderboardsResponse] = await Promise.all([
+        apiClient.get<{ scores: Record<GameId, number> }>('/game/personal-bests'),
+        apiClient.get<{ leaderboards: Record<GameId, LeaderboardEntry[]> }>('/game/leaderboards'),
+      ]);
 
-      const newPersonalBests = (personalBestsResponse as any).data.scores || {};
-      const newLeaderboards = (leaderboardsResponse as any).data.leaderboards || {};
+      const newPersonalBests = personalBestsResponse.success ? personalBestsResponse.data?.scores || {} : {};
+      const newLeaderboards = leaderboardsResponse.success ? leaderboardsResponse.data?.leaderboards || {} : {};
 
-      // Update state and storage
       set({
         personalBests: newPersonalBests,
-        unsyncedScores: [],
         leaderboards: newLeaderboards,
-        lastSynced: new Date().toISOString(),
+        unsyncedScores: [],
+        lastSynced: new Date(),
       });
-
-      await AsyncStorage.setItem(
-        STORAGE_KEY,
-        JSON.stringify({
-          personalBests: newPersonalBests,
-          unsyncedScores: [],
-          leaderboards: newLeaderboards,
-          lastSynced: new Date().toISOString(),
-        })
-      );
-    } catch (error: any) {
+    } catch (error) {
       console.error('Sync error:', error);
-      set({ error: error.message });
-      toast.error('Failed to sync game data');
+      set({ error: 'Failed to sync game data' });
     } finally {
-      set({ isLoading: false });
+      set({ isSyncing: false });
     }
   },
 
-  // Submit a new score (called by game components)
-  submitScore: (gameId: GameId, score: number) => {
+  submitScore: async (gameId: GameId, score: number) => {
     const timestamp = new Date().toISOString();
+    const currentBest = get().personalBests[gameId] || 0;
+
+    // Update local state immediately
     set((state) => {
-      const newUnsyncedScores = [
+      const newUnsyncedScores: GameScore[] = [
         ...state.unsyncedScores,
         { gameId, score, timestamp },
       ];
-      const currentBest = state.personalBests[gameId] || 0;
 
-      // Define newState as a partial of GameState to allow adding any state properties
       let newState: Partial<GameState> = { unsyncedScores: newUnsyncedScores };
       if (score > currentBest) {
         const newPersonalBests = { ...state.personalBests, [gameId]: score };
         newState = { ...newState, personalBests: newPersonalBests };
       }
 
-      // Save to storage
-      AsyncStorage.setItem(
-        STORAGE_KEY,
-        JSON.stringify({ ...state, ...newState })
-      ).catch((error) => console.error('Storage error:', error));
-
       return newState;
     });
+
+    // Attempt to sync immediately
+    await get().sync();
+    return true;
   },
 
-  // Get the user's personal best for a game
-  getPersonalBest: (gameId: GameId) => get().personalBests[gameId],
+  getPersonalBest: (gameId: GameId) => get().personalBests[gameId] || 0,
 
-  // Get the leaderboard for a game
-  getLeaderboard: (gameId: GameId) => get().leaderboards[gameId],
+  getLeaderboard: (gameId: GameId) => get().leaderboards[gameId] || [],
+
+  fetchLeaderboard: async (gameId: GameId, page = 1) => {
+    try {
+      set({ isLoading: true, error: null });
+
+      const response = await apiClient.get<PaginatedResponse<LeaderboardEntry>>(
+        `/game/leaderboards/${gameId}`,
+        { params: { page, per_page: 20 } }
+      );
+
+      if (response.success && response.data) {
+        const { data, meta } = response.data;
+        set((state) => ({
+          leaderboards: {
+            ...state.leaderboards,
+            [gameId]: page === 1 ? data : [...(state.leaderboards[gameId] || []), ...data],
+          },
+          pagination: {
+            currentPage: meta.current_page,
+            lastPage: meta.last_page,
+            perPage: meta.per_page,
+            total: meta.total,
+            hasMore: meta.current_page < meta.last_page,
+          },
+        }));
+      }
+    } catch (error) {
+      console.error('Error fetching leaderboard:', error);
+      set({ error: 'Failed to fetch leaderboard' });
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+
+  clearErrors: () => set({ error: null }),
 }));
-
-// Automatic sync when coming online
-NetInfo.addEventListener((state) => {
-  if (state.isConnected) {
-    useGameStore.getState().sync();
-  }
-});

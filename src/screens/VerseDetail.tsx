@@ -37,7 +37,7 @@ import CommentsOverlay from '@/components/CommentsOverlay';
 import { Theme } from '@/theme';
 import { SCREEN_DIMENSIONS } from '@/constants';
 import { useVerseStore } from '@/stores/verse';
-import { useClipboard } from '@react-native-clipboard/clipboard';
+import * as Clipboard from 'expo-clipboard';
 import { useAuth } from '@/stores/auth';
 import { toast } from 'sonner-native';
 
@@ -47,7 +47,6 @@ const VerseDetail: React.FC<VerseDetailProps> = ({ navigation, route }) => {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
-  const [clipboard, setClipboard] = useClipboard();
   const styles = React.useMemo(() => createStyles(theme), [theme]);
   
   // Store state and actions
@@ -134,11 +133,10 @@ const VerseDetail: React.FC<VerseDetailProps> = ({ navigation, route }) => {
         interactable_id: currentVerse.id,
         interactable_type: 'App\\Models\\Verse',
         type: 3, // Share
-        user_id: user?.id
+        user_id: user?.id || ''
       });
       
-      // Here you would implement the actual share functionality
-      // For example:
+      // todo: Implement sharing
       // await Share.share({
       //   message: `${currentVerse.text} (${currentVerse.reference})`
       // });
@@ -152,7 +150,7 @@ const VerseDetail: React.FC<VerseDetailProps> = ({ navigation, route }) => {
     if (!currentVerse) return;
     
     try {
-      await setClipboard(
+      await Clipboard.setStringAsync(
         `${currentVerse.text} (${currentVerse.reference})`
       );
       toast.success('Verse copied to clipboard');

@@ -9,6 +9,8 @@ import {
   Platform,
   ActivityIndicator,
   Switch,
+  RefreshControl,
+  Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BlurView } from 'expo-blur';
@@ -27,14 +29,22 @@ import {
   Sparkle,
   MessageCircle,
   Share,
+  XCircle,
+  InfoCircle,
+  Check,
 } from '../components/Icons';
 import { Theme } from '@/theme';
 import { useTheme } from '@/contexts/ThemeContext';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { sampleWordHubs, type RootStackParamList, type User, type WordHub } from '@/types';
+import { type RootStackParamList, type User, type WordHub } from '@/types';
 import { formatTimeLeft } from '@/utils/schedule';
 import AvatarStack from '@/components/AvatarStack';
-import { apiClient, endpoints } from '@/api/client';
+import { useWordHubsStore } from '@/stores/wordHubs';
+import { useAuth } from '@/stores/auth';
+import { useWebSocket } from '@/services/websocket';
+import { toast } from 'sonner-native';
+import { useGuestRestrictions } from '@/hooks/useGuestRestrictions';
+import GuestRestrictionModal from '@/components/GuestRestrictionModal';
 
 const WordHubsScreen: React.FC<NativeStackScreenProps<RootStackParamList, 'WordHubsScreen'>> = ({
   navigation,
@@ -42,14 +52,35 @@ const WordHubsScreen: React.FC<NativeStackScreenProps<RootStackParamList, 'WordH
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const styles = React.useMemo(() => createStyles(theme), [theme]);
+  const { user } = useAuth();
+  const { restrictions } = useGuestRestrictions();
+  const { isConnected: wsConnected } = useWebSocket();
+
+  const {
+    wordHubs,
+    isWordHubsLoading: isLoading,
+    wordHubsError: error,
+    isConnected,
+    lastUpdate,
+    fetchWordHubs,
+    createHub,
+    joinHub,
+    bookmarkHub,
+    shareHub,
+    searchHubs,
+    fetchJoinedHubs,
+    clearErrors,
+    setFilters,
+    resetFilters,
+    setConnectionStatus,
+  } = useWordHubsStore();
 
   // States
   const [searchQuery, setSearchQuery] = useState('');
   const [showCreateHub, setShowCreateHub] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'discover' | 'joined'>('discover');
-  const [wordHubs, setWordHubs] = useState<WordHub[]>([]);
-  const [error, setError] = useState<string | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [showRestrictionModal, setShowRestrictionModal] = useState(false);
 
   // Create Hub Form States
   const [hubTitle, setHubTitle] = useState('');
@@ -58,48 +89,84 @@ const WordHubsScreen: React.FC<NativeStackScreenProps<RootStackParamList, 'WordH
   const [hubCode, setHubCode] = useState('');
   const [minPoints, setMinPoints] = useState('');
   const [joinCode, setJoinCode] = useState('');
+  const [isCreating, setIsCreating] = useState(false);
 
   const generateHubCode = () => {
     return Math.floor(100000 + Math.random() * 900000).toString();
   };
 
-  const fetchWordHubs = useCallback(async () => {
+  // Load data on mount
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  // Update connection status
+  useEffect(() => {
+    setConnectionStatus(wsConnected);
+  }, [wsConnected, setConnectionStatus]);
+
+  const loadData = async () => {
     try {
-      setIsLoading(true);
-      const response = await apiClient.get<WordHub[]>(endpoints.wordHubs.list, {
-        params: {
-          include: 'user,bookmarks',
-          sort: '-created_at',
-          per_page: 20
-        }
-      });
-      
-      if (response.success) {
-        setWordHubs(response.data);
+      if (activeTab === 'discover') {
+        await fetchWordHubs(1);
+      } else {
+        await fetchJoinedHubs(1);
       }
     } catch (error) {
-      setError('Failed to load word hubs');
-      console.error('Error fetching word hubs:', error);
-    } finally {
-      setIsLoading(false);
+      console.error('Error loading data:', error);
     }
-  }, []);
+  };
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      await loadData();
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    } catch (error) {
+      console.error('Error refreshing:', error);
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
+  const handleTabChange = async (tab: 'discover' | 'joined') => {
+    if (tab === activeTab) return;
+    
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setActiveTab(tab);
+    clearErrors();
+    
+    try {
+      if (tab === 'discover') {
+        await fetchWordHubs(1);
+      } else {
+        await fetchJoinedHubs(1);
+      }
+    } catch (error) {
+      console.error('Error switching tabs:', error);
+    }
+  };
 
   const handleCreateHub = async () => {
     if (!hubTitle.trim() || !hubDescription.trim()) return;
 
+    // Check guest restrictions
+    if (restrictions.canPostNotes === false) {
+      setShowRestrictionModal(true);
+      return;
+    }
+
     try {
-      setIsLoading(true);
-      const response = await apiClient.post<WordHub>(endpoints.wordHubs.create, {
-        title: hubTitle,
-        description: hubDescription,
+      setIsCreating(true);
+      const result = await createHub({
+        title: hubTitle.trim(),
+        description: hubDescription.trim(),
         is_private: isPrivate,
         access_code: isPrivate ? hubCode || generateHubCode() : undefined,
         min_points: minPoints ? parseInt(minPoints) : undefined,
       });
 
-      if (response.success) {
-        setWordHubs(prev => [response.data, ...prev]);
+      if (result) {
         setShowCreateHub(false);
         
         // Reset form
@@ -109,64 +176,109 @@ const WordHubsScreen: React.FC<NativeStackScreenProps<RootStackParamList, 'WordH
         setHubCode('');
         setMinPoints('');
         
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        // Navigate to the new hub
+        navigation.navigate('WordHubDetailScreen', { hubId: result.id });
       }
     } catch (error) {
       console.error('Error creating hub:', error);
     } finally {
-      setIsLoading(false);
+      setIsCreating(false);
     }
   };
 
   const handleJoinHub = async (hub: WordHub) => {
-    try {
-      setIsLoading(true);
-      const response = await apiClient.post<{ member: any }>(
-        endpoints.wordHubs.join(hub.id),
-        hub.isPrivate ? { access_code: joinCode } : undefined
-      );
+    // Check guest restrictions
+    if (restrictions.canJoinCommunityChallenges === false) {
+      setShowRestrictionModal(true);
+      return;
+    }
 
-      if (response.success) {
-        // Update local state to reflect membership
-        setWordHubs(prev =>
-          prev.map(h => h.id === hub.id ? { ...h, isMember: true } : h)
-        );
-        
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        
-        // Navigate to hub detail screen
-        navigation.navigate('WordHubDetailScreen', { hubId: hub.id });
-      }
-    } catch (error) {
-      console.error('Error joining hub:', error);
-    } finally {
-      setIsLoading(false);
+    if (hub.is_private) {
+      // Show access code input
+      Alert.prompt(
+        'Join Private Hub',
+        'Enter the 6-digit access code:',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Join',
+            onPress: async (code) => {
+              if (code) {
+                await performJoinHub(hub.id, code);
+              }
+            }
+          }
+        ],
+        'plain-text'
+      );
+    } else {
+      await performJoinHub(hub.id);
     }
   };
 
-  const handleBookmark = (hubId: string) => {
-    // Add bookmark logic here
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  const performJoinHub = async (hubId: string, accessCode?: string) => {
+    try {
+      const success = await joinHub(hubId, accessCode);
+      if (success) {
+        // Navigate to hub detail screen
+        navigation.navigate('WordHubDetailScreen', { hubId });
+      }
+    } catch (error) {
+      console.error('Error joining hub:', error);
+    }
   };
+
+  const handleBookmark = async (hubId: string) => {
+    try {
+      await bookmarkHub(hubId);
+    } catch (error) {
+      console.error('Error bookmarking hub:', error);
+    }
+  };
+
+  const handleShare = async (hubId: string) => {
+    try {
+      await shareHub(hubId);
+    } catch (error) {
+      console.error('Error sharing hub:', error);
+    }
+  };
+
+  const handleSearch = useCallback(async (text: string) => {
+    setSearchQuery(text);
+    
+    if (text.trim()) {
+      try {
+        const results = await searchHubs(text, 20);
+        // Update local state with search results
+        // Note: In a real implementation, you might want to handle this differently
+      } catch (error) {
+        console.error('Error searching hubs:', error);
+      }
+    } else {
+      // Reset to normal list
+      loadData();
+    }
+  }, [searchHubs, loadData]);
 
   const renderHubCard = (hub: WordHub) => (
     <TouchableOpacity
       key={hub.id}
       style={styles.hubCard}
-      onPress={() => handleJoinHub(hub)}
+      onPress={() => navigation.navigate('WordHubDetailScreen', { hubId: hub.id })}
     >
       <BlurView intensity={10} style={StyleSheet.absoluteFill} />
       <View style={styles.hubContent}>
         {/* Status Badge */}
         <View style={styles.statusRow}>
-          {hub.minPoints && (
+          {hub.min_points && (
             <View style={[
               styles.pointsBadge,
               { backgroundColor: `${theme.colors.primary}15` }
             ]}>
               <Star size={16} color={theme.colors.primary} />
               <Text style={styles.pointsBadgeText}>
-                {hub.minPoints}+ points required
+                {hub.min_points}+ points required
               </Text>
             </View>
           )}
@@ -176,7 +288,7 @@ const WordHubsScreen: React.FC<NativeStackScreenProps<RootStackParamList, 'WordH
           ]}>
             <View style={styles.activeDot} />
             <Text style={[styles.activityText, { color: theme.colors.success }]}>
-              {hub.activeMembers} online
+              {hub.activeMembers || 0} online
             </Text>
           </View>
         </View>
@@ -186,7 +298,7 @@ const WordHubsScreen: React.FC<NativeStackScreenProps<RootStackParamList, 'WordH
           <View style={styles.hubInfo}>
             <View style={styles.titleRow}>
               <Text style={styles.hubTitle}>{hub.title}</Text>
-              {hub.isPrivate && (
+              {hub.is_private && (
                 <Lock size={16} color={theme.colors.text.secondary} />
               )}
             </View>
@@ -219,14 +331,14 @@ const WordHubsScreen: React.FC<NativeStackScreenProps<RootStackParamList, 'WordH
           <View style={styles.authorSection}>
             <View style={styles.authorInfo}>
               <AvatarStack
-                users={hub.authors}
+                users={hub.authors?.slice(0, 3) || []}
                 maxAvatars={3}
                 size={28}
                 offset={18}
                 showRemaining={false}
               />
               <Text style={styles.authorText}>
-                {hub.authors.length > 3 && (
+                {hub.authors && hub.authors.length > 3 && (
                   <Text style={styles.authorCount}>
                     +{Math.max(0, hub.authors.length - 3)}{' '} {hub.authors.length > 4 ? 'others ' : 'other '}
                   </Text>
@@ -237,7 +349,7 @@ const WordHubsScreen: React.FC<NativeStackScreenProps<RootStackParamList, 'WordH
 
             <View style={styles.messageCount}>
               <MessageCircle size={16} color={theme.colors.text.secondary} />
-              <Text style={styles.messageText}>{hub.messageCount}</Text>
+              <Text style={styles.messageText}>{hub.messageCount || 0}</Text>
             </View>
           </View>
         </View>
@@ -247,14 +359,16 @@ const WordHubsScreen: React.FC<NativeStackScreenProps<RootStackParamList, 'WordH
           <View style={styles.timeInfo}>
             <Clock size={14} color={theme.colors.text.secondary} />
             <Text style={styles.timeText}>
-              {formatTimeLeft(hub.expiresAt)}
+              {hub.expires_at ? formatTimeLeft(hub.expires_at) : 'No expiration'}
             </Text>
           </View>
           <TouchableOpacity
             style={styles.joinButton}
             onPress={() => handleJoinHub(hub)}
           >
-            <Text style={styles.joinButtonText}>Join Discussion</Text>
+            <Text style={styles.joinButtonText}>
+              Join Discussion
+            </Text>
             <ChevronRight size={16} color={theme.colors.text.inverse} />
           </TouchableOpacity>
         </View>
@@ -262,32 +376,55 @@ const WordHubsScreen: React.FC<NativeStackScreenProps<RootStackParamList, 'WordH
     </TouchableOpacity>
   );
 
-  useEffect(() => {
-    fetchWordHubs();
-  }, [fetchWordHubs]);
+  const renderConnectionStatus = () => (
+    <View style={styles.connectionStatus}>
+      {isConnected ? (
+        <Check size={16} color={theme.colors.success} />
+      ) : (
+        <XCircle size={16} color={theme.colors.error} />
+      )}
+      <Text style={[
+        styles.connectionText,
+        { color: isConnected ? theme.colors.success : theme.colors.error }
+      ]}>
+        {isConnected ? 'Live' : 'Offline'}
+      </Text>
+    </View>
+  );
 
-  const handleSearch = useCallback(async (text: string) => {
-    setSearchQuery(text);
-    
-    try {
-      setIsLoading(true);
-      const response = await apiClient.get<WordHub[]>(endpoints.wordHubs.list, {
-        params: {
-          search: text,
-          include: 'user,bookmarks',
-          per_page: 20
+  const renderErrorState = () => (
+    <View style={styles.errorContainer}>
+      <InfoCircle size={48} color={theme.colors.error} />
+      <Text style={styles.errorTitle}>Unable to load Word Hubs</Text>
+      <Text style={styles.errorMessage}>{error}</Text>
+      <TouchableOpacity style={styles.retryButton} onPress={loadData}>
+        <Text style={styles.retryButtonText}>Try Again</Text>
+      </TouchableOpacity>
+    </View>
+  );
+
+  const renderEmptyState = () => (
+    <View style={styles.emptyContainer}>
+      <Sparkle size={64} color={theme.colors.primary} />
+      <Text style={styles.emptyTitle}>
+        {activeTab === 'discover' ? 'No Word Hubs Found' : 'No Joined Hubs'}
+      </Text>
+      <Text style={styles.emptyMessage}>
+        {activeTab === 'discover' 
+          ? 'Be the first to create a Word Hub and start meaningful discussions!'
+          : 'Join some Word Hubs to see them here.'
         }
-      });
-      
-      if (response.success) {
-        setWordHubs(response.data);
-      }
-    } catch (error) {
-      console.error('Error searching hubs:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
+      </Text>
+      {activeTab === 'discover' && (
+        <TouchableOpacity 
+          style={styles.createFirstButton}
+          onPress={() => setShowCreateHub(true)}
+        >
+          <Text style={styles.createFirstButtonText}>Create Your First Hub</Text>
+        </TouchableOpacity>
+      )}
+    </View>
+  );
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -296,8 +433,14 @@ const WordHubsScreen: React.FC<NativeStackScreenProps<RootStackParamList, 'WordH
         <TouchableOpacity onPress={() => navigation.goBack()}>
           <ArrowLeft size={24} color={theme.colors.text.primary} />
         </TouchableOpacity>
-        <Text style={styles.title}>Word Hubs</Text>
-        <TouchableOpacity onPress={() => setShowCreateHub(true)}>
+        <View style={styles.headerCenter}>
+          <Text style={styles.title}>Word Hubs</Text>
+          {renderConnectionStatus()}
+        </View>
+        <TouchableOpacity 
+          onPress={() => setShowCreateHub(true)}
+          disabled={restrictions.canPostNotes === false}
+        >
           <Plus size={24} color={theme.colors.primary} />
         </TouchableOpacity>
       </View>
@@ -306,7 +449,7 @@ const WordHubsScreen: React.FC<NativeStackScreenProps<RootStackParamList, 'WordH
       <View style={styles.tabContainer}>
         <TouchableOpacity
           style={[styles.tab, activeTab === 'discover' && styles.activeTab]}
-          onPress={() => setActiveTab('discover')}
+          onPress={() => handleTabChange('discover')}
         >
           <Text style={[
             styles.tabText,
@@ -317,7 +460,7 @@ const WordHubsScreen: React.FC<NativeStackScreenProps<RootStackParamList, 'WordH
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.tab, activeTab === 'joined' && styles.activeTab]}
-          onPress={() => setActiveTab('joined')}
+          onPress={() => handleTabChange('joined')}
         >
           <Text style={[
             styles.tabText,
@@ -348,10 +491,34 @@ const WordHubsScreen: React.FC<NativeStackScreenProps<RootStackParamList, 'WordH
         style={styles.content}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={handleRefresh}
+            tintColor={theme.colors.primary}
+            colors={[theme.colors.primary]}
+          />
+        }
       >
-        {isLoading ? (
-          <ActivityIndicator color={theme.colors.primary} />
-        ) : wordHubs?.map(renderHubCard)}
+        {isLoading && !isRefreshing ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={theme.colors.primary} />
+            <Text style={styles.loadingText}>Loading Word Hubs...</Text>
+          </View>
+        ) : error ? (
+          renderErrorState()
+        ) : wordHubs.length === 0 ? (
+          renderEmptyState()
+        ) : (
+          <>
+            {wordHubs.map(renderHubCard)}
+            {lastUpdate && (
+              <Text style={styles.lastUpdateText}>
+                Last updated: {lastUpdate.toLocaleTimeString()}
+              </Text>
+            )}
+          </>
+        )}
       </ScrollView>
 
       {/* Create Hub Modal */}
@@ -409,23 +576,35 @@ const WordHubsScreen: React.FC<NativeStackScreenProps<RootStackParamList, 'WordH
               <TouchableOpacity
                 style={styles.cancelButton}
                 onPress={() => setShowCreateHub(false)}
+                disabled={isCreating}
               >
                 <Text style={styles.cancelButtonText}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[
                   styles.createButton,
-                  (!hubTitle.trim() || !hubDescription.trim()) && styles.createButtonDisabled
+                  (!hubTitle.trim() || !hubDescription.trim() || isCreating) && styles.createButtonDisabled
                 ]}
                 onPress={handleCreateHub}
-                disabled={!hubTitle.trim() || !hubDescription.trim()}
+                disabled={!hubTitle.trim() || !hubDescription.trim() || isCreating}
               >
-                <Text style={styles.createButtonText}>Create Hub</Text>
+                {isCreating ? (
+                  <ActivityIndicator size="small" color={theme.colors.text.inverse} />
+                ) : (
+                  <Text style={styles.createButtonText}>Create Hub</Text>
+                )}
               </TouchableOpacity>
             </View>
           </View>
         </BlurView>
       )}
+
+      {/* Guest Restriction Modal */}
+      <GuestRestrictionModal
+        visible={showRestrictionModal}
+        onClose={() => setShowRestrictionModal(false)}
+        feature="creating and joining Word Hubs"
+      />
     </View>
   );
 };
@@ -441,6 +620,9 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: theme.spacing.md,
     paddingVertical: theme.spacing.sm,
+  },
+  headerCenter: {
+    alignItems: 'center',
   },
   title: {
     ...theme.typography.heading.small,
@@ -787,6 +969,85 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     ...theme.typography.caption.primary,
     color: theme.colors.text.inverse,
     fontWeight: '600',
+  },
+  connectionStatus: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: `${theme.colors.success}10`,
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: 6,
+    borderRadius: theme.borderRadius.full,
+  },
+  connectionText: {
+    ...theme.typography.caption.primary,
+  },
+  errorContainer: {
+    alignItems: 'center',
+    paddingVertical: theme.spacing.lg,
+    gap: theme.spacing.md,
+  },
+  errorTitle: {
+    ...theme.typography.heading.small,
+    color: theme.colors.text.primary,
+  },
+  errorMessage: {
+    ...theme.typography.body.sans,
+    color: theme.colors.text.secondary,
+    textAlign: 'center',
+    paddingHorizontal: theme.spacing.md,
+  },
+  retryButton: {
+    backgroundColor: theme.colors.primary,
+    paddingVertical: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.lg,
+    borderRadius: theme.borderRadius.full,
+  },
+  retryButtonText: {
+    ...theme.typography.caption.primary,
+    color: theme.colors.text.inverse,
+  },
+  emptyContainer: {
+    alignItems: 'center',
+    paddingVertical: theme.spacing.lg,
+    gap: theme.spacing.md,
+  },
+  emptyTitle: {
+    ...theme.typography.heading.small,
+    color: theme.colors.text.primary,
+  },
+  emptyMessage: {
+    ...theme.typography.body.sans,
+    color: theme.colors.text.secondary,
+    textAlign: 'center',
+    paddingHorizontal: theme.spacing.md,
+  },
+  createFirstButton: {
+    backgroundColor: theme.colors.primary,
+    paddingVertical: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.lg,
+    borderRadius: theme.borderRadius.full,
+  },
+  createFirstButtonText: {
+    ...theme.typography.caption.primary,
+    color: theme.colors.text.inverse,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: theme.spacing.lg,
+  },
+  loadingText: {
+    ...theme.typography.body.sans,
+    color: theme.colors.text.secondary,
+    marginTop: theme.spacing.sm,
+  },
+  lastUpdateText: {
+    ...theme.typography.caption.secondary,
+    color: theme.colors.text.secondary,
+    textAlign: 'center',
+    marginTop: theme.spacing.sm,
   },
 });
 

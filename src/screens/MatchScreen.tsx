@@ -8,6 +8,8 @@ import {
   Image,
   DimensionValue,
   BackHandler,
+  ActivityIndicator,
+  Alert,
 } from 'react-native';
 import Animated, {
   useSharedValue,
@@ -36,13 +38,23 @@ import {
   Check,
   Clock,
   IconProps,
+  XCircle,
+  InfoCircle,
 } from '../components/Icons';
 import AvatarStack from '@/components/AvatarStack';
 import { Theme } from '@/theme';
 import { useTheme } from '@/contexts/ThemeContext';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '@/types';
+import { MatchType, MatchStatus } from '@/types';
 import { SCREEN_DIMENSIONS } from '@/constants';
+import { useMatchStore } from '@/stores/match';
+import { useAuth } from '@/stores/auth';
+import { useWebSocket } from '@/services/websocket';
+import { useGuestRestrictions } from '@/hooks/useGuestRestrictions';
+import GuestRestrictionModal from '@/components/GuestRestrictionModal';
+import { toast } from 'sonner-native';
+import { User } from '@/types';
 
 const BUTTON_WIDTH = SCREEN_DIMENSIONS.width - 48;
 const SLIDER_KNOB_SIZE = 64;
@@ -67,6 +79,31 @@ const MatchScreen: React.FC<NativeStackScreenProps<RootStackParamList, 'MatchScr
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const styles = React.useMemo(() => createStyles(theme), [theme]);
+  const { user } = useAuth();
+  const { restrictions } = useGuestRestrictions();
+  const { isConnected: wsConnected } = useWebSocket();
+
+  const {
+    currentMatch,
+    isMatchLoading,
+    matchError,
+    isSearching,
+    searchStartTime,
+    searchDuration,
+    matchedUser,
+    isConnected,
+    lastUpdate,
+    createMatch,
+    acceptMatch,
+    rejectMatch,
+    cancelMatch,
+    startSearch,
+    stopSearch,
+    checkMatchStatus,
+    setConnectionStatus,
+    clearErrors,
+    resetSearchState,
+  } = useMatchStore();
 
   // States
   const [selectedMode, setSelectedMode] = useState<string | null>(null);
@@ -75,6 +112,8 @@ const MatchScreen: React.FC<NativeStackScreenProps<RootStackParamList, 'MatchScr
   const [isMatchModeCollapsed, setIsMatchModeCollapsed] = useState(false);
   const [isWaitTimeCollapsed, setIsWaitTimeCollapsed] = useState(false);
   const [searchTimeElapsed, setSearchTimeElapsed] = useState(0);
+  const [showRestrictionModal, setShowRestrictionModal] = useState(false);
+  const [showMatchResult, setShowMatchResult] = useState(false);
 
   // Animated values
   const searchRotation = useSharedValue(0);
@@ -83,6 +122,24 @@ const MatchScreen: React.FC<NativeStackScreenProps<RootStackParamList, 'MatchScr
   const matchModeHeight = useSharedValue<DimensionValue>('auto');
   const waitTimeHeight = useSharedValue<DimensionValue>('auto');
   const progressWidth = useSharedValue(0);
+
+  // Update connection status
+  useEffect(() => {
+    setConnectionStatus(wsConnected);
+  }, [wsConnected, setConnectionStatus]);
+
+  // Sync match status with store
+  useEffect(() => {
+    if (isSearching) {
+      setMatchStatus('searching');
+    } else if (matchedUser && currentMatch?.status === MatchStatus.Matched) {
+      setMatchStatus('found');
+    } else if (currentMatch?.status === MatchStatus.Expired) {
+      setMatchStatus('not_found');
+    } else {
+      setMatchStatus('idle');
+    }
+  }, [isSearching, matchedUser, currentMatch]);
 
   // Timer effect for search progress
   useEffect(() => {
@@ -113,6 +170,17 @@ const MatchScreen: React.FC<NativeStackScreenProps<RootStackParamList, 'MatchScr
       progressWidth.value = 0;
     }
   }, [matchStatus, selectedTime]);
+
+  // Poll for match status when searching
+  useEffect(() => {
+    if (isSearching && currentMatch) {
+      const interval = setInterval(() => {
+        checkMatchStatus();
+      }, 3000); // Check every 3 seconds
+
+      return () => clearInterval(interval);
+    }
+  }, [isSearching, currentMatch, checkMatchStatus]);
 
   const progressStyle = useAnimatedStyle(() => ({
     width: `${progressWidth.value * 100}%`,
@@ -179,7 +247,6 @@ const MatchScreen: React.FC<NativeStackScreenProps<RootStackParamList, 'MatchScr
     );
   }, []);
 
-
   const toggleMatchMode = useCallback(() => {
     if (matchStatus === 'searching') return;
 
@@ -216,13 +283,46 @@ const MatchScreen: React.FC<NativeStackScreenProps<RootStackParamList, 'MatchScr
     if (newPosition > (BUTTON_WIDTH - SLIDER_KNOB_SIZE) * 0.75) {
       // Accept
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      // Handle accept logic
+      handleAcceptMatch();
     } else if (newPosition < (BUTTON_WIDTH - SLIDER_KNOB_SIZE) * 0.25) {
       // Reject
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      // Handle reject logic
+      handleRejectMatch();
     }
   }, []);
+
+  const handleAcceptMatch = async () => {
+    if (!currentMatch) return;
+    
+    try {
+      const success = await acceptMatch(currentMatch.id);
+      if (success) {
+        // Navigate to chat or conversation screen
+        toast.success('Match accepted! Starting conversation...');
+        // navigation.navigate('ChatScreen', { matchId: currentMatch.id });
+      }
+    } catch (error) {
+      console.error('Error accepting match:', error);
+    }
+  };
+
+  const handleRejectMatch = async () => {
+    if (!currentMatch) return;
+    
+    try {
+      const success = await rejectMatch(currentMatch.id);
+      if (success) {
+        resetSearchState();
+        setMatchStatus('idle');
+        setSelectedMode(null);
+        setSelectedTime(null);
+        setIsMatchModeCollapsed(false);
+        setIsWaitTimeCollapsed(false);
+      }
+    } catch (error) {
+      console.error('Error rejecting match:', error);
+    }
+  };
 
   // Animation styles
   const pulseStyle = useAnimatedStyle(() => ({
@@ -277,7 +377,7 @@ const MatchScreen: React.FC<NativeStackScreenProps<RootStackParamList, 'MatchScr
     return () => backHandler.remove();
   }, [matchStatus]);
 
-  const handleStopSearch = useCallback(() => {
+  const handleStopSearch = useCallback(async () => {
     // Cancel all animations
     if (searchAnimationRefs.current.rotation) {
       cancelAnimation(searchRotation);
@@ -299,12 +399,15 @@ const MatchScreen: React.FC<NativeStackScreenProps<RootStackParamList, 'MatchScr
     pulseOpacity.value = 0;
     glowOpacity.value = 0;
 
-    // Reset match status
+    // Stop search via API
+    await stopSearch();
+
+    // Reset local state
     setMatchStatus('idle');
     setSearchTimeElapsed(0);
 
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  }, []);
+  }, [stopSearch]);
 
   const handleModeSelect = useCallback((mode: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -319,23 +422,73 @@ const MatchScreen: React.FC<NativeStackScreenProps<RootStackParamList, 'MatchScr
   }, []);
 
   // Update startSearching function
-  const startSearching = useCallback(() => {
-    setMatchStatus('searching');
-    setSearchTimeElapsed(0);
-    startSearchAnimation();
+  const startSearching = useCallback(async () => {
+    // Check guest restrictions
+    if (restrictions.canJoinCommunityChallenges === false) {
+      setShowRestrictionModal(true);
+      return;
+    }
 
-    // Simulate finding a match
-    const matchTimeout = setTimeout(() => {
-      if (matchStatus === 'searching') {
-        handleStopSearch();
-        setMatchStatus('found');
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    if (!selectedMode || !selectedTime) return;
+
+    try {
+      // Map mode string to MatchType enum
+      const matchTypeMap: Record<string, MatchType> = {
+        'unity': MatchType.Unity,
+        'diversity': MatchType.Diversity,
+        'any': MatchType.Any,
+      };
+
+      const matchType = matchTypeMap[selectedMode];
+      if (!matchType) {
+        toast.error('Invalid match type');
+        return;
       }
-    }, Math.random() * 3000 + 2000);
 
-    // Store timeout reference
-    return () => clearTimeout(matchTimeout);
-  }, [matchStatus]);
+      setMatchStatus('searching');
+      setSearchTimeElapsed(0);
+      startSearchAnimation();
+
+      const success = await startSearch(matchType, selectedTime);
+      if (!success) {
+        setMatchStatus('idle');
+        toast.error('Failed to start search');
+      }
+    } catch (error) {
+      console.error('Error starting search:', error);
+      setMatchStatus('idle');
+      toast.error('Failed to start search');
+    }
+  }, [selectedMode, selectedTime, restrictions, startSearch]);
+
+
+
+  const renderConnectionStatus = () => (
+    <View style={styles.connectionStatus}>
+      {isConnected ? (
+        <Check size={16} color={theme.colors.success} />
+      ) : (
+        <XCircle size={16} color={theme.colors.error} />
+      )}
+      <Text style={[
+        styles.connectionText,
+        { color: isConnected ? theme.colors.success : theme.colors.error }
+      ]}>
+        {isConnected ? 'Live' : 'Offline'}
+      </Text>
+    </View>
+  );
+
+  const renderErrorState = () => (
+    <View style={styles.errorContainer}>
+      <InfoCircle size={48} color={theme.colors.error} />
+      <Text style={styles.errorTitle}>Unable to Start Match</Text>
+      <Text style={styles.errorMessage}>{matchError}</Text>
+      <TouchableOpacity style={styles.retryButton} onPress={() => clearErrors()}>
+        <Text style={styles.retryButtonText}>Try Again</Text>
+      </TouchableOpacity>
+    </View>
+  );
 
   // Update navigation header
   const renderHeader = () => (
@@ -351,7 +504,10 @@ const MatchScreen: React.FC<NativeStackScreenProps<RootStackParamList, 'MatchScr
       >
         <ArrowLeft size={24} color={theme.colors.text.primary} />
       </TouchableOpacity>
-      <Text style={styles.title}>One-on-One</Text>
+      <View style={styles.headerCenter}>
+        <Text style={styles.title}>One-on-One</Text>
+        {renderConnectionStatus()}
+      </View>
       <View style={{ width: 24 }} />
     </View>
   );
@@ -476,16 +632,33 @@ const MatchScreen: React.FC<NativeStackScreenProps<RootStackParamList, 'MatchScr
   ];
 
   const waitTimes = [5, 15, 30, 60];
+
+  // Show loading state
+  if (isMatchLoading) {
+    return (
+      <View style={[styles.container, styles.centerContent]}>
+        <ActivityIndicator size="large" color={theme.colors.primary} />
+        <Text style={styles.loadingText}>Setting up your match...</Text>
+      </View>
+    );
+  }
+
+  // Show error state
+  if (matchError) {
+    return (
+      <View style={[styles.container, { paddingTop: insets.top }]}>
+        {renderHeader()}
+        <View style={styles.content}>
+          {renderErrorState()}
+        </View>
+      </View>
+    );
+  }
+
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
-          <ArrowLeft size={24} color={theme.colors.text.primary} />
-        </TouchableOpacity>
-        <Text style={styles.title}>One-on-One</Text>
-        <View style={{ width: 24 }} />
-      </View>
+      {renderHeader()}
 
       <View style={styles.content}>
         {/* Intro Card - Only show when not searching */}
@@ -603,59 +776,30 @@ const MatchScreen: React.FC<NativeStackScreenProps<RootStackParamList, 'MatchScr
 
         {/* Search Status and Progress */}
         {matchStatus === 'searching' && (
-          <View style={styles.searchStatus}>
-            <SearchProgress />
-            <View style={styles.searchingContainer}>
-              <View style={styles.searchIconWrapper}>
-                {/* Background Glow */}
-                <Animated.View style={[styles.glow, glowStyle]}>
-                  <LinearGradient
-                    colors={[
-                      `${theme.colors.primary}00`,
-                      `${theme.colors.primary}40`,
-                      `${theme.colors.primary}00`
-                    ]}
-                    style={styles.glowGradient}
-                  />
-                </Animated.View>
-
-                {/* Pulse Circles */}
-                <Animated.View style={[styles.pulseCircle, pulseStyle]} />
-                <Animated.View
-                  style={[
-                    styles.pulseCircle,
-                    pulseStyle,
-                    { transform: [{ scale: interpolate(pulseScale.value, [1, 1.8], [1, 1.4]) }] }
-                  ]}
-                />
-
-                {/* Main Search Icon */}
-                <Animated.View style={[styles.searchIcon, searchContainerStyle]}>
-                  <Sparkle size={48} color={theme.colors.primary} />
-                </Animated.View>
-              </View>
-              <Text style={styles.searchingText}>Finding your match...</Text>
-            </View>
-          </View>
+          <SearchStatus />
         )}
 
         {/* Match Found */}
-        {matchStatus === 'found' && (
+        {matchStatus === 'found' && matchedUser && (
           <View style={styles.matchFoundContainer}>
             <BlurView intensity={10} style={StyleSheet.absoluteFill} />
 
             {/* Profile Preview */}
             <View style={styles.profilePreview}>
               <Image
-                src="/api/placeholder/80/80"
+                src={matchedUser.avatar || "https://api.elbiblio.com/avatars/user.png"}
                 style={styles.profileImage}
               />
               <View style={styles.profileInfo}>
-                <Text style={styles.profileName}>Sarah Mitchell</Text>
-                <Text style={styles.profileBio}>Passionate about scripture study</Text>
+                <Text style={styles.profileName}>
+                  {matchedUser.first_name} {matchedUser.last_name}
+                </Text>
+                <Text style={styles.profileBio}>
+                  {matchedUser.points} points • Active member
+                </Text>
                 <AvatarStack
-                  users={[]}
-                  maxAvatars={3}
+                  users={[matchedUser]}
+                  maxAvatars={1}
                   size={24}
                 />
               </View>
@@ -718,6 +862,7 @@ const MatchScreen: React.FC<NativeStackScreenProps<RootStackParamList, 'MatchScr
             <TouchableOpacity
               style={styles.cancelButton}
               onPress={() => {
+                resetSearchState();
                 setMatchStatus('idle');
                 setIsWaitTimeCollapsed(false);
               }}
@@ -737,6 +882,13 @@ const MatchScreen: React.FC<NativeStackScreenProps<RootStackParamList, 'MatchScr
         </TouchableOpacity>
       )}
       </View>
+
+      {/* Guest Restriction Modal */}
+      <GuestRestrictionModal
+        visible={showRestrictionModal}
+        onClose={() => setShowRestrictionModal(false)}
+        feature="joining matches"
+      />
     </View>
   );
 }
@@ -753,9 +905,63 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     paddingHorizontal: theme.spacing.md,
     paddingVertical: theme.spacing.sm,
   },
+  headerCenter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.xs,
+  },
   title: {
     ...theme.typography.heading.small,
     color: theme.colors.text.primary,
+  },
+  connectionStatus: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.xs,
+  },
+  connectionText: {
+    ...theme.typography.caption.secondary,
+  },
+  errorContainer: {
+    padding: theme.spacing.lg,
+    alignItems: 'center',
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.borderRadius.lg,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  errorTitle: {
+    ...theme.typography.heading.medium,
+    color: theme.colors.text.primary,
+    marginBottom: theme.spacing.sm,
+  },
+  errorMessage: {
+    ...theme.typography.body.sans,
+    color: theme.colors.text.secondary,
+    textAlign: 'center',
+    marginBottom: theme.spacing.lg,
+  },
+  retryButton: {
+    paddingVertical: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.lg,
+    backgroundColor: `${theme.colors.primary}`,
+    borderRadius: theme.borderRadius.full,
+  },
+  retryButtonText: {
+    ...theme.typography.caption.primary,
+    color: theme.colors.text.inverse,
+    fontWeight: '600',
+  },
+  cancelButton: {
+    paddingVertical: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.lg,
+    backgroundColor: `${theme.colors.secondary}15`,
+    borderRadius: theme.borderRadius.full,
+  },
+  cancelText: {
+    ...theme.typography.caption.primary,
+    color: theme.colors.text.primary,
+    fontWeight: '600',
   },
   content: {
     flex: 1,
@@ -1102,30 +1308,12 @@ const createStyles = (theme: Theme) => StyleSheet.create({
   retryActions: {
     flexDirection: "row",
     alignSelf: "center",
-    alignContent: "center",
     gap: theme.spacing.lg,
     alignItems: "center"
-  },
-  retryButton: {
-    paddingVertical: theme.spacing.sm,
-    paddingHorizontal: theme.spacing.lg,
-    backgroundColor: `${theme.colors.primary}`,
-    borderRadius: theme.borderRadius.full,
-  },
-  cancelButton: {
-    paddingVertical: theme.spacing.sm,
-    paddingHorizontal: theme.spacing.lg,
-    backgroundColor: `${theme.colors.secondary}15`,
-    borderRadius: theme.borderRadius.full,
   },
   retryText: {
     ...theme.typography.caption.primary,
     color: theme.colors.text.inverse,
-    fontWeight: '600',
-  },
-  cancelText: {
-    ...theme.typography.caption.primary,
-    color: theme.colors.text.primary,
     fontWeight: '600',
   },
   stopSearchButton: {
@@ -1142,6 +1330,15 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     ...theme.typography.caption.primary,
     color: theme.colors.text.inverse,
     fontWeight: '600',
+  },
+  loadingText: {
+    ...theme.typography.body.sans,
+    color: theme.colors.text.secondary,
+    marginTop: theme.spacing.sm,
+  },
+  centerContent: {
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });
 

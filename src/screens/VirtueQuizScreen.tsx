@@ -7,7 +7,6 @@ import {
   TouchableOpacity,
   Platform,
   ActivityIndicator,
-  Dimensions,
   Alert
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -40,12 +39,24 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/stores/auth';
+import { useVirtueStore } from '@/stores/virtue';
 import { Theme } from '@/theme';
-import ConfettiCannon from 'react-native-confetti-cannon';
+import { PIConfetti } from 'react-native-fast-confetti';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import type { RootStackParamList } from '@/types';
+import type { RootStackParamList, AppVirtue, FoundationalVirtue, Virtue } from '@/types';
+import { THEMES } from '@/types';
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
+// Removed SCREEN_WIDTH; not needed after confetti migration
+
+// Helper function to map Virtue to AppVirtue
+const mapVirtueToAppVirtue = (virtue: Virtue): AppVirtue => {
+  const theme = THEMES[virtue.name?.toLowerCase() as FoundationalVirtue] || THEMES[virtue.id?.toLowerCase() as FoundationalVirtue];
+  return {
+    ...virtue,
+    icon: theme?.Icon || Star,
+    color_code: virtue.color_code || theme?.color || '#9C27B0',
+  };
+};
 
 type QuizQuestion = {
   id: string;
@@ -54,167 +65,10 @@ type QuizQuestion = {
   options?: string[];
   correctAnswer: string | number;
   explanation: string;
-  scriptureReference?: string;
+  verseReference?: string;
   virtue: string;
   level: number;
 };
-
-type Virtue = {
-  id: string;
-  name: string;
-  description: string;
-  icon: React.ComponentType<any>;
-  color: string;
-  levels: number;
-  userProgress: number;
-};
-
-const VIRTUES: Virtue[] = [
-  {
-    id: 'patience',
-    name: 'Patience',
-    description: 'The capacity to accept or tolerate delay, trouble, or suffering without getting angry or upset.',
-    icon: Clock,
-    color: '#4CAF50',
-    levels: 3,
-    userProgress: 2,
-  },
-  {
-    id: 'kindness',
-    name: 'Kindness',
-    description: 'The quality of being friendly, generous, and considerate.',
-    icon: Heart,
-    color: '#E91E63',
-    levels: 3,
-    userProgress: 1,
-  },
-  {
-    id: 'humility',
-    name: 'Humility',
-    description: 'Freedom from pride or arrogance; the quality of being humble.',
-    icon: Star,
-    color: '#9C27B0',
-    levels: 3,
-    userProgress: 0,
-  },
-  {
-    id: 'wisdom',
-    name: 'Wisdom',
-    description: 'The quality of having experience, knowledge, and good judgment.',
-    icon: Lightbulb,
-    color: '#FF9800',
-    levels: 3,
-    userProgress: 1,
-  },
-];
-
-// Sample quiz questions
-const QUIZ_QUESTIONS: QuizQuestion[] = [
-  {
-    id: '1',
-    question: 'Patience means never feeling frustrated.',
-    type: 'true_false',
-    correctAnswer: 'false',
-    explanation: "Patience isn't about never feeling frustrated, but about how you respond to frustration. It's normal to feel frustrated, but patience helps us manage those feelings constructively.",
-    scriptureReference: 'Romans 12:12',
-    virtue: 'patience',
-    level: 1,
-  },
-  {
-    id: '2',
-    question: 'Which of these is NOT an example of patience?',
-    type: 'multiple_choice',
-    options: [
-      'Waiting calmly in a long line',
-      'Listening fully to someone who speaks slowly',
-      'Demanding immediate results from a new project',
-      'Taking time to understand a complex problem'
-    ],
-    correctAnswer: 2,
-    explanation: 'Demanding immediate results shows impatience. Patience involves accepting that worthwhile things often take time and managing our expectations accordingly.',
-    scriptureReference: 'Galatians 5:22-23',
-    virtue: 'patience',
-    level: 1,
-  },
-  {
-    id: '3',
-    question: 'Patience is primarily about:',
-    type: 'multiple_choice',
-    options: [
-      'Never taking action',
-      'Enduring difficult circumstances with calmness',
-      'Avoiding challenging situations',
-      'Giving up when things get hard'
-    ],
-    correctAnswer: 1,
-    explanation: 'Patience is about enduring difficult circumstances with calmness and self-control, not about inaction or avoidance.',
-    scriptureReference: 'James 1:2-4',
-    virtue: 'patience',
-    level: 2,
-  },
-  {
-    id: '4',
-    question: "True patience requires understanding others' perspectives.",
-    type: 'true_false',
-    correctAnswer: 'true',
-    explanation: "True patience involves empathy and understanding others' perspectives, which helps us respond with compassion rather than frustration.",
-    scriptureReference: 'Ephesians 4:2',
-    virtue: 'patience',
-    level: 2,
-  },
-  {
-    id: '5',
-    question: 'Kindness always expects something in return.',
-    type: 'true_false',
-    correctAnswer: 'false',
-    explanation: "True kindness is given freely without expectation of reward or return. It's motivated by genuine care for others, not by what we might gain.",
-    scriptureReference: 'Luke 6:35',
-    virtue: 'kindness',
-    level: 1,
-  },
-  {
-    id: '6',
-    question: 'Which of these best exemplifies kindness?',
-    type: 'multiple_choice',
-    options: [
-      'Helping someone only when others are watching',
-      'Doing a favor but reminding the person repeatedly',
-      'Noticing someone in need and quietly helping them',
-      'Being nice only to people who can benefit you'
-    ],
-    correctAnswer: 2,
-    explanation: 'Noticing someone in need and quietly helping them demonstrates genuine kindness that comes from compassion rather than self-interest.',
-    scriptureReference: 'Colossians 3:12',
-    virtue: 'kindness',
-    level: 1,
-  },
-  {
-    id: '7',
-    question: 'Humility means thinking less of yourself.',
-    type: 'true_false',
-    correctAnswer: 'false',
-    explanation: "Humility isn't about thinking less of yourself, but thinking of yourself less. It's about having an accurate view of your strengths and weaknesses, not diminishing your worth.",
-    scriptureReference: 'Philippians 2:3-4',
-    virtue: 'humility',
-    level: 1,
-  },
-  {
-    id: '8',
-    question: 'Wisdom is primarily about:',
-    type: 'multiple_choice',
-    options: [
-      'Having extensive knowledge',
-      'Being able to apply knowledge appropriately',
-      'Being older than others',
-      'Having formal education'
-    ],
-    correctAnswer: 1,
-    explanation: "While knowledge is important, wisdom is about applying that knowledge appropriately in different situations. It involves discernment and good judgment.",
-    scriptureReference: 'Proverbs 4:7',
-    virtue: 'wisdom',
-    level: 1,
-  },
-];
 
 const VirtueQuizScreen = ({ navigation, route }: NativeStackScreenProps<RootStackParamList, 'VirtueQuizScreen'>) => {
   const insets = useSafeAreaInsets();
@@ -222,17 +76,30 @@ const VirtueQuizScreen = ({ navigation, route }: NativeStackScreenProps<RootStac
   const styles = React.useMemo(() => createStyles(theme), [theme]);
   const { user } = useAuth();
   
-  const [selectedVirtue, setSelectedVirtue] = useState<Virtue | null>(null);
+  // Virtue store
+  const {
+    virtues,
+    isVirtuesLoading,
+    virtuesError,
+    quizQuestions,
+    isQuizLoading,
+    quizError,
+    userProgress,
+    fetchVirtues,
+    fetchQuizQuestions,
+    submitQuizAnswer,
+    completeQuiz,
+  } = useVirtueStore();
+  
+  const [selectedVirtue, setSelectedVirtue] = useState<AppVirtue | null>(null);
   const [selectedLevel, setSelectedLevel] = useState<number | null>(null);
   const [quizStarted, setQuizStarted] = useState(false);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
-  const [questions, setQuestions] = useState<QuizQuestion[]>([]);
   const [selectedAnswer, setSelectedAnswer] = useState<string | number | null>(null);
   const [isAnswerCorrect, setIsAnswerCorrect] = useState<boolean | null>(null);
   const [showExplanation, setShowExplanation] = useState(false);
   const [quizCompleted, setQuizCompleted] = useState(false);
   const [score, setScore] = useState(0);
-  const [loading, setLoading] = useState(false);
   
   // Animation values
   const cardScale = useSharedValue(1);
@@ -243,142 +110,111 @@ const VirtueQuizScreen = ({ navigation, route }: NativeStackScreenProps<RootStac
   // Confetti ref
   const confettiRef = useRef<any>(null);
   
+  // Fetch virtues on mount
+  useEffect(() => {
+    fetchVirtues();
+  }, []);
+  
   useEffect(() => {
     // Check if virtue and level were passed as params
     if (route.params?.virtueId) {
-      const virtue = VIRTUES.find(v => v.id === route.params?.virtueId);
+      const virtue = virtues.find(v => v.id === route.params?.virtueId);
       if (virtue) {
-        setSelectedVirtue(virtue);
-        if (route.params?.level && route.params.level <= virtue.levels) {
-          setSelectedLevel(route.params.level);
-          loadQuestions(virtue.id, route.params.level);
-        }
+        setSelectedVirtue(mapVirtueToAppVirtue(virtue));
+        setSelectedLevel(route.params?.level || 1);
       }
     }
-  }, [route.params]);
+  }, [route.params, virtues]);
   
+  // Load questions when virtue and level are selected
   useEffect(() => {
     if (selectedVirtue && selectedLevel) {
-      loadQuestions(selectedVirtue.id, selectedLevel);
+      fetchQuizQuestions(selectedVirtue.id, selectedLevel);
     }
   }, [selectedVirtue, selectedLevel]);
   
-  useEffect(() => {
-    if (quizStarted && questions.length > 0) {
-      // Update progress bar
-      progressWidth.value = withTiming(
-        ((currentQuestionIndex + 1) / questions.length) * 100,
-        { duration: 300 }
-      );
-    }
-  }, [currentQuestionIndex, quizStarted, questions.length]);
-  
   const loadQuestions = (virtueId: string, level: number) => {
-    setLoading(true);
-    
-    // In a real app, this would be an API call
-    // For now, we'll filter the sample questions
-    setTimeout(() => {
-      const filteredQuestions = QUIZ_QUESTIONS.filter(
-        q => q.virtue === virtueId && q.level === level
-      );
-      
-      // Shuffle questions
-      const shuffled = [...filteredQuestions].sort(() => 0.5 - Math.random());
-      setQuestions(shuffled.slice(0, 5)); // Take 5 random questions
-      setLoading(false);
-    }, 1000);
+    fetchQuizQuestions(virtueId, level);
   };
   
   const startQuiz = () => {
-    if (!selectedVirtue || !selectedLevel) {
-      Alert.alert('Selection Required', 'Please select a virtue and level to start the quiz.');
-      return;
-    }
+    if (!selectedVirtue || !selectedLevel) return;
     
     setQuizStarted(true);
     setCurrentQuestionIndex(0);
     setScore(0);
-    setQuizCompleted(false);
-    setShowExplanation(false);
-    setIsAnswerCorrect(null);
     setSelectedAnswer(null);
+    setIsAnswerCorrect(null);
+    setShowExplanation(false);
+    setQuizCompleted(false);
     
-    // Animate card
-    cardScale.value = withSequence(
-      withTiming(0.95, { duration: 100 }),
-      withTiming(1, { duration: 300 })
-    );
+    // Start progress animation
+    progressWidth.value = withTiming(100, { duration: 300 });
   };
   
-  const handleAnswerSelection = (answer: string | number) => {
-    if (selectedAnswer !== null) return; // Prevent multiple selections
+  const handleAnswerSelection = async (answer: string | number) => {
+    if (!selectedVirtue || !quizQuestions[currentQuestionIndex]) return;
     
     setSelectedAnswer(answer);
-    const currentQuestion = questions[currentQuestionIndex];
-    const correct = answer === currentQuestion.correctAnswer;
-    setIsAnswerCorrect(correct);
     
-    if (correct) {
-      setScore(prev => prev + 1);
+    const currentQuestion = quizQuestions[currentQuestionIndex] as QuizQuestion;
+    const isCorrect = String(answer) === String(currentQuestion.correctAnswer);
+    setIsAnswerCorrect(isCorrect);
+    
+    if (isCorrect) {
+      setScore(prev => prev + 10);
     }
     
-    // Animate option
-    optionScale.value = withSequence(
-      withTiming(0.95, { duration: 100 }),
-      withTiming(1, { duration: 200 })
-    );
+    // Submit answer to API
+    await submitQuizAnswer(currentQuestion.id, String(answer));
     
-    // Show explanation after a short delay
-    setTimeout(() => {
-      setShowExplanation(true);
-      explanationHeight.value = withTiming(1, { duration: 500 });
-    }, 500);
+    // Show explanation
+    setShowExplanation(true);
+    explanationHeight.value = withTiming(1, { duration: 300 });
   };
   
   const goToNextQuestion = () => {
-    if (currentQuestionIndex < questions.length - 1) {
-      // Reset for next question
+    if (currentQuestionIndex < quizQuestions.length - 1) {
+      setCurrentQuestionIndex(prev => prev + 1);
       setSelectedAnswer(null);
       setIsAnswerCorrect(null);
       setShowExplanation(false);
       explanationHeight.value = 0;
       
-      // Move to next question with animation
+      // Animate card
       cardScale.value = withSequence(
-        withTiming(0.9, { duration: 150 }),
-        withTiming(1, { duration: 300 })
+        withTiming(0.95, { duration: 100 }),
+        withTiming(1, { duration: 200 })
       );
-      
-      setCurrentQuestionIndex(prev => prev + 1);
     } else {
       // Quiz completed
+      completeQuiz(selectedVirtue!.id, selectedLevel!, score);
       setQuizCompleted(true);
       
-      // Show confetti for good scores
-      if (score / questions.length >= 0.6) {
-        setTimeout(() => {
-          confettiRef.current?.start();
-        }, 500);
+      // Trigger confetti
+      if (confettiRef.current) {
+        confettiRef.current.restart();
       }
     }
   };
   
   const restartQuiz = () => {
     setQuizStarted(false);
-    setQuizCompleted(false);
-    setCurrentQuestionIndex(0);
-    setScore(0);
     setSelectedAnswer(null);
     setIsAnswerCorrect(null);
     setShowExplanation(false);
+    setQuizCompleted(false);
+    setScore(0);
+    setCurrentQuestionIndex(0);
+    explanationHeight.value = 0;
     progressWidth.value = 0;
   };
   
   const selectDifferentVirtue = () => {
     setSelectedVirtue(null);
     setSelectedLevel(null);
-    restartQuiz();
+    setQuizStarted(false);
+    setQuizCompleted(false);
   };
   
   // Animated styles
@@ -409,50 +245,56 @@ const VirtueQuizScreen = ({ navigation, route }: NativeStackScreenProps<RootStac
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.virtuesScrollContent}
       >
-        {VIRTUES.map(virtue => (
-          <TouchableOpacity
-            key={virtue.id}
-            style={[
-              styles.virtueCard,
-              selectedVirtue?.id === virtue.id && styles.selectedVirtueCard
-            ]}
-            onPress={() => {
-              setSelectedVirtue(virtue);
-              setSelectedLevel(null);
-              cardScale.value = withSequence(
-                withTiming(0.95, { duration: 100 }),
-                withTiming(1, { duration: 200 })
-              );
-            }}
-          >
-            <LinearGradient
-              colors={[`${virtue.color}20`, `${virtue.color}05`]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.virtueGradient}
-            />
-            <View style={[styles.virtueIconContainer, { backgroundColor: `${virtue.color}15` }]}>
-              <virtue.icon size={24} color={virtue.color} />
-            </View>
-            <Text style={styles.virtueName}>{virtue.name}</Text>
-            <View style={styles.progressContainer}>
-              <View style={styles.progressBar}>
-                <View 
-                  style={[
-                    styles.progressFill, 
-                    { 
-                      width: `${(virtue.userProgress / virtue.levels) * 100}%`,
-                      backgroundColor: virtue.color 
-                    }
-                  ]} 
-                />
+        {virtues.map(virtue => {
+          const appVirtue = mapVirtueToAppVirtue(virtue);
+          return (
+            <TouchableOpacity
+              key={virtue.id}
+              style={[
+                styles.virtueCard,
+                selectedVirtue?.id === virtue.id && styles.selectedVirtueCard,
+                { borderColor: appVirtue.color_code }
+              ]}
+              onPress={() => setSelectedVirtue(appVirtue)}
+            >
+              <LinearGradient
+                colors={[
+                  selectedVirtue?.id === virtue.id 
+                    ? `${appVirtue.color_code}20` 
+                    : '#00000010',
+                  selectedVirtue?.id === virtue.id 
+                    ? `${appVirtue.color_code}05` 
+                    : '#00000005'
+                ]}
+                style={styles.virtueGradient}
+              />
+              
+              <View style={styles.virtueIconContainer}>
+                <appVirtue.icon size={24} color={appVirtue.color_code} />
               </View>
-              <Text style={styles.progressText}>
-                Level {virtue.userProgress}/{virtue.levels}
-              </Text>
-            </View>
-          </TouchableOpacity>
-        ))}
+              
+              <Text style={styles.virtueName}>{appVirtue.name}</Text>
+              <Text style={styles.virtueDescription}>{appVirtue.description}</Text>
+              
+              <View style={styles.progressContainer}>
+                <View style={styles.progressBar}>
+                  <View 
+                    style={[
+                      styles.progressFill, 
+                      { 
+                        width: `${((userProgress[virtue.id]?.current_level || 0) / 3) * 100}%`,
+                        backgroundColor: appVirtue.color_code 
+                      }
+                    ]} 
+                  />
+                </View>
+                <Text style={styles.progressText}>
+                  Level {userProgress[virtue.id]?.current_level || 0}/3
+                </Text>
+              </View>
+            </TouchableOpacity>
+          );
+        })}
       </ScrollView>
     </View>
   );
@@ -464,15 +306,15 @@ const VirtueQuizScreen = ({ navigation, route }: NativeStackScreenProps<RootStac
       <Animated.View style={[styles.selectionContainer, cardAnimatedStyle]}>
         <Text style={styles.selectionTitle}>Select Difficulty Level</Text>
         <View style={styles.levelsContainer}>
-          {Array.from({ length: selectedVirtue.levels }, (_, i) => i + 1).map(level => (
+          {Array.from({ length: 3 }, (_, i) => i + 1).map(level => (
             <TouchableOpacity
               key={`level-${level}`}
               style={[
                 styles.levelCard,
                 selectedLevel === level && styles.selectedLevelCard,
-                level > selectedVirtue!.userProgress + 1 && styles.lockedLevelCard
+                level > (userProgress[selectedVirtue.id]?.current_level || 0) + 1 && styles.lockedLevelCard
               ]}
-              disabled={level > selectedVirtue.userProgress + 1}
+              disabled={level > (userProgress[selectedVirtue.id]?.current_level || 0) + 1}
               onPress={() => {
                 setSelectedLevel(level);
                 optionScale.value = withSequence(
@@ -483,32 +325,27 @@ const VirtueQuizScreen = ({ navigation, route }: NativeStackScreenProps<RootStac
             >
               <LinearGradient
                 colors={[
-                  level <= selectedVirtue.userProgress + 1 
-                    ? `${selectedVirtue.color}20` 
+                  level <= (userProgress[selectedVirtue.id]?.current_level || 0) + 1 
+                    ? `${selectedVirtue.color_code}20` 
                     : '#00000010',
-                  level <= selectedVirtue.userProgress + 1 
-                    ? `${selectedVirtue.color}05` 
+                  level <= (userProgress[selectedVirtue.id]?.current_level || 0) + 1 
+                    ? `${selectedVirtue.color_code}05` 
                     : '#00000005'
                 ]}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
                 style={styles.levelGradient}
               />
-              {level > selectedVirtue.userProgress + 1 ? (
+              {level > (userProgress[selectedVirtue.id]?.current_level || 0) + 1 ? (
                 <View style={styles.lockedIconContainer}>
                   <Lock size={20} color={theme?.colors.text.secondary} />
                 </View>
               ) : (
-                <Text style={[
-                  styles.levelNumber,
-                  { color: selectedVirtue.color }
-                ]}>
-                  {level}
-                </Text>
+                <Text style={styles.levelNumber}>{level}</Text>
               )}
               <Text style={[
                 styles.levelLabel,
-                level > selectedVirtue.userProgress + 1 && styles.lockedLevelLabel
+                level > (userProgress[selectedVirtue.id]?.current_level || 0) + 1 && styles.lockedLevelLabel
               ]}>
                 {level === 1 ? 'Beginner' : level === 2 ? 'Intermediate' : 'Advanced'}
               </Text>
@@ -519,7 +356,7 @@ const VirtueQuizScreen = ({ navigation, route }: NativeStackScreenProps<RootStac
         <TouchableOpacity
           style={[
             styles.startButton,
-            { backgroundColor: selectedVirtue.color }
+            { backgroundColor: selectedVirtue?.color_code }
           ]}
           onPress={startQuiz}
         >
@@ -531,24 +368,29 @@ const VirtueQuizScreen = ({ navigation, route }: NativeStackScreenProps<RootStac
   };
   
   const renderQuizQuestion = () => {
-    if (!quizStarted || questions.length === 0) return null;
+    if (!quizStarted || quizQuestions.length === 0) return null;
     if (quizCompleted) return renderQuizResults();
     
-    const currentQuestion = questions[currentQuestionIndex];
+    const currentQuestion = quizQuestions[currentQuestionIndex] as QuizQuestion;
     
     return (
       <View style={styles.quizContainer}>
         <View style={styles.progressBarContainer}>
-          <Animated.View style={[styles.progressBarFill, progressAnimatedStyle]} />
+          <Animated.View 
+            style={[
+              styles.progressBarFill,
+              { width: `${((currentQuestionIndex + 1) / quizQuestions.length) * 100}%` }
+            ]} 
+          />
         </View>
         
         <Text style={styles.questionCounter}>
-          Question {currentQuestionIndex + 1} of {questions.length}
+          Question {currentQuestionIndex + 1} of {quizQuestions.length}
         </Text>
         
         <Animated.View style={[styles.questionCard, cardAnimatedStyle]}>
           <LinearGradient
-            colors={[`${selectedVirtue?.color}10`, `${selectedVirtue?.color}02`]}
+            colors={[`${selectedVirtue?.color_code}10`, `${selectedVirtue?.color_code}02`]}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
             style={styles.questionGradient}
@@ -556,116 +398,82 @@ const VirtueQuizScreen = ({ navigation, route }: NativeStackScreenProps<RootStac
           
           <Text style={styles.questionText}>{currentQuestion.question}</Text>
           
-          {currentQuestion.type === 'true_false' ? (
-            <View style={styles.optionsContainer}>
-              {['true', 'false'].map((option) => (
+          {currentQuestion.verseReference && (
+            <View style={styles.scriptureContainer}>
+              <BookOpen size={16} color={theme?.colors.text.secondary} />
+              <Text style={styles.scriptureText}>
+                {currentQuestion.verseReference}
+              </Text>
+            </View>
+          )}
+          
+          <View style={styles.optionsContainer}>
+            {currentQuestion.type === 'true_false' ? (
+              <>
                 <TouchableOpacity
-                  key={option}
                   style={[
                     styles.optionButton,
-                    selectedAnswer === option && styles.selectedOptionButton,
-                    selectedAnswer === option && isAnswerCorrect && styles.correctOptionButton,
-                    selectedAnswer === option && !isAnswerCorrect && styles.incorrectOptionButton,
-                    selectedAnswer !== null && 
-                      option === currentQuestion.correctAnswer && 
-                      styles.correctOptionButton
+                    selectedAnswer === 'true' && styles.selectedOptionButton,
+                    selectedAnswer !== null && 'true' === String(currentQuestion.correctAnswer) && styles.correctOptionButton,
+                    selectedAnswer === 'true' && selectedAnswer !== String(currentQuestion.correctAnswer) && styles.incorrectOptionButton,
                   ]}
+                  onPress={() => handleAnswerSelection('true')}
                   disabled={selectedAnswer !== null}
-                  onPress={() => handleAnswerSelection(option)}
                 >
-                  <Text style={[
-                    styles.optionText,
-                    selectedAnswer === option && isAnswerCorrect && styles.correctOptionText,
-                    selectedAnswer === option && !isAnswerCorrect && styles.incorrectOptionText,
-                    selectedAnswer !== null && 
-                      option === currentQuestion.correctAnswer && 
-                      styles.correctOptionText
-                  ]}>
-                    {option === 'true' ? 'True' : 'False'}
-                  </Text>
-                  
-                  {selectedAnswer === option && isAnswerCorrect && (
-                    <Check size={20} color="#4CAF50" />
-                  )}
-                  {selectedAnswer === option && !isAnswerCorrect && (
-                    <X size={20} color="#F44336" />
-                  )}
-                  {selectedAnswer !== null && 
-                    option === currentQuestion.correctAnswer && 
-                    selectedAnswer !== option && (
-                    <Check size={20} color="#4CAF50" />
-                  )}
+                  <Text style={styles.optionText}>True</Text>
                 </TouchableOpacity>
-              ))}
-            </View>
-          ) : (
-            <View style={styles.optionsContainer}>
-              {currentQuestion.options?.map((option, index) => (
+                
+                <TouchableOpacity
+                  style={[
+                    styles.optionButton,
+                    selectedAnswer === 'false' && styles.selectedOptionButton,
+                    selectedAnswer !== null && 'false' === String(currentQuestion.correctAnswer) && styles.correctOptionButton,
+                    selectedAnswer === 'false' && selectedAnswer !== String(currentQuestion.correctAnswer) && styles.incorrectOptionButton,
+                  ]}
+                  onPress={() => handleAnswerSelection('false')}
+                  disabled={selectedAnswer !== null}
+                >
+                  <Text style={styles.optionText}>False</Text>
+                </TouchableOpacity>
+              </>
+            ) : (
+              currentQuestion.options?.map((option, index) => (
                 <TouchableOpacity
                   key={index}
                   style={[
                     styles.optionButton,
                     selectedAnswer === index && styles.selectedOptionButton,
-                    selectedAnswer === index && isAnswerCorrect && styles.correctOptionButton,
-                    selectedAnswer === index && !isAnswerCorrect && styles.incorrectOptionButton,
-                    selectedAnswer !== null && 
-                      index === currentQuestion.correctAnswer && 
-                      styles.correctOptionButton
+                    selectedAnswer !== null && index === Number(currentQuestion.correctAnswer) && styles.correctOptionButton,
+                    selectedAnswer === index && selectedAnswer !== Number(currentQuestion.correctAnswer) && styles.incorrectOptionButton,
                   ]}
-                  disabled={selectedAnswer !== null}
                   onPress={() => handleAnswerSelection(index)}
+                  disabled={selectedAnswer !== null}
                 >
-                  <Text style={[
-                    styles.optionText,
-                    selectedAnswer === index && isAnswerCorrect && styles.correctOptionText,
-                    selectedAnswer === index && !isAnswerCorrect && styles.incorrectOptionText,
-                    selectedAnswer !== null && 
-                      index === currentQuestion.correctAnswer && 
-                      styles.correctOptionText
-                  ]}>
-                    {String.fromCharCode(65 + index)}. {option}
-                  </Text>
-                  
-                  {selectedAnswer === index && isAnswerCorrect && (
-                    <Check size={20} color="#4CAF50" />
-                  )}
-                  {selectedAnswer === index && !isAnswerCorrect && (
-                    <X size={20} color="#F44336" />
-                  )}
-                  {selectedAnswer !== null && 
-                    index === currentQuestion.correctAnswer && 
-                    selectedAnswer !== index && (
-                    <Check size={20} color="#4CAF50" />
-                  )}
+                  <Text style={styles.optionText}>{option}</Text>
                 </TouchableOpacity>
-              ))}
-            </View>
-          )}
+              ))
+            )}
+          </View>
           
           {showExplanation && (
             <Animated.View style={[styles.explanationContainer, explanationAnimatedStyle]}>
               <Text style={styles.explanationTitle}>
-                {isAnswerCorrect ? 'Correct!' : 'Not quite right'}
+                {isAnswerCorrect ? 'Correct!' : 'Incorrect'}
               </Text>
               <Text style={styles.explanationText}>{currentQuestion.explanation}</Text>
-              
-              {currentQuestion.scriptureReference && (
-                <View style={styles.scriptureContainer}>
-                  <BookOpen size={16} color={theme?.colors.text.secondary} />
-                  <Text style={styles.scriptureText}>{currentQuestion.scriptureReference}</Text>
-                </View>
-              )}
-              
-              <TouchableOpacity
-                style={[styles.nextButton, { backgroundColor: selectedVirtue?.color }]}
-                onPress={goToNextQuestion}
-              >
-                <Text style={styles.nextButtonText}>
-                  {currentQuestionIndex < questions.length - 1 ? 'Next Question' : 'See Results'}
-                </Text>
-                <CaretRight size={16} color="#FFF" />
-              </TouchableOpacity>
             </Animated.View>
+          )}
+          
+          {showExplanation && (
+            <TouchableOpacity
+              style={[styles.nextButton, { backgroundColor: selectedVirtue?.color_code }]}
+              onPress={goToNextQuestion}
+            >
+              <Text style={styles.nextButtonText}>
+                {currentQuestionIndex < quizQuestions.length - 1 ? 'Next Question' : 'See Results'}
+              </Text>
+              <CaretRight size={16} color="#FFF" />
+            </TouchableOpacity>
           )}
         </Animated.View>
       </View>
@@ -673,24 +481,23 @@ const VirtueQuizScreen = ({ navigation, route }: NativeStackScreenProps<RootStac
   };
   
   const renderQuizResults = () => {
-    const percentage = (score / questions.length) * 100;
+    const percentage = (score / quizQuestions.length) * 100;
     const passed = percentage >= 60;
     
     return (
       <View style={styles.resultsContainer}>
-        <ConfettiCannon
+        <PIConfetti
           ref={confettiRef}
           count={200}
-          origin={{ x: SCREEN_WIDTH / 2, y: 0 }}
-          autoStart={false}
-          fadeOut
+          fadeOutOnEnd
+          colors={[ '#FFD700', '#FF6347', '#4169E1', '#32CD32', '#FF69B4', '#BA55D3' ]}
         />
         
         <Animated.View style={[styles.resultsCard, cardAnimatedStyle]}>
           <LinearGradient
             colors={[
-              passed ? `${selectedVirtue?.color}20` : '#F4433610',
-              passed ? `${selectedVirtue?.color}05` : '#F4433605'
+              passed ? `${selectedVirtue?.color_code}20` : '#F4433610',
+              passed ? `${selectedVirtue?.color_code}05` : '#F4433605'
             ]}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
@@ -700,11 +507,11 @@ const VirtueQuizScreen = ({ navigation, route }: NativeStackScreenProps<RootStac
           <View style={styles.scoreContainer}>
             <View style={[
               styles.scoreCircle,
-              { borderColor: passed ? selectedVirtue?.color : '#F44336' }
+              { borderColor: passed ? selectedVirtue?.color_code : '#F44336' }
             ]}>
               <Text style={[
                 styles.scoreText,
-                { color: passed ? selectedVirtue?.color : '#F44336' }
+                { color: passed ? selectedVirtue?.color_code : '#F44336' }
               ]}>
                 {percentage.toFixed(0)}%
               </Text>
@@ -726,7 +533,7 @@ const VirtueQuizScreen = ({ navigation, route }: NativeStackScreenProps<RootStac
             </View>
             <View style={styles.statItem}>
               <X size={20} color={theme?.colors.error} />
-              <Text style={styles.statText}>Incorrect: {questions.length - score}</Text>
+              <Text style={styles.statText}>Incorrect: {quizQuestions.length - score}</Text>
             </View>
           </View>
           
@@ -751,7 +558,7 @@ const VirtueQuizScreen = ({ navigation, route }: NativeStackScreenProps<RootStac
               style={[
                 styles.actionButton, 
                 styles.primaryButton,
-                { backgroundColor: selectedVirtue?.color }
+                { backgroundColor: selectedVirtue?.color_code }
               ]}
               onPress={selectDifferentVirtue}
             >
@@ -799,7 +606,7 @@ const VirtueQuizScreen = ({ navigation, route }: NativeStackScreenProps<RootStac
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {loading ? (
+        {isVirtuesLoading || isQuizLoading ? (
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color={theme?.colors.primary} />
             <Text style={styles.loadingText}>Loading questions...</Text>
@@ -816,7 +623,7 @@ const VirtueQuizScreen = ({ navigation, route }: NativeStackScreenProps<RootStac
   );
 };
 
-const createStyles = (theme: Theme, selectedVirtue?: Virtue | null) => StyleSheet.create({
+const createStyles = (theme: Theme, selectedVirtue?: AppVirtue | null) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme?.colors.background,
@@ -966,9 +773,9 @@ const createStyles = (theme: Theme, selectedVirtue?: Virtue | null) => StyleShee
     }),
   },
   selectedVirtueCard: {
-    borderColor: selectedVirtue?.color || theme?.colors.primary,
+    borderColor: selectedVirtue?.color_code || theme?.colors.primary,
     borderWidth: 2,
-    backgroundColor: `${selectedVirtue?.color || theme?.colors.primary}05`,
+    backgroundColor: `${selectedVirtue?.color_code || theme?.colors.primary}05`,
   },
   virtueGradient: {
     ...StyleSheet.absoluteFillObject,
@@ -986,6 +793,11 @@ const createStyles = (theme: Theme, selectedVirtue?: Virtue | null) => StyleShee
     ...theme?.typography.heading.small,
     color: theme?.colors.text.primary,
     marginBottom: theme?.spacing.xs,
+  },
+  virtueDescription: {
+    ...theme?.typography.body.sans,
+    color: theme?.colors.text.secondary,
+    marginBottom: theme?.spacing.sm,
   },
   progressContainer: {
     marginTop: theme?.spacing.sm,
@@ -1025,9 +837,9 @@ const createStyles = (theme: Theme, selectedVirtue?: Virtue | null) => StyleShee
     overflow: 'hidden',
   },
   selectedLevelCard: {
-    borderColor: selectedVirtue?.color || theme?.colors.primary,
+    borderColor: selectedVirtue?.color_code || theme?.colors.primary,
     borderWidth: 2,
-    backgroundColor: `${selectedVirtue?.color || theme?.colors.primary}05`,
+    backgroundColor: `${selectedVirtue?.color_code || theme?.colors.primary}05`,
   },
   lockedLevelCard: {
     opacity: 0.6,
@@ -1080,7 +892,7 @@ const createStyles = (theme: Theme, selectedVirtue?: Virtue | null) => StyleShee
   },
   progressBarFill: {
     height: '100%',
-    backgroundColor: selectedVirtue?.color || theme?.colors.primary,
+    backgroundColor: selectedVirtue?.color_code || theme?.colors.primary,
     borderRadius: theme?.borderRadius.full,
   },
   questionCounter: {
@@ -1131,8 +943,8 @@ const createStyles = (theme: Theme, selectedVirtue?: Virtue | null) => StyleShee
     backgroundColor: theme?.colors.background,
   },
   selectedOptionButton: {
-    borderColor: selectedVirtue?.color || theme?.colors.primary,
-    backgroundColor: `${selectedVirtue?.color || theme?.colors.primary}10`,
+    borderColor: selectedVirtue?.color_code || theme?.colors.primary,
+    backgroundColor: `${selectedVirtue?.color_code || theme?.colors.primary}10`,
   },
   correctOptionButton: {
     borderColor: theme?.colors.success,
@@ -1174,7 +986,7 @@ const createStyles = (theme: Theme, selectedVirtue?: Virtue | null) => StyleShee
     padding: theme?.spacing.md,
     marginBottom: theme?.spacing.md,
     borderLeftWidth: 3,
-    borderLeftColor: selectedVirtue?.color || theme?.colors.primary,
+    borderLeftColor: selectedVirtue?.color_code || theme?.colors.primary,
   },
   scriptureText: {
     ...theme?.typography.body.serif,

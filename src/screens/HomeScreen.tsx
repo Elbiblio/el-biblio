@@ -8,6 +8,7 @@ import {
   Dimensions,
   Platform,
   Modal,
+  RefreshControl,
 } from 'react-native';
 import Animated, {
   useSharedValue,
@@ -37,7 +38,8 @@ import {
   Lightning,
 } from './../components/Icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Challenge, Reflection, RootStackParamList, Verse } from '@/types';
+import { Reflection, RootStackParamList, Verse, User } from '@/types';
+import { Challenge } from '@/types/challenges';
 import AvatarStack from '@/components/AvatarStack';
 import CircleButton from '@/components/CircleButton';
 import { Theme } from '@/theme';
@@ -46,12 +48,18 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { SCREEN_DIMENSIONS } from '@/constants';
 import { useVerseStore } from '@/stores/verse';
 import { useAuth } from '@/stores/auth';
+import { useChallengeStore } from '@/stores/challenge';
+import { useReflectionStore } from '@/stores/reflection';
+import { useLeaderboardStore } from '@/stores/leaderboard';
 import AuthModal from '@/components/AuthModal';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+
 import { AppState, AppStateStatus } from 'react-native';
 import PointsEarnedModal from '@/components/PointsEarnedModal';
 import { useNavigation } from '@react-navigation/native';
 import { useMeditationStore } from '@/stores/meditation';
+import { useWebSocket } from '@/services/websocket';
+import * as Haptics from 'expo-haptics';
+
 
 const WELCOME_BACK_THRESHOLD = 10 * 60 * 1000; // 10 minutes in milliseconds
 const MAX_ACTIVE_TIME = 30 * 60 * 1000; // 30 minutes in milliseconds
@@ -67,12 +75,17 @@ interface TimeTracking {
 const AnimatedBlurView = Animated.createAnimatedComponent(BlurView);
 const CARD_WIDTH = SCREEN_DIMENSIONS.width * 0.9;
 
-const QuickActionCard = ({ action, index, actionStyles, onPress }: { action: any; index: number, actionStyles: any, onPress: any }) => {
+const QuickActionCard = ({ action, index, actionStyles, onPress }: { 
+  action: any; 
+  index: number, 
+  actionStyles: any, 
+  onPress: (route: keyof RootStackParamList) => void 
+}) => {
   return (
     <TouchableOpacity
       style={actionStyles.actionCard}
       activeOpacity={0.7}
-      onPress={onPress}
+      onPress={() => onPress(action.route)}
     >
       <LinearGradient
         colors={[`${action.color}08`, `${action.color}03`]}
@@ -85,7 +98,7 @@ const QuickActionCard = ({ action, index, actionStyles, onPress }: { action: any
           <action.icon size={20} color={action.color} />
         </View>
         <Text style={[actionStyles.actionText, { color: action.color }]}>
-          {action.label}
+          {action.title}
         </Text>
       </View>
     </TouchableOpacity>
@@ -139,6 +152,7 @@ const HomeScreen: React.FC<HomeProps> = ({ navigation, route }) => {
   const [isFirstVisitToday, setIsFirstVisitToday] = useState(false);
   const [showGamesModal, setShowGamesModal] = useState(false);
   const [showPointsModal, setShowPointsModal] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const meditationComplete = route.params?.meditationComplete || false;
   const challenge = route.params?.challenge;
@@ -152,6 +166,7 @@ const HomeScreen: React.FC<HomeProps> = ({ navigation, route }) => {
   const [appState, setAppState] = useState(AppState.currentState);
   const { user, updateUserTime, updateUserPoints } = useAuth();
   const { completeChallenge } = useMeditationStore();
+  const { isConnected } = useWebSocket();
   const [timeTracking, setTimeTracking] = useState<TimeTracking>({
     lastActiveTimestamp: Date.now(),
     totalActiveTime: user?.total_active_time || 0,
@@ -189,35 +204,29 @@ const HomeScreen: React.FC<HomeProps> = ({ navigation, route }) => {
 
   const loadTimeTracking = async () => {
     try {
-      const savedTracking = await AsyncStorage.getItem('time_tracking');
-      if (savedTracking) {
-        const parsed = JSON.parse(savedTracking);
-        const today = new Date().setHours(0, 0, 0, 0);
-
-        // Reset tracking if it's a new day
-        if (parsed.dayStartTimestamp !== today) {
-          const newTracking = {
-            lastActiveTimestamp: Date.now(),
-            totalActiveTime: 0,
-            lastSyncedTime: 0,
-            dayStartTimestamp: today,
-          };
-          setTimeTracking(newTracking);
-          await saveTimeTracking(newTracking);
-        } else {
-          setTimeTracking(parsed);
-        }
-      }
+      // Load time tracking from user store instead of AsyncStorage
+      const savedTracking: TimeTracking = {
+        lastActiveTimestamp: Date.now(),
+        totalActiveTime: user?.total_active_time || 0,
+        lastSyncedTime: user?.total_active_time || 0,
+        dayStartTimestamp: new Date().setHours(0, 0, 0, 0),
+      };
+      
+      setTimeTracking(savedTracking);
     } catch (error) {
-      console.error('Error loading time tracking:', error);
+      console.error('Failed to load time tracking:', error);
     }
   };
 
   const saveTimeTracking = async (tracking: TimeTracking) => {
     try {
-      await AsyncStorage.setItem('time_tracking', JSON.stringify(tracking));
+      // Update time tracking through user store instead of AsyncStorage
+      // The user store will handle the API call to update total_active_time
+      if (user) {
+        await updateUserTime(tracking.totalActiveTime);
+      }
     } catch (error) {
-      console.error('Error saving time tracking:', error);
+      console.error('Failed to save time tracking:', error);
     }
   };
 
@@ -273,12 +282,36 @@ const HomeScreen: React.FC<HomeProps> = ({ navigation, route }) => {
   const {
     dailyVerses,
     isDailyVersesLoading,
-    fetchDailyVerses
+    fetchDailyVerses,
   } = useVerseStore();
+
+  const {
+    personalChallenges,
+    communityChallenges,
+    fetchPersonalChallenges,
+    fetchCommunityChallenges,
+    isPersonalLoading,
+    isCommunityLoading,
+  } = useChallengeStore();
+
+  const {
+    reflections,
+    fetchReflections,
+    isReflectionsLoading,
+  } = useReflectionStore();
+
+  const {
+    globalLeaderboard,
+    fetchGlobalLeaderboard,
+  } = useLeaderboardStore();
 
   useEffect(() => {
     fetchDailyVerses();
-  }, []);
+    fetchPersonalChallenges(1);
+    fetchCommunityChallenges(1);
+    fetchReflections(1, { sortBy: 'likes', sortOrder: 'desc' });
+    fetchGlobalLeaderboard();
+  }, [fetchDailyVerses, fetchPersonalChallenges, fetchCommunityChallenges, fetchReflections, fetchGlobalLeaderboard]);
 
   useEffect(() => {
     checkFirstVisit();
@@ -286,13 +319,12 @@ const HomeScreen: React.FC<HomeProps> = ({ navigation, route }) => {
 
   const checkFirstVisit = async () => {
     try {
-      const lastVisit = await AsyncStorage.getItem('last_visit_date');
+      // Check first visit using user store or API
+      // For now, we'll use a simple approach
       const today = new Date().toDateString();
-
-      if (lastVisit !== today) {
-        setIsFirstVisitToday(true);
-        await AsyncStorage.setItem('last_visit_date', today);
-      }
+      // For now, we'll just check if it's the first visit today
+      // This can be enhanced when the API supports last_visit_date
+      setIsFirstVisitToday(true);
     } catch (error) {
       console.error('Error checking first visit:', error);
     }
@@ -400,11 +432,12 @@ const HomeScreen: React.FC<HomeProps> = ({ navigation, route }) => {
     );
   };
 
-  const handleScroll = (event: any) => {
+  const handleScroll = (event: { nativeEvent: { contentOffset: { y: number } } }) => {
     scrollY.value = event.nativeEvent.contentOffset.y;
   };
 
   const handleVersePress = (verse: Verse) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setActiveVerse(verse.id);
     cardScale.value = withSequence(
       withTiming(0.95, { duration: 100 }),
@@ -413,14 +446,14 @@ const HomeScreen: React.FC<HomeProps> = ({ navigation, route }) => {
     navigation.navigate("VerseDetail", { verse });
   };
 
-  const handleVerseScroll = useCallback((event: any) => {
-    const x = event.nativeEvent.contentOffset.x;
-    scrollX.value = x;
-    const newIndex = Math.round(x / (CARD_WIDTH + theme?.spacing.sm));
+  const handleVerseScroll = useCallback((event: { nativeEvent: { contentOffset: { x: number } } }) => {
+    scrollX.value = event.nativeEvent.contentOffset.x;
+    const newIndex = Math.round(event.nativeEvent.contentOffset.x / (CARD_WIDTH + theme?.spacing.sm));
     setCurrentVerseIndex(newIndex);
   }, []);
 
   const handleQuickActionPress = (route: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     if (!user && route !== 'BibleScreen') {
       setShowAuthModal(true);
       return;
@@ -428,10 +461,35 @@ const HomeScreen: React.FC<HomeProps> = ({ navigation, route }) => {
     navigation.navigate(route as any);
   };
 
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      await Promise.all([
+        fetchDailyVerses(),
+        fetchPersonalChallenges(1),
+        fetchCommunityChallenges(1),
+        fetchReflections(1, { sortBy: 'likes', sortOrder: 'desc' }),
+        fetchGlobalLeaderboard(),
+      ]);
+    } catch (error) {
+      console.error('Error refreshing data:', error);
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
   const renderHeader = () => (
     <View style={styles.header}>
       <View style={styles.headerContent}>
-        <Text style={styles.appTitle}>ELBIBLIO v1.1</Text>
+        <View style={styles.headerLeft}>
+          <Text style={styles.appTitle}>ELBIBLIO v1.1</Text>
+          {isConnected && (
+            <View style={styles.connectionIndicator}>
+              <View style={[styles.connectionDot, { backgroundColor: theme?.colors.success }]} />
+              <Text style={styles.connectionText}>Live</Text>
+            </View>
+          )}
+        </View>
         {user ? (
           <TouchableOpacity
             style={styles.pointsContainer}
@@ -530,11 +588,11 @@ const HomeScreen: React.FC<HomeProps> = ({ navigation, route }) => {
 
   // Calculate challenge progress based on time
   const calculateChallengeProgress = (challenge: Challenge): number => {
-    if (!challenge.start_time || !challenge.end_time) return 0;
+    if (!challenge.createdAt || !challenge.expiresAt) return 0;
     
     const now = new Date().getTime();
-    const startTime = new Date(challenge.start_time).getTime();
-    const endTime = new Date(challenge.end_time).getTime();
+    const startTime = new Date(challenge.createdAt).getTime();
+    const endTime = new Date(challenge.expiresAt).getTime();
     
     // If challenge is completed or time has passed
     if (now >= endTime) return 100;
@@ -561,41 +619,61 @@ const HomeScreen: React.FC<HomeProps> = ({ navigation, route }) => {
     }
   };
   
-  // Render Daily Challenges Section with data from user store
+  // Render Daily Challenges Section with real API data
   const renderDailyChallenges = () => {
     const challengeAnimatedStyle = useAnimatedStyle(() => ({
       opacity: challengeOpacity.value,
     }));
+
+    // Show loading state
+    if (isPersonalLoading || isCommunityLoading) {
+      return (
+        <Animated.View style={[styles.section, challengeAnimatedStyle]}>
+          <View style={styles.sectionHeaderWithAction}>
+            <Text style={styles.sectionTitle}>DAILY CHALLENGES</Text>
+            <TouchableOpacity 
+              style={styles.viewAllButton}
+              onPress={() => navigation.navigate('DailyChallengeScreen')}
+            >
+              <Text style={styles.viewAllText}>View All</Text>
+              <ChevronRight size={16} color={theme?.colors.primary} />
+            </TouchableOpacity>
+          </View>
+          <View style={styles.loadingContainer}>
+            <Text style={styles.loadingText}>Loading challenges...</Text>
+          </View>
+        </Animated.View>
+      );
+    }
     
-    // Get active challenges from user data
-    const activeChallenges = user?.activeChallenges || [];
-    // Filter for daily challenges
-    const dailyChallenges = activeChallenges.filter(
-      challenge => challenge.frequency === 'd' || challenge.category === 'personal'
-    );
-    
-    // Use fallback challenge if none found
-    const personalChallenge = dailyChallenges.find(c => c.category === 'personal') || {
+    // Use real API data from challenge store
+    const personalChallenge = personalChallenges[0] || {
       id: 'default-personal',
       title: 'Write 3 gratitude notes',
       description: 'Practice gratitude by writing 3 gratitude notes',
       category: 'personal',
-      emoji: '🌱',
       type: 'virtue' as const,
-      mode: 'attitude' as const,
+      endTime: '21:00',
+      createdAt: new Date().toISOString(),
+      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+      isCompleted: false,
+      userId: user?.id || '',
     };
     
-    // Get community challenge
-    const communityChallenge = dailyChallenges.find(c => c.category === 'community') || {
+    // Get community challenge from API
+    const communityChallenge = communityChallenges[0] || {
       id: 'default-community',
       title: 'Group fasting till 3pm',
       description: 'Join a group of people to fast till 3pm',
       category: 'community',
-      emoji: '🤝',
       type: 'virtue' as const,
-      mode: 'action' as const,
-      total_participants: 23,
-      top_participants: [],
+      endTime: '15:00',
+      createdAt: new Date().toISOString(),
+      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+      isCompleted: false,
+      userId: 'community',
+      participants: 23,
+      participantAvatars: [],
     };
     
     // Calculate progress for personal challenge
@@ -621,7 +699,7 @@ const HomeScreen: React.FC<HomeProps> = ({ navigation, route }) => {
             <Text style={styles.challengeType}>Personal:</Text>
           </View>
           <Text style={styles.challengeText}>
-            <Text style={styles.challengeIcon}>{personalChallenge.emoji || '🌱'}</Text> {personalChallenge.title}
+            <Text style={styles.challengeIcon}>🌱</Text> {personalChallenge.title}
           </Text>
           <View style={styles.progressContainer}>
             <View style={styles.progressBar}>
@@ -656,22 +734,22 @@ const HomeScreen: React.FC<HomeProps> = ({ navigation, route }) => {
             <Text style={styles.challengeType}>Community:</Text>
           </View>
           <Text style={styles.challengeText}>
-            <Text style={styles.challengeIcon}>{communityChallenge.emoji || '🤝'}</Text> {communityChallenge.title}
+            <Text style={styles.challengeIcon}>🤝</Text> {communityChallenge.title}
           </Text>
           <View style={styles.communityStats}>
             <View style={styles.avatarContainer}>
               <AvatarStack
-                users={communityChallenge.top_participants || [
-                  { id: '1', avatar: '', first_name: 'User1', last_name: 'User1' },
-                  { id: '2', avatar: '', first_name: 'User2', last_name: 'User2' },
-                  { id: '3', avatar: '', first_name: 'User3', last_name: 'User3' },
-                ]}
+                users={(communityChallenge.participantAvatars || [
+                  { id: '1', avatar: '', first_name: 'User1', last_name: 'User1', points: 0, role: 2, is_active: true, primary_language: 'en', created_at: '', updated_at: '' },
+                  { id: '2', avatar: '', first_name: 'User2', last_name: 'User2', points: 0, role: 2, is_active: true, primary_language: 'en', created_at: '', updated_at: '' },
+                  { id: '3', avatar: '', first_name: 'User3', last_name: 'User3', points: 0, role: 2, is_active: true, primary_language: 'en', created_at: '', updated_at: '' },
+                ]) as User[]}
                 maxAvatars={3}
                 size={24}
               />
             </View>
             <Text style={styles.participantsText}>
-              {communityChallenge.total_participants || 0} people joined
+              {communityChallenge.participants || 0} people joined
             </Text>
           </View>
           <TouchableOpacity 
@@ -918,12 +996,22 @@ const HomeScreen: React.FC<HomeProps> = ({ navigation, route }) => {
     });
   };
 
+
+
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <ScrollView
         onScroll={handleScroll}
         scrollEventThrottle={16}
         contentContainerStyle={styles.scrollContent}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={handleRefresh}
+            colors={[theme?.colors.primary]}
+            tintColor={theme?.colors.primary}
+          />
+        }
       >
         {renderHeader()}
         {renderQuickTools()}
@@ -1032,6 +1120,30 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+  },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme?.spacing.sm,
+  },
+  connectionIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme?.spacing.xs,
+  },
+  connectionDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  connectionText: {
+    ...theme?.typography.caption.secondary,
+    fontSize: 10,
+    fontWeight: '600',
+  },
+  loadingContainer: {
+    alignItems: 'center',
+    paddingVertical: theme?.spacing.xl,
   },
   appTitle: {
     ...theme?.typography.heading.medium,

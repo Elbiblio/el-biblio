@@ -32,11 +32,14 @@ import { type RootStackParamList, type AllVirtues, Note } from '@/types';
 import NoteEditor from '@/components/NoteEditor';
 import VirtuePicker from '@/components/VirtuePicker';
 import { getNotePastel } from '@/utils/notes';
-import { useNoteStore } from '@/stores/notes';
+import { useNotesStore } from '@/stores/notes';
 import { toast } from 'sonner-native';
 import NoteCard from '@/components/NoteCard';
 import { useGuestRestrictions } from '@/hooks/useGuestRestrictions';
 import GuestRestrictionModal from '@/components/GuestRestrictionModal';
+import { useWebSocket } from '@/services/websocket';
+import * as Haptics from 'expo-haptics';
+import { RefreshControl } from 'react-native';
 
 export type NotesScreenProps = NativeStackScreenProps<RootStackParamList, 'NotesScreen'>;
 
@@ -48,15 +51,16 @@ const NotesScreen: React.FC<NotesScreenProps> = ({ navigation, route }) => {
 
   const {
     notes,
-    isLoading,
+    isNotesLoading: isLoading,
     fetchNotes,
-    addNote,
+    createNote: addNote,
     updateNote,
     deleteNote,
-    togglePin,
-    initialize,
-    syncNotes
-  } = useNoteStore();
+    clearErrors,
+    setFilters,
+    resetFilters,
+    pagination,
+  } = useNotesStore();
 
   const [isInitialLoad, setIsInitialLoad] = useState(true);
   const [selectedVirtues, setSelectedVirtues] = useState<AllVirtues[]>([]);
@@ -73,25 +77,39 @@ const NotesScreen: React.FC<NotesScreenProps> = ({ navigation, route }) => {
   const [showFeaturedOnly, setShowFeaturedOnly] = useState(false);
   const [isSearchingCommunity, setIsSearchingCommunity] = useState(false);
   const [showRestrictionModal, setShowRestrictionModal] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const { restrictions } = useGuestRestrictions();
+  const { isConnected } = useWebSocket();
 
   useEffect(() => {
     const initializeData = async () => {
-      await initialize();
+      await fetchNotes(1);
       setIsInitialLoad(false);
     };
 
     initializeData();
-  }, [initialize]);
-
-  useEffect(() => {
-    fetchNotes({ include: ['virtues'] });
   }, [fetchNotes]);
 
   useEffect(() => {
-    const syncInterval = setInterval(syncNotes, 1000 * 60 * 5); // 5 minutes
-    return () => clearInterval(syncInterval);
-  }, [syncNotes]);
+    fetchNotes(1);
+  }, [fetchNotes]);
+
+  // Handle load more
+  const handleLoadMore = useCallback(() => {
+    if (pagination.hasMore && !isLoading) {
+      fetchNotes(pagination.currentPage + 1);
+    }
+  }, [pagination.hasMore, pagination.currentPage, isLoading, fetchNotes]);
+
+  // Handle refresh
+  const handleRefresh = useCallback(async () => {
+    setIsRefreshing(true);
+    try {
+      await fetchNotes(1);
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [fetchNotes]);
 
   if (isInitialLoad) {
     return (
@@ -105,7 +123,7 @@ const NotesScreen: React.FC<NotesScreenProps> = ({ navigation, route }) => {
     return notes.filter(note => {
       const matchesSearch = 
         searchQuery === '' || 
-        note.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (note.title && note.title.toLowerCase().includes(searchQuery.toLowerCase())) ||
         (note.text && note.text.toLowerCase().includes(searchQuery.toLowerCase()));
       
       const matchesVirtues = 
@@ -137,6 +155,7 @@ const NotesScreen: React.FC<NotesScreenProps> = ({ navigation, route }) => {
   }, [filteredNotes]);
 
   const handleViewNote = useCallback((note: Note) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setActiveNote({
       note,
       mode: 'read',
@@ -156,6 +175,7 @@ const NotesScreen: React.FC<NotesScreenProps> = ({ navigation, route }) => {
       return;
     }
     
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setActiveNote({
       note: null,
       mode: 'create',
@@ -172,21 +192,19 @@ const NotesScreen: React.FC<NotesScreenProps> = ({ navigation, route }) => {
     let result: Note | null;
     if (activeNote.mode === 'edit' && activeNote.note) {
       // Update existing note
-      result = await updateNote({
-        ...activeNote.note,
+      const success = await updateNote(activeNote.note.id, {
         title,
         text: content,
         virtues,
-        color: getNotePastel(virtues),
         is_public: activeNote.note.is_public
       });
+      result = success ? activeNote.note : null;
     } else {
       // Create new note
       result = await addNote({
         title,
         text: content,
         virtues,
-        color: getNotePastel(virtues),
         is_public: false
       });
     }
@@ -200,25 +218,30 @@ const NotesScreen: React.FC<NotesScreenProps> = ({ navigation, route }) => {
 
   const handleDeleteNote = useCallback(async (noteId: string) => {
     try {
-      await deleteNote(noteId);
-      handleCloseNote();
-      toast.success("Note deleted successfully");
+      const success = await deleteNote(noteId);
+      if (success) {
+        handleCloseNote();
+        toast.success("Note deleted successfully");
+      } else {
+        toast.error("Error deleting note");
+      }
     } catch (error) {
       console.error('Error deleting note:', error);
       toast.error("Error deleting note");
     }
-  }, [deleteNote]);
+  }, [deleteNote, handleCloseNote]);
 
   const handleToggleVisibility = useCallback(async () => {
     if (activeNote.note) {
-      await updateNote({
-        ...activeNote.note,
+      const success = await updateNote(activeNote.note.id, {
         is_public: !activeNote.note.is_public
       });
-      setActiveNote(prev => ({
-        ...prev,
-        note: prev.note ? { ...prev.note, is_public: !prev.note.is_public } : null
-      }));
+      if (success) {
+        setActiveNote(prev => ({
+          ...prev,
+          note: prev.note ? { ...prev.note, is_public: !prev.note.is_public } : null
+        }));
+      }
     }
   }, [activeNote, updateNote]);
 
@@ -278,9 +301,17 @@ const NotesScreen: React.FC<NotesScreenProps> = ({ navigation, route }) => {
           <TouchableOpacity onPress={() => navigationNative.goBack()}>
             <ArrowLeft size={24} color={theme.colors.text.primary} />
           </TouchableOpacity>
-          <Text style={styles.title}>
-            {showPublicNotes ? 'Community Notes' : 'My Notes'}
-          </Text>
+          <View style={styles.titleContainer}>
+            <Text style={styles.title}>
+              {showPublicNotes ? 'Community Notes' : 'My Notes'}
+            </Text>
+            {isConnected && (
+              <View style={styles.connectionIndicator}>
+                <View style={[styles.connectionDot, { backgroundColor: theme.colors.success }]} />
+                <Text style={styles.connectionText}>Live</Text>
+              </View>
+            )}
+          </View>
           <View style={styles.headerActions}>
             <TouchableOpacity 
               style={[styles.visibilityToggle, showPublicNotes && styles.activeToggle]}
@@ -369,6 +400,16 @@ const NotesScreen: React.FC<NotesScreenProps> = ({ navigation, route }) => {
           keyExtractor={item => item.id.toString()}
           numColumns={isGridView ? 2 : 1}
           contentContainerStyle={styles.listContent}
+          refreshControl={
+            <RefreshControl
+              refreshing={isRefreshing}
+              onRefresh={handleRefresh}
+              colors={[theme.colors.primary]}
+              tintColor={theme.colors.primary}
+            />
+          }
+          onEndReached={handleLoadMore}
+          onEndReachedThreshold={0.5}
           ListHeaderComponent={() => (
             <>
               {showPublicNotes && (
@@ -408,6 +449,14 @@ const NotesScreen: React.FC<NotesScreenProps> = ({ navigation, route }) => {
             </>
           )}
           ListEmptyComponent={ListEmptyComponent}
+          ListFooterComponent={
+            isLoading && pagination.currentPage > 1 ? (
+              <View style={styles.loadingMoreContainer}>
+                <ActivityIndicator size="small" color={theme.colors.primary} />
+                <Text style={styles.loadingMoreText}>Loading more notes...</Text>
+              </View>
+            ) : null
+          }
           showsVerticalScrollIndicator={false}
           key={isGridView ? 'grid' : 'list'}
         />
@@ -475,6 +524,26 @@ export const createStyles = (theme: Theme) => StyleSheet.create({
   title: {
     ...theme.typography.heading.small,
     color: theme.colors.text.primary,
+  },
+  titleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
+  },
+  connectionIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.xs,
+  },
+  connectionDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  connectionText: {
+    ...theme.typography.caption.secondary,
+    fontSize: 10,
+    fontWeight: '600',
   },
   searchContainer: {
     flexDirection: 'row',
@@ -726,6 +795,16 @@ export const createStyles = (theme: Theme) => StyleSheet.create({
   },
   activeSearchMode: {
     backgroundColor: theme.colors.primary,
+  },
+  loadingMoreContainer: {
+    padding: theme.spacing.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadingMoreText: {
+    ...theme.typography.caption.secondary,
+    color: theme.colors.text.secondary,
+    marginTop: theme.spacing.sm,
   },
 });
 

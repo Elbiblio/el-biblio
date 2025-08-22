@@ -10,19 +10,23 @@ import {
   Modal,
   Platform,
   Alert,
-  ActivityIndicator
+  ActivityIndicator,
+  RefreshControl
 } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { MaterialIcons } from '@expo/vector-icons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTheme } from '@/contexts/ThemeContext';
 import { Theme } from '@/theme';
 import BiblePicker from '@/components/BiblePicker';
 import BookSelector from '@/components/BookSelector';
-import { Book, BibleVersion, BibleVerse, VerseActivityMap } from '@/types';
+import { Book, BibleVersion, BibleVerse } from '@/types';
 import { bibleBooks } from '@/constants/bibleBooks';
-import BibleDBService, { generateVPLId, parseVPLId } from '@/utils/database';
 import { Brush, BrushOutlined, SizeDecrease, SizeIncrease } from '@/components/Icons';
+import { useBibleStore } from '@/stores/bible';
+import { useNetworkStatus } from '@/hooks/useNetworkStatus';
+import { parseVPLId } from '@/utils/database';
+import { toast } from 'sonner-native';
+import * as Haptics from 'expo-haptics';
 
 interface BibleScreenProps {
   route?: { params?: { book?: string; chapter?: number; verse?: number } };
@@ -33,34 +37,61 @@ const BibleScreen: React.FC<BibleScreenProps> = ({ route }) => {
   const styles = useMemo(() => createStyles(theme), [theme]);
   const verseListRef = useRef<FlatList>(null);
   
-  // State management
-  const [installedVersions, setInstalledVersions] = useState<string[]>([]);
-  const [currentVersion, setCurrentVersion] = useState<BibleVersion>({
-    englishName: 'Revised Version',
-    tableName: 'eng_rv_vpl',
-    shortName: 'RV',
-    downloadUrl: 'https://api.elbiblio.com/dbs/rv.db',
-    preinstalled: true,
-    dbFilename: 'rv.db'
-  });
-  const [currentBook, setCurrentBook] = useState<Book>(bibleBooks[0]);
+  // Network status
+  const { isOffline } = useNetworkStatus();
 
-  const [currentChapter, setCurrentChapter] = useState(1);
-  const [verses, setVerses] = useState<BibleVerse[]>([]);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<BibleVerse[]>([]);
-  const [fontSize, setFontSize] = useState(16);
-  const [history, setHistory] = useState<Array<{ book: Book; chapter: number }>>([]);
+  // Bible store
+  const {
+    currentBook,
+    currentChapter,
+    currentVersion,
+    verses,
+    searchResults,
+    isVersesLoading,
+    isSearchLoading,
+    isInstallingVersion,
+    versesError,
+    searchError,
+    installError,
+    highlightedVerses,
+    bookmarkedVerses,
+    fontSize,
+    searchQuery,
+    showSearch,
+    showActivityPanel,
+    selectedVerseId,
+    installedVersions,
+    availableVersions,
+    isVersionsLoading,
+    pagination,
+    isOffline: bibleOffline,
+    fetchVerses,
+    searchVerses,
+    fetchBibleVersions,
+    installVersion,
+    toggleHighlight,
+    toggleBookmark,
+    likeVerse,
+    shareVerse,
+    setCurrentBook,
+    setCurrentChapter,
+    setCurrentVersion,
+    setFontSize,
+    setSearchQuery,
+    setShowSearch,
+    setShowActivityPanel,
+    setSelectedVerseId,
+    clearErrors,
+    clearSearch,
+    loadUserPreferences,
+    saveUserPreferences,
+    syncUserInteractions,
+    setIsOffline,
+  } = useBibleStore();
+
+  // Local state for UI
   const [showVersionsModal, setShowVersionsModal] = useState(false);
-  const [bibleVersions, setBibleVersions] = useState<BibleVersion[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [highlightedVerses, setHighlightedVerses] = useState<Set<string>>(new Set());
-  const [bookmarkedVerses, setBookmarkedVerses] = useState<Set<string>>(new Set());
-  const [verseActivity, setVerseActivity] = useState<VerseActivityMap>({});
-  const [showActivityPanel, setShowActivityPanel] = useState(false);
-  const [selectedVerseId, setSelectedVerseId] = useState<string | null>(null);
-  const [showSearch, setShowSearch] = useState(false);
-  const [isInstalling, setIsInstalling] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   // Handle initial params
   useEffect(() => {
@@ -80,7 +111,7 @@ const BibleScreen: React.FC<BibleScreenProps> = ({ route }) => {
             if (verse) {
               setTimeout(() => {
                 const verseIndex = verses.findIndex(v => {
-                  const { verse: verseNum } = parseVPLId(v.id);
+                  const verseNum = parseInt(v.id.split(':')[2] || '1');
                   return verseNum === verse;
                 });
                 if (verseIndex !== -1) {
@@ -98,112 +129,91 @@ const BibleScreen: React.FC<BibleScreenProps> = ({ route }) => {
     }
   }, [route?.params]);
 
-  // Modified initialization
+  // Update offline status in Bible store
   useEffect(() => {
-    let mounted = true;
-    
+    setIsOffline(isOffline);
+  }, [isOffline, setIsOffline]);
+
+  // Initialize Bible
+  useEffect(() => {
     const initializeBible = async () => {
       try {
-        setLoading(true);
-        await BibleDBService.initialize();
+        await loadUserPreferences();
+        await fetchBibleVersions();
         
-        if (!mounted) return;
-        
-        // Get installed versions first
-        const installed = await BibleDBService.getInstalledVersions();
-        if (mounted) {
-          setInstalledVersions(installed);
-          
-          // Only show install alert if no versions are installed AND we haven't already started installing
-          if (installed.length === 0 && !isInstalling) {
-            setIsInstalling(true);
-            await handleInstallVersion('eng_rv_vpl');
-          }
-          
-          // Set current version to first installed version or default
-          if (installed.length > 0 && !currentVersion) {
-            setCurrentVersion(bibleVersions.find(v => v.dbFilename === installed[0]) || bibleVersions[0]);
-          }
+        // Set default version if none selected
+        if (!currentVersion && availableVersions.length > 0) {
+          const defaultVersion = availableVersions.find(v => v.preinstalled) || availableVersions[0];
+          setCurrentVersion(defaultVersion);
         }
         
-        // Load saved position or use default
-        const lastPosition = await AsyncStorage.getItem('lastBiblePosition');
-        if (mounted && lastPosition) {
-          const { book, chapter } = JSON.parse(lastPosition);
-          const foundBook = bibleBooks.find(b => b.abbreviation === book);
-          if (foundBook) {
-            setCurrentBook(foundBook);
-            setCurrentChapter(chapter);
-          }
-        } else if (mounted) {
-          // Default to Genesis 1
+        // Set default book if none selected
+        if (!currentBook) {
           setCurrentBook(bibleBooks[0]);
-          setCurrentChapter(1);
+        }
+        
+        // Sync user interactions if online
+        if (!isOffline) {
+          await syncUserInteractions();
         }
         
       } catch (error) {
         console.error('Failed to initialize Bible:', error);
-        if (mounted) {
-          Alert.alert(
-            'Error',
-            'Failed to initialize Bible. Please try restarting the app.',
-            [{ text: 'OK' }]
-          );
-        }
-      } finally {
-        if (mounted) {
-          setLoading(false);
-        }
+        toast.error('Failed to initialize Bible. Please try restarting the app.');
       }
     };
 
     initializeBible();
-    return () => { mounted = false; };
-  }, []);
+  }, [loadUserPreferences, fetchBibleVersions, currentVersion, availableVersions, setCurrentVersion, setCurrentBook, currentBook, isOffline, syncUserInteractions]);
 
   // Fetch verses when book/chapter/version changes
   useEffect(() => {
-    const fetchVerses = async () => {
-      if (!currentBook || !currentVersion) return;
-      
-      setLoading(true);
-      try {
-        const versesData = await BibleDBService.getChapter(
-          currentVersion.tableName,
-          currentBook.abbreviation,
-          currentChapter
-        );
-        
-        const versesArray = versesData.map(v => ({
-          id: generateVPLId(currentBook.abbreviation, currentChapter, v.verse),
-          text: v.text,
-          reference: `${currentBook.name} ${currentChapter}:${v.verse}`
-        }));
-        
-        setVerses(versesArray);
-      } catch (error) {
-        console.error('Error fetching verses:', error);
-        Alert.alert('Error', 'Failed to load verses');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchVerses();
+    if (currentBook && currentVersion) {
+      fetchVerses(currentBook, currentChapter, currentVersion);
+    }
   }, [currentBook, currentChapter, currentVersion]);
 
+  // Handle errors
+  useEffect(() => {
+    if (versesError) {
+      toast.error(versesError);
+      clearErrors();
+    }
+    if (searchError) {
+      toast.error(searchError);
+      clearErrors();
+    }
+    if (installError) {
+      toast.error(installError);
+      clearErrors();
+    }
+  }, [versesError, searchError, installError]);
+
+  // Handle refresh
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    if (currentBook && currentVersion) {
+      await fetchVerses(currentBook, currentChapter, currentVersion, 1);
+    }
+    setRefreshing(false);
+  };
+
+  // Handle load more
+  const handleLoadMore = () => {
+    if (pagination.hasMore && !isVersesLoading && currentBook && currentVersion) {
+      fetchVerses(currentBook, currentChapter, currentVersion, pagination.currentPage + 1);
+    }
+  };
+
   // Handle book installation
-  const handleInstallVersion = async (version: string) => {
+  const handleInstallVersion = async (version: BibleVersion) => {
     try {
-      const versionData = bibleVersions.find(v => v.tableName === version);
-      if (!versionData) throw new Error('Version not found');
-      
-      await BibleDBService.installVersion(versionData);
-      const installed = await BibleDBService.getInstalledVersions();
-      setInstalledVersions(installed);
+      const success = await installVersion(version);
+      if (success) {
+        toast.success(`${version.englishName} installed successfully`);
+      }
     } catch (error) {
-      console.error('Installation failed:', error instanceof Error ? error.message : 'Unknown error');
-      Alert.alert('Installation Failed', error instanceof Error ? error.message : 'Unknown error occurred');
+      console.error('Installation failed:', error);
     }
   };
 
@@ -211,42 +221,36 @@ const BibleScreen: React.FC<BibleScreenProps> = ({ route }) => {
   const handleSearch = useCallback(async (query: string) => {
     if (!query || !currentVersion) return;
     
-    try {
-      const results = await BibleDBService.searchVerses(currentVersion.tableName, query);
-      setSearchResults(results.map(v => {
-        const { bookAbbr, chapter, verse } = parseVPLId(v.verseID);
-        const book = bibleBooks.find(b => b.abbreviation === bookAbbr);
-        return {
-          id: v.verseID,
-          text: v.verseText,
-          reference: `${book?.name} ${chapter}:${verse}`
-        };
-      }));
-    } catch (error) {
-      console.error('Search failed:', error);
-      Alert.alert('Error', 'Search failed');
-    }
-  }, [currentVersion]);
+    setSearchQuery(query);
+    await searchVerses(query, currentVersion);
+  }, [currentVersion, searchVerses, setSearchQuery]);
 
   // Verse interaction handlers
-  const toggleHighlight = useCallback((verseId: string) => {
-    setHighlightedVerses(prev => {
-      const newSet = new Set(prev);
-      newSet.has(verseId) ? newSet.delete(verseId) : newSet.add(verseId);
-      AsyncStorage.setItem('highlightedVerses', JSON.stringify([...newSet]));
-      return newSet;
-    });
-  }, []);
+  const handleToggleHighlight = useCallback(async (verseId: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    const success = await toggleHighlight(verseId);
+    if (success) {
+      await saveUserPreferences();
+    }
+  }, [toggleHighlight, saveUserPreferences]);
 
-  const toggleBookmark = useCallback((verseId: string) => {
-    setBookmarkedVerses(prev => {
-      const newSet = new Set(prev);
-      newSet.has(verseId) ? newSet.delete(verseId) : newSet.add(verseId);
-      AsyncStorage.setItem('bookmarkedVerses', JSON.stringify([...newSet]));
-      return newSet;
-    });
-  }, []);
+  const handleToggleBookmark = useCallback(async (verseId: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    const success = await toggleBookmark(verseId);
+    if (success) {
+      await saveUserPreferences();
+    }
+  }, [toggleBookmark, saveUserPreferences]);
 
+  const handleLikeVerse = useCallback(async (verseId: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    await likeVerse(verseId);
+  }, [likeVerse]);
+
+  const handleShareVerse = useCallback(async (verseId: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    await shareVerse(verseId);
+  }, [shareVerse]);
 
   // Enhanced header with activity panel
   const renderHeader = () => (
@@ -258,21 +262,27 @@ const BibleScreen: React.FC<BibleScreenProps> = ({ route }) => {
             onPress={() => setShowVersionsModal(true)}
           >
             <Text style={styles.headerButtonText}>
-              {currentVersion.shortName}
+              {currentVersion?.shortName || 'RV'}
             </Text>
             <MaterialIcons name="menu-book" size={20} color={theme.colors.text.primary} />
           </TouchableOpacity>
-
+          
+          {isOffline && (
+            <View style={styles.offlineIndicator}>
+              <MaterialIcons name="wifi-off" size={12} color={theme.colors.warning} />
+              <Text style={styles.offlineText}>Offline</Text>
+            </View>
+          )}
 
           <View style={styles.controlsGroup}>
             <BookSelector
-              currentBook={currentBook}
+              currentBook={currentBook || bibleBooks[0]}
               onSelect={setCurrentBook}
             />
             
             <BiblePicker
               value={currentChapter}
-              items={Array.from({ length: currentBook.chapters }, (_, i) => i + 1)}
+              items={Array.from({ length: (currentBook || bibleBooks[0]).chapters }, (_, i) => i + 1)}
               onSelect={setCurrentChapter}
             />
           </View>
@@ -287,14 +297,14 @@ const BibleScreen: React.FC<BibleScreenProps> = ({ route }) => {
           </TouchableOpacity>
 
           <TouchableOpacity 
-            onPress={() => setFontSize(prev => Math.max(12, prev - 2))}
+            onPress={() => setFontSize(Math.max(12, fontSize - 2))}
             style={styles.iconButton}
           >
             <SizeDecrease size={24} color={theme.colors.text.primary} />
           </TouchableOpacity>
 
           <TouchableOpacity 
-            onPress={() => setFontSize(prev => Math.min(24, prev + 2))}
+            onPress={() => setFontSize(Math.min(24, fontSize + 2))}
             style={styles.iconButton}
           >
             <SizeIncrease size={24} color={theme.colors.text.primary} />
@@ -308,7 +318,7 @@ const BibleScreen: React.FC<BibleScreenProps> = ({ route }) => {
             <View style={styles.activityLeft}>
               <TouchableOpacity 
                 style={styles.activityButton}
-                onPress={() => toggleBookmark(selectedVerseId)}
+                onPress={() => handleToggleBookmark(selectedVerseId)}
               >
                 <MaterialIcons 
                   name={bookmarkedVerses.has(selectedVerseId) ? "bookmark" : "bookmark-border"} 
@@ -320,7 +330,7 @@ const BibleScreen: React.FC<BibleScreenProps> = ({ route }) => {
 
               <TouchableOpacity 
                 style={styles.activityButton}
-                onPress={() => toggleHighlight(selectedVerseId)}
+                onPress={() => handleToggleHighlight(selectedVerseId)}
               >
                 {highlightedVerses.has(selectedVerseId) ? (
                   <Brush size={20} color={theme.colors.primary} />
@@ -328,6 +338,22 @@ const BibleScreen: React.FC<BibleScreenProps> = ({ route }) => {
                   <BrushOutlined size={20} color={theme.colors.primary} />
                 )}
                 <Text style={styles.activityButtonText}>Highlight</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity 
+                style={styles.activityButton}
+                onPress={() => handleLikeVerse(selectedVerseId)}
+              >
+                <MaterialIcons name="thumb-up" size={20} color={theme.colors.primary} />
+                <Text style={styles.activityButtonText}>Like</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity 
+                style={styles.activityButton}
+                onPress={() => handleShareVerse(selectedVerseId)}
+              >
+                <MaterialIcons name="share" size={20} color={theme.colors.primary} />
+                <Text style={styles.activityButtonText}>Share</Text>
               </TouchableOpacity>
             </View>
 
@@ -350,36 +376,59 @@ const BibleScreen: React.FC<BibleScreenProps> = ({ route }) => {
   const renderVersionsModal = () => (
     <Modal visible={showVersionsModal} animationType="slide">
       <View style={styles.modalContainer}>
-        <FlatList
-          data={bibleVersions}
-          keyExtractor={(item) => item.tableName}
-          renderItem={({ item }) => (
-            <TouchableOpacity
-              style={styles.versionItem}
-              onPress={() => {
-                setCurrentVersion(item);
-                setShowVersionsModal(false);
-              }}
-            >
-              <Text style={styles.versionName}>
-                {item.englishName} ({item.shortName})
-              </Text>
+        <View style={styles.modalHeader}>
+          <Text style={styles.modalTitle}>Bible Versions</Text>
+          <TouchableOpacity onPress={() => setShowVersionsModal(false)}>
+            <MaterialIcons name="close" size={24} color={theme.colors.text.secondary} />
+          </TouchableOpacity>
+        </View>
+        
+        {isVersionsLoading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={theme.colors.primary} />
+          </View>
+        ) : (
+          <FlatList
+            data={availableVersions}
+            keyExtractor={(item) => item.shortName}
+            renderItem={({ item }) => (
+              <TouchableOpacity
+                style={styles.versionItem}
+                onPress={() => {
+                  setCurrentVersion(item);
+                  setShowVersionsModal(false);
+                }}
+              >
+                <View style={styles.versionInfo}>
+                  <Text style={styles.versionName}>
+                    {item.englishName} ({item.shortName})
+                  </Text>
+                  {item.preinstalled && (
+                    <Text style={styles.versionSubtext}>Pre-installed</Text>
+                  )}
+                </View>
 
-              {installedVersions.includes(item.tableName) ? (
-                <MaterialIcons name="check-circle" size={24} color={theme.colors.primary} />
-              ) : (
-                <TouchableOpacity 
-                  onPress={(e) => {
-                    e.stopPropagation();
-                    handleInstallVersion(item.tableName);
-                  }}
-                >
-                  <MaterialIcons name="download" size={24} color={theme.colors.text.secondary} />
-                </TouchableOpacity>
-              )}
-            </TouchableOpacity>
-          )}
-        />
+                {installedVersions.includes(item.shortName) ? (
+                  <MaterialIcons name="check-circle" size={24} color={theme.colors.primary} />
+                ) : (
+                  <TouchableOpacity 
+                    onPress={(e) => {
+                      e.stopPropagation();
+                      handleInstallVersion(item);
+                    }}
+                    disabled={isInstallingVersion}
+                  >
+                    <MaterialIcons 
+                      name="download" 
+                      size={24} 
+                      color={isInstallingVersion ? theme.colors.text.secondary : theme.colors.primary} 
+                    />
+                  </TouchableOpacity>
+                )}
+              </TouchableOpacity>
+            )}
+          />
+        )}
       </View>
     </Modal>
   );
@@ -396,7 +445,7 @@ const BibleScreen: React.FC<BibleScreenProps> = ({ route }) => {
       ]}>
         <TouchableOpacity 
           style={styles.verseContent}
-          onLongPress={() => toggleHighlight(item.id)}
+          onLongPress={() => handleToggleHighlight(item.id)}
           onPress={() => {
             setSelectedVerseId(item.id);
             setShowActivityPanel(true);
@@ -413,6 +462,49 @@ const BibleScreen: React.FC<BibleScreenProps> = ({ route }) => {
     );
   };
 
+  const ListFooter = () => {
+    if (isVersesLoading && pagination.currentPage > 1) {
+      return (
+        <View style={styles.loadingFooter}>
+          <ActivityIndicator color={theme.colors.primary} />
+          <Text style={styles.loadingText}>Loading more verses...</Text>
+        </View>
+      );
+    }
+    return null;
+  };
+
+  const ListEmpty = () => {
+    if (isVersesLoading) {
+      return (
+        <View style={styles.emptyContainer}>
+          <ActivityIndicator size="large" color={theme.colors.primary} />
+          <Text style={styles.emptyText}>Loading verses...</Text>
+        </View>
+      );
+    }
+
+    if (versesError) {
+      return (
+        <View style={styles.emptyContainer}>
+          <Text style={styles.errorText}>Failed to load verses</Text>
+          <TouchableOpacity 
+            style={styles.retryButton} 
+            onPress={() => currentBook && currentVersion && fetchVerses(currentBook, currentChapter, currentVersion)}
+          >
+            <Text style={styles.retryButtonText}>Retry</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+
+    return (
+      <View style={styles.emptyContainer}>
+        <Text style={styles.emptyText}>No verses available</Text>
+      </View>
+    );
+  };
+
   return (
     <View style={styles.container}>
       <View style={styles.headerContainer}>
@@ -420,30 +512,36 @@ const BibleScreen: React.FC<BibleScreenProps> = ({ route }) => {
       </View>
 
       {/* Content Area */}
-      {loading ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={theme.colors.primary} />
-        </View>
-      ) : (
-        <FlatList
-          ref={verseListRef}
-          data={verses}
-          renderItem={renderVerse}
-          keyExtractor={item => item.id}
-          contentContainerStyle={styles.contentContainer}
-          initialNumToRender={20}
-          maxToRenderPerBatch={10}
-          windowSize={5}
-          onScrollToIndexFailed={info => {
-            setTimeout(() => {
-              verseListRef.current?.scrollToIndex({
-                index: info.index,
-                animated: true
-              });
-            }, 500);
-          }}
-        />
-      )}
+      <FlatList
+        ref={verseListRef}
+        data={verses}
+        renderItem={renderVerse}
+        keyExtractor={item => item.id}
+        contentContainerStyle={styles.contentContainer}
+        initialNumToRender={20}
+        maxToRenderPerBatch={10}
+        windowSize={5}
+        onEndReached={handleLoadMore}
+        onEndReachedThreshold={0.1}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            colors={[theme.colors.primary]}
+            tintColor={theme.colors.primary}
+          />
+        }
+        ListFooterComponent={ListFooter}
+        ListEmptyComponent={ListEmpty}
+        onScrollToIndexFailed={info => {
+          setTimeout(() => {
+            verseListRef.current?.scrollToIndex({
+              index: info.index,
+              animated: true
+            });
+          }, 500);
+        }}
+      />
 
       {/* Search Modal */}
       <Modal
@@ -456,10 +554,7 @@ const BibleScreen: React.FC<BibleScreenProps> = ({ route }) => {
             <TextInput
               style={styles.searchInput}
               value={searchQuery}
-              onChangeText={(text) => {
-                setSearchQuery(text);
-                handleSearch(text);
-              }}
+              onChangeText={handleSearch}
               placeholder="Search Bible..."
               autoFocus
             />
@@ -467,37 +562,43 @@ const BibleScreen: React.FC<BibleScreenProps> = ({ route }) => {
               style={styles.closeButton}
               onPress={() => {
                 setShowSearch(false);
-                setSearchQuery('');
-                setSearchResults([]);
+                clearSearch();
               }}
             >
               <MaterialIcons name="close" size={24} color={theme.colors.text.secondary} />
             </TouchableOpacity>
           </View>
 
-          <FlatList
-            data={searchResults}
-            renderItem={({ item }) => (
-              <TouchableOpacity 
-                style={styles.searchResultItem}
-                onPress={() => {
-                  const { bookAbbr, chapter, verse } = parseVPLId(item.id);
-                  const book = bibleBooks.find(b => b.abbreviation === bookAbbr);
-                  if (book) {
-                    setCurrentBook(book);
-                    setCurrentChapter(chapter);
-                    setShowSearch(false);
-                    setSearchQuery('');
-                    setSearchResults([]);
-                  }
-                }}
-              >
-                <Text style={styles.searchResultReference}>{item.reference}</Text>
-                <Text style={styles.searchResultText}>{item.text}</Text>
-              </TouchableOpacity>
-            )}
-            keyExtractor={item => item.id}
-          />
+          {isSearchLoading ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color={theme.colors.primary} />
+            </View>
+          ) : (
+            <FlatList
+              data={searchResults}
+              renderItem={({ item }) => (
+                <TouchableOpacity 
+                  style={styles.searchResultItem}
+                  onPress={() => {
+                    const parts = item.id.split(':');
+                    const bookAbbr = parts[0];
+                    const chapter = parseInt(parts[1] || '1');
+                    const book = bibleBooks.find(b => b.abbreviation === bookAbbr);
+                    if (book) {
+                      setCurrentBook(book);
+                      setCurrentChapter(chapter);
+                      setShowSearch(false);
+                      clearSearch();
+                    }
+                  }}
+                >
+                  <Text style={styles.searchResultReference}>{item.reference}</Text>
+                  <Text style={styles.searchResultText}>{item.text}</Text>
+                </TouchableOpacity>
+              )}
+              keyExtractor={item => item.id}
+            />
+          )}
         </View>
       </Modal>
 
@@ -622,6 +723,37 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     padding: theme.spacing.md,
     backgroundColor: theme.colors.background,
   },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingBottom: theme.spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
+  },
+  modalTitle: {
+    ...theme.typography.body.sans,
+    color: theme.colors.text.primary,
+  },
+  versionItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: theme.spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
+  },
+  versionInfo: {
+    flex: 1,
+  },
+  versionName: {
+    ...theme.typography.body.sans,
+    color: theme.colors.text.primary,
+  },
+  versionSubtext: {
+    ...theme.typography.caption.secondary,
+    color: theme.colors.text.secondary,
+  },
   activityBar: {
     height: 56,
     paddingHorizontal: theme.spacing.md,
@@ -661,18 +793,58 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     borderRadius: theme.borderRadius.sm,
     backgroundColor: `${theme.colors.primary}10`,
   },
-  versionItem: {
+  loadingFooter: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    padding: theme.spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
+    justifyContent: 'center',
+    paddingVertical: theme.spacing.md,
   },
-  versionName: {
+  loadingText: {
+    ...theme.typography.caption.secondary,
+    color: theme.colors.text.secondary,
+    marginLeft: theme.spacing.sm,
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: theme.spacing.lg,
+  },
+  emptyText: {
     ...theme.typography.body.sans,
-    color: theme.colors.text.primary,
+    color: theme.colors.text.secondary,
+    marginTop: theme.spacing.sm,
   },
+     errorText: {
+     ...theme.typography.body.sans,
+     color: theme.colors.error,
+     textAlign: 'center',
+     marginBottom: theme.spacing.sm,
+   },
+   retryButton: {
+     paddingVertical: theme.spacing.sm,
+     paddingHorizontal: theme.spacing.lg,
+     backgroundColor: theme.colors.primary,
+     borderRadius: theme.borderRadius.md,
+   },
+   retryButtonText: {
+     ...theme.typography.body.sans,
+     color: theme.colors.text.inverse,
+   },
+   offlineIndicator: {
+     flexDirection: 'row',
+     alignItems: 'center',
+     gap: theme.spacing.xs,
+     paddingHorizontal: theme.spacing.sm,
+     paddingVertical: theme.spacing.xs,
+     borderRadius: theme.borderRadius.sm,
+     backgroundColor: `${theme.colors.warning}15`,
+   },
+   offlineText: {
+     ...theme.typography.caption.secondary,
+     color: theme.colors.warning,
+     fontSize: 10,
+   },
 });
 
 

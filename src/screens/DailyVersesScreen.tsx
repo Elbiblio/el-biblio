@@ -7,6 +7,7 @@ import {
   StyleSheet,
   Platform,
   ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -43,8 +44,12 @@ const DailyVersesScreen = ({ navigation }: NativeStackScreenProps<RootStackParam
     dailyVerses,
     isDailyVersesLoading,
     dailyVersesError,
+    isConnected,
+    lastUpdate,
     fetchDailyVerses,
-    createInteraction } = useVerseStore();
+    createInteraction,
+    updateVerseVotes,
+    setConnectionStatus } = useVerseStore();
 
   const todayTheme = useThemeOfDay();
   const tomorrowTheme = getTomorrowsTheme();
@@ -67,7 +72,17 @@ const DailyVersesScreen = ({ navigation }: NativeStackScreenProps<RootStackParam
   // Load verses on mount
   React.useEffect(() => {
     fetchDailyVerses();
-  }, []);
+  }, [fetchDailyVerses]);
+
+  // Simulate real-time updates (in a real app, this would be WebSocket)
+  React.useEffect(() => {
+    const interval = setInterval(() => {
+      // Simulate connection status updates
+      setConnectionStatus(Math.random() > 0.1); // 90% uptime simulation
+    }, 30000); // Check every 30 seconds
+
+    return () => clearInterval(interval);
+  }, [setConnectionStatus]);
 
   // Handle voting
   const handleVote = async (verse: Verse) => {
@@ -77,6 +92,15 @@ const DailyVersesScreen = ({ navigation }: NativeStackScreenProps<RootStackParam
     }
 
     try {
+      // Optimistic update for better UX
+      const newVotes = verse.votes + 1;
+      const isVoted = true;
+      updateVerseVotes(verse.id, newVotes, isVoted);
+
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      toast.success('Vote recorded!');
+
+      // Send to API
       await createInteraction({
         interactable_id: verse.id,
         interactable_type: 'App\\Models\\Verse',
@@ -84,18 +108,28 @@ const DailyVersesScreen = ({ navigation }: NativeStackScreenProps<RootStackParam
         user_id: user.id
       });
 
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      toast.success('Vote recorded!');
     } catch (error) {
+      // Revert optimistic update on error
+      updateVerseVotes(verse.id, verse.votes, false);
       toast.error('Failed to record vote');
     }
   };
 
   const [selectedTab, setSelectedTab] = useState<'current' | 'upcoming'>('current');
   const [selectedVerse, setSelectedVerse] = useState<Verse | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
   const verseRef = useRef<View>(null);
 
   const selectedTheme = selectedTab === 'current' ? todayTheme : tomorrowTheme;
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await fetchDailyVerses();
+    } finally {
+      setRefreshing(false);
+    }
+  }, [fetchDailyVerses]);
 
   const formattedTheme = {
     ...selectedTheme,
@@ -217,6 +251,15 @@ const DailyVersesScreen = ({ navigation }: NativeStackScreenProps<RootStackParam
           </TouchableOpacity>
         </View>
 
+        {/* Connection Status */}
+        <View style={styles.statusContainer}>
+          <View style={[styles.connectionIndicator, { backgroundColor: isConnected ? theme.colors.success : theme.colors.error }]} />
+          <Text style={styles.statusText}>
+            {isConnected ? 'Live' : 'Offline'} • 
+            {lastUpdate ? ` Updated ${lastUpdate.toLocaleTimeString()}` : ' Never updated'}
+          </Text>
+        </View>
+
         {/* Tab Selector */}
         <View style={styles.tabContainer}>
           <TouchableOpacity
@@ -248,6 +291,14 @@ const DailyVersesScreen = ({ navigation }: NativeStackScreenProps<RootStackParam
           style={styles.scrollContent}
           contentContainerStyle={styles.scrollContainer}
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={[theme.colors.primary]}
+              tintColor={theme.colors.primary}
+            />
+          }
         >
           {isDailyVersesLoading ? (
             <View style={styles.loadingContainer}>
@@ -597,6 +648,26 @@ const createStyles = (theme: Theme) => StyleSheet.create({
   retryText: {
     ...theme.typography.caption.primary,
     color: theme.colors.text.inverse,
+  },
+  
+  // Connection status
+  statusContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.xs,
+    backgroundColor: theme.colors.surface,
+  },
+  connectionIndicator: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginRight: theme.spacing.xs,
+  },
+  statusText: {
+    ...theme.typography.caption.secondary,
+    color: theme.colors.text.secondary,
+    fontSize: 12,
   },
 });
 

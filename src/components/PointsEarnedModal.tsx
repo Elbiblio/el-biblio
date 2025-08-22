@@ -24,7 +24,7 @@ import { BlurView } from 'expo-blur';
 import { Trophy, Lightning, Check, Star } from '@/components/Icons';
 import { Theme } from '@/theme';
 import { useTheme } from '@/contexts/ThemeContext';
-import ConfettiCannon from 'react-native-confetti-cannon';
+import { Confetti } from 'react-native-fast-confetti';
 import * as Haptics from 'expo-haptics';
 
 interface PointsEarnedModalProps {
@@ -43,12 +43,12 @@ const PointsEarnedModal: React.FC<PointsEarnedModalProps> = ({
   challengeTitle,
 }) => {
   const theme = useTheme();
-  const confettiRef = useRef<ConfettiCannon>(null);
+  const confettiRef = useRef<any>(null);
   const pointsScale = useSharedValue(0.3);
   const pulseValue = useSharedValue(1);
   const raysOpacity = useSharedValue(0);
   const challengeOpacity = useSharedValue(0);
-  
+
   useEffect(() => {
     if (visible) {
       // Reset animations
@@ -56,22 +56,24 @@ const PointsEarnedModal: React.FC<PointsEarnedModalProps> = ({
       pulseValue.value = 1;
       raysOpacity.value = 0;
       challengeOpacity.value = 0;
-      
+
       // Play haptic feedback
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      
+
       // Start animations
       setTimeout(() => {
         if (confettiRef.current) {
-          confettiRef.current.start();
+          confettiRef.current.restart({
+            cannonsPositions: [{ x: -10, y: 0 }],
+          });
         }
-        
+
         // Animate points counter
         pointsScale.value = withSequence(
           withTiming(1.2, { duration: 600, easing: Easing.out(Easing.back(2)) }),
           withTiming(1, { duration: 200 })
         );
-        
+
         // Pulsing effect
         pulseValue.value = withDelay(800, withSequence(
           withTiming(1.1, { duration: 400 }),
@@ -79,37 +81,37 @@ const PointsEarnedModal: React.FC<PointsEarnedModalProps> = ({
           withTiming(1.05, { duration: 400 }),
           withTiming(1, { duration: 400 })
         ));
-        
+
         // Show rays
         raysOpacity.value = withDelay(400, withTiming(1, { duration: 400 }));
-        
+
         // Show challenge
         challengeOpacity.value = withDelay(800, withTiming(1, { duration: 400 }));
       }, 300);
     }
   }, [visible, pointsScale, pulseValue, raysOpacity, challengeOpacity]);
-  
+
   const pointsAnimatedStyle = useAnimatedStyle(() => ({
     transform: [
       { scale: pointsScale.value },
       { scale: pulseValue.value }
     ],
   }));
-  
+
   const raysAnimatedStyle = useAnimatedStyle(() => ({
     opacity: raysOpacity.value,
     transform: [
       { rotate: `${interpolate(raysOpacity.value, [0, 1], [0, 15])}deg` }
     ]
   }));
-  
+
   const challengeAnimatedStyle = useAnimatedStyle(() => ({
     opacity: challengeOpacity.value,
     transform: [
       { translateY: interpolate(challengeOpacity.value, [0, 1], [20, 0]) }
     ]
   }));
-  
+
   return (
     <Modal
       visible={visible}
@@ -118,31 +120,29 @@ const PointsEarnedModal: React.FC<PointsEarnedModalProps> = ({
       onRequestClose={onClose}
     >
       <View style={styles.container}>
-        <BlurView 
-          intensity={Platform.OS === 'ios' ? 60 : 80} 
+        <BlurView
+          intensity={Platform.OS === 'ios' ? 60 : 80}
           tint={theme?.colors.isDark ? 'dark' : 'light'}
           style={StyleSheet.absoluteFillObject}
         />
-        
+
         <Animated.View
           entering={SlideInDown.springify().damping(15)}
           style={styles.modalContent}
         >
           {visible && (
-            <ConfettiCannon
+            <Confetti
               ref={confettiRef}
               count={100}
-              origin={{x: -10, y: 0}}
-              autoStart={false}
-              fallSpeed={2000}
-              explosionSpeed={350}
-              fadeOut={true}
+              autoplay={false}
+              fadeOutOnEnd
               colors={['#FFD700', '#FF6347', '#4169E1', '#32CD32', '#FF69B4', '#BA55D3']}
+              containerStyle={styles.confetti}
             />
           )}
-          
+
           {/* Title */}
-          <Animated.Text 
+          <Animated.Text
             entering={FadeIn.delay(300)}
             style={[styles.title, { color: theme?.colors.text.primary }]}
           >

@@ -17,6 +17,7 @@ import Animated, {
   interpolate,
   withSequence,
   Extrapolation,
+  withTiming,
 } from 'react-native-reanimated';
 import { BlurView } from 'expo-blur';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -29,9 +30,12 @@ import {
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { Comment, Reflection, RootStackParamList } from '../types';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useReflectionStore } from '@/stores/reflection';
+import { useAuth } from '@/stores/auth';
 import ReflectionCard from '../components/ReflectionCard';
 import CommentThread from '../components/CommentThread';
 import { Theme } from '@/theme';
+import { toast } from 'sonner-native';
 
 type ReflectionDetailProps = NativeStackScreenProps<RootStackParamList, 'ReflectionDetail'>;
 
@@ -39,42 +43,94 @@ const ReflectionDetail: React.FC<ReflectionDetailProps> = ({ navigation, route }
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const scrollViewRef = useRef<ScrollView>(null);
+  const { user } = useAuth();
+  
+  // Reflection store
+  const {
+    createComment,
+    likeComment,
+    fetchComments,
+    comments,
+    isCommentsLoading,
+    commentsError,
+    pagination,
+  } = useReflectionStore();
   
   // States
   const [isLoading, setIsLoading] = useState(true);
-  const [loadingComments, setLoadingComments] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [showCommentInput, setShowCommentInput] = useState(false);
   const [commentText, setCommentText] = useState('');
   const [replyingTo, setReplyingTo] = useState<Comment | null>(null);
-  const [comments, setComments] = useState<Comment[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   // Animated values - moved outside of render cycle
   const scrollY = useSharedValue(0);
-  const scrollX = useSharedValue(0);
-  const headerOpacity = useSharedValue(1);
   const commentInputHeight = useSharedValue(0);
+  const replyHeight = useSharedValue(0);
   const styles = React.useMemo(() => createStyles(theme), [theme]);
   const reflection = route.params.reflection;
 
-  // Load initial data
+  // Load comments on mount
   useEffect(() => {
-    const loadData = async () => {
-      try {
-        setError(null);
-        setIsLoading(false);
-        setComments(reflection.comments);
-        setLoadingComments(false);
-      } catch (err) {
-        setError('Failed to load reflection');
-        setIsLoading(false);
-        setLoadingComments(false);
-      }
-    };
-    
-    loadData();
-  }, []);
+    if (reflection?.id) {
+      fetchComments(reflection.id, 1);
+    }
+  }, [reflection?.id, fetchComments]);
+
+  // Handle errors
+  useEffect(() => {
+    if (commentsError) {
+      setError(commentsError);
+    }
+  }, [commentsError]);
+
+  // Handle refresh
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    if (reflection?.id) {
+      await fetchComments(reflection.id, 1);
+    }
+    setRefreshing(false);
+  };
+
+  // Handle load more comments
+  const handleLoadMoreComments = () => {
+    if (pagination.hasMore && !isCommentsLoading && reflection?.id) {
+      fetchComments(reflection.id, pagination.currentPage + 1);
+    }
+  };
+
+  // Handle comment submission
+  const handleSubmitComment = async () => {
+    if (!commentText.trim() || !reflection?.id) return;
+
+    try {
+      await createComment({
+        reflection_id: reflection.id,
+        content: commentText.trim(),
+        user_id: user?.id || '',
+        parent_id: replyingTo?.id || undefined,
+      });
+      
+      setCommentText('');
+      setReplyingTo(null);
+      commentInputHeight.value = withTiming(0, { duration: 300 });
+      replyHeight.value = withTiming(0, { duration: 300 });
+      setShowCommentInput(false);
+    } catch (error) {
+      setError('Failed to post comment. Please try again.');
+    }
+  };
+
+  // Handle like comment
+  const handleLikeComment = async (commentId: string) => {
+    try {
+      await likeComment(commentId);
+    } catch (error) {
+      setError('Failed to like comment. Please try again.');
+    }
+  };
 
   // Animation styles
   const headerStyle = useAnimatedStyle(() => ({
@@ -90,67 +146,10 @@ const ReflectionDetail: React.FC<ReflectionDetailProps> = ({ navigation, route }
     scrollY.value = event.nativeEvent.contentOffset.y;
   }, []);
 
-  const handleRefresh = useCallback(async () => {
-    try {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      setRefreshing(true);
-      setError(null);
-      // Add your refresh logic here
-      setRefreshing(false);
-    } catch (err) {
-      setError('Failed to refresh');
-      setRefreshing(false);
-    }
-  }, []);
-
   const handleReply = useCallback((comment: Comment) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setReplyingTo(comment);
     setShowCommentInput(true);
-  }, []);
-
-  const handleSubmitComment = useCallback(async () => {
-    if (!commentText.trim()) return;
-    
-    try {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      
-      const newComment: Comment = {
-        id: `comment${Date.now()}`,
-        parentId: replyingTo?.id || null,
-        author: {
-          id: 'currentUser',
-          first_name: 'Current',
-          last_name: 'User',
-          avatar: 'https://example.com/current.jpg'
-        },
-        content: commentText,
-        likes: 0,
-        timestamp: 'Just now',
-        isLiked: false
-      };
-
-      setComments(prev => [newComment, ...prev]);
-      setCommentText('');
-      setShowCommentInput(false);
-      setReplyingTo(null);
-      Keyboard.dismiss();
-    } catch (err) {
-      setError('Failed to submit comment');
-    }
-  }, [commentText, replyingTo]);
-
-  const handleLikeComment = useCallback(async (commentId: string) => {
-    try {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      setComments(prev => prev.map(comment => 
-        comment.id === commentId 
-          ? { ...comment, isLiked: !comment.isLiked, likes: comment.likes + (comment.isLiked ? -1 : 1) }
-          : comment
-      ));
-    } catch (err) {
-      setError('Failed to like comment');
-    }
   }, []);
 
   if (isLoading) {
@@ -205,7 +204,7 @@ const ReflectionDetail: React.FC<ReflectionDetailProps> = ({ navigation, route }
         <View style={styles.headerContainer}>
           <ReflectionCard
             reflection={reflection}
-            scrollX={scrollX}
+            scrollX={useSharedValue(0)} // Placeholder, not used in this component
             index={0}
             onCommentPress={() => {}}
             expanded={true}
@@ -233,9 +232,19 @@ const ReflectionDetail: React.FC<ReflectionDetailProps> = ({ navigation, route }
           </View>
 
           {/* Comments List */}
-          {loadingComments ? (
+          {isCommentsLoading ? (
             <View style={styles.loadingComments}>
               <ActivityIndicator color={theme.colors.primary} />
+            </View>
+          ) : commentsError ? (
+            <View style={styles.errorComments}>
+              <Text style={styles.errorCommentsText}>{commentsError}</Text>
+              <TouchableOpacity 
+                style={styles.retryCommentsButton}
+                onPress={handleRefresh}
+              >
+                <Text style={styles.retryCommentsText}>Retry</Text>
+              </TouchableOpacity>
             </View>
           ) : comments.length === 0 ? (
             <View style={styles.emptyComments}>
@@ -267,7 +276,7 @@ const ReflectionDetail: React.FC<ReflectionDetailProps> = ({ navigation, route }
           {replyingTo && (
             <View style={styles.replyingToContainer}>
               <Text style={styles.replyingToText}>
-                Replying to {replyingTo.author.first_name}
+                Replying to comment
               </Text>
               <TouchableOpacity 
                 onPress={() => {
@@ -480,6 +489,26 @@ const createStyles = (theme: Theme) => StyleSheet.create({
   },
   sendButtonDisabled: {
     opacity: 0.5,
+  },
+  errorComments: {
+    padding: theme.spacing.xl,
+    alignItems: 'center',
+  },
+  errorCommentsText: {
+    ...theme.typography.body.sans,
+    color: theme.colors.error,
+    textAlign: 'center',
+    marginBottom: theme.spacing.md,
+  },
+  retryCommentsButton: {
+    backgroundColor: theme.colors.primary,
+    paddingHorizontal: theme.spacing.lg,
+    paddingVertical: theme.spacing.sm,
+    borderRadius: theme.borderRadius.full,
+  },
+  retryCommentsText: {
+    ...theme.typography.caption.primary,
+    color: theme.colors.text.inverse,
   },
 });
 

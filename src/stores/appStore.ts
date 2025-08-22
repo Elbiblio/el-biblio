@@ -14,7 +14,13 @@ export const useAppStore = create<AppState>((set) => ({
     set({ hasCompletedWelcome: completed });
   },
   initializeWelcomeState: async () => {
-    const welcomeScreen = await AsyncStorage.getItem('welcomeScreen');
-    set({ hasCompletedWelcome: welcomeScreen === 'completed' });
+    try {
+      const welcomeScreen = await AsyncStorage.getItem('welcomeScreen');
+      const hasCompleted = welcomeScreen === 'completed';
+      set({ hasCompletedWelcome: hasCompleted });
+    } catch (error) {
+      console.error('Error initializing welcome state:', error);
+      set({ hasCompletedWelcome: false });
+    }
   },
 }));

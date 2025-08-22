@@ -14,7 +14,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import * as Speech from 'expo-speech';
 import { useTheme } from '@/contexts/ThemeContext';
-import { CHALLENGE_TEMPLATES, MeditationSession, RootStackParamList, TIME_OPTIONS, VIRTUES } from '@/types';
+import { MeditationSession, RootStackParamList, Virtue, FoundationalVirtue, THEMES } from '@/types';
 import {
   ArrowLeft,
   Heart,
@@ -29,8 +29,9 @@ import {
 } from '@/components/Icons';
 import { Theme } from '@/theme';
 import { useAuth } from '@/stores/auth';
+import { useVirtueStore } from '@/stores/virtue';
 import * as Haptics from 'expo-haptics';
-import { Audio } from 'expo-av';
+import { useAudioPlayer, setAudioModeAsync } from 'expo-audio';
 import { DailyChallenge, Challenge } from '@/types';
 import AnimatedCircularProgress from '@/components/AnimatedCircularProgress';
 import AnimatedParticles from '@/components/AnimatedParticles';
@@ -46,6 +47,9 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useMeditationStore } from '@/stores/meditation';
 
+// Time options for meditation - moved to constants or could be fetched from API
+const TIME_OPTIONS = [5, 10, 15, 20, 30, 45, 60];
+
 enum MeditationState {
   SETUP = 'setup',
   COUNTDOWN = 'countdown',
@@ -58,19 +62,30 @@ const MeditationScreen: React.FC = () => {
   const theme = useTheme();
   const { user, updateUserPoints } = useAuth();
 
-  // State management
-  const [selectedVirtue, setSelectedVirtue] = useState<string | null>(null);
-  const [selectedTime, setSelectedTime] = useState<number | null>(null);
-  const [selectedChallenge, setSelectedChallenge] = useState<DailyChallenge | null>(null);
-  const [meditationState, setMeditationState] = useState<MeditationState>(MeditationState.SETUP);
-  const [countdown, setCountdown] = useState(10);
-  const [meditationTimer, setMeditationTimer] = useState(0);
+  // Virtue store
+  const { virtues, fetchVirtues } = useVirtueStore();
+  // Centralized session state from store
+  const {
+    selectedVirtue,
+    selectedTime,
+    selectedChallenge,
+    meditationState,
+    countdown,
+    meditationTimer,
+    selectedBackgroundSound,
+    setSelectedVirtue: setStoreSelectedVirtue,
+    setSelectedTime: setStoreSelectedTime,
+    setSelectedChallenge: setStoreSelectedChallenge,
+    setSelectedBackgroundSound: setStoreSelectedBackgroundSound,
+    startMeditation: startMeditationStore,
+    decrementCountdown,
+    incrementMeditationTimer,
+    endMeditationSession,
+  } = useMeditationStore();
   const [currentPromptIndex, setCurrentPromptIndex] = useState(0);
   const [showPrompt, setShowPrompt] = useState(false);
-  const [selectedBackgroundSound, setSelectedBackgroundSound] = useState<string | null>(null);
   const [breathePhase, setBreathePhase] = useState<'in' | 'hold' | 'out'>('in');
   const [challengeExpanded, setChallengeExpanded] = useState(false);
-//  const [completionSound, setCompletionSound] = useState<Audio.Sound | null>(null);
 
   // Animation values
   const fadeAnim = useSharedValue(1);
@@ -82,30 +97,43 @@ const MeditationScreen: React.FC = () => {
   const promptOpacity = useSharedValue(0);
   const bellScale = useSharedValue(1);
 
-  // Audio refs
-  const [tickSound, setTickSound] = useState<Audio.Sound | null>(null);
-  const [backgroundSound, setBackgroundSound] = useState<Audio.Sound | null>(null);
+  // Audio players (expo-audio)
+  const tickPlayer = useAudioPlayer(require('../../assets/sounds/tick-tock.wav'));
+  const bellPlayer = useAudioPlayer(require('../../assets/sounds/bell.wav'));
+  const meditationBellPlayer = useAudioPlayer(require('../../assets/sounds/bell-meditation.mp3'));
+  const ambientBgPlayer = useAudioPlayer(require('../../assets/sounds/meditation-ambient.mp3'));
+  const heartbeatBgPlayer = useAudioPlayer(require('../../assets/sounds/heartbeat.mp3'));
   const isSpeaking = useRef(false);
 
-  // Add these new state variables and refs
-  const [bellSound, setBellSound] = useState<Audio.Sound | null>(null);
-  const [meditationBellSound, setMeditationBellSound] = useState<Audio.Sound | null>(null);
+  // Refs for flow control
   const isEndingPhase = useRef(false);
   const hasReadChallenge = useRef(false);
   const hasStartedFinalCountdown = useRef(false);
   const firstTwoMinutesCompleted = useRef(false);
 
+  // Load virtues on mount
+  useEffect(() => {
+    fetchVirtues();
+  }, [fetchVirtues]);
+
   // Derived values
   const currentVirtue = React.useMemo(
-    () => VIRTUES.find((v) => v.id === selectedVirtue),
-    [selectedVirtue]
+    () => virtues.find((v) => v.id === selectedVirtue),
+    [selectedVirtue, virtues]
   );
   const totalMeditationSeconds = React.useMemo(
     () => (selectedTime || 0) * 60,
     [selectedTime]
   );
   const promptInterval = totalMeditationSeconds > 0 ? Math.floor(totalMeditationSeconds / 4) : 0;
-  const currentPrompt = currentVirtue?.prompts[currentPromptIndex];
+  // Use a default prompt since prompts don't exist on Virtue type
+  const currentPrompt = "Focus on your breath and let your mind settle";
+  
+  // Get theme info for the current virtue
+  const getThemeInfo = (virtueName: string) => {
+    const themeKey = virtueName.toLowerCase() as FoundationalVirtue;
+    return THEMES[themeKey];
+  };
   const styles = React.useMemo(
     () => createStyles(theme, currentVirtue),
     [theme, currentVirtue]
@@ -113,110 +141,69 @@ const MeditationScreen: React.FC = () => {
 
   const [introCompleted, setIntroCompleted] = useState(false);
 
-  // Load sounds
+  // Configure audio mode (allow playback in silent mode)
   useEffect(() => {
-    async function loadSounds() {
-      try {
-        const { sound: tick } = await Audio.Sound.createAsync(
-          require('../../assets/sounds/tick-tock.wav')
-        );
-        setTickSound(tick);
-
-        // const { sound: completion } = await Audio.Sound.createAsync(
-        //   require('../../assets/sounds/correct.mp3')
-        // );
-        // setCompletionSound(completion);
-        
-        // Load bell sounds
-        const { sound: bell } = await Audio.Sound.createAsync(
-          require('../../assets/sounds/bell.wav')
-        );
-        setBellSound(bell);
-        
-        const { sound: meditationBell } = await Audio.Sound.createAsync(
-          require('../../assets/sounds/bell-meditation.mp3')
-        );
-        setMeditationBellSound(meditationBell);
-      } catch (error) {
-        console.error('Failed to load sounds', error);
-      }
-    }
-    loadSounds();
-
+    setAudioModeAsync({ playsInSilentMode: true }).catch(() => {});
     return () => {
-      if (tickSound) tickSound.unloadAsync();
-      if (backgroundSound) backgroundSound.unloadAsync();
-      // if (completionSound) completionSound.unloadAsync();
-      if (bellSound) bellSound.unloadAsync();
-      if (meditationBellSound) meditationBellSound.unloadAsync();
+      // Pause any playing audio on unmount
+      try {
+        tickPlayer.pause();
+        bellPlayer.pause();
+        meditationBellPlayer.pause();
+        ambientBgPlayer.pause();
+        heartbeatBgPlayer.pause();
+      } catch {}
     };
   }, []);
 
+  // Background sound preview and playback controller
   useEffect(() => {
-    const loadBackgroundSound = async () => {
-      // Stop and unload previous sound if it exists
-      if (backgroundSound) {
-        await backgroundSound.stopAsync();
-        await backgroundSound.unloadAsync();
-      }
+    // Ensure both background players are paused before switching
+    ambientBgPlayer.pause();
+    heartbeatBgPlayer.pause();
 
-      if (!selectedBackgroundSound) return;
+    const player = selectedBackgroundSound === 'ambient'
+      ? ambientBgPlayer
+      : selectedBackgroundSound === 'heartbeat'
+        ? heartbeatBgPlayer
+        : null;
 
-      try {
-        const soundAsset =
-          selectedBackgroundSound === 'ambient'
-            ? require('../../assets/sounds/meditation-ambient.mp3')
-            : require('../../assets/sounds/heartbeat.mp3');
-        const { sound } = await Audio.Sound.createAsync(soundAsset, {
-          isLooping: true,
-          volume: 0.6,
-        });
-        setBackgroundSound(sound);
+    if (!player) return; // Silent
 
-        // Play preview if we're in setup mode
-        if (meditationState === MeditationState.SETUP) {
-          await sound.playAsync();
-        } else if (meditationState === MeditationState.ACTIVE) {
-          await sound.playAsync();
-        }
-      } catch (error) {
-        console.error('Failed to load background sound', error);
-      }
-    };
-    loadBackgroundSound();
-  }, [selectedBackgroundSound]);
+    // Configure loop/volume
+    player.loop = true;
+    player.volume = 0.6;
 
-  // Stop preview when meditation state changes or when component unmounts
+    if (meditationState === MeditationState.SETUP) {
+      player.seekTo(0);
+      player.play();
+    }
+    if (meditationState === MeditationState.ACTIVE) {
+      // If we entered ACTIVE while changing source
+      player.play();
+    }
+    if (meditationState === MeditationState.COUNTDOWN || meditationState === MeditationState.COMPLETE) {
+      player.pause();
+    }
+  }, [selectedBackgroundSound, meditationState]);
+
+  // Ensure background sound reacts to state changes even if selection didn't change
   useEffect(() => {
-    const handleBackgroundSound = async () => {
-      if (!backgroundSound) return;
-
-      if (meditationState === MeditationState.ACTIVE) {
-        await backgroundSound.playAsync();
-      } else if (meditationState === MeditationState.COUNTDOWN) {
-        // Stop preview when countdown starts
-        await backgroundSound.stopAsync();
-      } else if (meditationState === MeditationState.COMPLETE) {
-        await backgroundSound.stopAsync();
-      }
-    };
-    handleBackgroundSound();
-
-    // Clean up sound on unmount
-    return () => {
-      if (backgroundSound) {
-        backgroundSound.stopAsync();
-      }
-    };
-  }, [meditationState, backgroundSound]);
+    const player = selectedBackgroundSound === 'ambient'
+      ? ambientBgPlayer
+      : selectedBackgroundSound === 'heartbeat'
+        ? heartbeatBgPlayer
+        : null;
+    if (!player) return;
+    if (meditationState === MeditationState.ACTIVE) player.play();
+    if (meditationState === MeditationState.COUNTDOWN || meditationState === MeditationState.COMPLETE) player.pause();
+  }, [meditationState]);
 
   // Play tick sound
-  const playTickSound = async () => {
+  const playTickSound = () => {
     try {
-      if (tickSound) {
-        await tickSound.setPositionAsync(0);
-        await tickSound.playAsync();
-      }
+      tickPlayer.seekTo(0);
+      tickPlayer.play();
     } catch (error) {
       console.error('Failed to play tick sound', error);
     }
@@ -292,34 +279,33 @@ const MeditationScreen: React.FC = () => {
     opacity: interpolate(pulseAnim.value, [0, 1], [0.5, 0.9]),
   }));
 
-  // Countdown logic
+  // Countdown logic (uses store state)
   useEffect(() => {
     let interval: number;
     if (meditationState === MeditationState.COUNTDOWN && countdown > 0) {
+      // initial tick feedback
       playTickSound();
       animateCountdownNumber();
       speakCountdownNumber(countdown);
       interval = setInterval(() => {
-        setCountdown((prev) => {
-          const newValue = prev - 1;
-          if (newValue >= 0) {
-            playTickSound();
-            animateCountdownNumber();
-            speakCountdownNumber(newValue);
-          }
-          if (newValue === 0) {
-            setMeditationState(MeditationState.ACTIVE);
-            progressAnim.value = 0;
-            setMeditationTimer(0);
-          }
-          return newValue;
-        });
+        const next = Math.max(0, countdown - 1);
+        // side effects tied to the number we announce
+        if (next >= 0) {
+          playTickSound();
+          animateCountdownNumber();
+          speakCountdownNumber(next);
+        }
+        // store will flip to ACTIVE when reaches 0
+        decrementCountdown();
+        if (next === 0) {
+          progressAnim.value = 0;
+        }
       }, 1000);
     }
     return () => clearInterval(interval);
   }, [meditationState, countdown]);
 
-  // Meditation timer and progress with end-session enhancements
+  // Meditation timer and progress with end-session enhancements (uses store increment)
   useEffect(() => {
     let interval: number;
     if (meditationState === MeditationState.ACTIVE && selectedTime) {
@@ -329,75 +315,72 @@ const MeditationScreen: React.FC = () => {
       hasStartedFinalCountdown.current = false;
       isEndingPhase.current = false;
       
+      let t = meditationTimer; // local mirror
       interval = setInterval(() => {
-        setMeditationTimer((prev) => {
-          const newValue = prev + 1;
-          progressAnim.value = newValue / totalMeditationSeconds;
+        t = t + 1;
+        incrementMeditationTimer();
+        const newValue = t;
+        progressAnim.value = newValue / totalMeditationSeconds;
+        
+        // Mark first 2 minutes as complete
+        if (newValue >= 120 && !firstTwoMinutesCompleted.current) {
+          firstTwoMinutesCompleted.current = true;
+        }
+        
+        // Regular prompts during the session
+        if (promptInterval > 0 && newValue % promptInterval === 0 && newValue < totalMeditationSeconds - 30) {
+          const nextPromptIndex = Math.floor(newValue / promptInterval);
+          if (nextPromptIndex < 4) showAndSpeakPrompt(nextPromptIndex);
+        }
+        
+        // Read challenge 30 seconds before the end
+        if (totalMeditationSeconds - newValue <= 30 && !hasReadChallenge.current) {
+          hasReadChallenge.current = true;
+          isEndingPhase.current = true;
           
-          // Mark first 2 minutes as complete
-          if (newValue >= 120 && !firstTwoMinutesCompleted.current) {
-            firstTwoMinutesCompleted.current = true;
-          }
-          
-          // Regular prompts during the session
-          if (newValue % promptInterval === 0 && newValue < totalMeditationSeconds - 30) {
-            const nextPromptIndex = Math.floor(newValue / promptInterval);
-            if (nextPromptIndex < 4) showAndSpeakPrompt(nextPromptIndex);
-          }
-          
-          // Read challenge 30 seconds before the end
-          if (totalMeditationSeconds - newValue <= 30 && !hasReadChallenge.current) {
-            hasReadChallenge.current = true;
-            isEndingPhase.current = true;
-            
-            if (isSpeaking.current) Speech.stop();
-            setTimeout(() => {
-              Speech.speak("Your challenge is:", {
-                rate: 0.85, onDone: () => {
-                  if (selectedChallenge) {
-                    Speech.speak(selectedChallenge.title, {
-                      rate: 0.85, onDone: () => {
-                        Speech.speak(selectedChallenge.description, {
-                          rate: 0.85
-                        });
-                      }
-                    });
-                  }
-                }
-              });
-            }, 500);
-          }
-          
-          // Start final countdown 10 seconds before the end
-          if (totalMeditationSeconds - newValue <= 10 && !hasStartedFinalCountdown.current) {
-            hasStartedFinalCountdown.current = true;
-            if (isSpeaking.current) Speech.stop();
-            
-            Speech.speak("You resolve to do better today.", {
+          if (isSpeaking.current) Speech.stop();
+          setTimeout(() => {
+            Speech.speak("Your challenge is:", {
               rate: 0.85, onDone: () => {
-                // Start the bell-based countdown
-                let countdownNumber = 10;
-                playMeditationBellSound();
-                const countdownInterval = setInterval(() => {
-                  // Play bell sound instead of tick                  
-                  countdownNumber--;
-                  if (countdownNumber <= 3 && countdownNumber > 0) {
-                    setTimeout(() => Speech.speak(`${countdownNumber}`, { rate: 0.8 }), 500);
-                  } else if (countdownNumber === 0) {
-                    setTimeout(() => Speech.speak("Open your eyes", { rate: 0.8 }), 500);
-                    clearInterval(countdownInterval);
-                  }
-                }, 1000);
+                if (selectedChallenge) {
+                  Speech.speak(selectedChallenge.title, {
+                    rate: 0.85, onDone: () => {
+                      Speech.speak(selectedChallenge.description, { rate: 0.85 });
+                    }
+                  });
+                }
               }
             });
-          }
+          }, 500);
+        }
+        
+        // Start final countdown 10 seconds before the end
+        if (totalMeditationSeconds - newValue <= 10 && !hasStartedFinalCountdown.current) {
+          hasStartedFinalCountdown.current = true;
+          if (isSpeaking.current) Speech.stop();
           
-          if (newValue >= totalMeditationSeconds) {
-            endMeditation();
-            clearInterval(interval);
-          }
-          return newValue;
-        });
+          Speech.speak("You resolve to do better today.", {
+            rate: 0.85, onDone: () => {
+              // Start the bell-based countdown
+              let countdownNumber = 10;
+              playMeditationBellSound();
+              const countdownInterval = setInterval(() => {
+                countdownNumber--;
+                if (countdownNumber <= 3 && countdownNumber > 0) {
+                  setTimeout(() => Speech.speak(`${countdownNumber}`, { rate: 0.8 }), 500);
+                } else if (countdownNumber === 0) {
+                  setTimeout(() => Speech.speak("Open your eyes", { rate: 0.8 }), 500);
+                  clearInterval(countdownInterval);
+                }
+              }, 1000);
+            }
+          });
+        }
+        
+        if (newValue >= totalMeditationSeconds) {
+          endMeditation();
+          clearInterval(interval);
+        }
       }, 1000);
     }
     return () => clearInterval(interval);
@@ -467,19 +450,19 @@ const MeditationScreen: React.FC = () => {
     setTimeout(() => {
       setShowPrompt(true);
       promptOpacity.value = withTiming(1, { duration: 1000 });
-      if (currentVirtue?.prompts[index]) {
-        isSpeaking.current = true;
-        Speech.speak(`${introWord}...`, {
-          rate: 0.85, onDone: () => {
-            setTimeout(() => {
-              Speech.speak(currentVirtue.prompts[index], {
-                rate: 0.85,
-                onDone: () => { isSpeaking.current = false },
-              });
-            }, 1000);
-          }
-        })
-      }
+      // Use a default prompt since prompts don't exist on Virtue type
+      const prompt = "Focus on your breath and let your mind settle";
+      isSpeaking.current = true;
+      Speech.speak(`${introWord}...`, {
+        rate: 0.85, onDone: () => {
+          setTimeout(() => {
+            Speech.speak(prompt, {
+              rate: 0.85,
+              onDone: () => { isSpeaking.current = false },
+            });
+          }, 1000);
+        }
+      })
     }, 500);
   };
 
@@ -490,7 +473,7 @@ const MeditationScreen: React.FC = () => {
       return;
     }
     progressAnim.value = 0;
-    setMeditationState(MeditationState.COUNTDOWN);
+    startMeditationStore();
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   };
 
@@ -499,7 +482,7 @@ const MeditationScreen: React.FC = () => {
   }, []);
 
   const endMeditation = () => {
-    setMeditationState(MeditationState.COMPLETE);
+    endMeditationSession();
     if (isSpeaking.current) Speech.stop();
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   
@@ -541,24 +524,20 @@ const MeditationScreen: React.FC = () => {
   const bellButtonStyle = useAnimatedStyle(() => ({ transform: [{ scale: bellScale.value }] }));
 
   // Play bell sound
-  const playBellSound = async () => {
+  const playBellSound = () => {
     try {
-      if (bellSound) {
-        await bellSound.setPositionAsync(0);
-        await bellSound.playAsync();
-      }
+      bellPlayer.seekTo(0);
+      bellPlayer.play();
     } catch (error) {
       console.error('Failed to play bell sound', error);
     }
   };
   
   // Play meditation bell sound
-  const playMeditationBellSound = async () => {
+  const playMeditationBellSound = () => {
     try {
-      if (meditationBellSound) {
-        await meditationBellSound.setPositionAsync(0);
-        await meditationBellSound.playAsync();
-      }
+      meditationBellPlayer.seekTo(0);
+      meditationBellPlayer.play();
     } catch (error) {
       console.error('Failed to play meditation bell sound', error);
     }
@@ -577,12 +556,14 @@ const MeditationScreen: React.FC = () => {
                   <View
                     style={[
                       styles.virtueIconContainer,
-                      { backgroundColor: `${currentVirtue.color}15` },
+                      { backgroundColor: `${currentVirtue.color_code || theme?.colors.primary}15` },
                     ]}
                   >
-                    <currentVirtue.icon size={24} color={currentVirtue.color} />
+                    <Text style={[styles.virtueText, { color: currentVirtue.color_code || theme?.colors.primary }]}>
+                      {currentVirtue.name}
+                    </Text>
                   </View>
-                  <Text style={[styles.virtueText, { color: currentVirtue.color }]}>
+                  <Text style={[styles.virtueText, { color: currentVirtue.color_code || theme?.colors.primary }]}>
                     {currentVirtue.name}
                   </Text>
                 </>
@@ -591,7 +572,7 @@ const MeditationScreen: React.FC = () => {
             <TouchableOpacity
               style={styles.changeVirtueButton}
               onPress={() => {
-                setSelectedVirtue(null);
+                setStoreSelectedVirtue(null);
                 Haptics.selectionAsync();
               }}
             >
@@ -600,31 +581,33 @@ const MeditationScreen: React.FC = () => {
           </View>
         ) : (
           <View style={styles.virtuesContainer}>
-            {VIRTUES.map((virtue) => (
-              <TouchableOpacity
-                key={virtue.id}
-                style={[
-                  styles.virtueButton,
-                  selectedVirtue === virtue.id && styles.selectedVirtueButton,
-                  selectedVirtue === virtue.id && { borderColor: virtue.color },
-                ]}
-                onPress={() => {
-                  setSelectedVirtue(virtue.id);
-                  Haptics.selectionAsync();
-                }}
-              >
-                <View style={[styles.virtueIconContainer, { backgroundColor: `${virtue.color}15` }]}>
-                  <virtue.icon size={24} color={virtue.color} />
-                </View>
-                <Text
+            {virtues.map((virtue) => (
+                              <TouchableOpacity
+                  key={virtue.id}
                   style={[
-                    styles.virtueText,
-                    selectedVirtue === virtue.id && { color: virtue.color },
+                    styles.virtueButton,
+                    selectedVirtue === virtue.id && styles.selectedVirtueButton,
+                    selectedVirtue === virtue.id && { borderColor: virtue.color_code || theme?.colors.primary },
                   ]}
+                  onPress={() => {
+                    setStoreSelectedVirtue(virtue.id);
+                    Haptics.selectionAsync();
+                  }}
                 >
-                  {virtue.name}
-                </Text>
-              </TouchableOpacity>
+                  <View style={[styles.virtueIconContainer, { backgroundColor: `${virtue.color_code || theme?.colors.primary}15` }]}>
+                    <Text style={[styles.virtueText, { color: virtue.color_code || theme?.colors.primary }]}>
+                      {virtue.name.charAt(0).toUpperCase()}
+                    </Text>
+                  </View>
+                  <Text
+                    style={[
+                      styles.virtueText,
+                      selectedVirtue === virtue.id && { color: virtue.color_code || theme?.colors.primary },
+                    ]}
+                  >
+                    {virtue.name}
+                  </Text>
+                </TouchableOpacity>
             ))}
           </View>
         )}
@@ -633,16 +616,16 @@ const MeditationScreen: React.FC = () => {
         <View style={styles.timeContainer}>
           {TIME_OPTIONS.map((option) => (
             <TouchableOpacity
-              key={option.value}
+              key={option}
               style={[
                 styles.timeButton,
-                selectedTime === option.value && styles.selectedTimeButton,
-                selectedTime === option.value && {
-                  borderColor: currentVirtue?.color || theme?.colors.primary,
+                selectedTime === option && styles.selectedTimeButton,
+                selectedTime === option && {
+                  borderColor: currentVirtue?.color_code || theme?.colors.primary,
                 },
               ]}
               onPress={() => {
-                setSelectedTime(option.value);
+                setStoreSelectedTime(option);
                 Haptics.selectionAsync();
               }}
             >
@@ -650,20 +633,20 @@ const MeditationScreen: React.FC = () => {
                 <Clock
                   size={16}
                   color={
-                    selectedTime === option.value
-                      ? currentVirtue?.color || theme?.colors.primary
+                    selectedTime === option
+                      ? currentVirtue?.color_code || theme?.colors.primary
                       : theme?.colors.text.secondary
                   }
                 />
                 <Text
                   style={[
                     styles.timeText,
-                    selectedTime === option.value && {
-                      color: currentVirtue?.color || theme?.colors.primary,
+                    selectedTime === option && {
+                      color: currentVirtue?.color_code || theme?.colors.primary,
                     },
                   ]}
                 >
-                  {option.label}
+                  {option} min
                 </Text>
               </View>
             </TouchableOpacity>
@@ -683,20 +666,20 @@ const MeditationScreen: React.FC = () => {
                 styles.soundButton,
                 selectedBackgroundSound === id && styles.selectedSoundButton,
                 selectedBackgroundSound === id && {
-                  borderColor: currentVirtue?.color || theme?.colors.primary,
+                  borderColor: currentVirtue?.color_code || theme?.colors.primary,
                 },
               ]}
               onPress={() => {
-                setSelectedBackgroundSound(id);
+                setStoreSelectedBackgroundSound(id);
                 Haptics.selectionAsync();
               }}
             >
-              <View style={styles.soundButtonContent}>
+                              <View style={styles.soundButtonContent}>
                 <Icon
                   size={16}
                   color={
                     selectedBackgroundSound === id
-                      ? currentVirtue?.color || theme?.colors.primary
+                      ? currentVirtue?.color_code || theme?.colors.primary
                       : theme?.colors.text.secondary
                   }
                 />
@@ -704,7 +687,7 @@ const MeditationScreen: React.FC = () => {
                   style={[
                     styles.soundText,
                     selectedBackgroundSound === id && {
-                      color: currentVirtue?.color || theme?.colors.primary,
+                      color: currentVirtue?.color_code || theme?.colors.primary,
                     },
                   ]}
                 >
@@ -721,12 +704,12 @@ const MeditationScreen: React.FC = () => {
             selectedChallenge ? (
               <View style={[
                 styles.selectedChallengeCollapsed,
-                { borderColor: currentVirtue?.color || theme?.colors.border }
+                { borderColor: currentVirtue?.color_code || theme?.colors.border }
               ]}>
                 <View style={styles.selectedChallengeContent}>
                   <Text style={[
                     styles.challengeTitle,
-                    { color: currentVirtue?.color || theme?.colors.primary }
+                    { color: currentVirtue?.color_code || theme?.colors.primary }
                   ]}>
                     {selectedChallenge.title}
                   </Text>
@@ -739,7 +722,7 @@ const MeditationScreen: React.FC = () => {
                 <TouchableOpacity
                   style={styles.changeChallengeButton}
                   onPress={() => {
-                    setSelectedChallenge(null);
+                    setStoreSelectedChallenge(null);
                     Haptics.selectionAsync();
                   }}
                 >
@@ -747,46 +730,9 @@ const MeditationScreen: React.FC = () => {
                 </TouchableOpacity>
               </View>
             ) : (
-              CHALLENGE_TEMPLATES[selectedVirtue]?.map((challenge: DailyChallenge) => (
-                <TouchableOpacity
-                  key={challenge.id}
-                  style={[
-                    styles.challengeButton,
-                    selectedChallenge && (selectedChallenge as DailyChallenge).id ? {
-                      ...styles.selectedChallengeButton,
-                      borderColor: currentVirtue?.color || theme?.colors.primary,
-                    } : undefined,
-                  ]}
-                  onPress={() => {
-                    setSelectedChallenge(challenge);
-                    Haptics.selectionAsync();
-                  }}
-                >
-                  <LinearGradient
-                    colors={[`${currentVirtue?.color}15`, `${currentVirtue?.color}05`]}
-                    style={StyleSheet.absoluteFill}
-                  />
-                  <Text style={[
-                    styles.challengeTitle,
-                    selectedChallenge && (selectedChallenge as DailyChallenge).id ? {
-                      color: currentVirtue?.color || theme?.colors.primary,
-                    } : undefined,
-                  ]}>
-                    {challenge.title}
-                  </Text>
-                  <Text style={styles.challengeDescription}>{challenge.description}</Text>                  
-                  {selectedChallenge && (selectedChallenge as DailyChallenge).id === challenge.id && (
-                    <View
-                      style={[
-                        styles.checkmarkIcon,
-                        { backgroundColor: currentVirtue?.color || theme?.colors.primary },
-                      ]}
-                    >
-                      <Check size={12} color="#FFFFFF" />
-                    </View>
-                  )}
-                </TouchableOpacity>
-              ))
+              <Text style={styles.placeholderText}>
+                Select a challenge to begin
+              </Text>
             )
           ) : (
             <Text style={styles.placeholderText}>
@@ -798,7 +744,7 @@ const MeditationScreen: React.FC = () => {
         <TouchableOpacity
           style={[
             styles.startButton,
-            { backgroundColor: currentVirtue?.color || theme?.colors.primary },
+            { backgroundColor: currentVirtue?.color_code || theme?.colors.primary },
           ]}
           onPress={startMeditation}
         >
@@ -813,14 +759,14 @@ const MeditationScreen: React.FC = () => {
       <Animated.View
         style={[
           styles.countdownCircle,
-          { borderColor: currentVirtue?.color || theme?.colors.primary },
+          { borderColor: currentVirtue?.color_code || theme?.colors.primary },
           countdownNumberStyle,
         ]}
       >
         <Text
           style={[
             styles.countdownText,
-            { color: currentVirtue?.color || theme?.colors.primary },
+            { color: currentVirtue?.color_code || theme?.colors.primary },
           ]}
         >
           {countdown}
@@ -835,7 +781,7 @@ const MeditationScreen: React.FC = () => {
     <View style={styles.activeContainer}>
       <AnimatedParticles
         count={25}
-        color={currentVirtue?.color || theme?.colors.primary}
+        color={currentVirtue?.color_code || theme?.colors.primary}
         speed={0.6}
         radius={2.5}
         anim={pulseAnim}
@@ -845,7 +791,7 @@ const MeditationScreen: React.FC = () => {
         size={250}
         width={4}
         fill={progressAnim}
-        tintColor={currentVirtue?.color || theme?.colors.primary}
+        tintColor={currentVirtue?.color_code || theme?.colors.primary}
         backgroundColor={theme.colors.border}
         innerBackgroundColor="transparent"
         rotation={0}
@@ -859,8 +805,8 @@ const MeditationScreen: React.FC = () => {
           <Animated.View style={[styles.breathGradient, breathingCircleStyle]}>
             <LinearGradient
               colors={[
-                `${currentVirtue?.color || theme?.colors.primary}90`,
-                `${currentVirtue?.color || theme?.colors.primary}30`
+                `${currentVirtue?.color_code || theme?.colors.primary}90`,
+                `${currentVirtue?.color_code || theme?.colors.primary}30`
               ]}
               style={StyleSheet.absoluteFill}
             />
@@ -878,13 +824,13 @@ const MeditationScreen: React.FC = () => {
       <Animated.View style={[styles.promptContainer, promptAnimStyle]}>
         <Text style={styles.promptText}>{currentPrompt}</Text>
         <View style={styles.promptProgress}>
-          {currentVirtue?.prompts.map((_, i) => (
+          {[1, 2, 3, 4].map((_, i) => (
             <View
               key={i}
               style={[
                 styles.progressDot,
                 i === currentPromptIndex && styles.activeProgressDot,
-                i === currentPromptIndex && { backgroundColor: currentVirtue.color },
+                i === currentPromptIndex && { backgroundColor: currentVirtue?.color_code || theme?.colors.primary },
               ]}
             />
           ))}
@@ -907,7 +853,7 @@ const MeditationScreen: React.FC = () => {
 
       <TouchableOpacity style={styles.bellButton} onPress={createChallenge}>
         <Animated.View style={[styles.bellIconContainer, bellButtonStyle]}>
-          <Bell size={40} color={currentVirtue?.color || theme.colors.primary} />
+          <Bell size={40} color={currentVirtue?.color_code || theme.colors.primary} />
         </Animated.View>
         <Text style={styles.bellText}>Activate Daily Challenge</Text>
       </TouchableOpacity>
@@ -919,7 +865,7 @@ const MeditationScreen: React.FC = () => {
         <Text style={styles.challengeSummaryTitle}>Your Selected Challenge:</Text>
         <View style={styles.challengeSummaryCard}>
           <LinearGradient
-            colors={[`${currentVirtue?.color}15`, `${currentVirtue?.color}05`]}
+            colors={[`${currentVirtue?.color_code}15`, `${currentVirtue?.color_code}05`]}
             style={StyleSheet.absoluteFill}
           />
           <Text style={styles.challengeSummaryText}>{selectedChallenge?.title}</Text>
@@ -934,9 +880,8 @@ const MeditationScreen: React.FC = () => {
               </Text>
               {selectedVirtue && (
                 <View style={styles.virtueTagContainer}>
-                  <View style={[styles.virtueTag, { backgroundColor: `${currentVirtue?.color}20` }]}>
-                    {currentVirtue?.icon && <currentVirtue.icon size={14} color={currentVirtue?.color} />}
-                    <Text style={[styles.virtueTagText, { color: currentVirtue?.color }]}>
+                  <View style={[styles.virtueTag, { backgroundColor: `${currentVirtue?.color_code}20` }]}>
+                    <Text style={[styles.virtueTagText, { color: currentVirtue?.color_code }]}>
                       {currentVirtue?.name}
                     </Text>
                   </View>
@@ -969,7 +914,7 @@ const MeditationScreen: React.FC = () => {
   );
 };
 
-const createStyles = (theme: Theme, currentVirtue: any) =>
+const createStyles = (theme: Theme, currentVirtue: Virtue | undefined) =>
   StyleSheet.create({
     container: { flex: 1, backgroundColor: theme?.colors.background },
     header: {
@@ -1029,20 +974,26 @@ const createStyles = (theme: Theme, currentVirtue: any) =>
       fontWeight: '600',
       color: theme?.colors.text.primary,
     },
-    timeContainer: { flexDirection: 'row', justifyContent: 'space-between' },
+    timeContainer: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      justifyContent: 'flex-start',
+      marginRight: -theme?.spacing.sm,
+    },
     timeButton: {
-      flex: 1,
+      width: '31%', // 3 per row
       paddingVertical: theme?.spacing.md,
       borderRadius: theme?.borderRadius.md,
       borderWidth: 1.5,
       borderColor: theme?.colors.border,
       alignItems: 'center',
       backgroundColor: theme?.colors.surface,
-      marginHorizontal: theme?.spacing.xs,
+      marginRight: theme?.spacing.sm,
+      marginBottom: theme?.spacing.sm,
     },
     selectedTimeButton: { borderWidth: 2, backgroundColor: theme?.colors.background },
-    timeButtonContent: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-    timeText: { ...theme?.typography.body.sans, fontWeight: '600', color: theme?.colors.text.primary },
+    timeButtonContent: { flexDirection: 'row', alignItems: 'center' },
+    timeText: { ...theme?.typography.body.sans, fontWeight: '600', color: theme?.colors.text.primary, marginLeft: 6 },
     soundContainer: { flexDirection: 'row', justifyContent: 'space-between' },
     soundButton: {
       flex: 1,
@@ -1164,7 +1115,7 @@ const createStyles = (theme: Theme, currentVirtue: any) =>
       overflow: 'hidden',
       position: 'absolute',
       borderWidth: 1,
-      borderColor: `${currentVirtue?.color || theme?.colors.primary}40`,
+      borderColor: `${currentVirtue?.color_code || theme?.colors.primary}40`,
     },
     breatheInstructionContainer: {
       width: '100%',
@@ -1178,7 +1129,7 @@ const createStyles = (theme: Theme, currentVirtue: any) =>
       paddingVertical: 8,
       borderRadius: 18,
       borderWidth: 1,
-      borderColor: `${currentVirtue?.color || theme?.colors.primary}40`,
+      borderColor: `${currentVirtue?.color_code || theme?.colors.primary}40`,
       ...Platform.select({
         ios: {
           shadowColor: theme.colors.text.primary,
@@ -1191,7 +1142,7 @@ const createStyles = (theme: Theme, currentVirtue: any) =>
     },
     breatheInstruction: {
       ...theme?.typography.body.sans,
-      color: currentVirtue?.color || theme?.colors.primary,
+      color: currentVirtue?.color_code || theme?.colors.primary,
       fontSize: 20,
       fontWeight: '700',
       minWidth: 170,
@@ -1282,7 +1233,7 @@ const createStyles = (theme: Theme, currentVirtue: any) =>
       padding: theme?.spacing.md,
       borderRadius: theme?.borderRadius.md,
       borderWidth: 1.5,
-      backgroundColor: `${currentVirtue?.color || theme?.colors.primary}08`,
+      backgroundColor: `${currentVirtue?.color_code || theme?.colors.primary}08`,
       marginBottom: theme?.spacing.md,
     },
     selectedVirtueContent: { flexDirection: 'row', alignItems: 'center', gap: theme?.spacing.md },
@@ -1351,7 +1302,7 @@ const createStyles = (theme: Theme, currentVirtue: any) =>
       padding: theme?.spacing.md,
       borderRadius: theme?.borderRadius.md,
       borderWidth: 1.5,
-      backgroundColor: `${currentVirtue?.color || theme?.colors.primary}08`,
+      backgroundColor: `${currentVirtue?.color_code || theme?.colors.primary}08`,
       marginBottom: theme?.spacing.md,
     },
     selectedChallengeContent: { flex: 1, marginRight: theme?.spacing.md },
