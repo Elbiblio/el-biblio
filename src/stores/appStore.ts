@@ -1,26 +1,39 @@
-import { create } from 'zustand';
+import { makeAutoObservable, runInAction } from 'mobx';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-interface AppState {
-  hasCompletedWelcome: boolean;
-  setHasCompletedWelcome: (completed: boolean) => Promise<void>;
-  initializeWelcomeState: () => Promise<void>;
-}
+class AppStore {
+  hasCompletedWelcome = false;
 
-export const useAppStore = create<AppState>((set) => ({
-  hasCompletedWelcome: false,
-  setHasCompletedWelcome: async (completed) => {
-    await AsyncStorage.setItem('welcomeScreen', completed ? 'completed' : '');
-    set({ hasCompletedWelcome: completed });
-  },
-  initializeWelcomeState: async () => {
+  constructor() {
+    makeAutoObservable(this);
+    this.initializeWelcomeState();
+  }
+
+  setHasCompletedWelcome = async (completed: boolean) => {
+    try {
+      await AsyncStorage.setItem('welcomeScreen', completed ? 'completed' : '');
+      runInAction(() => {
+        this.hasCompletedWelcome = completed;
+      });
+    } catch (error) {
+      console.error('Error setting welcome state:', error);
+    }
+  };
+
+  initializeWelcomeState = async () => {
     try {
       const welcomeScreen = await AsyncStorage.getItem('welcomeScreen');
       const hasCompleted = welcomeScreen === 'completed';
-      set({ hasCompletedWelcome: hasCompleted });
+      runInAction(() => {
+        this.hasCompletedWelcome = hasCompleted;
+      });
     } catch (error) {
       console.error('Error initializing welcome state:', error);
-      set({ hasCompletedWelcome: false });
+      runInAction(() => {
+        this.hasCompletedWelcome = false;
+      });
     }
-  },
-}));
+  };
+}
+
+export const appStore = new AppStore();

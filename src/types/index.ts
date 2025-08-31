@@ -485,6 +485,7 @@ export interface Match {
   match_type: MatchType;
   wait_time_minutes: number;
   matched_user_id?: string;
+  matchedUser?: User;
   matched_at?: string;
   expires_at: string;
   status: MatchStatus;

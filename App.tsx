@@ -39,6 +39,7 @@ import CommunityScreen from './src/screens/CommunityScreen';
 import PrayerRequestsScreen from './src/screens/PrayerRequestsScreen';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAppStore } from './src/stores/appStore';
+import { StoreProvider } from './src/stores/StoreProvider';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -174,11 +175,13 @@ const AppContent = () => {
       onThemeChange={handleThemeChange}
     >
       <GestureHandlerRootView style={{ flex: 1 }}>
-        {showThemeSelector ? (
-          <ThemeSelector onSelect={handleThemeSelect} closeAfterSelection />
-        ) : (
-          <NavigationContent />
-        )}
+        <StoreProvider>
+          {showThemeSelector ? (
+            <ThemeSelector onSelect={handleThemeSelect} closeAfterSelection />
+          ) : (
+            <NavigationContent />
+          )}
+        </StoreProvider>
         <Toaster />
       </GestureHandlerRootView>
     </ThemeProvider>

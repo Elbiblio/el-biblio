@@ -1,0 +1,8 @@
+{
+  // Suppress TypeScript project diagnostics for external node_modules packages' tsconfig.json
+  "typescript.tsserver.experimental.enableProjectDiagnostics": false,
+  // Ensure TypeScript only validates files in our workspace (src) and not node_modules projects
+  "typescript.validate.enable": true,
+  // Prefer the workspace TypeScript version
+  "typescript.enablePromptUseWorkspaceTsdk": true
+}

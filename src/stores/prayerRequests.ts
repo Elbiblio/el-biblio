@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { apiClient, endpoints } from '@/api/client';
 import type { PaginatedResponse, PrayerRequest, User } from '@/types';
+import { buildPagination } from '@/utils/pagination';
 
 interface PrayerRequestsState {
   // List
@@ -58,15 +59,7 @@ export const usePrayerRequestsStore = create<PrayerRequestsState>((set, get) => 
 
       set({
         requests: page === 1 ? data : [...get().requests, ...data],
-        pagination: {
-          currentPage: (meta && typeof meta.current_page === 'number') ? meta.current_page : page,
-          lastPage: (meta && typeof meta.last_page === 'number') ? meta.last_page : page,
-          perPage: (meta && typeof meta.per_page === 'number') ? meta.per_page : get().pagination.perPage,
-          total: (meta && typeof meta.total === 'number') ? meta.total : (get().pagination.total ?? (Array.isArray(data) ? data.length : 0)),
-          hasMore: (meta && typeof meta.current_page === 'number' && typeof meta.last_page === 'number')
-            ? meta.current_page < meta.last_page
-            : (Array.isArray(data) ? data.length >= ((meta && typeof meta.per_page === 'number') ? meta.per_page : (get().pagination.perPage ?? 20)) : false),
-        },
+        pagination: buildPagination(meta as any, get().pagination, page, Array.isArray(data) ? data.length : 0),
         isLoading: false,
       });
     } catch (err) {

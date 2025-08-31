@@ -25,7 +25,7 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { OnboardingStep, STEPS } from '@/constants';
 import { SCREEN_DIMENSIONS } from '@/constants';
 import { useAuth } from '@/stores/auth';
-import { useAppStore } from '@/stores/appStore';
+import { appStore } from '@/stores/appStore';
 import { toast } from 'sonner-native';
 
 const SCREEN_WIDTH = SCREEN_DIMENSIONS.width;
@@ -47,7 +47,7 @@ const IntroScreen: React.FC<IntroScreenProps> = ({
 
   const { completeWelcome, hasCompletedWelcome } = useWelcomeState();
   const { createGuestAccount, isLoading, error } = useAuth();
-  const { setHasCompletedWelcome } = useAppStore();
+  const { setHasCompletedWelcome } = appStore;
 
   const onClose = async () => {
     try {

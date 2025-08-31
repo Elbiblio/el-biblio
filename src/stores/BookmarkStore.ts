@@ -1,0 +1,122 @@
+import { makeAutoObservable, runInAction } from 'mobx';
+import { apiClient, endpoints } from '@/api/client';
+import { Bookmark, PaginatedResponse } from '@/types';
+import { BaseStore } from './BaseStore';
+
+interface BookmarkStoreState {
+  bookmarks: Bookmark[];
+}
+
+class BookmarkStore extends BaseStore<BookmarkStoreState> {
+  constructor() {
+    super({
+      bookmarks: [],
+    }, 'bookmarks_store');
+    
+    makeAutoObservable(this);
+  }
+
+  fetchBookmarks = async (params?: {
+    include?: string[];
+    sort?: string;
+    per_page?: number;
+    page?: number;
+  }) => {
+    try {
+      this.setLoading(true);
+      this.setError(null);
+      
+      const response = await apiClient.get<PaginatedResponse<Bookmark>>(endpoints.bookmarks.list, params);
+      
+      runInAction(() => {
+        this.state.bookmarks = response.data.data;
+      });
+      
+      await this.saveToStorage();
+    } catch (error) {
+      console.error('Failed to fetch bookmarks:', error);
+      this.setError('Failed to fetch bookmarks');
+      throw error;
+    } finally {
+      this.setLoading(false);
+    }
+  };
+
+  createBookmark = async (data: {
+    bookmarkable_id: number;
+    bookmarkable_type: string;
+    user_id: number;
+  }) => {
+    try {
+      this.setLoading(true);
+      const response = await apiClient.post<{ data: Bookmark }>(endpoints.bookmarks.create, data);
+      
+      runInAction(() => {
+        this.state.bookmarks = [response.data.data, ...this.state.bookmarks];
+      });
+      
+      await this.saveToStorage();
+      return response.data.data;
+    } catch (error) {
+      console.error('Failed to create bookmark:', error);
+      this.setError('Failed to create bookmark');
+      throw error;
+    } finally {
+      this.setLoading(false);
+    }
+  };
+
+  deleteBookmark = async (id: number) => {
+    try {
+      this.setLoading(true);
+      await apiClient.delete(endpoints.bookmarks.delete(id.toString()));
+      
+      runInAction(() => {
+        this.state.bookmarks = this.state.bookmarks.filter(bookmark => bookmark.id !== id);
+      });
+      
+      await this.saveToStorage();
+      return true;
+    } catch (error) {
+      console.error('Failed to delete bookmark:', error);
+      this.setError('Failed to delete bookmark');
+      return false;
+    } finally {
+      this.setLoading(false);
+    }
+  };
+
+  togglePin = async (id: number) => {
+    try {
+      this.setLoading(true);
+      const bookmark = this.state.bookmarks.find(b => b.id === id);
+      if (!bookmark) {
+        throw new Error('Bookmark not found');
+      }
+      const response = await apiClient.patch<{ data: Bookmark }>(`${endpoints.bookmarks.update(id.toString())}/toggle-pin`);
+      
+      runInAction(() => {
+        const index = this.state.bookmarks.findIndex(b => b.id === id);
+        if (index !== -1) {
+          this.state.bookmarks[index] = response.data.data;
+        }
+      });
+      
+      await this.saveToStorage();
+      return true;
+    } catch (error) {
+      console.error('Failed to toggle pin:', error);
+      this.setError('Failed to toggle pin status');
+      return false;
+    } finally {
+      this.setLoading(false);
+    }
+  };
+}
+
+// Create a singleton instance
+export const bookmarkStore = new BookmarkStore();
+
+// For backward compatibility
+export const useBookmarkStore = () => bookmarkStore;
+export default bookmarkStore;

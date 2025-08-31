@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 import { apiClient, endpoints } from '@/api/client';
 import { LeaderboardEntry, UserStats, PaginatedResponse } from '@/types';
+import { gameBadgeStore, RankTimeframe } from './GameBadgeStore';
+import { buildPagination } from '@/utils/pagination';
 
 interface LeaderboardState {
   // Global leaderboard
@@ -64,6 +66,9 @@ interface LeaderboardState {
   } | null>;
   fetchUserStats: (userId: string) => Promise<UserStats | null>;
   fetchGlobalStats: () => Promise<void>;
+  // Helpers
+  refreshGlobalLeaderboard: (timeframe?: 'all' | 'day' | 'week' | 'month') => Promise<void>;
+  loadMoreGlobalLeaderboard: () => Promise<void>;
   
   // State management
   clearErrors: () => void;
@@ -100,6 +105,18 @@ export const useLeaderboardStore = create<LeaderboardState>((set, get) => ({
     total: 0,
     hasMore: false,
   },
+
+  // Helpers
+  refreshGlobalLeaderboard: async (timeframe = 'all') => {
+    await get().fetchGlobalLeaderboard(1, timeframe);
+  },
+
+  loadMoreGlobalLeaderboard: async () => {
+    const { pagination, filters } = get();
+    if (!pagination.hasMore) return;
+    const next = (pagination.currentPage || 1) + 1;
+    await get().fetchGlobalLeaderboard(next, filters.timeframe);
+  },
   
   filters: {
     timeframe: 'all',
@@ -125,18 +142,11 @@ export const useLeaderboardStore = create<LeaderboardState>((set, get) => ({
       }
       
       const { data, meta } = response.data;
-      
+      const newPagination = buildPagination(meta as any, get().pagination, page, Array.isArray(data) ? data.length : 0);
+
       set({
         globalLeaderboard: page === 1 ? data : [...get().globalLeaderboard, ...data],
-        pagination: {
-          currentPage: (meta && typeof meta.current_page === 'number') ? meta.current_page : (page ?? get().pagination.currentPage ?? 1),
-          lastPage: (meta && typeof meta.last_page === 'number') ? meta.last_page : ((meta && typeof meta.current_page === 'number') ? meta.current_page : (page ?? get().pagination.lastPage ?? 1)),
-          perPage: (meta && typeof meta.per_page === 'number') ? meta.per_page : (get().pagination.perPage ?? 20),
-          total: (meta && typeof meta.total === 'number') ? meta.total : (get().pagination.total ?? (Array.isArray(data) ? data.length : 0)),
-          hasMore: (meta && typeof meta.current_page === 'number' && typeof meta.last_page === 'number')
-            ? meta.current_page < meta.last_page
-            : (Array.isArray(data) ? data.length >= ((meta && typeof meta.per_page === 'number') ? meta.per_page : (get().pagination.perPage ?? 20)) : false),
-        },
+        pagination: newPagination,
         filters: { ...get().filters, timeframe: timeframe as 'all' | 'day' | 'week' | 'month' },
         isGlobalLoading: false,
       });
@@ -167,18 +177,11 @@ export const useLeaderboardStore = create<LeaderboardState>((set, get) => ({
       }
       
       const { data, meta } = response.data;
-      
+      const newPagination = buildPagination(meta as any, get().pagination, page, Array.isArray(data) ? data.length : 0);
+
       set({
         themeLeaderboard: page === 1 ? data : [...get().themeLeaderboard, ...data],
-        pagination: {
-          currentPage: (meta && typeof meta.current_page === 'number') ? meta.current_page : (page ?? get().pagination.currentPage ?? 1),
-          lastPage: (meta && typeof meta.last_page === 'number') ? meta.last_page : ((meta && typeof meta.current_page === 'number') ? meta.current_page : (page ?? get().pagination.lastPage ?? 1)),
-          perPage: (meta && typeof meta.per_page === 'number') ? meta.per_page : (get().pagination.perPage ?? 20),
-          total: (meta && typeof meta.total === 'number') ? meta.total : (get().pagination.total ?? (Array.isArray(data) ? data.length : 0)),
-          hasMore: (meta && typeof meta.current_page === 'number' && typeof meta.last_page === 'number')
-            ? meta.current_page < meta.last_page
-            : (Array.isArray(data) ? data.length >= ((meta && typeof meta.per_page === 'number') ? meta.per_page : (get().pagination.perPage ?? 20)) : false),
-        },
+        pagination: newPagination,
         filters: { ...get().filters, themeId },
         isThemeLoading: false,
       });
@@ -209,18 +212,11 @@ export const useLeaderboardStore = create<LeaderboardState>((set, get) => ({
       }
       
       const { data, meta } = response.data;
-      
+      const newPagination = buildPagination(meta as any, get().pagination, page, Array.isArray(data) ? data.length : 0);
+
       set({
         timeframeLeaderboard: page === 1 ? data : [...get().timeframeLeaderboard, ...data],
-        pagination: {
-          currentPage: (meta && typeof meta.current_page === 'number') ? meta.current_page : (page ?? get().pagination.currentPage ?? 1),
-          lastPage: (meta && typeof meta.last_page === 'number') ? meta.last_page : ((meta && typeof meta.current_page === 'number') ? meta.current_page : (page ?? get().pagination.lastPage ?? 1)),
-          perPage: (meta && typeof meta.per_page === 'number') ? meta.per_page : (get().pagination.perPage ?? 20),
-          total: (meta && typeof meta.total === 'number') ? meta.total : (get().pagination.total ?? (Array.isArray(data) ? data.length : 0)),
-          hasMore: (meta && typeof meta.current_page === 'number' && typeof meta.last_page === 'number')
-            ? meta.current_page < meta.last_page
-            : (Array.isArray(data) ? data.length >= ((meta && typeof meta.per_page === 'number') ? meta.per_page : (get().pagination.perPage ?? 20)) : false),
-        },
+        pagination: newPagination,
         filters: { ...get().filters, timeframe },
         isTimeframeLoading: false,
       });
@@ -251,6 +247,14 @@ export const useLeaderboardStore = create<LeaderboardState>((set, get) => ({
         throw new Error(response.message || 'Failed to fetch user rank');
       }
       
+      // Update game badge rank tracking
+      try {
+        gameBadgeStore.updateRank(timeframe as RankTimeframe, response.data?.rank);
+      } catch (e) {
+        // Non-fatal: badge update should not block rank retrieval
+        console.warn('Failed to update game badge rank', e);
+      }
+
       return response.data;
     } catch (error) {
       console.error('Error fetching user rank:', error);

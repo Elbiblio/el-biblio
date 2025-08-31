@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { apiClient, endpoints } from '@/api/client';
 import { Reflection, Comment, PaginatedResponse } from '@/types';
+import { buildPagination } from '@/utils/pagination';
 
 interface ReflectionState {
   // Reflections list
@@ -143,15 +144,7 @@ export const useReflectionStore = create<ReflectionState>((set, get) => ({
       
       set({
         reflections: page === 1 ? data : [...get().reflections, ...data],
-        pagination: {
-          currentPage: (meta && typeof meta.current_page === 'number') ? meta.current_page : (page ?? get().pagination.currentPage ?? 1),
-          lastPage: (meta && typeof meta.last_page === 'number') ? meta.last_page : ((meta && typeof meta.current_page === 'number') ? meta.current_page : (page ?? get().pagination.lastPage ?? 1)),
-          perPage: (meta && typeof meta.per_page === 'number') ? meta.per_page : (get().pagination.perPage ?? 20),
-          total: (meta && typeof meta.total === 'number') ? meta.total : (get().pagination.total ?? (Array.isArray(data) ? data.length : 0)),
-          hasMore: (meta && typeof meta.current_page === 'number' && typeof meta.last_page === 'number')
-            ? meta.current_page < meta.last_page
-            : (Array.isArray(data) ? data.length >= ((meta && typeof meta.per_page === 'number') ? meta.per_page : (get().pagination.perPage ?? 20)) : false),
-        },
+        pagination: buildPagination(meta as any, get().pagination, page, Array.isArray(data) ? data.length : 0),
         filters: currentFilters,
         isReflectionsLoading: false,
       });
@@ -218,15 +211,7 @@ export const useReflectionStore = create<ReflectionState>((set, get) => ({
       
       set({
         reflections: page === 1 ? data : [...get().reflections, ...data],
-        pagination: {
-          currentPage: (meta && typeof meta.current_page === 'number') ? meta.current_page : (page ?? get().pagination.currentPage ?? 1),
-          lastPage: (meta && typeof meta.last_page === 'number') ? meta.last_page : ((meta && typeof meta.current_page === 'number') ? meta.current_page : (page ?? get().pagination.lastPage ?? 1)),
-          perPage: (meta && typeof meta.per_page === 'number') ? meta.per_page : (get().pagination.perPage ?? 20),
-          total: (meta && typeof meta.total === 'number') ? meta.total : (get().pagination.total ?? (Array.isArray(data) ? data.length : 0)),
-          hasMore: (meta && typeof meta.current_page === 'number' && typeof meta.last_page === 'number')
-            ? meta.current_page < meta.last_page
-            : (Array.isArray(data) ? data.length >= ((meta && typeof meta.per_page === 'number') ? meta.per_page : (get().pagination.perPage ?? 20)) : false),
-        },
+        pagination: buildPagination(meta as any, get().pagination, page, Array.isArray(data) ? data.length : 0),
         filters: { ...get().filters, verseId },
         isReflectionsLoading: false,
       });
@@ -262,15 +247,7 @@ export const useReflectionStore = create<ReflectionState>((set, get) => ({
       
       set({
         reflections: page === 1 ? data : [...get().reflections, ...data],
-        pagination: {
-          currentPage: (meta && typeof meta.current_page === 'number') ? meta.current_page : (page ?? get().pagination.currentPage ?? 1),
-          lastPage: (meta && typeof meta.last_page === 'number') ? meta.last_page : ((meta && typeof meta.current_page === 'number') ? meta.current_page : (page ?? get().pagination.lastPage ?? 1)),
-          perPage: (meta && typeof meta.per_page === 'number') ? meta.per_page : (get().pagination.perPage ?? 20),
-          total: (meta && typeof meta.total === 'number') ? meta.total : (get().pagination.total ?? (Array.isArray(data) ? data.length : 0)),
-          hasMore: (meta && typeof meta.current_page === 'number' && typeof meta.last_page === 'number')
-            ? meta.current_page < meta.last_page
-            : (Array.isArray(data) ? data.length >= ((meta && typeof meta.per_page === 'number') ? meta.per_page : (get().pagination.perPage ?? 20)) : false),
-        },
+        pagination: buildPagination(meta as any, get().pagination, page, Array.isArray(data) ? data.length : 0),
         filters: { ...get().filters, userId },
         isReflectionsLoading: false,
       });
@@ -306,15 +283,7 @@ export const useReflectionStore = create<ReflectionState>((set, get) => ({
       
       set({
         reflections: page === 1 ? data : [...get().reflections, ...data],
-        pagination: {
-          currentPage: (meta && typeof meta.current_page === 'number') ? meta.current_page : (page ?? get().pagination.currentPage ?? 1),
-          lastPage: (meta && typeof meta.last_page === 'number') ? meta.last_page : ((meta && typeof meta.current_page === 'number') ? meta.current_page : (page ?? get().pagination.lastPage ?? 1)),
-          perPage: (meta && typeof meta.per_page === 'number') ? meta.per_page : (get().pagination.perPage ?? 20),
-          total: (meta && typeof meta.total === 'number') ? meta.total : (get().pagination.total ?? (Array.isArray(data) ? data.length : 0)),
-          hasMore: (meta && typeof meta.current_page === 'number' && typeof meta.last_page === 'number')
-            ? meta.current_page < meta.last_page
-            : (Array.isArray(data) ? data.length >= ((meta && typeof meta.per_page === 'number') ? meta.per_page : (get().pagination.perPage ?? 20)) : false),
-        },
+        pagination: buildPagination(meta as any, get().pagination, page, Array.isArray(data) ? data.length : 0),
         isReflectionsLoading: false,
       });
 
@@ -497,15 +466,7 @@ export const useReflectionStore = create<ReflectionState>((set, get) => ({
       
       set({
         comments: page === 1 ? data : [...get().comments, ...data],
-        pagination: {
-          currentPage: (meta && typeof meta.current_page === 'number') ? meta.current_page : (page ?? get().pagination.currentPage ?? 1),
-          lastPage: (meta && typeof meta.last_page === 'number') ? meta.last_page : ((meta && typeof meta.current_page === 'number') ? meta.current_page : (page ?? get().pagination.lastPage ?? 1)),
-          perPage: (meta && typeof meta.per_page === 'number') ? meta.per_page : (get().pagination.perPage ?? 20),
-          total: (meta && typeof meta.total === 'number') ? meta.total : (get().pagination.total ?? (Array.isArray(data) ? data.length : 0)),
-          hasMore: (meta && typeof meta.current_page === 'number' && typeof meta.last_page === 'number')
-            ? meta.current_page < meta.last_page
-            : (Array.isArray(data) ? data.length >= ((meta && typeof meta.per_page === 'number') ? meta.per_page : (get().pagination.perPage ?? 20)) : false),
-        },
+        pagination: buildPagination(meta as any, get().pagination, page, Array.isArray(data) ? data.length : 0),
         isCommentsLoading: false,
       });
 

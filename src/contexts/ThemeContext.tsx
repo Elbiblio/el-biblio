@@ -1,7 +1,8 @@
 import React, { createContext, useContext, useEffect } from 'react';
+import { observer } from 'mobx-react-lite';
 import { Theme, ThemeVariant, defaultTheme, getTheme } from '../theme';
 import { useThemeStore } from '@/stores/theme';
-import { useAppStore } from '@/stores/appStore';
+import { appStore } from '@/stores/appStore';
 import { usePreferences } from '@/stores/preferences';
 
 interface ThemeContextType {
@@ -24,16 +25,14 @@ interface ThemeProviderProps {
   onThemeChange?: (variant: ThemeVariant) => void;
 }
 
-export const ThemeProvider: React.FC<ThemeProviderProps> = ({
+export const ThemeProvider: React.FC<ThemeProviderProps> = observer(({
   children,
   initialTheme = defaultTheme,
   onThemeChange,
 }) => {
   const setStoreTheme = useThemeStore(state => state.setTheme);
   const currentTheme = useThemeStore(state => state.current);
-  const hasCompletedWelcome = useAppStore(state => state.hasCompletedWelcome);
-  const setHasCompletedWelcome = useAppStore(state => state.setHasCompletedWelcome);
-  const initializeWelcomeState = useAppStore(state => state.initializeWelcomeState);
+  const { hasCompletedWelcome, setHasCompletedWelcome, initializeWelcomeState } = appStore;
   const { preferredTheme, setPreferredTheme } = usePreferences();
 
   // Sync initial theme with store
@@ -79,7 +78,7 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({
       {children}
     </ThemeContext.Provider>
   );
-};
+});
 
 export const useWelcomeState = () => {
   const context = useContext(ThemeContext);
