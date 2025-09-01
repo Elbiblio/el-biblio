@@ -1,8 +1,5 @@
 import * as React from 'react';
-import { apiClient } from '@/api/client';
-import { useVerseStore } from '@/stores/verse';
-import { useChallengeStore } from '@/stores/challenge';
-import { useAuth } from '@/stores/auth';
+import { useAuthStore, useVerseStore } from '@/stores/StoreProvider';
 
 // WebSocket event types
 export interface WebSocketEvent {
@@ -33,6 +30,11 @@ class WebSocketService {
   private heartbeatInterval: ReturnType<typeof setInterval> | null = null;
   private subscriptions: Map<string, (data: any) => void> = new Map();
   private authInfo: WebSocketAuthInfo = { token: null };
+  private verseHandlers?: {
+    updateVerseVotes: (id: any, votes: any, is_voted: any) => void;
+    updateVerseLikes: (id: any, likes: any, is_liked: any) => void;
+    updateVerseShares: (id: any, shares: any) => void;
+  };
   
   // Configuration
   private config = {
@@ -260,35 +262,29 @@ class WebSocketService {
 
   // Verse event handlers
   private handleVerseVoted(data: any): void {
-    const verseStore = useVerseStore.getState();
-    verseStore.updateVerseVotes(data.verse_id, data.votes, data.is_voted);
+    this.verseHandlers?.updateVerseVotes?.(data.verse_id, data.votes, data.is_voted);
   }
 
   private handleVerseLiked(data: any): void {
-    const verseStore = useVerseStore.getState();
-    verseStore.updateVerseLikes(data.verse_id, data.likes, data.is_liked);
+    this.verseHandlers?.updateVerseLikes?.(data.verse_id, data.likes, data.is_liked);
   }
 
   private handleVerseShared(data: any): void {
-    const verseStore = useVerseStore.getState();
-    verseStore.updateVerseShares(data.verse_id, data.shares);
+    this.verseHandlers?.updateVerseShares?.(data.verse_id, data.shares);
   }
 
   // Challenge event handlers
   private handleChallengeJoined(data: any): void {
-    const challengeStore = useChallengeStore.getState();
     // Update challenge participants count
     console.log('User joined challenge:', data);
   }
 
   private handleChallengeLeft(data: any): void {
-    const challengeStore = useChallengeStore.getState();
     // Update challenge participants count
     console.log('User left challenge:', data);
   }
 
   private handleChallengeCompleted(data: any): void {
-    const challengeStore = useChallengeStore.getState();
     // Update challenge completion status
     console.log('Challenge completed:', data);
   }
@@ -357,6 +353,11 @@ class WebSocketService {
   public isConnected(): boolean {
     return this.state.isConnected;
   }
+
+  // Injection API for non-React service to talk to stores
+  public setVerseHandlers(handlers?: WebSocketService['verseHandlers']): void {
+    this.verseHandlers = handlers;
+  }
 }
 
 // Create singleton instance
@@ -389,7 +390,7 @@ export const useWebSocket = () => {
 
 // Hook to automatically sync auth state with WebSocket
 export const useWebSocketAuthSync = () => {
-  const { user, token } = useAuth();
+  const { user, token } = useAuthStore();
   
   React.useEffect(() => {
     if (user && token) {
@@ -401,6 +402,23 @@ export const useWebSocketAuthSync = () => {
       webSocketService.setAuthInfo({ token: null });
     }
   }, [user, token]);
+};
+
+// Hook to bind verse store handlers to the WebSocket service
+export const useWebSocketVerseSync = () => {
+  const verseStore = useVerseStore();
+
+  React.useEffect(() => {
+    webSocketService.setVerseHandlers({
+      updateVerseVotes: verseStore.updateVerseVotes.bind(verseStore),
+      updateVerseLikes: verseStore.updateVerseLikes.bind(verseStore),
+      updateVerseShares: verseStore.updateVerseShares.bind(verseStore),
+    });
+
+    return () => {
+      webSocketService.setVerseHandlers(undefined);
+    };
+  }, [verseStore]);
 };
 
 export default webSocketService; 

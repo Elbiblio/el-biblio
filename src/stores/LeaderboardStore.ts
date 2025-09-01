@@ -1,7 +1,7 @@
-import { makeObservable, action, runInAction } from 'mobx';
+import { makeObservable, action, runInAction, computed } from 'mobx';
 import { BaseStore } from '@/stores/BaseStore';
 import { apiClient, endpoints } from '@/api/client';
-import { LeaderboardEntry, UserStats, PaginatedResponse } from '@/types';
+import { LeaderboardEntry, UserStats, PaginatedResponse, BackendUserStats } from '@/types';
 
 export type Timeframe = 'all' | 'day' | 'week' | 'month';
 
@@ -97,16 +97,31 @@ export class LeaderboardStore extends BaseStore<LeaderboardStoreState> {
     });
 
     makeObservable(this, {
+      userStats: computed,
       fetchGlobalLeaderboard: action.bound,
       fetchThemeLeaderboard: action.bound,
       fetchTimeframeLeaderboard: action.bound,
       fetchUserRank: action.bound,
       fetchUserStats: action.bound,
       fetchGlobalStats: action.bound,
+      refreshGlobalLeaderboard: action.bound,
+      loadMoreGlobalLeaderboard: action.bound,
       setFilters: action.bound,
       resetFilters: action.bound,
       clearErrors: action.bound,
     });
+  }
+
+  async refreshGlobalLeaderboard(timeframe: Timeframe = 'all') {
+    // Refresh the first page with the selected timeframe
+    await this.fetchGlobalLeaderboard(1, timeframe);
+  }
+
+  async loadMoreGlobalLeaderboard() {
+    const { pagination, filters } = this.state;
+    if (!pagination?.hasMore) return;
+    const next = (pagination.currentPage || 1) + 1;
+    await this.fetchGlobalLeaderboard(next, filters.timeframe);
   }
 
   private computePagination(meta: any, fallbackPage: number, currentTotal: number): PaginationState {
@@ -260,16 +275,42 @@ export class LeaderboardStore extends BaseStore<LeaderboardStoreState> {
         this.state.userStatsError = null;
       });
 
-      const response = await apiClient.get<UserStats>(endpoints.stats.user(userId));
+      const response = await apiClient.get<BackendUserStats>(endpoints.stats.user(userId));
 
       if (!response.success) throw new Error(response.message || 'Failed to fetch user stats');
 
+      const b = response.data;
+      const mapped: UserStats = {
+        totalPoints: b.total_points ?? 0,
+        totalReflections: b.total_reflections ?? 0,
+        totalNotes: 0,
+        totalChallenges: 0,
+        totalBookmarks: b.total_bookmarks ?? 0,
+        // Backend provides sessions count, not minutes; keep minutes as 0 and let UI compute from sessions if needed
+        totalMeditationMinutes: 0,
+        totalActiveDays: b.total_active_days ?? 0,
+        currentStreak: b.current_streak ?? 0,
+        longestStreak: b.longest_streak ?? 0,
+        // Extra fields mapped when available
+        totalMeditationSessions: b.total_meditation_sessions,
+        totalChallengesCompleted: b.total_challenges_completed,
+        totalActiveTime: b.total_active_time,
+        totalVersesRead: b.total_verses_read,
+        totalActivities: b.total_activities,
+        rank: b.rank,
+        level: b.level,
+        favoriteThemes: b.favorite_themes,
+        // Not provided by backend endpoints above
+        topVirtues: [],
+        recentActivity: [],
+      };
+
       runInAction(() => {
-        this.state.userStats = response.data;
+        this.state.userStats = mapped;
         this.state.isUserStatsLoading = false;
       });
 
-      return response.data;
+      return mapped;
     } catch (error: any) {
       console.error('Error fetching user stats:', error);
       runInAction(() => {
@@ -331,6 +372,11 @@ export class LeaderboardStore extends BaseStore<LeaderboardStoreState> {
       this.state.filters = { ...this.state.filters, ...filters };
     });
   }
+
+  get userStats(): UserStats | null {
+    return this.state.userStats;
+  }
+
 
   resetFilters() {
     runInAction(() => {

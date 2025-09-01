@@ -9,8 +9,9 @@ import React, { useState, useEffect, useMemo } from "react";
 import { View, StyleSheet, Text, Image, TouchableOpacity, TextInput, ScrollView, Modal } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useBookmarkStore } from "@/stores/bookmark";
-import { useVerseStore } from '@/stores/verse';
-import { useReflectionStore } from '@/stores/reflection';
+import { useVerseStore, useReflectionStore } from '@/stores/StoreProvider';
+import { observer } from 'mobx-react-lite';
+
 import { toast } from "sonner-native";
 
 const SavedItemsScreen: React.FC<NativeStackScreenProps<RootStackParamList, 'SavedItemsScreen'>> = ({
@@ -689,5 +690,4 @@ const createStyles = (theme: Theme) => StyleSheet.create({
   }
 });
 
-
-export default SavedItemsScreen;
+export default observer(SavedItemsScreen);

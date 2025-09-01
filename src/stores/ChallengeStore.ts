@@ -1,6 +1,7 @@
 import { makeObservable, action, runInAction, computed } from 'mobx';
 import { apiClient, endpoints } from '@/api/client';
-import { Challenge, ChallengeType, DailyChallenge } from '@/types/challenges';
+import { Challenge, ChallengeType, DailyChallenge, BackendChallenge, BackendChallengeParticipantsResponse } from '@/types/challenges';
+import { mapChallenge } from '@/utils/mapChallenge';
 import { PaginatedResponse } from '@/types';
 import { BaseStore } from './BaseStore';
 import { toast } from 'sonner-native';
@@ -55,6 +56,17 @@ export class ChallengeStore extends BaseStore<ChallengeState> {
       activeCategory: computed,
       showNewChallengeForm: computed,
       refreshing: computed,
+      // Compatibility computed flags (legacy Zustand props)
+      isPersonalLoading: computed,
+      isCommunityLoading: computed,
+      isSuggestedLoading: computed,
+      isCreatingLoading: computed,
+      isJoiningLoading: computed,
+      isUpvotingLoading: computed,
+      personalError: computed,
+      communityError: computed,
+      suggestedError: computed,
+      createError: computed,
       
       // Actions
       fetchPersonalChallenges: action,
@@ -75,6 +87,7 @@ export class ChallengeStore extends BaseStore<ChallengeState> {
       refreshAll: action,
       refreshChallenges: action,
       fetchChallengeParticipants: action,
+      clearErrors: action,
     });
     
     // Initialize the store
@@ -89,6 +102,43 @@ export class ChallengeStore extends BaseStore<ChallengeState> {
       suggested: this.state.suggestedChallenges,
     };
   }
+
+  // Computed getters for direct access
+  get personalChallenges() {
+    return this.state.personalChallenges;
+  }
+
+  get communityChallenges() {
+    return this.state.communityChallenges;
+  }
+
+  get suggestedChallenges() {
+    return this.state.suggestedChallenges;
+  }
+
+  get activeCategory() {
+    return this.state.activeCategory;
+  }
+
+  get showNewChallengeForm() {
+    return this.state.showNewChallengeForm;
+  }
+
+  get refreshing() {
+    return this.state.refreshing;
+  }
+
+  // Legacy Zustand compatibility getters
+  get isPersonalLoading() { return this.isLoading; }
+  get isCommunityLoading() { return this.isLoading; }
+  get isSuggestedLoading() { return this.isLoading; }
+  get isCreatingLoading() { return this.isLoading; }
+  get isJoiningLoading() { return this.isLoading; }
+  get isUpvotingLoading() { return this.isLoading; }
+  get personalError() { return this.error; }
+  get communityError() { return this.error; }
+  get suggestedError() { return this.error; }
+  get createError() { return this.error; }
 
   // Initialization
   private async initialize() {
@@ -107,24 +157,69 @@ export class ChallengeStore extends BaseStore<ChallengeState> {
     }
   }
 
+  async fetchChallengeParticipants(challengeId: string, page = 1) {
+    try {
+      this.setLoading(true);
+      const response = await apiClient.get<BackendChallengeParticipantsResponse>(
+        endpoints.challenges.participants(challengeId),
+        { page }
+      );
+
+      runInAction(() => {
+        // Optionally refresh the challenge data from response
+        if (response.data?.challenge) {
+          const mappedChallenge = mapChallenge(response.data.challenge as BackendChallenge);
+          this.replaceChallengeInLists(challengeId, mappedChallenge);
+        }
+
+        // Map participants to lightweight avatar objects expected by Challenge.participantAvatars
+        const avatars = (response.data?.participants || []).map(p => ({
+          id: String(p.id),
+          avatar: p.avatar ? String(p.avatar) : '',
+          first_name: p.first_name,
+          last_name: p.last_name,
+        }));
+        const total = response.data?.pagination?.total ?? avatars.length;
+
+        this.updateChallengeInLists(challengeId, {
+          participantAvatars: avatars.slice(0, 5),
+          participants: total,
+        });
+      });
+
+      return response.data;
+    } catch (error) {
+      console.error(`Error fetching participants for challenge ${challengeId}:`, error);
+      this.setError('Failed to fetch challenge participants');
+      throw error;
+    } finally {
+      this.setLoading(false);
+    }
+  }
+
+  clearErrors() {
+    this.setError(null);
+  }
+
   // Fetching methods
   async fetchPersonalChallenges(page = 1) {
     try {
       this.setLoading(true);
-      const response = await apiClient.get<PaginatedResponse<Challenge>>(
+      const response = await apiClient.get<PaginatedResponse<BackendChallenge>>(
         endpoints.challenges.personal,
         { page }
       );
       
       runInAction(() => {
+        const mapped = response.data.data.map(mapChallenge);
         this.state.personalChallenges = page === 1 
-          ? response.data.data 
-          : [...this.state.personalChallenges, ...response.data.data];
+          ? mapped 
+          : [...this.state.personalChallenges, ...mapped];
           
         this.updatePagination(response.data.meta, page);
       });
       
-      return response.data.data;
+      return this.state.personalChallenges;
     } catch (error) {
       console.error('Error fetching personal challenges:', error);
       this.setError('Failed to fetch personal challenges');
@@ -137,20 +232,21 @@ export class ChallengeStore extends BaseStore<ChallengeState> {
   async fetchCommunityChallenges(page = 1) {
     try {
       this.setLoading(true);
-      const response = await apiClient.get<PaginatedResponse<Challenge>>(
+      const response = await apiClient.get<PaginatedResponse<BackendChallenge>>(
         endpoints.challenges.community,
         { page }
       );
       
       runInAction(() => {
+        const mapped = response.data.data.map(mapChallenge);
         this.state.communityChallenges = page === 1 
-          ? response.data.data 
-          : [...this.state.communityChallenges, ...response.data.data];
+          ? mapped 
+          : [...this.state.communityChallenges, ...mapped];
           
         this.updatePagination(response.data.meta, page);
       });
       
-      return response.data.data;
+      return this.state.communityChallenges;
     } catch (error) {
       console.error('Error fetching community challenges:', error);
       this.setError('Failed to fetch community challenges');
@@ -163,20 +259,21 @@ export class ChallengeStore extends BaseStore<ChallengeState> {
   async fetchSuggestedChallenges(page = 1) {
     try {
       this.setLoading(true);
-      const response = await apiClient.get<PaginatedResponse<Challenge>>(
+      const response = await apiClient.get<PaginatedResponse<BackendChallenge>>(
         endpoints.challenges.suggested,
         { page }
       );
       
       runInAction(() => {
+        const mapped = response.data.data.map(mapChallenge);
         this.state.suggestedChallenges = page === 1 
-          ? response.data.data 
-          : [...this.state.suggestedChallenges, ...response.data.data];
+          ? mapped 
+          : [...this.state.suggestedChallenges, ...mapped];
           
         this.updatePagination(response.data.meta, page);
       });
       
-      return response.data.data;
+      return this.state.suggestedChallenges;
     } catch (error) {
       console.error('Error fetching suggested challenges:', error);
       this.setError('Failed to fetch suggested challenges');
@@ -222,24 +319,34 @@ export class ChallengeStore extends BaseStore<ChallengeState> {
   // Challenge management
   async createChallenge(data: {
     title: string;
-    description: string;
-    challenge_type: ChallengeType;
-    target_value: number;
-    target_metric: string;
-    start_date?: string;
-    end_date?: string;
-    is_public?: boolean;
+    description?: string;
+    type: ChallengeType;
+    category: 'personal' | 'community' | 'suggested';
+    endTime: string; // UI field, map to end_time
+    isPublic?: boolean;
   }) {
     try {
       this.setLoading(true);
-      const response = await apiClient.post<{ data: Challenge }>(endpoints.challenges.create, data);
+      // Map UI payload to backend expected keys
+      const payload: Record<string, any> = {
+        title: data.title,
+        description: data.description,
+        type: data.type,
+        category: data.category,
+        end_time: data.endTime,
+        is_public: data.isPublic ?? (data.category !== 'personal'),
+      };
+      const response = await apiClient.post<BackendChallenge>(endpoints.challenges.create, payload);
       
       runInAction(() => {
-        // Add the new challenge to the appropriate list
-        if (response.data.data.challenge_type === 'personal') {
-          this.state.personalChallenges = [response.data.data, ...this.state.personalChallenges];
+        const created = mapChallenge(response.data as unknown as BackendChallenge);
+        // Add the new challenge to the appropriate list using category
+        if (created.category === 'personal') {
+          this.state.personalChallenges = [created, ...this.state.personalChallenges];
+        } else if (created.category === 'community') {
+          this.state.communityChallenges = [created, ...this.state.communityChallenges];
         } else {
-          this.state.communityChallenges = [response.data.data, ...this.state.communityChallenges];
+          this.state.suggestedChallenges = [created, ...this.state.suggestedChallenges];
         }
         
         // Update pagination total
@@ -247,7 +354,7 @@ export class ChallengeStore extends BaseStore<ChallengeState> {
       });
       
       toast.success('Challenge created successfully');
-      return response.data.data;
+      return this.getChallengeById(String((response.data as any).id));
     } catch (error) {
       console.error('Error creating challenge:', error);
       this.setError('Failed to create challenge');
@@ -260,15 +367,16 @@ export class ChallengeStore extends BaseStore<ChallengeState> {
   async updateChallenge(id: string, updates: Partial<Challenge>) {
     try {
       this.setLoading(true);
-      const response = await apiClient.put<{ data: Challenge }>(endpoints.challenges.update(id), updates);
+      const response = await apiClient.put<BackendChallenge>(endpoints.challenges.update(id), updates);
       
       runInAction(() => {
+        const mapped = mapChallenge(response.data as unknown as BackendChallenge);
         // Update the challenge in all relevant lists
-        this.updateChallengeInLists(id, response.data.data);
+        this.replaceChallengeInLists(id, mapped);
       });
       
       toast.success('Challenge updated successfully');
-      return response.data.data;
+      return this.getChallengeById(id);
     } catch (error) {
       console.error(`Error updating challenge ${id}:`, error);
       this.setError('Failed to update challenge');
@@ -307,18 +415,19 @@ export class ChallengeStore extends BaseStore<ChallengeState> {
   async joinChallenge(challengeId: string) {
     try {
       this.setLoading(true);
-      const response = await apiClient.post<{ data: Challenge }>(endpoints.challenges.join(challengeId));
+      await apiClient.post(endpoints.challenges.join(challengeId));
       
       runInAction(() => {
-        // Update the challenge in all lists
+        const current = this.getChallengeById(challengeId);
+        const participants = (current?.participants || 0) + 1;
         this.updateChallengeInLists(challengeId, {
-          is_joined: true,
-          participants_count: (this.getChallengeById(challengeId)?.participants_count || 0) + 1
+          hasJoined: true,
+          participants,
         });
       });
       
       toast.success('Successfully joined the challenge');
-      return response.data.data;
+      return this.getChallengeById(challengeId);
     } catch (error) {
       console.error(`Error joining challenge ${challengeId}:`, error);
       this.setError('Failed to join challenge');
@@ -331,18 +440,19 @@ export class ChallengeStore extends BaseStore<ChallengeState> {
   async leaveChallenge(challengeId: string) {
     try {
       this.setLoading(true);
-      const response = await apiClient.post<{ data: Challenge }>(endpoints.challenges.leave(challengeId));
+      await apiClient.post(endpoints.challenges.leave(challengeId));
       
       runInAction(() => {
-        // Update the challenge in all lists
+        const current = this.getChallengeById(challengeId);
+        const participants = Math.max(0, (current?.participants || 1) - 1);
         this.updateChallengeInLists(challengeId, {
-          is_joined: false,
-          participants_count: Math.max(0, (this.getChallengeById(challengeId)?.participants_count || 1) - 1)
+          hasJoined: false,
+          participants,
         });
       });
       
       toast.success('Successfully left the challenge');
-      return response.data.data;
+      return this.getChallengeById(challengeId);
     } catch (error) {
       console.error(`Error leaving challenge ${challengeId}:`, error);
       this.setError('Failed to leave challenge');
@@ -355,25 +465,18 @@ export class ChallengeStore extends BaseStore<ChallengeState> {
   async upvoteChallenge(challengeId: string) {
     try {
       this.setLoading(true);
-      const response = await apiClient.post<{ 
-        data: { 
-          challenge: Challenge; 
-          has_upvoted: boolean; 
-          upvotes_count: number; 
-        } 
-      }>(endpoints.challenges.upvote(challengeId));
-      
-      const { challenge, has_upvoted, upvotes_count } = response.data.data;
+      const response = await apiClient.post<BackendChallenge>(endpoints.challenges.upvote(challengeId));
+      const mapped = mapChallenge(response.data as unknown as BackendChallenge);
       
       runInAction(() => {
-        // Update the challenge in all lists
+        // Update counts and toggle locally based on new counts
         this.updateChallengeInLists(challengeId, {
-          has_upvoted,
-          upvotes_count
+          upvotes: mapped.upvotes,
+          hasUpvoted: mapped.hasUpvoted,
         });
       });
       
-      return { has_upvoted, upvotes_count };
+      return { hasUpvoted: mapped.hasUpvoted, upvotes: mapped.upvotes };
     } catch (error) {
       console.error(`Error upvoting challenge ${challengeId}:`, error);
       this.setError('Failed to upvote challenge');
@@ -386,20 +489,20 @@ export class ChallengeStore extends BaseStore<ChallengeState> {
   async completeChallenge(challengeId: string, isCompleted: boolean) {
     try {
       this.setLoading(true);
-      const response = await apiClient.post<{ data: Challenge }>(
+      const response = await apiClient.post<BackendChallenge>(
         endpoints.challenges.complete(challengeId)
       );
       
       runInAction(() => {
+        const mapped = mapChallenge(response.data as unknown as BackendChallenge);
         // Update the challenge in all lists
         this.updateChallengeInLists(challengeId, {
-          is_completed: isCompleted,
-          completed_at: isCompleted ? new Date().toISOString() : null
+          isCompleted: mapped.isCompleted,
         });
       });
       
       toast.success(`Challenge marked as ${isCompleted ? 'completed' : 'incomplete'}`);
-      return response.data.data;
+      return this.getChallengeById(challengeId);
     } catch (error) {
       console.error(`Error updating challenge ${challengeId} completion status:`, error);
       this.setError(`Failed to mark challenge as ${isCompleted ? 'completed' : 'incomplete'}`);
@@ -420,9 +523,12 @@ export class ChallengeStore extends BaseStore<ChallengeState> {
       
       // Create a personal copy of the challenge
       const personalChallenge = await this.createChallenge({
-        ...challenge,
-        challenge_type: 'personal',
-        is_public: false,
+        title: challenge.title,
+        description: challenge.description,
+        type: challenge.type,
+        category: 'personal',
+        endTime: challenge.endTime,
+        isPublic: false,
       });
       
       // Remove from suggested challenges
@@ -521,6 +627,14 @@ export class ChallengeStore extends BaseStore<ChallengeState> {
     }
     
     return null;
+  }
+
+  private replaceChallengeInLists(challengeId: string, replacement: Challenge) {
+    const replaceFn = (challenge: Challenge) => 
+      challenge.id === challengeId ? replacement : challenge;
+    this.state.personalChallenges = this.state.personalChallenges.map(replaceFn);
+    this.state.communityChallenges = this.state.communityChallenges.map(replaceFn);
+    this.state.suggestedChallenges = this.state.suggestedChallenges.map(replaceFn);
   }
   
   // Cleanup on store destruction

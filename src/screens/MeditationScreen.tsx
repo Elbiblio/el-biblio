@@ -11,6 +11,7 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { LinearGradient } from 'expo-linear-gradient';
+import { observer } from 'mobx-react-lite';
 import { BlurView } from 'expo-blur';
 import * as Speech from 'expo-speech';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -28,8 +29,7 @@ import {
   Check,
 } from '@/components/Icons';
 import { Theme } from '@/theme';
-import { useAuth } from '@/stores/auth';
-import { useVirtueStore } from '@/stores/virtue';
+import { useAuthStore, useVirtueStore, useMeditationStore } from '@/stores/StoreProvider';
 import * as Haptics from 'expo-haptics';
 import { useAudioPlayer, setAudioModeAsync } from 'expo-audio';
 import { DailyChallenge, Challenge } from '@/types';
@@ -45,7 +45,7 @@ import Animated, {
   Easing,
   interpolate,
 } from 'react-native-reanimated';
-import { useMeditationStore } from '@/stores/meditation';
+// MobX meditation store accessed via StoreProvider
 
 // Time options for meditation - moved to constants or could be fetched from API
 const TIME_OPTIONS = [5, 10, 15, 20, 30, 45, 60];
@@ -60,11 +60,14 @@ enum MeditationState {
 const MeditationScreen: React.FC = () => {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const theme = useTheme();
-  const { user, updateUserPoints } = useAuth();
+  const auth = useAuthStore();
+  const { user } = auth;
 
-  // Virtue store
-  const { virtues, fetchVirtues } = useVirtueStore();
-  // Centralized session state from store
+  // Virtue store (MobX)
+  const virtueStore = useVirtueStore();
+  const { virtues } = virtueStore.currentState;
+  // Meditation store (MobX)
+  const meditationStore = useMeditationStore();
   const {
     selectedVirtue,
     selectedTime,
@@ -73,6 +76,8 @@ const MeditationScreen: React.FC = () => {
     countdown,
     meditationTimer,
     selectedBackgroundSound,
+  } = meditationStore.currentState;
+  const {
     setSelectedVirtue: setStoreSelectedVirtue,
     setSelectedTime: setStoreSelectedTime,
     setSelectedChallenge: setStoreSelectedChallenge,
@@ -81,7 +86,7 @@ const MeditationScreen: React.FC = () => {
     decrementCountdown,
     incrementMeditationTimer,
     endMeditationSession,
-  } = useMeditationStore();
+  } = meditationStore;
   const [currentPromptIndex, setCurrentPromptIndex] = useState(0);
   const [showPrompt, setShowPrompt] = useState(false);
   const [breathePhase, setBreathePhase] = useState<'in' | 'hold' | 'out'>('in');
@@ -113,12 +118,12 @@ const MeditationScreen: React.FC = () => {
 
   // Load virtues on mount
   useEffect(() => {
-    fetchVirtues();
-  }, [fetchVirtues]);
+    virtueStore.fetchVirtues();
+  }, [virtueStore]);
 
   // Derived values
   const currentVirtue = React.useMemo(
-    () => virtues.find((v) => v.id === selectedVirtue),
+    () => virtues.find((v: Virtue) => v.id === selectedVirtue),
     [selectedVirtue, virtues]
   );
   const totalMeditationSeconds = React.useMemo(
@@ -478,8 +483,8 @@ const MeditationScreen: React.FC = () => {
   };
 
   useEffect(() => {
-    useMeditationStore.getState().initialize();
-  }, []);
+    meditationStore.initialize();
+  }, [meditationStore]);
 
   const endMeditation = () => {
     endMeditationSession();
@@ -492,7 +497,7 @@ const MeditationScreen: React.FC = () => {
       started_at: new Date(Date.now() - selectedTime! * 60 * 1000).toISOString(),
       ended_at: new Date().toISOString(),
     };
-    useMeditationStore.getState().recordSession(session);
+    meditationStore.recordSession(session);
   };
 
   const createChallenge = async () => {
@@ -503,8 +508,8 @@ const MeditationScreen: React.FC = () => {
     const challenge = { ...selectedChallenge, end_time: endTime.toISOString() };
   
     if (user) {
-      await updateUserPoints((user.points || 0) + pointsEarned);
-      await useMeditationStore.getState().joinChallenge(selectedChallenge.id);
+      await auth.updateUserPoints((user.points || 0) + pointsEarned);
+      await meditationStore.joinChallenge(selectedChallenge.id);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     }
     navigation.navigate('Home', { meditationComplete: true, challenge, pointsEarned });
@@ -581,7 +586,7 @@ const MeditationScreen: React.FC = () => {
           </View>
         ) : (
           <View style={styles.virtuesContainer}>
-            {virtues.map((virtue) => (
+            {virtues.map((virtue: Virtue) => (
                               <TouchableOpacity
                   key={virtue.id}
                   style={[
@@ -1326,4 +1331,4 @@ const createStyles = (theme: Theme, currentVirtue: Virtue | undefined) =>
     },
   });
 
-export default MeditationScreen;
+export default observer(MeditationScreen);

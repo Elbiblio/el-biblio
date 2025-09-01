@@ -67,6 +67,12 @@ export class MatchStore extends BaseStore<MatchState> {
       isSearching: computed,
       matchedUser: computed,
       searchDuration: computed,
+      // Additional computed props for UI convenience
+      isMatchLoading: computed,
+      matchError: computed,
+      searchStartTime: computed,
+      isConnected: computed,
+      lastUpdate: computed,
       
       // Actions
       createMatch: action,
@@ -112,6 +118,27 @@ export class MatchStore extends BaseStore<MatchState> {
   get searchDuration() {
     if (!this.state.searchStartTime) return 0;
     return Math.floor((new Date().getTime() - this.state.searchStartTime.getTime()) / 1000);
+  }
+
+  // Bridge getters to match screen expectations
+  get isMatchLoading() {
+    return this.isLoading;
+  }
+
+  get matchError() {
+    return this.error;
+  }
+
+  get searchStartTime() {
+    return this.state.searchStartTime;
+  }
+
+  get isConnected() {
+    return this.state.isConnected;
+  }
+
+  get lastUpdate() {
+    return this.state.lastUpdate;
   }
 
   // Actions

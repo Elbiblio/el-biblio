@@ -32,7 +32,7 @@ import { type RootStackParamList, type AllVirtues, Note } from '@/types';
 import NoteEditor from '@/components/NoteEditor';
 import VirtuePicker from '@/components/VirtuePicker';
 import { getNotePastel } from '@/utils/notes';
-import { useNotesStore } from '@/stores/notes';
+import { useNotesStore } from '@/stores/NotesStore';
 import { toast } from 'sonner-native';
 import NoteCard from '@/components/NoteCard';
 import { useGuestRestrictions } from '@/hooks/useGuestRestrictions';
@@ -51,12 +51,11 @@ const NotesScreen: React.FC<NotesScreenProps> = ({ navigation, route }) => {
 
   const {
     notes,
-    isNotesLoading: isLoading,
+    isLoading,
     fetchNotes,
     createNote: addNote,
     updateNote,
     deleteNote,
-    clearErrors,
     setFilters,
     resetFilters,
     pagination,

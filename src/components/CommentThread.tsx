@@ -68,12 +68,12 @@ const CommentThread: React.FC<CommentThreadProps> = ({
         <View style={styles.header}>
           <View style={styles.authorSection}>
             <Image 
-              source={{ uri: comment.author.avatar }} 
+              source={{ uri: comment.user?.avatar }} 
               style={styles.avatar}
             />
             <View style={styles.authorInfo}>
               <Text style={styles.authorName}>
-                {`${comment.author.first_name} ${comment.author.last_name}`}
+                {`${comment.user?.first_name ?? ''} ${comment.user?.last_name ?? ''}`.trim()}
               </Text>
               <Text style={styles.timestamp}>{comment.timestamp}</Text>
             </View>

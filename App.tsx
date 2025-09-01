@@ -5,7 +5,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ThemeProvider, useTheme } from './src/contexts/ThemeContext';
 import { AuthProvider, useAuth } from './src/stores/auth';
-import { PreferencesProvider, usePreferences, STORAGE_KEYS } from './src/stores/preferences';
+import { STORAGE_KEYS } from './src/stores/PreferencesStore';
 import { AppInitializationProvider, useAppInitialization } from './src/utils/appInitialization';
 import { WebSocketProvider } from './src/components/WebSocketProvider';
 import CustomSplash from './src/components/CustomSplash';
@@ -38,8 +38,9 @@ import RegistrationScreen from './src/screens/RegistrationScreen';
 import CommunityScreen from './src/screens/CommunityScreen';
 import PrayerRequestsScreen from './src/screens/PrayerRequestsScreen';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useAppStore } from './src/stores/appStore';
+import { appStore } from './src/stores/appStore';
 import { StoreProvider } from './src/stores/StoreProvider';
+import { useWebSocketVerseSync } from './src/services/websocket';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -51,7 +52,7 @@ const AppContent = () => {
   const { setInitialized } = useAppInitialization();
   const fontsLoaded = useAppFonts();
   const { isInitialized: authInitialized, user, token } = useAuth();
-  const { hasCompletedWelcome, initializeWelcomeState } = useAppStore();
+  const { hasCompletedWelcome, initializeWelcomeState } = appStore;
   
   useEffect(() => {
     const initialize = async () => {
@@ -115,6 +116,8 @@ const AppContent = () => {
   }
 
   const NavigationContent = () => {
+    // Bind WebSocket verse handlers to provider-based verse store
+    useWebSocketVerseSync();
     // Determine the initial route based on authentication and welcome state
     const getInitialRoute = () => {
       // If user is authenticated and has completed welcome, go to Home
@@ -192,13 +195,11 @@ const App = () => {
   return (
     <SafeAreaProvider>
       <AppInitializationProvider>
-        <PreferencesProvider>
-          <AuthProvider>
-            <WebSocketProvider>
-              <AppContent />
-            </WebSocketProvider>
-          </AuthProvider>
-        </PreferencesProvider>
+        <AuthProvider>
+          <WebSocketProvider>
+            <AppContent />
+          </WebSocketProvider>
+        </AuthProvider>
       </AppInitializationProvider>
     </SafeAreaProvider>
   );

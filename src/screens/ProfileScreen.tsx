@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -11,29 +11,31 @@ import {
 } from 'react-native';
 import { useTheme, useThemeVariant } from '@/contexts/ThemeContext';
 import { Theme, ThemeVariant, themeColors } from '@/theme';
-import { useAuth } from '@/stores/auth';
-import { useReflectionStore } from '@/stores/reflection';
-import { useNotesStore } from '@/stores/notes';
-import { useChallengeStore } from '@/stores/challenge';
-import { useLeaderboardStore } from '@/stores/leaderboard';
-import { useVirtueStore } from '@/stores/virtue';
-import { useMeditationStore } from '@/stores/meditation';
+import { 
+  useAuthStore,
+  useReflectionStore,
+  useNotesStore,
+  useChallengeStore,
+  useLeaderboardStore,
+  useVirtueStore,
+  useMeditationStore,
+} from '@/stores/StoreProvider';
 import AvatarSelectionModal from '@/components/AvatarSelectionModal';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { FoundationalVirtue, AllVirtues, Virtue, VirtueProgress } from '@/types';
+import { AllVirtues, Virtue, VirtueProgress, Reflection, MeditationSession, UserStats, Activity, BackendUserStats } from '@/types';
 import * as Haptics from 'expo-haptics';
-import { Shield, BookOpen, MessageCircle, FileText, Award, Edit2, Users, ArrowRight, ArrowCounterClockwise, BookmarkSimple, Calendar, Clock } from '../components/Icons';
+import { Shield, BookOpen, MessageCircle, FileText, Award, Edit2, Users, ArrowRight, ArrowCounterClockwise, BookmarkSimple, Calendar, Clock } from '@/components/Icons';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '@/types';
 import { toast } from 'sonner-native';
 import { RefreshControl } from 'react-native';
-import apiClient from '@/api/client';
+import { apiClient, endpoints } from '@/api/client';
 
 const ProfileScreen = () => {
   const theme = useTheme();
   const setThemeVariant = useThemeVariant();
-  const { user, updateAvatar } = useAuth();
+  const { user, updateAvatar } = useAuthStore();
   const [avatarModalVisible, setAvatarModalVisible] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -44,84 +46,108 @@ const ProfileScreen = () => {
 
   // Store hooks
   const {
-    reflections,
+    currentState: reflectionState,
     fetchReflectionsByUser,
-    isReflectionsLoading,
   } = useReflectionStore();
+  const { reflections } = reflectionState;
 
   const {
-    notes,
+    currentState: notesState,
     fetchNotes,
-    isNotesLoading,
   } = useNotesStore();
+  const { notes } = notesState;
 
   const {
-    personalChallenges,
+    currentState: challengeState,
     fetchPersonalChallenges,
-    isPersonalLoading,
   } = useChallengeStore();
+  const { personalChallenges } = challengeState;
 
   const {
-    globalLeaderboard,
+    currentState: leaderboardState,
     fetchGlobalLeaderboard,
   } = useLeaderboardStore();
+  const { globalLeaderboard } = leaderboardState;
 
   const {
-    virtues,
-    userProgress,
+    currentState: virtueState,
     fetchVirtues,
     fetchUserProgress,
   } = useVirtueStore();
+  const { virtues, userProgress } = virtueState;
 
   const {
-    sessions,
-    getTotalMeditationTime,
+    currentState: meditationState,
   } = useMeditationStore();
+  const { sessions } = meditationState;
 
   // State for user stats and activity
-  const [userStats, setUserStats] = useState<any>(null);
-  const [recentActivity, setRecentActivity] = useState<any[]>([]);
+  const [userStats, setUserStats] = useState<UserStats | null>(null);
+  const [recentActivity, setRecentActivity] = useState<Activity[]>([]);
   const [isStatsLoading, setIsStatsLoading] = useState(false);
   const [isActivityLoading, setIsActivityLoading] = useState(false);
 
   // Fetch user stats and activity
-  const fetchUserStats = async () => {
+  const fetchUserStats = useCallback(async () => {
     if (!user) return;
-    
+
     setIsStatsLoading(true);
     try {
-      const response = await apiClient.get(`/users/${user.id}/stats`);
-      if (response.data?.success) {
-        setUserStats(response.data.data);
-      }
+      const response = await apiClient.get<BackendUserStats>(endpoints.users.stats(user.id));
+      const b = response.data;
+      const mapped: UserStats = {
+        totalPoints: b.total_points ?? user.points ?? 0,
+        totalReflections: b.total_reflections ?? 0,
+        totalNotes: 0,
+        totalChallenges: 0,
+        totalBookmarks: b.total_bookmarks ?? 0,
+        totalMeditationMinutes: 0,
+        totalActiveDays: b.total_active_days ?? 0,
+        currentStreak: b.current_streak ?? 0,
+        longestStreak: b.longest_streak ?? 0,
+        // Optional extended fields
+        totalVersesRead: b.total_verses_read,
+        totalActivities: b.total_activities,
+        totalMeditationSessions: b.total_meditation_sessions,
+        totalChallengesCompleted: b.total_challenges_completed,
+        totalActiveTime: b.total_active_time,
+        rank: b.rank,
+        level: b.level,
+        favoriteThemes: b.favorite_themes,
+        // Not provided by this endpoint
+        topVirtues: [],
+        recentActivity: [],
+      };
+      setUserStats(mapped);
     } catch (error) {
       console.error('Error fetching user stats:', error);
     } finally {
       setIsStatsLoading(false);
     }
-  };
+  }, [user]);
 
-  const fetchRecentActivity = async () => {
+  const fetchRecentActivity = useCallback(async () => {
     if (!user) return;
-    
+
     setIsActivityLoading(true);
     try {
-      const response = await apiClient.get(`/users/${user.id}/activity?include=subject&per_page=10`);
-      if (response.data?.success) {
-        setRecentActivity(response.data.data);
-      }
+      const response = await apiClient.get<Activity[]>(
+        endpoints.users.activity(user.id),
+        { include: ['subject'], per_page: 10 }
+      );
+      setRecentActivity(response.data);
     } catch (error) {
       console.error('Error fetching recent activity:', error);
     } finally {
       setIsActivityLoading(false);
     }
-  };
+  }, [user]);
 
   // Fetch data on mount
   useEffect(() => {
     fetchUserStats();
     fetchRecentActivity();
-  }, [user]);
+  }, [fetchUserStats, fetchRecentActivity]);
 
   // Real user stats from API data
   const userStatsData = React.useMemo(() => {
@@ -146,19 +172,19 @@ const ProfileScreen = () => {
       .slice(0, 4);
     
     // Use API stats if available, fallback to calculated values
-    const stats = userStats || {};
+    const stats = userStats;
     
     return {
-      totalPoints: stats.total_points || user?.points || 0,
-      totalReflections: stats.total_reflections || reflections.length,
-      totalNotes: stats.total_notes || notes.length,
-      totalChallenges: stats.total_challenges_completed || personalChallenges.length,
-      totalComments: reflections.reduce((acc, reflection) => acc + (reflection.comments?.length || 0), 0),
-      totalBookmarks: stats.total_bookmarks || 0,
-      totalMeditationMinutes: stats.total_meditation_sessions ? stats.total_meditation_sessions * 10 : sessions.reduce((total, session) => total + session.duration_minutes, 0),
-      totalActiveDays: stats.total_active_days || 0,
-      currentStreak: stats.current_streak || 0,
-      longestStreak: stats.longest_streak || 0,
+      totalPoints: stats?.totalPoints || user?.points || 0,
+      totalReflections: stats?.totalReflections || reflections.length,
+      totalNotes: stats?.totalNotes || notes.length,
+      totalChallenges: stats?.totalChallenges || personalChallenges.length,
+      totalComments: reflections.reduce((acc: number, reflection: Reflection) => acc + (reflection.comments?.length || 0), 0),
+      totalBookmarks: stats?.totalBookmarks || 0,
+      totalMeditationMinutes: stats?.totalMeditationMinutes || sessions.reduce((total: number, session: MeditationSession) => total + (session.duration_minutes || 0), 0),
+      totalActiveDays: stats?.totalActiveDays || 0,
+      currentStreak: stats?.currentStreak || 0,
+      longestStreak: stats?.longestStreak || 0,
       topVirtues: topVirtues.length > 0 ? topVirtues : defaultVirtues,
       recentActivity: recentActivity || []
     };

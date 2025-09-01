@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -30,6 +30,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
+  useAnimatedProps,
   withTiming,
   withSequence,
   withSpring,
@@ -39,9 +40,10 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/stores/auth';
-import { useVirtueStore } from '@/stores/virtue';
+import { useVirtueQuizStore } from '@/stores/StoreProvider';
+import { observer } from 'mobx-react-lite';
 import { Theme } from '@/theme';
-import { PIConfetti } from 'react-native-fast-confetti';
+import { PIConfetti, ConfettiMethods } from 'react-native-fast-confetti';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList, AppVirtue, FoundationalVirtue, Virtue } from '@/types';
 import { THEMES } from '@/types';
@@ -70,158 +72,82 @@ type QuizQuestion = {
   level: number;
 };
 
-const VirtueQuizScreen = ({ navigation, route }: NativeStackScreenProps<RootStackParamList, 'VirtueQuizScreen'>) => {
+const VirtueQuizScreen = observer(({ navigation }: NativeStackScreenProps<RootStackParamList, 'VirtueQuizScreen'>) => {
   const insets = useSafeAreaInsets();
   const theme = useTheme();
-  const styles = React.useMemo(() => createStyles(theme), [theme]);
-  const { user } = useAuth();
-  
-  // Virtue store
-  const {
-    virtues,
-    isVirtuesLoading,
-    virtuesError,
-    quizQuestions,
-    isQuizLoading,
-    quizError,
-    userProgress,
-    fetchVirtues,
-    fetchQuizQuestions,
-    submitQuizAnswer,
-    completeQuiz,
-  } = useVirtueStore();
-  
-  const [selectedVirtue, setSelectedVirtue] = useState<AppVirtue | null>(null);
-  const [selectedLevel, setSelectedLevel] = useState<number | null>(null);
-  const [quizStarted, setQuizStarted] = useState(false);
-  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
-  const [selectedAnswer, setSelectedAnswer] = useState<string | number | null>(null);
-  const [isAnswerCorrect, setIsAnswerCorrect] = useState<boolean | null>(null);
-  const [showExplanation, setShowExplanation] = useState(false);
-  const [quizCompleted, setQuizCompleted] = useState(false);
-  const [score, setScore] = useState(0);
-  
+  const store = useVirtueQuizStore();
+  const styles = createStyles(theme, store.selectedVirtue);
+
+  const confettiRef = useRef<any>(null);
+
   // Animation values
-  const cardScale = useSharedValue(1);
+  const cardScale = useSharedValue(0.95);
   const optionScale = useSharedValue(1);
   const progressWidth = useSharedValue(0);
   const explanationHeight = useSharedValue(0);
-  
-  // Confetti ref
-  const confettiRef = useRef<any>(null);
-  
-  // Fetch virtues on mount
+
+  const { 
+    selectedVirtue,
+    selectedLevel,
+    questions,
+    currentQuestionIndex,
+    score,
+    quizCompleted,
+    quizStarted,
+    isQuizLoading,
+    quizError,
+    showConfetti,
+    virtues,
+    virtueProgress,
+    selectedAnswer,
+    isAnswerCorrect,
+    showExplanation,
+  } = store;
+
+  // Effects
   useEffect(() => {
-    fetchVirtues();
-  }, []);
-  
+    store.loadInitialData();
+  }, [store]);
+
   useEffect(() => {
-    // Check if virtue and level were passed as params
-    if (route.params?.virtueId) {
-      const virtue = virtues.find(v => v.id === route.params?.virtueId);
-      if (virtue) {
-        setSelectedVirtue(mapVirtueToAppVirtue(virtue));
-        setSelectedLevel(route.params?.level || 1);
-      }
-    }
-  }, [route.params, virtues]);
-  
-  // Load questions when virtue and level are selected
-  useEffect(() => {
-    if (selectedVirtue && selectedLevel) {
-      fetchQuizQuestions(selectedVirtue.id, selectedLevel);
-    }
-  }, [selectedVirtue, selectedLevel]);
-  
-  const loadQuestions = (virtueId: string, level: number) => {
-    fetchQuizQuestions(virtueId, level);
-  };
-  
-  const startQuiz = () => {
-    if (!selectedVirtue || !selectedLevel) return;
-    
-    setQuizStarted(true);
-    setCurrentQuestionIndex(0);
-    setScore(0);
-    setSelectedAnswer(null);
-    setIsAnswerCorrect(null);
-    setShowExplanation(false);
-    setQuizCompleted(false);
-    
-    // Start progress animation
-    progressWidth.value = withTiming(100, { duration: 300 });
-  };
-  
-  const handleAnswerSelection = async (answer: string | number) => {
-    if (!selectedVirtue || !quizQuestions[currentQuestionIndex]) return;
-    
-    setSelectedAnswer(answer);
-    
-    const currentQuestion = quizQuestions[currentQuestionIndex] as QuizQuestion;
-    const isCorrect = String(answer) === String(currentQuestion.correctAnswer);
-    setIsAnswerCorrect(isCorrect);
-    
-    if (isCorrect) {
-      setScore(prev => prev + 10);
-    }
-    
-    // Submit answer to API
-    await submitQuizAnswer(currentQuestion.id, String(answer));
-    
-    // Show explanation
-    setShowExplanation(true);
-    explanationHeight.value = withTiming(1, { duration: 300 });
-  };
-  
-  const goToNextQuestion = () => {
-    if (currentQuestionIndex < quizQuestions.length - 1) {
-      setCurrentQuestionIndex(prev => prev + 1);
-      setSelectedAnswer(null);
-      setIsAnswerCorrect(null);
-      setShowExplanation(false);
-      explanationHeight.value = 0;
-      
-      // Animate card
-      cardScale.value = withSequence(
-        withTiming(0.95, { duration: 100 }),
-        withTiming(1, { duration: 200 })
-      );
+    if (quizStarted) {
+      cardScale.value = withSpring(1);
     } else {
-      // Quiz completed
-      completeQuiz(selectedVirtue!.id, selectedLevel!, score);
-      setQuizCompleted(true);
-      
-      // Trigger confetti
-      if (confettiRef.current) {
-        confettiRef.current.restart();
-      }
+      cardScale.value = withTiming(0.95);
     }
-  };
-  
-  const restartQuiz = () => {
-    setQuizStarted(false);
-    setSelectedAnswer(null);
-    setIsAnswerCorrect(null);
-    setShowExplanation(false);
-    setQuizCompleted(false);
-    setScore(0);
-    setCurrentQuestionIndex(0);
-    explanationHeight.value = 0;
-    progressWidth.value = 0;
-  };
-  
-  const selectDifferentVirtue = () => {
-    setSelectedVirtue(null);
-    setSelectedLevel(null);
-    setQuizStarted(false);
-    setQuizCompleted(false);
-  };
-  
-  // Animated styles
+  }, [quizStarted, cardScale]);
+
+  useEffect(() => {
+    if (showExplanation) {
+      explanationHeight.value = withTiming(1);
+    } else {
+      explanationHeight.value = withTiming(0);
+    }
+  }, [showExplanation, explanationHeight]);
+
+  useEffect(() => {
+    if (quizStarted && questions.length > 0) {
+      progressWidth.value = withTiming(((currentQuestionIndex + 1) / questions.length) * 100);
+    } else {
+      progressWidth.value = withTiming(0);
+    }
+  }, [currentQuestionIndex, questions.length, quizStarted, progressWidth]);
+
+  useEffect(() => {
+    if (showConfetti) {
+      confettiRef.current?.restart();
+      // The confetti is triggered by the store, and this effect just starts it.
+      // The store should be responsible for turning it off if needed.
+    }
+  }, [showConfetti]);
+
+  // Animated Styles
   const cardAnimatedStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: cardScale.value }]
+    transform: [{ scale: cardScale.value }],
+    opacity: cardScale.value
   }));
-  
+
+
   const progressAnimatedStyle = useAnimatedStyle(() => ({
     width: `${progressWidth.value}%`
   }));
@@ -245,7 +171,7 @@ const VirtueQuizScreen = ({ navigation, route }: NativeStackScreenProps<RootStac
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.virtuesScrollContent}
       >
-        {virtues.map(virtue => {
+        {virtues.map((virtue: Virtue) => {
           const appVirtue = mapVirtueToAppVirtue(virtue);
           return (
             <TouchableOpacity
@@ -255,7 +181,7 @@ const VirtueQuizScreen = ({ navigation, route }: NativeStackScreenProps<RootStac
                 selectedVirtue?.id === virtue.id && styles.selectedVirtueCard,
                 { borderColor: appVirtue.color_code }
               ]}
-              onPress={() => setSelectedVirtue(appVirtue)}
+              onPress={() => store.selectVirtue(appVirtue)}
             >
               <LinearGradient
                 colors={[
@@ -282,14 +208,14 @@ const VirtueQuizScreen = ({ navigation, route }: NativeStackScreenProps<RootStac
                     style={[
                       styles.progressFill, 
                       { 
-                        width: `${((userProgress[virtue.id]?.current_level || 0) / 3) * 100}%`,
+                        width: `${((virtueProgress[virtue.id]?.current_level || 0) / 3) * 100}%`,
                         backgroundColor: appVirtue.color_code 
                       }
                     ]} 
                   />
                 </View>
                 <Text style={styles.progressText}>
-                  Level {userProgress[virtue.id]?.current_level || 0}/3
+                  Level {virtueProgress[virtue.id]?.current_level || 0}/3
                 </Text>
               </View>
             </TouchableOpacity>
@@ -312,11 +238,11 @@ const VirtueQuizScreen = ({ navigation, route }: NativeStackScreenProps<RootStac
               style={[
                 styles.levelCard,
                 selectedLevel === level && styles.selectedLevelCard,
-                level > (userProgress[selectedVirtue.id]?.current_level || 0) + 1 && styles.lockedLevelCard
+                level > (virtueProgress[selectedVirtue.id]?.current_level || 0) + 1 && styles.lockedLevelCard
               ]}
-              disabled={level > (userProgress[selectedVirtue.id]?.current_level || 0) + 1}
+              disabled={level > (virtueProgress[selectedVirtue.id]?.current_level || 0) + 1}
               onPress={() => {
-                setSelectedLevel(level);
+                store.selectLevel(level);
                 optionScale.value = withSequence(
                   withTiming(0.95, { duration: 100 }),
                   withTiming(1, { duration: 200 })
@@ -325,10 +251,10 @@ const VirtueQuizScreen = ({ navigation, route }: NativeStackScreenProps<RootStac
             >
               <LinearGradient
                 colors={[
-                  level <= (userProgress[selectedVirtue.id]?.current_level || 0) + 1 
+                  level <= (virtueProgress[selectedVirtue.id]?.current_level || 0) + 1 
                     ? `${selectedVirtue.color_code}20` 
                     : '#00000010',
-                  level <= (userProgress[selectedVirtue.id]?.current_level || 0) + 1 
+                  level <= (virtueProgress[selectedVirtue.id]?.current_level || 0) + 1 
                     ? `${selectedVirtue.color_code}05` 
                     : '#00000005'
                 ]}
@@ -336,7 +262,7 @@ const VirtueQuizScreen = ({ navigation, route }: NativeStackScreenProps<RootStac
                 end={{ x: 1, y: 1 }}
                 style={styles.levelGradient}
               />
-              {level > (userProgress[selectedVirtue.id]?.current_level || 0) + 1 ? (
+              {level > (virtueProgress[selectedVirtue.id]?.current_level || 0) + 1 ? (
                 <View style={styles.lockedIconContainer}>
                   <Lock size={20} color={theme?.colors.text.secondary} />
                 </View>
@@ -345,7 +271,7 @@ const VirtueQuizScreen = ({ navigation, route }: NativeStackScreenProps<RootStac
               )}
               <Text style={[
                 styles.levelLabel,
-                level > (userProgress[selectedVirtue.id]?.current_level || 0) + 1 && styles.lockedLevelLabel
+                level > (virtueProgress[selectedVirtue.id]?.current_level || 0) + 1 && styles.lockedLevelLabel
               ]}>
                 {level === 1 ? 'Beginner' : level === 2 ? 'Intermediate' : 'Advanced'}
               </Text>
@@ -358,7 +284,7 @@ const VirtueQuizScreen = ({ navigation, route }: NativeStackScreenProps<RootStac
             styles.startButton,
             { backgroundColor: selectedVirtue?.color_code }
           ]}
-          onPress={startQuiz}
+          onPress={() => store.startQuiz()}
         >
           <Lightning size={20} color="#FFF" />
           <Text style={styles.startButtonText}>Start Quiz</Text>
@@ -368,24 +294,23 @@ const VirtueQuizScreen = ({ navigation, route }: NativeStackScreenProps<RootStac
   };
   
   const renderQuizQuestion = () => {
-    if (!quizStarted || quizQuestions.length === 0) return null;
+    if (!quizStarted || questions.length === 0) return null;
     if (quizCompleted) return renderQuizResults();
     
-    const currentQuestion = quizQuestions[currentQuestionIndex] as QuizQuestion;
+    const currentQuestion = questions[currentQuestionIndex] as QuizQuestion;
     
     return (
       <View style={styles.quizContainer}>
         <View style={styles.progressBarContainer}>
           <Animated.View 
             style={[
-              styles.progressBarFill,
-              { width: `${((currentQuestionIndex + 1) / quizQuestions.length) * 100}%` }
+              styles.progressBarFill, progressAnimatedStyle
             ]} 
           />
         </View>
         
         <Text style={styles.questionCounter}>
-          Question {currentQuestionIndex + 1} of {quizQuestions.length}
+          Question {currentQuestionIndex + 1} of {questions.length}
         </Text>
         
         <Animated.View style={[styles.questionCard, cardAnimatedStyle]}>
@@ -417,7 +342,7 @@ const VirtueQuizScreen = ({ navigation, route }: NativeStackScreenProps<RootStac
                     selectedAnswer !== null && 'true' === String(currentQuestion.correctAnswer) && styles.correctOptionButton,
                     selectedAnswer === 'true' && selectedAnswer !== String(currentQuestion.correctAnswer) && styles.incorrectOptionButton,
                   ]}
-                  onPress={() => handleAnswerSelection('true')}
+                  onPress={() => store.handleAnswerSelection('true')}
                   disabled={selectedAnswer !== null}
                 >
                   <Text style={styles.optionText}>True</Text>
@@ -430,7 +355,7 @@ const VirtueQuizScreen = ({ navigation, route }: NativeStackScreenProps<RootStac
                     selectedAnswer !== null && 'false' === String(currentQuestion.correctAnswer) && styles.correctOptionButton,
                     selectedAnswer === 'false' && selectedAnswer !== String(currentQuestion.correctAnswer) && styles.incorrectOptionButton,
                   ]}
-                  onPress={() => handleAnswerSelection('false')}
+                  onPress={() => store.handleAnswerSelection('false')}
                   disabled={selectedAnswer !== null}
                 >
                   <Text style={styles.optionText}>False</Text>
@@ -446,7 +371,7 @@ const VirtueQuizScreen = ({ navigation, route }: NativeStackScreenProps<RootStac
                     selectedAnswer !== null && index === Number(currentQuestion.correctAnswer) && styles.correctOptionButton,
                     selectedAnswer === index && selectedAnswer !== Number(currentQuestion.correctAnswer) && styles.incorrectOptionButton,
                   ]}
-                  onPress={() => handleAnswerSelection(index)}
+                  onPress={() => store.handleAnswerSelection(index)}
                   disabled={selectedAnswer !== null}
                 >
                   <Text style={styles.optionText}>{option}</Text>
@@ -467,10 +392,10 @@ const VirtueQuizScreen = ({ navigation, route }: NativeStackScreenProps<RootStac
           {showExplanation && (
             <TouchableOpacity
               style={[styles.nextButton, { backgroundColor: selectedVirtue?.color_code }]}
-              onPress={goToNextQuestion}
+              onPress={() => store.goToNextQuestion()}
             >
               <Text style={styles.nextButtonText}>
-                {currentQuestionIndex < quizQuestions.length - 1 ? 'Next Question' : 'See Results'}
+                {currentQuestionIndex < questions.length - 1 ? 'Next Question' : 'See Results'}
               </Text>
               <CaretRight size={16} color="#FFF" />
             </TouchableOpacity>
@@ -481,7 +406,8 @@ const VirtueQuizScreen = ({ navigation, route }: NativeStackScreenProps<RootStac
   };
   
   const renderQuizResults = () => {
-    const percentage = (score / quizQuestions.length) * 100;
+    if (questions.length === 0) return null;
+    const percentage = (score / questions.length) * 100;
     const passed = percentage >= 60;
     
     return (
@@ -533,7 +459,7 @@ const VirtueQuizScreen = ({ navigation, route }: NativeStackScreenProps<RootStac
             </View>
             <View style={styles.statItem}>
               <X size={20} color={theme?.colors.error} />
-              <Text style={styles.statText}>Incorrect: {quizQuestions.length - score}</Text>
+              <Text style={styles.statText}>Incorrect: {questions.length - score}</Text>
             </View>
           </View>
           
@@ -549,7 +475,7 @@ const VirtueQuizScreen = ({ navigation, route }: NativeStackScreenProps<RootStac
           <View style={styles.actionButtonsContainer}>
             <TouchableOpacity
               style={[styles.actionButton, styles.secondaryButton]}
-              onPress={restartQuiz}
+              onPress={() => store.restartQuiz()}
             >
               <Text style={styles.secondaryButtonText}>Try Again</Text>
             </TouchableOpacity>
@@ -560,7 +486,7 @@ const VirtueQuizScreen = ({ navigation, route }: NativeStackScreenProps<RootStac
                 styles.primaryButton,
                 { backgroundColor: selectedVirtue?.color_code }
               ]}
-              onPress={selectDifferentVirtue}
+              onPress={() => store.selectDifferentVirtue()}
             >
               <Text style={styles.primaryButtonText}>New Quiz</Text>
             </TouchableOpacity>
@@ -594,8 +520,8 @@ const VirtueQuizScreen = ({ navigation, route }: NativeStackScreenProps<RootStac
         </TouchableOpacity>
         
         <Text style={styles.headerTitle}>
-          {quizStarted 
-            ? `${selectedVirtue?.name} Quiz` 
+          {quizStarted && selectedVirtue
+            ? `${selectedVirtue.name} Quiz` 
             : 'Virtue Quiz'}
         </Text>
         
@@ -606,22 +532,22 @@ const VirtueQuizScreen = ({ navigation, route }: NativeStackScreenProps<RootStac
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {isVirtuesLoading || isQuizLoading ? (
+        {isQuizLoading ? (
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color={theme?.colors.primary} />
             <Text style={styles.loadingText}>Loading questions...</Text>
           </View>
         ) : (
           <>
-            {!quizStarted && !selectedVirtue && renderVirtueSelection()}
+            {!quizStarted && renderVirtueSelection()}
+            {quizStarted && renderQuizQuestion()}
             {!quizStarted && selectedVirtue && renderLevelSelection()}
-            {renderQuizQuestion()}
           </>
         )}
       </ScrollView>
     </View>
   );
-};
+});
 
 const createStyles = (theme: Theme, selectedVirtue?: AppVirtue | null) => StyleSheet.create({
   container: {

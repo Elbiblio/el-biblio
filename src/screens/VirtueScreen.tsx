@@ -48,7 +48,7 @@ import { useAuth } from '@/stores/auth';
 import AvatarStack from '@/components/AvatarStack';
 import AuthModal from '@/components/AuthModal';
 import { useVirtueStore } from '@/stores/virtue';
-import { useChallengeStore } from '@/stores/challenge';
+import { useChallengeStore } from '@/stores/ChallengeStore';
 import { IconProps } from '@/components/Icons';
 
 type VirtueScreenProps = NativeStackScreenProps<RootStackParamList, 'VirtueScreen'>;

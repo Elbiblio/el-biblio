@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { observer } from 'mobx-react-lite';
+
 import {
   View,
   Text,
@@ -22,7 +24,8 @@ import BookSelector from '@/components/BookSelector';
 import { Book, BibleVersion, BibleVerse } from '@/types';
 import { bibleBooks } from '@/constants/bibleBooks';
 import { Brush, BrushOutlined, SizeDecrease, SizeIncrease } from '@/components/Icons';
-import { useBibleStore } from '@/stores/bible';
+import { useBibleStore } from '@/stores/BibleStore';
+
 import { useNetworkStatus } from '@/hooks/useNetworkStatus';
 import { parseVPLId } from '@/utils/database';
 import { toast } from 'sonner-native';
@@ -41,53 +44,7 @@ const BibleScreen: React.FC<BibleScreenProps> = ({ route }) => {
   const { isOffline } = useNetworkStatus();
 
   // Bible store
-  const {
-    currentBook,
-    currentChapter,
-    currentVersion,
-    verses,
-    searchResults,
-    isVersesLoading,
-    isSearchLoading,
-    isInstallingVersion,
-    versesError,
-    searchError,
-    installError,
-    highlightedVerses,
-    bookmarkedVerses,
-    fontSize,
-    searchQuery,
-    showSearch,
-    showActivityPanel,
-    selectedVerseId,
-    installedVersions,
-    availableVersions,
-    isVersionsLoading,
-    pagination,
-    isOffline: bibleOffline,
-    fetchVerses,
-    searchVerses,
-    fetchBibleVersions,
-    installVersion,
-    toggleHighlight,
-    toggleBookmark,
-    likeVerse,
-    shareVerse,
-    setCurrentBook,
-    setCurrentChapter,
-    setCurrentVersion,
-    setFontSize,
-    setSearchQuery,
-    setShowSearch,
-    setShowActivityPanel,
-    setSelectedVerseId,
-    clearErrors,
-    clearSearch,
-    loadUserPreferences,
-    saveUserPreferences,
-    syncUserInteractions,
-    setIsOffline,
-  } = useBibleStore();
+  const bibleStore = useBibleStore();
 
   // Local state for UI
   const [showVersionsModal, setShowVersionsModal] = useState(false);
@@ -104,13 +61,13 @@ const BibleScreen: React.FC<BibleScreenProps> = ({ route }) => {
           b.abbreviation.toLowerCase() === book.toLowerCase()
         );
         if (foundBook) {
-          setCurrentBook(foundBook);
+          bibleStore.setCurrentBook(foundBook);
           if (chapter) {
-            setCurrentChapter(Math.min(chapter, foundBook.chapters));
+            bibleStore.setCurrentChapter(Math.min(chapter, foundBook.chapters));
             // Schedule verse scroll after verses load
             if (verse) {
               setTimeout(() => {
-                const verseIndex = verses.findIndex(v => {
+                const verseIndex = bibleStore.verses.findIndex(v => {
                   const verseNum = parseInt(v.id.split(':')[2] || '1');
                   return verseNum === verse;
                 });
@@ -131,30 +88,30 @@ const BibleScreen: React.FC<BibleScreenProps> = ({ route }) => {
 
   // Update offline status in Bible store
   useEffect(() => {
-    setIsOffline(isOffline);
-  }, [isOffline, setIsOffline]);
+    bibleStore.setIsOffline(isOffline);
+  }, [isOffline]);
 
   // Initialize Bible
   useEffect(() => {
     const initializeBible = async () => {
       try {
-        await loadUserPreferences();
-        await fetchBibleVersions();
+        await bibleStore.loadUserPreferences();
+        await bibleStore.fetchBibleVersions();
         
         // Set default version if none selected
-        if (!currentVersion && availableVersions.length > 0) {
-          const defaultVersion = availableVersions.find(v => v.preinstalled) || availableVersions[0];
-          setCurrentVersion(defaultVersion);
+        if (!bibleStore.currentVersion && bibleStore.availableVersions.length > 0) {
+          const defaultVersion = bibleStore.availableVersions.find(v => v.preinstalled) || bibleStore.availableVersions[0];
+          bibleStore.setCurrentVersion(defaultVersion);
         }
         
         // Set default book if none selected
-        if (!currentBook) {
-          setCurrentBook(bibleBooks[0]);
+        if (!bibleStore.currentBook) {
+          bibleStore.setCurrentBook(bibleBooks[0]);
         }
         
         // Sync user interactions if online
         if (!isOffline) {
-          await syncUserInteractions();
+          await bibleStore.syncUserInteractions();
         }
         
       } catch (error) {
@@ -164,51 +121,51 @@ const BibleScreen: React.FC<BibleScreenProps> = ({ route }) => {
     };
 
     initializeBible();
-  }, [loadUserPreferences, fetchBibleVersions, currentVersion, availableVersions, setCurrentVersion, setCurrentBook, currentBook, isOffline, syncUserInteractions]);
+  }, [isOffline]);
 
   // Fetch verses when book/chapter/version changes
   useEffect(() => {
-    if (currentBook && currentVersion) {
-      fetchVerses(currentBook, currentChapter, currentVersion);
+    if (bibleStore.currentBook && bibleStore.currentVersion) {
+      bibleStore.fetchVerses(bibleStore.currentBook, bibleStore.currentChapter, bibleStore.currentVersion);
     }
-  }, [currentBook, currentChapter, currentVersion]);
+  }, [bibleStore.currentBook, bibleStore.currentChapter, bibleStore.currentVersion]);
 
   // Handle errors
   useEffect(() => {
-    if (versesError) {
-      toast.error(versesError);
-      clearErrors();
+    if (bibleStore.versesError) {
+      toast.error(bibleStore.versesError);
+      bibleStore.clearErrors();
     }
-    if (searchError) {
-      toast.error(searchError);
-      clearErrors();
+    if (bibleStore.searchError) {
+      toast.error(bibleStore.searchError);
+      bibleStore.clearErrors();
     }
-    if (installError) {
-      toast.error(installError);
-      clearErrors();
+    if (bibleStore.installError) {
+      toast.error(bibleStore.installError);
+      bibleStore.clearErrors();
     }
-  }, [versesError, searchError, installError]);
+  }, [bibleStore.versesError, bibleStore.searchError, bibleStore.installError]);
 
   // Handle refresh
   const handleRefresh = async () => {
     setRefreshing(true);
-    if (currentBook && currentVersion) {
-      await fetchVerses(currentBook, currentChapter, currentVersion, 1);
+    if (bibleStore.currentBook && bibleStore.currentVersion) {
+      await bibleStore.fetchVerses(bibleStore.currentBook, bibleStore.currentChapter, bibleStore.currentVersion, 1);
     }
     setRefreshing(false);
   };
 
   // Handle load more
   const handleLoadMore = () => {
-    if (pagination.hasMore && !isVersesLoading && currentBook && currentVersion) {
-      fetchVerses(currentBook, currentChapter, currentVersion, pagination.currentPage + 1);
+    if (bibleStore.pagination.hasMore && !bibleStore.isVersesLoading && bibleStore.currentBook && bibleStore.currentVersion) {
+      bibleStore.fetchVerses(bibleStore.currentBook, bibleStore.currentChapter, bibleStore.currentVersion, bibleStore.pagination.currentPage + 1);
     }
   };
 
   // Handle book installation
   const handleInstallVersion = async (version: BibleVersion) => {
     try {
-      const success = await installVersion(version);
+      const success = await bibleStore.installVersion(version);
       if (success) {
         toast.success(`${version.englishName} installed successfully`);
       }
@@ -219,38 +176,38 @@ const BibleScreen: React.FC<BibleScreenProps> = ({ route }) => {
 
   // Search functionality
   const handleSearch = useCallback(async (query: string) => {
-    if (!query || !currentVersion) return;
+    if (!query || !bibleStore.currentVersion) return;
     
-    setSearchQuery(query);
-    await searchVerses(query, currentVersion);
-  }, [currentVersion, searchVerses, setSearchQuery]);
+    bibleStore.setSearchQuery(query);
+    await bibleStore.searchVerses(query, bibleStore.currentVersion);
+  }, [bibleStore.currentVersion]);
 
   // Verse interaction handlers
   const handleToggleHighlight = useCallback(async (verseId: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    const success = await toggleHighlight(verseId);
+    const success = await bibleStore.toggleHighlight(verseId);
     if (success) {
-      await saveUserPreferences();
+      await bibleStore.saveUserPreferences();
     }
-  }, [toggleHighlight, saveUserPreferences]);
+  }, []);
 
   const handleToggleBookmark = useCallback(async (verseId: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    const success = await toggleBookmark(verseId);
+    const success = await bibleStore.toggleBookmark(verseId);
     if (success) {
-      await saveUserPreferences();
+      await bibleStore.saveUserPreferences();
     }
-  }, [toggleBookmark, saveUserPreferences]);
+  }, []);
 
   const handleLikeVerse = useCallback(async (verseId: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    await likeVerse(verseId);
-  }, [likeVerse]);
+    await bibleStore.likeVerse(verseId);
+  }, []);
 
   const handleShareVerse = useCallback(async (verseId: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    await shareVerse(verseId);
-  }, [shareVerse]);
+    await bibleStore.shareVerse(verseId);
+  }, []);
 
   // Enhanced header with activity panel
   const renderHeader = () => (
@@ -262,7 +219,7 @@ const BibleScreen: React.FC<BibleScreenProps> = ({ route }) => {
             onPress={() => setShowVersionsModal(true)}
           >
             <Text style={styles.headerButtonText}>
-              {currentVersion?.shortName || 'RV'}
+              {bibleStore.currentVersion?.shortName || 'RV'}
             </Text>
             <MaterialIcons name="menu-book" size={20} color={theme.colors.text.primary} />
           </TouchableOpacity>
@@ -276,14 +233,14 @@ const BibleScreen: React.FC<BibleScreenProps> = ({ route }) => {
 
           <View style={styles.controlsGroup}>
             <BookSelector
-              currentBook={currentBook || bibleBooks[0]}
-              onSelect={setCurrentBook}
+              currentBook={bibleStore.currentBook || bibleBooks[0]}
+              onSelect={bibleStore.setCurrentBook}
             />
             
             <BiblePicker
-              value={currentChapter}
-              items={Array.from({ length: (currentBook || bibleBooks[0]).chapters }, (_, i) => i + 1)}
-              onSelect={setCurrentChapter}
+              value={bibleStore.currentChapter}
+              items={Array.from({ length: (bibleStore.currentBook || bibleBooks[0]).chapters }, (_, i) => i + 1)}
+              onSelect={bibleStore.setCurrentChapter}
             />
           </View>
         </View>
@@ -291,20 +248,20 @@ const BibleScreen: React.FC<BibleScreenProps> = ({ route }) => {
         <View style={styles.headerRight}>
           <TouchableOpacity 
             style={styles.iconButton}
-            onPress={() => setShowSearch(true)}
+            onPress={() => bibleStore.setShowSearch(true)}
           >
             <MaterialIcons name="search" size={24} color={theme.colors.text.primary} />
           </TouchableOpacity>
 
           <TouchableOpacity 
-            onPress={() => setFontSize(Math.max(12, fontSize - 2))}
+            onPress={() => bibleStore.setFontSize(Math.max(12, bibleStore.fontSize - 2))}
             style={styles.iconButton}
           >
             <SizeDecrease size={24} color={theme.colors.text.primary} />
           </TouchableOpacity>
 
           <TouchableOpacity 
-            onPress={() => setFontSize(Math.min(24, fontSize + 2))}
+            onPress={() => bibleStore.setFontSize(Math.min(24, bibleStore.fontSize + 2))}
             style={styles.iconButton}
           >
             <SizeIncrease size={24} color={theme.colors.text.primary} />
@@ -312,16 +269,20 @@ const BibleScreen: React.FC<BibleScreenProps> = ({ route }) => {
         </View>
       </BlurView>
 
-      {showActivityPanel && selectedVerseId && (
+      {bibleStore.showActivityPanel && bibleStore.selectedVerseId && (
         <BlurView intensity={15} style={styles.activityBar}>
           <View style={styles.activityContent}>
             <View style={styles.activityLeft}>
               <TouchableOpacity 
                 style={styles.activityButton}
-                onPress={() => handleToggleBookmark(selectedVerseId)}
+                onPress={() => {
+                  const id = bibleStore.selectedVerseId;
+                  if (!id) return;
+                  handleToggleBookmark(id);
+                }}
               >
                 <MaterialIcons 
-                  name={bookmarkedVerses.has(selectedVerseId) ? "bookmark" : "bookmark-border"} 
+                  name={bibleStore.bookmarkedVerses.has(bibleStore.selectedVerseId) ? "bookmark" : "bookmark-border"} 
                   size={20} 
                   color={theme.colors.primary} 
                 />
@@ -330,9 +291,13 @@ const BibleScreen: React.FC<BibleScreenProps> = ({ route }) => {
 
               <TouchableOpacity 
                 style={styles.activityButton}
-                onPress={() => handleToggleHighlight(selectedVerseId)}
+                onPress={() => {
+                  const id = bibleStore.selectedVerseId;
+                  if (!id) return;
+                  handleToggleHighlight(id);
+                }}
               >
-                {highlightedVerses.has(selectedVerseId) ? (
+                {bibleStore.highlightedVerses.has(bibleStore.selectedVerseId) ? (
                   <Brush size={20} color={theme.colors.primary} />
                 ) : (
                   <BrushOutlined size={20} color={theme.colors.primary} />
@@ -342,7 +307,11 @@ const BibleScreen: React.FC<BibleScreenProps> = ({ route }) => {
 
               <TouchableOpacity 
                 style={styles.activityButton}
-                onPress={() => handleLikeVerse(selectedVerseId)}
+                onPress={() => {
+                  const id = bibleStore.selectedVerseId;
+                  if (!id) return;
+                  handleLikeVerse(id);
+                }}
               >
                 <MaterialIcons name="thumb-up" size={20} color={theme.colors.primary} />
                 <Text style={styles.activityButtonText}>Like</Text>
@@ -350,7 +319,11 @@ const BibleScreen: React.FC<BibleScreenProps> = ({ route }) => {
 
               <TouchableOpacity 
                 style={styles.activityButton}
-                onPress={() => handleShareVerse(selectedVerseId)}
+                onPress={() => {
+                  const id = bibleStore.selectedVerseId;
+                  if (!id) return;
+                  handleShareVerse(id);
+                }}
               >
                 <MaterialIcons name="share" size={20} color={theme.colors.primary} />
                 <Text style={styles.activityButtonText}>Share</Text>
@@ -360,8 +333,8 @@ const BibleScreen: React.FC<BibleScreenProps> = ({ route }) => {
             <TouchableOpacity 
               style={styles.closeButton}
               onPress={() => {
-                setShowActivityPanel(false);
-                setSelectedVerseId(null);
+                bibleStore.setShowActivityPanel(false);
+                bibleStore.setSelectedVerseId(null);
               }}
             >
               <MaterialIcons name="close" size={20} color={theme.colors.text.secondary} />
@@ -383,19 +356,19 @@ const BibleScreen: React.FC<BibleScreenProps> = ({ route }) => {
           </TouchableOpacity>
         </View>
         
-        {isVersionsLoading ? (
+        {bibleStore.isVersionsLoading ? (
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color={theme.colors.primary} />
           </View>
         ) : (
           <FlatList
-            data={availableVersions}
+            data={bibleStore.availableVersions}
             keyExtractor={(item) => item.shortName}
             renderItem={({ item }) => (
               <TouchableOpacity
                 style={styles.versionItem}
                 onPress={() => {
-                  setCurrentVersion(item);
+                  bibleStore.setCurrentVersion(item);
                   setShowVersionsModal(false);
                 }}
               >
@@ -408,7 +381,7 @@ const BibleScreen: React.FC<BibleScreenProps> = ({ route }) => {
                   )}
                 </View>
 
-                {installedVersions.includes(item.shortName) ? (
+                {bibleStore.installedVersions.includes(item.shortName) ? (
                   <MaterialIcons name="check-circle" size={24} color={theme.colors.primary} />
                 ) : (
                   <TouchableOpacity 
@@ -416,12 +389,12 @@ const BibleScreen: React.FC<BibleScreenProps> = ({ route }) => {
                       e.stopPropagation();
                       handleInstallVersion(item);
                     }}
-                    disabled={isInstallingVersion}
+                    disabled={bibleStore.isInstallingVersion}
                   >
                     <MaterialIcons 
                       name="download" 
                       size={24} 
-                      color={isInstallingVersion ? theme.colors.text.secondary : theme.colors.primary} 
+                      color={bibleStore.isInstallingVersion ? theme.colors.text.secondary : theme.colors.primary} 
                     />
                   </TouchableOpacity>
                 )}
@@ -436,7 +409,7 @@ const BibleScreen: React.FC<BibleScreenProps> = ({ route }) => {
   // Update verse text style to use fontSize state
   const renderVerse = ({ item }: { item: BibleVerse }) => {
     const { verse: verseNum } = parseVPLId(item.id);
-    const isHighlighted = highlightedVerses.has(item.id);
+    const isHighlighted = bibleStore.highlightedVerses.has(item.id);
     
     return (
       <View style={[
@@ -447,14 +420,14 @@ const BibleScreen: React.FC<BibleScreenProps> = ({ route }) => {
           style={styles.verseContent}
           onLongPress={() => handleToggleHighlight(item.id)}
           onPress={() => {
-            setSelectedVerseId(item.id);
-            setShowActivityPanel(true);
+            bibleStore.setSelectedVerseId(item.id);
+            bibleStore.setShowActivityPanel(true);
           }}
         >
           <Text style={styles.verseNumber}>
             {verseNum}
           </Text>
-          <Text style={[styles.verseText, { fontSize }]}>
+          <Text style={[styles.verseText, { fontSize: bibleStore.fontSize }]}>
             {item.text}
           </Text>
         </TouchableOpacity>
@@ -463,7 +436,7 @@ const BibleScreen: React.FC<BibleScreenProps> = ({ route }) => {
   };
 
   const ListFooter = () => {
-    if (isVersesLoading && pagination.currentPage > 1) {
+    if (bibleStore.isVersesLoading && bibleStore.pagination.currentPage > 1) {
       return (
         <View style={styles.loadingFooter}>
           <ActivityIndicator color={theme.colors.primary} />
@@ -475,7 +448,7 @@ const BibleScreen: React.FC<BibleScreenProps> = ({ route }) => {
   };
 
   const ListEmpty = () => {
-    if (isVersesLoading) {
+    if (bibleStore.isVersesLoading) {
       return (
         <View style={styles.emptyContainer}>
           <ActivityIndicator size="large" color={theme.colors.primary} />
@@ -484,13 +457,13 @@ const BibleScreen: React.FC<BibleScreenProps> = ({ route }) => {
       );
     }
 
-    if (versesError) {
+    if (bibleStore.versesError) {
       return (
         <View style={styles.emptyContainer}>
           <Text style={styles.errorText}>Failed to load verses</Text>
           <TouchableOpacity 
             style={styles.retryButton} 
-            onPress={() => currentBook && currentVersion && fetchVerses(currentBook, currentChapter, currentVersion)}
+            onPress={() => bibleStore.currentBook && bibleStore.currentVersion && bibleStore.fetchVerses(bibleStore.currentBook, bibleStore.currentChapter, bibleStore.currentVersion)}
           >
             <Text style={styles.retryButtonText}>Retry</Text>
           </TouchableOpacity>
@@ -514,7 +487,7 @@ const BibleScreen: React.FC<BibleScreenProps> = ({ route }) => {
       {/* Content Area */}
       <FlatList
         ref={verseListRef}
-        data={verses}
+        data={bibleStore.verses}
         renderItem={renderVerse}
         keyExtractor={item => item.id}
         contentContainerStyle={styles.contentContainer}
@@ -545,15 +518,15 @@ const BibleScreen: React.FC<BibleScreenProps> = ({ route }) => {
 
       {/* Search Modal */}
       <Modal
-        visible={showSearch}
+        visible={bibleStore.showSearch}
         animationType="slide"
-        onRequestClose={() => setShowSearch(false)}
+        onRequestClose={() => bibleStore.setShowSearch(false)}
       >
         <View style={styles.searchContainer}>
           <View style={styles.searchHeader}>
             <TextInput
               style={styles.searchInput}
-              value={searchQuery}
+              value={bibleStore.searchQuery}
               onChangeText={handleSearch}
               placeholder="Search Bible..."
               autoFocus
@@ -561,34 +534,32 @@ const BibleScreen: React.FC<BibleScreenProps> = ({ route }) => {
             <TouchableOpacity 
               style={styles.closeButton}
               onPress={() => {
-                setShowSearch(false);
-                clearSearch();
+                bibleStore.setShowSearch(false);
+                bibleStore.clearSearch();
               }}
             >
               <MaterialIcons name="close" size={24} color={theme.colors.text.secondary} />
             </TouchableOpacity>
           </View>
 
-          {isSearchLoading ? (
+          {bibleStore.isSearchLoading ? (
             <View style={styles.loadingContainer}>
               <ActivityIndicator size="large" color={theme.colors.primary} />
             </View>
           ) : (
             <FlatList
-              data={searchResults}
+              data={bibleStore.searchResults}
               renderItem={({ item }) => (
                 <TouchableOpacity 
                   style={styles.searchResultItem}
                   onPress={() => {
-                    const parts = item.id.split(':');
-                    const bookAbbr = parts[0];
-                    const chapter = parseInt(parts[1] || '1');
+                    const { bookAbbr, chapter } = parseVPLId(item.id);
                     const book = bibleBooks.find(b => b.abbreviation === bookAbbr);
                     if (book) {
-                      setCurrentBook(book);
-                      setCurrentChapter(chapter);
-                      setShowSearch(false);
-                      clearSearch();
+                      bibleStore.setCurrentBook(book);
+                      bibleStore.setCurrentChapter(chapter);
+                      bibleStore.setShowSearch(false);
+                      bibleStore.clearSearch();
                     }
                   }}
                 >
@@ -815,37 +786,36 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     color: theme.colors.text.secondary,
     marginTop: theme.spacing.sm,
   },
-     errorText: {
-     ...theme.typography.body.sans,
-     color: theme.colors.error,
-     textAlign: 'center',
-     marginBottom: theme.spacing.sm,
-   },
-   retryButton: {
-     paddingVertical: theme.spacing.sm,
-     paddingHorizontal: theme.spacing.lg,
-     backgroundColor: theme.colors.primary,
-     borderRadius: theme.borderRadius.md,
-   },
-   retryButtonText: {
-     ...theme.typography.body.sans,
-     color: theme.colors.text.inverse,
-   },
-   offlineIndicator: {
-     flexDirection: 'row',
-     alignItems: 'center',
-     gap: theme.spacing.xs,
-     paddingHorizontal: theme.spacing.sm,
-     paddingVertical: theme.spacing.xs,
-     borderRadius: theme.borderRadius.sm,
-     backgroundColor: `${theme.colors.warning}15`,
-   },
-   offlineText: {
-     ...theme.typography.caption.secondary,
-     color: theme.colors.warning,
-     fontSize: 10,
-   },
+  errorText: {
+    ...theme.typography.body.sans,
+    color: theme.colors.error,
+    textAlign: 'center',
+    marginBottom: theme.spacing.sm,
+  },
+  retryButton: {
+    paddingVertical: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.lg,
+    backgroundColor: theme.colors.primary,
+    borderRadius: theme.borderRadius.md,
+  },
+  retryButtonText: {
+    ...theme.typography.body.sans,
+    color: theme.colors.text.inverse,
+  },
+  offlineIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.xs,
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: theme.spacing.xs,
+    borderRadius: theme.borderRadius.sm,
+    backgroundColor: `${theme.colors.warning}15`,
+  },
+  offlineText: {
+    ...theme.typography.caption.secondary,
+    color: theme.colors.warning,
+    fontSize: 10,
+  },
 });
 
-
-export default BibleScreen;
+export default observer(BibleScreen);

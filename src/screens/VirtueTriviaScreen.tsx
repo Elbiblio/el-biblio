@@ -12,14 +12,15 @@ import { Star, Trophy, Sparkle, Clock } from '../components/Icons';
 import { UserLevel, VerseResult } from '@/types';
 import { Theme } from '@/theme';
 import { useTheme } from '@/contexts/ThemeContext';
-import { useVirtueStore } from '@/stores/virtue';
+import { observer } from 'mobx-react-lite';
+import { useVirtueStore, useGameStore } from '@/stores/StoreProvider';
 import { Audio } from 'expo-av';
 
 import { shuffleArray } from '@/utils/helpers';
 import BibleDBService, { parseVPLId } from '@/utils/database';
 import { bibleBooks } from '@/constants/bibleBooks';
 import { ScrollView } from 'react-native-gesture-handler';
-import { useGameStore } from '@/stores/game';
+// game store now comes from StoreProvider
 
 // Constants
 const MAX_QUESTIONS = 10;
@@ -61,22 +62,10 @@ const timerSettings: Record<UserLevel, number> = {
 const VirtueTriviaScreen: React.FC = () => {
   const theme = useTheme();
   const styles = createStyles(theme);
+  const gameStore = useGameStore();
 
   // Virtue store
-  const {
-    virtues,
-    isVirtuesLoading,
-    virtuesError,
-    quizQuestions,
-    isQuizLoading,
-    quizError,
-    userProgress,
-    fetchVirtues,
-    fetchQuizQuestions,
-    submitQuizAnswer,
-    completeQuiz,
-    fetchUserProgress,
-  } = useVirtueStore();
+  const { virtues, userProgress, fetchVirtues, fetchUserProgress } = useVirtueStore();
 
   // State
   const [gameState, setGameState] = useState<GameState>({
@@ -418,7 +407,7 @@ const VirtueTriviaScreen: React.FC = () => {
           );
         }
 
-        useGameStore.getState().submitScore('virtue_trivia', newScore);
+        gameStore.submitScore('virtue_trivia', newScore);
         
         // Update virtues progress
         // This logic needs to be adapted to use userProgress from the store
@@ -1277,9 +1266,7 @@ const createStyles = (theme: Theme) => StyleSheet.create({
   },
   retryButtonText: {
     color: '#FFF',
-    fontWeight: '600',
-    fontSize: 16,
-  }
+  },
 });
 
-export default VirtueTriviaScreen;
+export default observer(VirtueTriviaScreen);

@@ -8,20 +8,21 @@ import Animated, {
   Extrapolation
 } from 'react-native-reanimated';
 import { SCREEN_DIMENSIONS } from '../constants';
-import { getCurrentTheme } from '@/stores/theme';
+import { useTheme } from '@/contexts/ThemeContext';
 
 interface ProgressIndicatorProps {
   scrollX: SharedValue<number>;
   index: number;
   total: number;
 }
-const theme = getCurrentTheme();
 
 const ProgressIndicator: React.FC<ProgressIndicatorProps> = ({
   scrollX,
   index,
   total,
 }) => {
+  const theme = useTheme();
+  const styles = getStyles(theme);
   const animatedStyle = useAnimatedStyle(() => {
     const inputRange = [
       (index - 1) * SCREEN_DIMENSIONS.width,
@@ -67,13 +68,14 @@ const ProgressIndicator: React.FC<ProgressIndicatorProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
-  progressDot: {
-    width: 8, // Base width
-    height: 4,
-    borderRadius: theme.borderRadius.sm,
-    backgroundColor: theme.colors.border,
-  },
-});
+const getStyles = (theme: any) =>
+  StyleSheet.create({
+    progressDot: {
+      width: 8, // Base width
+      height: 4,
+      borderRadius: theme.borderRadius.sm,
+      backgroundColor: theme.colors.border,
+    },
+  });
 
 export default ProgressIndicator;

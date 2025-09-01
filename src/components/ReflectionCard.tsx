@@ -20,7 +20,7 @@ import { BlurView } from 'expo-blur';
 import { Heart, MessageCircle, Share, BookmarkSimple, ChevronRight } from './Icons';
 import CommentThread from './CommentThread';
 import { useTheme } from '@/contexts/ThemeContext';
-import type { Reflection } from '@/types';
+import { ReflectionType, type Reflection } from '@/types';
 import { extractUniqueCommenters } from '@/utils/comments';
 import { SCREEN_DIMENSIONS, wp } from '@/constants';
 import CircleButton from './CircleButton';
@@ -95,7 +95,7 @@ const ReflectionCard: React.FC<ReflectionCardProps> = ({
           {`${reflection.user.first_name} ${reflection.user.last_name}`}
         </Text>
         <Text style={[styles.reflectionType, { color: theme.colors.text.secondary }]}>
-          {reflection.type === 'story' ? 'Sharing a story' : 'Sharing an insight'}
+          {reflection.type === ReflectionType.Story ? 'Sharing a story' : 'Sharing an insight'}
         </Text>
       </View>
       <View style={[styles.iconContainer, { backgroundColor: theme.colors.surface }]}>
@@ -120,12 +120,12 @@ const ReflectionCard: React.FC<ReflectionCardProps> = ({
           <BlurView intensity={5} style={StyleSheet.absoluteFill} />
           <View style={styles.topCommentHeader}>
             <Image 
-              source={{ uri: topComment.author.avatar }} 
+              source={{ uri: topComment.user?.avatar }} 
               style={styles.topCommentAvatar} 
             />
             <View style={styles.topCommentMeta}>
               <Text style={[styles.topCommentAuthor, { color: theme.colors.text.primary }]}>
-                {`${topComment.author.first_name} ${topComment.author.last_name}`}
+                {`${topComment.user?.first_name ?? ''} ${topComment.user?.last_name ?? ''}`.trim()}
               </Text>
               <Text style={[styles.topCommentLabel, { color: theme.colors.text.secondary }]}>
                 Top Comment

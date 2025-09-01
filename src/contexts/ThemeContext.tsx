@@ -1,9 +1,6 @@
-import React, { createContext, useContext, useEffect } from 'react';
-import { observer } from 'mobx-react-lite';
+import React, { createContext, useContext } from 'react';
 import { Theme, ThemeVariant, defaultTheme, getTheme } from '../theme';
-import { useThemeStore } from '@/stores/theme';
 import { appStore } from '@/stores/appStore';
-import { usePreferences } from '@/stores/preferences';
 
 interface ThemeContextType {
   theme: Theme;
@@ -25,60 +22,42 @@ interface ThemeProviderProps {
   onThemeChange?: (variant: ThemeVariant) => void;
 }
 
-export const ThemeProvider: React.FC<ThemeProviderProps> = observer(({
+export const ThemeProvider: React.FC<ThemeProviderProps> = ({
   children,
   initialTheme = defaultTheme,
   onThemeChange,
 }) => {
-  const setStoreTheme = useThemeStore(state => state.setTheme);
-  const currentTheme = useThemeStore(state => state.current);
+  const [theme, setTheme] = React.useState<Theme>(initialTheme);
   const { hasCompletedWelcome, setHasCompletedWelcome, initializeWelcomeState } = appStore;
-  const { preferredTheme, setPreferredTheme } = usePreferences();
 
-  // Sync initial theme with store
-  useEffect(() => {
-    setStoreTheme(initialTheme);
+  React.useEffect(() => {
+    setTheme(initialTheme);
     initializeWelcomeState();
-  }, [initialTheme]);
-
-  // If preferences store changes, update the theme
-  useEffect(() => {
-    if (preferredTheme) {
-      const themeFromPreferences = getTheme(preferredTheme);
-      setStoreTheme(themeFromPreferences);
-    }
-  }, [preferredTheme]);
+  }, [initialTheme, initializeWelcomeState]);
 
   const setThemeVariant = React.useCallback((variant: ThemeVariant) => {
     const newTheme = getTheme(variant);
-    setStoreTheme(newTheme);
-    
-    // Update preferences store
-    setPreferredTheme(variant);
-    
-    // Call the external onThemeChange if provided
-    if (onThemeChange) {
-      onThemeChange(variant);
-    }
-  }, [onThemeChange, setStoreTheme, setPreferredTheme]);
+    setTheme(newTheme);
+    if (onThemeChange) onThemeChange(variant);
+  }, [onThemeChange]);
 
   const completeWelcome = React.useCallback(async () => {
     await setHasCompletedWelcome(true);
   }, [setHasCompletedWelcome]);
 
   const value = React.useMemo(() => ({
-    theme: currentTheme,
+    theme,
     setThemeVariant,
     hasCompletedWelcome,
     completeWelcome,
-  }), [currentTheme, setThemeVariant, hasCompletedWelcome, completeWelcome]);
+  }), [theme, setThemeVariant, hasCompletedWelcome, completeWelcome]);
 
   return (
     <ThemeContext.Provider value={value}>
       {children}
     </ThemeContext.Provider>
   );
-});
+};
 
 export const useWelcomeState = () => {
   const context = useContext(ThemeContext);

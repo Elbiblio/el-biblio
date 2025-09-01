@@ -16,7 +16,7 @@ import { Theme, ThemeVariant } from '@/theme';
 import { useAuth } from '@/stores/auth';
 import { useLeaderboardStore } from '@/stores/leaderboard';
 import * as Haptics from 'expo-haptics';
-import { ArrowLeft, Award, ChevronUp, ChevronDown, Filter, Users, Fire, Calendar } from '../components/Icons';
+import { ArrowLeft, Award, ChevronUp, ChevronDown, Filter, Users, Fire, Calendar } from '@/components/Icons';
 import { AllVirtues, LeaderboardEntry } from '@/types';
 import { toast } from 'sonner-native';
 
@@ -395,7 +395,7 @@ const LeaderboardScreen = ({ navigation }: any) => {
       <FlatList
         data={currentLeaderboard}
         renderItem={renderLeaderboardItem}
-        keyExtractor={(item) => item.user?.id || item.rank?.toString()}
+        keyExtractor={(item, index) => item.user?.id ?? item.rank?.toString() ?? `row-${index}`}
         ListHeaderComponent={ListHeader}
         ListFooterComponent={ListFooter}
         ListEmptyComponent={ListEmpty}

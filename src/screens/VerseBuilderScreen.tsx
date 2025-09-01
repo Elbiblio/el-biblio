@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef, memo } from 'react';
+import React, { useEffect, useCallback, useRef, memo } from 'react';
 import {
   View,
   Text,
@@ -6,6 +6,7 @@ import {
   StyleSheet,
   Dimensions,
   ActivityIndicator,
+  FlatList,
 } from 'react-native';
 import Animated, {
   useSharedValue,
@@ -16,84 +17,52 @@ import Animated, {
   runOnJS,
 } from 'react-native-reanimated';
 import { BlurView } from 'expo-blur';
+import { observer } from 'mobx-react-lite';
 import { Theme } from '@/theme';
 import { useTheme } from '@/contexts/ThemeContext';
-import { useVerseStore } from '@/stores/verse';
+import { useVerseBuilderStore } from '@/stores/StoreProvider';
 import { Clock, Sparkle, Trophy, ArrowCounterClockwise } from '../components/Icons';
-import { FlatList } from 'react-native';
-import { VerseMastery, UserLevel, VerseResult } from '@/types';
-import { bibleBooks } from '@/constants/bibleBooks';
-import { parseVPLId } from '@/utils/database';
-import BibleDBService from '@/utils/database';
-
-import { shuffleArray } from '@/utils/helpers';
+import { PowerUpType } from '@/types';
 import { Audio } from 'expo-av';
-import { useGameStore } from '@/stores/game';
-import { useAuth } from '@/stores/auth';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const WORD_SIZE = SCREEN_WIDTH / 5;
-const INITIAL_TIME = 16;
-const MIN_TIME = 10;
-const MAX_ATTEMPTS = 4;
-const REVIEW_PERIOD = 6 * 30 * 24 * 60 * 60 * 1000;
-const LEVEL_UP_STREAK = 40;
 
-// Define words to fill by level
-const WORDS_BY_LEVEL: Record<UserLevel, [number, number]> = {
-  novice: [3, 3], // [min, max] words to fill
-  beginner: [4, 5],
-  intermediate: [6, 7],
-  advanced: [7, 8],
-  expert: [9, 10]
-};
-
-type VerseGame = {
-  id: string;
-  text: string;
-  reference: string;
-  originalWords: string[];
-  poolWords: string[];
-  arrangedWords: string[];
-  mastery: VerseMastery;
-  prefilledCount: number;
-};
-
-type PowerUpType = 'grace' | 'discernment';
-
-const VerseBuilderGame: React.FC = () => {
+const VerseBuilderScreen: React.FC = observer(() => {
   const theme = useTheme();
   const styles = createStyles(theme);
-  const { user } = useAuth();
+  const verseBuilderStore = useVerseBuilderStore();
+  // Public store API and safe state access via currentState
   const {
-    dailyVerses,
-    isDailyVersesLoading,
-    dailyVersesError,
-    fetchDailyVerses,
-    fetchVerseById,
-    createInteraction,
-  } = useVerseStore();
+    isLoading,
+    error,
+    initialize,
+    selectWordFromPool,
+    returnWordToPool,
+    usePowerUp,
+    retry,
+    startNewRound,
+    decrementTime,
+    completeTransition,
+    undoLastWord,
+    setVersion,
+  } = verseBuilderStore;
 
-  // State
-  const [availableVersions, setAvailableVersions] = useState<string[]>([]);
-  const [selectedVersion, setSelectedVersion] = useState<string>('');
-  const [gameState, setGameState] = useState<VerseGame | null>(null);
-  const [timeLeft, setTimeLeft] = useState(INITIAL_TIME);
-  const [score, setScore] = useState(0);
-  const [highScore, setHighScore] = useState(0);
-  const [powerUps, setPowerUps] = useState({ grace: 3, discernment: 2 });
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [streak, setStreak] = useState(0);
-  const [isLoading, setIsLoading] = useState(true);
-  const [userLevel, setUserLevel] = useState<UserLevel>('beginner');
-  const [showSuccess, setShowSuccess] = useState(false);
-  const [showCorrectAnswer, setShowCorrectAnswer] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [initialGameTime, setInitialGameTime] = useState(INITIAL_TIME);
-  const [wordsToLeave, setWordsToLeave] = useState(3);
-  const [nextGameState, setNextGameState] = useState<VerseGame | null>(null);
-  const [isTransitioning, setIsTransitioning] = useState(false);
-  const [userProgress, setUserProgress] = useState<Record<string, VerseMastery>>({});
+  const {
+    availableVersions,
+    selectedVersion,
+    gameState,
+    score,
+    highScore,
+    powerUps,
+    isPlaying,
+    timeLeft,
+    streak,
+    showSuccess,
+    showCorrectAnswer,
+    isTransitioning,
+    initialGameTime,
+  } = verseBuilderStore.currentState;
 
   // Animation Values
   const progressWidth = useSharedValue(100);
@@ -103,408 +72,111 @@ const VerseBuilderGame: React.FC = () => {
   const fadeAnim = useSharedValue(1);
 
   // Refs
-  const timeLeftRef = useRef(timeLeft);
-  const verseQueueRef = useRef<VerseGame[]>([]);
-  const hasInitialized = useRef(false);
-  const soundsRef = useRef({
-    tickTock: null as Audio.Sound | null,
-    timeout: null as Audio.Sound | null,
-    correct: null as Audio.Sound | null,
-    streak: null as Audio.Sound | null,
-    retry: null as Audio.Sound | null,
-    cheers: null as Audio.Sound | null,
-  });
+  const soundsRef = useRef<{
+    [key: string]: Audio.Sound | null;
+  }>({});
 
-  // Update timeLeftRef when timeLeft changes
   useEffect(() => {
-    timeLeftRef.current = timeLeft;
-  }, [timeLeft]);
-
-  // Fetch verses on mount
-  useEffect(() => {
-    fetchDailyVerses();
-  }, []);
-
-  // Adjust difficulty based on streak and level
-  useEffect(() => {
-    // Adjust game time - decrease by 1 second for every 5 questions correctly answered
-    const timeReduction = Math.floor(streak / 5);
-    const newTime = Math.max(INITIAL_TIME - timeReduction, MIN_TIME);
-    setInitialGameTime(newTime);
-
-    // Set words to leave based on level and streak progression
-    const [minWords, maxWords] = WORDS_BY_LEVEL[userLevel];
-
-    // For the first 20 questions use min words, then gradually increase
-    let wordsToUse = minWords;
-    if (streak > 20 && maxWords > minWords) {
-      // Gradually increase difficulty as streak approaches 40
-      const progressionRatio = (streak - 20) / 20;
-      wordsToUse = Math.min(
-        minWords + Math.floor(progressionRatio * (maxWords - minWords)),
-        maxWords
-      );
-    }
-
-    setWordsToLeave(wordsToUse);
-  }, [streak, userLevel]);
-
-  // Process Verse
-  const processVerse = useCallback(
-    (verse: VerseResult): VerseGame | null => {
-      if (!verse?.verseID || !verse.verseText) return null;
-      try {
-        const { bookAbbr, chapter, verse: v } = parseVPLId(verse.verseID);
-        const book = bibleBooks.find((b) => b.abbreviation === bookAbbr);
-        if (!book) throw new Error(`Invalid book abbreviation: ${bookAbbr}`);
-        const words = verse.verseText.split(' ').filter((w: string) => w.length > 0);
-        const mastery = userProgress[verse.verseID] || {
-          verseId: verse.verseID,
-          attempts: 0,
-          correct: 0,
-          lastAttempt: 0,
-          needsReview: true,
-        };
-        return {
-          id: verse.verseID,
-          text: verse.verseText,
-          reference: `${book.name} ${chapter}:${v}`,
-          originalWords: words,
-          poolWords: [],
-          arrangedWords: [],
-          mastery,
-          prefilledCount: 0,
-        };
-      } catch (err) {
-        console.error('processVerse error:', err);
-        return null;
-      }
-    },
-    [userProgress]
-  );
-
-  // Load batch of verses for the current level
-  const loadVerseBatch = useCallback(async () => {
-    if (!selectedVersion) return;
-    setIsLoading(true);
-
-    try {
-      console.log(`Loading batch of verses for ${userLevel} level...`);
-      const verses = await BibleDBService.getRandomVerses(selectedVersion, 40);
-      const processedVerses = verses
-        .map(processVerse)
-        .filter(Boolean) as VerseGame[];
-
-      verseQueueRef.current = processedVerses;
-      console.log(`Loaded ${processedVerses.length} verses for gameplay`);
-
-      if (processedVerses.length === 0) {
-        throw new Error('No suitable verses found for the current level');
-      }
-    } catch (err) {
-      console.error('Failed to load verse batch:', err);
-      setError('Failed to load verses. Please try again.');
-    } finally {
-      setIsLoading(false);
-    }
-  }, [selectedVersion, userLevel, processVerse]);
-
-  // Initialize game data
-  useEffect(() => {
-    const initializeGame = async () => {
-      try {
-        // Load user data from API instead of local storage
-        await fetchDailyVerses();
-
-        // Set default level
-        setUserLevel('novice');
-
-        // Initialize game state
-        setGameState(null);
-      } catch (error) {
-        console.error('Failed to initialize game:', error);
-        setError('Failed to initialize game. Please restart.');
-      }
-    };
-
-    initializeGame();
-  }, [fetchDailyVerses]);
-
-  // Load initial verses after initialization is complete and version is selected
-  useEffect(() => {
-    if (!isLoading && selectedVersion && verseQueueRef.current.length === 0) {
-      loadVerseBatch();
-    }
-  }, [isLoading, selectedVersion, loadVerseBatch]);
-
-  // Start new round - updated to preload and use smooth transitions
-  const startNewRound = useCallback(async () => {
-    if (!selectedVersion) return;
-    setError(null);
-
-    // Don't show loading indicator during transitions between rounds
-    const showLoading = !gameState;
-    if (showLoading) setIsLoading(true);
-
-    try {
-      // If we're out of verses, load a new batch
-      if (verseQueueRef.current.length === 0) {
-        await loadVerseBatch();
-      }
-
-      // Get the next verse
-      const verse = verseQueueRef.current.shift();
-      if (!verse) {
-        throw new Error('Failed to get next verse');
-      }
-
-      // Set up words based on difficulty (determined by wordsToLeave)
-      const totalWords = verse.originalWords.length;
-      const leaveCount = Math.min(wordsToLeave, totalWords - 1);
-      const prefillCount = totalWords - leaveCount;
-      const arrangedWords = verse.originalWords.slice(0, prefillCount);
-      const poolWords = shuffleArray(verse.originalWords.slice(prefillCount));
-
-      const newGameState = {
-        ...verse,
-        poolWords,
-        arrangedWords,
-        prefilledCount: prefillCount,
+    const loadSounds = async () => {
+      const soundObjects: { [key: string]: Audio.Sound } = {};
+      const soundFiles = {
+        tickTock: require('../../assets/sounds/tick-tock.wav'),
+        timeout: require('../../assets/sounds/timeout.wav'),
+        correct: require('../../assets/sounds/correct.wav'),
+        streak: require('../../assets/sounds/streak.wav'),
+        retry: require('../../assets/sounds/retry.wav'),
+        cheers: require('../../assets/sounds/cheers.mp3'),
       };
 
-      if (!gameState) {
-        // First round, just set the state directly
-        setGameState(newGameState);
-        setTimeLeft(initialGameTime);
-        setIsPlaying(true);
-        setShowSuccess(false);
-        setShowCorrectAnswer(false);
-        progressWidth.value = 100;
-        timerColorAnim.value = 0;
-      } else {
-        // Transition to next verse with animation
-        setNextGameState(newGameState);
-        setIsTransitioning(true);
-
-        // Fade out current verse
-        fadeAnim.value = withTiming(0, { duration: 300 }, () => {
-          runOnJS(completeTransition)(newGameState);
-        });
+      for (const key in soundFiles) {
+        const { sound } = await Audio.Sound.createAsync(soundFiles[key as keyof typeof soundFiles]);
+        soundObjects[key] = sound;
       }
-    } catch (err) {
-      console.error('Start new round error:', err);
-      setError('Failed to start new round. Please try again.');
-    } finally {
-      if (showLoading) setIsLoading(false);
-    }
-  }, [selectedVersion, wordsToLeave, initialGameTime, progressWidth, timerColorAnim, loadVerseBatch, gameState, fadeAnim]);
+      soundsRef.current = soundObjects;
+    };
 
-  // Complete the transition to the next verse
-  const completeTransition = useCallback((newGameState: VerseGame) => {
-    setGameState(newGameState);
-    setNextGameState(null);
-    setTimeLeft(initialGameTime);
-    setIsPlaying(true);
-    setShowSuccess(false);
-    setShowCorrectAnswer(false);
-    progressWidth.value = 100;
-    timerColorAnim.value = 0;
+    loadSounds();
 
-    // Fade in the new verse
-    fadeAnim.value = withTiming(1, { duration: 300 }, () => {
-      runOnJS(setIsTransitioning)(false);
-    });
-  }, [initialGameTime, progressWidth, timerColorAnim, fadeAnim]);
-
-  // Update Mastery
-  const updateMastery = useCallback(
-    async (verseId: string, correct: boolean) => {
-      const updated = { ...userProgress };
-      const existing = updated[verseId];
-      if (existing) {
-        existing.attempts += 1;
-        existing.correct += correct ? 1 : 0;
-        existing.lastAttempt = Date.now();
-        existing.needsReview = existing.correct < 3;
-      } else {
-        updated[verseId] = {
-          verseId,
-          attempts: 1,
-          correct: correct ? 1 : 0,
-          lastAttempt: Date.now(),
-          needsReview: true,
-        };
+    return () => {
+      if (soundsRef.current) {
+        Object.values(soundsRef.current).forEach(sound => sound?.unloadAsync());
       }
+    };
+  }, []);
 
-      setUserProgress(updated);
-
-      if (user?.id) {
-        try {
-          await createInteraction({
-            interactable_id: verseId,
-            interactable_type: 'verse',
-            type: correct ? 1 : 0, // 1 for correct, 0 for incorrect
-            user_id: user?.id,
-          });
-        } catch (err) {
-          console.error('Failed to submit interaction:', err);
-        }
-      }
-    },
-    [user, createInteraction, userProgress]
-  );
-
-  // Check Answer
-  const checkAnswer = useCallback(async () => {
-    if (!gameState || !isPlaying || gameState.poolWords.length > 0) return;
-
-    const isCorrect = gameState.arrangedWords.join(' ').trim() === gameState.text.trim();
-
-    await updateMastery(gameState.id, isCorrect);
-
-    if (isCorrect) {
-      setIsPlaying(false);
-      soundsRef.current.correct?.setPositionAsync(0).then(() => soundsRef.current.correct?.playAsync());
-
-      const newStreak = streak + 1;
-      setStreak(newStreak);
-
-      if (newStreak > 1 && newStreak % 5 === 0) {
-        soundsRef.current.streak?.setPositionAsync(0).then(() => soundsRef.current.streak?.playAsync());
-      }
-
-      const timeBonus = Math.floor(timeLeft * 2);
-      const newScore = score + 100 + timeBonus;
-      setScore(newScore);
-
-      // Submit score to gameStore
-      useGameStore.getState().submitScore('verse_builder', newScore);
-
-      if (newScore > highScore) {
-        setHighScore(newScore);
-        // High score tracking moved to API
-        soundsRef.current.cheers?.setPositionAsync(0).then(() => soundsRef.current.cheers?.playAsync());
-      }
-
-      setShowSuccess(true);
-      setTimeout(() => {
-        setShowSuccess(false);
-        startNewRound();
-      }, 3500);
-    } else {
-      setStreak(0);
-      setShowCorrectAnswer(true);
-      setIsPlaying(false);
-    }
-  }, [gameState, isPlaying, streak, timeLeft, score, highScore, startNewRound, updateMastery]);
-
-  // Select Word from Pool
-  const selectWordFromPool = useCallback(
-    (word: string) => {
-      if (!gameState || !isPlaying) return;
-      scaleAnim.value = withTiming(1.05, { duration: 100 }, () => {
-        scaleAnim.value = withTiming(1, { duration: 100 });
-      });
-      setGameState((prev) => {
-        if (!prev) return null;
-        const newArrangedWords = [...prev.arrangedWords, word];
-        const newPoolWords = prev.poolWords.filter((w) => w !== word);
-        return { ...prev, poolWords: newPoolWords, arrangedWords: newArrangedWords };
-      });
-    },
-    [gameState, isPlaying, scaleAnim]
-  );
-
-  // Auto-check when pool is empty
   useEffect(() => {
-    if (isPlaying && gameState?.poolWords.length === 0) {
-      setTimeout(checkAnswer, 0);
-    }
-  }, [gameState, isPlaying, checkAnswer]);
-
-  // Return Word to Pool
-  const returnWordToPool = useCallback(
-    (word: string, index: number) => {
-      if (!gameState || !isPlaying) return;
-      scaleAnim.value = withTiming(1.05, { duration: 100 }, () => {
-        scaleAnim.value = withTiming(1, { duration: 100 });
-      });
-      setGameState((prev) => {
-        if (!prev) return null;
-        const newArranged = [...prev.arrangedWords];
-        newArranged.splice(index, 1);
-        return { ...prev, arrangedWords: newArranged, poolWords: [...prev.poolWords, word] };
-      });
-    },
-    [gameState, isPlaying, scaleAnim]
-  );
-
-  // Use Power-Up
-  const usePowerUp = useCallback(
-    (type: PowerUpType) => {
-      if (powerUps[type] <= 0 || !gameState || !isPlaying) return;
-      setPowerUps((prev) => ({ ...prev, [type]: prev[type] - 1 }));
-      if (type === 'grace') {
-        setTimeLeft((t) => Math.min(t + 15, INITIAL_TIME));
-      } else if (type === 'discernment' && gameState.poolWords.length > 0) {
-        const nextCorrectWord = gameState.originalWords[gameState.arrangedWords.length];
-        if (nextCorrectWord && gameState.poolWords.includes(nextCorrectWord)) {
-          selectWordFromPool(nextCorrectWord);
-        }
-      }
-    },
-    [powerUps, gameState, isPlaying, selectWordFromPool]
-  );
+    initialize();
+  }, [initialize]);
 
   // Timer Logic
   useEffect(() => {
-    if (!isPlaying || timeLeftRef.current <= 0) return;
+    if (!isPlaying) return;
     const interval = setInterval(() => {
-      const newTime = timeLeftRef.current - 1;
-      progressWidth.value = withTiming((newTime / INITIAL_TIME) * 100, { duration: 1000 });
-      timerColorAnim.value = withTiming(1 - newTime / INITIAL_TIME, { duration: 1000 });
-      setTimeLeft(newTime);
-      if (newTime <= 10) soundsRef.current.tickTock?.setPositionAsync(0).then(() => soundsRef.current.tickTock?.playAsync());
-      if (newTime <= 0) {
-        setIsPlaying(false);
-        soundsRef.current.timeout?.setPositionAsync(0).then(() => soundsRef.current.timeout?.playAsync());
-      }
+      decrementTime();
     }, 1000);
     return () => clearInterval(interval);
-  }, [isPlaying, progressWidth, timerColorAnim]);
+  }, [isPlaying, decrementTime]);
 
-  // Start Game When Ready
   useEffect(() => {
-    if (!isLoading && !gameState && selectedVersion) startNewRound();
-  }, [isLoading, gameState, selectedVersion, startNewRound]);
+    if (initialGameTime > 0) {
+      progressWidth.value = withTiming((timeLeft / initialGameTime) * 100, { duration: 1000 });
+      timerColorAnim.value = withTiming(1 - timeLeft / initialGameTime, { duration: 1000 });
+    }
 
-  // Success Animation
+    if (timeLeft > 0 && timeLeft <= 10) {
+      soundsRef.current?.tickTock?.setPositionAsync(0).then(() => soundsRef.current?.tickTock?.playAsync());
+    }
+    if (timeLeft <= 0) {
+      soundsRef.current?.timeout?.setPositionAsync(0).then(() => soundsRef.current?.timeout?.playAsync());
+    }
+  }, [timeLeft, initialGameTime, progressWidth, timerColorAnim]);
+
+  // Transition animation
+  useEffect(() => {
+    if (isTransitioning) {
+      fadeAnim.value = withTiming(0, { duration: 300 }, () => {
+        runOnJS(completeTransition)();
+      });
+    } else {
+      fadeAnim.value = withTiming(1, { duration: 300 });
+    }
+  }, [isTransitioning, fadeAnim, completeTransition]);
+
+  // Success Animation & Sounds
   useEffect(() => {
     if (showSuccess) {
       successOpacity.value = withTiming(1, { duration: 300 });
-      setTimeout(() => (successOpacity.value = withTiming(0, { duration: 300 })), 1200);
+      soundsRef.current?.correct?.setPositionAsync(0).then(() => soundsRef.current?.correct?.playAsync());
+      if (score > highScore) {
+        soundsRef.current?.cheers?.setPositionAsync(0).then(() => soundsRef.current?.cheers?.playAsync());
+      }
+      if (streak > 1 && streak % 5 === 0) {
+        soundsRef.current?.streak?.setPositionAsync(0).then(() => soundsRef.current?.streak?.playAsync());
+      }
+      setTimeout(() => (successOpacity.value = withTiming(0, { duration: 300 })), 3500);
     }
-  }, [showSuccess, successOpacity]);
+  }, [showSuccess, successOpacity, score, highScore, streak]);
 
-  // Undo Last Word
-  const undoLastWord = useCallback(() => {
-    if (!gameState || !isPlaying || gameState.arrangedWords.length <= gameState.prefilledCount) return;
-    setGameState((prev) => {
-      if (!prev) return null;
-      const newArranged = [...prev.arrangedWords];
-      const lastWord = newArranged.pop() as string;
-      return { ...prev, arrangedWords: newArranged, poolWords: [...prev.poolWords, lastWord] };
+  const handleSelectWord = (word: string) => {
+    scaleAnim.value = withTiming(1.05, { duration: 100 }, () => {
+      scaleAnim.value = withTiming(1, { duration: 100 });
     });
-  }, [gameState, isPlaying]);
+    selectWordFromPool(word);
+  };
+
+  const handleReturnWord = (word: string, index: number) => {
+    scaleAnim.value = withTiming(1.05, { duration: 100 }, () => {
+      scaleAnim.value = withTiming(1, { duration: 100 });
+    });
+    returnWordToPool(word, index);
+  };
+
+  const handleRetry = () => {
+    retry();
+    soundsRef.current?.retry?.setPositionAsync(0).then(() => soundsRef.current?.retry?.playAsync());
+  };
 
   // Animated Styles
-  const timerStyle = useAnimatedStyle(() => {
-    const color = interpolate(timerColorAnim.value, [0, 0.6, 1], [0, 1, 2], Extrapolation.CLAMP);
-    return {
-      backgroundColor: color <= 0.5 ? theme.colors.success : color <= 1.5 ? theme.colors.warning : theme.colors.error,
-    };
-  });
-
   const progressBarStyle = useAnimatedStyle(() => {
     const color = interpolate(timerColorAnim.value, [0, 0.6, 1], [0, 1, 2], Extrapolation.CLAMP);
     return {
@@ -525,12 +197,10 @@ const VerseBuilderGame: React.FC = () => {
     opacity: successOpacity.value,
   }));
 
-  // Updated animated styles
   const fadeStyle = useAnimatedStyle(() => ({
     opacity: fadeAnim.value,
   }));
 
-  // Memoized WordTile Component
   const WordTile = memo(({ word, onPress, disabled, isPrefilled }: { word: string; onPress: () => void; disabled: boolean; isPrefilled?: boolean }) => (
     <TouchableOpacity
       style={[styles.wordTile, { backgroundColor: getWordColor(word) }, isPrefilled && styles.prefilledWord]}
@@ -541,32 +211,32 @@ const VerseBuilderGame: React.FC = () => {
     </TouchableOpacity>
   ));
 
-  // Render Functions
   const renderPoolWord = useCallback(
     ({ item }: { item: string }) => (
       <WordTile
         word={item}
-        onPress={() => selectWordFromPool(item)}
+        onPress={() => handleSelectWord(item)}
         disabled={!isPlaying}
       />
     ),
-    [selectWordFromPool, isPlaying]
+    [handleSelectWord, isPlaying]
   );
 
   const renderArrangedWords = useCallback(() => {
     if (!gameState) return null;
+    const canUndo = gameState.arrangedWords.length > gameState.prefilledCount && isPlaying;
     return (
       <View style={styles.arrangementContainer}>
         <View style={styles.arrangementHeader}>
           <Text style={styles.sectionTitle}>Arrange the Verse:</Text>
           <TouchableOpacity
-            style={[styles.undoButton, (gameState.arrangedWords.length <= gameState.prefilledCount || !isPlaying) && styles.undoButtonDisabled]}
+            style={[styles.undoButton, !canUndo && styles.undoButtonDisabled]}
             onPress={undoLastWord}
-            disabled={gameState.arrangedWords.length <= gameState.prefilledCount || !isPlaying}
+            disabled={!canUndo}
           >
             <ArrowCounterClockwise
               size={18}
-              color={gameState.arrangedWords.length <= gameState.prefilledCount || !isPlaying ? `${theme.colors.text.secondary}50` : theme.colors.text.secondary}
+              color={!canUndo ? `${theme.colors.text.secondary}50` : theme.colors.text.secondary}
             />
           </TouchableOpacity>
         </View>
@@ -578,7 +248,7 @@ const VerseBuilderGame: React.FC = () => {
               <WordTile
                 key={`arranged-${word}-${index}`}
                 word={word}
-                onPress={() => index >= gameState.prefilledCount && returnWordToPool(word, index)}
+                onPress={() => index >= gameState.prefilledCount && handleReturnWord(word, index)}
                 disabled={index < gameState.prefilledCount || !isPlaying}
                 isPrefilled={index < gameState.prefilledCount}
               />
@@ -587,14 +257,14 @@ const VerseBuilderGame: React.FC = () => {
         </View>
       </View>
     );
-  }, [gameState, returnWordToPool, isPlaying, undoLastWord]);
+  }, [gameState, handleReturnWord, isPlaying, undoLastWord]);
 
   const renderErrorState = useCallback(
     () =>
       error ? (
         <View style={styles.errorContainer}>
           <Text style={styles.errorText}>{error}</Text>
-          <TouchableOpacity style={styles.retryButton} onPress={() => { setError(null); startNewRound(); }}>
+          <TouchableOpacity style={styles.retryButton} onPress={startNewRound}>
             <Text style={styles.retryButtonText}>Try Again</Text>
           </TouchableOpacity>
         </View>
@@ -602,31 +272,22 @@ const VerseBuilderGame: React.FC = () => {
     [error, startNewRound]
   );
 
-  // Update version selector to reload verses for the selected version
   const renderVersionSelector = useCallback(() => (
     <View style={styles.versionSelector}>
       {availableVersions.map((version) => (
         <TouchableOpacity
           key={version}
           style={[styles.versionButton, selectedVersion === version && styles.versionButtonSelected]}
-          onPress={async () => {
-            if (selectedVersion !== version) {
-              setSelectedVersion(version);
-              verseQueueRef.current = []; // Clear queue
-              await loadVerseBatch(); // Load verses for new version
-              startNewRound();
-            }
-          }}
+          onPress={() => setVersion(version)}
         >
           <Text style={[styles.versionText, selectedVersion === version && styles.versionTextSelected]}>
-            {version.split('_')[1]?.toUpperCase() || version}
+            {version}
           </Text>
         </TouchableOpacity>
       ))}
     </View>
-  ), [availableVersions, selectedVersion, startNewRound, loadVerseBatch]);
+  ), [availableVersions, selectedVersion, setVersion]);
 
-  // Render
   return (
     <View style={styles.container}>
       {isLoading && (
@@ -711,15 +372,7 @@ const VerseBuilderGame: React.FC = () => {
           <View style={styles.gameOverContainer}>
             <Text style={styles.gameOverText}>Game Over!</Text>
             <Text style={styles.finalScore}>Score: {score}</Text>
-            <TouchableOpacity
-              style={styles.retryButton}
-              onPress={() => {
-                setScore(0);
-                setStreak(0);
-                startNewRound();
-                soundsRef.current.retry?.setPositionAsync(0).then(() => soundsRef.current.retry?.playAsync());
-              }}
-            >
+            <TouchableOpacity style={styles.retryButton} onPress={handleRetry}>
               <Text style={styles.retryButtonText}>Retry</Text>
             </TouchableOpacity>
           </View>
@@ -727,7 +380,7 @@ const VerseBuilderGame: React.FC = () => {
       )}
     </View>
   );
-};
+});
 
 // Helper Functions
 const getWordColor = (word: string) => {
@@ -834,4 +487,4 @@ const createStyles = (theme: Theme) =>
     correctAnswerText: { color: theme.colors.text.primary, marginBottom: theme.spacing.md, textAlign: 'center', lineHeight: 22 },
   });
 
-export default VerseBuilderGame;
+export default VerseBuilderScreen;

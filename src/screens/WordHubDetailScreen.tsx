@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+
 import {
   View,
   Text,
@@ -30,77 +31,51 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList, WordHub, WordHubMessage } from '@/types';
 import { formatTimeLeft } from '@/utils/schedule';
 import AvatarStack from '@/components/AvatarStack';
-import { apiClient, endpoints } from '@/api/client';
+import { observer } from 'mobx-react-lite';
+import { useWordHubsStore } from '@/stores/StoreProvider';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'WordHubDetailScreen'>;
 
-const WordHubDetailScreen: React.FC<Props> = ({ navigation, route }) => {
+const WordHubDetailScreen: React.FC<Props> = observer(({ navigation, route }) => {
   const { hubId } = route.params;
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const styles = React.useMemo(() => createStyles(theme), [theme]);
 
-  const [hub, setHub] = useState<WordHub | null>(null);
-  const [messages, setMessages] = useState<WordHubMessage[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const wordHubsStore = useWordHubsStore();
+  const hub = wordHubsStore.currentHub as WordHub | null;
+  const messages = wordHubsStore.hubMessages as WordHubMessage[];
+  const isLoading = wordHubsStore.isHubLoading;
   const [message, setMessage] = useState('');
-  const [error, setError] = useState<string | null>(null);
 
   const fetchHubDetails = useCallback(async () => {
-    try {
-      setIsLoading(true);
-      const response = await apiClient.get<WordHub>(`/word_hubs/${hubId}`, {
-        params: {
-          include: 'user,bookmarks,activities,notifications,userInteractions'
-        }
-      });
-
-      if (response.success) {
-        setHub(response.data);
-      }
-    } catch (error) {
-      setError('Failed to load hub details');
-      console.error('Error fetching hub details:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [hubId]);
+    await wordHubsStore.fetchHubById(hubId);
+    await wordHubsStore.fetchHubMessages(hubId, 1);
+  }, [hubId, wordHubsStore]);
 
   const handleSendMessage = async () => {
     if (!message.trim()) return;
-
-    try {
-      const response = await apiClient.post<{ message: WordHubMessage }>(
-        endpoints.wordHubs.messages(hubId),
-        { message: message.trim() }
-      );
-
-      if (response.success) {
-        setMessages(prev => [...prev, response.data.message]);
-        setMessage('');
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      }
-    } catch (error) {
-      console.error('Error sending message:', error);
+    const sent = await wordHubsStore.sendMessage(hubId, message.trim());
+    if (sent) {
+      setMessage('');
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     }
   };
 
   const handleLeaveHub = async () => {
-    try {
-      const response = await apiClient.post(endpoints.wordHubs.leave(hubId));
-      
-      if (response.success) {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        navigation.goBack();
-      }
-    } catch (error) {
-      console.error('Error leaving hub:', error);
+    const ok = await wordHubsStore.leaveHub(hubId);
+    if (ok) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      navigation.goBack();
     }
   };
 
   useEffect(() => {
     fetchHubDetails();
-  }, [fetchHubDetails]);
+    return () => {
+      wordHubsStore.clearCurrentHub();
+    };
+  }, [fetchHubDetails, wordHubsStore]);
 
   if (isLoading) {
     return (
@@ -135,7 +110,7 @@ const WordHubDetailScreen: React.FC<Props> = ({ navigation, route }) => {
       <View style={styles.hubInfo}>
         <BlurView intensity={10} style={styles.hubInfoContent}>
           <View style={styles.hubHeader}>
-            {hub.isPrivate && (
+            {hub.is_private && (
               <Lock size={16} color={theme.colors.text.secondary} />
             )}
             <Text style={styles.hubDescription}>{hub.description}</Text>
@@ -152,7 +127,7 @@ const WordHubDetailScreen: React.FC<Props> = ({ navigation, route }) => {
             </View>
             <View style={styles.stat}>
               <Clock size={16} color={theme.colors.text.secondary} />
-              <Text style={styles.statText}>{formatTimeLeft(hub.expiresAt)}</Text>
+              <Text style={styles.statText}>{formatTimeLeft(hub.expires_at)}</Text>
             </View>
           </View>
 

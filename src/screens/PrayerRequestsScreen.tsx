@@ -6,7 +6,8 @@ import { Theme } from '@/theme';
 import { type RootStackParamList, type PrayerRequest } from '@/types';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { ArrowLeft, Send } from '@/components/Icons';
-import { usePrayerRequestsStore } from '@/stores/prayerRequests';
+import { observer } from 'mobx-react-lite';
+import { usePrayerRequestsStore } from '@/stores/StoreProvider';
 
 export type PrayerRequestsScreenProps = NativeStackScreenProps<RootStackParamList, 'PrayerRequestsScreen'>;
 
@@ -15,7 +16,9 @@ const PrayerRequestsScreen: React.FC<PrayerRequestsScreenProps> = ({ navigation 
   const insets = useSafeAreaInsets();
   const styles = useMemo(() => createStyles(theme), [theme]);
 
-  const { requests, isLoading, error, pagination, fetchRequests, createRequest, prayForRequest } = usePrayerRequestsStore();
+  const prayerRequestsStore = usePrayerRequestsStore();
+  const { requests, isLoading, pagination, fetchRequests, createRequest, prayForRequest } = prayerRequestsStore;
+
   const [content, setContent] = useState('');
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [currentCategory, setCurrentCategory] = useState<'all' | string>('all');
@@ -29,7 +32,7 @@ const PrayerRequestsScreen: React.FC<PrayerRequestsScreenProps> = ({ navigation 
   ), []);
 
   useEffect(() => {
-    fetchRequests(1, { category: currentCategory }).catch(() => {});
+    fetchRequests(1, { category: currentCategory });
   }, [fetchRequests, currentCategory]);
 
   const handleAdd = useCallback(async () => {
@@ -51,7 +54,7 @@ const PrayerRequestsScreen: React.FC<PrayerRequestsScreenProps> = ({ navigation 
 
   const loadMore = useCallback(() => {
     if (isLoading || !pagination.hasMore) return;
-    fetchRequests((pagination.currentPage || 1) + 1, { category: currentCategory }).catch(() => {});
+    fetchRequests((pagination.currentPage || 1) + 1, { category: currentCategory });
   }, [isLoading, pagination, fetchRequests, currentCategory]);
 
   const toggleSelect = useCallback((id: string) => {
@@ -436,4 +439,4 @@ const createStyles = (theme: Theme) => StyleSheet.create({
   },
 });
 
-export default PrayerRequestsScreen;
+export default observer(PrayerRequestsScreen);

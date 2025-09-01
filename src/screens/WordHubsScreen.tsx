@@ -39,7 +39,9 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { type RootStackParamList, type User, type WordHub } from '@/types';
 import { formatTimeLeft } from '@/utils/schedule';
 import AvatarStack from '@/components/AvatarStack';
-import { useWordHubsStore } from '@/stores/wordHubs';
+import { observer } from 'mobx-react-lite';
+import { useWordHubsStore } from '@/stores/StoreProvider';
+
 import { useAuth } from '@/stores/auth';
 import { useWebSocket } from '@/services/websocket';
 import { toast } from 'sonner-native';
@@ -1051,4 +1053,4 @@ const createStyles = (theme: Theme) => StyleSheet.create({
   },
 });
 
-export default WordHubsScreen;
+export default observer(WordHubsScreen);

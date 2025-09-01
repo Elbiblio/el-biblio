@@ -20,7 +20,8 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { RootStackParamList, Note } from '@/types';
 import { formatDistanceToNow } from 'date-fns';
 import FormattedContent from '@/components/NoteEditor/FormattedContent';
-import { useNoteStore } from '@/stores/notes';
+import { useNotesStore } from '@/stores/NotesStore';
+
 import { SCREEN_DIMENSIONS } from '@/constants';
 import { LinearGradient } from 'expo-linear-gradient';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -34,7 +35,8 @@ const NoteDetailScreen: React.FC<NativeStackScreenProps<RootStackParamList, 'Not
   const insets = useSafeAreaInsets();
   const styles = useMemo(() => createStyles(theme), [theme]);
 
-  const { notes, fetchNote, togglePin } = useNoteStore();
+  const { notes, fetchNoteById, pinNote } = useNotesStore();
+
   const [note, setNote] = useState<Note | null>(null);
   const [loadingNote, setLoadingNote] = useState(true);
   const [scrollY] = useState(new Animated.Value(0));
@@ -62,7 +64,8 @@ const NoteDetailScreen: React.FC<NativeStackScreenProps<RootStackParamList, 'Not
           setNote(existingNote);
         } else {
           // If not, fetch it from the server
-          const fetchedNote = await fetchNote(noteId.toString(10));
+          const fetchedNote = await fetchNoteById(noteId.toString(10));
+
           if (fetchedNote) {
             setNote(fetchedNote);
           }
@@ -75,7 +78,7 @@ const NoteDetailScreen: React.FC<NativeStackScreenProps<RootStackParamList, 'Not
     };
 
     loadNote();
-  }, [noteId, fetchNote, notes]);
+  }, [noteId, fetchNoteById, notes]);
 
   const handleShare = async () => {
     if (!note) return;
@@ -91,7 +94,8 @@ const NoteDetailScreen: React.FC<NativeStackScreenProps<RootStackParamList, 'Not
 
   const handleToggleFavorite = async () => {
     if (!note) return;
-    await togglePin(note.id);
+    await pinNote(note.id);
+
     setNote(prev => prev ? { ...prev, isPinned: !prev.isPinned } : null);
   };
 

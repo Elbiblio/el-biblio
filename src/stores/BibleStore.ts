@@ -3,7 +3,7 @@ import { apiClient, endpoints } from '@/api/client';
 import { BibleVerse, Book, BibleVersion, VerseActivityMap } from '@/types';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { bibleBooks } from '@/constants/bibleBooks';
-import { generateVPLId, parseVPLId } from '@/utils/database';
+import BibleDBService, { generateVPLId, parseVPLId } from '@/utils/database';
 import { toast } from 'sonner-native';
 
 // Extend the BibleVersion type to include id
@@ -85,9 +85,19 @@ class BibleStore {
   installedVersions: string[] = [];
   availableVersions: ExtendedBibleVersion[] = [];
   
+  
   // Local storage
   localVerses: Map<string, BibleVerse[]> = new Map();
   isOffline: boolean = false;
+
+  // Pagination (for compatibility with BibleScreen)
+  pagination = {
+    currentPage: 1,
+    lastPage: 1,
+    perPage: 0,
+    total: 0,
+    hasMore: false,
+  };
   
   constructor() {
     makeAutoObservable(this, {
@@ -106,6 +116,48 @@ class BibleStore {
     });
     
     this.initialize();
+  }
+
+  // Fetch available versions and detect installed ones
+  async fetchBibleVersions() {
+    runInAction(() => {
+      this.isVersionsLoading = true;
+      this.versionsError = null;
+    });
+
+    try {
+      await BibleDBService.initialize();
+
+      // Load available list from AsyncStorage (populated by BibleDBService on init)
+      let versions: BibleVersion[] = [];
+      try {
+        const versionsData = await AsyncStorage.getItem('bibleVersions');
+        versions = versionsData ? JSON.parse(versionsData) : [];
+      } catch {}
+
+      const installedTables = await BibleDBService.getInstalledVersions();
+      // Map installed table names to shortName values for UI checks
+      const installedShortNames: string[] = [];
+      for (const v of versions) {
+        if (installedTables.includes(v.tableName)) {
+          installedShortNames.push(v.shortName || v.tableName);
+        }
+      }
+
+      runInAction(() => {
+        this.availableVersions = versions.map(v => toExtendedVersion(v));
+        this.installedVersions = installedShortNames;
+      });
+    } catch (error) {
+      console.error('Error loading Bible versions:', error);
+      runInAction(() => {
+        this.versionsError = 'Failed to load Bible versions';
+      });
+    } finally {
+      runInAction(() => {
+        this.isVersionsLoading = false;
+      });
+    }
   }
   
   // Initialization
@@ -202,7 +254,7 @@ class BibleStore {
     this.searchError = null;
   }
   
-  // Verse fetching
+  // Verse fetching (offline-first using local SQLite via BibleDBService)
   async fetchVerses(book: Book, chapter: number, version: BibleVersion, page: number = 1) {
     if (!version) {
       this.versesError = 'No version selected';
@@ -211,50 +263,58 @@ class BibleStore {
 
     this.isVersesLoading = true;
     this.versesError = null;
-    
+
     try {
+      // Ensure DB is ready
+      await BibleDBService.initialize();
+
       const extendedBook = toExtendedBook(book);
       const extendedVersion = toExtendedVersion(version);
-      // Try to load from local storage first if offline
-      if (this.isOffline) {
-        const localVerses = await this.loadLocalVerses(extendedVersion.id, extendedBook.id, chapter);
-        if (localVerses && localVerses.length > 0) {
-          runInAction(() => {
-            this.verses = localVerses;
-            this.currentBook = extendedBook;
-            this.currentChapter = chapter;
-            this.currentVersion = extendedVersion;
-          });
-          return;
-        } else {
-          throw new Error('No offline data available');
-        }
-      }
 
-      // Fetch from API
-      const response = await apiClient.get<ApiResponse<BibleVerse[]>>(
-        `/bible/${extendedVersion.id}/books/${extendedBook.id}/chapters/${chapter}`, 
-        { page }
+      // Read chapter from local DB
+      const rows = await BibleDBService.getChapter(
+        version.tableName,
+        book.abbreviation,
+        chapter
       );
 
+      const versesArray: BibleVerse[] = rows.map(v => ({
+        id: generateVPLId(book.abbreviation, chapter, v.verse),
+        text: v.text,
+        reference: `${book.name} ${chapter}:${v.verse}`,
+      }));
+
       runInAction(() => {
-        this.verses = (response as unknown as { data: { data: BibleVerse[] } }).data.data || [];
+        this.verses = page === 1 ? versesArray : [...this.verses, ...versesArray];
         this.currentBook = extendedBook;
         this.currentChapter = chapter;
         this.currentVersion = extendedVersion;
-        
-        // Save to local storage for offline access
-        if (this.verses.length > 0) {
-          this.saveLocalVerses(extendedVersion.id, extendedBook.id, chapter, this.verses);
-        }
+        this.pagination = {
+          currentPage: 1,
+          lastPage: 1,
+          perPage: versesArray.length,
+          total: versesArray.length,
+          hasMore: false,
+        };
       });
+
+      // Save a copy for offline cache
+      if (versesArray.length > 0) {
+        await this.saveLocalVerses(extendedVersion.id, extendedBook.id, chapter, versesArray);
+      }
+
+      // Persist last position
+      try {
+        await AsyncStorage.setItem('bible_last_position', JSON.stringify({
+          book: book.abbreviation,
+          chapter,
+          version: version.tableName,
+        }));
+      } catch {}
     } catch (error) {
       console.error('Error fetching verses:', error);
       runInAction(() => {
         this.versesError = 'Failed to load verses. Please try again.';
-        if (this.isOffline) {
-          this.versesError += ' You are currently offline.';
-        }
       });
     } finally {
       runInAction(() => {
@@ -263,7 +323,7 @@ class BibleStore {
     }
   }
 
-  // Search functionality
+  // Search functionality (local DB)
   async searchVerses(query: string, version?: BibleVersion) {
     if (!query.trim()) {
       this.clearSearch();
@@ -281,14 +341,21 @@ class BibleStore {
     this.searchQuery = query;
 
     try {
-      const extVersion = toExtendedVersion(searchVersion as BibleVersion);
-      const response = await apiClient.get<ApiResponse<BibleVerse[]>>(
-        `/bible/${extVersion.id}/search`,
-        { q: query }
-      );
+      // Ensure DB is ready
+      await BibleDBService.initialize();
+      const results = await BibleDBService.searchVerses((searchVersion as BibleVersion).tableName, query);
+      const mapped: BibleVerse[] = results.map(v => {
+        const { bookAbbr, chapter, verse } = parseVPLId(v.verseID);
+        const book = bibleBooks.find(b => b.abbreviation === bookAbbr)!;
+        return {
+          id: v.verseID,
+          text: v.verseText,
+          reference: `${book.name} ${chapter}:${verse}`,
+        };
+      });
 
       runInAction(() => {
-        this.searchResults = (response as unknown as { data: { data: BibleVerse[] } }).data.data || [];
+        this.searchResults = mapped;
       });
     } catch (error) {
       console.error('Error searching verses:', error);
@@ -591,7 +658,7 @@ class BibleStore {
   
 
   // Helper methods
-  private async loadUserPreferences() {
+  async loadUserPreferences() {
     try {
       const [fontSize, selectedVersion, highlightedVerses, bookmarkedVerses, likedVerses, verseActivity] = await Promise.all([
         AsyncStorage.getItem(STORAGE_KEYS.FONT_SIZE),
@@ -623,6 +690,12 @@ class BibleStore {
       console.error('Error loading user preferences:', error);
     }
   }
+
+  // Placeholder for syncing interactions when online
+  async syncUserInteractions() {
+    // This app currently logs interactions locally; implement server sync here if needed
+    return true;
+  }
   
   private async loadInstalledVersions() {
     try {
@@ -642,7 +715,7 @@ class BibleStore {
     }
   }
   
-  private async saveUserPreferences() {
+  async saveUserPreferences() {
     try {
       await AsyncStorage.multiSet([
         [STORAGE_KEYS.FONT_SIZE, this.fontSize.toString()],

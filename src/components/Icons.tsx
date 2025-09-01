@@ -6,9 +6,7 @@ import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityI
 import FontAwesome6 from 'react-native-vector-icons/FontAwesome6';
 import Entypo from 'react-native-vector-icons/Entypo';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import { getCurrentTheme } from '@/stores/theme';
-
-const theme = getCurrentTheme();
+import { defaultTheme as theme } from '../theme';
 
 export interface IconProps {
   size?: number;

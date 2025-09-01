@@ -2,7 +2,8 @@ import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
 import { themeColors, ThemeVariant } from '../theme';
 import { useTheme, useThemeVariant } from '../contexts/ThemeContext';
-import { usePreferences } from '@/stores/preferences';
+import { usePreferences } from '@/stores/PreferencesStore';
+
 import * as Haptics from 'expo-haptics';
 
 interface ThemeSelectorProps {

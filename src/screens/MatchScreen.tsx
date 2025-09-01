@@ -48,7 +48,8 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '@/types';
 import { MatchType, MatchStatus } from '@/types';
 import { SCREEN_DIMENSIONS } from '@/constants';
-import { useMatchStore } from '@/stores/match';
+import { observer } from 'mobx-react-lite';
+import { useMatchStore } from '@/stores/StoreProvider';
 import { useAuth } from '@/stores/auth';
 import { useWebSocket } from '@/services/websocket';
 import { useGuestRestrictions } from '@/hooks/useGuestRestrictions';
@@ -449,11 +450,8 @@ const MatchScreen: React.FC<NativeStackScreenProps<RootStackParamList, 'MatchScr
       setSearchTimeElapsed(0);
       startSearchAnimation();
 
-      const success = await startSearch(matchType, selectedTime);
-      if (!success) {
-        setMatchStatus('idle');
-        toast.error('Failed to start search');
-      }
+      // Fire-and-forget: startSearch is synchronous and manages state internally
+      startSearch(matchType, selectedTime);
     } catch (error) {
       console.error('Error starting search:', error);
       setMatchStatus('idle');
@@ -1342,4 +1340,4 @@ const createStyles = (theme: Theme) => StyleSheet.create({
   },
 });
 
-export default MatchScreen;
+export default observer(MatchScreen);

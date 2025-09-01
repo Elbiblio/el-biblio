@@ -343,6 +343,7 @@ export interface Comment {
   timestamp: string;
   isLiked: boolean;
   replies?: Comment[];
+  user: User; 
   created_at: string;
   updated_at: string;
   deleted_at?: string;
@@ -539,17 +540,45 @@ export interface UserStats {
   totalPoints: number;
   totalReflections: number;
   totalNotes: number;
+  totalChallenges: number;
   totalBookmarks: number;
   totalMeditationMinutes: number;
   totalActiveDays: number;
   currentStreak: number;
   longestStreak: number;
+  // Optional fields coming directly from backend
+  totalVersesRead?: number;
+  totalActivities?: number;
+  totalMeditationSessions?: number;
+  totalChallengesCompleted?: number;
+  totalActiveTime?: number;
+  rank?: number;
+  level?: number;
+  favoriteThemes?: Array<{ id: number; name: string; activity_count: number }>; 
   topVirtues: Array<{
     virtue: AllVirtues;
     points: number;
     level: number;
   }>;
   recentActivity: Activity[];
+}
+
+// Backend-aligned shape (snake_case) for user stats responses
+export interface BackendUserStats {
+  total_verses_read?: number;
+  total_reflections?: number;
+  total_bookmarks?: number;
+  total_activities?: number;
+  total_points?: number;
+  total_meditation_sessions?: number;
+  total_challenges_completed?: number;
+  total_active_time?: number;
+  total_active_days?: number;
+  current_streak?: number;
+  longest_streak?: number;
+  rank?: number;
+  level?: number;
+  favorite_themes?: Array<{ id: number; name: string; activity_count: number }>;
 }
 
 export interface SearchResult {
@@ -647,6 +676,7 @@ export interface VerseResult {
 }
 
 export type UserLevel = 'novice' | 'beginner' | 'intermediate' | 'advanced' | 'expert';
+export type PowerUpType = 'grace' | 'discernment';
 
 export interface VerseMastery {
   userId?: number;

@@ -19,7 +19,7 @@ import Animated, {
   withSpring,
   withTiming,
 } from 'react-native-reanimated';
-import { Copy, ChevronDown, X } from '../components/Icons';
+import { Copy, ChevronDown, X } from '@/components/Icons';
 import { useTheme } from '@/contexts/ThemeContext';
 import * as Haptics from 'expo-haptics';
 import { Theme } from '@/theme';
@@ -38,7 +38,7 @@ interface BibleVerse {
 
 interface VerseTooltipProps {
   verseRef: string; // Format: "John 3:16"
-  targetRef: React.RefObject<View>;
+  targetRef: React.RefObject<View | null> | React.MutableRefObject<View | null>;
   onClose: () => void;
 }
 
@@ -50,7 +50,9 @@ const TRANSLATIONS = [
 type TranslationType = typeof TRANSLATIONS[number]['id'];
 
 // Helper to measure a component's position on screen
-const measureComponent = (ref: React.RefObject<View>): Promise<LayoutRectangle> => {
+const measureComponent = (
+  ref: React.RefObject<View | null> | React.MutableRefObject<View | null>
+): Promise<LayoutRectangle> => {
   return new Promise((resolve) => {
     const node = findNodeHandle(ref.current);
     if (!node) {

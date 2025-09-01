@@ -63,6 +63,31 @@ interface VirtueStoreState {
 }
 
 export class VirtueStore extends BaseStore<VirtueStoreState> {
+  // Public Getters
+  get virtues() {
+    return this.state.virtues;
+  }
+
+  get userProgress() {
+    return this.state.userProgress;
+  }
+
+  get isVirtuesLoading() {
+    return this.state.isVirtuesLoading;
+  }
+
+  get isProgressLoading() {
+    return this.state.isProgressLoading;
+  }
+
+  get virtuesError() {
+    return this.state.virtuesError;
+  }
+
+  get progressError() {
+    return this.state.progressError;
+  }
+
   constructor() {
     super({
       virtues: [],

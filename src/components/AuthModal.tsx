@@ -15,7 +15,7 @@ import {
 } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { useTheme } from '@/contexts/ThemeContext';
-import { useAuth } from '@/stores/auth';
+import { useAuthStore } from '@/stores/StoreProvider';
 import { Theme } from '@/theme';
 import { Eye, EyeOff, XCircle } from '@/components/Icons';
 import AvatarSelectionModal from './AvatarSelectionModal';
@@ -30,7 +30,7 @@ interface AuthModalProps {
 
 const AuthModal: React.FC<AuthModalProps> = ({ visible, onClose }) => {
   const theme = useTheme();
-  const { login, signUp, isLoading, error: authError } = useAuth();
+  const { login, signUp, isLoading, error: authError } = useAuthStore();
   const [isSignUp, setIsSignUp] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showAvatarModal, setShowAvatarModal] = useState(false);

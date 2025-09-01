@@ -1,4 +1,4 @@
-import { makeObservable, action, runInAction } from 'mobx';
+import { makeObservable, action, runInAction, computed } from 'mobx';
 import { apiClient, endpoints } from '@/api/client';
 import { BaseStore } from './BaseStore';
 import { Reflection, Comment, PaginatedResponse } from '@/types';
@@ -90,6 +90,9 @@ export class ReflectionStore extends BaseStore<ReflectionState> {
       clearErrors: action,
       setFilters: action,
       resetFilters: action,
+      comments: computed,
+      isCommentsLoading: computed,
+      commentsError: computed,
     });
   }
 
@@ -456,6 +459,18 @@ export class ReflectionStore extends BaseStore<ReflectionState> {
     runInAction(() => {
       this.state.filters = { sortBy: 'created_at', sortOrder: 'desc' };
     });
+  }
+
+  get comments(): Comment[] {
+    return this.state.comments;
+  }
+
+  get isCommentsLoading(): boolean {
+    return this.state.isCommentsLoading;
+  }
+
+  get commentsError(): string | null {
+    return this.state.commentsError;
   }
 }
 

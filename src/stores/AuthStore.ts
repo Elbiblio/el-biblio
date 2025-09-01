@@ -25,6 +25,89 @@ class AuthStore {
     this.isLoading = loading;
   };
 
+  // Update user's total active time and last seen timestamp
+  updateUserTime = async (totalActiveTime: number): Promise<void> => {
+    try {
+      if (!this.user?.id) throw new Error('User not found');
+
+      const response = await apiClient.put<User>(
+        endpoints.users.update(this.user.id),
+        {
+          last_seen: new Date().toISOString(),
+          total_active_time: totalActiveTime,
+        }
+      );
+
+      runInAction(() => {
+        if (response.data) {
+          this.setUser({
+            ...this.user!,
+            last_seen: response.data.last_seen,
+            total_active_time: response.data.total_active_time,
+          });
+        }
+      });
+    } catch (error) {
+      console.error('Time update error:', error);
+      // Swallow error to avoid disrupting UX
+    }
+  };
+
+  // Update user's avatar
+  updateAvatar = async (avatarUrl: string): Promise<boolean> => {
+    try {
+      if (!this.user?.id) throw new Error('User not found');
+
+      const response = await apiClient.put<User>(
+        endpoints.users.avatar(this.user.id),
+        { avatar: avatarUrl }
+      );
+
+      runInAction(() => {
+        if (response.data) {
+          this.setUser({
+            ...this.user!,
+            avatar: response.data.avatar,
+          });
+        }
+      });
+
+      return true;
+    } catch (error) {
+      console.error('Avatar update error:', error);
+      return false;
+    }
+  };
+
+  // Update user's points (keeps legacy API semantics: adds to current points on server)
+  updateUserPoints = async (points: number): Promise<void> => {
+    try {
+      if (!this.user?.id) throw new Error('User not found');
+
+      // Legacy behavior added provided points to current total on server
+      // Preserve for backward compatibility
+      const currentPoints = (this.user as any)?.points ?? 0;
+      const newTotal = (parseInt(String(currentPoints)) || 0) + (parseInt(String(points)) || 0);
+
+      const response = await apiClient.put<User>(
+        endpoints.users.update(this.user.id),
+        { points: String(newTotal) }
+      );
+
+      runInAction(() => {
+        if (response.data) {
+          this.setUser({
+            ...this.user!,
+            points: response.data.points as any,
+          });
+        }
+      });
+    } catch (error) {
+      console.error('Points update error:', error);
+      // Swallow error to avoid disrupting UX
+    }
+  };
+
   private setError = (error: string | null) => {
     this.error = error;
   };

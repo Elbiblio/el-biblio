@@ -8,7 +8,8 @@ import { Theme } from '@/theme';
 import { type RootStackParamList } from '@/types';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { ArrowLeft, Bible, BookOpen, Fire, Globe, MessageSquare, NotePencil, Users } from '@/components/Icons';
-import { useCommunityStore } from '@/stores/community';
+import { observer } from 'mobx-react-lite';
+import { useCommunityStore } from '@/stores/StoreProvider';
 
 export type CommunityScreenProps = NativeStackScreenProps<RootStackParamList, 'CommunityScreen'>;
 
@@ -174,4 +175,4 @@ const createStyles = (theme: Theme) => StyleSheet.create({
   },
 });
 
-export default CommunityScreen;
+export default observer(CommunityScreen);

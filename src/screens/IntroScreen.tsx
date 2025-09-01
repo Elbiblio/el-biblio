@@ -25,7 +25,6 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { OnboardingStep, STEPS } from '@/constants';
 import { SCREEN_DIMENSIONS } from '@/constants';
 import { useAuth } from '@/stores/auth';
-import { appStore } from '@/stores/appStore';
 import { toast } from 'sonner-native';
 
 const SCREEN_WIDTH = SCREEN_DIMENSIONS.width;
@@ -47,13 +46,11 @@ const IntroScreen: React.FC<IntroScreenProps> = ({
 
   const { completeWelcome, hasCompletedWelcome } = useWelcomeState();
   const { createGuestAccount, isLoading, error } = useAuth();
-  const { setHasCompletedWelcome } = appStore;
 
   const onClose = async () => {
     try {
       if (!hasCompletedWelcome) {
         await completeWelcome();
-        await setHasCompletedWelcome(true);
         // Track onboarding completion
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         // Navigate to Home after completing welcome
@@ -121,7 +118,7 @@ const IntroScreen: React.FC<IntroScreenProps> = ({
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       const success = await createGuestAccount();
       if (success) {
-        await setHasCompletedWelcome(true);
+        await completeWelcome();
         toast.success('Welcome to El-biblio!');
         // Navigate directly to Home after successful guest account creation
         navigation.replace('Home');

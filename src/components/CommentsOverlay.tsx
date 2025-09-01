@@ -23,8 +23,7 @@ import { X, Send } from './Icons';
 import CommentThread from './CommentThread';
 import { SCREEN_DIMENSIONS } from '@/constants';
 import { Theme } from '@/theme';
-import { useVerseStore } from '@/stores/verse';
-import { useAuth } from '@/stores/auth';
+import { useReflectionStore, useAuthStore } from '@/stores/StoreProvider';
 
 interface CommentsOverlayProps {
   visible: boolean;
@@ -39,8 +38,8 @@ const CommentsOverlay: React.FC<CommentsOverlayProps> = ({
 }) => {
   const theme = useTheme();
   const styles = React.useMemo(() => createStyles(theme), [theme]);
-  const { user } = useAuth();
-  const { createComment, createInteraction } = useVerseStore();
+  const { user } = useAuthStore();
+  const { createComment, likeComment } = useReflectionStore();
   
   // Local state
   const [commentText, setCommentText] = useState('');
@@ -136,12 +135,7 @@ const CommentsOverlay: React.FC<CommentsOverlayProps> = ({
               onReply={handleReply}
               onLike={async () => {
                 if (!user) return;
-                await createInteraction({
-                  interactable_id: item.id,
-                  interactable_type: 'App\\Models\\Comment',
-                  type: 1, // Like
-                  user_id: user.id
-                });
+                await likeComment(item.id);
               }}
             />
           )}
@@ -153,7 +147,7 @@ const CommentsOverlay: React.FC<CommentsOverlayProps> = ({
           {replyingTo && (
             <View style={styles.replyingTo}>
               <Text style={styles.replyingToText}>
-                Replying to {replyingTo.author.first_name}
+                Replying to {replyingTo.user?.first_name}
               </Text>
               <TouchableOpacity onPress={() => setReplyingTo(null)}>
                 <Text style={styles.cancelReply}>Cancel</Text>

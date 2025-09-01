@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo } from 'react';
+import { observer } from 'mobx-react-lite';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -6,36 +7,37 @@ import { BookOpen, Trophy, Lightning, Flame, ChevronRight } from '@/components/I
 import { RootStackParamList, GameId } from '@/types';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useTheme } from '@/contexts/ThemeContext';
-import { useGameStore } from '@/stores/game';
-import { useLeaderboardStore } from '@/stores/leaderboard';
+import { useGameStore, useLeaderboardStore } from '@/stores/StoreProvider';
 import { useAuth } from '@/stores/auth';
-import { useGameBadgeStore } from '@/stores/gameBadge';
+import { useGameBadgeStore } from '@/stores/GameBadgeStore';
 
 const GameScreen: React.FC = () => {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
-  const { getPersonalBest } = useGameStore();
-  const { fetchUserStats, fetchUserRank, userStats, isUserStatsLoading } = useLeaderboardStore();
-  const { user } = useAuth();
-  const { clearBadge, updateRank } = useGameBadgeStore();
+  const gameStore = useGameStore();
+  const leaderboardStore = useLeaderboardStore();
+  const authStore = useAuth();
+  const gameBadgeStore = useGameBadgeStore();
 
+  const { user } = authStore;
+  
   // Clear games badge when opening this screen
   useFocusEffect(React.useCallback(() => {
-    clearBadge();
-  }, [clearBadge]));
+    gameBadgeStore.clearBadge();
+  }, [gameBadgeStore]));
 
   useEffect(() => {
     // Load motivating stats and ensure latest rank is tracked
     const load = async () => {
       if (user?.id) {
-        await fetchUserStats(user.id);
-        const rankResp = await fetchUserRank(user.id, 'all');
-        if (rankResp?.rank) updateRank('all', rankResp.rank);
+        await leaderboardStore.fetchUserStats(user.id);
+        const rankResp = await leaderboardStore.fetchUserRank(user.id, 'all');
+        if (rankResp?.rank) gameBadgeStore.updateRank('all', rankResp.rank);
       }
     };
     load();
-  }, [user?.id, fetchUserStats, fetchUserRank, updateRank]);
+  }, [user?.id, leaderboardStore, gameBadgeStore]);
 
   const tiles: Array<{ icon: any; title: string; subtitle: string; color: string; route: keyof RootStackParamList; bestKey: GameId; }>= [
     { icon: BookOpen, title: 'Verse Builder', subtitle: 'Assemble the verse', color: theme?.colors.primary, route: 'VerseBuilderScreen', bestKey: 'verse_builder' },
@@ -50,7 +52,7 @@ const GameScreen: React.FC = () => {
 
       <View style={styles.tiles}>
         {tiles.map((t) => {
-          const best = getPersonalBest(t.bestKey) || 0;
+          const best = gameStore.getPersonalBest(t.bestKey) || 0;
           return (
             <TouchableOpacity key={t.title} style={styles.tile} activeOpacity={0.85}
               onPress={() => navigation.navigate(t.route as any)}>
@@ -76,9 +78,9 @@ const GameScreen: React.FC = () => {
         <LinearGradient colors={[`${theme?.colors.primary}12`, `${theme?.colors.primary}04`]} style={styles.statsGradient} />
         <Text style={styles.statsTitle}>Your Momentum</Text>
         <View style={styles.statsRow}>
-          <Stat label="Total Points" value={`${userStats?.totalPoints ?? 0}`} />
-          <Stat label="Active Days" value={`${userStats?.totalActiveDays ?? 0}`} />
-          <Stat label="Streak" value={`${userStats?.currentStreak ?? 0} 🔥`} />
+          <Stat label="Total Points" value={`${leaderboardStore.userStats?.totalPoints ?? 0}`} />
+          <Stat label="Active Days" value={`${leaderboardStore.userStats?.totalActiveDays ?? 0}`} />
+          <Stat label="Streak" value={`${leaderboardStore.userStats?.currentStreak ?? 0} 🔥`} />
         </View>
         <TouchableOpacity style={styles.cta} onPress={() => navigation.navigate('LeaderboardScreen')}>
           <Text style={styles.ctaText}>View Full Leaderboard</Text>
@@ -121,4 +123,4 @@ const createStyles = (theme: any) => StyleSheet.create({
   ctaText: { color: '#fff', fontWeight: '700' },
 });
 
-export default GameScreen;
+export default observer(GameScreen);

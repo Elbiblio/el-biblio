@@ -13,6 +13,14 @@ export type PaginationState = {
   hasMore: boolean;
 };
 
+export const initialPagination: PaginationState = {
+  currentPage: 1,
+  lastPage: 1,
+  perPage: 20,
+  total: 0,
+  hasMore: false,
+};
+
 export function buildPagination(
   meta: MetaLike | undefined | null,
   prev: PaginationState,

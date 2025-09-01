@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect } from 'react';
 import {
   View,
   Text,
@@ -10,12 +10,14 @@ import {
   Platform,
   ActivityIndicator,
 } from 'react-native';
+import { observer } from 'mobx-react-lite';
 import { BlurView } from 'expo-blur';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
 import { Theme } from '@/theme';
 import { ChevronLeft, Eye, EyeOff, Sparkle } from '@/components/Icons';
-import { useAuth } from '@/stores/auth';
+import { useAuthStore } from '@/stores/AuthStore';
+import { useRegistrationStore } from '@/stores/RegistrationStore';
 import AvatarSelectionModal from '@/components/AvatarSelectionModal';
 import * as Haptics from 'expo-haptics';
 import { toast } from 'sonner-native';
@@ -24,114 +26,42 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 
 type RegistrationScreenProps = NativeStackScreenProps<RootStackParamList, 'RegistrationScreen'>;
 
-const RegistrationScreen: React.FC<RegistrationScreenProps> = ({ navigation }) => {
+const RegistrationScreen: React.FC<RegistrationScreenProps> = observer(({ navigation }) => {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
-  const { signUp, isLoading, error: authError } = useAuth();
+  const authStore = useAuthStore();
+  const registrationStore = useRegistrationStore();
   const styles = React.useMemo(() => createStyles(theme), [theme]);
 
-  const [formData, setFormData] = useState({
-    email: '',
-    password: '',
-    confirmPassword: '',
-    firstName: '',
-    lastName: '',
-  });
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [showAvatarModal, setShowAvatarModal] = useState(false);
-  const [pendingSignupData, setPendingSignupData] = useState<{
-    email: string;
-    password: string;
-    first_name: string;
-    last_name: string;
-  } | null>(null);
+  const {
+    formData,
+    confirmPassword,
+    showPassword,
+    showConfirmPassword,
+    error,
+    showAvatarModal,
+  } = registrationStore.state;
 
-  const validateForm = () => {
-    // Email validation
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!formData.email.trim() || !emailRegex.test(formData.email.trim())) {
-      setError('Please enter a valid email address');
-      return false;
-    }
+  useEffect(() => {
+    // Reset store on unmount
+    return () => {
+      registrationStore.reset();
+    };
+  }, [registrationStore]);
 
-    // Password validation
-    if (!formData.password.trim() || formData.password.trim().length < 8) {
-      setError('Password must be at least 8 characters long');
-      return false;
-    }
-
-    // Confirm password
-    if (formData.password !== formData.confirmPassword) {
-      setError('Passwords do not match');
-      return false;
-    }
-
-    // Name validation
-    if (!formData.firstName.trim()) {
-      setError('First name is required');
-      return false;
-    }
-    if (!formData.lastName.trim()) {
-      setError('Last name is required');
-      return false;
-    }
-
-    setError(null);
-    return true;
-  };
-
-  const handleSubmit = async () => {
-    try {
-      if (!validateForm()) return;
-
-      setPendingSignupData({
-        email: formData.email.trim(),
-        password: formData.password,
-        first_name: formData.firstName.trim(),
-        last_name: formData.lastName.trim(),
-      });
-      setShowAvatarModal(true);
-    } catch (err: any) {
-      console.error('Form submission error:', err);
-      setError(err?.message || 'Registration failed. Please try again.');
-    }
+  const handleSubmit = () => {
+    registrationStore.submit();
   };
 
   const handleAvatarSelect = async (avatarUrl: string) => {
-    try {
-      if (!pendingSignupData) {
-        throw new Error('Sign up data not found');
-      }
-
-      const result = await signUp({
-        ...pendingSignupData,
-        avatar: avatarUrl
-      });
-
-      setPendingSignupData(null);
-      setShowAvatarModal(false);
-
-      if (result) {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        toast.success('Welcome to the El-biblio community!');
-        navigation.replace('Home');
-      } else if (authError) {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-        setError(authError);
-      }
-    } catch (error: any) {
-      console.error('Avatar selection error:', error);
+    const success = await registrationStore.selectAvatar(avatarUrl);
+    if (success) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      toast.success('Welcome to the El-biblio community!');
+      navigation.replace('Home');
+    } else {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      setError(error?.message || 'Failed to complete registration. Please try again.');
-      setShowAvatarModal(false);
     }
-  };
-
-  const handleAvatarModalClose = () => {
-    setPendingSignupData(null);
-    setShowAvatarModal(false);
   };
 
   return (
@@ -173,11 +103,8 @@ const RegistrationScreen: React.FC<RegistrationScreenProps> = ({ navigation }) =
                 <Text style={styles.label}>First Name</Text>
                 <TextInput
                   style={styles.input}
-                  value={formData.firstName}
-                  onChangeText={(text) => {
-                    setError(null);
-                    setFormData(prev => ({ ...prev, firstName: text }));
-                  }}
+                  value={formData.first_name}
+                  onChangeText={(text) => registrationStore.setFormField('first_name', text)}
                   placeholder="Enter your first name"
                   placeholderTextColor={theme.colors.text.placeholder}
                   autoCapitalize="words"
@@ -187,11 +114,8 @@ const RegistrationScreen: React.FC<RegistrationScreenProps> = ({ navigation }) =
                 <Text style={styles.label}>Last Name</Text>
                 <TextInput
                   style={styles.input}
-                  value={formData.lastName}
-                  onChangeText={(text) => {
-                    setError(null);
-                    setFormData(prev => ({ ...prev, lastName: text }));
-                  }}
+                  value={formData.last_name}
+                  onChangeText={(text) => registrationStore.setFormField('last_name', text)}
                   placeholder="Enter your last name"
                   placeholderTextColor={theme.colors.text.placeholder}
                   autoCapitalize="words"
@@ -204,10 +128,7 @@ const RegistrationScreen: React.FC<RegistrationScreenProps> = ({ navigation }) =
               <TextInput
                 style={styles.input}
                 value={formData.email}
-                onChangeText={(text) => {
-                  setError(null);
-                  setFormData(prev => ({ ...prev, email: text }));
-                }}
+                onChangeText={(text) => registrationStore.setFormField('email', text)}
                 placeholder="Enter your email"
                 placeholderTextColor={theme.colors.text.placeholder}
                 keyboardType="email-address"
@@ -222,17 +143,14 @@ const RegistrationScreen: React.FC<RegistrationScreenProps> = ({ navigation }) =
                 <TextInput
                   style={styles.passwordInput}
                   value={formData.password}
-                  onChangeText={(text) => {
-                    setError(null);
-                    setFormData(prev => ({ ...prev, password: text }));
-                  }}
+                  onChangeText={(text) => registrationStore.setFormField('password', text)}
                   placeholder="Create a password"
                   placeholderTextColor={theme.colors.text.placeholder}
                   secureTextEntry={!showPassword}
                   autoCapitalize="none"
                 />
                 <TouchableOpacity
-                  onPress={() => setShowPassword(!showPassword)}
+                  onPress={registrationStore.togglePasswordVisibility}
                   style={styles.eyeIcon}
                 >
                   {showPassword ? (
@@ -249,18 +167,15 @@ const RegistrationScreen: React.FC<RegistrationScreenProps> = ({ navigation }) =
               <View style={styles.passwordContainer}>
                 <TextInput
                   style={styles.passwordInput}
-                  value={formData.confirmPassword}
-                  onChangeText={(text) => {
-                    setError(null);
-                    setFormData(prev => ({ ...prev, confirmPassword: text }));
-                  }}
+                  value={confirmPassword}
+                  onChangeText={registrationStore.setConfirmPassword}
                   placeholder="Confirm your password"
                   placeholderTextColor={theme.colors.text.placeholder}
                   secureTextEntry={!showConfirmPassword}
                   autoCapitalize="none"
                 />
                 <TouchableOpacity
-                  onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+                  onPress={registrationStore.toggleConfirmPasswordVisibility}
                   style={styles.eyeIcon}
                 >
                   {showConfirmPassword ? (
@@ -272,16 +187,16 @@ const RegistrationScreen: React.FC<RegistrationScreenProps> = ({ navigation }) =
               </View>
             </View>
 
-            {(error || authError) && (
-              <Text style={styles.errorText}>{error || authError}</Text>
+            {(error || authStore.error) && (
+              <Text style={styles.errorText}>{error || authStore.error}</Text>
             )}
 
             <TouchableOpacity
-              style={[styles.submitButton, isLoading && styles.submitButtonDisabled]}
+              style={[styles.submitButton, authStore.isLoading && styles.submitButtonDisabled]}
               onPress={handleSubmit}
-              disabled={isLoading}
+              disabled={authStore.isLoading}
             >
-              {isLoading ? (
+              {authStore.isLoading ? (
                 <ActivityIndicator color={theme.colors.text.inverse} />
               ) : (
                 <Text style={styles.submitText}>Continue</Text>
@@ -293,12 +208,12 @@ const RegistrationScreen: React.FC<RegistrationScreenProps> = ({ navigation }) =
 
       <AvatarSelectionModal
         visible={showAvatarModal}
-        onClose={handleAvatarModalClose}
+        onClose={registrationStore.closeAvatarModal}
         onSelect={handleAvatarSelect}
       />
     </View>
   );
-};
+});
 
 const createStyles = (theme: Theme) => StyleSheet.create({
   container: {
@@ -422,4 +337,4 @@ const createStyles = (theme: Theme) => StyleSheet.create({
   },
 });
 
-export default RegistrationScreen; 
+export default RegistrationScreen;

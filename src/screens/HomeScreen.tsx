@@ -46,21 +46,23 @@ import { Theme } from '@/theme';
 import { useTheme } from '@/contexts/ThemeContext';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { SCREEN_DIMENSIONS } from '@/constants';
-import { useVerseStore } from '@/stores/verse';
-import { useAuth } from '@/stores/auth';
-import { useChallengeStore } from '@/stores/challenge';
-import { useReflectionStore } from '@/stores/reflection';
-import { useLeaderboardStore } from '@/stores/leaderboard';
-import { useGameBadgeStore } from '@/stores/gameBadge';
+import { 
+  useVerseStore,
+  useAuthStore,
+  useChallengeStore,
+  useReflectionStore,
+  useLeaderboardStore,
+  useMeditationStore,
+} from '@/stores/StoreProvider';
+import { useGameBadgeStore } from '@/stores/GameBadgeStore';
 import AuthModal from '@/components/AuthModal';
 
 import { AppState, AppStateStatus } from 'react-native';
 import PointsEarnedModal from '@/components/PointsEarnedModal';
 import { useNavigation } from '@react-navigation/native';
-import { useMeditationStore } from '@/stores/meditation';
 import { useWebSocket } from '@/services/websocket';
 import * as Haptics from 'expo-haptics';
-import { useCommunityStore } from '@/stores/community';
+import { useCommunityStore } from '@/stores/CommunityStore';
 
 const WELCOME_BACK_THRESHOLD = 10 * 60 * 1000; // 10 minutes in milliseconds
 const MAX_ACTIVE_TIME = 30 * 60 * 1000; // 30 minutes in milliseconds
@@ -165,7 +167,7 @@ const HomeScreen: React.FC<HomeProps> = ({ navigation, route }) => {
   const themeText = { color: theme?.colors.primary };
 
   const [appState, setAppState] = useState(AppState.currentState);
-  const { user, updateUserTime, updateUserPoints } = useAuth();
+  const { user, updateUserTime, updateUserPoints } = useAuthStore();
   const { completeChallenge } = useMeditationStore();
   const { isConnected } = useWebSocket();
   const { unreadCount, computeUnreadFromReflections } = useCommunityStore();
@@ -282,34 +284,24 @@ const HomeScreen: React.FC<HomeProps> = ({ navigation, route }) => {
   };
 
 
-  const {
-    dailyVerses,
-    isDailyVersesLoading,
-    fetchDailyVerses,
-  } = useVerseStore();
+  const verseStore = useVerseStore();
+  const { dailyVerses, isDailyVersesLoading } = verseStore.currentState;
+  const { fetchDailyVerses } = verseStore;
 
-  const {
-    personalChallenges,
-    communityChallenges,
-    fetchPersonalChallenges,
-    fetchCommunityChallenges,
-    isPersonalLoading,
-    isCommunityLoading,
-  } = useChallengeStore();
+  const challengeStore = useChallengeStore();
+  const { personalChallenges, communityChallenges } = challengeStore.currentState;
+  const { fetchPersonalChallenges, fetchCommunityChallenges } = challengeStore;
 
-  const {
-    reflections,
-    fetchReflections,
-    isReflectionsLoading,
-  } = useReflectionStore();
+  const reflectionStore = useReflectionStore();
+  const { reflections, isReflectionsLoading } = reflectionStore.currentState as any;
+  const { fetchReflections } = reflectionStore;
 
-  const {
-    globalLeaderboard,
-    fetchGlobalLeaderboard,
-    fetchUserRank,
-  } = useLeaderboardStore();
+  const leaderboardStore = useLeaderboardStore();
+  const { globalLeaderboard } = leaderboardStore.currentState as any;
+  const { fetchGlobalLeaderboard, fetchUserRank } = leaderboardStore;
 
-  const { meditationState, meditationTimer, selectedChallenge } = useMeditationStore();
+  const meditationStore = useMeditationStore();
+  const { meditationState, meditationTimer, selectedChallenge } = meditationStore.currentState;
 
   useEffect(() => {
     fetchDailyVerses();
@@ -651,7 +643,7 @@ const HomeScreen: React.FC<HomeProps> = ({ navigation, route }) => {
       await completeChallenge(challengeId);
       // Update user points after completion
       if (user) {
-        await updateUserPoints((user.points || 0) + 25); // Award points for completion
+        await updateUserPoints(25); // Award points delta for completion
       }
     } catch (error) {
       console.error('Failed to complete challenge:', error);
@@ -665,7 +657,7 @@ const HomeScreen: React.FC<HomeProps> = ({ navigation, route }) => {
     }));
 
     // Show loading state
-    if (isPersonalLoading || isCommunityLoading) {
+    if (challengeStore.isLoading) {
       return (
         <Animated.View style={[styles.section, challengeAnimatedStyle]}>
           <View style={styles.sectionHeaderWithAction}>

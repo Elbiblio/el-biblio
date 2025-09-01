@@ -1,4 +1,4 @@
-import { makeObservable, action, runInAction } from 'mobx';
+import { makeObservable, action, runInAction, computed } from 'mobx';
 import { BaseStore } from '@/stores/BaseStore';
 import { apiClient, endpoints } from '@/api/client';
 import { WordHub, WordHubMessage, PaginatedResponse } from '@/types';
@@ -103,7 +103,64 @@ export class WordHubsStore extends BaseStore<WordHubsStoreState> {
       clearErrors: action.bound,
       setFilters: action.bound,
       resetFilters: action.bound,
+      // Computed convenience getters
+      wordHubs: computed,
+      isWordHubsLoading: computed,
+      wordHubsError: computed,
+      currentHub: computed,
+      isHubLoading: computed,
+      hubError: computed,
+      hubMessages: computed,
+      isMessagesLoading: computed,
+      messagesError: computed,
+      isConnected: computed,
+      lastUpdate: computed,
     });
+  }
+
+  // Convenience getters for UI components
+  get wordHubs() {
+    return this.state.wordHubs;
+  }
+
+  get isWordHubsLoading() {
+    return this.state.isWordHubsLoading;
+  }
+
+  get wordHubsError() {
+    return this.state.wordHubsError;
+  }
+
+  get currentHub() {
+    return this.state.currentHub;
+  }
+
+  get isHubLoading() {
+    return this.state.isHubLoading;
+  }
+
+  get hubError() {
+    return this.state.hubError;
+  }
+
+  get hubMessages() {
+    return this.state.hubMessages;
+  }
+
+  get isMessagesLoading() {
+    return this.state.isMessagesLoading;
+  }
+
+  get messagesError() {
+    return this.state.messagesError;
+  }
+
+  get isConnected() {
+    return this.state.isConnected;
+  }
+
+  get lastUpdate() {
+    return this.state.lastUpdate;
   }
 
   private computePagination(meta: any, fallbackPage: number, currentTotal: number): PaginationState {

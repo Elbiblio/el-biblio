@@ -544,3 +544,9 @@ export class VerseStore extends BaseStore<VerseStoreState> {
     });
   }
 }
+
+// Create a singleton instance for non-React consumers (e.g., services)
+// and a convenience hook-like accessor for parity with ChallengeStore
+export const verseStore = new VerseStore();
+export const useVerseStore = () => verseStore;
+export default verseStore;

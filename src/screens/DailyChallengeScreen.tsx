@@ -25,7 +25,7 @@ import {
   ArrowUp,
   Calendar,
   Sparkle
-} from '../components/Icons';
+} from '@/components/Icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, {
   useSharedValue,
@@ -37,10 +37,10 @@ import Animated, {
   Extrapolation
 } from 'react-native-reanimated';
 import { format, isToday, parseISO, differenceInHours, addDays } from 'date-fns';
-import { AvatarStack } from '../components/AvatarStack';
+import { AvatarStack } from '@/components/AvatarStack';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/stores/auth';
-import { useChallengeStore } from '@/stores/challenge';
+import { useChallengeStore } from '@/stores/ChallengeStore';
 import { Theme } from '@/theme';
 import { Challenge, ChallengeType } from '@/types/challenges';
 import * as Haptics from 'expo-haptics';

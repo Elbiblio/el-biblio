@@ -10,30 +10,29 @@ import Animated, {
   withSpring,
   useSharedValue 
 } from 'react-native-reanimated';
-import { ChevronRight, IconProps, Plus } from './Icons';
+import { Plus } from './Icons';
 import { useTheme } from '@/contexts/ThemeContext';
-import { getCurrentTheme } from '@/stores/theme';
+import type { IconProps } from './Icons';
 
 interface CircleButtonProps {
   size?: number;
   onPress?: () => void;
-  Icon?: any;
+  Icon?: React.ComponentType<IconProps> | React.ReactElement<IconProps>;
   style?: ViewStyle;
   disabled?: boolean;
 }
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
-const theme = getCurrentTheme();
-
 const CircleButton: React.FC<CircleButtonProps> = ({ 
   size = 40,
   onPress,
-  Icon = <Plus />,
+  Icon: IconProp = Plus,
   style,
   disabled = false
 }) => {
   const theme = useTheme();
+  const styles = getStyles(theme);
   const scale = useSharedValue(1);
 
   const handlePress = () => {
@@ -70,16 +69,21 @@ const CircleButton: React.FC<CircleButtonProps> = ({
           radius: size / 2,
         }}
       >
-        <Icon
-          size={size * 0.5} 
-          color={theme.colors.text.inverse}
-          strokeWidth={2.5}
-        />
+        {typeof IconProp === 'function' ? (
+          <IconProp size={size * 0.5} color={theme.colors.text.inverse} strokeWidth={2.5} />
+        ) : (
+          React.cloneElement(IconProp, {
+            size: size * 0.5,
+            color: theme.colors.text.inverse,
+            strokeWidth: 2.5,
+          })
+        )}
       </AnimatedPressable>
     </Animated.View>
   );
 };
-const styles = StyleSheet.create({
+const getStyles = (theme: any) =>
+  StyleSheet.create({
     button: {
       alignItems: 'center',
       justifyContent: 'center',

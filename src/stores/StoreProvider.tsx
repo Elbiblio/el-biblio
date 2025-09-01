@@ -1,4 +1,5 @@
 import React, { createContext, useContext } from 'react';
+import { RootStore } from './RootStore';
 import { authStore } from './AuthStore';
 import { meditationStore } from './MeditationStore';
 import { matchStore } from './MatchStore';
@@ -7,33 +8,13 @@ import { ReflectionStore } from './ReflectionStore';
 import { LeaderboardStore } from './LeaderboardStore';
 import { VirtueStore } from './VirtueStore';
 import { VerseStore } from './VerseStore';
+import { VerseBuilderStore } from './VerseBuilderStore';
+import { NotesStore } from './NotesStore';
+import { ChallengeStore } from './ChallengeStore';
 import { PrayerRequestsStore } from './PrayerRequestsStore';
 import { WordHubsStore } from './WordHubsStore';
 import { GameStore } from './GameStore';
-
-class RootStore {
-  authStore = authStore;
-  meditationStore = meditationStore;
-  matchStore = matchStore;
-  preferencesStore = preferencesStore;
-  reflectionStore: ReflectionStore;
-  leaderboardStore: LeaderboardStore;
-  virtueStore: VirtueStore;
-  verseStore: VerseStore;
-  prayerRequestsStore: PrayerRequestsStore;
-  wordHubsStore: WordHubsStore;
-  gameStore: GameStore;
-
-  constructor() {
-    this.reflectionStore = new ReflectionStore();
-    this.leaderboardStore = new LeaderboardStore();
-    this.virtueStore = new VirtueStore();
-    this.verseStore = new VerseStore();
-    this.prayerRequestsStore = new PrayerRequestsStore();
-    this.wordHubsStore = new WordHubsStore();
-    this.gameStore = new GameStore();
-  }
-}
+import { VirtueQuizStore } from './VirtueQuizStore';
 
 const StoreContext = createContext<RootStore | null>(null);
 
@@ -63,7 +44,12 @@ export const usePreferencesStore = () => useStores().preferencesStore;
 export const useReflectionStore = () => useStores().reflectionStore;
 export const useLeaderboardStore = () => useStores().leaderboardStore;
 export const useVirtueStore = () => useStores().virtueStore;
+export const useVerseBuilderStore = () => useStores().verseBuilderStore;
 export const useVerseStore = () => useStores().verseStore;
+export const useNotesStore = () => useStores().notesStore;
+export const useChallengeStore = () => useStores().challengeStore;
 export const usePrayerRequestsStore = () => useStores().prayerRequestsStore;
 export const useWordHubsStore = () => useStores().wordHubsStore;
 export const useGameStore = () => useStores().gameStore;
+export const useVirtueQuizStore = () => useStores().virtueQuizStore;
+export const useCommunityStore = () => useStores().communityStore;

@@ -5,7 +5,7 @@ import Animated, {
   withSpring 
 } from 'react-native-reanimated';
 import { User } from '../types';
-import { getCurrentTheme } from '@/stores/theme';
+import { useTheme } from '@/contexts/ThemeContext';
 
 interface AvatarGroupProps {
   users: User[];
@@ -22,7 +22,7 @@ export const AvatarGroup: React.FC<AvatarGroupProps> = ({
   spacing = 8,
   onPress,
 }) => {
-  const theme = getCurrentTheme();
+  const theme = useTheme();
   const displayUsers = users.slice(0, maxAvatars);
   const remainingCount = Math.max(0, users.length - maxAvatars);
 

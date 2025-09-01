@@ -7,7 +7,7 @@ interface CommunityState {
   unreadCount: number;
 }
 
-class CommunityStore extends BaseStore<CommunityState> {
+export class CommunityStore extends BaseStore<CommunityState> {
   constructor() {
     super({
       lastOpenedAt: null,

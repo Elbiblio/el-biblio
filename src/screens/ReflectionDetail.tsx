@@ -6,130 +6,100 @@ import {
   StyleSheet,
   Platform,
   TextInput,
-  Keyboard,
   ScrollView,
   ActivityIndicator,
 } from 'react-native';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
-  withSpring,
   interpolate,
-  withSequence,
   Extrapolation,
   withTiming,
 } from 'react-native-reanimated';
 import { BlurView } from 'expo-blur';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
-import { 
-  ArrowLeft,
-  MessageCircle,
-  Send,
-} from '../components/Icons';
+import { observer } from 'mobx-react-lite';
+import { ArrowLeft, MessageCircle, Send } from '../components/Icons';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import type { Comment, Reflection, RootStackParamList } from '../types';
+import type { Comment, RootStackParamList } from '../types';
 import { useTheme } from '@/contexts/ThemeContext';
-import { useReflectionStore } from '@/stores/reflection';
 import { useAuth } from '@/stores/auth';
+import { useReflectionStore } from '@/stores/StoreProvider';
 import ReflectionCard from '../components/ReflectionCard';
 import CommentThread from '../components/CommentThread';
 import { Theme } from '@/theme';
-import { toast } from 'sonner-native';
 
 type ReflectionDetailProps = NativeStackScreenProps<RootStackParamList, 'ReflectionDetail'>;
 
-const ReflectionDetail: React.FC<ReflectionDetailProps> = ({ navigation, route }) => {
+const ReflectionDetail: React.FC<ReflectionDetailProps> = observer(({ navigation, route }) => {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const scrollViewRef = useRef<ScrollView>(null);
   const { user } = useAuth();
+  const reflectionStore = useReflectionStore();
   
-  // Reflection store
-  const {
-    createComment,
-    likeComment,
-    fetchComments,
-    comments,
-    isCommentsLoading,
-    commentsError,
-    pagination,
-  } = useReflectionStore();
-  
-  // States
-  const [isLoading, setIsLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
+  // Local UI state
   const [showCommentInput, setShowCommentInput] = useState(false);
   const [commentText, setCommentText] = useState('');
   const [replyingTo, setReplyingTo] = useState<Comment | null>(null);
-  const [error, setError] = useState<string | null>(null);
 
-  // Animated values - moved outside of render cycle
+  // Destructure from MobX store
+  const {
+    isLoading,
+    error,
+    isCommentsLoading,
+    commentsError,
+    fetchComments,
+    createComment,
+    likeComment,
+    clearErrors,
+    comments,
+  } = reflectionStore;
+
+  // Animated values
   const scrollY = useSharedValue(0);
-  const commentInputHeight = useSharedValue(0);
-  const replyHeight = useSharedValue(0);
   const styles = React.useMemo(() => createStyles(theme), [theme]);
   const reflection = route.params.reflection;
 
-  // Load comments on mount
+  // Load comments on mount and clear errors on unmount
   useEffect(() => {
     if (reflection?.id) {
       fetchComments(reflection.id, 1);
     }
-  }, [reflection?.id, fetchComments]);
-
-  // Handle errors
-  useEffect(() => {
-    if (commentsError) {
-      setError(commentsError);
-    }
-  }, [commentsError]);
+    return () => {
+      clearErrors();
+    };
+  }, [reflection?.id, fetchComments, clearErrors]);
 
   // Handle refresh
   const handleRefresh = async () => {
-    setRefreshing(true);
     if (reflection?.id) {
       await fetchComments(reflection.id, 1);
-    }
-    setRefreshing(false);
-  };
-
-  // Handle load more comments
-  const handleLoadMoreComments = () => {
-    if (pagination.hasMore && !isCommentsLoading && reflection?.id) {
-      fetchComments(reflection.id, pagination.currentPage + 1);
     }
   };
 
   // Handle comment submission
   const handleSubmitComment = async () => {
-    if (!commentText.trim() || !reflection?.id) return;
+    if (!commentText.trim() || !reflection?.id || !user?.id) return;
 
-    try {
-      await createComment({
-        reflection_id: reflection.id,
-        content: commentText.trim(),
-        user_id: user?.id || '',
-        parent_id: replyingTo?.id || undefined,
-      });
-      
+    const success = await createComment({
+      reflection_id: reflection.id,
+      content: commentText.trim(),
+      user_id: user.id,
+      parent_id: replyingTo?.id,
+    });
+
+    if (success) {
       setCommentText('');
       setReplyingTo(null);
-      commentInputHeight.value = withTiming(0, { duration: 300 });
-      replyHeight.value = withTiming(0, { duration: 300 });
       setShowCommentInput(false);
-    } catch (error) {
-      setError('Failed to post comment. Please try again.');
     }
   };
 
   // Handle like comment
   const handleLikeComment = async (commentId: string) => {
-    try {
-      await likeComment(commentId);
-    } catch (error) {
-      setError('Failed to like comment. Please try again.');
-    }
+    await likeComment(commentId);
   };
 
   // Animation styles
@@ -152,7 +122,7 @@ const ReflectionDetail: React.FC<ReflectionDetailProps> = ({ navigation, route }
     setShowCommentInput(true);
   }, []);
 
-  if (isLoading) {
+  if (isLoading && !reflection) {
     return (
       <View style={[styles.loadingContainer, { paddingTop: insets.top }]}>
         <ActivityIndicator size="large" color={theme.colors.primary} />
@@ -164,10 +134,7 @@ const ReflectionDetail: React.FC<ReflectionDetailProps> = ({ navigation, route }
     return (
       <View style={[styles.errorContainer, { paddingTop: insets.top }]}>
         <Text style={styles.errorText}>{error}</Text>
-        <TouchableOpacity 
-          style={styles.retryButton}
-          onPress={handleRefresh}
-        >
+        <TouchableOpacity style={styles.retryButton} onPress={handleRefresh}>
           <Text style={styles.retryText}>Retry</Text>
         </TouchableOpacity>
       </View>
@@ -204,7 +171,7 @@ const ReflectionDetail: React.FC<ReflectionDetailProps> = ({ navigation, route }
         <View style={styles.headerContainer}>
           <ReflectionCard
             reflection={reflection}
-            scrollX={useSharedValue(0)} // Placeholder, not used in this component
+            scrollX={useSharedValue(0)} // Placeholder
             index={0}
             onCommentPress={() => {}}
             expanded={true}
@@ -239,10 +206,7 @@ const ReflectionDetail: React.FC<ReflectionDetailProps> = ({ navigation, route }
           ) : commentsError ? (
             <View style={styles.errorComments}>
               <Text style={styles.errorCommentsText}>{commentsError}</Text>
-              <TouchableOpacity 
-                style={styles.retryCommentsButton}
-                onPress={handleRefresh}
-              >
+              <TouchableOpacity style={styles.retryCommentsButton} onPress={handleRefresh}>
                 <Text style={styles.retryCommentsText}>Retry</Text>
               </TouchableOpacity>
             </View>
@@ -253,7 +217,7 @@ const ReflectionDetail: React.FC<ReflectionDetailProps> = ({ navigation, route }
             </View>
           ) : (
             <View style={styles.commentsList}>
-              {comments.map((comment) => (
+              {comments.map((comment: Comment) => (
                 <CommentThread
                   key={comment.id}
                   comment={comment}
@@ -313,7 +277,7 @@ const ReflectionDetail: React.FC<ReflectionDetailProps> = ({ navigation, route }
       )}
     </View>
   );
-};
+});
 
 const createStyles = (theme: Theme) => StyleSheet.create({
   container: {
@@ -512,4 +476,4 @@ const createStyles = (theme: Theme) => StyleSheet.create({
   },
 });
 
-export default React.memo(ReflectionDetail);
+export default ReflectionDetail;

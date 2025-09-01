@@ -6,9 +6,7 @@ import Animated, {
   interpolateColor,
 } from 'react-native-reanimated';
 import { ChevronRight } from './Icons';
-import { getCurrentTheme } from '@/stores/theme';
-
-const theme = getCurrentTheme();
+import { useTheme } from '@/contexts/ThemeContext';
 
 interface NavigationBreadcrumbProps {
   steps: string[];
@@ -19,6 +17,8 @@ export const NavigationBreadcrumb: React.FC<NavigationBreadcrumbProps> = ({
   steps,
   currentStep,
 }) => {
+  const theme = useTheme();
+  const styles = getStyles(theme);
   return (
     <View style={styles.container}>
       {steps.map((step, index) => {
@@ -52,17 +52,18 @@ export const NavigationBreadcrumb: React.FC<NavigationBreadcrumbProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: theme.spacing.sm,
-    marginBottom: theme.spacing.sm,
-  },
-  step: {
-    ...theme.typography.verse.emphasis,
-  },
-  chevron: {
-    marginHorizontal: theme.spacing.xs,
-  },
-});
+const getStyles = (theme: any) =>
+  StyleSheet.create({
+    container: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingVertical: theme.spacing.sm,
+      marginBottom: theme.spacing.sm,
+    },
+    step: {
+      ...theme.typography.verse.emphasis,
+    },
+    chevron: {
+      marginHorizontal: theme.spacing.xs,
+    },
+  });

@@ -28,25 +28,25 @@ import {
   ArrowLeft,
   Send,
   Copy,
-} from '../components/Icons';
-import ReflectionCard from '../components/ReflectionCard';
+} from '@/components/Icons';
+import ReflectionCard from '@/components/ReflectionCard';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import type { Reflection, RootStackParamList } from '../types';
+import type { Reflection, RootStackParamList } from '@/types';
 import { useTheme } from '@/contexts/ThemeContext';
 import CommentsOverlay from '@/components/CommentsOverlay';
 import { Theme } from '@/theme';
 import { SCREEN_DIMENSIONS } from '@/constants';
-import { useVerseStore } from '@/stores/verse';
+import { useVerseStore, useAuthStore } from '@/stores/StoreProvider';
 import * as Clipboard from 'expo-clipboard';
-import { useAuth } from '@/stores/auth';
 import { toast } from 'sonner-native';
+import { observer } from 'mobx-react-lite';
 
 type VerseDetailProps = NativeStackScreenProps<RootStackParamList, 'VerseDetail'>;
 
 const VerseDetail: React.FC<VerseDetailProps> = ({ navigation, route }) => {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
-  const { user } = useAuth();
+  const { user } = useAuthStore();
   const styles = React.useMemo(() => createStyles(theme), [theme]);
   
   // Store state and actions
@@ -610,9 +610,6 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     opacity: 0.5,
   },
   submitText: {
-    ...theme.typography.caption.primary,
-    color: theme.colors.text.inverse,
-  },
 });
 
-export default VerseDetail;
+export default observer(VerseDetail);

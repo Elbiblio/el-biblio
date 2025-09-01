@@ -9,7 +9,6 @@ import Animated, {
   interpolate,
 } from 'react-native-reanimated';
 import { User } from '../types';
-import { getCurrentTheme } from '@/stores/theme';
 import { useTheme } from '@/contexts/ThemeContext';
 import { Theme } from '@/theme';
 

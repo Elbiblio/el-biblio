@@ -18,19 +18,20 @@ import {
   Info,
   Upvote,
   Check,
-} from '../components/Icons';
+} from '@/components/Icons';
 import { Theme } from '@/theme';
 import { useTheme } from '@/contexts/ThemeContext';
 import * as Haptics from 'expo-haptics';
-import VerseTooltip from '../components/VerseTooltip';
+import VerseTooltip from '@/components/VerseTooltip';
 import { RootStackParamList, Verse, THEMES, FoundationalVirtue } from '@/types';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useThemeOfDay } from '@/utils/schedule';
 import { getTomorrowsTheme } from '@/utils/schedule';
 import ThemeInfo from '@/modals/ThemeInfo';
-import { useVerseStore } from '@/stores/verse';
+import { useVerseStore } from '@/stores/StoreProvider';
 import { useAuth } from '@/stores/auth';
 import { toast } from 'sonner-native';
+import { observer } from 'mobx-react-lite';
 
 
 const DailyVersesScreen = ({ navigation }: NativeStackScreenProps<RootStackParamList, 'DailyVersesScreen'>) => {
@@ -40,16 +41,20 @@ const DailyVersesScreen = ({ navigation }: NativeStackScreenProps<RootStackParam
   const [showThemeInfo, setShowThemeInfo] = useState(false);
 
   const { user } = useAuth();
+  const verseStore = useVerseStore();
   const {
     dailyVerses,
     isDailyVersesLoading,
     dailyVersesError,
     isConnected,
     lastUpdate,
+  } = verseStore.currentState;
+  const {
     fetchDailyVerses,
     createInteraction,
     updateVerseVotes,
-    setConnectionStatus } = useVerseStore();
+    setConnectionStatus,
+  } = verseStore;
 
   const todayTheme = useThemeOfDay();
   const tomorrowTheme = getTomorrowsTheme();
@@ -671,4 +676,4 @@ const createStyles = (theme: Theme) => StyleSheet.create({
   },
 });
 
-export default React.memo(DailyVersesScreen);
+export default observer(React.memo(DailyVersesScreen));
