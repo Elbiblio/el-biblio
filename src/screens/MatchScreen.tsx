@@ -49,8 +49,7 @@ import type { RootStackParamList } from '@/types';
 import { MatchType, MatchStatus } from '@/types';
 import { SCREEN_DIMENSIONS } from '@/constants';
 import { observer } from 'mobx-react-lite';
-import { useMatchStore } from '@/stores/StoreProvider';
-import { useAuth } from '@/stores/auth';
+import { useAuthStore, useMatchStore } from '@/stores/StoreProvider';
 import { useWebSocket } from '@/services/websocket';
 import { useGuestRestrictions } from '@/hooks/useGuestRestrictions';
 import GuestRestrictionModal from '@/components/GuestRestrictionModal';
@@ -74,13 +73,13 @@ interface CollapsedOption {
   color: string;
 }
 
-const MatchScreen: React.FC<NativeStackScreenProps<RootStackParamList, 'MatchScreen'>> = ({
+const MatchScreen = ({
   navigation
-}) => {
+}: NativeStackScreenProps<RootStackParamList, 'MatchScreen'>) => {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const styles = React.useMemo(() => createStyles(theme), [theme]);
-  const { user } = useAuth();
+  const { user } = useAuthStore();
   const { restrictions } = useGuestRestrictions();
   const { isConnected: wsConnected } = useWebSocket();
 

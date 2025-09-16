@@ -33,6 +33,12 @@ export interface QueryParams {
   [key: string]: any;
 }
 
+// Narrow unknown errors coming from axios interceptor rejections that package
+// our own APIResponse<T> shape
+const isAPIResponse = (err: any): err is APIResponse<any> => {
+  return !!err && typeof err === 'object' && 'success' in err && 'message' in err;
+};
+
 const api = axios.create({
   baseURL: 'https://api.elbiblio.com/api',
   timeout: 15000,
@@ -41,6 +47,41 @@ const api = axios.create({
     'Accept': 'application/json'
   }
 });
+
+// Optional: allow consumers (e.g., AuthStore) to register a handler for 401s
+let unauthorizedHandler: null | (() => Promise<void> | void) = null;
+export const setUnauthorizedHandler = (handler: (() => Promise<void> | void) | null) => {
+  unauthorizedHandler = handler;
+};
+
+// Single-flight reauthentication promise to avoid duplicate reauth attempts
+let reauthPromise: Promise<boolean> | null = null;
+
+const reauthenticateOnce = async (): Promise<boolean> => {
+  if (reauthPromise) return reauthPromise;
+
+  reauthPromise = (async () => {
+    try {
+      if (unauthorizedHandler) {
+        await unauthorizedHandler();
+        // If handler succeeded, a fresh token should be stored
+        const token = await AsyncStorage.getItem('auth_token');
+        return !!token;
+      }
+      return false;
+    } catch (e) {
+      return false;
+    } finally {
+      // Allow future reauth attempts
+      reauthPromise = null;
+    }
+  })();
+
+  return reauthPromise;
+};
+
+// Backward-compatible alias used by interceptor code above
+const enqueueAndReauthenticate = () => reauthenticateOnce();
 
 const transformResponse = <T>(response: AxiosResponse): AxiosResponse<APIResponse<T>> => {
   const responseData = response.data;
@@ -113,17 +154,34 @@ api.interceptors.response.use(
     };
 
     if (axios.isAxiosError(error)) {
-      const { response, request } = error;
+      const { response, config } = error;
       const status = response?.status;
 
+      // Implement single-flight reauth with queued retries
       if (status === 401) {
-        await AsyncStorage.removeItem('auth_token');
+        const originalRequest: any = config || {};
+        if (originalRequest && originalRequest._retry) {
+          // Already retried once, prevent loops
+          errorResponse.message = 'Unauthorized';
+          return Promise.reject(errorResponse);
+        }
+
+        // Queue the request and attempt reauth once
+        try {
+          const success = await enqueueAndReauthenticate();
+          if (success) {
+            originalRequest._retry = true;
+            // Authorization header will be set by request interceptor using latest token
+            return api(originalRequest);
+          }
+        } catch (e) {
+          // fallthrough to final rejection and toast below
+        }
+
         errorResponse.message = 'Session expired. Please login again.';
-        
         if (appState.isInitialized) {
           toast.error(errorResponse.message);
         }
-        
         return Promise.reject(errorResponse);
       }
 
@@ -443,6 +501,10 @@ export const apiClient = {
       const response = await api.get<APIResponse<T>>(fullUrl, config);
       return response.data;
     } catch (error) {
+      if (isAPIResponse(error)) {
+        // Return structured API error from interceptor
+        return error as APIResponse<T>;
+      }
       if (error instanceof Error) {
         throw error;
       }
@@ -455,6 +517,9 @@ export const apiClient = {
       const response = await api.post<APIResponse<T>>(url, data, config);
       return response.data;
     } catch (error) {
+      if (isAPIResponse(error)) {
+        return error as APIResponse<T>;
+      }
       if (error instanceof Error) {
         throw error;
       }
@@ -467,6 +532,9 @@ export const apiClient = {
       const response = await api.put<APIResponse<T>>(url, data, config);
       return response.data;
     } catch (error) {
+      if (isAPIResponse(error)) {
+        return error as APIResponse<T>;
+      }
       if (error instanceof Error) {
         throw error;
       }
@@ -479,6 +547,9 @@ export const apiClient = {
       const response = await api.patch<APIResponse<T>>(url, data, config);
       return response.data;
     } catch (error) {
+      if (isAPIResponse(error)) {
+        return error as APIResponse<T>;
+      }
       if (error instanceof Error) {
         throw error;
       }
@@ -491,6 +562,9 @@ export const apiClient = {
       const response = await api.delete<APIResponse<T>>(url, config);
       return response.data;
     } catch (error) {
+      if (isAPIResponse(error)) {
+        return error as APIResponse<T>;
+      }
       if (error instanceof Error) {
         throw error;
       }
@@ -517,6 +591,9 @@ export const apiClient = {
       });
       return response.data;
     } catch (error) {
+      if (isAPIResponse(error)) {
+        return error as APIResponse<T>;
+      }
       if (error instanceof Error) {
         throw error;
       }

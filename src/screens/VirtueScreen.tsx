@@ -44,11 +44,10 @@ import {
 import { Theme } from '@/theme';
 import { useTheme } from '@/contexts/ThemeContext';
 import { AppVirtue, DENOMINATIONS, DenominationType, Note, RootStackParamList, THEMES, Virtue, VIRTUE_NOTES, VirtueGroups, FoundationalVirtue, ThemeInfo } from '@/types';
-import { useAuth } from '@/stores/auth';
+import { useAuthStore, useChallengeStore, useVirtueStore } from '@/stores/StoreProvider';
+import { observer } from 'mobx-react-lite';
 import AvatarStack from '@/components/AvatarStack';
 import AuthModal from '@/components/AuthModal';
-import { useVirtueStore } from '@/stores/virtue';
-import { useChallengeStore } from '@/stores/ChallengeStore';
 import { IconProps } from '@/components/Icons';
 
 type VirtueScreenProps = NativeStackScreenProps<RootStackParamList, 'VirtueScreen'>;
@@ -59,11 +58,12 @@ const DynamicIcon = ({
   size, 
   color 
 }: { 
-  icon: React.ComponentType<IconProps>; 
+  icon?: React.ComponentType<IconProps>; 
   size: number; 
   color: string 
 }) => {
-  return <IconComponent size={size} color={color} />;
+  const Comp = IconComponent || Star;
+  return <Comp size={size} color={color} />;
 };
 
 const FoundationalVirtueKeys: readonly string[] = ['knowledge', 'humility', 'faith', 'love'];
@@ -88,11 +88,11 @@ const mapVirtueToAppVirtue = (virtue: Virtue): AppVirtue => {
   };
 };
 
-const VirtueScreen: React.FC<VirtueScreenProps> = ({ navigation, route }) => {
+const VirtueScreen = ({ navigation, route }: VirtueScreenProps) => {
   const insets = useSafeAreaInsets();
   const theme = useTheme();
   const styles = React.useMemo(() => createStyles(theme), [theme]);
-  const { user } = useAuth();
+  const { user } = useAuthStore();
 
   // Virtue store
   const {
@@ -107,6 +107,8 @@ const VirtueScreen: React.FC<VirtueScreenProps> = ({ navigation, route }) => {
     fetchVirtueNotes,
     fetchUserProgress,
     virtueGroups,
+    setCurrentGoal,
+    currentGoalVirtueId,
   } = useVirtueStore();
 
   // Challenge store
@@ -119,6 +121,8 @@ const VirtueScreen: React.FC<VirtueScreenProps> = ({ navigation, route }) => {
     (virtues || []).map(mapVirtueToAppVirtue),
     [virtues]
   );
+
+  const initialVirtue = appVirtues && appVirtues.length > 0 ? appVirtues[0] : undefined;
 
   const [activeTab, setActiveTab] = useState<TabType>('explore');
   const [selectedVirtue, setSelectedVirtue] = useState<AppVirtue | null>(null);
@@ -339,151 +343,97 @@ const VirtueScreen: React.FC<VirtueScreenProps> = ({ navigation, route }) => {
       </View>
     </Animated.View>
   );
-  
+
   const renderExploreTab = () => (
     <View style={styles.tabContent}>
-      {/* Featured Virtue */}
-      <Animated.View style={[styles.section, featuredCardAnimatedStyle]}>
-        <Text style={styles.sectionTitle}>FEATURED VIRTUE</Text>
-        
-        <TouchableOpacity
-          style={styles.featuredCard}
-          onPress={() => handleVirtuePress(appVirtues[0])}
-        >
-          <LinearGradient
-            colors={[`${appVirtues[0].color_code}20`, `${appVirtues[0].color_code}05`]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.featuredGradient}
-          />
-          
-          <View style={styles.featuredContent}>
-            <View style={[styles.featuredIconContainer, { backgroundColor: `${appVirtues[0].color_code}20` }]}>
-              <DynamicIcon icon={appVirtues[0].icon} size={32} color={appVirtues[0].color_code} />
-            </View>
-            
-            <View style={styles.featuredTextContainer}>
-              <Text style={styles.featuredTitle}>{appVirtues[0].name}</Text>
-              <Text style={styles.featuredDescription}>
-                {appVirtues[0].description}
-              </Text>
-              
-              <View style={styles.featuredMeta}>
-                <View style={styles.featuredMetaItem}>
-                  <Users size={16} color={theme?.colors.text.secondary} />
-                  <Text style={styles.featuredMetaText}>
-                    {appVirtues[0].totalUsers?.toLocaleString()} learning
-                  </Text>
-                </View>
-                
-                <View style={styles.featuredMetaItem}>
-                  <BookOpen size={16} color={theme?.colors.text.secondary} />
-                  <Text style={styles.featuredMetaText}>
-                    {appVirtues[0].scriptureReference}
-                  </Text>
-                </View>
-              </View>
-            </View>
-          </View>
-          
-          <View style={styles.featuredActions}>
-            <TouchableOpacity
-              style={[styles.actionButton, { backgroundColor: appVirtues[0].color_code }]}
-              onPress={() => startQuiz(appVirtues[0])}
-            >
-              <Text style={styles.actionButtonText}>Start Quiz</Text>
-            </TouchableOpacity>
-          </View>
-        </TouchableOpacity>
-      </Animated.View>
+    {/* All Virtues Grid */}
+    <View style={styles.section}>
+      <Text style={styles.sectionTitle}>ALL VIRTUES</Text>
       
-      {/* All Virtues Grid */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>ALL VIRTUES</Text>
-        
-        <View style={styles.virtuesGrid}>
-          {appVirtues.map(virtue => (
-            <TouchableOpacity
-              key={virtue.id}
-              style={styles.virtueGridCard}
-              onPress={() => handleVirtuePress(virtue)}
-            >
-              <LinearGradient
-                colors={[`${virtue.color_code}15`, `${virtue.color_code}05`]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.virtueGridGradient}
-              />
-              
-              <View style={[styles.virtueIconContainer, { backgroundColor: `${virtue.color_code}20` }]}>
-                <DynamicIcon icon={virtue.icon} size={24} color={virtue.color_code} />
-              </View>
-              
-              <Text style={styles.virtueGridName}>{virtue.name}</Text>
-              
-              {userProgress && userProgress[virtue.id]?.current_level > 0 && (
-                <View style={styles.progressIndicator}>
-                  <View style={styles.progressBar}>
-                    <View 
-                      style={[
-                        styles.progressFill, 
-                        { 
-                          width: `${((userProgress[virtue.id]?.current_level || 0) / (userProgress[virtue.id]?.total_levels || 1)) * 100}%`,
-                          backgroundColor: virtue.color_code 
-                        }
-                      ]} 
-                    />
-                  </View>
-                </View>
-              )}
-            </TouchableOpacity>
-          ))}
-        </View>
-      </View>
-      
-      {/* Community Spotlight */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>COMMUNITY SPOTLIGHT</Text>
-        
-        <View style={styles.communityCard}>
-          <View style={styles.communityHeader}>
-            <Text style={styles.communityTitle}>Weekly Challenge</Text>
-            {challengeParticipants.length > 0 && (
-              <AvatarStack 
-                users={challengeParticipants.slice(0, 5)}
-                size={32}
-                maxAvatars={5}
-                showRemaining={true}
-              />
-            )}
-          </View>
-          
-          <Text style={styles.challengeText}>
-            Practice patience in daily interactions and journal your experiences
-          </Text>
-          
-          <View style={styles.communityStats}>
-            <View style={styles.statItem}>
-              <Users size={16} color={theme?.colors.text.secondary} />
-              <Text style={styles.statText}>{challengeParticipants.length} participants</Text>
-            </View>
-            
-            <View style={styles.statItem}>
-              <Sparkle size={16} color={theme?.colors.primary} />
-              <Text style={styles.statText}>Earn 50 points</Text>
-            </View>
-          </View>
-          
+      <View style={styles.virtuesGrid}>
+        {appVirtues.map(virtue => (
           <TouchableOpacity
-            style={styles.joinChallengeButton}
-            onPress={joinChallenge}
+            key={virtue.id}
+            style={styles.virtueGridCard}
+            onPress={() => handleVirtuePress(virtue)}
           >
-            <Text style={styles.joinChallengeText}>Join Challenge</Text>
+            <LinearGradient
+              colors={[`${virtue.color_code}15`, `${virtue.color_code}05`]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.virtueGridGradient}
+            />
+            
+            <View style={[styles.virtueIconContainer, { backgroundColor: `${virtue.color_code}20` }]}>
+              <DynamicIcon icon={virtue.icon} size={24} color={virtue.color_code} />
+            </View>
+            
+            <Text style={styles.virtueGridName}>{virtue.name}</Text>
+            
+            {userProgress && userProgress[virtue.id]?.current_level > 0 && (
+              <View style={styles.progressIndicator}>
+                <View style={styles.progressBar}>
+                  <View 
+                    style={[
+                      styles.progressFill, 
+                      { 
+                        width: `${((userProgress[virtue.id]?.current_level || 0) / (userProgress[virtue.id]?.total_levels || 1)) * 100}%`,
+                        backgroundColor: virtue.color_code 
+                      }
+                    ]} 
+                  />
+                </View>
+              </View>
+            )}
           </TouchableOpacity>
-        </View>
+        ))}
       </View>
     </View>
-  );
+    
+    {/* Community Spotlight */}
+    <View style={styles.section}>
+      <Text style={styles.sectionTitle}>COMMUNITY SPOTLIGHT</Text>
+      
+      <View style={styles.communityCard}>
+        <View style={styles.communityHeader}>
+          <Text style={styles.communityTitle}>Weekly Challenge</Text>
+          {challengeParticipants.length > 0 && (
+            <AvatarStack 
+              users={challengeParticipants.slice(0, 5)}
+              size={32}
+              maxAvatars={5}
+              showRemaining={true}
+            />
+          )}
+        </View>
+        
+        <Text style={styles.challengeText}>
+          Practice patience in daily interactions and journal your experiences
+        </Text>
+        
+        <View style={styles.communityStats}>
+          <View style={styles.statItem}>
+            <Users size={16} color={theme?.colors.text.secondary} />
+            <Text style={styles.statText}>{challengeParticipants.length} participants</Text>
+          </View>
+          
+          <View style={styles.statItem}>
+            <Sparkle size={16} color={theme?.colors.primary} />
+            <Text style={styles.statText}>Earn 50 points</Text>
+          </View>
+        </View>
+        
+        <TouchableOpacity
+          style={styles.joinChallengeButton}
+          onPress={joinChallenge}
+        >
+          <Text style={styles.joinChallengeText}>Join Challenge</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  </View>
+);
+  
   
   const renderLearnTab = () => (
     <View style={styles.tabContent}>
@@ -678,6 +628,16 @@ const VirtueScreen: React.FC<VirtueScreenProps> = ({ navigation, route }) => {
                 <ChevronRight size={20} color="#FFF" />
               </TouchableOpacity>
             )}
+
+            <TouchableOpacity
+              style={[styles.continueButton, { backgroundColor: theme?.colors.secondary, marginTop: theme?.spacing.sm }]}
+              onPress={() => setCurrentGoal(currentGoalVirtueId === selectedVirtue.id ? undefined : selectedVirtue.id)}
+            >
+              <Text style={styles.continueButtonText}>
+                {currentGoalVirtueId === selectedVirtue.id ? 'Clear Current Goal' : 'Set as Current Goal'}
+              </Text>
+              <ChevronRight size={20} color="#FFF" />
+            </TouchableOpacity>
           </View>
           
           {/* Related Notes */}
@@ -1493,4 +1453,4 @@ const createStyles = (theme: Theme) => StyleSheet.create({
   },
 });
 
-export default VirtueScreen;
+export default observer(VirtueScreen);

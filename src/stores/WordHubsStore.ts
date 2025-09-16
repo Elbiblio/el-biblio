@@ -1,5 +1,4 @@
-import { makeObservable, action, runInAction, computed } from 'mobx';
-import { BaseStore } from '@/stores/BaseStore';
+import { runInAction, makeAutoObservable } from 'mobx';
 import { apiClient, endpoints } from '@/api/client';
 import { WordHub, WordHubMessage, PaginatedResponse } from '@/types';
 import { toast } from 'sonner-native';
@@ -48,9 +47,12 @@ interface WordHubsStoreState {
   lastUpdate: Date | null;
 }
 
-export class WordHubsStore extends BaseStore<WordHubsStoreState> {
+export class WordHubsStore {
+  state: WordHubsStoreState;
+  error: string | null = null;
+
   constructor() {
-    super({
+    this.state = {
       wordHubs: [],
       isWordHubsLoading: false,
       wordHubsError: null,
@@ -78,44 +80,13 @@ export class WordHubsStore extends BaseStore<WordHubsStoreState> {
 
       isConnected: false,
       lastUpdate: null,
-    });
+    };
 
-    makeObservable(this, {
-      fetchWordHubs: action.bound,
-      fetchHubById: action.bound,
-      createHub: action.bound,
-      updateHub: action.bound,
-      deleteHub: action.bound,
-      joinHub: action.bound,
-      leaveHub: action.bound,
-      fetchHubMessages: action.bound,
-      sendMessage: action.bound,
-      deleteMessage: action.bound,
-      bookmarkHub: action.bound,
-      shareHub: action.bound,
-      searchHubs: action.bound,
-      fetchUserHubs: action.bound,
-      fetchJoinedHubs: action.bound,
-      setConnectionStatus: action.bound,
-      updateHubInRealTime: action.bound,
-      addMessageInRealTime: action.bound,
-      clearCurrentHub: action.bound,
-      clearErrors: action.bound,
-      setFilters: action.bound,
-      resetFilters: action.bound,
-      // Computed convenience getters
-      wordHubs: computed,
-      isWordHubsLoading: computed,
-      wordHubsError: computed,
-      currentHub: computed,
-      isHubLoading: computed,
-      hubError: computed,
-      hubMessages: computed,
-      isMessagesLoading: computed,
-      messagesError: computed,
-      isConnected: computed,
-      lastUpdate: computed,
-    });
+    makeAutoObservable(this, {}, { autoBind: true });
+  }
+
+  private setError(message: string | null) {
+    this.error = message;
   }
 
   // Convenience getters for UI components

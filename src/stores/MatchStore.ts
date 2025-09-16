@@ -1,7 +1,7 @@
-import { makeObservable, action, runInAction, computed } from 'mobx';
+import { makeAutoObservable, runInAction } from 'mobx';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { apiClient, endpoints } from '@/api/client';
 import { Match, User, MatchStatus, MatchType } from '@/types';
-import { BaseStore } from './BaseStore';
 import { toast } from 'sonner-native';
 import * as Haptics from 'expo-haptics';
 
@@ -54,44 +54,48 @@ const initialState: MatchState = {
   lastUpdate: null,
 };
 
-export class MatchStore extends BaseStore<MatchState> {
+export class MatchStore {
+  state: MatchState = initialState;
+  
+  // Common store props
+  isLoading = false;
+  error: string | null = null;
+  private storageKey = 'match_store';
   private searchInterval: number | null = null;
   
   constructor() {
-    super(initialState, 'match_store');
-    makeObservable(this, {
-      // Computed
-      currentMatch: computed,
-      matchHistory: computed,
-      activeMatches: computed,
-      isSearching: computed,
-      matchedUser: computed,
-      searchDuration: computed,
-      // Additional computed props for UI convenience
-      isMatchLoading: computed,
-      matchError: computed,
-      searchStartTime: computed,
-      isConnected: computed,
-      lastUpdate: computed,
-      
-      // Actions
-      createMatch: action,
-      acceptMatch: action,
-      rejectMatch: action,
-      cancelMatch: action,
-      fetchActiveMatches: action,
-      fetchMatchHistory: action,
-      fetchMatchById: action,
-      startSearch: action,
-      stopSearch: action,
-      checkMatchStatus: action,
-      setConnectionStatus: action,
-      updateMatchInRealTime: action,
-      receiveMatch: action,
-      clearCurrentMatch: action,
-      clearErrors: action,
-      resetSearchState: action,
+    this.state = initialState;
+    this.storageKey = 'match_store';
+    
+    makeAutoObservable(this);
+    
+    // Load from storage asynchronously
+    AsyncStorage.getItem(this.storageKey).then(stored => {
+      if (stored) {
+        runInAction(() => {
+          this.state = { ...this.state, ...JSON.parse(stored) };
+        });
+      }
+    }).catch(error => {
+      console.error('Error loading match store from storage:', error);
     });
+  }
+
+  private setLoading = (value: boolean) => {
+    this.isLoading = value;
+  };
+
+  private setError = (message: string | null) => {
+    this.error = message;
+  };
+
+  private async saveToStorage() {
+    try {
+      await AsyncStorage.setItem(this.storageKey, JSON.stringify(this.state));
+    } catch (error) {
+      console.error(`Error saving ${this.storageKey} to storage:`, error);
+      this.error = 'Failed to save data';
+    }
   }
 
   // Computed getters
@@ -152,6 +156,7 @@ export class MatchStore extends BaseStore<MatchState> {
         this.state.activeMatches = [response.data.data, ...this.state.activeMatches];
       });
       
+      await this.saveToStorage();
       return response.data.data;
     } catch (error) {
       console.error('Error creating match:', error);
@@ -177,6 +182,7 @@ export class MatchStore extends BaseStore<MatchState> {
         );
       });
       
+      await this.saveToStorage();
       return true;
     } catch (error) {
       console.error(`Error accepting match ${matchId}:`, error);
@@ -202,6 +208,7 @@ export class MatchStore extends BaseStore<MatchState> {
         );
       });
       
+      await this.saveToStorage();
       return true;
     } catch (error) {
       console.error(`Error rejecting match ${matchId}:`, error);
@@ -225,6 +232,7 @@ export class MatchStore extends BaseStore<MatchState> {
         this.state.activeMatches = this.state.activeMatches.filter(match => match.id !== matchId);
       });
       
+      await this.saveToStorage();
       return true;
     } catch (error) {
       console.error(`Error cancelling match ${matchId}:`, error);
@@ -256,6 +264,7 @@ export class MatchStore extends BaseStore<MatchState> {
         };
       });
       
+      await this.saveToStorage();
       return response.data.data;
     } catch (error) {
       console.error('Error fetching active matches:', error);
@@ -287,6 +296,7 @@ export class MatchStore extends BaseStore<MatchState> {
         };
       });
       
+      await this.saveToStorage();
       return response.data.data;
     } catch (error) {
       console.error('Error fetching match history:', error);
@@ -306,6 +316,7 @@ export class MatchStore extends BaseStore<MatchState> {
         this.state.currentMatch = response.data.data;
       });
       
+      await this.saveToStorage();
       return response.data.data;
     } catch (error) {
       console.error(`Error fetching match ${id}:`, error);

@@ -59,7 +59,7 @@ const timerSettings: Record<UserLevel, number> = {
   expert: 15
 };
 
-const VirtueTriviaScreen: React.FC = () => {
+const VirtueTriviaScreen = () => {
   const theme = useTheme();
   const styles = createStyles(theme);
   const gameStore = useGameStore();

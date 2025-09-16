@@ -136,4 +136,4 @@ const createStyles = (theme: Theme) => StyleSheet.create({
   },
 });
 
-export default React.memo(FormattingToolbar);
+export default FormattingToolbar;

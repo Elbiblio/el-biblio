@@ -1,20 +1,35 @@
 import { makeAutoObservable, runInAction } from 'mobx';
 import { Reflection } from '@/types';
-import { BaseStore } from './BaseStore';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 interface CommunityState {
   lastOpenedAt: number | null;
   unreadCount: number;
 }
 
-export class CommunityStore extends BaseStore<CommunityState> {
+export class CommunityStore {
+  // Local state
+  state: CommunityState = {
+    lastOpenedAt: null,
+    unreadCount: 0,
+  };
+
+  // Common store props
+  isLoading = false;
+  error: string | null = null;
+  private storageKey = 'community_store';
+
   constructor() {
-    super({
-      lastOpenedAt: null,
-      unreadCount: 0,
-    }, 'community_store');
-    
     makeAutoObservable(this);
+  }
+
+  private async saveToStorage() {
+    try {
+      await AsyncStorage.setItem(this.storageKey, JSON.stringify(this.state));
+    } catch (error) {
+      console.error(`Error saving ${this.storageKey} to storage:`, error);
+      this.error = 'Failed to save data';
+    }
   }
 
   markOpened = () => {

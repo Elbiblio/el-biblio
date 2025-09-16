@@ -45,41 +45,28 @@ const ProfileScreen = () => {
   const styles = useMemo(() => createStyles(theme), [theme]);
 
   // Store hooks
-  const {
-    currentState: reflectionState,
-    fetchReflectionsByUser,
-  } = useReflectionStore();
-  const { reflections } = reflectionState;
+  const reflectionStore = useReflectionStore();
+  const { reflections } = reflectionStore.state;
+  const { fetchReflectionsByUser } = reflectionStore;
 
-  const {
-    currentState: notesState,
-    fetchNotes,
-  } = useNotesStore();
-  const { notes } = notesState;
+  const notesStore = useNotesStore();
+  const { notes } = notesStore.state;
+  const { fetchNotes } = notesStore;
 
-  const {
-    currentState: challengeState,
-    fetchPersonalChallenges,
-  } = useChallengeStore();
-  const { personalChallenges } = challengeState;
+  const challengeStore = useChallengeStore();
+  const { personalChallenges } = challengeStore.state;
+  const { fetchPersonalChallenges } = challengeStore;
 
-  const {
-    currentState: leaderboardState,
-    fetchGlobalLeaderboard,
-  } = useLeaderboardStore();
-  const { globalLeaderboard } = leaderboardState;
+  const leaderboardStore = useLeaderboardStore();
+  const { globalLeaderboard } = leaderboardStore.state;
+  const { fetchGlobalLeaderboard } = leaderboardStore;
 
-  const {
-    currentState: virtueState,
-    fetchVirtues,
-    fetchUserProgress,
-  } = useVirtueStore();
-  const { virtues, userProgress } = virtueState;
+  const virtueStore = useVirtueStore();
+  const { virtues, userProgress } = virtueStore.state;
+  const { fetchVirtues, fetchUserProgress } = virtueStore;
 
-  const {
-    currentState: meditationState,
-  } = useMeditationStore();
-  const { sessions } = meditationState;
+  const meditationStore = useMeditationStore();
+  const { sessions } = meditationStore.state;
 
   // State for user stats and activity
   const [userStats, setUserStats] = useState<UserStats | null>(null);

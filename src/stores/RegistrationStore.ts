@@ -1,6 +1,6 @@
 import { makeAutoObservable, runInAction } from 'mobx';
 import { SignUpData } from '@/types';
-import { authStore } from './AuthStore';
+import { AuthStore, authStore } from './AuthStore';
 
 interface RegistrationState {
   formData: Omit<SignUpData, 'avatar'>;
@@ -25,11 +25,13 @@ const initialState: RegistrationState = {
   showAvatarModal: false,
 };
 
-class RegistrationStore {
+export class RegistrationStore {
   state = initialState;
+  private authStore: AuthStore;
 
-  constructor() {
+  constructor(authStore: AuthStore) {
     makeAutoObservable(this);
+    this.authStore = authStore;
   }
 
   setFormField = <K extends keyof RegistrationState['formData']>(
@@ -92,11 +94,11 @@ class RegistrationStore {
   };
 
   selectAvatar = async (avatarUrl: string): Promise<boolean> => {
-    const success = await authStore.signUp({ ...this.state.formData, avatar: avatarUrl });
+    const success = await this.authStore.signUp({ ...this.state.formData, avatar: avatarUrl });
     runInAction(() => {
       this.state.showAvatarModal = false;
       if (!success) {
-        this.state.error = authStore.error;
+        this.state.error = this.authStore.error;
       }
     });
     return success;
@@ -111,5 +113,3 @@ class RegistrationStore {
   };
 }
 
-export const registrationStore = new RegistrationStore();
-export const useRegistrationStore = () => registrationStore;

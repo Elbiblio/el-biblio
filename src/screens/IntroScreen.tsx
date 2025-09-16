@@ -24,17 +24,17 @@ import { RootStackParamList } from '@/types';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { OnboardingStep, STEPS } from '@/constants';
 import { SCREEN_DIMENSIONS } from '@/constants';
-import { useAuth } from '@/stores/auth';
+import { useAuthStore } from '@/stores/StoreProvider';
 import { toast } from 'sonner-native';
 
 const SCREEN_WIDTH = SCREEN_DIMENSIONS.width;
 
 type IntroScreenProps = NativeStackScreenProps<RootStackParamList, 'IntroScreen'>;
 
-const IntroScreen: React.FC<IntroScreenProps> = ({
+const IntroScreen = ({
   navigation,
   route,
-}) => {
+}: IntroScreenProps) => {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const styles = React.useMemo(() => createStyles(theme), [theme]);
@@ -45,7 +45,7 @@ const IntroScreen: React.FC<IntroScreenProps> = ({
   const scrollX = useSharedValue(0);
 
   const { completeWelcome, hasCompletedWelcome } = useWelcomeState();
-  const { createGuestAccount, isLoading, error } = useAuth();
+  const { createGuestAccount, isLoading, error } = useAuthStore();
 
   const onClose = async () => {
     try {
@@ -123,11 +123,11 @@ const IntroScreen: React.FC<IntroScreenProps> = ({
         // Navigate directly to Home after successful guest account creation
         navigation.replace('Home');
       } else {
-        toast.error('Failed to create guest account. Please try again.');
+        toast.error(error || 'Failed to create guest account. Please try again.');
       }
     } catch (error) {
       console.error('Failed to create guest account:', error);
-      toast.error('Failed to create guest account. Please try again.');
+      toast.error((error as any)?.message || 'Failed to create guest account. Please try again.');
     }
   };
 

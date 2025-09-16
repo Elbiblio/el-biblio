@@ -84,6 +84,8 @@ class BibleStore {
   // Bible versions
   installedVersions: string[] = [];
   availableVersions: ExtendedBibleVersion[] = [];
+  availableBooks: ExtendedBook[] = [];
+  chapterCountByBook: Map<string, number> = new Map();
   
   
   // Local storage
@@ -175,20 +177,30 @@ class BibleStore {
   // State setters
   async setCurrentBook(book: Book) {
     if (!book) return;
-    
     const extendedBook = toExtendedBook(book);
-    
+
+    // If same book is selected, do nothing to avoid loops
+    if (this.currentBook?.abbreviation === extendedBook.abbreviation) {
+      return;
+    }
+
+    // Determine a valid chapter for the new book
+    const desiredChapter = this.currentChapter || 1;
+    const maxChapter = this.getChapterCount(extendedBook.abbreviation) || extendedBook.chapters || 1;
+    const nextChapter = Math.min(Math.max(1, desiredChapter), maxChapter);
+
     runInAction(() => {
       this.currentBook = extendedBook;
-      this.currentChapter = 1;
+      this.currentChapter = nextChapter;
       this.verses = [];
     });
-    
-    await this.loadVerses();
   }
   
   setCurrentChapter(chapter: number) {
-    this.currentChapter = chapter;
+    // Clamp to valid range for current book
+    const max = this.getChapterCount();
+    const next = Math.min(Math.max(1, chapter), max);
+    this.currentChapter = next;
     this.saveUserPreferences();
   }
   
@@ -207,6 +219,20 @@ class BibleStore {
       await AsyncStorage.setItem(STORAGE_KEYS.SELECTED_VERSION, JSON.stringify(extendedVersion));
     } catch (error) {
       console.error('Error saving selected version:', error);
+    }
+
+    // Refresh dynamic books for this version
+    try {
+      await this.loadAvailableBooks();
+      // If no book selected yet, set a sensible default
+      if (!this.currentBook && this.availableBooks.length > 0) {
+        runInAction(() => {
+          this.currentBook = this.availableBooks[0];
+          this.currentChapter = 1;
+        });
+      }
+    } catch (e) {
+      console.error('Error loading available books for version:', e);
     }
     
     // Reload verses if we have a book and chapter
@@ -658,6 +684,89 @@ class BibleStore {
   
 
   // Helper methods
+  async loadAvailableBooks() {
+    try {
+      if (!this.currentVersion) {
+        runInAction(() => {
+          this.availableBooks = bibleBooks.map(toExtendedBook);
+        });
+        return;
+      }
+
+      const table = this.currentVersion.tableName;
+      const cacheKeyBooks = `bible_books_${table}`;
+      const cacheKeyChapters = `bible_chapters_${table}`;
+
+      // 1) Try cache first for instant UI
+      try {
+        const [cachedBooks, cachedChapters] = await Promise.all([
+          AsyncStorage.getItem(cacheKeyBooks),
+          AsyncStorage.getItem(cacheKeyChapters),
+        ]);
+        if (cachedBooks) {
+          const parsedBooks: ExtendedBook[] = JSON.parse(cachedBooks);
+          runInAction(() => {
+            this.availableBooks = parsedBooks;
+          });
+        }
+        if (cachedChapters) {
+          const parsedChapters: [string, number][] = JSON.parse(cachedChapters);
+          runInAction(() => {
+            this.chapterCountByBook = new Map(parsedChapters);
+          });
+        }
+      } catch {}
+
+      // 2) Fetch fresh data from DB (overwrites cache/UI once ready)
+      const codes = await BibleDBService.getAvailableBooks(table);
+
+      // Map DB codes to Book entries; fallback to code label if missing
+      const mapped: ExtendedBook[] = [];
+      for (const code of codes) {
+        const found = bibleBooks.find(b => b.abbreviation === code);
+        let book: ExtendedBook;
+        if (found) {
+          book = toExtendedBook(found);
+        } else {
+          // Unknown code; fetch chapter count dynamically and create a placeholder
+          const maxChapter = await BibleDBService.getMaxChapter(table, code);
+          book = toExtendedBook({ name: code, abbreviation: code, chapters: maxChapter } as any);
+        }
+        mapped.push(book);
+      }
+
+      // Load chapter counts for known books dynamically for accuracy
+      const chapterCounts = new Map<string, number>();
+      for (const b of mapped) {
+        const maxChapter = await BibleDBService.getMaxChapter(table, b.abbreviation);
+        chapterCounts.set(b.abbreviation, maxChapter || b.chapters);
+      }
+
+      runInAction(() => {
+        this.availableBooks = mapped;
+        this.chapterCountByBook = chapterCounts;
+      });
+
+      // 3) Save to cache
+      try {
+        await Promise.all([
+          AsyncStorage.setItem(cacheKeyBooks, JSON.stringify(mapped)),
+          AsyncStorage.setItem(cacheKeyChapters, JSON.stringify(Array.from(chapterCounts.entries()))),
+        ]);
+      } catch {}
+    } catch (error) {
+      console.error('Failed to load available books:', error);
+      runInAction(() => {
+        this.availableBooks = bibleBooks.map(toExtendedBook);
+      });
+    }
+  }
+
+  getChapterCount(abbr?: string) {
+    const code = abbr || this.currentBook?.abbreviation;
+    if (!code) return this.currentBook?.chapters || 1;
+    return this.chapterCountByBook.get(code) || (this.currentBook?.chapters || 1);
+  }
   async loadUserPreferences() {
     try {
       const [fontSize, selectedVersion, highlightedVerses, bookmarkedVerses, likedVerses, verseActivity] = await Promise.all([
@@ -672,20 +781,15 @@ class BibleStore {
       // Process the selected version if it exists
       if (selectedVersion) {
         try {
-          const version = JSON.parse(selectedVersion);
-          if (version) {
-            this.currentVersion = toExtendedVersion(version);
+          // Prefer JSON shape
+          const versionObj = JSON.parse(selectedVersion);
+          if (versionObj) {
+            this.currentVersion = toExtendedVersion(versionObj);
           }
         } catch (e) {
-          console.error('Error parsing selected version:', e);
+          // It might have been stored as a plain ID previously; ignore and let fetchBibleVersions reconcile
         }
       }
-
-      runInAction(() => {
-        if (fontSize) {
-          this.fontSize = parseInt(fontSize, 10) || 16;
-        }
-      });
     } catch (error) {
       console.error('Error loading user preferences:', error);
     }
@@ -719,7 +823,7 @@ class BibleStore {
     try {
       await AsyncStorage.multiSet([
         [STORAGE_KEYS.FONT_SIZE, this.fontSize.toString()],
-        [STORAGE_KEYS.SELECTED_VERSION, this.currentVersion?.id || ''],
+        [STORAGE_KEYS.SELECTED_VERSION, this.currentVersion ? JSON.stringify(this.currentVersion) : ''],
       ]);
     } catch (error) {
       console.error('Error saving user preferences:', error);

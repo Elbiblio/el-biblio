@@ -1,8 +1,7 @@
-import { makeObservable, action, runInAction, computed } from 'mobx';
+import { makeAutoObservable, runInAction } from 'mobx';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { apiClient } from '@/api/client';
 import { MeditationSession, Challenge, DailyChallenge, PaginatedResponse } from '@/types';
-import { BaseStore } from './BaseStore';
 
 export type MeditationPhase = 'setup' | 'countdown' | 'active' | 'complete';
 
@@ -39,7 +38,7 @@ const initialState: MeditationState = {
   selectedVirtue: null,
   selectedTime: null,
   selectedChallenge: null,
-  selectedBackgroundSound: null,
+  selectedBackgroundSound: 'ambient',
   meditationState: 'setup',
   countdown: 5, // 5-second countdown by default
   meditationTimer: 0,
@@ -52,32 +51,37 @@ const initialState: MeditationState = {
   },
 };
 
-export class MeditationStore extends BaseStore<MeditationState> {
+export class MeditationStore {
+  state: MeditationState = initialState;
+
+  // Common store props
+  isLoading = false;
+  error: string | null = null;
+  private storageKey = 'meditation_store';
+  private hasInitialized = false;
+
+  private setLoading = (value: boolean) => {
+    this.isLoading = value;
+  };
+
+  private setError = (message: string | null) => {
+    this.error = message;
+  };
+
+  private async saveToStorage() {
+    try {
+      await AsyncStorage.setItem(this.storageKey, JSON.stringify(this.state));
+    } catch (error) {
+      console.error(`Error saving ${this.storageKey} to storage:`, error);
+      this.error = 'Failed to save data';
+    }
+  }
   private countdownInterval: number | null = null;
   private meditationInterval: number | null = null;
   
   constructor() {
-    super(initialState, 'meditation_store');
-    makeObservable(this, {
-      // Actions
-      initialize: action,
-      sync: action,
-      recordSession: action,
-      joinChallenge: action,
-      completeChallenge: action,
-      fetchSessions: action,
-      fetchChallenges: action,
-      setSelectedVirtue: action,
-      setSelectedTime: action,
-      setSelectedChallenge: action,
-      setSelectedBackgroundSound: action,
-      startMeditation: action,
-      decrementCountdown: action,
-      incrementMeditationTimer: action,
-      endMeditationSession: action,
-      resetMeditationSession: action,
-      clearErrors: action,
-    });
+    // Auto-bind ensures methods keep the correct `this` when passed around/destructured
+    makeAutoObservable(this, {}, { autoBind: true });
     
     // Initialize the store
     this.initialize();
@@ -100,8 +104,23 @@ export class MeditationStore extends BaseStore<MeditationState> {
 
   // Actions
   async initialize() {
+    // Prevent duplicate initialization and repeated API calls
+    if (this.hasInitialized) return;
     try {
       this.setLoading(true);
+      
+      // Load stored state
+      const stored = await AsyncStorage.getItem(this.storageKey);
+      if (stored) {
+        runInAction(() => {
+          const parsed = JSON.parse(stored);
+          this.state = { ...this.state, ...parsed };
+          // Ensure a sensible default for background sound
+          if (!this.state.selectedBackgroundSound) {
+            this.state.selectedBackgroundSound = 'ambient';
+          }
+        });
+      }
       
       // Load any locally stored unsynced sessions
       const storedSessions = await AsyncStorage.getItem('unsyncedMeditationSessions');
@@ -111,17 +130,24 @@ export class MeditationStore extends BaseStore<MeditationState> {
         });
       }
       
-      // Initial data fetch
-      await Promise.all([
+      // Initial data fetch: don't blow up UI if one fails
+      const results = await Promise.allSettled([
         this.fetchSessions(),
         this.fetchChallenges(),
       ]);
+
+      // If both failed, surface a friendly error
+      const allRejected = results.every(r => r.status === 'rejected');
+      if (allRejected) {
+        this.setError('Failed to load meditation data');
+      }
       
     } catch (error) {
       console.error('Error initializing meditation store:', error);
       this.setError('Failed to initialize meditation data');
     } finally {
       this.setLoading(false);
+      this.hasInitialized = true;
     }
   }
 
@@ -164,15 +190,18 @@ export class MeditationStore extends BaseStore<MeditationState> {
 
   async recordSession(session: MeditationSession, isRetry = false) {
     try {
-      const response = await apiClient.post<{ data: MeditationSession }>('/meditation/sessions', session);
-      
+      const response = await apiClient.post<{ data: MeditationSession }>('/meditation_sessions', session);
+      if (!response.success || !response.data) {
+        throw new Error(response.message || 'Failed to record meditation session');
+      }
+
+      const created = (response.data as any).data ?? response.data;
+
       runInAction(() => {
-        this.state.sessions = [response.data.data, ...this.state.sessions];
-        
-        // Update pagination total
+        this.state.sessions = [created, ...this.state.sessions];
         this.state.pagination.total += 1;
       });
-      
+
       return true;
     } catch (error) {
       if (!isRetry) {
@@ -184,13 +213,17 @@ export class MeditationStore extends BaseStore<MeditationState> {
       }
       
       console.error('Error recording meditation session:', error);
-      throw new Error('Failed to record meditation session');
+      // Don't throw to avoid crashing UI
+      return false;
     }
   }
 
   async joinChallenge(challengeId: string) {
     try {
-      await apiClient.post(`/challenges/${challengeId}/join`);
+      const response = await apiClient.post(`/challenges/${challengeId}/join`);
+      if (!response.success) {
+        throw new Error(response.message || 'Failed to join challenge');
+      }
       
       runInAction(() => {
         if (!this.state.joinedChallenges.includes(challengeId)) {
@@ -202,13 +235,16 @@ export class MeditationStore extends BaseStore<MeditationState> {
     } catch (error) {
       console.error(`Error joining challenge ${challengeId}:`, error);
       this.setError('Failed to join challenge');
-      throw error;
+      return false;
     }
   }
 
   async completeChallenge(challengeId: string) {
     try {
-      await apiClient.post(`/challenges/${challengeId}/complete`);
+      const response = await apiClient.post(`/challenges/${challengeId}/complete`);
+      if (!response.success) {
+        throw new Error(response.message || 'Failed to complete challenge');
+      }
       
       runInAction(() => {
         this.state.challenges = this.state.challenges.map(challenge => 
@@ -222,7 +258,7 @@ export class MeditationStore extends BaseStore<MeditationState> {
     } catch (error) {
       console.error(`Error completing challenge ${challengeId}:`, error);
       this.setError('Failed to complete challenge');
-      throw error;
+      return false;
     }
   }
 
@@ -230,29 +266,36 @@ export class MeditationStore extends BaseStore<MeditationState> {
     try {
       this.setLoading(true);
       const response = await apiClient.get<PaginatedResponse<MeditationSession>>(
-        '/meditation/sessions',
+        '/meditation_sessions',
         { page }
       );
+      if (!response.success || !response.data) {
+        throw new Error(response.message || 'Failed to fetch meditation sessions');
+      }
       
       runInAction(() => {
+        const payload = response.data as any;
+        const list = payload.data ?? payload;
+        const meta = payload.meta ?? payload?.data?.meta;
+
         this.state.sessions = page === 1 
-          ? response.data.data 
-          : [...this.state.sessions, ...response.data.data];
+          ? list 
+          : [...this.state.sessions, ...list];
           
         this.state.pagination = {
           currentPage: page,
-          lastPage: response.data.meta.last_page,
-          perPage: response.data.meta.per_page,
-          total: response.data.meta.total,
-          hasMore: response.data.meta.current_page < response.data.meta.last_page,
+          lastPage: meta?.last_page ?? page,
+          perPage: meta?.per_page ?? this.state.pagination.perPage,
+          total: meta?.total ?? this.state.pagination.total,
+          hasMore: (meta?.current_page ?? page) < (meta?.last_page ?? page),
         };
       });
       
-      return response.data.data;
+      return (response.data as any).data ?? response.data;
     } catch (error) {
       console.error('Error fetching meditation sessions:', error);
       this.setError('Failed to fetch meditation sessions');
-      throw error;
+      return [];
     } finally {
       this.setLoading(false);
     }
@@ -265,28 +308,35 @@ export class MeditationStore extends BaseStore<MeditationState> {
         '/challenges',
         { page }
       );
+      if (!response.success || !response.data) {
+        throw new Error(response.message || 'Failed to fetch challenges');
+      }
       
       runInAction(() => {
+        const payload = response.data as any;
+        const list = payload.data ?? payload;
+        const meta = payload.meta ?? payload?.data?.meta;
+
         this.state.challenges = page === 1 
-          ? response.data.data 
-          : [...this.state.challenges, ...response.data.data];
+          ? list 
+          : [...this.state.challenges, ...list];
           
         // Note: API does not expose is_joined on Challenge type; keep joinedChallenges as-is
         
         this.state.pagination = {
           currentPage: page,
-          lastPage: response.data.meta.last_page,
-          perPage: response.data.meta.per_page,
-          total: response.data.meta.total,
-          hasMore: response.data.meta.current_page < response.data.meta.last_page,
+          lastPage: meta?.last_page ?? page,
+          perPage: meta?.per_page ?? this.state.pagination.perPage,
+          total: meta?.total ?? this.state.pagination.total,
+          hasMore: (meta?.current_page ?? page) < (meta?.last_page ?? page),
         };
       });
       
-      return response.data.data;
+      return (response.data as any).data ?? response.data;
     } catch (error) {
       console.error('Error fetching challenges:', error);
       this.setError('Failed to fetch challenges');
-      throw error;
+      return [];
     } finally {
       this.setLoading(false);
     }
@@ -307,6 +357,8 @@ export class MeditationStore extends BaseStore<MeditationState> {
 
   setSelectedBackgroundSound(id: string | null) {
     this.state.selectedBackgroundSound = id;
+    // Persist immediately so user's choice sticks
+    this.saveToStorage();
   }
 
   startMeditation() {

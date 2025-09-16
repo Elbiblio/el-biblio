@@ -1,7 +1,6 @@
 import { makeAutoObservable, runInAction } from 'mobx';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ThemeVariant } from '@/theme';
-import { BaseStore } from './BaseStore';
 
 export const STORAGE_KEYS = {
   THEME: '@app_theme',
@@ -16,15 +15,43 @@ interface PreferencesState {
   isInitialized: boolean;
 }
 
-class PreferencesStore extends BaseStore<PreferencesState> {
+class PreferencesStore {
+  // Store state
+  state: PreferencesState = {
+    preferredTheme: 'sage',
+    colorMode: 'light',
+    isInitialized: false,
+  };
+  
+  // Common store properties
+  isLoading = false;
+  error: string | null = null;
+  private storageKey = 'user_preferences';
+
   constructor() {
-    super({
-      preferredTheme: 'sage',
-      colorMode: 'light',
-      isInitialized: false,
-    }, 'user_preferences');
-    
+    makeAutoObservable(this);
     this.initialize();
+  }
+
+  private setLoading(loading: boolean) {
+    runInAction(() => {
+      this.isLoading = loading;
+    });
+  }
+
+  private setError(error: string | null) {
+    runInAction(() => {
+      this.error = error;
+    });
+  }
+
+  private async saveToStorage() {
+    try {
+      await AsyncStorage.setItem(this.storageKey, JSON.stringify(this.state));
+    } catch (error) {
+      console.error(`Error saving ${this.storageKey} to storage:`, error);
+      this.setError('Failed to save data');
+    }
   }
 
   async initialize() {

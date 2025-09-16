@@ -4,6 +4,7 @@ import { BibleVersion, Book, UserLevel, VerseResult } from '@/types';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { bibleBooks } from '@/constants/bibleBooks';
 import * as Asset from 'expo-asset';
+import versionsList from '../../assets/bibles/versions.json';
 
 const bookCodeMap: { [key: string]: string } = {
   'GEN': 'GN', 'EXO': 'EX', 'LEV': 'LV', 'NUM': 'NU', 'DEU': 'DT',
@@ -157,31 +158,9 @@ class BibleDBService {
         console.log("Default Bible database already exists");
       }
 
-      // Load versions information
+      // Load versions information from bundled JSON (avoid Asset for JSON)
       try {
-        const versionsJson = await FileSystem.readAsStringAsync(
-          FileSystem.documentDirectory + 'versions.json'
-        ).catch(async () => {
-          const versionAssets = await Asset.Asset.loadAsync(
-            require('../../assets/bibles/versions.json')
-          );
-          const versionsAsset = versionAssets[0];
-
-          if (!versionsAsset?.localUri) {
-            throw new Error('Failed to load versions asset');
-          }
-
-          const content = await FileSystem.readAsStringAsync(versionsAsset.localUri);
-
-          await FileSystem.writeAsStringAsync(
-            FileSystem.documentDirectory + 'versions.json',
-            content
-          );
-
-          return content;
-        });
-
-        const versions: BibleVersion[] = JSON.parse(versionsJson);
+        const versions: BibleVersion[] = (versionsList as unknown as BibleVersion[]);
         await AsyncStorage.setItem('bibleVersions', JSON.stringify(versions));
       } catch (error) {
         console.error('Failed to load versions:', error);
@@ -519,6 +498,29 @@ class BibleDBService {
          LIMIT ?`,
         [`%${query}%`, limit]
       );
+    }, version);
+  }
+
+  // Get distinct books available for a given version
+  static async getAvailableBooks(version: string): Promise<string[]> {
+    const normalizedVersion = version.replace('.db', '');
+    return this.executeWithRetry(async (db) => {
+      const rows = await db.getAllAsync<{ book: string }>(
+        `SELECT DISTINCT book FROM ${normalizedVersion} ORDER BY book`
+      );
+      return rows.map(r => r.book);
+    }, version);
+  }
+
+  // Get max chapter number for a given book in a given version
+  static async getMaxChapter(version: string, bookAbbr: string): Promise<number> {
+    const normalizedVersion = version.replace('.db', '');
+    return this.executeWithRetry(async (db) => {
+      const row = await db.getFirstAsync<{ maxChapter: number }>(
+        `SELECT MAX(CAST(chapter AS INTEGER)) AS maxChapter FROM ${normalizedVersion} WHERE book = ?`,
+        [bookAbbr]
+      );
+      return row?.maxChapter || 1;
     }, version);
   }
 

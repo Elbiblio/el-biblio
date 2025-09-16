@@ -8,21 +8,21 @@ import { BlurView } from "expo-blur";
 import React, { useState, useEffect, useMemo } from "react";
 import { View, StyleSheet, Text, Image, TouchableOpacity, TextInput, ScrollView, Modal } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useBookmarkStore } from "@/stores/bookmark";
-import { useVerseStore, useReflectionStore } from '@/stores/StoreProvider';
+import { useBookmarkStore, useVerseStore, useReflectionStore } from '@/stores/StoreProvider';
 import { observer } from 'mobx-react-lite';
 
 import { toast } from "sonner-native";
 
-const SavedItemsScreen: React.FC<NativeStackScreenProps<RootStackParamList, 'SavedItemsScreen'>> = ({
+const SavedItemsScreen = ({
   navigation
-}) => {
+}: NativeStackScreenProps<RootStackParamList, 'SavedItemsScreen'>) => {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const styles = React.useMemo(() => createStyles(theme), [theme]);
   const { bookmarks, isLoading, fetchBookmarks, togglePin, deleteBookmark } = useBookmarkStore();
+  const safeBookmarks: Bookmark[] = Array.isArray(bookmarks) ? bookmarks : [];
   const { fetchVerseOnly } = useVerseStore();
-  const { fetchReflection } = useReflectionStore();
+    const { fetchReflectionById } = useReflectionStore();
 
   // States
   const [searchQuery, setSearchQuery] = useState('');
@@ -60,7 +60,7 @@ const SavedItemsScreen: React.FC<NativeStackScreenProps<RootStackParamList, 'Sav
   };
 
   const updatePinnedItems = () => {
-    setPinnedItems(bookmarks.filter(item => item.is_pinned));
+    setPinnedItems(safeBookmarks.filter(item => item.is_pinned));
   };
 
   const handlePin = async (id: number) => {
@@ -94,7 +94,7 @@ const SavedItemsScreen: React.FC<NativeStackScreenProps<RootStackParamList, 'Sav
         }
 
         case 'reflection': {
-          const reflection = await fetchReflection(bookmarkable.id.toString(10));
+                    const reflection = await fetchReflectionById(bookmarkable.id.toString(10));
           if (reflection) {
             navigation.navigate('ReflectionDetail', { reflection });
           }
@@ -114,7 +114,7 @@ const SavedItemsScreen: React.FC<NativeStackScreenProps<RootStackParamList, 'Sav
   };
 
   const filteredItems = useMemo(() => {
-    return bookmarks.filter(item => {
+    return safeBookmarks.filter(item => {
       // Type filter
       if (activeTab && item.bookmarkable?.type !== activeTab) return false;
 
@@ -140,7 +140,7 @@ const SavedItemsScreen: React.FC<NativeStackScreenProps<RootStackParamList, 'Sav
       //exclude pinned items
       return activeTab ? true : !item.is_pinned;
     });
-  }, [bookmarks, activeTab, filters]);
+  }, [safeBookmarks, activeTab, filters]);
 
   const renderItem = ({ item }: { item: Bookmark }) => {
     const bookmarkable = item.bookmarkable;
@@ -332,7 +332,7 @@ const SavedItemsScreen: React.FC<NativeStackScreenProps<RootStackParamList, 'Sav
         {/* All Items */}
         <View style={styles.allItemsSection}>
           <Text style={styles.sectionTitle}>{activeTab ? activeTab.charAt(0).toUpperCase() + activeTab.slice(1) + 's' : 'Saved Items'}</Text>
-          {filteredItems.map(item => renderItem({ item }))}
+          {filteredItems.map((item: Bookmark) => renderItem({ item }))}
         </View>
       </ScrollView>
 

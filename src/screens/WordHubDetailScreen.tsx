@@ -36,7 +36,7 @@ import { useWordHubsStore } from '@/stores/StoreProvider';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'WordHubDetailScreen'>;
 
-const WordHubDetailScreen: React.FC<Props> = observer(({ navigation, route }) => {
+const WordHubDetailScreen = observer(({ navigation, route }: Props) => {
   const { hubId } = route.params;
   const theme = useTheme();
   const insets = useSafeAreaInsets();
@@ -177,7 +177,7 @@ const WordHubDetailScreen: React.FC<Props> = observer(({ navigation, route }) =>
       </View>
     </View>
   );
-};
+});
 
 const createStyles = (theme: Theme) => StyleSheet.create({
   container: {

@@ -1,4 +1,5 @@
 import * as React from 'react';
+import Constants from 'expo-constants';
 import { useAuthStore, useVerseStore } from '@/stores/StoreProvider';
 
 // WebSocket event types
@@ -36,13 +37,16 @@ class WebSocketService {
     updateVerseShares: (id: any, shares: any) => void;
   };
   
-  // Configuration
-  private config = {
-    host: process.env.EXPO_PUBLIC_WS_HOST || 'localhost',
-    port: process.env.EXPO_PUBLIC_WS_PORT || '8080',
-    appKey: process.env.EXPO_PUBLIC_WS_APP_KEY || 'your-app-key',
-    secure: process.env.EXPO_PUBLIC_WS_SECURE === 'true',
-  };
+  // Configuration sourced from app.json extra to avoid process.env on SDK 52
+  private config = (() => {
+    const extra: any = (Constants as any)?.expoConfig?.extra || (Constants as any)?.manifest?.extra || {};
+    return {
+      host: extra.WS_HOST || 'localhost',
+      port: String(extra.WS_PORT || '8080'),
+      appKey: extra.WS_APP_KEY || 'your-app-key',
+      secure: !!extra.WS_SECURE,
+    };
+  })();
 
   // State
   public state: WebSocketState = {

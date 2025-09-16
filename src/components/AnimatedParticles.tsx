@@ -63,4 +63,4 @@ const AnimatedParticles: React.FC<AnimatedParticlesProps> = ({
   );
 };
 
-export default memo(AnimatedParticles);
+export default AnimatedParticles;

@@ -14,6 +14,8 @@ import { WordHubsStore } from './WordHubsStore';
 import { CommunityStore } from './CommunityStore';
 import { GameStore } from './GameStore';
 import { VirtueQuizStore } from './VirtueQuizStore';
+import { RegistrationStore } from './RegistrationStore';
+import { BookmarkStore } from './BookmarkStore';
 
 export class RootStore {
   authStore = authStore;
@@ -32,6 +34,8 @@ export class RootStore {
   gameStore: GameStore;
   virtueQuizStore: VirtueQuizStore;
   communityStore: CommunityStore;
+  registrationStore: RegistrationStore;
+  bookmarkStore: BookmarkStore;
 
   constructor() {
     this.reflectionStore = new ReflectionStore();
@@ -46,5 +50,7 @@ export class RootStore {
     this.virtueQuizStore = new VirtueQuizStore(this);
     this.verseBuilderStore = new VerseBuilderStore(this.verseStore, this.gameStore);
     this.communityStore = new CommunityStore();
+    this.registrationStore = new RegistrationStore(this.authStore);
+    this.bookmarkStore = new BookmarkStore();
   }
 }

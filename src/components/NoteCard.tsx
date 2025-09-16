@@ -1,12 +1,12 @@
 import { useTheme } from '@/contexts/ThemeContext';
 import { type Note } from '@/types';
 import { BlurView } from 'expo-blur';
-import React, { useState, memo } from 'react';
+import React from 'react';
 import { Text, View, StyleSheet } from 'react-native';
 import { TouchableOpacity } from 'react-native-gesture-handler';
 import { Sparkle } from './Icons';
 
-const NoteCard = memo(({ note, isGridView, onPress, styles }: {
+const NoteCard = ({ note, isGridView, onPress, styles }: {
   note: Note;
   isGridView: boolean;
   onPress: (note: Note) => void;
@@ -65,6 +65,6 @@ const NoteCard = memo(({ note, isGridView, onPress, styles }: {
       </View>
     </TouchableOpacity>
   );
-});
+};
 
 export default NoteCard;

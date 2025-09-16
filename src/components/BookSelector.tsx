@@ -9,12 +9,14 @@ import { bibleBooks } from '@/constants/bibleBooks';
 interface BookSelectorProps {
   currentBook: Book;
   onSelect: (book: Book) => void;
+  books?: Book[];
 }
 
-const BookSelector: React.FC<BookSelectorProps> = ({ currentBook, onSelect }) => {
+const BookSelector: React.FC<BookSelectorProps> = ({ currentBook, onSelect, books }) => {
   const theme = useTheme();
   const styles = createStyles(theme);
   const [modalVisible, setModalVisible] = useState(false);
+  const data = books && books.length > 0 ? books : bibleBooks;
 
   return (
     <>
@@ -27,7 +29,7 @@ const BookSelector: React.FC<BookSelectorProps> = ({ currentBook, onSelect }) =>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <FlatList
-              data={bibleBooks}
+              data={data}
               keyExtractor={(item) => item.abbreviation}
               renderItem={({ item }) => (
                 <TouchableOpacity

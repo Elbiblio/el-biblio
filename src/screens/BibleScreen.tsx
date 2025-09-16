@@ -30,12 +30,13 @@ import { useNetworkStatus } from '@/hooks/useNetworkStatus';
 import { parseVPLId } from '@/utils/database';
 import { toast } from 'sonner-native';
 import * as Haptics from 'expo-haptics';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 interface BibleScreenProps {
   route?: { params?: { book?: string; chapter?: number; verse?: number } };
 }
 
-const BibleScreen: React.FC<BibleScreenProps> = ({ route }) => {
+const BibleScreen = ({ route }: BibleScreenProps) => {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const verseListRef = useRef<FlatList>(null);
@@ -49,42 +50,56 @@ const BibleScreen: React.FC<BibleScreenProps> = ({ route }) => {
   // Local state for UI
   const [showVersionsModal, setShowVersionsModal] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [resumeTarget, setResumeTarget] = useState<{ book: string; chapter: number } | null>(null);
 
-  // Handle initial params
+  // Handle initial params (apply once and only if different)
+  const appliedInitialParamsRef = useRef(false);
   useEffect(() => {
-    if (route?.params) {
-      const { book, chapter, verse } = route.params;
-      
-      if (book) {
-        const foundBook = bibleBooks.find(b => 
-          b.name.toLowerCase() === book.toLowerCase() || 
-          b.abbreviation.toLowerCase() === book.toLowerCase()
-        );
-        if (foundBook) {
-          bibleStore.setCurrentBook(foundBook);
-          if (chapter) {
-            bibleStore.setCurrentChapter(Math.min(chapter, foundBook.chapters));
-            // Schedule verse scroll after verses load
-            if (verse) {
-              setTimeout(() => {
-                const verseIndex = bibleStore.verses.findIndex(v => {
-                  const verseNum = parseInt(v.id.split(':')[2] || '1');
-                  return verseNum === verse;
-                });
-                if (verseIndex !== -1) {
-                  verseListRef.current?.scrollToIndex({
-                    index: verseIndex,
-                    animated: true,
-                    viewPosition: 0.3
-                  });
-                }
-              }, 500);
+    if (appliedInitialParamsRef.current) return;
+    if (!route?.params) return;
+
+    const { book, chapter, verse } = route.params;
+    if (!book) return;
+
+    const foundBook = bibleBooks.find(b => 
+      b.name.toLowerCase() === book.toLowerCase() || 
+      b.abbreviation.toLowerCase() === book.toLowerCase()
+    );
+    if (!foundBook) return;
+
+    const isSameBook = bibleStore.currentBook?.abbreviation === foundBook.abbreviation;
+    const isSameChapter = chapter ? bibleStore.currentChapter === Math.min(chapter, foundBook.chapters) : true;
+    if (isSameBook && isSameChapter) {
+      appliedInitialParamsRef.current = true;
+      return;
+    }
+
+    bibleStore.setCurrentBook(foundBook);
+    if (chapter) {
+      bibleStore.setCurrentChapter(Math.min(chapter, foundBook.chapters));
+      if (verse) {
+        setTimeout(() => {
+          const verseIndex = bibleStore.verses.findIndex(v => {
+            try {
+              const { verse: verseNum } = parseVPLId(v.id);
+              return verseNum === verse;
+            } catch {
+              return false;
             }
+          });
+          if (verseIndex !== -1) {
+            verseListRef.current?.scrollToIndex({
+              index: verseIndex,
+              animated: true,
+              viewPosition: 0.3
+            });
           }
-        }
+        }, 500);
       }
     }
-  }, [route?.params]);
+
+    appliedInitialParamsRef.current = true;
+  }, [route?.params, bibleStore.currentBook, bibleStore.currentChapter]);
 
   // Update offline status in Bible store
   useEffect(() => {
@@ -104,15 +119,23 @@ const BibleScreen: React.FC<BibleScreenProps> = ({ route }) => {
           bibleStore.setCurrentVersion(defaultVersion);
         }
         
-        // Set default book if none selected
-        if (!bibleStore.currentBook) {
-          bibleStore.setCurrentBook(bibleBooks[0]);
-        }
-        
         // Sync user interactions if online
         if (!isOffline) {
           await bibleStore.syncUserInteractions();
         }
+
+        // Load last position for Resume banner
+        try {
+          const last = await AsyncStorage.getItem('bible_last_position');
+          if (last) {
+            const parsed = JSON.parse(last) as { book: string; chapter: number };
+            // Suppress Resume for default Genesis 1
+            const isDefaultGenesis = (parsed.book === 'GEN' || parsed.book?.toLowerCase() === 'genesis') && parsed.chapter === 1;
+            if (parsed?.book && parsed?.chapter && !isDefaultGenesis) {
+              setResumeTarget({ book: parsed.book, chapter: parsed.chapter });
+            }
+          }
+        } catch {}
         
       } catch (error) {
         console.error('Failed to initialize Bible:', error);
@@ -123,11 +146,14 @@ const BibleScreen: React.FC<BibleScreenProps> = ({ route }) => {
     initializeBible();
   }, [isOffline]);
 
-  // Fetch verses when book/chapter/version changes
+  // Fetch verses when book/chapter/version changes (guard against redundant requests)
+  const lastFetchKeyRef = useRef<string | null>(null);
   useEffect(() => {
-    if (bibleStore.currentBook && bibleStore.currentVersion) {
-      bibleStore.fetchVerses(bibleStore.currentBook, bibleStore.currentChapter, bibleStore.currentVersion);
-    }
+    if (!bibleStore.currentBook || !bibleStore.currentVersion) return;
+    const key = `${bibleStore.currentVersion.tableName}:${bibleStore.currentBook.abbreviation}:${bibleStore.currentChapter}`;
+    if (lastFetchKeyRef.current === key) return;
+    lastFetchKeyRef.current = key;
+    bibleStore.fetchVerses(bibleStore.currentBook, bibleStore.currentChapter, bibleStore.currentVersion);
   }, [bibleStore.currentBook, bibleStore.currentChapter, bibleStore.currentVersion]);
 
   // Handle errors
@@ -233,13 +259,14 @@ const BibleScreen: React.FC<BibleScreenProps> = ({ route }) => {
 
           <View style={styles.controlsGroup}>
             <BookSelector
-              currentBook={bibleStore.currentBook || bibleBooks[0]}
+              currentBook={bibleStore.currentBook || (bibleStore.availableBooks[0] as any) || bibleBooks[0]}
               onSelect={bibleStore.setCurrentBook}
+              books={(bibleStore.availableBooks.length ? bibleStore.availableBooks : bibleBooks) as any}
             />
             
             <BiblePicker
               value={bibleStore.currentChapter}
-              items={Array.from({ length: (bibleStore.currentBook || bibleBooks[0]).chapters }, (_, i) => i + 1)}
+              items={Array.from({ length: bibleStore.getChapterCount() }, (_, i) => i + 1)}
               onSelect={bibleStore.setCurrentChapter}
             />
           </View>
@@ -408,7 +435,14 @@ const BibleScreen: React.FC<BibleScreenProps> = ({ route }) => {
 
   // Update verse text style to use fontSize state
   const renderVerse = ({ item }: { item: BibleVerse }) => {
-    const { verse: verseNum } = parseVPLId(item.id);
+    let verseNum = 0;
+    try {
+      verseNum = parseVPLId(item.id).verse;
+    } catch {
+      // Fallback: try to infer verse number from item.reference or default to 0
+      const match = item.reference?.match(/:(\d+)$/);
+      verseNum = match ? parseInt(match[1], 10) : 0;
+    }
     const isHighlighted = bibleStore.highlightedVerses.has(item.id);
     
     return (
@@ -483,6 +517,27 @@ const BibleScreen: React.FC<BibleScreenProps> = ({ route }) => {
       <View style={styles.headerContainer}>
         {renderHeader()}
       </View>
+
+      {resumeTarget && (
+        <View style={styles.resumeBar}>
+          <Text style={styles.resumeText}>
+            Resume {bibleBooks.find(b => b.abbreviation === resumeTarget.book)?.name || resumeTarget.book} {resumeTarget.chapter}
+          </Text>
+          <TouchableOpacity
+            style={styles.resumeButton}
+            onPress={() => {
+              const book = bibleBooks.find(b => b.abbreviation === resumeTarget.book || b.name.toLowerCase() === resumeTarget.book.toLowerCase());
+              if (book) {
+                bibleStore.setCurrentBook(book);
+                bibleStore.setCurrentChapter(resumeTarget.chapter);
+              }
+              setResumeTarget(null);
+            }}
+          >
+            <Text style={styles.resumeButtonText}>Open</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       {/* Content Area */}
       <FlatList
@@ -623,6 +678,30 @@ const createStyles = (theme: Theme) => StyleSheet.create({
   },
   contentContainer: {
     padding: theme.spacing.md,
+  },
+  resumeBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.sm,
+    backgroundColor: `${theme.colors.primary}10`,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
+  },
+  resumeText: {
+    ...theme.typography.body.sans,
+    color: theme.colors.text.primary,
+  },
+  resumeButton: {
+    paddingVertical: theme.spacing.xs,
+    paddingHorizontal: theme.spacing.md,
+    backgroundColor: theme.colors.primary,
+    borderRadius: theme.borderRadius.sm,
+  },
+  resumeButtonText: {
+    ...theme.typography.caption.primary,
+    color: theme.colors.text.inverse,
   },
   verseContainer: {
     paddingVertical: theme.spacing.sm,

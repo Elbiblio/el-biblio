@@ -56,7 +56,7 @@ const CARDS = (colors: Theme['colors']) => ([
   },
 ]);
 
-const CommunityScreen: React.FC<CommunityScreenProps> = ({ navigation }) => {
+const CommunityScreen = ({ navigation }: CommunityScreenProps) => {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const styles = useMemo(() => createStyles(theme), [theme]);

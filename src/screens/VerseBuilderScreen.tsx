@@ -28,7 +28,7 @@ import { Audio } from 'expo-av';
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const WORD_SIZE = SCREEN_WIDTH / 5;
 
-const VerseBuilderScreen: React.FC = observer(() => {
+const VerseBuilderScreen = observer(() => {
   const theme = useTheme();
   const styles = createStyles(theme);
   const verseBuilderStore = useVerseBuilderStore();
@@ -62,7 +62,7 @@ const VerseBuilderScreen: React.FC = observer(() => {
     showCorrectAnswer,
     isTransitioning,
     initialGameTime,
-  } = verseBuilderStore.currentState;
+  } = verseBuilderStore.state;
 
   // Animation Values
   const progressWidth = useSharedValue(100);
@@ -81,10 +81,10 @@ const VerseBuilderScreen: React.FC = observer(() => {
       const soundObjects: { [key: string]: Audio.Sound } = {};
       const soundFiles = {
         tickTock: require('../../assets/sounds/tick-tock.wav'),
-        timeout: require('../../assets/sounds/timeout.wav'),
-        correct: require('../../assets/sounds/correct.wav'),
+        timeout: require('../../assets/sounds/timeout.mp3'),
+        correct: require('../../assets/sounds/correct.mp3'),
         streak: require('../../assets/sounds/streak.wav'),
-        retry: require('../../assets/sounds/retry.wav'),
+        retry: require('../../assets/sounds/chime.wav'),
         cheers: require('../../assets/sounds/cheers.mp3'),
       };
 
@@ -201,7 +201,7 @@ const VerseBuilderScreen: React.FC = observer(() => {
     opacity: fadeAnim.value,
   }));
 
-  const WordTile = memo(({ word, onPress, disabled, isPrefilled }: { word: string; onPress: () => void; disabled: boolean; isPrefilled?: boolean }) => (
+  const WordTile = ({ word, onPress, disabled, isPrefilled }: { word: string; onPress: () => void; disabled: boolean; isPrefilled?: boolean }) => (
     <TouchableOpacity
       style={[styles.wordTile, { backgroundColor: getWordColor(word) }, isPrefilled && styles.prefilledWord]}
       onPress={onPress}
@@ -209,7 +209,7 @@ const VerseBuilderScreen: React.FC = observer(() => {
     >
       <Text style={styles.wordText}>{word}</Text>
     </TouchableOpacity>
-  ));
+  );
 
   const renderPoolWord = useCallback(
     ({ item }: { item: string }) => (
@@ -244,7 +244,7 @@ const VerseBuilderScreen: React.FC = observer(() => {
           {gameState.arrangedWords.length === 0 ? (
             <Text style={styles.emptyText}>Start arranging words here</Text>
           ) : (
-            gameState.arrangedWords.map((word, index) => (
+            gameState.arrangedWords.map((word: string, index: number) => (
               <WordTile
                 key={`arranged-${word}-${index}`}
                 word={word}
@@ -274,7 +274,7 @@ const VerseBuilderScreen: React.FC = observer(() => {
 
   const renderVersionSelector = useCallback(() => (
     <View style={styles.versionSelector}>
-      {availableVersions.map((version) => (
+      {availableVersions.map((version: string) => (
         <TouchableOpacity
           key={version}
           style={[styles.versionButton, selectedVersion === version && styles.versionButtonSelected]}

@@ -28,8 +28,7 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useThemeOfDay } from '@/utils/schedule';
 import { getTomorrowsTheme } from '@/utils/schedule';
 import ThemeInfo from '@/modals/ThemeInfo';
-import { useVerseStore } from '@/stores/StoreProvider';
-import { useAuth } from '@/stores/auth';
+import { useVerseStore, useAuthStore } from '@/stores/StoreProvider';
 import { toast } from 'sonner-native';
 import { observer } from 'mobx-react-lite';
 
@@ -40,7 +39,7 @@ const DailyVersesScreen = ({ navigation }: NativeStackScreenProps<RootStackParam
   const styles = React.useMemo(() => createStyles(theme), [theme]);
   const [showThemeInfo, setShowThemeInfo] = useState(false);
 
-  const { user } = useAuth();
+  const { user } = useAuthStore();
   const verseStore = useVerseStore();
   const {
     dailyVerses,
@@ -48,7 +47,7 @@ const DailyVersesScreen = ({ navigation }: NativeStackScreenProps<RootStackParam
     dailyVersesError,
     isConnected,
     lastUpdate,
-  } = verseStore.currentState;
+  } = verseStore.state;
   const {
     fetchDailyVerses,
     createInteraction,
@@ -143,7 +142,7 @@ const DailyVersesScreen = ({ navigation }: NativeStackScreenProps<RootStackParam
     description: selectedTheme.description || '',
   };
 
-  const renderVerseCard = (verse: Verse) => {
+  const renderVerseCard = useCallback((verse: Verse) => {
     const themeInfo = THEMES[verse.theme?.name as FoundationalVirtue];
 
     return (
@@ -240,7 +239,7 @@ const DailyVersesScreen = ({ navigation }: NativeStackScreenProps<RootStackParam
         </TouchableOpacity>
       </View>
     );
-  };
+  }, [theme, setSelectedVerse, handleVote, user]);
 
   return (
     <>
@@ -676,4 +675,4 @@ const createStyles = (theme: Theme) => StyleSheet.create({
   },
 });
 
-export default observer(React.memo(DailyVersesScreen));
+export default observer(DailyVersesScreen);

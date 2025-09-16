@@ -53,3 +53,5 @@ export const useWordHubsStore = () => useStores().wordHubsStore;
 export const useGameStore = () => useStores().gameStore;
 export const useVirtueQuizStore = () => useStores().virtueQuizStore;
 export const useCommunityStore = () => useStores().communityStore;
+export const useRegistrationStore = () => useStores().registrationStore;
+export const useBookmarkStore = () => useStores().bookmarkStore;

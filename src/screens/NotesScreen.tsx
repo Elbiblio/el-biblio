@@ -1,4 +1,5 @@
-import React, { useState, useCallback, useEffect, memo, useMemo } from 'react';
+import React, { useEffect, useCallback, useState, useMemo } from 'react';
+import { observer } from 'mobx-react-lite';
 import {
   View,
   Text,
@@ -43,7 +44,7 @@ import { RefreshControl } from 'react-native';
 
 export type NotesScreenProps = NativeStackScreenProps<RootStackParamList, 'NotesScreen'>;
 
-const NotesScreen: React.FC<NotesScreenProps> = ({ navigation, route }) => {
+const NotesScreen = ({ navigation, route }: NotesScreenProps) => {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const navigationNative = useNavigation();
@@ -820,4 +821,4 @@ export const createStyles = (theme: Theme) => StyleSheet.create({
   },
 });
 
-export default memo(NotesScreen);
+export default observer(NotesScreen);

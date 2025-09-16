@@ -1,10 +1,10 @@
 import { makeAutoObservable, runInAction } from 'mobx';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
-import { apiClient, endpoints } from '@/api/client';
+import { apiClient, endpoints, setUnauthorizedHandler } from '@/api/client';
 import { User, UserRole, SignUpData } from '@/types';
 
-class AuthStore {
+export class AuthStore {
   user: User | null = null;
   token: string | null = null;
   isLoading = false;
@@ -15,9 +15,15 @@ class AuthStore {
   userRole: UserRole = UserRole.User;
   private readonly TOKEN_KEY = 'auth_token';
   private readonly USER_KEY = 'user_data';
+  private readonly GUEST_CREDENTIALS_KEY = 'guest_credentials';
+  // When true, UI should prompt user to login/sign up
+  authRequired = false;
 
   constructor() {
-    makeAutoObservable(this);
+    // Auto-bind methods to preserve `this` when functions are destructured in components
+    makeAutoObservable(this, {}, { autoBind: true });
+    // Register a global 401 handler once
+    setUnauthorizedHandler(this.handleUnauthorized);
     this.initialize();
   }
 
@@ -139,9 +145,10 @@ class AuthStore {
 
     try {
       this.setLoading(true);
-      const [token, userData] = await Promise.all([
+      const [token, userData, guestCreds] = await Promise.all([
         AsyncStorage.getItem(this.TOKEN_KEY),
         AsyncStorage.getItem(this.USER_KEY),
+        AsyncStorage.getItem(this.GUEST_CREDENTIALS_KEY),
       ]);
 
       if (token && userData) {
@@ -149,8 +156,24 @@ class AuthStore {
         runInAction(() => {
           this.setToken(token);
           this.setUser(user);
+          // Infer guest status from stored credentials
+          this.isGuest = !!guestCreds;
           this.isInitialized = true;
         });
+      } else if (!token && guestCreds) {
+        // Attempt silent guest login to ensure app loads correctly for guest users
+        try {
+          const { email, password } = JSON.parse(guestCreds);
+          const ok = await this.login(email, password);
+          if (ok) {
+            runInAction(() => {
+              this.isGuest = true;
+            });
+          }
+        } catch (e) {
+          // If silent guest login fails, leave as unauthenticated; UI may prompt later
+          console.warn('Silent guest login failed during initialization');
+        }
       }
     } catch (error) {
       console.error('Error initializing auth:', error);
@@ -169,13 +192,18 @@ class AuthStore {
       this.setError(null);
 
       const response = await apiClient.post<{
-        token: string;
-        user: User;
+        token?: string;
+        user?: User;
       }>(endpoints.auth.login, { email, password });
 
+      if (!response.success || !response.data?.token || !response.data?.user) {
+        throw new Error(response.message || 'Login failed');
+      }
+
       runInAction(() => {
-        this.setToken(response.data.token);
-        this.setUser(response.data.user);
+        this.setToken(response.data!.token!);
+        this.setUser(response.data!.user!);
+        this.authRequired = false;
       });
 
       return true;
@@ -209,13 +237,17 @@ class AuthStore {
       this.setError(null);
 
       const response = await apiClient.post<{
-        token: string;
-        user: User;
+        token?: string;
+        user?: User;
       }>(endpoints.auth.signup, data);
 
+      if (!response.success || !response.data?.token || !response.data?.user) {
+        throw new Error(response.message || 'Sign up failed');
+      }
+
       runInAction(() => {
-        this.setToken(response.data.token);
-        this.setUser(response.data.user);
+        this.setToken(response.data!.token!);
+        this.setUser(response.data!.user!);
       });
 
       return true;
@@ -228,12 +260,72 @@ class AuthStore {
   };
 
   createGuestAccount = async (): Promise<boolean> => {
-    // Guest account endpoint is not available; provide controlled failure
-    this.setError('Guest accounts are not supported.');
-    return false;
-  };
+    try {
+      this.setLoading(true);
+      this.setError(null);
 
-  // Add other methods like updateUser, refreshToken, etc.
+      // Attempt a few times in case of rare email collisions/validation hiccups
+      const attempts = 3;
+      let lastError: string | null = null;
+      for (let i = 0; i < attempts; i++) {
+        const suffix = `${Math.random().toString(36).slice(2, 8)}${Date.now()
+          .toString()
+          .slice(-4)}`;
+        const email = `guest_${suffix}@guest.elbiblio.com`;
+        const password = `${Math.random().toString(36).slice(2, 10)}A1!`;
+
+        const payload: SignUpData = {
+          email,
+          password,
+          first_name: 'Guest',
+          last_name: suffix,
+          primary_language: 'en',
+        };
+
+        const response = await apiClient.post<{
+          token?: string;
+          user?: User;
+        }>(endpoints.auth.signup, payload);
+
+        // Case A: API returns token + user on signup
+        if (response.data?.token && response.data?.user) {
+          runInAction(() => {
+            this.setToken(response.data!.token!);
+            this.setUser(response.data!.user!);
+            this.isGuest = true;
+          });
+          // Persist guest credentials for seamless re-login on 401
+          await AsyncStorage.setItem(this.GUEST_CREDENTIALS_KEY, JSON.stringify({ email, password }));
+          return true;
+        }
+
+        // Case B: API returns only user (no token) -> perform login with generated credentials
+        if (response.success) {
+          const loggedIn = await this.login(email, password);
+          if (loggedIn) {
+            runInAction(() => {
+              this.isGuest = true;
+            });
+            await AsyncStorage.setItem(this.GUEST_CREDENTIALS_KEY, JSON.stringify({ email, password }));
+            return true;
+          }
+        }
+
+        // Otherwise, remember error and try next attempt
+        lastError = response.message || 'Signup failed';
+        if (response.errors) {
+          console.warn('Guest signup validation errors:', response.errors);
+        }
+      }
+
+      throw new Error(lastError || 'Failed to create guest account');
+    } catch (error) {
+      this.handleAuthError(error);
+      return false;
+    } finally {
+      this.setLoading(false);
+    }
+  };
 
   private handleAuthError = (error: any) => {
     console.error('Auth error:', error);
@@ -246,6 +338,35 @@ class AuthStore {
     }
 
     this.setError(errorMessage);
+  };
+
+  // Called by API client's 401 interceptor
+  private reauthInProgress = false;
+  private handleUnauthorized = async () => {
+    if (this.reauthInProgress) return;
+    this.reauthInProgress = true;
+    try {
+      // Try silent guest re-login if we have stored credentials
+      const credsStr = await AsyncStorage.getItem(this.GUEST_CREDENTIALS_KEY);
+      if (credsStr) {
+        const { email, password } = JSON.parse(credsStr);
+        const ok = await this.login(email, password);
+        if (ok) return; // silently recovered
+      }
+
+      // No guest creds or re-login failed: clear auth and signal UI to prompt
+      runInAction(() => {
+        this.setToken(null);
+        this.setUser(null);
+        this.authRequired = true;
+      });
+    } catch (e) {
+      runInAction(() => {
+        this.authRequired = true;
+      });
+    } finally {
+      this.reauthInProgress = false;
+    }
   };
 }
 

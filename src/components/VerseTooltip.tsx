@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -414,4 +414,4 @@ const createStyles = (theme: Theme) => StyleSheet.create({
   },
 });
 
-export default React.memo(VerseTooltip);
+export default VerseTooltip;

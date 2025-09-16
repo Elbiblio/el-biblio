@@ -1,5 +1,5 @@
 import { makeAutoObservable, runInAction } from 'mobx';
-import { BaseStore } from './BaseStore';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export type RankTimeframe = 'all' | 'day' | 'week' | 'month';
 
@@ -8,14 +8,27 @@ interface GameBadgeState {
   shouldShowBadge: boolean;
 }
 
-class GameBadgeStore extends BaseStore<GameBadgeState> {
+class GameBadgeStore {
+  state: GameBadgeState = {
+    lastKnownRank: {},
+    shouldShowBadge: false,
+  };
+
+  isLoading = false;
+  error: string | null = null;
+  private storageKey = 'game_badge_store';
+
   constructor() {
-    super({
-      lastKnownRank: {},
-      shouldShowBadge: false,
-    }, 'game_badge_store');
-    
     makeAutoObservable(this);
+  }
+
+  private async saveToStorage() {
+    try {
+      await AsyncStorage.setItem(this.storageKey, JSON.stringify(this.state));
+    } catch (error) {
+      console.error(`Error saving ${this.storageKey} to storage:`, error);
+      this.error = 'Failed to save data';
+    }
   }
 
   updateRank = (timeframe: RankTimeframe, newRank: number | null | undefined) => {

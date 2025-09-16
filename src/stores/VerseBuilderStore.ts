@@ -1,5 +1,5 @@
-import { makeObservable, runInAction, action } from 'mobx';
-import { BaseStore } from './BaseStore';
+import { makeAutoObservable, runInAction } from 'mobx';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { VerseResult, VerseMastery, UserLevel, PowerUpType } from '@/types';
 import { bibleBooks } from '@/constants/bibleBooks';
 import { parseVPLId } from '@/utils/database';
@@ -72,28 +72,52 @@ const initialState: VerseBuilderState = {
   availableVersions: ['ASV', 'KJV', 'RV', 'AMP', 'WEB', 'BSB', 'YLT', 'DR'],
 };
 
-export class VerseBuilderStore extends BaseStore<VerseBuilderState> {
+export class VerseBuilderStore {
+  state: VerseBuilderState = initialState;
+
+  // Common store props
+  isLoading = false;
+  error: string | null = null;
+  private storageKey = 'verse_builder_store';
+
   private verseStore: VerseStore;
   private gameStore: GameStore;
   private verseQueue: VerseGame[] = [];
 
   constructor(verseStore: VerseStore, gameStore: GameStore) {
-    super(initialState, 'verse_builder_store');
+    this.state = initialState;
+    this.storageKey = 'verse_builder_store';
     this.verseStore = verseStore;
     this.gameStore = gameStore;
-    makeObservable(this, {
-      initialize: action,
-      startNewRound: action,
-      completeTransition: action,
-      selectWordFromPool: action,
-      returnWordToPool: action,
-      checkAnswer: action,
-      usePowerUp: action,
-      decrementTime: action,
-      retry: action,
-      setVersion: action,
-      undoLastWord: action,
+    makeAutoObservable(this);
+    
+    // Load from storage asynchronously
+    AsyncStorage.getItem(this.storageKey).then(stored => {
+      if (stored) {
+        runInAction(() => {
+          this.state = { ...this.state, ...JSON.parse(stored) };
+        });
+      }
+    }).catch(error => {
+      console.error('Error loading verse builder store from storage:', error);
     });
+  }
+
+  private setLoading = (value: boolean) => {
+    this.isLoading = value;
+  };
+
+  private setError = (message: string | null) => {
+    this.error = message;
+  };
+
+  private async saveToStorage() {
+    try {
+      await AsyncStorage.setItem(this.storageKey, JSON.stringify(this.state));
+    } catch (error) {
+      console.error(`Error saving ${this.storageKey} to storage:`, error);
+      this.error = 'Failed to save data';
+    }
   }
 
   // Game Initialization and Setup
@@ -102,6 +126,7 @@ export class VerseBuilderStore extends BaseStore<VerseBuilderState> {
         await this.loadVerseBatch();
     this.startNewRound();
     this.setLoading(false);
+    await this.saveToStorage();
   }
 
   private async loadVerseBatch() {
@@ -123,6 +148,7 @@ export class VerseBuilderStore extends BaseStore<VerseBuilderState> {
       runInAction(() => {
         this.state.error = 'Failed to load verses. Please try again.';
       });
+      await this.saveToStorage();
     }
   }
 
@@ -161,6 +187,7 @@ export class VerseBuilderStore extends BaseStore<VerseBuilderState> {
     runInAction(() => {
       this.state.error = null;
     });
+    await this.saveToStorage();
 
     if (this.verseQueue.length === 0) {
       await this.loadVerseBatch();
@@ -171,6 +198,7 @@ export class VerseBuilderStore extends BaseStore<VerseBuilderState> {
       runInAction(() => {
         this.state.error = 'Failed to get next verse';
       });
+      await this.saveToStorage();
       return;
     }
 
@@ -199,6 +227,7 @@ export class VerseBuilderStore extends BaseStore<VerseBuilderState> {
       this.state.showSuccess = false;
       this.state.showCorrectAnswer = false;
     });
+    await this.saveToStorage();
   }
 
   completeTransition() {
@@ -207,6 +236,7 @@ export class VerseBuilderStore extends BaseStore<VerseBuilderState> {
       this.state.nextGameState = null;
       this.state.isTransitioning = false;
     });
+    this.saveToStorage();
   }
 
   selectWordFromPool(word: string) {
@@ -222,6 +252,7 @@ export class VerseBuilderStore extends BaseStore<VerseBuilderState> {
         this.checkAnswer();
       }
     });
+    this.saveToStorage();
   }
 
   undoLastWord() {
@@ -236,6 +267,7 @@ export class VerseBuilderStore extends BaseStore<VerseBuilderState> {
       const newPoolWords = [...this.state.gameState.poolWords, lastWord];
       this.state.gameState = { ...this.state.gameState, arrangedWords: newArrangedWords, poolWords: newPoolWords };
     });
+    this.saveToStorage();
   }
 
   returnWordToPool(word: string, index: number) {
@@ -247,6 +279,7 @@ export class VerseBuilderStore extends BaseStore<VerseBuilderState> {
       newArranged.splice(index, 1);
       this.state.gameState = { ...this.state.gameState, arrangedWords: newArranged, poolWords: [...this.state.gameState.poolWords, word] };
     });
+    this.saveToStorage();
   }
 
   async checkAnswer() {
@@ -284,6 +317,7 @@ export class VerseBuilderStore extends BaseStore<VerseBuilderState> {
         this.startNewRound();
       }, 3500);
     });
+    this.saveToStorage();
   }
 
   private handleIncorrectAnswer() {
@@ -292,6 +326,7 @@ export class VerseBuilderStore extends BaseStore<VerseBuilderState> {
       this.state.showCorrectAnswer = true;
       this.state.isPlaying = false;
     });
+    this.saveToStorage();
   }
 
   private async updateMastery(verseId: string, correct: boolean) {
@@ -316,6 +351,8 @@ export class VerseBuilderStore extends BaseStore<VerseBuilderState> {
       this.state.userProgress = updated;
     });
 
+    await this.saveToStorage();
+
     // This part requires the user from AuthStore, which should be passed in or accessed differently
     // For now, we'll skip the API call.
   }
@@ -334,6 +371,7 @@ export class VerseBuilderStore extends BaseStore<VerseBuilderState> {
         }
       }
     });
+    this.saveToStorage();
   }
 
   decrementTime() {
@@ -344,6 +382,7 @@ export class VerseBuilderStore extends BaseStore<VerseBuilderState> {
             this.state.isPlaying = false;
         }
     });
+    this.saveToStorage();
   }
 
   setVersion(version: string) {
@@ -353,6 +392,7 @@ export class VerseBuilderStore extends BaseStore<VerseBuilderState> {
       this.state.nextGameState = null;
       this.verseQueue = [];
     });
+    this.saveToStorage();
     this.initialize();
   }
 
@@ -362,5 +402,6 @@ export class VerseBuilderStore extends BaseStore<VerseBuilderState> {
         this.state.streak = 0;
         this.startNewRound();
     });
+    this.saveToStorage();
   }
 }

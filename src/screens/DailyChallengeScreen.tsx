@@ -4,6 +4,7 @@ import {
   Text,
   StyleSheet,
   ScrollView,
+  FlatList,
   TouchableOpacity,
   Platform,
   TextInput,
@@ -39,7 +40,8 @@ import Animated, {
 import { format, isToday, parseISO, differenceInHours, addDays } from 'date-fns';
 import { AvatarStack } from '@/components/AvatarStack';
 import { useTheme } from '@/contexts/ThemeContext';
-import { useAuth } from '@/stores/auth';
+import { useVirtueStore } from '@/stores/StoreProvider';
+import { useAuthStore } from '@/stores/StoreProvider';
 import { useChallengeStore } from '@/stores/ChallengeStore';
 import { Theme } from '@/theme';
 import { Challenge, ChallengeType } from '@/types/challenges';
@@ -50,7 +52,7 @@ type DailyChallengesProps = {
 };
 
 const CHALLENGE_CATEGORIES = [
-  { id: 'personal', label: 'Personal' },
+  { id: 'personal', label: 'Joined' },
   { id: 'community', label: 'Community' },
   { id: 'suggested', label: 'Suggested' },
 ];
@@ -60,30 +62,32 @@ const CHALLENGE_TYPES = [
   { id: 'vice', label: 'Reduce Vice', icon: X, color: '#F44336' },
 ];
 
-const DailyChallengesScreen: React.FC<DailyChallengesProps> = ({ navigation }) => {
+const DailyChallengesScreen = ({ navigation }: DailyChallengesProps) => {
   const insets = useSafeAreaInsets();
   const theme = useTheme();
   const styles = React.useMemo(() => createStyles(theme), [theme]);
-  const { user } = useAuth();
+  
+  const { currentGoalVirtueId, virtues: allVirtues } = useVirtueStore();
+  const { user } = useAuthStore();
   
   const {
     // State
-    personalChallenges,
-    communityChallenges,
-    suggestedChallenges,
     activeCategory,
     showNewChallengeForm,
     refreshing,
+    personalChallenges,
+    communityChallenges,
+    suggestedChallenges,
     
     // Loading states
-    isPersonalLoading,
-    isCommunityLoading,
-    isSuggestedLoading,
     isCreatingLoading,
     isJoiningLoading,
     isUpvotingLoading,
+    isPersonalLoading,
+    isCommunityLoading,
+    isSuggestedLoading,
     
-    // Error states
+    // Errors
     personalError,
     communityError,
     suggestedError,
@@ -106,6 +110,8 @@ const DailyChallengesScreen: React.FC<DailyChallengesProps> = ({ navigation }) =
     setRefreshing,
     clearErrors,
     refreshAll,
+    // expose pagination for infinite scroll
+    state,
   } = useChallengeStore();
   
   const [newChallenge, setNewChallenge] = useState({
@@ -131,20 +137,27 @@ const DailyChallengesScreen: React.FC<DailyChallengesProps> = ({ navigation }) =
   
   const loadChallenges = useCallback(async () => {
     setRefreshing(true);
-    
     try {
-      await Promise.all([
-        fetchPersonalChallenges(1),
-        fetchCommunityChallenges(1),
-        fetchSuggestedChallenges(1),
-      ]);
+      const promises: Promise<any>[] = [];
+      if (!personalChallenges || personalChallenges.length === 0) {
+        promises.push(fetchPersonalChallenges(1));
+      }
+      if (!communityChallenges || communityChallenges.length === 0) {
+        promises.push(fetchCommunityChallenges(1));
+      }
+      if (!suggestedChallenges || suggestedChallenges.length === 0) {
+        promises.push(fetchSuggestedChallenges(1));
+      }
+      if (promises.length > 0) {
+        await Promise.all(promises);
+      }
     } catch (error) {
       console.error('Error loading challenges:', error);
       Alert.alert('Error', 'Failed to load challenges. Please try again.');
     } finally {
       setRefreshing(false);
     }
-  }, [fetchPersonalChallenges, fetchCommunityChallenges, fetchSuggestedChallenges, setRefreshing]);
+  }, [personalChallenges, communityChallenges, suggestedChallenges, fetchPersonalChallenges, fetchCommunityChallenges, fetchSuggestedChallenges, setRefreshing]);
   
   const onRefresh = useCallback(() => {
     refreshAll();
@@ -266,6 +279,55 @@ const DailyChallengesScreen: React.FC<DailyChallengesProps> = ({ navigation }) =
     height: headerHeight.value,
     opacity: interpolate(headerHeight.value, [0, 56], [0, 1], Extrapolation.CLAMP),
   }));
+
+  // Render a single challenge card
+  const renderChallengeCard = (challenge: Challenge) => {
+    const isVirtue = challenge.type === 'virtue';
+    const color = isVirtue ? theme?.colors.success : theme?.colors.error;
+    const CIcon = isVirtue ? Star : X;
+    const timeRemaining = getTimeRemaining(challenge.endTime);
+    const isExpired = timeRemaining === 'Expired';
+
+    return (
+      <TouchableOpacity style={styles.challengeCard} key={challenge.id} onPress={() => navigation.navigate('ChallengeDetail', { id: challenge.id })}>
+        <LinearGradient
+          colors={[`${color}10`, `${color}02`]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.cardGradient}
+        />
+
+        <View style={styles.challengeHeader}>
+          <View style={[styles.typeTag, { backgroundColor: `${color}15` }]}>
+            <CIcon size={14} color={color} />
+            <Text style={[styles.typeText, { color }]}>
+              {isVirtue ? 'Virtue' : 'Vice'}
+            </Text>
+          </View>
+
+          <View style={styles.timeContainer}>
+            <Clock size={14} color={isExpired ? theme?.colors.error : theme?.colors.text.secondary} />
+            <Text style={[
+              styles.timeText, 
+              isExpired && { color: theme?.colors.error }
+            ]}>
+              {timeRemaining}
+            </Text>
+          </View>
+        </View>
+
+        <Text style={styles.challengeTitle}>{challenge.title}</Text>
+        {!!challenge.description && (
+          <Text style={styles.challengeDescription} numberOfLines={2}>
+            {challenge.description}
+          </Text>
+        )}
+      </TouchableOpacity>
+    );
+  };
+
+  // No form for now (and hidden on Joined tab anyway)
+  const renderNewChallengeForm = () => null;
   
   const formAnimatedStyle = useAnimatedStyle(() => ({
     height: formHeight.value,
@@ -279,204 +341,12 @@ const DailyChallengesScreen: React.FC<DailyChallengesProps> = ({ navigation }) =
       { translateY: interpolate(listOpacity.value, [0, 1], [20, 0], Extrapolation.CLAMP) }
     ]
   }));
-  
-  const renderChallengeCard = (challenge: Challenge) => {
-    const isVirtue = challenge.type === 'virtue';
-    const color = isVirtue ? theme?.colors.success : theme?.colors.error;
-    const CIcon = isVirtue ? Star : X;
-    const timeRemaining = getTimeRemaining(challenge.endTime);
-    const isExpired = timeRemaining === 'Expired';
-    
-    return (
-      <View style={styles.challengeCard} key={challenge.id}>
-        <LinearGradient
-          colors={[`${color}10`, `${color}02`]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.cardGradient}
-        />
-        
-        <View style={styles.challengeHeader}>
-          <View style={[styles.typeTag, { backgroundColor: `${color}15` }]}>
-            <CIcon size={14} color={color} />
-            <Text style={[styles.typeText, { color }]}>
-              {isVirtue ? 'Virtue' : 'Vice'}
-            </Text>
-          </View>
-          
-          <View style={styles.timeContainer}>
-            <Clock size={14} color={isExpired ? theme?.colors.error : theme?.colors.text.secondary} />
-            <Text style={[
-              styles.timeText, 
-              isExpired && { color: theme?.colors.error }
-            ]}>
-              {timeRemaining}
-            </Text>
-          </View>
-        </View>
-        
-        <Text style={styles.challengeTitle}>{challenge.title}</Text>
-        
-        {challenge.description && (
-          <Text style={styles.challengeDescription} numberOfLines={2}>
-            {challenge.description}
-          </Text>
-        )}
-        
-        {challenge.progress !== undefined && (
-          <View style={styles.progressContainer}>
-            <View style={styles.progressBar}>
-              <View 
-                style={[
-                  styles.progressFill, 
-                  { width: `${challenge.progress}%`, backgroundColor: color }
-                ]} 
-              />
-            </View>
-            <Text style={styles.progressText}>{challenge.progress}%</Text>
-          </View>
-        )}
-        
-        {challenge.category === 'personal' && (
-          <View style={styles.actionContainer}>
-            {isExpired ? (
-              <>
-                <TouchableOpacity 
-                  style={[styles.actionButton, { backgroundColor: `${theme?.colors.success}15` }]}
-                  onPress={() => handleCompleteChallenge(challenge, true)}
-                >
-                  <Check size={16} color={theme?.colors.success} />
-                  <Text style={[styles.actionText, { color: theme?.colors.success }]}>
-                    Mark Complete
-                  </Text>
-                </TouchableOpacity>
-                
-                <TouchableOpacity 
-                  style={[styles.actionButton, { backgroundColor: `${theme?.colors.error}15` }]}
-                  onPress={() => handleCompleteChallenge(challenge, false)}
-                >
-                  <X size={16} color={theme?.colors.error} />
-                  <Text style={[styles.actionText, { color: theme?.colors.error }]}>
-                    Mark Incomplete
-                  </Text>
-                </TouchableOpacity>
-              </>
-            ) : (
-              <Text style={styles.pendingText}>
-                Complete by {challenge.endTime}
-              </Text>
-            )}
-          </View>
-        )}
-        
-        {challenge.category === 'community' && (
-          <View style={styles.communityContainer}>
-            <View style={styles.participantsContainer}>
-              {challenge.participantAvatars && (
-                <AvatarStack
-                  users={challenge.participantAvatars as any}
-                  maxAvatars={3}
-                  size={24}
-                />
-              )}
-              <Text style={styles.participantsText}>
-                {challenge.participants} joined
-              </Text>
-            </View>
-            
-            <View style={styles.communityActions}>
-              <TouchableOpacity 
-                style={[
-                  styles.communityButton, 
-                  { backgroundColor: challenge.hasUpvoted ? `${theme?.colors.primary}20` : `${theme?.colors.text.secondary}10` }
-                ]}
-                onPress={() => handleUpvoteChallenge(challenge)}
-              >
-                <ArrowUp 
-                  size={16} 
-                  color={challenge.hasUpvoted ? theme?.colors.primary : theme?.colors.text.secondary} 
-                />
-                <Text 
-                  style={[
-                    styles.communityButtonText, 
-                    { color: challenge.hasUpvoted ? theme?.colors.primary : theme?.colors.text.secondary }
-                  ]}
-                >
-                  {challenge.upvotes}
-                </Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity 
-                style={[
-                  styles.communityButton, 
-                  { 
-                    backgroundColor: challenge.hasJoined 
-                      ? `${theme?.colors.error}15` 
-                      : `${theme?.colors.primary}15` 
-                  }
-                ]}
-                onPress={() => handleJoinChallenge(challenge)}
-              >
-                <Text 
-                  style={[
-                    styles.communityButtonText, 
-                    { 
-                      color: challenge.hasJoined 
-                        ? theme?.colors.error 
-                        : theme?.colors.primary 
-                    }
-                  ]}
-                >
-                  {challenge.hasJoined ? 'Leave' : 'Join'}
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        )}
-        
-        {challenge.category === 'suggested' && (
-          <View style={styles.suggestedContainer}>
-            <View style={styles.upvoteContainer}>
-              <TouchableOpacity 
-                style={[
-                  styles.upvoteButton, 
-                  { backgroundColor: challenge.hasUpvoted ? `${theme?.colors.primary}20` : `${theme?.colors.text.secondary}10` }
-                ]}
-                onPress={() => handleUpvoteChallenge(challenge)}
-              >
-                <ArrowUp 
-                  size={16} 
-                  color={challenge.hasUpvoted ? theme?.colors.primary : theme?.colors.text.secondary} 
-                />
-                <Text 
-                  style={[
-                    styles.upvoteText, 
-                    { color: challenge.hasUpvoted ? theme?.colors.primary : theme?.colors.text.secondary }
-                  ]}
-                >
-                  {challenge.upvotes}
-                </Text>
-              </TouchableOpacity>
-            </View>
-            
-            <TouchableOpacity 
-              style={styles.addButton}
-              onPress={() => handleAddSuggestedChallenge(challenge)}
-            >
-              <Plus size={16} color={theme?.colors.primary} />
-              <Text style={styles.addButtonText}>Add to My Challenges</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-      </View>
-    );
-  };
-  
+
   const renderChallenges = () => {
     let challenges: Challenge[] = [];
     let isLoading = false;
     let error: string | null = null;
-    
+
     switch (activeCategory) {
       case 'personal':
         challenges = personalChallenges;
@@ -489,12 +359,20 @@ const DailyChallengesScreen: React.FC<DailyChallengesProps> = ({ navigation }) =
         error = communityError;
         break;
       case 'suggested':
-        challenges = suggestedChallenges;
+        // Featured or goal-aware suggestions (match virtue name in title/description)
+        const goalVirtue = (allVirtues || []).find(v => v.id === currentGoalVirtueId);
+        const goalName = goalVirtue?.name?.toLowerCase();
+        challenges = (suggestedChallenges || []).filter(c => {
+          if (c.isFeatured) return true;
+          if (!goalName) return false;
+          const hay = `${c.title || ''} ${c.description || ''}`.toLowerCase();
+          return hay.includes(goalName);
+        });
         isLoading = isSuggestedLoading;
         error = suggestedError;
         break;
     }
-    
+
     if (isLoading && challenges.length === 0) {
       return (
         <View style={styles.loadingContainer}>
@@ -503,7 +381,7 @@ const DailyChallengesScreen: React.FC<DailyChallengesProps> = ({ navigation }) =
         </View>
       );
     }
-    
+
     if (error && challenges.length === 0) {
       return (
         <View style={styles.errorContainer}>
@@ -529,13 +407,13 @@ const DailyChallengesScreen: React.FC<DailyChallengesProps> = ({ navigation }) =
         </View>
       );
     }
-    
+
     if (challenges.length === 0) {
       return (
         <View style={styles.emptyContainer}>
           <Text style={styles.emptyText}>
             {activeCategory === 'personal' 
-              ? 'You have no personal challenges yet. Create one!' 
+              ? 'You have not joined any challenges yet. Join a challenge to get started.' 
               : activeCategory === 'community'
                 ? 'No community challenges available right now.'
                 : 'No suggested challenges available right now.'}
@@ -543,96 +421,41 @@ const DailyChallengesScreen: React.FC<DailyChallengesProps> = ({ navigation }) =
         </View>
       );
     }
-    
-    return challenges.map(renderChallengeCard);
-  };
-  
-  const renderNewChallengeForm = () => {
-    if (!showNewChallengeForm) return null;
-    
+
+    const loadMore = () => {
+      if (isLoading) return; // prevent spamming while loading
+      const currentPage = state.pagination.currentPage || 1;
+      const nextPage = currentPage + 1;
+      if (!state.pagination.hasMore) return;
+      switch (activeCategory) {
+        case 'personal':
+          fetchPersonalChallenges(nextPage);
+          break;
+        case 'community':
+          fetchCommunityChallenges(nextPage);
+          break;
+        case 'suggested':
+          fetchSuggestedChallenges(nextPage);
+          break;
+      }
+    };
+
     return (
-      <Animated.View style={[styles.formContainer, formAnimatedStyle]}>
-        <Text style={styles.formTitle}>Create New Challenge</Text>
-        
-        <View style={styles.typeSelector}>
-          {CHALLENGE_TYPES.map(type => (
-            <TouchableOpacity
-              key={type.id}
-              style={[
-                styles.typeButton,
-                newChallenge.type === type.id && { 
-                  backgroundColor: `${type.color}15`,
-                  borderColor: type.color,
-                }
-              ]}
-              onPress={() => setNewChallenge(prev => ({ ...prev, type: type.id as ChallengeType }))}
-            >
-              <type.icon size={16} color={type.color} />
-              <Text style={[
-                styles.typeButtonText,
-                newChallenge.type === type.id && { color: type.color }
-              ]}>
-                {type.label}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-        
-        <TextInput
-          style={styles.input}
-          placeholder="Challenge title"
-          value={newChallenge.title}
-          onChangeText={text => setNewChallenge(prev => ({ ...prev, title: text }))}
-        />
-        
-        <TextInput
-          style={[styles.input, styles.textArea]}
-          placeholder="Description (optional)"
-          value={newChallenge.description}
-          onChangeText={text => setNewChallenge(prev => ({ ...prev, description: text }))}
-          multiline
-          numberOfLines={3}
-        />
-        
-        <View style={styles.timePickerContainer}>
-          <Text style={styles.timePickerLabel}>Complete by:</Text>
-          <TextInput
-            style={styles.timePicker}
-            placeholder="21:00"
-            value={newChallenge.endTime}
-            onChangeText={text => setNewChallenge(prev => ({ ...prev, endTime: text }))}
-            keyboardType="numbers-and-punctuation"
-          />
-        </View>
-        
-        {createError && (
-          <Text style={styles.errorText}>{createError}</Text>
-        )}
-        
-        <View style={styles.formActions}>
-          <TouchableOpacity 
-            style={[styles.formButton, styles.cancelButton]}
-            onPress={toggleNewChallengeForm}
-          >
-            <Text style={styles.cancelButtonText}>Cancel</Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity 
-            style={[styles.formButton, styles.createButton, isCreatingLoading && { opacity: 0.6 }]}
-            onPress={handleCreateChallenge}
-            disabled={isCreatingLoading}
-          >
-            {isCreatingLoading ? (
-              <ActivityIndicator size="small" color={theme?.colors.text.inverse} />
-            ) : (
-              <Text style={styles.createButtonText}>Create Challenge</Text>
-            )}
-          </TouchableOpacity>
-        </View>
-      </Animated.View>
+      <FlatList
+        data={challenges}
+        keyExtractor={(item) => item.id}
+        renderItem={({ item }) => renderChallengeCard(item)}
+        onEndReached={loadMore}
+        onEndReachedThreshold={0.4}
+        ListFooterComponent={state.pagination.hasMore && isLoading ? (
+          <View style={{ paddingVertical: 16, alignItems: 'center' }}>
+            <ActivityIndicator color={theme?.colors.primary} />
+          </View>
+        ) : null}
+      />
     );
   };
-  
+
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <Animated.View style={[styles.header, headerAnimatedStyle]}>
@@ -642,9 +465,7 @@ const DailyChallengesScreen: React.FC<DailyChallengesProps> = ({ navigation }) =
         >
           <ArrowLeft size={24} color={theme?.colors.text.primary} />
         </TouchableOpacity>
-        
         <Text style={styles.headerTitle}>Daily Challenges</Text>
-        
         {user && (user.points || 0) >= 200 && activeCategory === 'community' && (
           <TouchableOpacity 
             style={styles.suggestButton}
@@ -654,7 +475,7 @@ const DailyChallengesScreen: React.FC<DailyChallengesProps> = ({ navigation }) =
           </TouchableOpacity>
         )}
       </Animated.View>
-      
+
       <View style={styles.categoryTabs}>
         {CHALLENGE_CATEGORIES.map(category => (
           <TouchableOpacity
@@ -673,8 +494,16 @@ const DailyChallengesScreen: React.FC<DailyChallengesProps> = ({ navigation }) =
             </Text>
           </TouchableOpacity>
         ))}
+        <View style={{ flex: 1 }} />
+        <TouchableOpacity
+          style={[styles.addChallengeButton, { paddingVertical: 8, paddingHorizontal: 12, marginBottom: 0 }]}
+          onPress={() => navigation.navigate('VirtueScreen')}
+        >
+          <Trophy size={16} color={theme?.colors.primary} />
+          <Text style={styles.addChallengeText}>Set Current Goal</Text>
+        </TouchableOpacity>
       </View>
-      
+
       <ScrollView
         style={styles.content}
         contentContainerStyle={styles.scrollContent}
@@ -682,18 +511,9 @@ const DailyChallengesScreen: React.FC<DailyChallengesProps> = ({ navigation }) =
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
       >
-        {activeCategory === 'personal' && (
-          <TouchableOpacity 
-            style={styles.addChallengeButton}
-            onPress={toggleNewChallengeForm}
-          >
-            <Plus size={20} color={theme?.colors.primary} />
-            <Text style={styles.addChallengeText}>Create New Challenge</Text>
-          </TouchableOpacity>
-        )}
-        
-        {renderNewChallengeForm()}
-        
+        {/* For Joined tab, we won't show create form/button */}
+        {activeCategory !== 'personal' && renderNewChallengeForm()}
+
         <Animated.View style={listAnimatedStyle}>
           {renderChallenges()}
         </Animated.View>

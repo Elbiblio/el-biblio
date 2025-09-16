@@ -1,5 +1,5 @@
 import { makeAutoObservable, runInAction } from 'mobx';
-import { BaseStore } from '@/stores/BaseStore';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { apiClient, endpoints } from '@/api/client';
 import { PaginatedResponse, PrayerRequest } from '@/types';
 import { buildPagination, initialPagination } from '@/utils/pagination';
@@ -9,16 +9,53 @@ interface PrayerRequestsStoreState {
   pagination: typeof initialPagination;
 }
 
-export class PrayerRequestsStore extends BaseStore<PrayerRequestsStoreState> {
+export class PrayerRequestsStore {
+  state: PrayerRequestsStoreState = {
+    requests: [],
+    pagination: initialPagination,
+  };
+
+  // Common store props
+  isLoading = false;
+  error: string | null = null;
+  private storageKey = 'prayer_requests_store';
+
   constructor() {
-    super(
-      {
-        requests: [],
-        pagination: initialPagination,
-      },
-      'prayer_requests_store'
-    );
+    this.state = {
+      requests: [],
+      pagination: initialPagination,
+    };
+    this.storageKey = 'prayer_requests_store';
+    
     makeAutoObservable(this);
+    
+    // Load from storage asynchronously
+    AsyncStorage.getItem(this.storageKey).then(stored => {
+      if (stored) {
+        runInAction(() => {
+          this.state = { ...this.state, ...JSON.parse(stored) };
+        });
+      }
+    }).catch(error => {
+      console.error('Error loading prayer requests store from storage:', error);
+    });
+  }
+
+  private setLoading = (value: boolean) => {
+    this.isLoading = value;
+  };
+
+  private setError = (message: string | null) => {
+    this.error = message;
+  };
+
+  private async saveToStorage() {
+    try {
+      await AsyncStorage.setItem(this.storageKey, JSON.stringify(this.state));
+    } catch (error) {
+      console.error(`Error saving ${this.storageKey} to storage:`, error);
+      this.error = 'Failed to save data';
+    }
   }
 
   get requests(): PrayerRequest[] {
@@ -55,6 +92,8 @@ export class PrayerRequestsStore extends BaseStore<PrayerRequestsStoreState> {
         this.state.requests = page === 1 ? data : [...this.state.requests, ...data];
         this.state.pagination = buildPagination(meta as any, this.pagination, page, data.length);
       });
+      
+      await this.saveToStorage();
     } catch (err) {
       this.setError(err instanceof Error ? err.message : 'An unknown error occurred');
     } finally {
@@ -73,6 +112,8 @@ export class PrayerRequestsStore extends BaseStore<PrayerRequestsStoreState> {
       runInAction(() => {
         this.state.requests.unshift(req);
       });
+      
+      await this.saveToStorage();
       return req;
     } catch (err) {
       this.setError(err instanceof Error ? err.message : 'An unknown error occurred');
@@ -95,6 +136,8 @@ export class PrayerRequestsStore extends BaseStore<PrayerRequestsStoreState> {
           request.prayed_count = (request.prayed_count ?? 0) + 1;
         }
       });
+      
+      await this.saveToStorage();
       return true;
     } catch (err) {
       this.setError(err instanceof Error ? err.message : 'An unknown error occurred');
@@ -112,6 +155,8 @@ export class PrayerRequestsStore extends BaseStore<PrayerRequestsStoreState> {
       runInAction(() => {
         this.state.requests = this.state.requests.filter(r => r.id !== id);
       });
+      
+      await this.saveToStorage();
       return true;
     } catch (err) {
       this.setError(err instanceof Error ? err.message : 'An unknown error occurred');
@@ -121,11 +166,13 @@ export class PrayerRequestsStore extends BaseStore<PrayerRequestsStoreState> {
     }
   };
 
-  reset = () => {
+  reset = async () => {
     runInAction(() => {
         this.state.requests = [];
         this.state.pagination = initialPagination;
         this.setError(null);
     });
+    
+    await this.saveToStorage();
   };
 }

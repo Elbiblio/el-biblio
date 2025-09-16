@@ -143,7 +143,7 @@ const FIRST_VISIT_VARIANTS = [
   "Your daily moment of peace awaits",
 ];
 
-const HomeScreen: React.FC<HomeProps> = ({ navigation, route }) => {
+const HomeScreen = ({ navigation, route }: HomeProps) => {
   const insets = useSafeAreaInsets();
   const pointsScale = useSharedValue(1);
   const [activeVerse, setActiveVerse] = useState<string | null>(null);
@@ -167,7 +167,7 @@ const HomeScreen: React.FC<HomeProps> = ({ navigation, route }) => {
   const themeText = { color: theme?.colors.primary };
 
   const [appState, setAppState] = useState(AppState.currentState);
-  const { user, updateUserTime, updateUserPoints } = useAuthStore();
+  const { user, updateUserTime, updateUserPoints, authRequired, logout } = useAuthStore();
   const { completeChallenge } = useMeditationStore();
   const { isConnected } = useWebSocket();
   const { unreadCount, computeUnreadFromReflections } = useCommunityStore();
@@ -206,6 +206,20 @@ const HomeScreen: React.FC<HomeProps> = ({ navigation, route }) => {
       clearInterval(syncInterval);
     };
   }, []);
+
+  // If an API call returns 401, the global unauthorized handler sets authRequired=true.
+  // When that happens, present the AuthModal. If the user logs in successfully, close it.
+  useEffect(() => {
+    if (authRequired) {
+      setShowAuthModal(true);
+    }
+  }, [authRequired]);
+
+  useEffect(() => {
+    if (user) {
+      setShowAuthModal(false);
+    }
+  }, [user]);
 
   const loadTimeTracking = async () => {
     try {
@@ -285,37 +299,57 @@ const HomeScreen: React.FC<HomeProps> = ({ navigation, route }) => {
 
 
   const verseStore = useVerseStore();
-  const { dailyVerses, isDailyVersesLoading } = verseStore.currentState;
+  const { dailyVerses, isDailyVersesLoading } = verseStore.state;
   const { fetchDailyVerses } = verseStore;
 
   const challengeStore = useChallengeStore();
-  const { personalChallenges, communityChallenges } = challengeStore.currentState;
+  const { personalChallenges, communityChallenges } = challengeStore;
   const { fetchPersonalChallenges, fetchCommunityChallenges } = challengeStore;
 
   const reflectionStore = useReflectionStore();
-  const { reflections, isReflectionsLoading } = reflectionStore.currentState as any;
+  const { reflections, isReflectionsLoading } = reflectionStore.state;
   const { fetchReflections } = reflectionStore;
 
   const leaderboardStore = useLeaderboardStore();
-  const { globalLeaderboard } = leaderboardStore.currentState as any;
   const { fetchGlobalLeaderboard, fetchUserRank } = leaderboardStore;
 
   const meditationStore = useMeditationStore();
-  const { meditationState, meditationTimer, selectedChallenge } = meditationStore.currentState;
+  const { meditationState, meditationTimer, selectedChallenge } = meditationStore.state;
 
   useEffect(() => {
-    fetchDailyVerses();
-    fetchPersonalChallenges(1);
-    fetchCommunityChallenges(1);
-    fetchReflections(1, { sortBy: 'likes', sortOrder: 'desc' });
-    fetchGlobalLeaderboard();
-    // Initial rank check for Games badge
-    if (user?.id) {
-      fetchUserRank(user.id, 'all').then((res) => {
-        if (res?.rank) updateRank('all', res.rank);
-      }).catch(() => {});
-    }
-  }, [fetchDailyVerses, fetchPersonalChallenges, fetchCommunityChallenges, fetchReflections, fetchGlobalLeaderboard]);
+    const getHttpStatus = (err: any): number | undefined => err?.status || err?.response?.status;
+    const handleAuthHttpError = (err: any) => {
+      const status = getHttpStatus(err);
+      if (status === 401) {
+        // Global interceptor will also mark authRequired; proactively show modal
+        setShowAuthModal(true);
+      }
+    };
+
+    const load = async () => {
+      try { await fetchDailyVerses(); } catch (e) { /* Not auth-critical */ }
+      try { await fetchPersonalChallenges(1); } catch (e) { handleAuthHttpError(e); }
+      try { await fetchCommunityChallenges(1); } catch (e) { handleAuthHttpError(e); }
+      try { await fetchReflections(1, { sortBy: 'likes', sortOrder: 'desc' }); } catch (e) { handleAuthHttpError(e); }
+      try { await fetchGlobalLeaderboard(); } catch (e) { /* Not auth-critical */ }
+      // Initial rank check for Games badge
+      if (user?.id) {
+        try {
+          const res = await fetchUserRank(user.id, 'all');
+          if (res?.rank) updateRank('all', res.rank);
+        } catch (e: any) {
+          const status = getHttpStatus(e);
+          if (status === 404) {
+            // User may have been deleted/banned: logout and prompt auth
+            try { await logout(); } catch {}
+            setShowAuthModal(true);
+          }
+        }
+      }
+    };
+
+    load();
+  }, [fetchDailyVerses, fetchPersonalChallenges, fetchCommunityChallenges, fetchReflections, fetchGlobalLeaderboard, user?.id]);
 
   // Poll user rank periodically to detect changes and toggle Games badge
   useEffect(() => {
@@ -411,7 +445,7 @@ const HomeScreen: React.FC<HomeProps> = ({ navigation, route }) => {
   const ScrollIndicators = () => {
     return (
       <View style={styles.indicatorContainer}>
-        {dailyVerses?.map((_, index) => {
+        {dailyVerses?.map((_: any, index: number) => {
           const animatedStyle = useAnimatedStyle(() => {
             const width = interpolate(
               scrollX.value,
@@ -503,7 +537,7 @@ const HomeScreen: React.FC<HomeProps> = ({ navigation, route }) => {
     const sessionInProgress = meditationState === 'countdown' || meditationState === 'active';
     const startedButNotCompleted = meditationTimer > 0 && meditationState !== 'complete';
     const selectedIncomplete = selectedChallenge
-      ? (personalChallenges || []).some(c => c.id === (selectedChallenge as any).id && !c.isCompleted)
+      ? (personalChallenges || []).some((c: any) => c.id === (selectedChallenge as any).id && !c.isCompleted)
       : false;
     return sessionInProgress || startedButNotCompleted || selectedIncomplete;
   }, [meditationState, meditationTimer, selectedChallenge, personalChallenges]);
@@ -518,7 +552,7 @@ const HomeScreen: React.FC<HomeProps> = ({ navigation, route }) => {
     <View style={styles.header}>
       <View style={styles.headerContent}>
         <View style={styles.headerLeft}>
-          <Text style={styles.appTitle}>ELBIBLIO v1.1</Text>
+          <Text style={styles.appTitle}>ELBIBLIO</Text>
           {isConnected && (
             <View style={styles.connectionIndicator}>
               <View style={[styles.connectionDot, { backgroundColor: theme?.colors.success }]} />
@@ -568,7 +602,7 @@ const HomeScreen: React.FC<HomeProps> = ({ navigation, route }) => {
 
     return (
       <Animated.View style={[styles.section, toolAnimatedStyle]}>
-        <Text style={styles.sectionTitle}>QUICK TOOLS</Text>
+        <Text style={styles.sectionTitle}>QUICK MENU</Text>
         <View style={styles.toolsGrid}>
           {[
             { icon: BookOpen, label: 'Meditation', route: 'MeditationScreen', badge: hasUnfinishedMeditation ? 1 : null, color: theme?.colors.primary },
@@ -677,39 +711,17 @@ const HomeScreen: React.FC<HomeProps> = ({ navigation, route }) => {
       );
     }
     
-    // Use real API data from challenge store
-    const personalChallenge = personalChallenges[0] || {
-      id: 'default-personal',
-      title: 'Write 3 gratitude notes',
-      description: 'Practice gratitude by writing 3 gratitude notes',
-      category: 'personal',
-      type: 'virtue' as const,
-      endTime: '21:00',
-      createdAt: new Date().toISOString(),
-      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-      isCompleted: false,
-      userId: user?.id || '',
-    };
-    
-    // Get community challenge from API
-    const communityChallenge = communityChallenges[0] || {
-      id: 'default-community',
-      title: 'Group fasting till 3pm',
-      description: 'Join a group of people to fast till 3pm',
-      category: 'community',
-      type: 'virtue' as const,
-      endTime: '15:00',
-      createdAt: new Date().toISOString(),
-      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-      isCompleted: false,
-      userId: 'community',
-      participants: 23,
-      participantAvatars: [],
-    };
+    // Use real API data from challenge store only
+    const personalChallenge = personalChallenges && personalChallenges.length > 0
+      ? personalChallenges[0]
+      : undefined;
+    const communityChallenge = communityChallenges && communityChallenges.length > 0
+      ? communityChallenges[0]
+      : undefined;
     
     // Calculate progress for personal challenge
-    const personalProgress = calculateChallengeProgress(personalChallenge);
-    const isPersonalChallengeComplete = personalProgress >= 100;
+    const personalProgress = personalChallenge ? calculateChallengeProgress(personalChallenge as any) : 0;
+    const isPersonalChallengeComplete = personalChallenge ? personalProgress >= 100 : false;
 
     return (
       <Animated.View style={[styles.section, challengeAnimatedStyle]}>
@@ -724,79 +736,109 @@ const HomeScreen: React.FC<HomeProps> = ({ navigation, route }) => {
           </TouchableOpacity>
         </View>
         
-        {/* Personal Challenge */}
-        <View style={styles.challengeCard}>
-          <View style={styles.challengeHeader}>
-            <Text style={styles.challengeType}>Personal:</Text>
-          </View>
-          <Text style={styles.challengeText}>
-            <Text style={styles.challengeIcon}>🌱</Text> {personalChallenge.title}
-          </Text>
-          <View style={styles.progressContainer}>
-            <View style={styles.progressBar}>
-              <View style={[styles.progressFill, { width: `${personalProgress}%` }]} />
+        {/* Joined Challenge (Personal) */}
+        {personalChallenge ? (
+          <View style={styles.challengeCard}>
+            <View style={styles.challengeHeader}>
+              <Text style={styles.challengeType}>Joined:</Text>
             </View>
-            <Text style={styles.progressText}>{personalProgress}%</Text>
+            <Text style={styles.challengeText}>
+              <Text style={styles.challengeIcon}>🌱</Text> {personalChallenge.title}
+            </Text>
+            <View style={styles.progressContainer}>
+              <View style={styles.progressBar}>
+                <View style={[styles.progressFill, { width: `${personalProgress}%` }]} />
+              </View>
+              <Text style={styles.progressText}>{personalProgress}%</Text>
+            </View>
+            <TouchableOpacity 
+              style={[styles.completeButton, 
+                isPersonalChallengeComplete ? styles.completeButtonActive : {}]}
+              onPress={() => {
+                if (isPersonalChallengeComplete && personalChallenge.id) {
+                  handleCompleteChallenge(personalChallenge.id);
+                } else {
+                  challengeOpacity.value = withSequence(
+                    withTiming(0.7, { duration: 100 }),
+                    withTiming(1, { duration: 100 })
+                  );
+                }
+              }}
+            >
+              <Text style={styles.completeButtonText}>
+                {isPersonalChallengeComplete ? '✅ Complete' : '⏳ In Progress'}
+              </Text>
+            </TouchableOpacity>
           </View>
-          <TouchableOpacity 
-            style={[styles.completeButton, 
-              isPersonalChallengeComplete ? styles.completeButtonActive : {}]}
-            onPress={() => {
-              if (isPersonalChallengeComplete && personalChallenge.id) {
-                handleCompleteChallenge(personalChallenge.id);
-              } else {
-                // Add animation on press
+        ) : (
+          <View style={styles.challengeCard}>
+            <View style={styles.challengeHeader}>
+              <Text style={styles.challengeType}>Joined:</Text>
+            </View>
+            <Text style={styles.challengeText}>
+              You have not joined any challenges yet.
+            </Text>
+            <TouchableOpacity 
+              style={styles.joinChallengeButton}
+              onPress={() => navigation.navigate('DailyChallengeScreen')}
+            >
+              <Text style={styles.joinChallengeText}>✨ Explore Challenges</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+        
+        {/* Community Challenge */}
+        {communityChallenge ? (
+          <View style={styles.challengeCard}>
+            <View style={styles.challengeHeader}>
+              <Text style={styles.challengeType}>Community:</Text>
+            </View>
+            <Text style={styles.challengeText}>
+              <Text style={styles.challengeIcon}>🤝</Text> {communityChallenge.title}
+            </Text>
+            {(communityChallenge.participantAvatars && communityChallenge.participantAvatars.length > 0) && (
+              <View style={styles.communityStats}>
+                <View style={styles.avatarContainer}>
+                  <AvatarStack
+                    users={communityChallenge.participantAvatars as unknown as User[]}
+                    maxAvatars={3}
+                    size={24}
+                  />
+                </View>
+                <Text style={styles.participantsText}>
+                  {communityChallenge.participants || 0} people joined
+                </Text>
+              </View>
+            )}
+            <TouchableOpacity 
+              style={styles.joinChallengeButton}
+              onPress={() => {
                 challengeOpacity.value = withSequence(
                   withTiming(0.7, { duration: 100 }),
                   withTiming(1, { duration: 100 })
                 );
-              }
-            }}
-          >
-            <Text style={styles.completeButtonText}>
-              {isPersonalChallengeComplete ? '✅ Complete' : '⏳ In Progress'}
-            </Text>
-          </TouchableOpacity>
-        </View>
-        
-        {/* Community Challenge */}
-        <View style={styles.challengeCard}>
-          <View style={styles.challengeHeader}>
-            <Text style={styles.challengeType}>Community:</Text>
+                navigation.navigate('DailyChallengeScreen');
+              }}
+            >
+              <Text style={styles.joinChallengeText}>✨ View Challenges</Text>
+            </TouchableOpacity>
           </View>
-          <Text style={styles.challengeText}>
-            <Text style={styles.challengeIcon}>🤝</Text> {communityChallenge.title}
-          </Text>
-          <View style={styles.communityStats}>
-            <View style={styles.avatarContainer}>
-              <AvatarStack
-                users={(communityChallenge.participantAvatars || [
-                  { id: '1', avatar: '', first_name: 'User1', last_name: 'User1', points: 0, role: 2, is_active: true, primary_language: 'en', created_at: '', updated_at: '' },
-                  { id: '2', avatar: '', first_name: 'User2', last_name: 'User2', points: 0, role: 2, is_active: true, primary_language: 'en', created_at: '', updated_at: '' },
-                  { id: '3', avatar: '', first_name: 'User3', last_name: 'User3', points: 0, role: 2, is_active: true, primary_language: 'en', created_at: '', updated_at: '' },
-                ]) as User[]}
-                maxAvatars={3}
-                size={24}
-              />
+        ) : (
+          <View style={styles.challengeCard}>
+            <View style={styles.challengeHeader}>
+              <Text style={styles.challengeType}>Community:</Text>
             </View>
-            <Text style={styles.participantsText}>
-              {communityChallenge.participants || 0} people joined
+            <Text style={styles.challengeText}>
+              No community challenges available right now.
             </Text>
+            <TouchableOpacity 
+              style={styles.joinChallengeButton}
+              onPress={() => navigation.navigate('DailyChallengeScreen')}
+            >
+              <Text style={styles.joinChallengeText}>✨ Explore Challenges</Text>
+            </TouchableOpacity>
           </View>
-          <TouchableOpacity 
-            style={styles.joinChallengeButton}
-            onPress={() => {
-              // Add animation on press
-              challengeOpacity.value = withSequence(
-                withTiming(0.7, { duration: 100 }),
-                withTiming(1, { duration: 100 })
-              );
-              navigation.navigate('DailyChallengeScreen');
-            }}
-          >
-            <Text style={styles.joinChallengeText}>✨ Join Challenge</Text>
-          </TouchableOpacity>
-        </View>
+        )}
       </Animated.View>
     );
   };
@@ -813,7 +855,13 @@ const HomeScreen: React.FC<HomeProps> = ({ navigation, route }) => {
         <Animated.View style={[styles.section, verseAnimatedStyle]}>
           <Text style={styles.sectionTitle}>VERSE OF THE DAY</Text>
           <View style={styles.verseCard}>
-            <Text style={styles.loadingText}>Loading today's verse...</Text>
+            <Text style={styles.loadingText}>No verse of the day yet. Please check back later.</Text>
+            <TouchableOpacity 
+              style={[styles.joinChallengeButton, { marginTop: theme?.spacing.md }]}
+              onPress={() => navigation.navigate('DailyVersesScreen')}
+            >
+              <Text style={styles.joinChallengeText}>📖 Browse Previous Verses</Text>
+            </TouchableOpacity>
           </View>
         </Animated.View>
       );
@@ -888,10 +936,13 @@ const HomeScreen: React.FC<HomeProps> = ({ navigation, route }) => {
       opacity: interpolate(spotlightTranslateX.value, [20, 0], [0, 1]),
     }));
 
+    // Use real content if available: take top reflection as spotlight
+    const spotlight = (reflections && (reflections as any[]).length > 0) ? (reflections as any[])[0] : null;
+    if (!spotlight) return null;
+
     return (
       <Animated.View style={[styles.section, spotlightAnimatedStyle]}>
         <Text style={styles.sectionTitle}>LEARNING SPOTLIGHT</Text>
-        
         <TouchableOpacity 
           style={styles.spotlightCard}
           onPress={() => {
@@ -899,41 +950,15 @@ const HomeScreen: React.FC<HomeProps> = ({ navigation, route }) => {
               withTiming(5, { duration: 100 }),
               withTiming(0, { duration: 100 })
             );
-            navigation.navigate('NoteDetail', { noteId: 'featured-note-id' });
+            navigation.navigate('ReflectionDetail', { reflection: spotlight });
           }}
         >
           <View style={styles.spotlightIconContainer}>
             <BookOpen size={20} color={theme?.colors.primary} />
           </View>
           <View style={styles.spotlightContent}>
-            <Text style={styles.spotlightLabel}>Featured Note</Text>
-            <Text style={styles.spotlightTitle}>"Understanding Mercy"</Text>
-          </View>
-          <ChevronRight size={16} color={theme?.colors.text.secondary} />
-        </TouchableOpacity>
-        
-        <TouchableOpacity 
-          style={styles.spotlightCard}
-          onPress={() => {
-            spotlightTranslateX.value = withSequence(
-              withTiming(5, { duration: 100 }),
-              withTiming(0, { duration: 100 })
-            );
-            navigation.navigate('QuizDetail', { id: 'beatitudes-quiz-id' });
-          }}
-        >
-          <View style={[styles.spotlightIconContainer, { backgroundColor: `${theme?.colors.secondary}15` }]}>
-            <Bible size={20} color={theme?.colors.secondary} />
-          </View>
-          <View style={styles.spotlightContent}>
-            <Text style={styles.spotlightLabel}>Quiz</Text>
-            <Text style={styles.spotlightTitle}>Beatitudes Mastery</Text>
-            <View style={styles.quizProgress}>
-              <View style={styles.quizProgressBar}>
-                <View style={[styles.quizProgressFill, { width: '75%' }]} />
-              </View>
-              <Text style={styles.quizProgressText}>75%</Text>
-            </View>
+            <Text style={styles.spotlightLabel}>Featured Reflection</Text>
+            <Text style={styles.spotlightTitle} numberOfLines={1}>{spotlight?.content || 'Reflection'}</Text>
           </View>
           <ChevronRight size={16} color={theme?.colors.text.secondary} />
         </TouchableOpacity>

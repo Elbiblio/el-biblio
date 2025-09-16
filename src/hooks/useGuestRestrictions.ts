@@ -1,7 +1,7 @@
-import { useAuth } from '@/stores/auth';
+import { useAuthStore } from '@/stores/StoreProvider';
 
 export const useGuestRestrictions = () => {
-  const { isGuest, user } = useAuth();
+  const { isGuest, user } = useAuthStore();
 
   const restrictions = {
     // Community features

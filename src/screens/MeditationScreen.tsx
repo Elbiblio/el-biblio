@@ -57,7 +57,7 @@ enum MeditationState {
   COMPLETE = 'complete',
 }
 
-const MeditationScreen: React.FC = () => {
+const MeditationScreen = () => {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const theme = useTheme();
   const auth = useAuthStore();
@@ -65,7 +65,7 @@ const MeditationScreen: React.FC = () => {
 
   // Virtue store (MobX)
   const virtueStore = useVirtueStore();
-  const { virtues } = virtueStore.currentState;
+  const { virtues } = virtueStore;
   // Meditation store (MobX)
   const meditationStore = useMeditationStore();
   const {
@@ -76,7 +76,7 @@ const MeditationScreen: React.FC = () => {
     countdown,
     meditationTimer,
     selectedBackgroundSound,
-  } = meditationStore.currentState;
+  } = meditationStore.state;
   const {
     setSelectedVirtue: setStoreSelectedVirtue,
     setSelectedTime: setStoreSelectedTime,
@@ -482,9 +482,7 @@ const MeditationScreen: React.FC = () => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   };
 
-  useEffect(() => {
-    meditationStore.initialize();
-  }, [meditationStore]);
+  // Store initializes itself; avoid re-initializing to prevent repeated API calls
 
   const endMeditation = () => {
     endMeditationSession();

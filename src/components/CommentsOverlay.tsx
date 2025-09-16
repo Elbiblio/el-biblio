@@ -1,4 +1,5 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { observer } from 'mobx-react-lite';
 import {
   View,
   Text,
@@ -282,4 +283,4 @@ const createStyles = (theme: Theme) => StyleSheet.create({
   },
 });
 
-export default React.memo(CommentsOverlay);    
+export default observer(CommentsOverlay);    

@@ -11,7 +11,7 @@ import {
 import { useTheme } from '@/contexts/ThemeContext';
 import { Theme } from '@/theme';
 import { Comment, User } from '@/types';
-import { useAuth } from '@/stores/auth';
+import { useAuthStore } from '@/stores/StoreProvider';
 import { Heart, Reply, Send } from './Icons';
 import { formatDistanceToNow } from 'date-fns';
 
@@ -31,9 +31,9 @@ const CommentSection: React.FC<CommentSectionProps> = ({
   isLoading = false,
 }) => {
   const theme = useTheme();
-  const { user } = useAuth();
+  const { user } = useAuthStore();
   const [newComment, setNewComment] = useState('');
-  const [replyingTo, setReplyingTo] = useState<{ id: string; author: User } | null>(null);
+  const [replyingTo, setReplyingTo] = useState<{ id: string; user: User } | null>(null);
   const [submitting, setSubmitting] = useState(false);
   
   const styles = React.useMemo(() => createStyles(theme), [theme]);
@@ -57,7 +57,7 @@ const CommentSection: React.FC<CommentSectionProps> = ({
     return (
       <View style={styles.commentContainer}>
         <View style={styles.commentHeader}>
-          <Text style={styles.authorName}>{item.author.first_name} {item.author.last_name}</Text>
+          <Text style={styles.authorName}>{item.user.first_name} {item.user.last_name}</Text>
           <Text style={styles.timestamp}>
             {formatDistanceToNow(new Date(item.timestamp), { addSuffix: true })}
           </Text>
@@ -85,7 +85,7 @@ const CommentSection: React.FC<CommentSectionProps> = ({
           
           <TouchableOpacity 
             style={styles.actionButton}
-            onPress={() => setReplyingTo({ id: item.id, author: item.author })}
+            onPress={() => setReplyingTo({ id: item.id, user: item.user })}
           >
             <Reply size={16} color={theme.colors.text.secondary} />
             <Text style={styles.actionText}>Reply</Text>
@@ -97,7 +97,7 @@ const CommentSection: React.FC<CommentSectionProps> = ({
             {item.replies.map(reply => (
               <View key={reply.id} style={styles.replyContainer}>
                 <View style={styles.commentHeader}>
-                  <Text style={styles.authorName}>{reply.author.first_name} {reply.author.last_name}</Text>
+                  <Text style={styles.authorName}>{reply.user.first_name} {reply.user.last_name}</Text>
                   <Text style={styles.timestamp}>
                     {formatDistanceToNow(new Date(reply.timestamp), { addSuffix: true })}
                   </Text>
@@ -140,7 +140,7 @@ const CommentSection: React.FC<CommentSectionProps> = ({
       ) : (
         <>
           <FlatList
-            data={comments.filter(c => !c.parentId)}
+            data={comments.filter(c => !c.parent_id)}
             renderItem={renderComment}
             keyExtractor={item => item.id}
             contentContainerStyle={styles.commentsList}
@@ -153,7 +153,7 @@ const CommentSection: React.FC<CommentSectionProps> = ({
             {replyingTo && (
               <View style={styles.replyingToContainer}>
                 <Text style={styles.replyingToText}>
-                  Replying to <Text style={styles.replyingToName}>{replyingTo.author.first_name}</Text>
+                  Replying to <Text style={styles.replyingToName}>{replyingTo.user.first_name}</Text>
                 </Text>
                 <TouchableOpacity onPress={() => setReplyingTo(null)}>
                   <Text style={styles.cancelReply}>Cancel</Text>

@@ -11,7 +11,7 @@ import { usePrayerRequestsStore } from '@/stores/StoreProvider';
 
 export type PrayerRequestsScreenProps = NativeStackScreenProps<RootStackParamList, 'PrayerRequestsScreen'>;
 
-const PrayerRequestsScreen: React.FC<PrayerRequestsScreenProps> = ({ navigation }) => {
+const PrayerRequestsScreen = ({ navigation }: PrayerRequestsScreenProps) => {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const styles = useMemo(() => createStyles(theme), [theme]);

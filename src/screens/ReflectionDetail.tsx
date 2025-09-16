@@ -24,19 +24,18 @@ import { ArrowLeft, MessageCircle, Send } from '../components/Icons';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { Comment, RootStackParamList } from '../types';
 import { useTheme } from '@/contexts/ThemeContext';
-import { useAuth } from '@/stores/auth';
-import { useReflectionStore } from '@/stores/StoreProvider';
+import { useAuthStore, useReflectionStore } from '@/stores/StoreProvider';
 import ReflectionCard from '../components/ReflectionCard';
 import CommentThread from '../components/CommentThread';
 import { Theme } from '@/theme';
 
 type ReflectionDetailProps = NativeStackScreenProps<RootStackParamList, 'ReflectionDetail'>;
 
-const ReflectionDetail: React.FC<ReflectionDetailProps> = observer(({ navigation, route }) => {
+const ReflectionDetail = observer(({ navigation, route }: ReflectionDetailProps) => {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const scrollViewRef = useRef<ScrollView>(null);
-  const { user } = useAuth();
+  const { user } = useAuthStore();
   const reflectionStore = useReflectionStore();
   
   // Local UI state

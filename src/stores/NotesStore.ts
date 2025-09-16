@@ -1,7 +1,7 @@
-import { makeObservable, action, runInAction, computed } from 'mobx';
+import { makeAutoObservable, runInAction } from 'mobx';
 import { apiClient, endpoints } from '@/api/client';
 import { Note, PaginatedResponse } from '@/types';
-import { BaseStore } from './BaseStore';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export interface NotesState {
   notes: Note[];
@@ -43,35 +43,47 @@ const initialState: NotesState = {
   },
 };
 
-export class NotesStore extends BaseStore<NotesState> {
+export class NotesStore {
+  state: NotesState = initialState;
+
+  // Common store props
+  isLoading = false;
+  error: string | null = null;
+  private storageKey = 'notes_store';
+
   constructor() {
-    super(initialState, 'notes_store');
-    makeObservable(this, {
-      // Computed
-      notes: computed,
-      currentNote: computed,
-      pagination: computed,
-      filters: computed,
-      
-      // Actions
-      fetchNotes: action,
-      fetchNoteById: action,
-      createNote: action,
-      updateNote: action,
-      deleteNote: action,
-      likeNote: action,
-      shareNote: action,
-      pinNote: action,
-      bookmarkNote: action,
-      clearCurrentNote: action,
-      setFilters: action,
-      resetFilters: action,
-      searchNotes: action,
-      fetchPublicNotes: action,
-      fetchFeaturedNotes: action,
-      fetchNotesByUser: action,
-      fetchNotesByTheme: action,
+    this.state = initialState;
+    this.storageKey = 'notes_store';
+    
+    makeAutoObservable(this);
+    
+    // Load from storage asynchronously
+    AsyncStorage.getItem(this.storageKey).then(stored => {
+      if (stored) {
+        runInAction(() => {
+          this.state = { ...this.state, ...JSON.parse(stored) };
+        });
+      }
+    }).catch(error => {
+      console.error('Error loading notes store from storage:', error);
     });
+  }
+
+  private setLoading = (value: boolean) => {
+    this.isLoading = value;
+  };
+
+  private setError = (message: string | null) => {
+    this.error = message;
+  };
+
+  private async saveToStorage() {
+    try {
+      await AsyncStorage.setItem(this.storageKey, JSON.stringify(this.state));
+    } catch (error) {
+      console.error(`Error saving ${this.storageKey} to storage:`, error);
+      this.error = 'Failed to save data';
+    }
   }
 
   get notes() {
@@ -117,6 +129,8 @@ export class NotesStore extends BaseStore<NotesState> {
         };
         this.state.filters = { ...this.state.filters, ...filters };
       });
+      
+      await this.saveToStorage();
     } catch (error) {
       console.error('Error fetching notes:', error);
       this.setError('Failed to fetch notes');
@@ -140,6 +154,8 @@ export class NotesStore extends BaseStore<NotesState> {
         }
       });
       
+      await this.saveToStorage();
+      
       return response.data;
     } catch (error) {
       console.error(`Error fetching note ${id}:`, error);
@@ -159,6 +175,8 @@ export class NotesStore extends BaseStore<NotesState> {
         this.state.notes = [response.data, ...this.state.notes];
         this.state.currentNote = response.data;
       });
+      
+      await this.saveToStorage();
       
       return response.data;
     } catch (error) {
@@ -187,6 +205,8 @@ export class NotesStore extends BaseStore<NotesState> {
         }
       });
       
+      await this.saveToStorage();
+      
       return true;
     } catch (error) {
       console.error(`Error updating note ${id}:`, error);
@@ -208,6 +228,8 @@ export class NotesStore extends BaseStore<NotesState> {
           this.state.currentNote = null;
         }
       });
+      
+      await this.saveToStorage();
       
       return true;
     } catch (error) {
@@ -234,6 +256,8 @@ export class NotesStore extends BaseStore<NotesState> {
           this.state.currentNote = response.data;
         }
       });
+      
+      await this.saveToStorage();
       
       return response.data;
     } catch (error) {
@@ -270,6 +294,8 @@ export class NotesStore extends BaseStore<NotesState> {
         }
       });
       
+      await this.saveToStorage();
+      
       return response.data;
     } catch (error) {
       console.error(`Error pinning note ${noteId}:`, error);
@@ -289,14 +315,17 @@ export class NotesStore extends BaseStore<NotesState> {
 
   clearCurrentNote() {
     this.state.currentNote = null;
+    this.saveToStorage();
   }
 
   setFilters(filters: Partial<NotesState['filters']>) {
     this.state.filters = { ...this.state.filters, ...filters };
+    this.saveToStorage();
   }
 
   resetFilters() {
     this.state.filters = initialState.filters;
+    this.saveToStorage();
   }
 
   // Additional methods that were in the original store
@@ -323,6 +352,8 @@ export class NotesStore extends BaseStore<NotesState> {
           hasMore: response.data.meta.current_page < response.data.meta.last_page,
         };
       });
+      
+      await this.saveToStorage();
     } catch (error) {
       console.error('Error fetching notes by user:', error);
       this.setError('Failed to fetch user notes');

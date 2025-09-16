@@ -16,8 +16,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
 import { Theme } from '@/theme';
 import { ChevronLeft, Eye, EyeOff, Sparkle } from '@/components/Icons';
-import { useAuthStore } from '@/stores/AuthStore';
-import { useRegistrationStore } from '@/stores/RegistrationStore';
+import { useAuthStore, useRegistrationStore } from '@/stores/StoreProvider';
 import AvatarSelectionModal from '@/components/AvatarSelectionModal';
 import * as Haptics from 'expo-haptics';
 import { toast } from 'sonner-native';
@@ -26,7 +25,7 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 
 type RegistrationScreenProps = NativeStackScreenProps<RootStackParamList, 'RegistrationScreen'>;
 
-const RegistrationScreen: React.FC<RegistrationScreenProps> = observer(({ navigation }) => {
+const RegistrationScreen = observer(({ navigation }: RegistrationScreenProps) => {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const authStore = useAuthStore();

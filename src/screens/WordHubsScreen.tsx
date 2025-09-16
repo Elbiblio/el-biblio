@@ -42,19 +42,19 @@ import AvatarStack from '@/components/AvatarStack';
 import { observer } from 'mobx-react-lite';
 import { useWordHubsStore } from '@/stores/StoreProvider';
 
-import { useAuth } from '@/stores/auth';
+import { useAuthStore } from '@/stores/StoreProvider';
 import { useWebSocket } from '@/services/websocket';
 import { toast } from 'sonner-native';
 import { useGuestRestrictions } from '@/hooks/useGuestRestrictions';
 import GuestRestrictionModal from '@/components/GuestRestrictionModal';
 
-const WordHubsScreen: React.FC<NativeStackScreenProps<RootStackParamList, 'WordHubsScreen'>> = ({
+const WordHubsScreen = ({
   navigation,
-}) => {
+}: NativeStackScreenProps<RootStackParamList, 'WordHubsScreen'>) => {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const styles = React.useMemo(() => createStyles(theme), [theme]);
-  const { user } = useAuth();
+  const { user } = useAuthStore();
   const { restrictions } = useGuestRestrictions();
   const { isConnected: wsConnected } = useWebSocket();
 

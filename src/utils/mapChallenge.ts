@@ -21,6 +21,7 @@ export const mapChallenge = (b: BackendChallenge): Challenge => {
 
     upvotes: typeof b.upvotes_count === 'number' ? b.upvotes_count : undefined,
     hasUpvoted: typeof b.has_upvoted === 'boolean' ? b.has_upvoted : undefined,
+    isFeatured: typeof b.is_featured === 'boolean' ? b.is_featured : undefined,
 
     // participantAvatars are not provided here; leave undefined
   };

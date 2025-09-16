@@ -1,10 +1,11 @@
+import 'react-native-gesture-handler';
 import React, { useEffect, useState } from 'react';
+import { Text, View, StyleSheet, Button } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ThemeProvider, useTheme } from './src/contexts/ThemeContext';
-import { AuthProvider, useAuth } from './src/stores/auth';
 import { STORAGE_KEYS } from './src/stores/PreferencesStore';
 import { AppInitializationProvider, useAppInitialization } from './src/utils/appInitialization';
 import { WebSocketProvider } from './src/components/WebSocketProvider';
@@ -25,6 +26,7 @@ import { useAppFonts } from './src/hooks/useFonts';
 import { getTheme, ThemeVariant, defaultTheme } from './src/theme';
 import { Toaster } from 'sonner-native';
 import DailyChallengeScreen from './src/screens/DailyChallengeScreen';
+import ChallengeDetailScreen from './src/screens/ChallengeDetailScreen';
 import VirtueQuizScreen from './src/screens/VirtueQuizScreen';
 import VirtueScreen from './src/screens/VirtueScreen';
 import VerseBuilderScreen from './src/screens/VerseBuilderScreen';
@@ -41,8 +43,51 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { appStore } from './src/stores/appStore';
 import { StoreProvider } from './src/stores/StoreProvider';
 import { useWebSocketVerseSync } from './src/services/websocket';
+import { useAuthStore } from './src/stores/StoreProvider';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
+// Separate untyped stack for debug mode to avoid param list type errors
+const DebugStack = createNativeStackNavigator();
+
+// Toggle this to quickly isolate routing/render problems
+const DEBUG_MINIMAL = false;
+
+const DebugScreen = () => (
+  <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+    <Text style={{ fontSize: 18, marginBottom: 12 }}>Debug Screen Loaded</Text>
+    <Text style={{ opacity: 0.7 }}>If you see this, Navigation and RN rendering work.</Text>
+  </View>
+);
+
+class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { error: any }>{
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { error: null };
+  }
+  static getDerivedStateFromError(error: any) {
+    return { error };
+  }
+  componentDidCatch(error: any, info: any) {
+    console.error('[App] ErrorBoundary caught error', error, info);
+  }
+  render() {
+    if (this.state.error) {
+      return (
+        <SafeAreaProvider>
+          <GestureHandlerRootView style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+            <ThemeProvider initialTheme={defaultTheme}>
+              <Toaster />
+              <Text style={{ color: 'red', padding: 16, textAlign: 'center' }}>
+                Navigation error: {String(this.state.error?.message || this.state.error)}
+              </Text>
+            </ThemeProvider>
+          </GestureHandlerRootView>
+        </SafeAreaProvider>
+      );
+    }
+    return this.props.children as any;
+  }
+}
 
 const AppContent = () => {
   const [isLoading, setIsLoading] = useState(true);
@@ -51,9 +96,19 @@ const AppContent = () => {
   const [isSplashComplete, setIsSplashComplete] = useState(false);
   const { setInitialized } = useAppInitialization();
   const fontsLoaded = useAppFonts();
-  const { isInitialized: authInitialized, user, token } = useAuth();
+  const { isInitialized: authInitialized, user, token } = useAuthStore();
   const { hasCompletedWelcome, initializeWelcomeState } = appStore;
   
+  // Debug: log gate values to diagnose splash/blank screen issues
+  React.useEffect(() => {
+    console.log('[App] gates', {
+      fontsLoaded,
+      isLoading,
+      isSplashComplete,
+      authInitialized,
+    });
+  }, [fontsLoaded, isLoading, isSplashComplete, authInitialized]);
+
   useEffect(() => {
     const initialize = async () => {
       try {
@@ -110,7 +165,14 @@ const AppContent = () => {
   if (!fontsLoaded || isLoading || !isSplashComplete || !authInitialized) {
     return (
       <ThemeProvider initialTheme={defaultTheme} onThemeChange={handleThemeChange}>
-        <CustomSplash onAnimationComplete={() => setIsSplashComplete(true)} />
+        <View style={{ flex: 1 }}>
+          <CustomSplash onAnimationComplete={() => setIsSplashComplete(true)} />
+          <View style={stylesDebug.overlay} pointerEvents="none">
+            <Text style={stylesDebug.text}>
+              fontsLoaded: {String(fontsLoaded)} | isLoading: {String(isLoading)} | splash: {String(isSplashComplete)} | auth: {String(authInitialized)}
+            </Text>
+          </View>
+        </View>
       </ThemeProvider>
     );
   }
@@ -133,11 +195,18 @@ const AppContent = () => {
     };
 
     const initialRoute = getInitialRoute();
+    // Debug: log routing decision
+    console.log('[App] Navigation initial route', {
+      initialRoute,
+      hasCompletedWelcome,
+      hasUser: !!user,
+      hasToken: !!token,
+    });
     // Create a key that changes when the route should change to force re-render
     const navigatorKey = `${user?.id || 'no-user'}-${hasCompletedWelcome ? 'welcome-completed' : 'welcome-pending'}`;
 
     return (
-      <NavigationContainer>
+      <NavigationContainer onReady={() => console.log('[App] NavigationContainer onReady')}>
         <Stack.Navigator 
           key={navigatorKey}
           screenOptions={{ headerShown: false }}
@@ -150,6 +219,7 @@ const AppContent = () => {
           <Stack.Screen name="ReflectionDetail" component={ReflectionDetail} />
           <Stack.Screen name="DailyVersesScreen" component={DailyVersesScreen} />
           <Stack.Screen name="DailyChallengeScreen" component={DailyChallengeScreen} />
+          <Stack.Screen name="ChallengeDetail" component={ChallengeDetailScreen} />
           <Stack.Screen name="WordHubsScreen" component={WordHubsScreen} />
           <Stack.Screen name="MatchScreen" component={MatchScreen} />
           <Stack.Screen name="SavedItemsScreen" component={SavedItemsScreen} />
@@ -178,13 +248,13 @@ const AppContent = () => {
       onThemeChange={handleThemeChange}
     >
       <GestureHandlerRootView style={{ flex: 1 }}>
-        <StoreProvider>
+        <ErrorBoundary>
           {showThemeSelector ? (
             <ThemeSelector onSelect={handleThemeSelect} closeAfterSelection />
           ) : (
             <NavigationContent />
           )}
-        </StoreProvider>
+        </ErrorBoundary>
         <Toaster />
       </GestureHandlerRootView>
     </ThemeProvider>
@@ -192,17 +262,50 @@ const AppContent = () => {
 };
 
 const App = () => {
+  if (DEBUG_MINIMAL) {
+    // Minimal app that bypasses all providers and initialization
+    return (
+      <SafeAreaProvider>
+        <GestureHandlerRootView style={{ flex: 1 }}>
+          <ThemeProvider initialTheme={defaultTheme}>
+            <NavigationContainer>
+              <DebugStack.Navigator screenOptions={{ headerShown: false }} initialRouteName="Debug">
+                <DebugStack.Screen name="Debug" component={DebugScreen} />
+              </DebugStack.Navigator>
+            </NavigationContainer>
+          </ThemeProvider>
+        </GestureHandlerRootView>
+      </SafeAreaProvider>
+    );
+  }
+
   return (
     <SafeAreaProvider>
       <AppInitializationProvider>
-        <AuthProvider>
+        <StoreProvider>
           <WebSocketProvider>
             <AppContent />
           </WebSocketProvider>
-        </AuthProvider>
+        </StoreProvider>
       </AppInitializationProvider>
     </SafeAreaProvider>
   );
 };
+
+const stylesDebug = StyleSheet.create({
+  overlay: {
+    position: 'absolute',
+    bottom: 8,
+    right: 8,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  text: {
+    color: '#fff',
+    fontSize: 10,
+  },
+});
 
 export default App;

@@ -1,6 +1,6 @@
-import { makeObservable, action, runInAction, computed } from 'mobx';
+import { makeAutoObservable, runInAction } from 'mobx';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { apiClient, endpoints } from '@/api/client';
-import { BaseStore } from './BaseStore';
 import { Reflection, Comment, PaginatedResponse } from '@/types';
 
 export interface ReflectionFilters {
@@ -63,37 +63,48 @@ const initialState: ReflectionState = {
   },
 };
 
-export class ReflectionStore extends BaseStore<ReflectionState> {
+export class ReflectionStore {
+  state: ReflectionState = initialState;
+
+  // Common store props
+  isLoading = false;
+  error: string | null = null;
+  private storageKey = 'reflection_store';
+
   constructor() {
-    super(initialState, 'reflection_store');
-    makeObservable(this, {
-      fetchReflections: action,
-      fetchReflectionById: action,
-      fetchReflectionsByVerse: action,
-      fetchReflectionsByUser: action,
-      fetchFeaturedReflections: action,
-
-      createReflection: action,
-      updateReflection: action,
-      deleteReflection: action,
-
-      likeReflection: action,
-      shareReflection: action,
-
-      fetchComments: action,
-      createComment: action,
-      updateComment: action,
-      deleteComment: action,
-      likeComment: action,
-
-      clearCurrentReflection: action,
-      clearErrors: action,
-      setFilters: action,
-      resetFilters: action,
-      comments: computed,
-      isCommentsLoading: computed,
-      commentsError: computed,
+    this.state = initialState;
+    this.storageKey = 'reflection_store';
+    
+    // Ensure methods are auto-bound so calling them after destructuring keeps the correct `this`
+    makeAutoObservable(this, {}, { autoBind: true });
+    
+    // Load from storage asynchronously
+    AsyncStorage.getItem(this.storageKey).then(stored => {
+      if (stored) {
+        runInAction(() => {
+          this.state = { ...this.state, ...JSON.parse(stored) };
+        });
+      }
+    }).catch(error => {
+      console.error('Error loading reflection store from storage:', error);
     });
+  }
+
+  private setLoading = (value: boolean) => {
+    this.isLoading = value;
+  };
+
+  private setError = (message: string | null) => {
+    this.error = message;
+  };
+
+  private async saveToStorage() {
+    try {
+      await AsyncStorage.setItem(this.storageKey, JSON.stringify(this.state));
+    } catch (error) {
+      console.error(`Error saving ${this.storageKey} to storage:`, error);
+      this.error = 'Failed to save data';
+    }
   }
 
   private updatePagination(meta: any, page: number, currentCount: number) {
@@ -145,6 +156,8 @@ export class ReflectionStore extends BaseStore<ReflectionState> {
         this.state.filters = currentFilters;
         this.state.isReflectionsLoading = false;
       });
+      
+      await this.saveToStorage();
     } catch (error: any) {
       console.error('Error fetching reflections:', error);
       runInAction(() => {
@@ -169,6 +182,8 @@ export class ReflectionStore extends BaseStore<ReflectionState> {
         this.state.currentReflection = response.data;
         this.state.isReflectionLoading = false;
       });
+      
+      await this.saveToStorage();
 
       return response.data;
     } catch (error: any) {
@@ -203,6 +218,8 @@ export class ReflectionStore extends BaseStore<ReflectionState> {
         this.state.filters = { ...this.state.filters, verseId };
         this.state.isReflectionsLoading = false;
       });
+      
+      await this.saveToStorage();
     } catch (error: any) {
       console.error('Error fetching verse reflections:', error);
       runInAction(() => {
@@ -234,6 +251,8 @@ export class ReflectionStore extends BaseStore<ReflectionState> {
         this.state.filters = { ...this.state.filters, userId };
         this.state.isReflectionsLoading = false;
       });
+      
+      await this.saveToStorage();
     } catch (error: any) {
       console.error('Error fetching user reflections:', error);
       runInAction(() => {
@@ -264,6 +283,8 @@ export class ReflectionStore extends BaseStore<ReflectionState> {
         this.state.pagination = this.updatePagination(meta, page, Array.isArray(data) ? data.length : 0);
         this.state.isReflectionsLoading = false;
       });
+      
+      await this.saveToStorage();
     } catch (error: any) {
       console.error('Error fetching featured reflections:', error);
       runInAction(() => {
@@ -281,6 +302,8 @@ export class ReflectionStore extends BaseStore<ReflectionState> {
         this.state.reflections = [newReflection, ...this.state.reflections];
         this.state.currentReflection = newReflection;
       });
+      
+      await this.saveToStorage();
       return newReflection;
     } catch (error) {
       console.error('Error creating reflection:', error);
@@ -296,6 +319,8 @@ export class ReflectionStore extends BaseStore<ReflectionState> {
         this.state.reflections = this.state.reflections.map(r => (r.id === id ? updated : r));
         if (this.state.currentReflection?.id === id) this.state.currentReflection = updated;
       });
+      
+      await this.saveToStorage();
       return true;
     } catch (error) {
       console.error('Error updating reflection:', error);
@@ -310,6 +335,8 @@ export class ReflectionStore extends BaseStore<ReflectionState> {
         this.state.reflections = this.state.reflections.filter(r => r.id !== id);
         if (this.state.currentReflection?.id === id) this.state.currentReflection = null;
       });
+      
+      await this.saveToStorage();
       return true;
     } catch (error) {
       console.error('Error deleting reflection:', error);
@@ -326,6 +353,8 @@ export class ReflectionStore extends BaseStore<ReflectionState> {
         this.state.reflections = this.state.reflections.map(update);
         if (this.state.currentReflection) this.state.currentReflection = update(this.state.currentReflection);
       });
+      
+      await this.saveToStorage();
       return true;
     } catch (error) {
       console.error('Error liking reflection:', error);
@@ -341,6 +370,8 @@ export class ReflectionStore extends BaseStore<ReflectionState> {
         this.state.reflections = this.state.reflections.map(update);
         if (this.state.currentReflection) this.state.currentReflection = update(this.state.currentReflection);
       });
+      
+      await this.saveToStorage();
       return true;
     } catch (error) {
       console.error('Error sharing reflection:', error);
@@ -369,6 +400,8 @@ export class ReflectionStore extends BaseStore<ReflectionState> {
         this.state.pagination = this.updatePagination(meta, page, Array.isArray(data) ? data.length : 0);
         this.state.isCommentsLoading = false;
       });
+      
+      await this.saveToStorage();
     } catch (error: any) {
       console.error('Error fetching comments:', error);
       runInAction(() => {
@@ -385,6 +418,8 @@ export class ReflectionStore extends BaseStore<ReflectionState> {
       runInAction(() => {
         this.state.comments = [newComment, ...this.state.comments];
       });
+      
+      await this.saveToStorage();
       return newComment;
     } catch (error) {
       console.error('Error creating comment:', error);
@@ -399,6 +434,8 @@ export class ReflectionStore extends BaseStore<ReflectionState> {
       runInAction(() => {
         this.state.comments = this.state.comments.map(c => (c.id === id ? updated : c));
       });
+      
+      await this.saveToStorage();
       return true;
     } catch (error) {
       console.error('Error updating comment:', error);
@@ -412,6 +449,8 @@ export class ReflectionStore extends BaseStore<ReflectionState> {
       runInAction(() => {
         this.state.comments = this.state.comments.filter(c => c.id !== id);
       });
+      
+      await this.saveToStorage();
       return true;
     } catch (error) {
       console.error('Error deleting comment:', error);
@@ -426,6 +465,8 @@ export class ReflectionStore extends BaseStore<ReflectionState> {
         const update = (c: Comment) => (c.id === commentId ? { ...c, likes: c.likes + 1, isLiked: true } : c);
         this.state.comments = this.state.comments.map(update);
       });
+      
+      await this.saveToStorage();
       return true;
     } catch (error) {
       console.error('Error liking comment:', error);
@@ -439,6 +480,8 @@ export class ReflectionStore extends BaseStore<ReflectionState> {
       this.state.isReflectionLoading = false;
       this.state.reflectionError = null;
     });
+    
+    this.saveToStorage();
   }
 
   clearErrors() {
@@ -447,18 +490,24 @@ export class ReflectionStore extends BaseStore<ReflectionState> {
       this.state.reflectionError = null;
       this.state.commentsError = null;
     });
+    
+    this.saveToStorage();
   }
 
   setFilters(filters: Partial<ReflectionFilters>) {
     runInAction(() => {
       this.state.filters = { ...this.state.filters, ...filters };
     });
+    
+    this.saveToStorage();
   }
 
   resetFilters() {
     runInAction(() => {
       this.state.filters = { sortBy: 'created_at', sortOrder: 'desc' };
     });
+    
+    this.saveToStorage();
   }
 
   get comments(): Comment[] {

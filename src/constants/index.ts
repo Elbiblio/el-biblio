@@ -139,7 +139,7 @@ export const STEPS: OnboardingStep[] = [
     subtitle: 'The Foundation',
     description: 'Understanding God and His purpose gives us the wisdom to begin our spiritual journey. When combined with other virtues, it helps us make wise choices, understand others, and grow in discernment.',
     practices: [
-      'Read scripture with intention, not just for information',
+      'Read with intention, yearn to know God',
       'Write down at least one insight a week',
       'Share what you learn with at least one person per week'
     ],
@@ -150,11 +150,11 @@ export const STEPS: OnboardingStep[] = [
     id: 'humility',
     title: 'Humility',
     subtitle: 'The Soil',
-    description: 'Once we gain knowledge, humility prepares our hearts to grow. It allows us to set aside our ego, learn from others, and create space for honesty, justice and transformation. Combined with other virtues, it enables patience, gentleness, and self-control.',
+    description: 'Humility is the bedrock of spiritual growth. We must fully cast aside our ego to completely avail ourselves to learn from and be of service to others; and create space for honesty, justice and transformation. Combined with other virtues, it enables patience, gentleness, and self-control.',
     practices: [
       'Listen twice as much as you speak',
       'Acknowledge at least one mistake per week and learn from it',
-      'Serve someone without seeking recognition'
+      'Serve someone quietly without seeking recognition'
     ],
     Icon: Cross,
     color: '#638B6C', // Sage theme primary
@@ -163,10 +163,10 @@ export const STEPS: OnboardingStep[] = [
     id: 'faith',
     title: 'Faith',
     subtitle: 'The Strength',
-    description: 'Built on knowledge and humility, faith gives us courage and zeal to trust and follow in God\'s ways. It provides the strength to persist in difficulties and the passion and hope to await divine justice and perfection. When combined with other virtues, it produces perseverance, peace, and fortitude.',
+    description: 'Backed by knowledge and humility, faith gives us courage and zeal to trust, act and follow God\'s ways. It provides the strength to persist in difficulties and the passion and hope to await divine justice and perfection. When combined with other virtues, it produces perseverance, fortitude and peace.',
     practices: [
-      'Say more thanksgiving and virtue seeking prayers than material needs',
-      'Take a leap of faith in helping/blessing someone per week',
+      'Take a leap of faith in helping/blessing someone every month',
+      'Go the extra mile in doing good as a means of thanksgiving',
       'Record/share your testimony of God\'s faithfulness weekly'
     ],
     Icon: HomeLight,
@@ -176,7 +176,7 @@ export const STEPS: OnboardingStep[] = [
     id: 'love',
     title: 'Love',
     subtitle: 'The Fullness',
-    description: 'Supported by knowledge, humility, and faith, love brings all virtues to their fullness. It transforms our relationships with God and others. Combined with other virtues, it produces joy, kindness, and goodness.',
+    description: 'Supported by knowledge, humility, and faith, love brings all virtues to their fullness. It continually transforms our relationships with God and others. Combined with other virtues, it produces joy, kindness, and goodness.',
     practices: [
       'Identify at least one person in need around you per week',
       'Put their needs before your own comfort',

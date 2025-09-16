@@ -1,5 +1,5 @@
-import { makeObservable, action, runInAction, observable } from 'mobx';
-import { BaseStore } from '@/stores/BaseStore';
+import { makeAutoObservable, runInAction } from 'mobx';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { apiClient } from '@/api/client';
 import { Virtue, AppVirtue, VirtueProgress } from '@/types';
 import { RootStore } from '@/stores/RootStore';
@@ -41,11 +41,32 @@ interface VirtueQuizStoreState {
   error: string | null;
 }
 
-export class VirtueQuizStore extends BaseStore<VirtueQuizStoreState> {
+export class VirtueQuizStore {
+  state: VirtueQuizStoreState = {
+    showConfetti: false,
+    selectedVirtue: null,
+    selectedLevel: null,
+    quizStarted: false,
+    quizCompleted: false,
+    currentQuestionIndex: 0,
+    score: 0,
+    questions: [],
+    selectedAnswer: null,
+    isAnswerCorrect: null,
+    showExplanation: false,
+    isLoading: false,
+    error: null,
+  };
+
+  // Common store props
+  isLoading = false;
+  error: string | null = null;
+  private storageKey = 'virtue_quiz_store';
+
   private rootStore: RootStore;
 
   constructor(rootStore: RootStore) {
-    super({
+    this.state = {
       showConfetti: false,
       selectedVirtue: null,
       selectedLevel: null,
@@ -59,24 +80,38 @@ export class VirtueQuizStore extends BaseStore<VirtueQuizStoreState> {
       showExplanation: false,
       isLoading: false,
       error: null,
-    });
-
+    };
+    this.storageKey = 'virtue_quiz_store';
     this.rootStore = rootStore;
-
-    makeObservable(this, {
-      // Actions
-      selectVirtue: action.bound,
-      selectLevel: action.bound,
-      startQuiz: action.bound,
-      handleAnswerSelection: action.bound,
-      goToNextQuestion: action.bound,
-      restartQuiz: action.bound,
-      reset: action.bound,
-      fetchQuizQuestions: action.bound,
-      loadInitialData: action.bound,
-      selectDifferentVirtue: action.bound,
-      triggerConfetti: action.bound,
+    makeAutoObservable(this, {}, { autoBind: true });
+    
+    // Load from storage asynchronously
+    AsyncStorage.getItem(this.storageKey).then(stored => {
+      if (stored) {
+        runInAction(() => {
+          this.state = { ...this.state, ...JSON.parse(stored) };
+        });
+      }
+    }).catch(error => {
+      console.error('Error loading virtue quiz store from storage:', error);
     });
+  }
+
+  private setLoading = (value: boolean) => {
+    this.isLoading = value;
+  };
+
+  private setError = (message: string | null) => {
+    this.error = message;
+  };
+
+  private async saveToStorage() {
+    try {
+      await AsyncStorage.setItem(this.storageKey, JSON.stringify(this.state));
+    } catch (error) {
+      console.error(`Error saving ${this.storageKey} to storage:`, error);
+      this.error = 'Failed to save data';
+    }
   }
 
   // Computed Getters
@@ -152,10 +187,12 @@ export class VirtueQuizStore extends BaseStore<VirtueQuizStoreState> {
   selectVirtue(virtue: AppVirtue | null) {
     this.state.selectedVirtue = virtue;
     this.state.selectedLevel = null; // Reset level when virtue changes
+    this.saveToStorage();
   }
 
   selectLevel(level: number) {
     this.state.selectedLevel = level;
+    this.saveToStorage();
   }
 
   async startQuiz() {
@@ -176,6 +213,7 @@ export class VirtueQuizStore extends BaseStore<VirtueQuizStoreState> {
             this.state.isAnswerCorrect = null;
             this.state.showExplanation = false;
         });
+        await this.saveToStorage();
     }
   }
 
@@ -198,6 +236,8 @@ export class VirtueQuizStore extends BaseStore<VirtueQuizStoreState> {
       runInAction(() => {
         this.state.questions = response.data!;
       });
+      
+      await this.saveToStorage();
     } catch (error: any) {
       const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
       this.setError(errorMessage);
@@ -221,6 +261,8 @@ export class VirtueQuizStore extends BaseStore<VirtueQuizStoreState> {
         }
         this.state.showExplanation = true;
     });
+    
+    await this.saveToStorage();
 
     try {
         await apiClient.post<{ correct: boolean }>(`/quiz-questions/${currentQuestion.id}/answer`, { answer });
@@ -237,6 +279,7 @@ export class VirtueQuizStore extends BaseStore<VirtueQuizStoreState> {
         this.state.isAnswerCorrect = null;
         this.state.showExplanation = false;
       });
+      this.saveToStorage();
     } else {
       this.completeQuiz();
     }
@@ -259,6 +302,8 @@ export class VirtueQuizStore extends BaseStore<VirtueQuizStoreState> {
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
             toast.success(`Quiz completed! You earned ${points} points.`);
         });
+        
+        await this.saveToStorage();
     } catch (error) {
         console.error('Failed to complete quiz', error);
         toast.error('There was an error saving your quiz results.');
@@ -279,6 +324,8 @@ export class VirtueQuizStore extends BaseStore<VirtueQuizStoreState> {
     runInAction(() => {
       this.state.showConfetti = show;
     });
+    
+    this.saveToStorage();
   }
 
   reset() {
@@ -295,5 +342,6 @@ export class VirtueQuizStore extends BaseStore<VirtueQuizStoreState> {
     this.state.showExplanation = false;
     this.setError(null);
     this.setLoading(false);
+    this.saveToStorage();
   }
 }

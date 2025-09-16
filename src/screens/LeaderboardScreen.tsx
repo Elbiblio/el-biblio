@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { observer } from 'mobx-react-lite';
 import {
   View,
   Text,
@@ -13,8 +14,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
 import { Theme, ThemeVariant } from '@/theme';
-import { useAuth } from '@/stores/auth';
-import { useLeaderboardStore } from '@/stores/leaderboard';
+import { useAuthStore, useLeaderboardStore } from '@/stores/StoreProvider';
 import * as Haptics from 'expo-haptics';
 import { ArrowLeft, Award, ChevronUp, ChevronDown, Filter, Users, Fire, Calendar } from '@/components/Icons';
 import { AllVirtues, LeaderboardEntry } from '@/types';
@@ -23,31 +23,35 @@ import { toast } from 'sonner-native';
 type TimeFilter = 'all' | 'day' | 'week' | 'month';
 type LeaderboardType = 'global' | 'theme' | 'timeframe';
 
-const LeaderboardScreen = ({ navigation }: any) => {
+const LeaderboardScreen = observer(({ navigation }: any) => {
   const theme = useTheme();
-  const { user } = useAuth();
+  const { user } = useAuthStore();
   const styles = useMemo(() => createStyles(theme), [theme]);
   
-  // Leaderboard store
+  const leaderboardStore = useLeaderboardStore();
+  const { 
+    globalLeaderboard, 
+    themeLeaderboard, 
+    timeframeLeaderboard, 
+    isGlobalLoading, 
+    isThemeLoading, 
+    isTimeframeLoading, 
+    globalError, 
+    themeError, 
+    timeframeError, 
+    pagination, 
+    filters 
+  } = leaderboardStore.state;
+  
   const {
-    globalLeaderboard,
-    themeLeaderboard,
-    timeframeLeaderboard,
-    isGlobalLoading,
-    isThemeLoading,
-    isTimeframeLoading,
-    globalError,
-    themeError,
-    timeframeError,
-    pagination,
-    filters,
     fetchGlobalLeaderboard,
     fetchThemeLeaderboard,
     fetchTimeframeLeaderboard,
     fetchUserRank,
     clearErrors,
     setFilters,
-  } = useLeaderboardStore();
+    loadMoreGlobalLeaderboard,
+  } = leaderboardStore;
 
   const [timeFilter, setTimeFilter] = useState<TimeFilter>('all');
   const [leaderboardType, setLeaderboardType] = useState<LeaderboardType>('global');
@@ -132,7 +136,7 @@ const LeaderboardScreen = ({ navigation }: any) => {
 
   const handleLoadMore = () => {
     if (pagination.hasMore && !isLoading) {
-      loadLeaderboard(pagination.currentPage + 1);
+      leaderboardStore.loadMoreGlobalLeaderboard();
     }
   };
 
@@ -414,7 +418,7 @@ const LeaderboardScreen = ({ navigation }: any) => {
       />
     </SafeAreaView>
   );
-};
+});
 
 const createStyles = (theme: Theme) => StyleSheet.create({
   container: {

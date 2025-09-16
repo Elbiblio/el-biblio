@@ -1,5 +1,5 @@
-import { makeObservable, action, runInAction } from 'mobx';
-import { BaseStore } from '@/stores/BaseStore';
+import { makeAutoObservable, runInAction } from 'mobx';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { apiClient, endpoints } from '@/api/client';
 import { Verse, Reflection, UserInteraction, Bookmark } from '@/types';
 
@@ -30,54 +30,78 @@ interface VerseStoreState {
   lastUpdate: Date | null;
 }
 
-export class VerseStore extends BaseStore<VerseStoreState> {
+export class VerseStore {
+  state: VerseStoreState = {
+    dailyVerses: [],
+    isDailyVersesLoading: false,
+    dailyVersesError: null,
+
+    currentVerse: null,
+    isVerseLoading: false,
+    isReflectionsLoading: false,
+    verseError: null,
+
+    trendingVerses: [],
+    featuredVerses: [],
+    isTrendingLoading: false,
+    isFeaturedLoading: false,
+
+    userInteractions: new Map(),
+    bookmarks: new Map(),
+
+    isConnected: false,
+    lastUpdate: null,
+  };
+
+  // Common store props
+  isLoading = false;
+  error: string | null = null;
+  private storageKey = 'verse_store';
+
   constructor() {
-    super({
-      dailyVerses: [],
-      isDailyVersesLoading: false,
-      dailyVersesError: null,
-
-      currentVerse: null,
-      isVerseLoading: false,
-      isReflectionsLoading: false,
-      verseError: null,
-
-      trendingVerses: [],
-      featuredVerses: [],
-      isTrendingLoading: false,
-      isFeaturedLoading: false,
-
-      userInteractions: new Map(),
-      bookmarks: new Map(),
-
-      isConnected: false,
-      lastUpdate: null,
+    this.storageKey = 'verse_store';
+    makeAutoObservable(this, {}, { autoBind: true });
+    
+    // Load from storage asynchronously
+    AsyncStorage.getItem(this.storageKey).then(stored => {
+      if (stored) {
+        runInAction(() => {
+          this.state = { ...this.state, ...JSON.parse(stored) };
+        });
+      }
+    }).catch(error => {
+      console.error('Error loading verse store from storage:', error);
     });
+  }
 
-    makeObservable(this, {
-      fetchDailyVerses: action.bound,
-      fetchVerseById: action.bound,
-      fetchVerseOnly: action.bound,
-      fetchTrendingVerses: action.bound,
-      fetchFeaturedVerses: action.bound,
-      fetchVersesByTheme: action.bound,
-      searchVerses: action.bound,
-      createInteraction: action.bound,
-      createBookmark: action.bound,
-      removeBookmark: action.bound,
-      voteVerse: action.bound,
-      likeVerse: action.bound,
-      shareVerse: action.bound,
-      createReflection: action.bound,
-      updateVerseVotes: action.bound,
-      updateVerseLikes: action.bound,
-      updateVerseShares: action.bound,
-      addNewVerse: action.bound,
-      updateVerse: action.bound,
-      clearCurrentVerse: action.bound,
-      clearErrors: action.bound,
-      setConnectionStatus: action.bound,
-    });
+  private setLoading = (value: boolean) => {
+    this.isLoading = value;
+  };
+
+  private setError = (message: string | null) => {
+    this.error = message;
+  };
+
+  private async saveToStorage() {
+    try {
+      await AsyncStorage.setItem(this.storageKey, JSON.stringify(this.state));
+    } catch (error) {
+      console.error(`Error saving ${this.storageKey} to storage:`, error);
+      this.error = 'Failed to save data';
+    }
+  }
+
+  // --- Getters ---
+  get currentVerse(): Verse | null {
+    return this.state.currentVerse;
+  }
+
+  get isVerseLoading(): boolean {
+    return this.state.isVerseLoading;
+  }
+
+  get isReflectionsLoading(): boolean {
+    return this.state.isReflectionsLoading;
   }
 
   async fetchDailyVerses() {
@@ -102,6 +126,8 @@ export class VerseStore extends BaseStore<VerseStoreState> {
         this.state.dailyVerses = response.data;
         this.state.isDailyVersesLoading = false;
       });
+      
+      await this.saveToStorage();
     } catch (error: any) {
       console.error('Error fetching daily verses:', error);
       runInAction(() => {
@@ -155,6 +181,8 @@ export class VerseStore extends BaseStore<VerseStoreState> {
         this.state.currentVerse = response.data;
         this.state.isVerseLoading = false;
       });
+      
+      await this.saveToStorage();
 
       return response.data;
     } catch (error: any) {
@@ -189,6 +217,8 @@ export class VerseStore extends BaseStore<VerseStoreState> {
         this.state.trendingVerses = response.data;
         this.state.isTrendingLoading = false;
       });
+      
+      await this.saveToStorage();
     } catch (error: any) {
       console.error('Error fetching trending verses:', error);
       runInAction(() => {
@@ -219,6 +249,8 @@ export class VerseStore extends BaseStore<VerseStoreState> {
         this.state.featuredVerses = response.data;
         this.state.isFeaturedLoading = false;
       });
+      
+      await this.saveToStorage();
     } catch (error: any) {
       console.error('Error fetching featured verses:', error);
       runInAction(() => {
@@ -288,6 +320,8 @@ export class VerseStore extends BaseStore<VerseStoreState> {
           interaction
         );
       });
+      
+      await this.saveToStorage();
 
       return true;
     } catch (error) {
@@ -315,6 +349,8 @@ export class VerseStore extends BaseStore<VerseStoreState> {
           bookmark
         );
       });
+      
+      await this.saveToStorage();
 
       return true;
     } catch (error) {
@@ -338,6 +374,8 @@ export class VerseStore extends BaseStore<VerseStoreState> {
       runInAction(() => {
         this.state.bookmarks.delete(bookmarkKey);
       });
+      
+      await this.saveToStorage();
 
       return true;
     } catch (error) {
@@ -362,6 +400,8 @@ export class VerseStore extends BaseStore<VerseStoreState> {
           };
         }
       });
+      
+      await this.saveToStorage();
 
       return true;
     } catch (error) {
@@ -386,6 +426,8 @@ export class VerseStore extends BaseStore<VerseStoreState> {
           };
         }
       });
+      
+      await this.saveToStorage();
 
       return true;
     } catch (error) {
@@ -409,6 +451,8 @@ export class VerseStore extends BaseStore<VerseStoreState> {
           };
         }
       });
+      
+      await this.saveToStorage();
 
       return true;
     } catch (error) {
@@ -440,6 +484,8 @@ export class VerseStore extends BaseStore<VerseStoreState> {
           };
         }
       });
+      
+      await this.saveToStorage();
 
       return reflection;
     } catch (error) {
@@ -455,6 +501,8 @@ export class VerseStore extends BaseStore<VerseStoreState> {
       this.state.isReflectionsLoading = false;
       this.state.verseError = null;
     });
+    
+    this.saveToStorage();
   }
 
   clearErrors() {
@@ -462,6 +510,8 @@ export class VerseStore extends BaseStore<VerseStoreState> {
       this.state.dailyVersesError = null;
       this.state.verseError = null;
     });
+    
+    this.saveToStorage();
     this.setError(null);
   }
 
@@ -481,6 +531,8 @@ export class VerseStore extends BaseStore<VerseStoreState> {
       this.state.currentVerse = this.state.currentVerse ? updateVerse(this.state.currentVerse) : null;
       this.state.lastUpdate = new Date();
     });
+    
+    this.saveToStorage();
   }
 
   updateVerseLikes(verseId: string, likes: number, isLiked: boolean) {
@@ -498,6 +550,8 @@ export class VerseStore extends BaseStore<VerseStoreState> {
       this.state.currentVerse = this.state.currentVerse ? updateVerse(this.state.currentVerse) : null;
       this.state.lastUpdate = new Date();
     });
+    
+    this.saveToStorage();
   }
 
   updateVerseShares(verseId: string, shares: number) {
@@ -515,6 +569,8 @@ export class VerseStore extends BaseStore<VerseStoreState> {
       this.state.currentVerse = this.state.currentVerse ? updateVerse(this.state.currentVerse) : null;
       this.state.lastUpdate = new Date();
     });
+    
+    this.saveToStorage();
   }
 
   addNewVerse(verse: Verse) {
@@ -522,6 +578,8 @@ export class VerseStore extends BaseStore<VerseStoreState> {
       this.state.dailyVerses = [verse, ...this.state.dailyVerses];
       this.state.lastUpdate = new Date();
     });
+    
+    this.saveToStorage();
   }
 
   updateVerse(verse: Verse) {
@@ -536,12 +594,16 @@ export class VerseStore extends BaseStore<VerseStoreState> {
       this.state.currentVerse = this.state.currentVerse?.id === verse.id ? verse : this.state.currentVerse;
       this.state.lastUpdate = new Date();
     });
+    
+    this.saveToStorage();
   }
 
   setConnectionStatus(isConnected: boolean) {
     runInAction(() => {
       this.state.isConnected = isConnected;
     });
+    
+    this.saveToStorage();
   }
 }
 

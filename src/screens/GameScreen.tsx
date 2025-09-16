@@ -7,17 +7,16 @@ import { BookOpen, Trophy, Lightning, Flame, ChevronRight } from '@/components/I
 import { RootStackParamList, GameId } from '@/types';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useTheme } from '@/contexts/ThemeContext';
-import { useGameStore, useLeaderboardStore } from '@/stores/StoreProvider';
-import { useAuth } from '@/stores/auth';
+import { useAuthStore, useGameStore, useLeaderboardStore } from '@/stores/StoreProvider';
 import { useGameBadgeStore } from '@/stores/GameBadgeStore';
 
-const GameScreen: React.FC = () => {
+const GameScreen = () => {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const gameStore = useGameStore();
   const leaderboardStore = useLeaderboardStore();
-  const authStore = useAuth();
+  const authStore = useAuthStore();
   const gameBadgeStore = useGameBadgeStore();
 
   const { user } = authStore;

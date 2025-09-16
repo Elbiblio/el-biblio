@@ -28,8 +28,7 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import Svg, { Path } from 'react-native-svg';
 import FooterFlourish from '@/components/FooterFlourish';
 
-const NoteDetailScreen: React.FC<NativeStackScreenProps<RootStackParamList, 'NoteDetail'>> =
- ({ navigation, route }) => {
+const NoteDetailScreen = ({ navigation, route }: NativeStackScreenProps<RootStackParamList, 'NoteDetail'>) => {
   const { noteId } = route.params;
   const theme = useTheme();
   const insets = useSafeAreaInsets();

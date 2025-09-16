@@ -1,9 +1,9 @@
-import { makeObservable, action, runInAction, computed } from 'mobx';
+import { makeAutoObservable, runInAction } from 'mobx';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { apiClient, endpoints } from '@/api/client';
 import { Challenge, ChallengeType, DailyChallenge, BackendChallenge, BackendChallengeParticipantsResponse } from '@/types/challenges';
 import { mapChallenge } from '@/utils/mapChallenge';
 import { PaginatedResponse } from '@/types';
-import { BaseStore } from './BaseStore';
 import { toast } from 'sonner-native';
 
 export type ChallengeCategory = 'personal' | 'community' | 'suggested';
@@ -45,56 +45,49 @@ const initialState: ChallengeState = {
   },
 };
 
-export class ChallengeStore extends BaseStore<ChallengeState> {
+export class ChallengeStore {
+  state: ChallengeState = initialState;
+
+  // Common store props
+  isLoading = false;
+  error: string | null = null;
+  private storageKey = 'challenge_store';
+
   constructor() {
-    super(initialState, 'challenge_store');
-    makeObservable(this, {
-      // Computed
-      personalChallenges: computed,
-      communityChallenges: computed,
-      suggestedChallenges: computed,
-      activeCategory: computed,
-      showNewChallengeForm: computed,
-      refreshing: computed,
-      // Compatibility computed flags (legacy Zustand props)
-      isPersonalLoading: computed,
-      isCommunityLoading: computed,
-      isSuggestedLoading: computed,
-      isCreatingLoading: computed,
-      isJoiningLoading: computed,
-      isUpvotingLoading: computed,
-      personalError: computed,
-      communityError: computed,
-      suggestedError: computed,
-      createError: computed,
-      
-      // Actions
-      fetchPersonalChallenges: action,
-      fetchCommunityChallenges: action,
-      fetchSuggestedChallenges: action,
-      fetchDailyChallenges: action,
-      createChallenge: action,
-      updateChallenge: action,
-      deleteChallenge: action,
-      joinChallenge: action,
-      leaveChallenge: action,
-      upvoteChallenge: action,
-      completeChallenge: action,
-      addSuggestedToPersonal: action,
-      setActiveCategory: action,
-      setShowNewChallengeForm: action,
-      setRefreshing: action,
-      refreshAll: action,
-      refreshChallenges: action,
-      fetchChallengeParticipants: action,
-      clearErrors: action,
-    });
+    this.state = initialState;
+    this.storageKey = 'challenge_store';
     
-    // Initialize the store
-    this.initialize();
+    // Ensure methods are auto-bound so calling them after destructuring keeps the correct `this`
+    makeAutoObservable(this, {}, { autoBind: true });
+    
+    // Load from storage asynchronously
+    AsyncStorage.getItem(this.storageKey).then(stored => {
+      if (stored) {
+        runInAction(() => {
+          this.state = { ...this.state, ...JSON.parse(stored) };
+        });
+      }
+    }).catch(error => {
+      console.error('Error loading challenge store from storage:', error);
+    });
   }
 
-  // Getters for computed values
+  private setLoading = (value: boolean) => {
+    this.isLoading = value;
+  };
+
+  private setError = (message: string | null) => {
+    this.error = message;
+  };
+
+  private async saveToStorage() {
+    try {
+      await AsyncStorage.setItem(this.storageKey, JSON.stringify(this.state));
+    } catch (error) {
+      console.error(`Error saving ${this.storageKey} to storage:`, error);
+      this.error = 'Failed to save data';
+    }
+  }
   get challenges() {
     return {
       personal: this.state.personalChallenges,
@@ -144,11 +137,14 @@ export class ChallengeStore extends BaseStore<ChallengeState> {
   private async initialize() {
     try {
       this.setLoading(true);
-      await Promise.all([
+      const results = await Promise.allSettled([
         this.fetchPersonalChallenges(),
         this.fetchCommunityChallenges(),
         this.fetchSuggestedChallenges(),
       ]);
+      if (results.every(r => r.status === 'rejected')) {
+        this.setError('Failed to initialize challenge data');
+      }
     } catch (error) {
       console.error('Error initializing challenge store:', error);
       this.setError('Failed to initialize challenge data');
@@ -209,21 +205,28 @@ export class ChallengeStore extends BaseStore<ChallengeState> {
         endpoints.challenges.personal,
         { page }
       );
+      if (!response.success || !response.data) {
+        throw new Error(response.message || 'Failed to fetch personal challenges');
+      }
       
       runInAction(() => {
-        const mapped = response.data.data.map(mapChallenge);
+        const payload = response.data as any;
+        const list = (payload.data ?? payload) as BackendChallenge[];
+        const meta = payload.meta ?? payload?.data?.meta;
+        const mapped = list.map(mapChallenge);
         this.state.personalChallenges = page === 1 
           ? mapped 
           : [...this.state.personalChallenges, ...mapped];
           
-        this.updatePagination(response.data.meta, page);
+        this.updatePagination(meta, page);
       });
       
+      await this.saveToStorage();
       return this.state.personalChallenges;
     } catch (error) {
       console.error('Error fetching personal challenges:', error);
       this.setError('Failed to fetch personal challenges');
-      throw error;
+      return [];
     } finally {
       this.setLoading(false);
     }
@@ -236,21 +239,28 @@ export class ChallengeStore extends BaseStore<ChallengeState> {
         endpoints.challenges.community,
         { page }
       );
+      if (!response.success || !response.data) {
+        throw new Error(response.message || 'Failed to fetch community challenges');
+      }
       
       runInAction(() => {
-        const mapped = response.data.data.map(mapChallenge);
+        const payload = response.data as any;
+        const list = (payload.data ?? payload) as BackendChallenge[];
+        const meta = payload.meta ?? payload?.data?.meta;
+        const mapped = list.map(mapChallenge);
         this.state.communityChallenges = page === 1 
           ? mapped 
           : [...this.state.communityChallenges, ...mapped];
           
-        this.updatePagination(response.data.meta, page);
+        this.updatePagination(meta, page);
       });
       
+      await this.saveToStorage();
       return this.state.communityChallenges;
     } catch (error) {
       console.error('Error fetching community challenges:', error);
       this.setError('Failed to fetch community challenges');
-      throw error;
+      return [];
     } finally {
       this.setLoading(false);
     }
@@ -263,21 +273,28 @@ export class ChallengeStore extends BaseStore<ChallengeState> {
         endpoints.challenges.suggested,
         { page }
       );
+      if (!response.success || !response.data) {
+        throw new Error(response.message || 'Failed to fetch suggested challenges');
+      }
       
       runInAction(() => {
-        const mapped = response.data.data.map(mapChallenge);
+        const payload = response.data as any;
+        const list = (payload.data ?? payload) as BackendChallenge[];
+        const meta = payload.meta ?? payload?.data?.meta;
+        const mapped = list.map(mapChallenge);
         this.state.suggestedChallenges = page === 1 
           ? mapped 
           : [...this.state.suggestedChallenges, ...mapped];
           
-        this.updatePagination(response.data.meta, page);
+        this.updatePagination(meta, page);
       });
       
+      await this.saveToStorage();
       return this.state.suggestedChallenges;
     } catch (error) {
       console.error('Error fetching suggested challenges:', error);
       this.setError('Failed to fetch suggested challenges');
-      throw error;
+      return [];
     } finally {
       this.setLoading(false);
     }
@@ -353,6 +370,7 @@ export class ChallengeStore extends BaseStore<ChallengeState> {
         this.state.pagination.total += 1;
       });
       
+      await this.saveToStorage();
       toast.success('Challenge created successfully');
       return this.getChallengeById(String((response.data as any).id));
     } catch (error) {
@@ -375,6 +393,7 @@ export class ChallengeStore extends BaseStore<ChallengeState> {
         this.replaceChallengeInLists(id, mapped);
       });
       
+      await this.saveToStorage();
       toast.success('Challenge updated successfully');
       return this.getChallengeById(id);
     } catch (error) {
@@ -401,6 +420,7 @@ export class ChallengeStore extends BaseStore<ChallengeState> {
         this.state.pagination.total = Math.max(0, this.state.pagination.total - 1);
       });
       
+      await this.saveToStorage();
       toast.success('Challenge deleted successfully');
       return true;
     } catch (error) {
@@ -426,6 +446,7 @@ export class ChallengeStore extends BaseStore<ChallengeState> {
         });
       });
       
+      await this.saveToStorage();
       toast.success('Successfully joined the challenge');
       return this.getChallengeById(challengeId);
     } catch (error) {
@@ -451,6 +472,7 @@ export class ChallengeStore extends BaseStore<ChallengeState> {
         });
       });
       
+      await this.saveToStorage();
       toast.success('Successfully left the challenge');
       return this.getChallengeById(challengeId);
     } catch (error) {
@@ -466,7 +488,7 @@ export class ChallengeStore extends BaseStore<ChallengeState> {
     try {
       this.setLoading(true);
       const response = await apiClient.post<BackendChallenge>(endpoints.challenges.upvote(challengeId));
-      const mapped = mapChallenge(response.data as unknown as BackendChallenge);
+      const mapped = mapChallenge(response.data as BackendChallenge);
       
       runInAction(() => {
         // Update counts and toggle locally based on new counts
@@ -476,6 +498,7 @@ export class ChallengeStore extends BaseStore<ChallengeState> {
         });
       });
       
+      await this.saveToStorage();
       return { hasUpvoted: mapped.hasUpvoted, upvotes: mapped.upvotes };
     } catch (error) {
       console.error(`Error upvoting challenge ${challengeId}:`, error);
@@ -494,13 +517,14 @@ export class ChallengeStore extends BaseStore<ChallengeState> {
       );
       
       runInAction(() => {
-        const mapped = mapChallenge(response.data as unknown as BackendChallenge);
+        const mapped = mapChallenge(response.data as BackendChallenge);
         // Update the challenge in all lists
         this.updateChallengeInLists(challengeId, {
           isCompleted: mapped.isCompleted,
         });
       });
       
+      await this.saveToStorage();
       toast.success(`Challenge marked as ${isCompleted ? 'completed' : 'incomplete'}`);
       return this.getChallengeById(challengeId);
     } catch (error) {
@@ -536,6 +560,7 @@ export class ChallengeStore extends BaseStore<ChallengeState> {
         this.state.suggestedChallenges = this.state.suggestedChallenges.filter(c => c.id !== challengeId);
       });
       
+      await this.saveToStorage();
       return personalChallenge;
     } catch (error) {
       console.error(`Error adding suggested challenge ${challengeId} to personal:`, error);
@@ -588,12 +613,30 @@ export class ChallengeStore extends BaseStore<ChallengeState> {
 
   // Helper methods
   private updatePagination(meta: any, currentPage: number) {
+    // Some endpoints return an array (no pagination meta). In that case, avoid errors and set safe defaults.
+    if (meta && typeof meta === 'object' &&
+        (typeof meta.last_page !== 'undefined' || typeof meta.current_page !== 'undefined')) {
+      const lastPage = Number(meta.last_page ?? currentPage) || currentPage;
+      const perPage = Number(meta.per_page ?? this.state.pagination.perPage) || this.state.pagination.perPage;
+      const total = Number(meta.total ?? this.state.pagination.total) || this.state.pagination.total;
+      const current = Number(meta.current_page ?? currentPage) || currentPage;
+      this.state.pagination = {
+        currentPage: current,
+        lastPage,
+        perPage,
+        total,
+        hasMore: current < lastPage,
+      };
+      return;
+    }
+
+    // No meta provided: set hasMore to false and preserve prior totals/perPage
     this.state.pagination = {
       currentPage,
-      lastPage: meta.last_page,
-      perPage: meta.per_page,
-      total: meta.total,
-      hasMore: meta.current_page < meta.last_page,
+      lastPage: currentPage,
+      perPage: this.state.pagination.perPage,
+      total: this.state.pagination.total,
+      hasMore: false,
     };
   }
 

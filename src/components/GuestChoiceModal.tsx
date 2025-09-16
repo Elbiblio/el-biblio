@@ -6,7 +6,9 @@ import {
   StyleSheet,
   Modal,
   Pressable,
+  useWindowDimensions,
 } from 'react-native';
+
 import { BlurView } from 'expo-blur';
 import { useTheme } from '@/contexts/ThemeContext';
 import { Theme } from '@/theme';
@@ -27,7 +29,10 @@ const GuestChoiceModal: React.FC<GuestChoiceModalProps> = ({
   onContinueAsGuest,
 }) => {
   const theme = useTheme();
-  const styles = React.useMemo(() => createStyles(theme), [theme]);
+  const { width, height } = useWindowDimensions();
+  const isSmallWidth = width < 360;
+  const isTabletish = width >= 768;
+  const styles = React.useMemo(() => createStyles(theme, { isSmallWidth, isTabletish }), [theme, isSmallWidth, isTabletish]);
 
   const handleRegister = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -53,9 +58,7 @@ const GuestChoiceModal: React.FC<GuestChoiceModalProps> = ({
             <View style={styles.header}>
               <Sparkle size={32} color={theme.colors.primary} />
               <Text style={styles.title}>Welcome to El-biblio</Text>
-              <Text style={styles.subtitle}>
-                Choose how you'd like to start your spiritual journey
-              </Text>
+              <Text style={styles.subtitle}>How would you like to start?</Text>
             </View>
 
             <View style={styles.options}>
@@ -68,14 +71,12 @@ const GuestChoiceModal: React.FC<GuestChoiceModalProps> = ({
                   <Users size={28} color={theme.colors.primary} />
                 </View>
                 <View style={styles.optionContent}>
-                  <Text style={styles.optionTitle}>Create Account</Text>
-                  <Text style={styles.optionDescription}>
-                    Join the community, share notes, participate in discussions, and access all features
-                  </Text>
+                  <Text style={styles.optionTitle}>Create account</Text>
+                  <Text style={styles.optionDescription}>Join the community and unlock all features.</Text>
                   <View style={styles.features}>
-                    <Text style={styles.feature}>✓ Full community access</Text>
-                    <Text style={styles.feature}>✓ Share notes & reflections</Text>
-                    <Text style={styles.feature}>✓ Grow with community</Text>
+                    <Text style={styles.feature}>✓ Full access</Text>
+                    <Text style={styles.feature}>✓ Share notes</Text>
+                    <Text style={styles.feature}>✓ Community growth</Text>
                   </View>
                 </View>
               </TouchableOpacity>
@@ -89,13 +90,11 @@ const GuestChoiceModal: React.FC<GuestChoiceModalProps> = ({
                   <User size={28} color={theme.colors.text.secondary} />
                 </View>
                 <View style={styles.optionContent}>
-                  <Text style={styles.optionTitle}>Continue as Guest</Text>
-                  <Text style={styles.optionDescription}>
-                    Start exploring immediately with limited features. You can always register later
-                  </Text>
+                  <Text style={styles.optionTitle}>Continue as guest</Text>
+                  <Text style={styles.optionDescription}>Explore now with limited features. You can register anytime.</Text>
                   <View style={styles.features}>
-                    <Text style={styles.feature}>✗ Access to meditation</Text>
-                    <Text style={styles.feature}>✗ No community features</Text>
+                    <Text style={styles.feature}>• Some features locked</Text>
+                    <Text style={styles.feature}>• No community tools</Text>
                   </View>
                 </View>
               </TouchableOpacity>
@@ -105,7 +104,7 @@ const GuestChoiceModal: React.FC<GuestChoiceModalProps> = ({
               style={styles.cancelButton}
               onPress={onClose}
             >
-              <Text style={styles.cancelText}>Maybe Later</Text>
+              <Text style={styles.cancelText}>Maybe later</Text>
             </TouchableOpacity>
           </View>
         </Pressable>
@@ -114,7 +113,7 @@ const GuestChoiceModal: React.FC<GuestChoiceModalProps> = ({
   );
 };
 
-const createStyles = (theme: Theme) => StyleSheet.create({
+const createStyles = (theme: Theme, opts: { isSmallWidth: boolean; isTabletish: boolean }) => StyleSheet.create({
   overlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
@@ -122,8 +121,8 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     alignItems: 'center',
   },
   container: {
-    width: '90%',
-    maxWidth: 400,
+    width: opts.isTabletish ? '70%' : '90%',
+    maxWidth: opts.isTabletish ? 520 : 420,
     backgroundColor: theme.colors.background,
     borderRadius: 20,
     overflow: 'hidden',
@@ -134,32 +133,32 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     shadowRadius: 12,
   },
   content: {
-    padding: theme.spacing.xl,
+    padding: opts.isSmallWidth ? theme.spacing.lg : theme.spacing.xl,
   },
   header: {
     alignItems: 'center',
-    marginBottom: theme.spacing.xl,
+    marginBottom: opts.isSmallWidth ? theme.spacing.lg : theme.spacing.xl,
   },
   title: {
     ...theme.typography.heading.large,
     color: theme.colors.text.primary,
     textAlign: 'center',
-    marginTop: theme.spacing.md,
-    marginBottom: theme.spacing.sm,
+    marginTop: opts.isSmallWidth ? theme.spacing.sm : theme.spacing.md,
+    marginBottom: opts.isSmallWidth ? theme.spacing.xs : theme.spacing.sm,
   },
   subtitle: {
     ...theme.typography.body.sans,
     color: theme.colors.text.secondary,
     textAlign: 'center',
-    lineHeight: 20,
+    lineHeight: opts.isSmallWidth ? 18 : 20,
   },
   options: {
-    gap: theme.spacing.lg,
-    marginBottom: theme.spacing.xl,
+    gap: opts.isSmallWidth ? theme.spacing.md : theme.spacing.lg,
+    marginBottom: opts.isSmallWidth ? theme.spacing.lg : theme.spacing.xl,
   },
   option: {
     flexDirection: 'row',
-    padding: theme.spacing.lg,
+    padding: opts.isSmallWidth ? theme.spacing.md : theme.spacing.lg,
     borderRadius: 16,
     borderWidth: 2,
     borderColor: 'transparent',
@@ -173,13 +172,13 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     borderColor: `${theme.colors.text.secondary}20`,
   },
   optionIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: opts.isSmallWidth ? 40 : 48,
+    height: opts.isSmallWidth ? 40 : 48,
+    borderRadius: opts.isSmallWidth ? 20 : 24,
     backgroundColor: theme.colors.background,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: theme.spacing.md,
+    marginRight: opts.isSmallWidth ? theme.spacing.sm : theme.spacing.md,
   },
   optionContent: {
     flex: 1,
@@ -187,25 +186,25 @@ const createStyles = (theme: Theme) => StyleSheet.create({
   optionTitle: {
     ...theme.typography.heading.small,
     color: theme.colors.text.primary,
-    marginBottom: theme.spacing.xs,
+    marginBottom: opts.isSmallWidth ? 2 : theme.spacing.xs,
   },
   optionDescription: {
     ...theme.typography.body.sans,
     color: theme.colors.text.secondary,
-    lineHeight: 18,
-    marginBottom: theme.spacing.sm,
+    lineHeight: opts.isSmallWidth ? 16 : 18,
+    marginBottom: opts.isSmallWidth ? theme.spacing.xs : theme.spacing.sm,
   },
   features: {
-    gap: 2,
+    gap: opts.isSmallWidth ? 1 : 2,
   },
   feature: {
     ...theme.typography.caption.primary,
     color: theme.colors.text.secondary,
-    fontSize: 12,
+    fontSize: opts.isSmallWidth ? 11 : 12,
   },
   cancelButton: {
     alignItems: 'center',
-    paddingVertical: theme.spacing.md,
+    paddingVertical: opts.isSmallWidth ? theme.spacing.sm : theme.spacing.md,
   },
   cancelText: {
     ...theme.typography.body.sans,
@@ -214,4 +213,4 @@ const createStyles = (theme: Theme) => StyleSheet.create({
   },
 });
 
-export default GuestChoiceModal; 
+export default GuestChoiceModal;

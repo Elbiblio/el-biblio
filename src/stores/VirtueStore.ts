@@ -1,5 +1,5 @@
-import { makeObservable, action, runInAction } from 'mobx';
-import { BaseStore } from '@/stores/BaseStore';
+import { runInAction, makeAutoObservable } from 'mobx';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { apiClient, endpoints } from '@/api/client';
 import { Virtue, VirtueProgress, VIRTUE_NOTES, AppVirtue, VirtueGroups, AllVirtues, FoundationalVirtue } from '@/types';
 import { toast } from 'sonner-native';
@@ -60,12 +60,52 @@ interface VirtueStoreState {
   // Real-time updates
   isConnected: boolean;
   lastUpdate: Date | null;
+  // Current focus/goal virtue
+  currentGoalVirtueId?: string;
 }
 
-export class VirtueStore extends BaseStore<VirtueStoreState> {
+export class VirtueStore {
+  state: VirtueStoreState;
+  error: string | null = null;
   // Public Getters
   get virtues() {
     return this.state.virtues;
+  }
+
+  // Current Goal persistence
+  private CURRENT_GOAL_KEY = 'virtue_store.current_goal_virtue_id';
+
+  get currentGoalVirtueId() {
+    return this.state.currentGoalVirtueId;
+  }
+
+  async setCurrentGoal(virtueId?: string) {
+    try {
+      runInAction(() => {
+        this.state.currentGoalVirtueId = virtueId;
+      });
+      if (virtueId) {
+        await AsyncStorage.setItem(this.CURRENT_GOAL_KEY, virtueId);
+      } else {
+        await AsyncStorage.removeItem(this.CURRENT_GOAL_KEY);
+      }
+      toast.success(virtueId ? 'Current goal set' : 'Current goal cleared');
+    } catch (error) {
+      console.error('Error setting current goal virtue:', error);
+    }
+  }
+
+  private async loadCurrentGoal() {
+    try {
+      const stored = await AsyncStorage.getItem(this.CURRENT_GOAL_KEY);
+      if (stored) {
+        runInAction(() => {
+          this.state.currentGoalVirtueId = stored;
+        });
+      }
+    } catch (error) {
+      console.warn('Failed to load current goal virtue');
+    }
   }
 
   get userProgress() {
@@ -88,8 +128,24 @@ export class VirtueStore extends BaseStore<VirtueStoreState> {
     return this.state.progressError;
   }
 
+  get virtueNotes() {
+    return this.state.virtueNotes;
+  }
+
+  get isNotesLoading() {
+    return this.state.isNotesLoading;
+  }
+
+  get notesError() {
+    return this.state.notesError;
+  }
+
+  get virtueGroups() {
+    return this.state.virtueGroups;
+  }
+
   constructor() {
-    super({
+    this.state = {
       virtues: [],
       isVirtuesLoading: false,
       virtuesError: null,
@@ -128,31 +184,17 @@ export class VirtueStore extends BaseStore<VirtueStoreState> {
 
       isConnected: false,
       lastUpdate: null,
-    });
+      currentGoalVirtueId: undefined,
+    };
 
-    makeObservable(this, {
-      fetchVirtues: action.bound,
-      fetchVirtueById: action.bound,
-      fetchUserProgress: action.bound,
-      updateUserProgress: action.bound,
-      fetchVirtueNotes: action.bound,
-      createVirtueNote: action.bound,
-      updateVirtueNote: action.bound,
-      deleteVirtueNote: action.bound,
-      fetchFeaturedVirtues: action.bound,
-      fetchVirtueGroups: action.bound,
-      fetchQuizQuestions: action.bound,
-      submitQuizAnswer: action.bound,
-      completeQuiz: action.bound,
-      likeVirtue: action.bound,
-      bookmarkVirtue: action.bound,
-      shareVirtue: action.bound,
-      setConnectionStatus: action.bound,
-      updateVirtueInRealTime: action.bound,
-      updateProgressInRealTime: action.bound,
-      clearErrors: action.bound,
-      resetQuizState: action.bound,
-    });
+    makeAutoObservable(this, {}, { autoBind: true });
+
+    // Load persisted goal from storage
+    this.loadCurrentGoal().catch(() => {});
+  }
+
+  private setError(message: string | null) {
+    this.error = message;
   }
 
   async fetchVirtues(page = 1) {

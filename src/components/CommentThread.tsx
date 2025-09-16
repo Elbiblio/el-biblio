@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { observer } from 'mobx-react-lite';
 import {
   View,
   Text,
@@ -245,4 +246,4 @@ const createStyles = (theme: Theme) => StyleSheet.create({
   },
 });
 
-export default React.memo(CommentThread);
+export default observer(CommentThread);

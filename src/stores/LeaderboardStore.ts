@@ -1,5 +1,4 @@
-import { makeObservable, action, runInAction, computed } from 'mobx';
-import { BaseStore } from '@/stores/BaseStore';
+import { runInAction, makeAutoObservable } from 'mobx';
 import { apiClient, endpoints } from '@/api/client';
 import { LeaderboardEntry, UserStats, PaginatedResponse, BackendUserStats } from '@/types';
 
@@ -59,9 +58,13 @@ interface LeaderboardStoreState {
   };
 }
 
-export class LeaderboardStore extends BaseStore<LeaderboardStoreState> {
+export class LeaderboardStore {
+  state: LeaderboardStoreState;
+  // Optional general error holder
+  error: string | null = null;
+
   constructor() {
-    super({
+    this.state = {
       globalLeaderboard: [],
       isGlobalLoading: false,
       globalError: null,
@@ -94,22 +97,14 @@ export class LeaderboardStore extends BaseStore<LeaderboardStoreState> {
         timeframe: 'all',
         perPage: 20,
       },
-    });
+    };
 
-    makeObservable(this, {
-      userStats: computed,
-      fetchGlobalLeaderboard: action.bound,
-      fetchThemeLeaderboard: action.bound,
-      fetchTimeframeLeaderboard: action.bound,
-      fetchUserRank: action.bound,
-      fetchUserStats: action.bound,
-      fetchGlobalStats: action.bound,
-      refreshGlobalLeaderboard: action.bound,
-      loadMoreGlobalLeaderboard: action.bound,
-      setFilters: action.bound,
-      resetFilters: action.bound,
-      clearErrors: action.bound,
-    });
+    // Auto-bind class methods so `this` remains correct when methods are passed around
+    makeAutoObservable(this, {}, { autoBind: true });
+  }
+
+  private setError(message: string | null) {
+    this.error = message;
   }
 
   async refreshGlobalLeaderboard(timeframe: Timeframe = 'all') {

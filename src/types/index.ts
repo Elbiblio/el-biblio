@@ -217,7 +217,7 @@ export const THEMES: Record<ThemeInfo['id'], ThemeInfo> = {
     subtitle: 'The Foundation',
     description: 'Understanding God and His purpose gives us the wisdom to begin our spiritual journey. When combined with other virtues, it helps us make wise choices, understand others, and grow in discernment.',
     practices: [
-      'Read scripture with intention, not just for information',
+      'Read with intention, yearn to know God',
       'Write down at least one insight a week',
       'Share what you learn with at least one person per week'
     ],
@@ -231,7 +231,7 @@ export const THEMES: Record<ThemeInfo['id'], ThemeInfo> = {
     summary: 'Trust and courage in God\'s ways',
     related: "trust, hope, perseverance, courage, fortitude",
     subtitle: 'The Strength',
-    description: 'Built on knowledge and humility, faith gives us courage and zeal to trust and follow in God\'s ways. It provides the strength to persist in difficulties and the passion and hope to await divine justice and perfection. When combined with other virtues, it produces perseverance, peace, and fortitude.',
+    description: 'Backed by knowledge and humility, faith gives us courage and zeal to trust and follow in God\'s ways. It provides the strength to persist in difficulties and the passion and hope to await divine justice and perfection. When combined with other virtues, it produces perseverance, peace, and fortitude.',
     practices: [
       'Say more thanksgiving and virtue seeking prayers than material needs',
       'Take a leap of faith in helping/blessing someone per week',
@@ -247,7 +247,7 @@ export const THEMES: Record<ThemeInfo['id'], ThemeInfo> = {
     summary: 'Setting aside ego to learn and grow',
     related: "patience, obedience,gentleness, self-restraint, self-control",
     subtitle: 'The Soil',
-    description: 'Once we gain knowledge, humility prepares our hearts to grow. It allows us to set aside our ego, learn from others, and create space for honesty, justice and transformation. Combined with other virtues, it enables patience, gentleness, and self-control.',
+    description: 'Humility is the bedrock of spiritual growth. We must fully cast aside our ego to completely avail ourselves to learn from and be of service to others; and create space for honesty, justice and transformation. Combined with other virtues, it enables patience, gentleness, and self-control.',
     practices: [
       'Listen twice as much as you speak',
       'Acknowledge at least one mistake per week and learn from it',
@@ -440,6 +440,7 @@ export interface Bookmark {
   bookmarkable_id: number;
   bookmarkable_type: string;
   clip_text?: string;
+  is_pinned?: boolean;
   created_at: string;
   updated_at: string;
   bookmarkable?: {
@@ -629,6 +630,7 @@ export type RootStackParamList = {
   VirtueQuizScreen: { virtueId?: string, level?: number };
   QuizDetail: { id: string };
   BibleScreen: {book?: string, chapter?: number, verse?: number};
+  ChallengeDetail: { id: string };
 };
 
 export interface BibleVersion {

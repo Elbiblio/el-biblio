@@ -104,4 +104,4 @@ const getStyles = (theme: any) =>
       }),
     },
   });
-export default React.memo(CircleButton);
+export default CircleButton;

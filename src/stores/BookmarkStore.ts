@@ -1,19 +1,44 @@
 import { makeAutoObservable, runInAction } from 'mobx';
 import { apiClient, endpoints } from '@/api/client';
 import { Bookmark, PaginatedResponse } from '@/types';
-import { BaseStore } from './BaseStore';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 interface BookmarkStoreState {
   bookmarks: Bookmark[];
 }
 
-class BookmarkStore extends BaseStore<BookmarkStoreState> {
+export class BookmarkStore {
+  state: BookmarkStoreState = {
+    bookmarks: [],
+  };
+
+  isLoading = false;
+  error: string | null = null;
+  private storageKey = 'bookmarks_store';
+
   constructor() {
-    super({
-      bookmarks: [],
-    }, 'bookmarks_store');
-    
     makeAutoObservable(this);
+  }
+
+  private setLoading = (value: boolean) => {
+    this.isLoading = value;
+  };
+
+  private setError = (message: string | null) => {
+    this.error = message;
+  };
+
+  private async saveToStorage() {
+    try {
+      await AsyncStorage.setItem(this.storageKey, JSON.stringify(this.state));
+    } catch (error) {
+      console.error(`Error saving ${this.storageKey} to storage:`, error);
+      this.error = 'Failed to save data';
+    }
+  }
+
+  get bookmarks() {
+    return this.state.bookmarks;
   }
 
   fetchBookmarks = async (params?: {
@@ -113,10 +138,3 @@ class BookmarkStore extends BaseStore<BookmarkStoreState> {
     }
   };
 }
-
-// Create a singleton instance
-export const bookmarkStore = new BookmarkStore();
-
-// For backward compatibility
-export const useBookmarkStore = () => bookmarkStore;
-export default bookmarkStore;

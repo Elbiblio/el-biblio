@@ -1,5 +1,4 @@
-import { makeObservable, action, runInAction } from 'mobx';
-import { BaseStore } from '@/stores/BaseStore';
+import { runInAction, makeAutoObservable } from 'mobx';
 import { apiClient } from '@/api/client';
 import { GameId, GameScore, LeaderboardEntry, PaginatedResponse } from '@/types';
 
@@ -29,9 +28,13 @@ interface GameStoreState {
   pagination: PaginationState;
 }
 
-export class GameStore extends BaseStore<GameStoreState> {
+export class GameStore {
+  state: GameStoreState;
+  // General error holder
+  error: string | null = null;
+
   constructor() {
-    super({
+    this.state = {
       personalBests: {},
       unsyncedScores: [],
       leaderboards: {},
@@ -46,15 +49,13 @@ export class GameStore extends BaseStore<GameStoreState> {
         total: 0,
         hasMore: false,
       },
-    });
+    };
 
-    makeObservable(this, {
-      initialize: action.bound,
-      sync: action.bound,
-      submitScore: action.bound,
-      fetchLeaderboard: action.bound,
-      clearErrors: action.bound,
-    });
+    makeAutoObservable(this, {}, { autoBind: true });
+  }
+
+  private setError(message: string | null) {
+    this.error = message;
   }
 
   async initialize() {

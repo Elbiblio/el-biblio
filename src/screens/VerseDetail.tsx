@@ -43,7 +43,7 @@ import { observer } from 'mobx-react-lite';
 
 type VerseDetailProps = NativeStackScreenProps<RootStackParamList, 'VerseDetail'>;
 
-const VerseDetail: React.FC<VerseDetailProps> = ({ navigation, route }) => {
+const VerseDetail = ({ navigation, route }: VerseDetailProps) => {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const { user } = useAuthStore();
@@ -610,6 +610,9 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     opacity: 0.5,
   },
   submitText: {
+    ...theme.typography.caption.primary,
+    color: theme.colors.text.inverse,
+  },
 });
 
 export default observer(VerseDetail);

@@ -39,7 +39,6 @@ import Animated, {
   runOnJS
 } from 'react-native-reanimated';
 import { useTheme } from '@/contexts/ThemeContext';
-import { useAuth } from '@/stores/auth';
 import { useVirtueQuizStore } from '@/stores/StoreProvider';
 import { observer } from 'mobx-react-lite';
 import { Theme } from '@/theme';
@@ -72,7 +71,7 @@ type QuizQuestion = {
   level: number;
 };
 
-const VirtueQuizScreen = observer(({ navigation }: NativeStackScreenProps<RootStackParamList, 'VirtueQuizScreen'>) => {
+const VirtueQuizScreen = observer(({ navigation, route }: NativeStackScreenProps<RootStackParamList, 'VirtueQuizScreen'>) => {
   const insets = useSafeAreaInsets();
   const theme = useTheme();
   const store = useVirtueQuizStore();
@@ -108,6 +107,24 @@ const VirtueQuizScreen = observer(({ navigation }: NativeStackScreenProps<RootSt
   useEffect(() => {
     store.loadInitialData();
   }, [store]);
+
+  // If navigated with params, auto-select virtue and level and start quiz
+  useEffect(() => {
+    const virtueId = (route?.params as any)?.virtueId as string | undefined;
+    const level = (route?.params as any)?.level as number | undefined;
+    if (!virtueId || !level) return;
+
+    // Wait until virtues are loaded and quiz not started yet
+    if (store.quizStarted) return;
+    if (!store.virtues || store.virtues.length === 0) return;
+
+    const v = store.virtues.find(v => v.id === virtueId);
+    if (!v) return;
+    const app = mapVirtueToAppVirtue(v);
+    store.selectVirtue(app);
+    store.selectLevel(level);
+    store.startQuiz();
+  }, [route?.params, store.virtues, store.quizStarted]);
 
   useEffect(() => {
     if (quizStarted) {

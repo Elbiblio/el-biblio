@@ -13,6 +13,7 @@ export interface Challenge {
   expiresAt: string;
   isCompleted: boolean;
   userId: string;
+  isFeatured?: boolean;
   
   // For community challenges
   participants?: number;
@@ -87,6 +88,7 @@ export interface BackendChallenge {
   upvotes_count?: number;
   has_upvoted?: boolean;
   is_joined?: boolean;
+  is_featured?: boolean;
   completed_at?: string | null;
   // allow extra fields without typing every one
   [key: string]: any;
