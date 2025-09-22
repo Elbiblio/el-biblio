@@ -31,6 +31,7 @@ import ThemeInfo from '@/modals/ThemeInfo';
 import { useVerseStore, useAuthStore } from '@/stores/StoreProvider';
 import { toast } from 'sonner-native';
 import { observer } from 'mobx-react-lite';
+import EmptyState from '@/components/EmptyState';
 
 
 const DailyVersesScreen = ({ navigation }: NativeStackScreenProps<RootStackParamList, 'DailyVersesScreen'>) => {
@@ -142,8 +143,16 @@ const DailyVersesScreen = ({ navigation }: NativeStackScreenProps<RootStackParam
     description: selectedTheme.description || '',
   };
 
+  // Safely resolve ThemeInfo for a verse, with a sensible default
+  const getThemeInfoForVerse = React.useCallback((verse: Verse) => {
+    const name = verse?.theme?.name as FoundationalVirtue | undefined;
+    const info = name ? THEMES[name] : undefined;
+    // Default to 'faith' theme if not resolvable
+    return info ?? THEMES['faith'];
+  }, []);
+
   const renderVerseCard = useCallback((verse: Verse) => {
-    const themeInfo = THEMES[verse.theme?.name as FoundationalVirtue];
+    const themeInfo = getThemeInfoForVerse(verse);
 
     return (
       <View
@@ -239,7 +248,7 @@ const DailyVersesScreen = ({ navigation }: NativeStackScreenProps<RootStackParam
         </TouchableOpacity>
       </View>
     );
-  }, [theme, setSelectedVerse, handleVote, user]);
+  }, [theme, setSelectedVerse, handleVote, user, getThemeInfoForVerse]);
 
   return (
     <>
@@ -309,15 +318,12 @@ const DailyVersesScreen = ({ navigation }: NativeStackScreenProps<RootStackParam
               <ActivityIndicator size="large" color={theme.colors.primary} />
             </View>
           ) : dailyVersesError ? (
-            <View style={styles.errorContainer}>
-              <Text style={styles.errorText}>{dailyVersesError}</Text>
-              <TouchableOpacity
-                style={styles.retryButton}
-                onPress={fetchDailyVerses}
-              >
-                <Text style={styles.retryText}>Retry</Text>
-              </TouchableOpacity>
-            </View>
+            <EmptyState
+              title="Failed to load verses"
+              message={dailyVersesError}
+              ctaText="Retry"
+              onPressCTA={fetchDailyVerses}
+            />
           ) : (
             <>
               <Text style={[
@@ -355,13 +361,10 @@ const DailyVersesScreen = ({ navigation }: NativeStackScreenProps<RootStackParam
 
               {/* Empty State */}
               {(selectedTab === 'current' ? sortedVerses.current : sortedVerses.upcoming).length === 0 && (
-                <View style={styles.emptyStateContainer}>
-                  <Text style={styles.emptyStateText}>
-                    {selectedTab === 'current'
-                      ? "Today's verses will be available soon!"
-                      : "Tomorrow's verses will be available later today!"}
-                  </Text>
-                </View>
+                <EmptyState
+                  title={selectedTab === 'current' ? "No verses for today yet" : "No verses scheduled yet"}
+                  message={selectedTab === 'current' ? "Today's verses will be available soon." : "Tomorrow's verses will be available later today."}
+                />
               )}
             </>
           )}

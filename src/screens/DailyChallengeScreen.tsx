@@ -12,6 +12,7 @@ import {
   RefreshControl,
   ActivityIndicator
 } from 'react-native';
+import { Modal } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   ArrowLeft,
@@ -46,6 +47,7 @@ import { useChallengeStore } from '@/stores/ChallengeStore';
 import { Theme } from '@/theme';
 import { Challenge, ChallengeType } from '@/types/challenges';
 import * as Haptics from 'expo-haptics';
+import EmptyState from '@/components/EmptyState';
 
 type DailyChallengesProps = {
   navigation: any;
@@ -103,6 +105,7 @@ const DailyChallengesScreen = ({ navigation }: DailyChallengesProps) => {
     upvoteChallenge,
     completeChallenge,
     addSuggestedToPersonal,
+    voteChallenge,
     
     // State management
     setActiveCategory,
@@ -120,6 +123,11 @@ const DailyChallengesScreen = ({ navigation }: DailyChallengesProps) => {
     endTime: '21:00',
     description: '',
   });
+  const [showSuggestModal, setShowSuggestModal] = useState(false);
+  const [showVoteModal, setShowVoteModal] = useState(false);
+  const [voteTargetId, setVoteTargetId] = useState<string | null>(null);
+  const [voteSpiritual, setVoteSpiritual] = useState(3);
+  const [voteEffort, setVoteEffort] = useState(3);
   
   // Animation values
   const headerHeight = useSharedValue(0);
@@ -247,12 +255,42 @@ const DailyChallengesScreen = ({ navigation }: DailyChallengesProps) => {
       );
       return;
     }
-    
-    // Navigate to suggest challenge screen or show modal
-    Alert.alert(
-      'Suggest Challenge',
-      'This would open a form to suggest a new community challenge.'
-    );
+    setShowSuggestModal(true);
+  };
+
+  const handleSubmitSuggestion = async () => {
+    if (!newChallenge.title.trim()) {
+      Alert.alert('Error', 'Please enter a challenge title');
+      return;
+    }
+    const result = await createChallenge({
+      title: newChallenge.title,
+      description: newChallenge.description || '',
+      type: newChallenge.type,
+      category: 'community',
+      endTime: newChallenge.endTime,
+      isPublic: true,
+    });
+    if (result) {
+      setShowSuggestModal(false);
+      setNewChallenge({ title: '', type: 'virtue', endTime: '21:00', description: '' });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    }
+  };
+
+  const openVoteModal = (challengeId: string) => {
+    setVoteTargetId(challengeId);
+    setVoteSpiritual(3);
+    setVoteEffort(3);
+    setShowVoteModal(true);
+  };
+
+  const submitVote = async () => {
+    if (!voteTargetId) return;
+    await voteChallenge(voteTargetId, { spiritual: voteSpiritual, effort: voteEffort });
+    setShowVoteModal(false);
+    setVoteTargetId(null);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   };
   
   const getTimeRemaining = (endTime: string) => {
@@ -288,6 +326,13 @@ const DailyChallengesScreen = ({ navigation }: DailyChallengesProps) => {
     const timeRemaining = getTimeRemaining(challenge.endTime);
     const isExpired = timeRemaining === 'Expired';
 
+    const createdAt = new Date(challenge.createdAt);
+    const now = new Date();
+    const ms3days = 3 * 24 * 60 * 60 * 1000;
+    const withinWindow = now.getTime() - createdAt.getTime() < ms3days;
+    const belowCap = (challenge.upvotes || 0) < 100;
+    const canVote = !challenge.hasUpvoted && withinWindow && belowCap;
+
     return (
       <TouchableOpacity style={styles.challengeCard} key={challenge.id} onPress={() => navigation.navigate('ChallengeDetail', { id: challenge.id })}>
         <LinearGradient
@@ -321,6 +366,45 @@ const DailyChallengesScreen = ({ navigation }: DailyChallengesProps) => {
           <Text style={styles.challengeDescription} numberOfLines={2}>
             {challenge.description}
           </Text>
+        )}
+
+        {/* Community: show suggested tier/points if available and Vote button */}
+        {activeCategory === 'community' && (
+          <View style={styles.actionContainer}>
+            {/* Suggested tier/points badge if present */}
+            {!!(challenge as any)?.tier && (
+              <View style={[styles.badge, { backgroundColor: `${theme?.colors.primary}10`, marginRight: 'auto' }]}> 
+                <Star size={14} color={theme?.colors.primary} />
+                <Text style={[styles.badgeText, { color: theme?.colors.primary }]}>Tier {(challenge as any).tier}</Text>
+              </View>
+            )}
+            {!!(challenge as any)?.points && !((challenge as any)?.tier) && (
+              <View style={[styles.badge, { backgroundColor: `${theme?.colors.primary}10`, marginRight: 'auto' }]}> 
+                <Star size={14} color={theme?.colors.primary} />
+                <Text style={[styles.badgeText, { color: theme?.colors.primary }]}>{(challenge as any).points} pts</Text>
+              </View>
+            )}
+            {canVote ? (
+              <TouchableOpacity
+                style={[styles.actionButton, { backgroundColor: `${theme?.colors.primary}15` }]}
+                onPress={() => openVoteModal(challenge.id)}
+              >
+                <Star size={16} color={theme?.colors.primary} />
+                <Text style={[styles.actionText, { color: theme?.colors.primary }]}>Vote</Text>
+              </TouchableOpacity>
+            ) : (
+              <Text style={styles.pendingText}>
+                {challenge.hasUpvoted ? 'You voted' : !withinWindow ? 'Voting closed' : 'Reached 100 votes'}
+              </Text>
+            )}
+          </View>
+        )}
+
+        {/* Compact insights: time-left and vote cap progress */}
+        {activeCategory === 'community' && (
+          <View style={styles.compactInfoRow}>
+            <Text style={styles.compactInfoText}>{Math.max(0, Math.ceil((ms3days - (now.getTime() - createdAt.getTime()))/(24*60*60*1000)))}d window · {(challenge.upvotes||0)}/100 votes</Text>
+          </View>
         )}
       </TouchableOpacity>
     );
@@ -409,16 +493,38 @@ const DailyChallengesScreen = ({ navigation }: DailyChallengesProps) => {
     }
 
     if (challenges.length === 0) {
+      const emptyConfig = (() => {
+        if (activeCategory === 'personal') {
+          return {
+            title: 'No joined challenges yet',
+            message: 'Be the first to commit to a daily virtue challenge and grow your habits.',
+            ctaText: 'Browse challenges',
+            onPress: () => setActiveCategory('community'),
+          };
+        }
+        if (activeCategory === 'community') {
+          return {
+            title: 'No community challenges found',
+            message: 'Start something uplifting for everyone. Suggest a challenge the community can join.',
+            ctaText: 'Suggest a challenge',
+            onPress: handleSuggestCommunityChallenge,
+          };
+        }
+        return {
+          title: 'No suggestions yet',
+          message: 'Set your current goal virtue to get personalized daily suggestions.',
+          ctaText: 'Set current goal',
+          onPress: () => navigation.navigate('VirtueScreen'),
+        };
+      })();
+
       return (
-        <View style={styles.emptyContainer}>
-          <Text style={styles.emptyText}>
-            {activeCategory === 'personal' 
-              ? 'You have not joined any challenges yet. Join a challenge to get started.' 
-              : activeCategory === 'community'
-                ? 'No community challenges available right now.'
-                : 'No suggested challenges available right now.'}
-          </Text>
-        </View>
+        <EmptyState
+          title={emptyConfig.title}
+          message={emptyConfig.message}
+          ctaText={emptyConfig.ctaText}
+          onPressCTA={emptyConfig.onPress}
+        />
       );
     }
 
@@ -518,6 +624,107 @@ const DailyChallengesScreen = ({ navigation }: DailyChallengesProps) => {
           {renderChallenges()}
         </Animated.View>
       </ScrollView>
+
+      {/* Suggest Community Challenge Modal */}
+      <Modal visible={showSuggestModal} animationType="fade" transparent onRequestClose={() => setShowSuggestModal(false)}>
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Suggest a Community Challenge</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Title"
+              value={newChallenge.title}
+              onChangeText={(t) => setNewChallenge({ ...newChallenge, title: t })}
+            />
+            <TextInput
+              style={[styles.input, styles.textArea]}
+              placeholder="Description (optional)"
+              value={newChallenge.description}
+              onChangeText={(t) => setNewChallenge({ ...newChallenge, description: t })}
+              multiline
+            />
+            <View style={styles.formActions}>
+              <TouchableOpacity style={[styles.formButton, styles.cancelButton]} onPress={() => setShowSuggestModal(false)}>
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.formButton, styles.createButton]} onPress={handleSubmitSuggestion}>
+                <Text style={styles.createButtonText}>Submit</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Vote Modal */}
+      <Modal visible={showVoteModal} animationType="fade" transparent onRequestClose={() => setShowVoteModal(false)}>
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Rate this Suggestion</Text>
+            {/* Show existing suggested tier/points if present on the challenge */}
+            {(() => {
+              const all = [...(personalChallenges||[]), ...(communityChallenges||[]), ...(suggestedChallenges||[])];
+              const target = all.find(c => c.id === voteTargetId);
+              const tier = (target as any)?.tier;
+              const points = (target as any)?.points;
+              const createdAt = target ? new Date((target as any).createdAt || new Date()) : new Date();
+              const now = new Date();
+              const remainingMs = Math.max(0, (createdAt.getTime() + 3*24*60*60*1000) - now.getTime());
+              const remainingDays = Math.floor(remainingMs / (24*60*60*1000));
+              const remainingHours = Math.floor((remainingMs % (24*60*60*1000)) / (60*60*1000));
+              const votes = (target?.upvotes || 0);
+              if (!tier && !points) return (
+                <></>
+              );
+              return (
+                <View style={{ marginBottom: theme?.spacing.md }}>
+                  {!!tier && (
+                    <View style={[styles.badge, { alignSelf: 'flex-start', backgroundColor: `${theme?.colors.primary}10` }]}> 
+                      <Star size={14} color={theme?.colors.primary} />
+                      <Text style={[styles.badgeText, { color: theme?.colors.primary }]}>Community suggested tier: {tier}</Text>
+                    </View>
+                  )}
+                  {!!points && !tier && (
+                    <View style={[styles.badge, { alignSelf: 'flex-start', backgroundColor: `${theme?.colors.primary}10` }]}> 
+                      <Star size={14} color={theme?.colors.primary} />
+                      <Text style={[styles.badgeText, { color: theme?.colors.primary }]}>Community suggested points: {points}</Text>
+                    </View>
+                  )}
+                  <Text style={[styles.voteWindowText, { marginTop: theme?.spacing.sm }]}>
+                    Voting is open for 3 days or until 100 votes are reached · {votes}/100
+                  </Text>
+                  {!!remainingMs && (
+                    <Text style={[styles.voteWindowText, { opacity: 0.8 }]}>Time left: {remainingDays}d {remainingHours}h</Text>
+                  )}
+                </View>
+              );
+            })()}
+            <Text style={styles.voteLabel}>Spiritual Value / Growth</Text>
+            <View style={styles.pillRow}>
+              {[1,2,3,4,5].map((n) => (
+                <TouchableOpacity key={n} style={[styles.pill, voteSpiritual === n && styles.pillActive]} onPress={() => setVoteSpiritual(n)}>
+                  <Text style={[styles.pillText, voteSpiritual === n && styles.pillTextActive]}>{n}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <Text style={[styles.voteLabel, { marginTop: theme?.spacing.md }]}>Effort Required</Text>
+            <View style={styles.pillRow}>
+              {[1,2,3,4,5].map((n) => (
+                <TouchableOpacity key={n} style={[styles.pill, voteEffort === n && styles.pillActive]} onPress={() => setVoteEffort(n)}>
+                  <Text style={[styles.pillText, voteEffort === n && styles.pillTextActive]}>{n}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <View style={[styles.formActions, { marginTop: theme?.spacing.md }]}> 
+              <TouchableOpacity style={[styles.formButton, styles.cancelButton]} onPress={() => setShowVoteModal(false)}>
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.formButton, styles.createButton]} onPress={submitVote}>
+                <Text style={styles.createButtonText}>Submit Vote</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -805,11 +1012,6 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     fontWeight: '600',
     marginLeft: theme?.spacing.xs,
   },
-  pendingText: {
-    ...theme?.typography.caption.secondary,
-    color: theme?.colors.text.secondary,
-    fontStyle: 'italic',
-  },
   communityContainer: {
     padding: theme?.spacing.md,
     borderTopWidth: 1,
@@ -914,6 +1116,90 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     color: theme?.colors.text.inverse,
     fontWeight: '600',
   },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.3)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: theme?.spacing.md,
+  },
+  modalCard: {
+    width: '100%',
+    maxWidth: 520,
+    backgroundColor: theme?.colors.surface,
+    borderRadius: theme?.borderRadius.lg,
+    padding: theme?.spacing.lg,
+    borderWidth: 1,
+    borderColor: theme?.colors.border,
+  },
+  modalTitle: {
+    ...theme?.typography.heading.small,
+    color: theme?.colors.text.primary,
+    marginBottom: theme?.spacing.md,
+  },
+  voteLabel: {
+    ...theme?.typography.caption.primary,
+    color: theme?.colors.text.secondary,
+    marginBottom: theme?.spacing.xs,
+  },
+  pillRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  pill: {
+    flex: 1,
+    marginHorizontal: 4,
+    paddingVertical: theme?.spacing.sm,
+    borderRadius: theme?.borderRadius.full,
+    borderWidth: 1,
+    borderColor: theme?.colors.border,
+    alignItems: 'center',
+  },
+  pillActive: {
+    backgroundColor: `${theme?.colors.primary}15`,
+    borderColor: `${theme?.colors.primary}40`,
+  },
+  pillText: {
+    ...theme?.typography.caption.primary,
+    color: theme?.colors.text.secondary,
+    fontWeight: '600',
+  },
+  pillTextActive: {
+    color: theme?.colors.primary,
+  },
+  voteWindowText: {
+    ...theme?.typography.caption.secondary,
+    color: theme?.colors.text.secondary,
+    fontSize: 12,
+  },
+  badge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: theme?.spacing.sm,
+    paddingVertical: 6,
+    borderRadius: theme?.borderRadius.full,
+    gap: 6,
+  },
+  badgeText: {
+    ...theme?.typography.caption.primary,
+    fontWeight: '600',
+  },
+  pendingText: {
+    ...theme?.typography.caption.secondary,
+    color: theme?.colors.text.secondary,
+    fontStyle: 'italic',
+    marginLeft: theme?.spacing.sm,
+  },
+  compactInfoRow: {
+    marginTop: 4,
+    paddingHorizontal: theme?.spacing.md,
+    paddingBottom: theme?.spacing.sm,
+  },
+  compactInfoText: {
+    ...theme?.typography.caption.secondary,
+    color: theme?.colors.text.secondary,
+    fontSize: 12,
+  },
 });
 
-export default DailyChallengesScreen; 
+export default DailyChallengesScreen;

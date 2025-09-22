@@ -467,6 +467,14 @@ export class VerseStore {
     user_id: string;
     verse_id: string;
     icon?: string;
+    media_url?: string | null;
+    media_provider?: string | null;
+    duration_seconds?: number | null;
+    thumbnail_url?: string | null;
+    transcript?: string | null;
+    language?: string | null;
+    is_published?: boolean | null;
+    tags?: string[] | null;
   }) {
     try {
       const response = await apiClient.post<Reflection>(endpoints.reflections.create, data);

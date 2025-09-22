@@ -28,6 +28,7 @@ import { useAuthStore, useReflectionStore } from '@/stores/StoreProvider';
 import ReflectionCard from '../components/ReflectionCard';
 import CommentThread from '../components/CommentThread';
 import { Theme } from '@/theme';
+import EmptyState from '@/components/EmptyState';
 
 type ReflectionDetailProps = NativeStackScreenProps<RootStackParamList, 'ReflectionDetail'>;
 
@@ -210,10 +211,12 @@ const ReflectionDetail = observer(({ navigation, route }: ReflectionDetailProps)
               </TouchableOpacity>
             </View>
           ) : comments.length === 0 ? (
-            <View style={styles.emptyComments}>
-              <Text style={styles.emptyCommentsText}>No comments yet</Text>
-              <Text style={styles.emptyCommentsSubtext}>Be the first to share your thoughts</Text>
-            </View>
+            <EmptyState
+              title="No comments yet"
+              message="Be the first to share your thoughts."
+              ctaText="Add a comment"
+              onPressCTA={() => setShowCommentInput(true)}
+            />
           ) : (
             <View style={styles.commentsList}>
               {comments.map((comment: Comment) => (

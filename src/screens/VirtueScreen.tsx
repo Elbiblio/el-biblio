@@ -49,6 +49,7 @@ import { observer } from 'mobx-react-lite';
 import AvatarStack from '@/components/AvatarStack';
 import AuthModal from '@/components/AuthModal';
 import { IconProps } from '@/components/Icons';
+import EmptyState from '@/components/EmptyState';
 
 type VirtueScreenProps = NativeStackScreenProps<RootStackParamList, 'VirtueScreen'>;
 type TabType = 'explore' | 'learn' | 'notes';
@@ -773,9 +774,13 @@ const VirtueScreen = ({ navigation, route }: VirtueScreenProps) => {
             <Text style={styles.loadingText}>Loading notes...</Text>
           </View>
         ) : filteredNotes.length === 0 ? (
-          <View style={styles.emptyContainer}>
-            <Text style={styles.emptyText}>No notes found for the selected filters.</Text>
-          </View>
+          <EmptyState
+            title="No notes found"
+            message="Try adjusting your selected virtue or denomination to discover more."
+            ctaText="Clear filters"
+            onPressCTA={() => { setSelectedVirtue(null); setSelectedDenomination('all'); }}
+            IconComponent={Lightbulb as any}
+          />
         ) : (
           filteredNotes.map(note => (
             <TouchableOpacity

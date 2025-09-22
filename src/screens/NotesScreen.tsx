@@ -41,6 +41,7 @@ import GuestRestrictionModal from '@/components/GuestRestrictionModal';
 import { useWebSocket } from '@/services/websocket';
 import * as Haptics from 'expo-haptics';
 import { RefreshControl } from 'react-native';
+import EmptyState from '@/components/EmptyState';
 
 export type NotesScreenProps = NativeStackScreenProps<RootStackParamList, 'NotesScreen'>;
 
@@ -285,15 +286,18 @@ const NotesScreen = ({ navigation, route }: NotesScreenProps) => {
     );
   }, [activeNote, selectedVirtues, handleSaveNote, handleCloseNote, handleDeleteNote, handleToggleVisibility]);
 
-  const ListEmptyComponent = useCallback(() => (
-    <View style={styles.emptyState}>
-      <Text style={styles.emptyStateText}>
-        {searchQuery || virtueFilter.length > 0
-          ? "No notes match your search criteria."
-          : "You haven't created any notes yet. Tap the + button to get started."}
-      </Text>
-    </View>
-  ), [searchQuery, virtueFilter, styles]);
+  const ListEmptyComponent = useCallback(() => {
+    const hasFilters = !!searchQuery || virtueFilter.length > 0;
+    return (
+      <EmptyState
+        title={hasFilters ? 'No notes found' : 'No notes yet'}
+        message={hasFilters ? 'No notes match your current search or filters.' : 'Write your first note and begin your journey.'}
+        ctaText={hasFilters ? 'Clear filters' : 'Create a note'}
+        onPressCTA={hasFilters ? () => { setSearchQuery(''); setVirtueFilter([]); } : handleCreateNote}
+        IconComponent={NotePencil as any}
+      />
+    );
+  }, [searchQuery, virtueFilter, handleCreateNote]);
 
   const toggleCommunitySearch = useCallback(() => {
     // Clear search when switching modes

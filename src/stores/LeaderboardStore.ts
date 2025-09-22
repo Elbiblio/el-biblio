@@ -258,6 +258,13 @@ export class LeaderboardStore {
 
       return response.data;
     } catch (error) {
+      const message = (error as any)?.message ? String((error as any).message) : '';
+      const status = (error as any)?.status || (error as any)?.response?.status;
+      // Suppress noisy logs when user rank is simply not found yet
+      if (status === 404 || message.includes('Resource not found')) {
+        // Do not log, but rethrow so callers (e.g., HomeScreen) can handle logout for deleted guest accounts
+        throw error;
+      }
       console.error('Error fetching user rank:', error);
       return null;
     }

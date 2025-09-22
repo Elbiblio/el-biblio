@@ -17,6 +17,7 @@ import { Theme, ThemeVariant } from '@/theme';
 import { useAuthStore, useLeaderboardStore } from '@/stores/StoreProvider';
 import * as Haptics from 'expo-haptics';
 import { ArrowLeft, Award, ChevronUp, ChevronDown, Filter, Users, Fire, Calendar } from '@/components/Icons';
+import EmptyState from '@/components/EmptyState';
 import { AllVirtues, LeaderboardEntry } from '@/types';
 import { toast } from 'sonner-native';
 
@@ -369,19 +370,22 @@ const LeaderboardScreen = observer(({ navigation }: any) => {
 
     if (error) {
       return (
-        <View style={styles.emptyContainer}>
-          <Text style={styles.errorText}>Failed to load leaderboard</Text>
-          <TouchableOpacity style={styles.retryButton} onPress={() => loadLeaderboard(1)}>
-            <Text style={styles.retryButtonText}>Retry</Text>
-          </TouchableOpacity>
-        </View>
+        <EmptyState
+          title="Failed to load leaderboard"
+          message={error}
+          ctaText="Retry"
+          onPressCTA={() => loadLeaderboard(1)}
+          IconComponent={Award as any}
+        />
       );
     }
 
     return (
-      <View style={styles.emptyContainer}>
-        <Text style={styles.emptyText}>No leaderboard data available</Text>
-      </View>
+      <EmptyState
+        title="No leaderboard data yet"
+        message="Be the first to climb the ranks by engaging with verses, reflections, and challenges."
+        IconComponent={Award as any}
+      />
     );
   };
 

@@ -476,6 +476,7 @@ export const endpoints = {
     join: (id: string) => `/challenges/${id}/join`,
     leave: (id: string) => `/challenges/${id}/leave`,
     upvote: (id: string) => `/challenges/${id}/upvote`,
+    vote: (id: string) => `/challenges/${id}/vote`,
     complete: (id: string) => `/challenges/${id}/complete`,
     addToPersonal: (id: string) => `/challenges/${id}/add-to-personal`,
     participants: (id: string) => `/challenges/${id}/participants`,
@@ -490,6 +491,11 @@ export const endpoints = {
     delete: (id: string) => `/prayer-requests/${id}`,
     pray: (id: string) => `/prayer-requests/${id}/pray`,
     byUser: (userId: string) => `/users/${userId}/prayer-requests`,
+  },
+  
+  // Uploads
+  uploads: {
+    presign: '/uploads/presign',
   },
 };
 

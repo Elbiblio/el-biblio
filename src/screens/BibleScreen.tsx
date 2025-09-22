@@ -31,6 +31,7 @@ import { parseVPLId } from '@/utils/database';
 import { toast } from 'sonner-native';
 import * as Haptics from 'expo-haptics';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import EmptyState from '@/components/EmptyState';
 
 interface BibleScreenProps {
   route?: { params?: { book?: string; chapter?: number; verse?: number } };
@@ -493,22 +494,20 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
 
     if (bibleStore.versesError) {
       return (
-        <View style={styles.emptyContainer}>
-          <Text style={styles.errorText}>Failed to load verses</Text>
-          <TouchableOpacity 
-            style={styles.retryButton} 
-            onPress={() => bibleStore.currentBook && bibleStore.currentVersion && bibleStore.fetchVerses(bibleStore.currentBook, bibleStore.currentChapter, bibleStore.currentVersion)}
-          >
-            <Text style={styles.retryButtonText}>Retry</Text>
-          </TouchableOpacity>
-        </View>
+        <EmptyState
+          title="Failed to load verses"
+          message={bibleStore.versesError}
+          ctaText="Retry"
+          onPressCTA={() => bibleStore.currentBook && bibleStore.currentVersion && bibleStore.fetchVerses(bibleStore.currentBook, bibleStore.currentChapter, bibleStore.currentVersion)}
+        />
       );
     }
 
     return (
-      <View style={styles.emptyContainer}>
-        <Text style={styles.emptyText}>No verses available</Text>
-      </View>
+      <EmptyState
+        title="Preparing Bible database"
+        message="Please hold on while we load the Scriptures."
+      />
     );
   };
 

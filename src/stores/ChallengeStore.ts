@@ -49,8 +49,15 @@ export class ChallengeStore {
   state: ChallengeState = initialState;
 
   // Common store props
-  isLoading = false;
-  error: string | null = null;
+  isLoading = false; // legacy/global
+  error: string | null = null; // legacy/global
+  // Per-category loading/error flags
+  isPersonalLoading = false;
+  isCommunityLoading = false;
+  isSuggestedLoading = false;
+  personalError: string | null = null;
+  communityError: string | null = null;
+  suggestedError: string | null = null;
   private storageKey = 'challenge_store';
 
   constructor() {
@@ -75,6 +82,12 @@ export class ChallengeStore {
   private setLoading = (value: boolean) => {
     this.isLoading = value;
   };
+
+  private setCategoryLoading(category: ChallengeCategory, value: boolean) {
+    if (category === 'personal') this.isPersonalLoading = value;
+    if (category === 'community') this.isCommunityLoading = value;
+    if (category === 'suggested') this.isSuggestedLoading = value;
+  }
 
   private setError = (message: string | null) => {
     this.error = message;
@@ -121,16 +134,10 @@ export class ChallengeStore {
     return this.state.refreshing;
   }
 
-  // Legacy Zustand compatibility getters
-  get isPersonalLoading() { return this.isLoading; }
-  get isCommunityLoading() { return this.isLoading; }
-  get isSuggestedLoading() { return this.isLoading; }
+  // Legacy Zustand compatibility getters (now mapped to per-category flags)
   get isCreatingLoading() { return this.isLoading; }
   get isJoiningLoading() { return this.isLoading; }
   get isUpvotingLoading() { return this.isLoading; }
-  get personalError() { return this.error; }
-  get communityError() { return this.error; }
-  get suggestedError() { return this.error; }
   get createError() { return this.error; }
 
   // Initialization
@@ -195,12 +202,16 @@ export class ChallengeStore {
 
   clearErrors() {
     this.setError(null);
+    this.personalError = null;
+    this.communityError = null;
+    this.suggestedError = null;
   }
 
   // Fetching methods
   async fetchPersonalChallenges(page = 1) {
     try {
       this.setLoading(true);
+      this.setCategoryLoading('personal', true);
       const response = await apiClient.get<PaginatedResponse<BackendChallenge>>(
         endpoints.challenges.personal,
         { page }
@@ -226,8 +237,10 @@ export class ChallengeStore {
     } catch (error) {
       console.error('Error fetching personal challenges:', error);
       this.setError('Failed to fetch personal challenges');
+      this.personalError = 'Failed to fetch personal challenges';
       return [];
     } finally {
+      this.setCategoryLoading('personal', false);
       this.setLoading(false);
     }
   }
@@ -235,6 +248,7 @@ export class ChallengeStore {
   async fetchCommunityChallenges(page = 1) {
     try {
       this.setLoading(true);
+      this.setCategoryLoading('community', true);
       const response = await apiClient.get<PaginatedResponse<BackendChallenge>>(
         endpoints.challenges.community,
         { page }
@@ -260,8 +274,10 @@ export class ChallengeStore {
     } catch (error) {
       console.error('Error fetching community challenges:', error);
       this.setError('Failed to fetch community challenges');
+      this.communityError = 'Failed to fetch community challenges';
       return [];
     } finally {
+      this.setCategoryLoading('community', false);
       this.setLoading(false);
     }
   }
@@ -269,6 +285,7 @@ export class ChallengeStore {
   async fetchSuggestedChallenges(page = 1) {
     try {
       this.setLoading(true);
+      this.setCategoryLoading('suggested', true);
       const response = await apiClient.get<PaginatedResponse<BackendChallenge>>(
         endpoints.challenges.suggested,
         { page }
@@ -294,8 +311,10 @@ export class ChallengeStore {
     } catch (error) {
       console.error('Error fetching suggested challenges:', error);
       this.setError('Failed to fetch suggested challenges');
+      this.suggestedError = 'Failed to fetch suggested challenges';
       return [];
     } finally {
+      this.setCategoryLoading('suggested', false);
       this.setLoading(false);
     }
   }
@@ -503,6 +522,40 @@ export class ChallengeStore {
     } catch (error) {
       console.error(`Error upvoting challenge ${challengeId}:`, error);
       this.setError('Failed to upvote challenge');
+      throw error;
+    } finally {
+      this.setLoading(false);
+    }
+  }
+
+  async voteChallenge(challengeId: string, payload: { spiritual: number; effort: number }) {
+    try {
+      this.setLoading(true);
+      const response = await apiClient.post<{ challenge: BackendChallenge; vote: any }>(
+        endpoints.challenges.vote(challengeId),
+        {
+          spiritual: Math.max(1, Math.min(5, Math.round(payload.spiritual))),
+          effort: Math.max(1, Math.min(5, Math.round(payload.effort))),
+        }
+      );
+
+      if (!response.success || !response.data) {
+        throw new Error(response.message || 'Failed to record vote');
+      }
+
+      const backendChallenge = (response.data as any).challenge as BackendChallenge;
+      const mapped = mapChallenge(backendChallenge);
+
+      runInAction(() => {
+        this.replaceChallengeInLists(challengeId, mapped);
+      });
+
+      await this.saveToStorage();
+      toast.success('Vote recorded');
+      return mapped;
+    } catch (error) {
+      console.error(`Error voting on challenge ${challengeId}:`, error);
+      this.setError('Failed to record your vote');
       throw error;
     } finally {
       this.setLoading(false);

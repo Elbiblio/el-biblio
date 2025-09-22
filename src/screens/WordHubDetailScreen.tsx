@@ -8,23 +8,21 @@ import {
   StyleSheet,
   ScrollView,
   ActivityIndicator,
-  Platform,
 } from 'react-native';
+
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BlurView } from 'expo-blur';
-import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
+
 import {
   ArrowLeft,
   MessageCircle,
   Users,
   Clock,
-  Star,
   Lock,
   Send,
-  BookmarkSimple,
-  Share,
 } from '../components/Icons';
+
 import { Theme } from '@/theme';
 import { useTheme } from '@/contexts/ThemeContext';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';

@@ -5,9 +5,10 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { Theme } from '@/theme';
 import { type RootStackParamList, type PrayerRequest } from '@/types';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { ArrowLeft, Send } from '@/components/Icons';
+import { ArrowLeft, Send, ChevronDown, Sparkle, Heart } from '@/components/Icons';
 import { observer } from 'mobx-react-lite';
 import { usePrayerRequestsStore } from '@/stores/StoreProvider';
+import EmptyState from '@/components/EmptyState';
 
 export type PrayerRequestsScreenProps = NativeStackScreenProps<RootStackParamList, 'PrayerRequestsScreen'>;
 
@@ -22,6 +23,7 @@ const PrayerRequestsScreen = ({ navigation }: PrayerRequestsScreenProps) => {
   const [content, setContent] = useState('');
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [currentCategory, setCurrentCategory] = useState<'all' | string>('all');
+  const [showCategoryPicker, setShowCategoryPicker] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [showPrayerModal, setShowPrayerModal] = useState(false);
   const [secondsLeft, setSecondsLeft] = useState(120);
@@ -130,6 +132,23 @@ const PrayerRequestsScreen = ({ navigation }: PrayerRequestsScreenProps) => {
     );
   };
 
+  const cycleCategory = useCallback(() => {
+    const idx = categories.indexOf(currentCategory);
+    const next = categories[(idx + 1) % categories.length];
+    setCurrentCategory(next);
+  }, [categories, currentCategory]);
+
+  const renderCategoryControl = () => (
+    <View style={styles.categoryControlRow}>
+      <TouchableOpacity style={styles.categoryPill} onPress={cycleCategory}>
+        <Text style={styles.categoryPillText}>{currentCategory[0].toUpperCase() + currentCategory.slice(1)}</Text>
+      </TouchableOpacity>
+      <TouchableOpacity style={styles.categoryCaret} onPress={() => setShowCategoryPicker(true)}>
+        <ChevronDown size={18} color={theme.colors.text.primary} />
+      </TouchableOpacity>
+    </View>
+  );
+
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <StatusBar barStyle="dark-content" />
@@ -154,17 +173,10 @@ const PrayerRequestsScreen = ({ navigation }: PrayerRequestsScreenProps) => {
         </TouchableOpacity>
       </View>
 
-      {/* Category chips */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipsRow}>
-        {categories.map(cat => {
-          const active = currentCategory === cat;
-          return (
-            <TouchableOpacity key={cat} style={[styles.chip, active && { backgroundColor: `${theme.colors.primary}20`, borderColor: theme.colors.primary }]} onPress={() => setCurrentCategory(cat as any)}>
-              <Text style={[styles.chipText, active && { color: theme.colors.primary, fontWeight: '600' }]}>{cat[0].toUpperCase() + cat.slice(1)}</Text>
-            </TouchableOpacity>
-          );
-        })}
-      </ScrollView>
+      {/* Category toggle / dropdown */}
+      <View style={styles.categoryWrap}>
+        {renderCategoryControl()}
+      </View>
 
       {isLoading && requests.length === 0 ? (
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
@@ -191,6 +203,15 @@ const PrayerRequestsScreen = ({ navigation }: PrayerRequestsScreenProps) => {
               <ActivityIndicator color={theme.colors.primary} />
             </View>
           ) : null}
+          ListEmptyComponent={(
+            <EmptyState
+              title={`No ${currentCategory === 'all' ? '' : currentCategory + ' '}requests yet`}
+              message={'Be the first to share a prayer request and invite others to pray.'}
+              ctaText={'Create a request'}
+              onPressCTA={handleAdd}
+              IconComponent={Heart as any}
+            />
+          )}
         />
       )}
 
@@ -203,6 +224,31 @@ const PrayerRequestsScreen = ({ navigation }: PrayerRequestsScreenProps) => {
           </TouchableOpacity>
         </View>
       )}
+
+      {/* Category picker modal */}
+      <Modal visible={showCategoryPicker} animationType="fade" transparent>
+        <View style={styles.modalBackdrop}>
+          <View style={styles.pickerCard}>
+            <Text style={styles.modalTitle}>Choose Category</Text>
+            <ScrollView style={{ maxHeight: 320 }}>
+              {categories.map(cat => (
+                <TouchableOpacity
+                  key={cat}
+                  style={[styles.pickerItem, currentCategory === cat && { backgroundColor: `${theme.colors.primary}10`, borderColor: `${theme.colors.primary}30` }]}
+                  onPress={() => { setCurrentCategory(cat); setShowCategoryPicker(false); }}
+                >
+                  <Text style={[styles.pickerText, currentCategory === cat && { color: theme.colors.primary, fontWeight: '600' }]}>
+                    {cat[0].toUpperCase() + cat.slice(1)}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+            <TouchableOpacity style={[styles.modalBtn, { marginTop: theme.spacing.sm, backgroundColor: `${theme.colors.error}15`, borderColor: `${theme.colors.error}40` }]} onPress={() => setShowCategoryPicker(false)}>
+              <Text style={[styles.modalBtnText, { color: theme.colors.error }]}>Close</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
       {/* Prayer modal */}
       <Modal visible={showPrayerModal} animationType="slide" transparent>
@@ -242,6 +288,37 @@ const createStyles = (theme: Theme) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.colors.background,
+  },
+  categoryWrap: {
+    paddingHorizontal: theme.spacing.md,
+    paddingBottom: theme.spacing.sm,
+  },
+  categoryControlRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.xs,
+  },
+  categoryPill: {
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: 8,
+    borderRadius: theme.borderRadius.full,
+    backgroundColor: theme.colors.surface,
+    borderWidth: 1,
+    borderColor: `${theme.colors.primary}10`,
+  },
+  categoryPillText: {
+    ...theme.typography.caption.primary,
+    color: theme.colors.text.primary,
+  },
+  categoryCaret: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: theme.colors.surface,
+    borderWidth: 1,
+    borderColor: `${theme.colors.primary}10`,
   },
   bulkBar: {
     position: 'absolute',
@@ -286,6 +363,26 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     padding: theme.spacing.lg,
     borderWidth: 1,
     borderColor: `${theme.colors.primary}10`,
+  },
+  pickerCard: {
+    width: '100%',
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.borderRadius.lg,
+    padding: theme.spacing.lg,
+    borderWidth: 1,
+    borderColor: `${theme.colors.primary}10`,
+  },
+  pickerItem: {
+    paddingVertical: 10,
+    paddingHorizontal: theme.spacing.md,
+    borderRadius: theme.borderRadius.md,
+    borderWidth: 1,
+    borderColor: `${theme.colors.primary}10`,
+    marginBottom: 8,
+  },
+  pickerText: {
+    ...theme.typography.body.sans,
+    color: theme.colors.text.primary,
   },
   modalTitle: {
     ...theme.typography.heading.small,
@@ -336,24 +433,9 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     ...theme.typography.heading.small,
     color: theme.colors.text.primary,
   },
-  chipsRow: {
-    paddingHorizontal: theme.spacing.md,
-    paddingBottom: theme.spacing.sm,
-    gap: theme.spacing.xs,
-  },
-  chip: {
-    paddingHorizontal: theme.spacing.md,
-    paddingVertical: 8,
-    backgroundColor: theme.colors.surface,
-    borderRadius: theme.borderRadius.full,
-    borderWidth: 1,
-    borderColor: `${theme.colors.primary}10`,
-    marginRight: theme.spacing.xs,
-  },
-  chipText: {
-    ...theme.typography.caption.primary,
-    color: theme.colors.text.primary,
-  },
+  chipsRow: {},
+  chip: {},
+  chipText: {},
   composer: {
     flexDirection: 'row',
     alignItems: 'center',

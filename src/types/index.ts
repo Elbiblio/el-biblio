@@ -331,6 +331,15 @@ export interface Reflection {
   created_at: string;
   updated_at: string;
   deleted_at?: string;
+  // Optional media fields (Face2Face)
+  media_url?: string | null;
+  media_provider?: string | null; // e.g., 's3'
+  duration_seconds?: number | null;
+  thumbnail_url?: string | null;
+  transcript?: string | null;
+  language?: string | null;
+  is_published?: boolean | null;
+  tags?: string[] | null;
 }
 
 export interface Comment {

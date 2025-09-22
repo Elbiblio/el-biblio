@@ -47,6 +47,7 @@ import { useWebSocket } from '@/services/websocket';
 import { toast } from 'sonner-native';
 import { useGuestRestrictions } from '@/hooks/useGuestRestrictions';
 import GuestRestrictionModal from '@/components/GuestRestrictionModal';
+import EmptyState from '@/components/EmptyState';
 
 const WordHubsScreen = ({
   navigation,
@@ -406,26 +407,15 @@ const WordHubsScreen = ({
   );
 
   const renderEmptyState = () => (
-    <View style={styles.emptyContainer}>
-      <Sparkle size={64} color={theme.colors.primary} />
-      <Text style={styles.emptyTitle}>
-        {activeTab === 'discover' ? 'No Word Hubs Found' : 'No Joined Hubs'}
-      </Text>
-      <Text style={styles.emptyMessage}>
-        {activeTab === 'discover' 
-          ? 'Be the first to create a Word Hub and start meaningful discussions!'
-          : 'Join some Word Hubs to see them here.'
-        }
-      </Text>
-      {activeTab === 'discover' && (
-        <TouchableOpacity 
-          style={styles.createFirstButton}
-          onPress={() => setShowCreateHub(true)}
-        >
-          <Text style={styles.createFirstButtonText}>Create Your First Hub</Text>
-        </TouchableOpacity>
-      )}
-    </View>
+    <EmptyState
+      title={activeTab === 'discover' ? 'No Word Hubs Found' : 'No Joined Hubs'}
+      message={activeTab === 'discover'
+        ? 'Be the first to create a Word Hub and start meaningful discussions!'
+        : 'Join some Word Hubs to see them here.'}
+      ctaText={activeTab === 'discover' ? 'Create a Word Hub' : 'Browse Word Hubs'}
+      onPressCTA={activeTab === 'discover' ? () => setShowCreateHub(true) : () => handleTabChange('discover')}
+      IconComponent={Users as any}
+    />
   );
 
   return (

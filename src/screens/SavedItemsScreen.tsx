@@ -12,6 +12,7 @@ import { useBookmarkStore, useVerseStore, useReflectionStore } from '@/stores/St
 import { observer } from 'mobx-react-lite';
 
 import { toast } from "sonner-native";
+import EmptyState from '@/components/EmptyState';
 
 const SavedItemsScreen = ({
   navigation
@@ -317,23 +318,49 @@ const SavedItemsScreen = ({
       </ScrollView>
 
       {/* Main Content */}
-      <ScrollView
-        style={styles.content}
-        showsVerticalScrollIndicator={false}
-      >
+      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        {/* Loading State */}
+        {isLoading && (
+          <View style={[styles.pinnedSection, { alignItems: 'center' }]}> 
+            <Text style={styles.sectionTitle}>Loading saved items...</Text>
+          </View>
+        )}
+
+        {/* Empty State (no bookmarks at all) */}
+        {!isLoading && safeBookmarks.length === 0 && (
+          <EmptyState
+            title="No saved items yet"
+            message="Bookmark verses, reflections, and notes to see them here."
+            ctaText="Browse community"
+            onPressCTA={() => navigation.navigate('CommunityScreen')}
+          />
+        )}
+
+        {/* No results for current filters/tabs */}
+        {!isLoading && safeBookmarks.length > 0 && filteredItems.length === 0 && (
+          <EmptyState
+            title="No results"
+            message="Try clearing filters or selecting a different type."
+            ctaText="Reset filters"
+            onPressCTA={() => setFilters({})}
+          />
+        )}
+
         {/* Pinned Items */}
-        {!activeTab && pinnedItems.length > 0 && (
+        {!isLoading && !activeTab && pinnedItems.length > 0 && (
           <View style={styles.pinnedSection}>
             <Text style={styles.sectionTitle}>Pinned</Text>
             {pinnedItems.map(item => renderItem({ item }))}
           </View>
         )}
 
-        {/* All Items */}
-        <View style={styles.allItemsSection}>
-          <Text style={styles.sectionTitle}>{activeTab ? activeTab.charAt(0).toUpperCase() + activeTab.slice(1) + 's' : 'Saved Items'}</Text>
-          {filteredItems.map((item: Bookmark) => renderItem({ item }))}
-        </View>
+        {/* All Items (has results) */}
+        {!isLoading && filteredItems.length > 0 && (
+          <View style={styles.allItemsSection}>
+            <Text style={styles.sectionTitle}>{activeTab ? activeTab.charAt(0).toUpperCase() + activeTab.slice(1) + 's' : 'Saved Items'}</Text>
+            {filteredItems.map((item: Bookmark) => renderItem({ item }))}
+          </View>
+        )}
       </ScrollView>
 
       {/* Filter Modal */}

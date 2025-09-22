@@ -6,6 +6,7 @@ import {
   Image,
   StyleSheet,
   TouchableOpacity,
+  TouchableWithoutFeedback,
   Platform,
   ViewStyle,
 } from 'react-native';
@@ -13,12 +14,14 @@ import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withSpring,
+  withTiming,
   interpolate,
   Extrapolation,
   SharedValue,
 } from 'react-native-reanimated';
 import { BlurView } from 'expo-blur';
-import { Heart, MessageCircle, Share, BookmarkSimple, ChevronRight } from './Icons';
+import { Video, ResizeMode, AVPlaybackStatus } from 'expo-av';
+import { Heart, MessageCircle, Share, BookmarkSimple, ChevronRight, ArrowRightPlay, Clock } from './Icons';
 import CommentThread from './CommentThread';
 import { useTheme } from '@/contexts/ThemeContext';
 import { ReflectionType, type Reflection } from '@/types';
@@ -26,6 +29,8 @@ import { extractUniqueCommenters } from '@/utils/comments';
 import { SCREEN_DIMENSIONS, wp } from '@/constants';
 import CircleButton from './CircleButton';
 import { Theme } from '@/theme';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Haptics from 'expo-haptics';
 
 interface ReflectionCardProps {
   reflection: Reflection;
@@ -54,6 +59,11 @@ const ReflectionCard: React.FC<ReflectionCardProps> = ({
   const styles = React.useMemo(() => createStyles(theme), [theme]);
   const [liked, setLiked] = useState(reflection.isLiked);
   const cardElevation = useSharedValue(1);
+  const videoRef = useRef<Video | null>(null);
+  const overlayAlpha = useSharedValue(0);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const lastSavedRef = useRef<number>(0);
+  const lastTapRef = useRef<number>(0);
 
   const topComment = reflection.comments[0];
 
@@ -105,14 +115,131 @@ const ReflectionCard: React.FC<ReflectionCardProps> = ({
     </View>
   );
 
+  const formatDuration = (secs?: number | null) => {
+    if (!secs || secs <= 0) return null;
+    const m = Math.floor(secs / 60);
+    const s = secs % 60;
+    return `${m}:${s.toString().padStart(2, '0')}`;
+  };
+
+  const showOverlayBriefly = () => {
+    overlayAlpha.value = withTiming(1, { duration: 150 });
+    setTimeout(() => {
+      overlayAlpha.value = withTiming(0, { duration: 300 });
+    }, 1200);
+  };
+
+  const handleMediaTap = async () => {
+    const now = Date.now();
+    if (now - lastTapRef.current < 300) {
+      // Double tap to like
+      setLiked(true);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      showOverlayBriefly();
+      lastTapRef.current = 0;
+      return;
+    }
+    lastTapRef.current = now;
+
+    const inst = videoRef.current;
+    if (!inst) return;
+    const status = await inst.getStatusAsync();
+    if ('isPlaying' in status && status.isPlaying) {
+      await inst.pauseAsync();
+      setIsPlaying(false);
+    } else {
+      await inst.playAsync();
+      setIsPlaying(true);
+    }
+    showOverlayBriefly();
+  };
+
+  const overlayStyle = useAnimatedStyle(() => ({ opacity: overlayAlpha.value }));
+
+  const onVideoLoad = React.useCallback(async () => {
+    try {
+      const key = `reflection_progress_${reflection.id}`;
+      const saved = await AsyncStorage.getItem(key);
+      const pos = saved ? parseInt(saved, 10) : 0;
+      if (videoRef.current && pos > 2) {
+        await videoRef.current.setPositionAsync(pos * 1000);
+      }
+    } catch {}
+  }, [reflection.id]);
+
+  const onPlaybackUpdate = React.useCallback((status: AVPlaybackStatus) => {
+    if (!status.isLoaded) return;
+    const seconds = Math.floor((status.positionMillis || 0) / 1000);
+    setIsPlaying(!!status.isPlaying);
+    if (seconds - lastSavedRef.current >= 2) {
+      lastSavedRef.current = seconds;
+      AsyncStorage.setItem(`reflection_progress_${reflection.id}`, String(seconds)).catch(() => {});
+    }
+  }, [reflection.id]);
+
   const renderContent = () => (
     <View style={styles.contentContainer}>
-      <Text 
-        style={[styles.contentText, { color: theme.colors.text.primary }]}
-        numberOfLines={maxContentLines}
-      >
-        {reflection.content}
-      </Text>
+      {/* Video (Face2Face) if available */}
+      {!!reflection.media_url && (
+        <View style={styles.mediaContainer}>
+          <TouchableWithoutFeedback onPress={handleMediaTap}>
+            <Video
+              style={styles.video}
+              source={{ uri: reflection.media_url }}
+              useNativeControls
+              isLooping={false}
+              posterSource={reflection.thumbnail_url ? { uri: reflection.thumbnail_url } : undefined}
+              posterStyle={styles.video}
+              resizeMode={ResizeMode.COVER}
+              ref={(r) => (videoRef.current = r)}
+              onLoad={onVideoLoad}
+              onPlaybackStatusUpdate={onPlaybackUpdate}
+            />
+          </TouchableWithoutFeedback>
+          {/* Play overlay (decorative) */}
+          <Animated.View pointerEvents="none" style={[styles.playOverlay, overlayStyle]}>
+            <View style={[styles.playButton, { backgroundColor: `${theme.colors.background}90` }]}> 
+              <ArrowRightPlay size={24} color={theme.colors.text.primary} />
+            </View>
+          </Animated.View>
+          {/* Quick actions on media */}
+          <View style={styles.mediaQuickActions}>
+            <TouchableOpacity style={[styles.quickBtn, { backgroundColor: `${theme.colors.background}CC` }]} onPress={() => setLiked(!liked)}>
+              <Heart size={18} color={liked ? theme.colors.like : theme.colors.text.primary} filled={liked} />
+              <Text style={[styles.quickText, liked && { color: theme.colors.like }]}>{reflection.likes}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.quickBtn, { backgroundColor: `${theme.colors.background}CC` }]} onPress={onCommentPress}>
+              <MessageCircle size={18} color={theme.colors.text.primary} />
+              <Text style={styles.quickText}>{reflection.comments.length}</Text>
+            </TouchableOpacity>
+          </View>
+          {/* Duration badge */}
+          {typeof reflection.duration_seconds === 'number' && reflection.duration_seconds > 0 && (
+            <View style={[styles.durationBadge, { backgroundColor: `${theme.colors.background}CC` }]}> 
+              <Clock size={12} color={theme.colors.text.secondary} />
+              <Text style={[styles.durationText, { color: theme.colors.text.primary }]}>
+                {formatDuration(reflection.duration_seconds)}
+              </Text>
+            </View>
+          )}
+          {!!reflection.content && (
+            <Text style={[styles.contentText, { color: theme.colors.text.primary, paddingTop: theme.spacing.sm }]} numberOfLines={maxContentLines}>
+              {reflection.content}
+            </Text>
+          )}
+        </View>
+      )}
+
+      {/* Text-only reflection */}
+      {!reflection.media_url && (
+        <Text 
+          style={[styles.contentText, { color: theme.colors.text.primary }]}
+          numberOfLines={maxContentLines}
+        >
+          {reflection.content}
+        </Text>
+      )}
+
       {!expanded && topComment && (
         <TouchableOpacity 
           style={styles.topCommentPreview}
@@ -275,6 +402,60 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     ...theme.typography.body.serif,
     padding: theme.spacing.md,
     paddingTop: 0,
+  },
+  mediaContainer: {
+    width: '100%',
+  },
+  video: {
+    width: '100%',
+    aspectRatio: 16/9,
+    backgroundColor: theme.colors.surface,
+  },
+  playOverlay: {
+    ...StyleSheet.absoluteFillObject as any,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  playButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  durationBadge: {
+    position: 'absolute',
+    right: 8,
+    bottom: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  durationText: {
+    ...theme.typography.caption.primary,
+  },
+  mediaQuickActions: {
+    position: 'absolute',
+    left: 8,
+    bottom: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  quickBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 16,
+  },
+  quickText: {
+    ...theme.typography.caption.primary,
+    color: theme.colors.text.primary,
   },
   header: {
     flexDirection: 'row',
