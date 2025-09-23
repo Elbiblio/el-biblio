@@ -38,6 +38,7 @@ import Animated, {
   Extrapolation,
   runOnJS
 } from 'react-native-reanimated';
+import * as Haptics from 'expo-haptics';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useVirtueQuizStore } from '@/stores/StoreProvider';
 import { observer } from 'mobx-react-lite';
@@ -78,10 +79,12 @@ const VirtueQuizScreen = observer(({ navigation, route }: NativeStackScreenProps
   const styles = createStyles(theme, store.selectedVirtue);
 
   const confettiRef = useRef<any>(null);
+  const confettiInlineRef = useRef<any>(null);
 
   // Animation values
   const cardScale = useSharedValue(0.95);
   const optionScale = useSharedValue(1);
+  const optionPressScale = useSharedValue(1);
   const progressWidth = useSharedValue(0);
   const explanationHeight = useSharedValue(0);
 
@@ -178,6 +181,23 @@ const VirtueQuizScreen = observer(({ navigation, route }: NativeStackScreenProps
       Extrapolation.CLAMP
     )}]
   }));
+  
+  // Option press micro-scale
+  const optionPressStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: optionPressScale.value }],
+  }));
+
+  // Haptics on explanation reveal
+  useEffect(() => {
+    if (showExplanation && selectedAnswer !== null) {
+      Haptics.impactAsync(
+        isAnswerCorrect ? Haptics.ImpactFeedbackStyle.Light : Haptics.ImpactFeedbackStyle.Medium
+      );
+      if (isAnswerCorrect) {
+        confettiInlineRef.current?.restart?.();
+      }
+    }
+  }, [showExplanation, selectedAnswer, isAnswerCorrect]);
   
   // Render functions
   const renderVirtueSelection = () => (
@@ -352,35 +372,52 @@ const VirtueQuizScreen = observer(({ navigation, route }: NativeStackScreenProps
           <View style={styles.optionsContainer}>
             {currentQuestion.type === 'true_false' ? (
               <>
-                <TouchableOpacity
+                <Animated.View style={optionPressStyle}>
+                  <TouchableOpacity
                   style={[
                     styles.optionButton,
                     selectedAnswer === 'true' && styles.selectedOptionButton,
                     selectedAnswer !== null && 'true' === String(currentQuestion.correctAnswer) && styles.correctOptionButton,
                     selectedAnswer === 'true' && selectedAnswer !== String(currentQuestion.correctAnswer) && styles.incorrectOptionButton,
                   ]}
-                  onPress={() => store.handleAnswerSelection('true')}
+                  onPress={() => {
+                    optionPressScale.value = withSequence(
+                      withTiming(0.97, { duration: 80 }),
+                      withTiming(1, { duration: 120 })
+                    );
+                    store.handleAnswerSelection('true');
+                  }}
                   disabled={selectedAnswer !== null}
                 >
                   <Text style={styles.optionText}>True</Text>
                 </TouchableOpacity>
+                </Animated.View>
                 
-                <TouchableOpacity
+                <Animated.View style={optionPressStyle}>
+                  <TouchableOpacity
                   style={[
                     styles.optionButton,
                     selectedAnswer === 'false' && styles.selectedOptionButton,
                     selectedAnswer !== null && 'false' === String(currentQuestion.correctAnswer) && styles.correctOptionButton,
                     selectedAnswer === 'false' && selectedAnswer !== String(currentQuestion.correctAnswer) && styles.incorrectOptionButton,
                   ]}
-                  onPress={() => store.handleAnswerSelection('false')}
+                  onPress={() => {
+                    optionPressScale.value = withSequence(
+                      withTiming(0.97, { duration: 80 }),
+                      withTiming(1, { duration: 120 })
+                    );
+                    store.handleAnswerSelection('false');
+                  }}
                   disabled={selectedAnswer !== null}
                 >
                   <Text style={styles.optionText}>False</Text>
                 </TouchableOpacity>
+                </Animated.View>
               </>
             ) : (
               currentQuestion.options?.map((option, index) => (
-                <TouchableOpacity
+                <Animated.View style={optionPressStyle}>
+                  <TouchableOpacity
                   key={index}
                   style={[
                     styles.optionButton,
@@ -388,11 +425,18 @@ const VirtueQuizScreen = observer(({ navigation, route }: NativeStackScreenProps
                     selectedAnswer !== null && index === Number(currentQuestion.correctAnswer) && styles.correctOptionButton,
                     selectedAnswer === index && selectedAnswer !== Number(currentQuestion.correctAnswer) && styles.incorrectOptionButton,
                   ]}
-                  onPress={() => store.handleAnswerSelection(index)}
+                  onPress={() => {
+                    optionPressScale.value = withSequence(
+                      withTiming(0.97, { duration: 80 }),
+                      withTiming(1, { duration: 120 })
+                    );
+                    store.handleAnswerSelection(index);
+                  }}
                   disabled={selectedAnswer !== null}
                 >
                   <Text style={styles.optionText}>{option}</Text>
                 </TouchableOpacity>
+                </Animated.View>
               ))
             )}
           </View>
@@ -515,6 +559,12 @@ const VirtueQuizScreen = observer(({ navigation, route }: NativeStackScreenProps
   
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
+      <PIConfetti
+        ref={confettiInlineRef}
+        count={90}
+        fadeOutOnEnd
+        colors={[ '#FFD700', '#FF6347', '#4169E1', '#32CD32', '#FF69B4', '#BA55D3' ]}
+      />
       <View style={styles.header}>
         <TouchableOpacity 
           style={styles.backButton}

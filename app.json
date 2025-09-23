@@ -27,7 +27,8 @@
       "bundleIdentifier": "com.robosyslive.elbiblio",
       "infoPlist": {
         "NSCameraUsageDescription": "El-Biblio uses the camera to let you record Face2Face reflections and capture media to share with the community.",
-        "NSMicrophoneUsageDescription": "El-Biblio uses the microphone to capture audio while recording Face2Face reflections."
+        "NSMicrophoneUsageDescription": "El-Biblio uses the microphone to capture audio while recording Face2Face reflections.",
+        "NSPhotoLibraryAddUsageDescription": "El-Biblio saves videos/photos to your library when you choose to export Face2Face reflections."
       }
     },
     "android": {
@@ -38,7 +39,9 @@
       "package": "com.robosyslive.elbiblio",
       "permissions": [
         "CAMERA",
-        "RECORD_AUDIO"
+        "RECORD_AUDIO",
+        "READ_MEDIA_VIDEO",
+        "READ_MEDIA_IMAGES"
       ]
     },
     "web": {
@@ -61,7 +64,8 @@
       ],
       "expo-sqlite",
       "expo-audio",
-      "expo-camera"
+      "expo-camera",
+      "expo-media-library"
     ]
   }
 }

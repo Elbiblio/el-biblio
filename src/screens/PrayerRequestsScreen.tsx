@@ -9,6 +9,8 @@ import { ArrowLeft, Send, ChevronDown, Sparkle, Heart } from '@/components/Icons
 import { observer } from 'mobx-react-lite';
 import { usePrayerRequestsStore } from '@/stores/StoreProvider';
 import EmptyState from '@/components/EmptyState';
+import Animated, { useSharedValue, withSpring, useAnimatedStyle, withTiming } from 'react-native-reanimated';
+import * as Haptics from 'expo-haptics';
 
 export type PrayerRequestsScreenProps = NativeStackScreenProps<RootStackParamList, 'PrayerRequestsScreen'>;
 
@@ -111,6 +113,37 @@ const PrayerRequestsScreen = ({ navigation }: PrayerRequestsScreenProps) => {
     }
   }, [selectedIds, prayForRequest, isBulkPraying]);
 
+  const PrayButton = ({ count, onPress }: { count?: number; onPress: () => void }) => {
+    const scale = useSharedValue(1);
+    const burstScale = useSharedValue(0.6);
+    const burstOpacity = useSharedValue(0);
+
+    const btnStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
+    const burstStyle = useAnimatedStyle(() => ({ opacity: burstOpacity.value, transform: [{ scale: burstScale.value }] }));
+
+    const handlePress = async () => {
+      // micro interaction
+      scale.value = withSpring(1.07, { damping: 12 }, () => { scale.value = withSpring(1); });
+      burstOpacity.value = 1; burstScale.value = 0.6; burstScale.value = withSpring(1.2, { damping: 10, stiffness: 120 });
+      burstOpacity.value = withTiming(0, { duration: 500 });
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      onPress();
+    };
+
+    return (
+      <Animated.View style={btnStyle}>
+        <View style={{ position: 'relative' }}>
+          <Animated.View pointerEvents="none" style={[styles.prayBurstOverlay, burstStyle]}>
+            <Heart size={40} color={theme.colors.success} filled={true} />
+          </Animated.View>
+          <TouchableOpacity style={styles.prayButton} onPress={handlePress}>
+            <Text style={styles.prayButtonText}>I prayed 🙏 {count ? `(${count})` : ''}</Text>
+          </TouchableOpacity>
+        </View>
+      </Animated.View>
+    );
+  };
+
   const renderItem = ({ item }: { item: PrayerRequest }) => {
     const isSelected = selectedIds.has(item.id);
     return (
@@ -123,9 +156,7 @@ const PrayerRequestsScreen = ({ navigation }: PrayerRequestsScreenProps) => {
           <Text style={styles.cardContent}>{item.content}</Text>
           <Text style={styles.cardTime}>{new Date(item.created_at).toLocaleString()}</Text>
           <View style={styles.cardActions}>
-            <TouchableOpacity style={styles.prayButton} onPress={() => handlePray(item.id)}>
-              <Text style={styles.prayButtonText}>I prayed 🙏 {item.prayed_count ? `(${item.prayed_count})` : ''}</Text>
-            </TouchableOpacity>
+            <PrayButton count={item.prayed_count} onPress={() => handlePray(item.id)} />
           </View>
         </View>
       </TouchableOpacity>
@@ -518,6 +549,16 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     ...theme.typography.caption.primary,
     color: theme.colors.success,
     fontWeight: '600',
+  },
+  prayBurstOverlay: {
+    position: 'absolute',
+    top: -12,
+    left: -12,
+    right: -12,
+    bottom: -12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    pointerEvents: 'none',
   },
 });
 

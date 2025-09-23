@@ -12,7 +12,9 @@ import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withSpring,
+  withTiming,
 } from 'react-native-reanimated';
+import * as Haptics from 'expo-haptics';
 import { Heart, MessageCircle } from './Icons';
 import { Comment } from '../types';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -34,16 +36,31 @@ const CommentThread: React.FC<CommentThreadProps> = ({
   const theme = useTheme();
   const styles = React.useMemo(() => createStyles(theme), [theme]);
   const scale = useSharedValue(1);
+  const burstScale = useSharedValue(0.6);
+  const burstOpacity = useSharedValue(0);
 
   const handleLike = () => {
+    // Button tap feedback
     scale.value = withSpring(1.2, {}, () => {
       scale.value = withSpring(1);
     });
+    // Heart burst
+    burstOpacity.value = 1;
+    burstScale.value = 0.6;
+    burstScale.value = withSpring(1.2, { damping: 10, stiffness: 120 });
+    burstOpacity.value = withTiming(0, { duration: 550 });
+    // Haptic
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     onLike(comment.id);
   };
 
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scale.value }]
+  }));
+
+  const burstStyle = useAnimatedStyle(() => ({
+    opacity: burstOpacity.value,
+    transform: [{ scale: burstScale.value }],
   }));
 
   const renderReplies = () => {
@@ -90,25 +107,30 @@ const CommentThread: React.FC<CommentThreadProps> = ({
 
         {/* Comment Actions */}
         <View style={styles.actions}>
-          <Animated.View style={animatedStyle}>
-            <TouchableOpacity
-              onPress={handleLike}
-              style={styles.actionButton}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            >
-              <Heart 
-                size={16}
-                color={comment.isLiked ? theme.colors.like : theme.colors.text.secondary}
-                filled={comment.isLiked}
-              />
-              <Text style={[
-                styles.actionText,
-                comment.isLiked && styles.likedText
-              ]}>
-                {comment.likes}
-              </Text>
-            </TouchableOpacity>
-          </Animated.View>
+          <View style={{ position: 'relative' }}>
+            <Animated.View pointerEvents="none" style={[styles.heartBurstOverlay, burstStyle]}>
+              <Heart size={48} color={theme.colors.like} filled={true} />
+            </Animated.View>
+            <Animated.View style={animatedStyle}>
+              <TouchableOpacity
+                onPress={handleLike}
+                style={styles.actionButton}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <Heart 
+                  size={16}
+                  color={comment.isLiked ? theme.colors.like : theme.colors.text.secondary}
+                  filled={comment.isLiked}
+                />
+                <Text style={[
+                  styles.actionText,
+                  comment.isLiked && styles.likedText
+                ]}>
+                  {comment.likes}
+                </Text>
+              </TouchableOpacity>
+            </Animated.View>
+          </View>
 
           <TouchableOpacity
             onPress={() => onReply(comment)}
@@ -223,6 +245,16 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     marginTop: theme.spacing.xs,
     marginLeft: theme.spacing.xl,
     gap: theme.spacing.md,
+  },
+  heartBurstOverlay: {
+    position: 'absolute',
+    top: -16,
+    left: -16,
+    right: -16,
+    bottom: -16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    pointerEvents: 'none',
   },
   actionButton: {
     flexDirection: 'row',

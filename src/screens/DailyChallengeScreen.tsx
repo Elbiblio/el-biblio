@@ -16,16 +16,10 @@ import { Modal } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   ArrowLeft,
-  Plus,
-  Check,
   X,
-  ThumbsUp,
-  Users,
   Clock,
   Trophy,
   Star,
-  ArrowUp,
-  Calendar,
   Sparkle
 } from '@/components/Icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -33,8 +27,6 @@ import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withTiming,
-  withSequence,
-  withSpring,
   interpolate,
   Extrapolation
 } from 'react-native-reanimated';
@@ -133,6 +125,8 @@ const DailyChallengesScreen = ({ navigation }: DailyChallengesProps) => {
   const headerHeight = useSharedValue(0);
   const formHeight = useSharedValue(0);
   const listOpacity = useSharedValue(0);
+  const backScale = useSharedValue(1);
+  const suggestScale = useSharedValue(1);
   
   useEffect(() => {
     // Animate header and list on mount
@@ -318,6 +312,14 @@ const DailyChallengesScreen = ({ navigation }: DailyChallengesProps) => {
     opacity: interpolate(headerHeight.value, [0, 56], [0, 1], Extrapolation.CLAMP),
   }));
 
+  const backAnimatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: backScale.value }],
+  }));
+
+  const suggestAnimatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: suggestScale.value }],
+  }));
+
   // Render a single challenge card
   const renderChallengeCard = (challenge: Challenge) => {
     const isVirtue = challenge.type === 'virtue';
@@ -387,7 +389,7 @@ const DailyChallengesScreen = ({ navigation }: DailyChallengesProps) => {
             {canVote ? (
               <TouchableOpacity
                 style={[styles.actionButton, { backgroundColor: `${theme?.colors.primary}15` }]}
-                onPress={() => openVoteModal(challenge.id)}
+                onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); openVoteModal(challenge.id); }}
               >
                 <Star size={16} color={theme?.colors.primary} />
                 <Text style={[styles.actionText, { color: theme?.colors.primary }]}>Vote</Text>
@@ -565,20 +567,28 @@ const DailyChallengesScreen = ({ navigation }: DailyChallengesProps) => {
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <Animated.View style={[styles.header, headerAnimatedStyle]}>
-        <TouchableOpacity 
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-        >
-          <ArrowLeft size={24} color={theme?.colors.text.primary} />
-        </TouchableOpacity>
+        <Animated.View style={backAnimatedStyle}>
+          <TouchableOpacity 
+            style={styles.backButton}
+            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); navigation.goBack(); }}
+            onPressIn={() => { backScale.value = withTiming(0.96, { duration: 80 }); }}
+            onPressOut={() => { backScale.value = withTiming(1, { duration: 120 }); }}
+          >
+            <ArrowLeft size={24} color={theme?.colors.text.primary} />
+          </TouchableOpacity>
+        </Animated.View>
         <Text style={styles.headerTitle}>Daily Challenges</Text>
         {user && (user.points || 0) >= 200 && activeCategory === 'community' && (
-          <TouchableOpacity 
-            style={styles.suggestButton}
-            onPress={handleSuggestCommunityChallenge}
-          >
-            <Sparkle size={20} color={theme?.colors.primary} />
-          </TouchableOpacity>
+          <Animated.View style={suggestAnimatedStyle}>
+            <TouchableOpacity 
+              style={styles.suggestButton}
+              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); handleSuggestCommunityChallenge(); }}
+              onPressIn={() => { suggestScale.value = withTiming(0.96, { duration: 80 }); }}
+              onPressOut={() => { suggestScale.value = withTiming(1, { duration: 120 }); }}
+            >
+              <Sparkle size={20} color={theme?.colors.primary} />
+            </TouchableOpacity>
+          </Animated.View>
         )}
       </Animated.View>
 
@@ -590,7 +600,7 @@ const DailyChallengesScreen = ({ navigation }: DailyChallengesProps) => {
               styles.categoryTab,
               activeCategory === category.id && styles.activeTab
             ]}
-            onPress={() => setActiveCategory(category.id as 'personal' | 'community' | 'suggested')}
+            onPress={() => { Haptics.selectionAsync(); setActiveCategory(category.id as 'personal' | 'community' | 'suggested'); }}
           >
             <Text style={[
               styles.categoryText,

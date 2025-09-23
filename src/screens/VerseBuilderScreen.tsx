@@ -24,6 +24,8 @@ import { useVerseBuilderStore } from '@/stores/StoreProvider';
 import { Clock, Sparkle, Trophy, ArrowCounterClockwise } from '../components/Icons';
 import { PowerUpType } from '@/types';
 import { Audio } from 'expo-av';
+import { PIConfetti } from 'react-native-fast-confetti';
+import * as Haptics from 'expo-haptics';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const WORD_SIZE = SCREEN_WIDTH / 5;
@@ -70,11 +72,13 @@ const VerseBuilderScreen = observer(() => {
   const scaleAnim = useSharedValue(1);
   const successOpacity = useSharedValue(0);
   const fadeAnim = useSharedValue(1);
+  const warnScale = useSharedValue(1);
 
   // Refs
   const soundsRef = useRef<{
     [key: string]: Audio.Sound | null;
   }>({});
+  const confettiRef = useRef<any>(null);
 
   useEffect(() => {
     const loadSounds = async () => {
@@ -125,6 +129,10 @@ const VerseBuilderScreen = observer(() => {
 
     if (timeLeft > 0 && timeLeft <= 10) {
       soundsRef.current?.tickTock?.setPositionAsync(0).then(() => soundsRef.current?.tickTock?.playAsync());
+      // subtle pulse on low time
+      warnScale.value = withTiming(1.06, { duration: 120 }, () => {
+        warnScale.value = withTiming(1, { duration: 160 });
+      });
     }
     if (timeLeft <= 0) {
       soundsRef.current?.timeout?.setPositionAsync(0).then(() => soundsRef.current?.timeout?.playAsync());
@@ -146,12 +154,18 @@ const VerseBuilderScreen = observer(() => {
   useEffect(() => {
     if (showSuccess) {
       successOpacity.value = withTiming(1, { duration: 300 });
+      // Confetti micro-burst on success
+      confettiRef.current?.restart?.();
       soundsRef.current?.correct?.setPositionAsync(0).then(() => soundsRef.current?.correct?.playAsync());
       if (score > highScore) {
         soundsRef.current?.cheers?.setPositionAsync(0).then(() => soundsRef.current?.cheers?.playAsync());
+        // Extra confetti on new high score
+        confettiRef.current?.restart?.();
       }
       if (streak > 1 && streak % 5 === 0) {
         soundsRef.current?.streak?.setPositionAsync(0).then(() => soundsRef.current?.streak?.playAsync());
+        // Celebrate streak milestones
+        confettiRef.current?.restart?.();
       }
       setTimeout(() => (successOpacity.value = withTiming(0, { duration: 300 })), 3500);
     }
@@ -168,12 +182,14 @@ const VerseBuilderScreen = observer(() => {
     scaleAnim.value = withTiming(1.05, { duration: 100 }, () => {
       scaleAnim.value = withTiming(1, { duration: 100 });
     });
+    Haptics.selectionAsync();
     returnWordToPool(word, index);
   };
 
   const handleRetry = () => {
     retry();
     soundsRef.current?.retry?.setPositionAsync(0).then(() => soundsRef.current?.retry?.playAsync());
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
   };
 
   // Animated Styles
@@ -199,6 +215,10 @@ const VerseBuilderScreen = observer(() => {
 
   const fadeStyle = useAnimatedStyle(() => ({
     opacity: fadeAnim.value,
+  }));
+
+  const timerWarnStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: warnScale.value }],
   }));
 
   const WordTile = ({ word, onPress, disabled, isPrefilled }: { word: string; onPress: () => void; disabled: boolean; isPrefilled?: boolean }) => (
@@ -231,7 +251,7 @@ const VerseBuilderScreen = observer(() => {
           <Text style={styles.sectionTitle}>Arrange the Verse:</Text>
           <TouchableOpacity
             style={[styles.undoButton, !canUndo && styles.undoButtonDisabled]}
-            onPress={undoLastWord}
+            onPress={() => { Haptics.selectionAsync(); undoLastWord(); }}
             disabled={!canUndo}
           >
             <ArrowCounterClockwise
@@ -290,6 +310,12 @@ const VerseBuilderScreen = observer(() => {
 
   return (
     <View style={styles.container}>
+      <PIConfetti
+        ref={confettiRef}
+        count={120}
+        fadeOutOnEnd
+        colors={[ '#FFD700', '#FF6347', '#4169E1', '#32CD32', '#FF69B4', '#BA55D3' ]}
+      />
       {isLoading && (
         <View style={styles.loadingOverlay}>
           <ActivityIndicator size="large" color={theme.colors.primary} />
@@ -305,19 +331,19 @@ const VerseBuilderScreen = observer(() => {
           <Text style={styles.highScoreText}>High: {highScore}</Text>
         </View>
         <View style={styles.powerUps}>
-          <TouchableOpacity onPress={() => usePowerUp('grace')} disabled={powerUps.grace <= 0 || !isPlaying}>
+          <TouchableOpacity onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); usePowerUp('grace'); }} disabled={powerUps.grace <= 0 || !isPlaying}>
             <Text style={[styles.powerUpText, powerUps.grace <= 0 && styles.powerUpDisabled]}>🕊️×{powerUps.grace}</Text>
           </TouchableOpacity>
-          <TouchableOpacity onPress={() => usePowerUp('discernment')} disabled={powerUps.discernment <= 0 || !isPlaying}>
+          <TouchableOpacity onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); usePowerUp('discernment'); }} disabled={powerUps.discernment <= 0 || !isPlaying}>
             <Text style={[styles.powerUpText, powerUps.discernment <= 0 && styles.powerUpDisabled]}>🔍×{powerUps.discernment}</Text>
           </TouchableOpacity>
         </View>
       </View>
       <View style={styles.timerContainer}>
-        <View style={styles.timerLabel}>
+        <Animated.View style={[styles.timerLabel, timerWarnStyle]}>
           <Clock color={theme.colors.text.primary} size={20} />
           <Text style={styles.timerText}>{timeLeft}s</Text>
-        </View>
+        </Animated.View>
         <View style={styles.progressBarContainer}>
           <Animated.View style={[styles.progressBar, progressBarStyle]} />
         </View>

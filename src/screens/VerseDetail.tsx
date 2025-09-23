@@ -9,6 +9,8 @@ import {
   TextInput,
   ScrollView,
   ActivityIndicator,
+  Image,
+  RefreshControl,
 } from 'react-native';
 import Animated, {
   useSharedValue,
@@ -22,6 +24,7 @@ import { BlurView } from 'expo-blur';
 import { CameraView, CameraType, Camera } from 'expo-camera';
 import { Video, ResizeMode } from 'expo-av';
 import * as FileSystem from 'expo-file-system';
+import { Platform as RNPlatform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
@@ -48,6 +51,7 @@ import * as Clipboard from 'expo-clipboard';
 import { toast } from 'sonner-native';
 import { observer } from 'mobx-react-lite';
 import EmptyState from '@/components/EmptyState';
+import { Share as NativeShare } from 'react-native';
 
 type VerseDetailProps = NativeStackScreenProps<RootStackParamList, 'VerseDetail'>;
 
@@ -86,6 +90,7 @@ const VerseDetail = ({ navigation, route }: VerseDetailProps) => {
   const [recordTimer, setRecordTimer] = useState<ReturnType<typeof setTimeout> | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [showFaceTips, setShowFaceTips] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<number>(0);
 
   // Animated values
   const scrollY = useSharedValue(0);
@@ -167,38 +172,23 @@ const VerseDetail = ({ navigation, route }: VerseDetailProps) => {
     }
   };
 
-  const handleShare = async () => {
-    if (!currentVerse) return;
-    
+  // Removed obsolete handleShare (use handleShareVerse instead)
+
+  const handleCopyVerse = async () => {
     try {
-      await createInteraction({
-        interactable_id: currentVerse.id,
-        interactable_type: 'App\\Models\\Verse',
-        type: 3, // Share
-        user_id: user?.id || ''
-      });
-      
-      // todo: Implement sharing
-      // await Share.share({
-      //   message: `${currentVerse.text} (${currentVerse.reference})`
-      // });
-      
-    } catch (error) {
-      toast.error('Failed to share verse');
+      await Clipboard.setStringAsync(`${currentVerse?.text} (${currentVerse?.reference})`);
+      toast.success('Verse copied to clipboard');
+    } catch (e) {
+      toast.error('Failed to copy');
     }
   };
 
-  const handleCopyVerse = async () => {
+  const handleShareVerse = async () => {
     if (!currentVerse) return;
-    
     try {
-      await Clipboard.setStringAsync(
-        `${currentVerse.text} (${currentVerse.reference})`
-      );
-      toast.success('Verse copied to clipboard');
-    } catch (error) {
-      toast.error('Failed to copy verse');
-    }
+      const msg = `${currentVerse.text} (${currentVerse.reference})`;
+      await NativeShare.share({ message: msg });
+    } catch {}
   };
 
   const handleSubmitReflection = async () => {
@@ -306,13 +296,52 @@ const VerseDetail = ({ navigation, route }: VerseDetailProps) => {
       if (!presign.success) throw new Error(presign.message || 'Failed to prepare upload');
       const { uploadUrl, publicUrl } = presign.data;
 
-      // 2) PUT binary to S3
-      const uploadRes = await FileSystem.uploadAsync(uploadUrl, videoUri, {
-        httpMethod: 'PUT',
-        headers: { 'Content-Type': contentType },
-        uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
-      });
-      if (uploadRes.status !== 200) throw new Error('Upload failed');
+      const uploadToS3 = async (uploadUrl: string, fileUri: string, contentType: string) => {
+        return new Promise<void>(async (resolve, reject) => {
+          try {
+            // Read file into blob/binary
+            const fileInfo = await FileSystem.getInfoAsync(fileUri);
+            if (!fileInfo.exists) throw new Error('File not found');
+
+            // Use XMLHttpRequest to get progress events
+            const xhr = new XMLHttpRequest();
+            xhr.open('PUT', uploadUrl);
+            xhr.setRequestHeader('Content-Type', contentType);
+            xhr.upload.onprogress = (evt: any) => {
+              if (evt && evt.total) {
+                setUploadProgress(Math.min(1, evt.loaded / evt.total));
+              }
+            };
+            xhr.onload = function () {
+              if (xhr.status >= 200 && xhr.status < 300) {
+                setUploadProgress(1);
+                resolve();
+              } else {
+                reject(new Error(`Upload failed with status ${xhr.status}`));
+              }
+            };
+            xhr.onerror = function () {
+              reject(new Error('Upload failed'));
+            };
+            // Send file as binary
+            if (RNPlatform.OS === 'ios') {
+              // iOS requires fetching file as blob via fetch
+              const res = await fetch(fileUri);
+              const blob = await res.blob();
+              xhr.send(blob as any);
+            } else {
+              // Android can use RNFS-like path; fetch to blob for consistency
+              const res = await fetch(fileUri);
+              const blob = await res.blob();
+              xhr.send(blob as any);
+            }
+          } catch (e) {
+            reject(e);
+          }
+        });
+      };
+
+      await uploadToS3(uploadUrl, videoUri, contentType);
 
       // 3) Create reflection pointing to uploaded media
       await createReflection({
@@ -486,7 +515,7 @@ const VerseDetail = ({ navigation, route }: VerseDetailProps) => {
 
                   <TouchableOpacity
                     style={styles.actionButton}
-                    onPress={handleShare}
+                    onPress={handleShareVerse}
                   >
                     <Share size={24} color={theme.colors.text.secondary} />
                   </TouchableOpacity>
@@ -510,6 +539,13 @@ const VerseDetail = ({ navigation, route }: VerseDetailProps) => {
               >
                 <Copy size={16} color={theme.colors.text.secondary} />
                 <Text style={styles.copyText}>Copy Verse</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.copyButton}
+                onPress={handleShareVerse}
+              >
+                <Share size={16} color={theme.colors.text.secondary} />
+                <Text style={styles.copyText}>Share</Text>
               </TouchableOpacity>
             </Animated.View>
 
@@ -705,7 +741,12 @@ const VerseDetail = ({ navigation, route }: VerseDetailProps) => {
                 {isUploading && (
                   <View style={styles.overlayCenter}>
                     <ActivityIndicator color={theme.colors.primary} size="large" />
-                    <Text style={[styles.copyText, { marginTop: theme.spacing.sm }]}>Uploading… Please keep the app open</Text>
+                    <View style={styles.progressBarWrap}>
+                      <View style={[styles.progressBarFill, { width: `${Math.round((uploadProgress || 0) * 100)}%`, backgroundColor: theme.colors.primary }]} />
+                    </View>
+                    <Text style={[styles.copyText, { marginTop: theme.spacing.xs }]}>
+                      {`Uploading… ${Math.round((uploadProgress || 0) * 100)}%`}
+                    </Text>
                   </View>
                 )}
                 <View style={styles.faceControls}>
@@ -1125,6 +1166,18 @@ const createStyles = (theme: Theme) => StyleSheet.create({
   tipsItem: {
     ...theme.typography.body.sans,
     color: theme.colors.text.secondary,
+  },
+  progressBarWrap: {
+    marginTop: theme.spacing.sm,
+    width: 220,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: theme.colors.surfaceVariant,
+    overflow: 'hidden',
+  },
+  progressBarFill: {
+    height: '100%',
+    borderRadius: 3,
   },
 });
 

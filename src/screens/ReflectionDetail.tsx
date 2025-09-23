@@ -59,6 +59,7 @@ const ReflectionDetail = observer(({ navigation, route }: ReflectionDetailProps)
 
   // Animated values
   const scrollY = useSharedValue(0);
+  const scrollX = useSharedValue(0);
   const styles = React.useMemo(() => createStyles(theme), [theme]);
   const reflection = route.params.reflection;
 
@@ -171,7 +172,7 @@ const ReflectionDetail = observer(({ navigation, route }: ReflectionDetailProps)
         <View style={styles.headerContainer}>
           <ReflectionCard
             reflection={reflection}
-            scrollX={useSharedValue(0)} // Placeholder
+            scrollX={scrollX}
             index={0}
             onCommentPress={() => {}}
             expanded={true}

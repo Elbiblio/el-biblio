@@ -21,6 +21,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { BlurView } from 'expo-blur';
 import { Video, ResizeMode, AVPlaybackStatus } from 'expo-av';
+import { Share as RNShare } from 'react-native';
 import { Heart, MessageCircle, Share, BookmarkSimple, ChevronRight, ArrowRightPlay, Clock } from './Icons';
 import CommentThread from './CommentThread';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -64,6 +65,9 @@ const ReflectionCard: React.FC<ReflectionCardProps> = ({
   const [isPlaying, setIsPlaying] = useState(false);
   const lastSavedRef = useRef<number>(0);
   const lastTapRef = useRef<number>(0);
+  const heartScale = useSharedValue(0);
+  const heartOpacity = useSharedValue(0);
+  const [muted, setMuted] = useState<boolean>(true);
 
   const topComment = reflection.comments[0];
 
@@ -133,7 +137,8 @@ const ReflectionCard: React.FC<ReflectionCardProps> = ({
     const now = Date.now();
     if (now - lastTapRef.current < 300) {
       // Double tap to like
-      setLiked(true);
+      if (!liked) setLiked(true);
+      triggerHeartBurst();
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       showOverlayBriefly();
       lastTapRef.current = 0;
@@ -155,12 +160,35 @@ const ReflectionCard: React.FC<ReflectionCardProps> = ({
   };
 
   const overlayStyle = useAnimatedStyle(() => ({ opacity: overlayAlpha.value }));
+  const heartBurstStyle = useAnimatedStyle(() => ({
+    opacity: heartOpacity.value,
+    transform: [{ scale: heartScale.value }],
+  }));
+
+  const triggerHeartBurst = () => {
+    heartOpacity.value = 1;
+    heartScale.value = 0.6;
+    heartScale.value = withSpring(1.2, { damping: 10, stiffness: 120 });
+    // fade out after brief delay
+    heartOpacity.value = withTiming(0, { duration: 650 });
+  };
+
+  const handleToggleLike = () => {
+    const next = !liked;
+    setLiked(next);
+    if (next) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      triggerHeartBurst();
+    }
+  };
 
   const onVideoLoad = React.useCallback(async () => {
     try {
       const key = `reflection_progress_${reflection.id}`;
       const saved = await AsyncStorage.getItem(key);
       const pos = saved ? parseInt(saved, 10) : 0;
+      const mutePref = await AsyncStorage.getItem('video_muted_pref');
+      if (mutePref === 'true' || mutePref === 'false') setMuted(mutePref === 'true');
       if (videoRef.current && pos > 2) {
         await videoRef.current.setPositionAsync(pos * 1000);
       }
@@ -188,6 +216,7 @@ const ReflectionCard: React.FC<ReflectionCardProps> = ({
               source={{ uri: reflection.media_url }}
               useNativeControls
               isLooping={false}
+              isMuted={muted}
               posterSource={reflection.thumbnail_url ? { uri: reflection.thumbnail_url } : undefined}
               posterStyle={styles.video}
               resizeMode={ResizeMode.COVER}
@@ -196,6 +225,19 @@ const ReflectionCard: React.FC<ReflectionCardProps> = ({
               onPlaybackStatusUpdate={onPlaybackUpdate}
             />
           </TouchableWithoutFeedback>
+          {/* Mute toggle */}
+          <View style={styles.muteChipContainer}>
+            <TouchableOpacity
+              style={[styles.quickBtn, { backgroundColor: `${theme.colors.background}CC` }]}
+              onPress={async () => {
+                const next = !muted;
+                setMuted(next);
+                try { await AsyncStorage.setItem('video_muted_pref', next ? 'true' : 'false'); } catch {}
+              }}
+            >
+              <Text style={styles.quickText}>{muted ? 'Muted' : 'Sound on'}</Text>
+            </TouchableOpacity>
+          </View>
           {/* Play overlay (decorative) */}
           <Animated.View pointerEvents="none" style={[styles.playOverlay, overlayStyle]}>
             <View style={[styles.playButton, { backgroundColor: `${theme.colors.background}90` }]}> 
@@ -204,7 +246,7 @@ const ReflectionCard: React.FC<ReflectionCardProps> = ({
           </Animated.View>
           {/* Quick actions on media */}
           <View style={styles.mediaQuickActions}>
-            <TouchableOpacity style={[styles.quickBtn, { backgroundColor: `${theme.colors.background}CC` }]} onPress={() => setLiked(!liked)}>
+            <TouchableOpacity style={[styles.quickBtn, { backgroundColor: `${theme.colors.background}CC` }]} onPress={handleToggleLike}>
               <Heart size={18} color={liked ? theme.colors.like : theme.colors.text.primary} filled={liked} />
               <Text style={[styles.quickText, liked && { color: theme.colors.like }]}>{reflection.likes}</Text>
             </TouchableOpacity>
@@ -222,6 +264,10 @@ const ReflectionCard: React.FC<ReflectionCardProps> = ({
               </Text>
             </View>
           )}
+          {/* Heart burst overlay */}
+          <Animated.View pointerEvents="none" style={[styles.heartBurstOverlay, heartBurstStyle]}>
+            <Heart size={96} color={theme.colors.like} filled={true} />
+          </Animated.View>
           {!!reflection.content && (
             <Text style={[styles.contentText, { color: theme.colors.text.primary, paddingTop: theme.spacing.sm }]} numberOfLines={maxContentLines}>
               {reflection.content}
@@ -280,7 +326,7 @@ const ReflectionCard: React.FC<ReflectionCardProps> = ({
   const renderActions = () => (
     <View style={[styles.actions, { borderTopColor: theme.colors.border }]}>
       <TouchableOpacity
-        onPress={() => setLiked(!liked)}
+        onPress={handleToggleLike}
         style={styles.actionButton}
       >
         <Heart
@@ -308,7 +354,14 @@ const ReflectionCard: React.FC<ReflectionCardProps> = ({
 
       {expanded && (
         <>
-          <TouchableOpacity style={styles.actionButton}>
+          <TouchableOpacity style={styles.actionButton} onPress={async () => {
+            try {
+              const message = reflection.media_url
+                ? `${reflection.content ?? ''}`
+                : reflection.content ?? '';
+              await RNShare.share({ message });
+            } catch {}
+          }}>
             <Share size={24} color={theme.colors.text.secondary} />
             <Text style={[styles.actionText, { color: theme.colors.text.secondary }]}>
               Share
@@ -456,6 +509,16 @@ const createStyles = (theme: Theme) => StyleSheet.create({
   quickText: {
     ...theme.typography.caption.primary,
     color: theme.colors.text.primary,
+  },
+  heartBurstOverlay: {
+    ...StyleSheet.absoluteFillObject as any,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  muteChipContainer: {
+    position: 'absolute',
+    right: 8,
+    top: 8,
   },
   header: {
     flexDirection: 'row',

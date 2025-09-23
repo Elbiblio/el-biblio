@@ -42,7 +42,8 @@
     "react-native-vector-icons": "^10.3.0",
     "sonner-native": "^0.16.2",
     "valtio": "^2.1.2",
-    "expo-camera": "~16.0.18"
+    "expo-camera": "~16.0.18",
+    "expo-media-library": "~17.0.6"
   },
   "devDependencies": {
     "@babel/core": "^7.20.0",

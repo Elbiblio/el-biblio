@@ -15,8 +15,10 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { observer } from 'mobx-react-lite';
 import { useVirtueStore, useGameStore } from '@/stores/StoreProvider';
 import { Audio } from 'expo-av';
+import * as Haptics from 'expo-haptics';
 
 import { shuffleArray } from '@/utils/helpers';
+import { PIConfetti } from 'react-native-fast-confetti';
 import BibleDBService, { parseVPLId } from '@/utils/database';
 import { bibleBooks } from '@/constants/bibleBooks';
 import { ScrollView } from 'react-native-gesture-handler';
@@ -79,6 +81,10 @@ const VirtueTriviaScreen = () => {
     gameOver: false,
     correctAnswersCount: 0
   });
+
+  const optionPressStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: optionPressScale.value }],
+  }));
   const [isLoading, setIsLoading] = useState(true);
   const [selectedVirtue, setSelectedVirtue] = useState<string>('');
   const [showVirtueSelector, setShowVirtueSelector] = useState(true);
@@ -92,9 +98,11 @@ const VirtueTriviaScreen = () => {
   const progressWidth = useSharedValue(100);
   const timerColorAnim = useSharedValue(0);
   const successOpacity = useSharedValue(0);
+  const optionPressScale = useSharedValue(1);
 
   // Refs
   const timeLeftRef = useRef(timeLeft);
+  const confettiRef = useRef<any>(null);
   const soundsRef = useRef({
     tickTock: null as Audio.Sound | null,
     timeout: null as Audio.Sound | null,
@@ -326,12 +334,21 @@ const VirtueTriviaScreen = () => {
 
 
     
-    // Play sound
+    // Micro interaction
+    optionPressScale.value = withTiming(0.97, { duration: 80 }, () => {
+      optionPressScale.value = withTiming(1, { duration: 120 });
+    });
+
+    // Haptics and sound
     if (isCorrect) {
+      // Confetti micro-burst
+      confettiRef.current?.restart?.();
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       soundsRef.current.correct?.setPositionAsync(0).then(() => 
         soundsRef.current.correct?.playAsync()
       );
     } else {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       soundsRef.current.wrong?.setPositionAsync(0).then(() => 
         soundsRef.current.wrong?.playAsync()
       );
@@ -400,6 +417,8 @@ const VirtueTriviaScreen = () => {
           soundsRef.current.cheers?.setPositionAsync(0).then(() => 
             soundsRef.current.cheers?.playAsync()
           );
+          // Perfect score celebration
+          confettiRef.current?.restart?.();
         } else {
           // Play regular game over sound
           soundsRef.current.gameOver?.setPositionAsync(0).then(() => 
@@ -651,32 +670,37 @@ const VirtueTriviaScreen = () => {
         
         <View style={styles.optionsContainer}>
           {currentQuestion.options.map((option, index) => (
-            <TouchableOpacity
-              key={index}
-              style={[
-                styles.optionButton,
-                gameState.answered && option === currentQuestion.correctAnswer && styles.correctOption,
-                gameState.answered && 
-                option === gameState.selectedAnswer && 
-                option !== currentQuestion.correctAnswer && 
-                styles.incorrectOption
-              ]}
-              onPress={() => handleAnswerSelect(option)}
-              disabled={gameState.answered}
-            >
-              <Text 
+            <Animated.View key={index} style={optionPressStyle}>
+              <TouchableOpacity
+                key={index}
                 style={[
-                  styles.optionText,
-                  gameState.answered && option === currentQuestion.correctAnswer && styles.correctOptionText,
+                  styles.optionButton,
+                  gameState.answered && option === currentQuestion.correctAnswer && styles.correctOption,
                   gameState.answered && 
                   option === gameState.selectedAnswer && 
                   option !== currentQuestion.correctAnswer && 
-                  styles.incorrectOptionText
+                  styles.incorrectOption
                 ]}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                  handleAnswerSelect(option);
+                }}
+                disabled={gameState.answered}
               >
-                {option}
-              </Text>
-            </TouchableOpacity>
+                <Text 
+                  style={[
+                    styles.optionText,
+                    gameState.answered && option === currentQuestion.correctAnswer && styles.correctOptionText,
+                    gameState.answered && 
+                    option === gameState.selectedAnswer && 
+                    option !== currentQuestion.correctAnswer && 
+                    styles.incorrectOptionText
+                  ]}
+                >
+                  {option}
+                </Text>
+              </TouchableOpacity>
+            </Animated.View>
           ))}
         </View>
         
