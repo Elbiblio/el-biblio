@@ -26,6 +26,7 @@ import { OnboardingStep, STEPS } from '@/constants';
 import { SCREEN_DIMENSIONS } from '@/constants';
 import { useAuthStore } from '@/stores/StoreProvider';
 import { toast } from 'sonner-native';
+import { parseDescription } from '@/utils/ui';
 
 const SCREEN_WIDTH = SCREEN_DIMENSIONS.width;
 
@@ -165,7 +166,7 @@ const IntroScreen = ({
             {index == 0 ?
             <>
             <Text style={styles.introDescription}>Usage Guide</Text>
-            <Text style={styles.description}>{step.description}</Text>
+            <Text style={styles.description}>{parseDescription(step.description)}</Text>
             </>
             :
             <Text style={styles.description}>{step.description}</Text>

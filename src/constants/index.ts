@@ -128,7 +128,7 @@ export const STEPS: OnboardingStep[] = [
     id: 'welcome',
     title: 'Welcome to El-Biblio',
     subtitle: 'Your Spiritual Growth Companion',
-    description: 'Engage in El-Biblio daily verse selections based on four foundational virtues of knowledge, humility, faith and love.',
+    description: 'Engage in El-Biblio daily verse selections based on four foundational virtues of *knowledge*, *humility*, *faith* and *love*.',
     practices: ['Vote on daily verse selections', 'Study and Share your reflections', 'Join a Word Hub or start one for deeper reflections'],
     Icon: Scroll,
     color: '#8B5E3C', // Wooden theme primary
