@@ -77,6 +77,7 @@ export class VerseBuilderStore {
 
   // Common store props
   isLoading = false;
+  private isInitializing = false;
   error: string | null = null;
   private storageKey = 'verse_builder_store';
 
@@ -121,27 +122,73 @@ export class VerseBuilderStore {
   }
 
   // Game Initialization and Setup
-  async initialize() {
+  initialize = async () => {
+    if (this.isInitializing) return;
+    this.isInitializing = true;
     this.setLoading(true);
-        await this.loadVerseBatch();
-    this.startNewRound();
-    this.setLoading(false);
-    await this.saveToStorage();
+    try {
+      await this.loadVerseBatch();
+      await this.startNewRound();
+    } finally {
+      this.setLoading(false);
+      this.isInitializing = false;
+      await this.saveToStorage();
+    }
+  }
+
+  // Resolve a display code like 'RV'/'KJV' to a DB table name like 'eng_rv_vpl'
+  private async resolveTableName(code: string): Promise<string> {
+    try {
+      if (!code) return 'eng_rv_vpl';
+      // If it already looks like a table name, return as-is
+      if (code.includes('_')) return code;
+      const versionsData = await AsyncStorage.getItem('bibleVersions');
+      if (versionsData) {
+        const versions = JSON.parse(versionsData) as Array<{ shortName?: string; tableName: string; englishName?: string }>;
+        const found = versions.find(v => v.shortName?.toUpperCase() === code.toUpperCase());
+        if (found?.tableName) return found.tableName;
+      }
+    } catch {}
+    return 'eng_rv_vpl';
   }
 
   private async loadVerseBatch() {
     if (!this.state.selectedVersion) return;
 
     try {
-      const verses = await BibleDBService.getRandomVerses(this.state.selectedVersion, 40);
-      const processedVerses = verses
+      console.log('[VerseBuilder] Loading verses for version', this.state.selectedVersion);
+      const primaryTable = await this.resolveTableName(this.state.selectedVersion);
+      let verses = await BibleDBService.getRandomVerses(primaryTable, 40);
+      let processedVerses = verses
         .map(this.processVerse)
         .filter(Boolean) as VerseGame[];
+
+      // Fallback: if no verses found for current version, try common alternatives
+      if (processedVerses.length === 0) {
+        const fallbacks = ['KJV', 'ASV', 'WEB', 'BSB', 'YLT', 'DR'];
+        for (const v of fallbacks) {
+          if (v === this.state.selectedVersion) continue;
+          // eslint-disable-next-line no-console
+          console.log('[VerseBuilder] No verses for version', this.state.selectedVersion, 'trying', v);
+          try {
+            const altTable = await this.resolveTableName(v);
+            const alt = await BibleDBService.getRandomVerses(altTable, 40);
+            const proc = alt.map(this.processVerse).filter(Boolean) as VerseGame[];
+            if (proc.length > 0) {
+              runInAction(() => {
+                this.state.selectedVersion = v;
+              });
+              processedVerses = proc;
+              break;
+            }
+          } catch {}
+        }
+      }
 
       this.verseQueue = processedVerses;
 
       if (processedVerses.length === 0) {
-        throw new Error('No suitable verses found for the current level');
+        throw new Error('No suitable verses found for the available versions');
       }
     } catch (err) {
       console.error('Failed to load verse batch:', err);
@@ -183,7 +230,8 @@ export class VerseBuilderStore {
   };
 
   // Gameplay Actions
-  async startNewRound() {
+  startNewRound = async () => {
+    console.log('[VerseBuilder] Starting new round');
     runInAction(() => {
       this.state.error = null;
     });
@@ -230,7 +278,7 @@ export class VerseBuilderStore {
     await this.saveToStorage();
   }
 
-  completeTransition() {
+  completeTransition = () => {
     runInAction(() => {
       this.state.gameState = this.state.nextGameState;
       this.state.nextGameState = null;
@@ -239,7 +287,7 @@ export class VerseBuilderStore {
     this.saveToStorage();
   }
 
-  selectWordFromPool(word: string) {
+  selectWordFromPool = (word: string) => {
     if (!this.state.gameState || !this.state.isPlaying) return;
 
     runInAction(() => {
@@ -255,7 +303,7 @@ export class VerseBuilderStore {
     this.saveToStorage();
   }
 
-  undoLastWord() {
+  undoLastWord = () => {
     if (!this.state.gameState || !this.state.isPlaying) return;
     const { arrangedWords, prefilledCount } = this.state.gameState;
     if (arrangedWords.length <= prefilledCount) return;
@@ -270,7 +318,7 @@ export class VerseBuilderStore {
     this.saveToStorage();
   }
 
-  returnWordToPool(word: string, index: number) {
+  returnWordToPool = (word: string, index: number) => {
     if (!this.state.gameState || !this.state.isPlaying) return;
     
     runInAction(() => {
@@ -282,7 +330,7 @@ export class VerseBuilderStore {
     this.saveToStorage();
   }
 
-  async checkAnswer() {
+  checkAnswer = async () => {
     const { gameState } = this.state;
     if (!gameState || !this.state.isPlaying || gameState.poolWords.length > 0) return;
 
@@ -296,7 +344,7 @@ export class VerseBuilderStore {
     }
   }
 
-  private handleCorrectAnswer() {
+  private handleCorrectAnswer = () => {
     runInAction(() => {
       this.state.isPlaying = false;
       const newStreak = this.state.streak + 1;
@@ -320,7 +368,7 @@ export class VerseBuilderStore {
     this.saveToStorage();
   }
 
-  private handleIncorrectAnswer() {
+  private handleIncorrectAnswer = () => {
     runInAction(() => {
       this.state.streak = 0;
       this.state.showCorrectAnswer = true;
@@ -357,7 +405,7 @@ export class VerseBuilderStore {
     // For now, we'll skip the API call.
   }
 
-  usePowerUp(type: PowerUpType) {
+  usePowerUp = (type: PowerUpType) => {
     if (this.state.powerUps[type] <= 0 || !this.state.gameState || !this.state.isPlaying) return;
 
     runInAction(() => {
@@ -374,7 +422,7 @@ export class VerseBuilderStore {
     this.saveToStorage();
   }
 
-  decrementTime() {
+  decrementTime = () => {
     if (!this.state.isPlaying || this.state.timeLeft <= 0) return;
     runInAction(() => {
         this.state.timeLeft -= 1;
@@ -385,18 +433,30 @@ export class VerseBuilderStore {
     this.saveToStorage();
   }
 
-  setVersion(version: string) {
+  setVersion = async (version: string) => {
+    console.log('[VerseBuilder] Setting version to', version);
     runInAction(() => {
       this.state.selectedVersion = version;
       this.state.gameState = null;
       this.state.nextGameState = null;
+      this.state.isTransitioning = false;
+      this.state.showSuccess = false;
+      this.state.showCorrectAnswer = false;
       this.verseQueue = [];
     });
-    this.saveToStorage();
-    this.initialize();
+    await this.saveToStorage();
+    // Avoid re-entrancy by not calling initialize(); explicitly load and start
+    this.setLoading(true);
+    try {
+      await this.loadVerseBatch();
+      await this.startNewRound();
+    } finally {
+      this.setLoading(false);
+      await this.saveToStorage();
+    }
   }
 
-  retry() {
+  retry = () => {
     runInAction(() => {
         this.state.score = 0;
         this.state.streak = 0;

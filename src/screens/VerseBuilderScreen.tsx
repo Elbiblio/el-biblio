@@ -4,39 +4,51 @@ import {
   Text,
   TouchableOpacity,
   StyleSheet,
+  Platform,
   Dimensions,
   ActivityIndicator,
   FlatList,
+  ImageBackground,
 } from 'react-native';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
   useAnimatedProps,
+  useAnimatedGestureHandler,
   withTiming,
+  withSpring,
+  withRepeat,
+  withSequence,
   interpolate,
   Extrapolation,
   runOnJS,
 } from 'react-native-reanimated';
+import { PanGestureHandler } from 'react-native-gesture-handler';
 import { BlurView } from 'expo-blur';
+import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { observer } from 'mobx-react-lite';
 import { Theme } from '@/theme';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useVerseBuilderStore } from '@/stores/StoreProvider';
+import { useBibleStore } from '@/stores/BibleStore';
 import { Clock, Sparkle, Trophy, ArrowCounterClockwise } from '../components/Icons';
+import AnimatedCircularProgress from '@/components/AnimatedCircularProgress';
 import { PowerUpType } from '@/types';
 import { Audio } from 'expo-av';
 import { PIConfetti } from 'react-native-fast-confetti';
 import * as Haptics from 'expo-haptics';
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const WORD_SIZE = SCREEN_WIDTH / 5;
 
 const VerseBuilderScreen = observer(() => {
   const theme = useTheme();
   const styles = createStyles(theme);
   const verseBuilderStore = useVerseBuilderStore();
-  // Public store API and safe state access via currentState
+  const bibleStore = useBibleStore();
+  
+  // Store API
   const {
     isLoading,
     error,
@@ -68,7 +80,7 @@ const VerseBuilderScreen = observer(() => {
     initialGameTime,
   } = verseBuilderStore.state;
 
-  // Animation Values
+  // Enhanced Animation Values
   const progressWidth = useSharedValue(100);
   const timerColorAnim = useSharedValue(0);
   const scaleAnim = useSharedValue(1);
@@ -80,23 +92,90 @@ const VerseBuilderScreen = observer(() => {
   const pointsOpacity = useSharedValue(0);
   const pointsTranslateY = useSharedValue(0);
   const levelUpSlide = useSharedValue(-60);
-  // PR1 additions
   const flameScale = useSharedValue(1);
   const shineX = useSharedValue(-100);
   const wrongShake = useSharedValue(0);
+  const calmAmp = useSharedValue(1);
+  
+  // New enhanced animations
+  const headerGlow = useSharedValue(0);
+  const backgroundPulse = useSharedValue(1);
+  const starRotation = useSharedValue(0);
+  const particleFloat = useSharedValue(0);
+  const timerPulse = useSharedValue(1);
+  const wordHover = useSharedValue(0);
+  const correctWordBounce = useSharedValue(1);
+  const powerUpGlow = useSharedValue(0);
+  const streakFireAnimation = useSharedValue(0);
 
-  // Calming UX state
+  // Game UX state
   const [isPaused, setIsPaused] = useState(false);
-  const [calmMode, setCalmMode] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [sessionXp, setSessionXp] = useState(0);
   const sessionGoal = 100;
+
+  // Circular timer fill shared value for AnimatedCircularProgress (0..1)
+  const circularFill = useSharedValue(1);
+
+  // Layout capture for DnD
+  const [arrangementLayout, setArrangementLayout] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
+  const [poolLayout, setPoolLayout] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
 
   // Refs
   const soundsRef = useRef<{
     [key: string]: Audio.Sound | null;
   }>({});
   const confettiRef = useRef<any>(null);
+
+  // Remove animated background per new design (no-op)
+
+  // Enhanced Header Glow Animation
+  useEffect(() => {
+    if (isPlaying) {
+      headerGlow.value = withRepeat(
+        withSequence(
+          withTiming(1, { duration: 2000 }),
+          withTiming(0.3, { duration: 2000 })
+        ),
+        -1,
+        true
+      );
+    } else {
+      headerGlow.value = withTiming(0, { duration: 500 });
+    }
+  }, [isPlaying]);
+
+  // Power-up glow effect
+  useEffect(() => {
+    if (powerUps.grace > 0 || powerUps.discernment > 0) {
+      powerUpGlow.value = withRepeat(
+        withSequence(
+          withTiming(1, { duration: 1500 }),
+          withTiming(0.4, { duration: 1500 })
+        ),
+        -1,
+        true
+      );
+    }
+  }, [powerUps]);
+
+  // Enhanced streak fire animation
+  useEffect(() => {
+    if (streak > 1) {
+      streakFireAnimation.value = withRepeat(
+        withSequence(
+          withTiming(1.2, { duration: 400 }),
+          withTiming(0.9, { duration: 300 }),
+          withTiming(1.1, { duration: 350 }),
+          withTiming(1, { duration: 250 })
+        ),
+        -1,
+        false
+      );
+    } else {
+      streakFireAnimation.value = withTiming(1, { duration: 200 });
+    }
+  }, [streak]);
 
   useEffect(() => {
     const loadSounds = async () => {
@@ -134,18 +213,40 @@ const VerseBuilderScreen = observer(() => {
         if (!seen) setShowOnboarding(true);
       } catch {}
     })();
+    
+    try {
+      const currentShort = bibleStore?.currentVersion?.shortName;
+      if (currentShort && currentShort !== verseBuilderStore.state.selectedVersion) {
+        setVersion(currentShort);
+      }
+    } catch {}
+    
+    setTimeout(() => {
+      try {
+        console.log('[VerseBuilder] post-initialize state', {
+          isLoading: verseBuilderStore.isLoading,
+          error: verseBuilderStore.error,
+          hasGameState: !!verseBuilderStore.state.gameState,
+          poolCount: verseBuilderStore.state.gameState?.poolWords?.length,
+        });
+      } catch {}
+    }, 500);
   }, [initialize]);
 
-  // Timer Logic
+  // Timer Logic with Enhanced Animations
   useEffect(() => {
     if (!isPlaying) return;
     const interval = setInterval(() => {
-      if (!isPaused) {
-        decrementTime();
-      }
+      decrementTime();
     }, 1000);
     return () => clearInterval(interval);
-  }, [isPlaying, isPaused, decrementTime]);
+  }, [isPlaying, decrementTime]);
+
+  // Update circular timer fill whenever timeLeft changes
+  useEffect(() => {
+    const ratio = initialGameTime > 0 ? Math.max(0, timeLeft) / initialGameTime : 0;
+    circularFill.value = withTiming(ratio, { duration: 250 });
+  }, [timeLeft, initialGameTime]);
 
   useEffect(() => {
     if (initialGameTime > 0) {
@@ -153,18 +254,20 @@ const VerseBuilderScreen = observer(() => {
       timerColorAnim.value = withTiming(1 - timeLeft / initialGameTime, { duration: 1000 });
     }
 
-    const warnThreshold = calmMode ? 5 : 10;
+    const warnThreshold = 10;
     if (timeLeft > 0 && timeLeft <= warnThreshold) {
-      // In calm mode, avoid tick-tock to reduce stress
-      if (!calmMode) {
-        soundsRef.current?.tickTock?.setPositionAsync(0).then(() => soundsRef.current?.tickTock?.playAsync());
-      }
-      // subtle pulse on low time (reduced intensity in calm mode)
-      const up = calmMode ? 1.03 : 1.06;
-      const d1 = calmMode ? 140 : 120;
-      const d2 = calmMode ? 180 : 160;
-      warnScale.value = withTiming(up, { duration: d1 }, () => {
-        warnScale.value = withTiming(1, { duration: d2 });
+      soundsRef.current?.tickTock?.setPositionAsync(0).then(() => soundsRef.current?.tickTock?.playAsync());
+      
+      // Enhanced warning pulse
+      timerPulse.value = withSequence(
+        withTiming(1.15, { duration: 100 }),
+        withTiming(0.95, { duration: 100 }),
+        withTiming(1.05, { duration: 100 }),
+        withTiming(1, { duration: 100 })
+      );
+      
+      warnScale.value = withTiming(1.08, { duration: 120 }, () => {
+        warnScale.value = withTiming(1, { duration: 160 });
       });
     }
     if (timeLeft <= 0) {
@@ -183,80 +286,111 @@ const VerseBuilderScreen = observer(() => {
     }
   }, [isTransitioning, fadeAnim, completeTransition]);
 
-  // Success Animation & Sounds
+  // Enhanced Success Animation
   useEffect(() => {
     if (showSuccess) {
-      successOpacity.value = withTiming(1, { duration: 300 });
-      // Confetti micro-burst on success
+      successOpacity.value = withTiming(1, { duration: 400 });
+      
+      // Enhanced confetti burst
       confettiRef.current?.restart?.();
       soundsRef.current?.correct?.setPositionAsync(0).then(() => soundsRef.current?.correct?.playAsync());
-      // Floating +points bubble
+      
+      // Bouncy correct word animation
+      correctWordBounce.value = withSequence(
+        withTiming(1.3, { duration: 200 }),
+        withTiming(0.9, { duration: 150 }),
+        withTiming(1.1, { duration: 150 }),
+        withTiming(1, { duration: 100 })
+      );
+      
+      // Enhanced floating points
       pointsOpacity.value = 0;
       pointsTranslateY.value = 0;
-      pointsOpacity.value = withTiming(1, { duration: 120 });
-      pointsTranslateY.value = withTiming(-20, { duration: 450 }, () => {
-        pointsOpacity.value = withTiming(0, { duration: 220 });
-      });
-      // Increment XP and possibly level-up
+      pointsOpacity.value = withSequence(
+        withTiming(1, { duration: 200 }),
+        withTiming(1, { duration: 800 }),
+        withTiming(0, { duration: 300 })
+      );
+      pointsTranslateY.value = withTiming(-40, { duration: 1300 });
+      
       setSessionXp(prev => {
         const next = prev + 10;
         if (next >= sessionGoal) {
-          levelUpSlide.value = withTiming(0, { duration: 300 }, () => {
-            setTimeout(() => {
-              levelUpSlide.value = withTiming(-60, { duration: 300 });
-            }, 1600);
-          });
+          levelUpSlide.value = withSequence(
+            withTiming(0, { duration: 400 }),
+            withTiming(0, { duration: 2000 }),
+            withTiming(-60, { duration: 400 })
+          );
           return next - sessionGoal;
         }
         return next;
       });
+      
       if (score > highScore) {
         soundsRef.current?.cheers?.setPositionAsync(0).then(() => soundsRef.current?.cheers?.playAsync());
-        // Extra confetti on new high score
         confettiRef.current?.restart?.();
       }
       if (streak > 1 && streak % 5 === 0) {
         soundsRef.current?.streak?.setPositionAsync(0).then(() => soundsRef.current?.streak?.playAsync());
-        // Celebrate streak milestones
         confettiRef.current?.restart?.();
       }
-      setTimeout(() => (successOpacity.value = withTiming(0, { duration: 300 })), 3500);
+      setTimeout(() => (successOpacity.value = withTiming(0, { duration: 400 })), 3500);
     }
   }, [showSuccess, successOpacity, score, highScore, streak]);
 
-  // Animate score number and pop
+  // Animate score with more flair
   useEffect(() => {
-    // number tween
-    animatedScore.value = withTiming(score, { duration: 350 });
-    // pop
-    scoreScale.value = withTiming(1.15, { duration: 100 }, () => {
-      scoreScale.value = withTiming(1, { duration: 150 });
-    });
+    animatedScore.value = withTiming(score, { duration: 500 });
+    scoreScale.value = withSequence(
+      withTiming(1.25, { duration: 150 }),
+      withTiming(0.95, { duration: 100 }),
+      withTiming(1.05, { duration: 100 }),
+      withTiming(1, { duration: 150 })
+    );
   }, [score]);
 
-  // PR1: Flame pulse loop when streak > 1
+  // Enhanced flame animation
   useEffect(() => {
     if (streak > 1) {
-      flameScale.value = withTiming(1.12, { duration: 700 }, () => {
-        flameScale.value = withTiming(1, { duration: 700 }, () => {
-          // repeat
-        });
-      });
+      flameScale.value = withRepeat(
+        withSequence(
+          withTiming(1.15, { duration: 600 }),
+          withTiming(0.95, { duration: 400 }),
+          withTiming(1.08, { duration: 500 }),
+          withTiming(1, { duration: 300 })
+        ),
+        -1,
+        false
+      );
     } else {
       flameScale.value = withTiming(1, { duration: 200 });
     }
   }, [streak]);
 
-  // PR1: Trigger high score shine when beating high score
   useEffect(() => {
-    // When current score exceeds highScore, run a shine sweep across the badge
     if (score > highScore) {
       shineX.value = -100;
-      shineX.value = withTiming(120, { duration: 900 }, () => {
-        shineX.value = -100;
-      });
+      shineX.value = withSequence(
+        withTiming(SCREEN_WIDTH + 50, { duration: 1200 }),
+        withTiming(-100, { duration: 0 })
+      );
     }
   }, [score, highScore]);
+
+  useEffect(() => {
+    calmAmp.value = withTiming(1, { duration: 200 });
+  }, []);
+
+  // Enhanced Animated Styles
+  const backgroundStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: backgroundPulse.value }],
+  }));
+
+  const headerGlowStyle = useAnimatedStyle(() => ({
+    shadowOpacity: headerGlow.value * 0.3,
+    shadowRadius: 15 + headerGlow.value * 10,
+    elevation: 5 + headerGlow.value * 5,
+  }));
 
   const scoreAnimatedStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scoreScale.value }],
@@ -266,35 +400,71 @@ const VerseBuilderScreen = observer(() => {
     text: `${Math.round(animatedScore.value)}`,
   }) as any);
 
-  // PR1: Animated styles
   const flameStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: flameScale.value }],
+    transform: [{ scale: flameScale.value * streakFireAnimation.value }],
   }));
 
   const shineStyle = useAnimatedStyle(() => ({
     transform: [{ translateX: shineX.value }],
-    opacity: 0.6,
+    opacity: 0.7,
   }));
 
   const wrongShakeStyle = useAnimatedStyle(() => ({
     transform: [
       {
-        translateX: interpolate(wrongShake.value, [0, 1, 2, 3, 4], [0, -6, 6, -3, 0], Extrapolation.CLAMP),
+        translateX: interpolate(wrongShake.value, [0, 1, 2, 3, 4], [0, -8, 8, -4, 0], Extrapolation.CLAMP) * calmAmp.value,
       },
     ],
   }));
 
+  const timerPulseStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: timerPulse.value }],
+  }));
+
+  const powerUpGlowStyle = useAnimatedStyle(() => ({
+    shadowOpacity: powerUpGlow.value * 0.4,
+    shadowRadius: 8 + powerUpGlow.value * 4,
+  }));
+
+  const starRotationStyle = useAnimatedStyle(() => ({
+    transform: [{ rotate: `${starRotation.value}deg` }],
+  }));
+
+  const particleFloatStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: particleFloat.value * 20 }],
+    opacity: 0.6 + Math.abs(particleFloat.value) * 0.4,
+  }));
+
+  const correctBounceStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: correctWordBounce.value }],
+  }));
+
+  const triggerWrongFeedback = useCallback(() => {
+    wrongShake.value = 0;
+    wrongShake.value = withSequence(
+      withTiming(1, { duration: 50 }),
+      withTiming(2, { duration: 50 }),
+      withTiming(3, { duration: 50 }),
+      withTiming(4, { duration: 50 })
+    );
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+  }, []);
+
   const handleSelectWord = (word: string) => {
-    scaleAnim.value = withTiming(1.05, { duration: 100 }, () => {
-      scaleAnim.value = withTiming(1, { duration: 100 });
-    });
+    scaleAnim.value = withSequence(
+      withTiming(1.1, { duration: 100 }),
+      withTiming(0.95, { duration: 80 }),
+      withTiming(1, { duration: 100 })
+    );
     selectWordFromPool(word);
   };
 
   const handleReturnWord = (word: string, index: number) => {
-    scaleAnim.value = withTiming(1.05, { duration: 100 }, () => {
-      scaleAnim.value = withTiming(1, { duration: 100 });
-    });
+    scaleAnim.value = withSequence(
+      withTiming(1.1, { duration: 100 }),
+      withTiming(0.95, { duration: 80 }),
+      withTiming(1, { duration: 100 })
+    );
     Haptics.selectionAsync();
     returnWordToPool(word, index);
   };
@@ -314,7 +484,11 @@ const VerseBuilderScreen = observer(() => {
       top: 0,
       bottom: 0,
       width: `${progressWidth.value}%`,
-      backgroundColor: color <= 0.5 ? theme.colors.success : color <= 1.5 ? theme.colors.warning : theme.colors.error,
+      backgroundColor: color <= 0.5 ? '#4CAF50' : color <= 1.5 ? '#FF9800' : '#F44336',
+      shadowColor: color <= 0.5 ? '#4CAF50' : color <= 1.5 ? '#FF9800' : '#F44336',
+      shadowOpacity: 0.5,
+      shadowRadius: 4,
+      elevation: 2,
     };
   });
 
@@ -334,32 +508,151 @@ const VerseBuilderScreen = observer(() => {
     transform: [{ scale: warnScale.value }],
   }));
 
-  const WordTile = ({ word, onPress, disabled, isPrefilled }: { word: string; onPress: () => void; disabled: boolean; isPrefilled?: boolean }) => (
-    <TouchableOpacity
-      style={[styles.wordTile, { backgroundColor: getWordColor(word) }, isPrefilled && styles.prefilledWord]}
-      onPress={onPress}
-      disabled={disabled}
-    >
-      <Text style={styles.wordText}>{word}</Text>
-    </TouchableOpacity>
-  );
+  // Enhanced Word Tile Component
+  const WordTile = ({ word, onPress, disabled, isPrefilled }: { word: string; onPress: () => void; disabled: boolean; isPrefilled?: boolean }) => {
+    const pressScale = useSharedValue(1);
+    const glowIntensity = useSharedValue(0);
+    
+    const pressStyle = useAnimatedStyle(() => ({
+      transform: [{ scale: pressScale.value }],
+      shadowOpacity: glowIntensity.value * 0.6,
+      shadowRadius: 8 + glowIntensity.value * 4,
+      elevation: 2 + glowIntensity.value * 3,
+    }));
+
+    const handlePressIn = () => {
+      pressScale.value = withTiming(0.93, { duration: 100 });
+      glowIntensity.value = withTiming(1, { duration: 150 });
+    };
+
+    const handlePressOut = () => {
+      pressScale.value = withSpring(1, { damping: 15, stiffness: 200 });
+      glowIntensity.value = withTiming(0, { duration: 200 });
+    };
+
+    return (
+      <Animated.View style={pressStyle}>
+        <TouchableOpacity
+          style={[
+            styles.wordTile, 
+            { backgroundColor: getWordColor(word) }, 
+            isPrefilled && styles.prefilledWord,
+            showSuccess && styles.successWordTile
+          ]}
+          onPress={onPress}
+          disabled={disabled}
+          onPressIn={handlePressIn}
+          onPressOut={handlePressOut}
+        >
+          <Text style={styles.wordText}>{word}</Text>
+        </TouchableOpacity>
+      </Animated.View>
+    );
+  };
 
   const renderPoolWord = useCallback(
     ({ item }: { item: string }) => (
-      <WordTile
+      <DraggableWordTile
         word={item}
-        onPress={() => handleSelectWord(item)}
+        onTap={() => handleSelectWord(item)}
         disabled={!isPlaying}
       />
     ),
     [handleSelectWord, isPlaying]
   );
 
+  // Enhanced Draggable Word Tile
+  const DraggableWordTile = ({ word, onTap, disabled }: { word: string; onTap: () => void; disabled: boolean }) => {
+    const tx = useSharedValue(0);
+    const ty = useSharedValue(0);
+    const isDragging = useSharedValue(false);
+    const hoverGlow = useSharedValue(0);
+
+    const style = useAnimatedStyle(() => ({
+      zIndex: isDragging.value ? 20 : 0,
+      transform: [
+        { translateX: tx.value },
+        { translateY: ty.value },
+        { scale: isDragging.value ? 1.1 : 1 }
+      ],
+      shadowOpacity: isDragging.value ? 0.4 : hoverGlow.value * 0.3,
+      shadowRadius: 8 + hoverGlow.value * 4,
+      elevation: isDragging.value ? 8 : 2,
+    }));
+
+    const gesture = useAnimatedGestureHandler({
+      onStart: (_, ctx: any) => {
+        isDragging.value = true;
+        ctx.startX = tx.value;
+        ctx.startY = ty.value;
+        runOnJS(Haptics.impactAsync)(Haptics.ImpactFeedbackStyle.Light);
+      },
+      onActive: (event, ctx: any) => {
+        tx.value = ctx.startX + event.translationX;
+        ty.value = ctx.startY + event.translationY;
+      },
+      onEnd: () => {
+        if (arrangementLayout) {
+          const accept = ty.value < -50;
+          if (accept) {
+            runOnJS(selectWordFromPool)(word);
+            tx.value = withSpring(0, { damping: 15, stiffness: 200 });
+            ty.value = withSpring(0, { damping: 15, stiffness: 200 }, () => {
+              isDragging.value = false;
+            });
+            runOnJS(Haptics.impactAsync)(Haptics.ImpactFeedbackStyle.Medium);
+            return;
+          }
+        }
+        tx.value = withSpring(0, { damping: 12, stiffness: 150 });
+        ty.value = withSpring(0, { damping: 12, stiffness: 150 }, () => {
+          isDragging.value = false;
+        });
+        runOnJS(triggerWrongFeedback)();
+      },
+    });
+
+    const pressScale = useSharedValue(1);
+    const pressStyle = useAnimatedStyle(() => ({
+      transform: [{ scale: pressScale.value }],
+    }));
+
+    return (
+      <PanGestureHandler enabled={!disabled} onGestureEvent={gesture}>
+        <Animated.View style={[style]}>
+          <Animated.View style={pressStyle}>
+            <TouchableOpacity
+              style={[styles.wordTile, { backgroundColor: getWordColor(word) }]}
+              disabled={disabled}
+              onPress={() => {
+                onTap();
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              }}
+              onPressIn={() => { 
+                pressScale.value = withTiming(0.95, { duration: 100 });
+                hoverGlow.value = withTiming(1, { duration: 150 });
+              }}
+              onPressOut={() => { 
+                pressScale.value = withTiming(1, { duration: 120 });
+                hoverGlow.value = withTiming(0, { duration: 200 });
+              }}
+            >
+              <Text style={styles.wordText}>{word}</Text>
+            </TouchableOpacity>
+          </Animated.View>
+        </Animated.View>
+      </PanGestureHandler>
+    );
+  };
+
   const renderArrangedWords = useCallback(() => {
     if (!gameState) return null;
     const canUndo = gameState.arrangedWords.length > gameState.prefilledCount && isPlaying;
+    
     return (
-      <View style={styles.arrangementContainer}>
+      <Animated.View style={[styles.arrangementContainer, wrongShakeStyle, showSuccess && correctBounceStyle]}
+        onLayout={(e) => setArrangementLayout(e.nativeEvent.layout)}
+      >
         <View style={styles.arrangementHeader}>
           <Text style={styles.sectionTitle}>Arrange the Verse:</Text>
           <TouchableOpacity
@@ -387,10 +680,13 @@ const VerseBuilderScreen = observer(() => {
               />
             ))
           )}
+          {gameState.poolWords.map((_, idx) => (
+            <View key={`ph-${idx}`} style={styles.placeholderTile} />
+          ))}
         </View>
-      </View>
+      </Animated.View>
     );
-  }, [gameState, handleReturnWord, isPlaying, undoLastWord]);
+  }, [gameState, handleReturnWord, isPlaying, undoLastWord, showSuccess]);
 
   const renderErrorState = useCallback(
     () =>
@@ -421,34 +717,30 @@ const VerseBuilderScreen = observer(() => {
     </View>
   ), [availableVersions, selectedVersion, setVersion]);
 
-  const renderCalmControls = () => (
-    <View style={styles.calmControls}>
-      <TouchableOpacity
-        style={[styles.calmToggle, calmMode && styles.calmToggleActive]}
-        onPress={() => setCalmMode(v => !v)}
-      >
-        <Text style={[styles.calmToggleText, calmMode && styles.calmToggleTextActive]}>
-          {calmMode ? 'Calm Mode: On' : 'Calm Mode'}
-        </Text>
-      </TouchableOpacity>
-      <TouchableOpacity
-        style={styles.pauseButton}
-        onPress={() => setIsPaused(true)}
-        disabled={!isPlaying}
-      >
-        <Text style={styles.pauseButtonText}>Pause</Text>
-      </TouchableOpacity>
-    </View>
-  );
+  // Particles removed for cleaner presentation
+
+  // Choose background asset by theme
+  const isDark = (theme as any)?.isDark ?? ((theme as any)?.mode === 'dark');
+  const bgSource = isDark
+    ? require('../../assets/gamebg.png')
+    : require('../../assets/gamelightbg.png');
 
   return (
-    <View style={styles.container}>
+    <ImageBackground source={bgSource} style={styles.bg} resizeMode="cover">
+      {/* Gradient overlay for readability */}
+      <LinearGradient
+        colors={[ 'rgba(0,0,0,0.1)', 'rgba(0,0,0,0.2)', 'rgba(0,0,0,0.35)' ]}
+        locations={[0, 0.5, 1]}
+        style={styles.gradientOverlay}
+      />
+      <View style={styles.container}>
       <PIConfetti
         ref={confettiRef}
-        count={120}
+        count={150}
         fadeOutOnEnd
-        colors={[ '#FFD700', '#FF6347', '#4169E1', '#32CD32', '#FF69B4', '#BA55D3' ]}
+        colors={[ '#FFD700', '#FF6347', '#4169E1', '#32CD32', '#FF69B4', '#BA55D3', '#00CED1' ]}
       />
+      
       {isLoading && (
         <View style={styles.loadingOverlay}>
           <ActivityIndicator size="large" color={theme.colors.primary} />
@@ -468,27 +760,34 @@ const VerseBuilderScreen = observer(() => {
           </View>
         </View>
       )}
+      
       {renderErrorState()}
-      {renderVersionSelector()}
-      {renderCalmControls()}
-      <View style={styles.header}>
-        <View style={styles.scoreContainer}>
-          <Trophy color={theme.colors.primary} size={24} />
-          <Animated.Text
-            style={[styles.scoreText, scoreAnimatedStyle]}
-            // @ts-ignore reanimated animated text
-            animatedProps={scoreAnimatedProps}
-          >
-            {score}
-          </Animated.Text>
-          <View style={styles.highScoreBadge}>
-            <Text style={styles.highScoreText}>High: {highScore}</Text>
-            <Animated.View pointerEvents="none" style={[styles.shine, shineStyle]} />
+      {/* Compact top strip */}
+      <View style={styles.topStrip}>
+        <View style={styles.topStripLeft}>
+          <View style={styles.topChipIconed}>
+            <Trophy size={14} color={theme.colors.primary} />
+            <Text style={styles.topChipIconedText}>{highScore}</Text>
           </View>
+          <Text style={styles.topChipPrimary}>Score {score}</Text>
+          <Text style={styles.topChip}>XP {sessionXp}/{sessionGoal}</Text>
         </View>
+        <TouchableOpacity
+          style={styles.versionButtonCompact}
+          onPress={() => {
+            const idx = availableVersions.indexOf(selectedVersion);
+            const next = availableVersions[(idx + 1) % availableVersions.length];
+            setVersion(next);
+          }}
+        >
+          <Text style={styles.versionButtonCompactText}>{selectedVersion}</Text>
+        </TouchableOpacity>
+      </View>
+      
+      {/* Focused verse HUD card with only session XP */}
+      <Animated.View style={[styles.gameHeaderCard, headerGlowStyle]}>
         <View style={styles.sessionXpWrap}>
           <View style={styles.sessionXpTrack}>
-            {/* Tick marks */}
             {[20,40,60,80].map((t)=> (
               <View key={t} style={[styles.sessionXpTick, { left: `${t}%` }]} />
             ))}
@@ -496,59 +795,61 @@ const VerseBuilderScreen = observer(() => {
           </View>
           <Text style={styles.sessionXpText}>{sessionXp}/{sessionGoal}</Text>
         </View>
-        <View style={styles.powerUps}>
-          <TouchableOpacity onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); usePowerUp('grace'); }} disabled={powerUps.grace <= 0 || !isPlaying}>
-            <Text style={[styles.powerUpText, powerUps.grace <= 0 && styles.powerUpDisabled]}>🕊️×{powerUps.grace}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); usePowerUp('discernment'); }} disabled={powerUps.discernment <= 0 || !isPlaying}>
-            <Text style={[styles.powerUpText, powerUps.discernment <= 0 && styles.powerUpDisabled]}>🔍×{powerUps.discernment}</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-      {/* PR1: Streak flame and Hearts row */}
-      <View style={styles.statusRow}>
-        {streak > 1 ? (
+      </Animated.View>
+
+      {/* Status row: show streak only when active */}
+      {streak > 1 && (
+        <View style={styles.statusRow}>
           <Animated.View style={[styles.streakBadge, flameStyle]}>
             <Text style={styles.streakEmoji}>🔥</Text>
             <Text style={styles.streakBadgeText}>Streak {streak}x</Text>
           </Animated.View>
-        ) : (
-          <View style={styles.streakBadgeMuted}>
-            <Text style={styles.streakBadgeTextMuted}>Build your streak</Text>
-          </View>
-        )}
-        <View style={styles.heartsRow}>
-          {(() => {
-            const maxLives = (verseBuilderStore.state as any).maxLives ?? 3;
-            const lives = typeof (verseBuilderStore.state as any).lives === 'number' ? (verseBuilderStore.state as any).lives : maxLives;
-            return Array.from({ length: maxLives }).map((_, i) => {
-              const filled = i < lives;
-              return (
-                <Text key={`heart-${i}`} style={[styles.heart, !filled && styles.heartEmpty]}>{filled ? '❤️' : '🤍'}</Text>
-              );
-            });
-          })()}
-        </View>
-      </View>
-      <View style={styles.timerContainer}>
-        <Animated.View style={[styles.timerLabel, timerWarnStyle]}>
-          <Clock color={theme.colors.text.primary} size={20} />
-          <Text style={styles.timerText}>{timeLeft}s</Text>
-        </Animated.View>
-        <View style={styles.progressBarContainer}>
-          <Animated.View style={[styles.progressBar, progressBarStyle]} />
-        </View>
-      </View>
-      {streak > 1 && (
-        <View style={styles.streakContainer}>
-          <Sparkle color={theme.colors.secondary} size={16} />
-          <Text style={styles.streakText}>Streak: {streak}x</Text>
         </View>
       )}
+
+      {/* Power-ups as left/right icon buttons under top strip */}
+      <View style={styles.powerUpIconBar}>
+        <TouchableOpacity
+          style={[styles.powerUpIconButton, powerUps.grace <= 0 && styles.powerUpDisabled]}
+          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); usePowerUp('grace'); }}
+          disabled={powerUps.grace <= 0 || !isPlaying}
+        >
+          <Text style={styles.powerUpIconEmoji}>🕊️</Text>
+          <Text style={styles.powerUpBadge}>×{powerUps.grace}</Text>
+        </TouchableOpacity>
+        <View style={{ flex: 1 }} />
+        <TouchableOpacity
+          style={[styles.powerUpIconButton, powerUps.discernment <= 0 && styles.powerUpDisabled]}
+          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); usePowerUp('discernment'); }}
+          disabled={powerUps.discernment <= 0 || !isPlaying}
+        >
+          <Text style={styles.powerUpIconEmoji}>🔍</Text>
+          <Text style={styles.powerUpBadge}>×{powerUps.discernment}</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Circular countdown: show only when verse displayed */}
+      {gameState && (
+        <View style={styles.circularTimerWrap}>
+          <AnimatedCircularProgress
+            size={84}
+            width={10}
+            fill={circularFill}
+            backgroundColor={`${theme.colors.text.secondary}25`}
+            tintColor={timeLeft > 10 ? theme.colors.primary : timeLeft > 5 ? theme.colors.warning : theme.colors.error}
+            lineCap="round"
+            innerBackgroundColor={`${theme.colors.background}CC`}
+          >
+            <Text style={styles.circularTimerText}>{timeLeft}s</Text>
+          </AnimatedCircularProgress>
+        </View>
+      )}
+
       {gameState && (
         <Animated.View style={[styles.gameArea, gameAreaStyle, fadeStyle]}>
           <Text style={styles.reference}>{gameState.reference}</Text>
           {renderArrangedWords()}
+          
           {showCorrectAnswer && (
             <View style={styles.correctAnswerContainer}>
               <Text style={styles.correctAnswerText}>{gameState.text}</Text>
@@ -557,8 +858,9 @@ const VerseBuilderScreen = observer(() => {
               </TouchableOpacity>
             </View>
           )}
+          
           {!showCorrectAnswer && gameState.poolWords.length > 0 && (
-            <View style={styles.poolContainer}>
+            <View style={styles.poolContainer} onLayout={(e) => setPoolLayout(e.nativeEvent.layout)}>
               <FlatList
                 data={gameState.poolWords}
                 renderItem={renderPoolWord}
@@ -571,6 +873,8 @@ const VerseBuilderScreen = observer(() => {
           )}
         </Animated.View>
       )}
+
+      {/* Enhanced Success Overlay */}
       {showSuccess && (
         <Animated.View style={[styles.successOverlay, successOverlayStyle]}>
           <View style={styles.successContent}>
@@ -581,17 +885,32 @@ const VerseBuilderScreen = observer(() => {
               </Text>
             )}
             <Text style={styles.referenceText}>{gameState?.reference}</Text>
+            <View style={styles.successStatsRow}>
+              <View style={styles.successStatChip}>
+                <Text style={styles.successStatText}>🔥 Streak {streak}x</Text>
+              </View>
+              <View style={styles.successStatChip}>
+                <Text style={styles.successStatText}>✨ XP +10</Text>
+              </View>
+            </View>
+            <TouchableOpacity style={[styles.retryButton, { marginTop: 8 }]} onPress={startNewRound}>
+              <Text style={styles.retryButtonText}>Next Verse</Text>
+            </TouchableOpacity>
           </View>
           <Animated.View style={[styles.pointsBubble, { opacity: pointsOpacity, transform: [{ translateY: pointsTranslateY }] } as any]}>
             <Text style={styles.pointsBubbleText}>+10</Text>
           </Animated.View>
         </Animated.View>
       )}
+
+      {/* Enhanced Level-up banner */}
       <Animated.View style={[styles.levelUpBanner, { transform: [{ translateY: levelUpSlide }] }] }>
         <Text style={styles.levelUpText}>Level up! Keep it going 🚀</Text>
       </Animated.View>
+
+      {/* Game Over Overlay */}
       {timeLeft <= 0 && !isPlaying && (
-        <BlurView intensity={20} style={styles.overlay}>
+        <BlurView intensity={30} style={styles.overlay}>
           <View style={styles.gameOverContainer}>
             <Text style={styles.gameOverText}>Game Over!</Text>
             <Text style={styles.finalScore}>Score: {score}</Text>
@@ -602,8 +921,9 @@ const VerseBuilderScreen = observer(() => {
         </BlurView>
       )}
 
+      {/* Pause Overlay */}
       {isPaused && (
-        <BlurView intensity={20} style={styles.overlay}>
+        <BlurView intensity={25} style={styles.overlay}>
           <View style={styles.pauseContainer}>
             <Text style={styles.pauseTitle}>Paused</Text>
             <Text style={styles.pauseSubtitle}>Take a breath. Resume when ready.</Text>
@@ -614,12 +934,13 @@ const VerseBuilderScreen = observer(() => {
         </BlurView>
       )}
 
+      {/* Onboarding Overlay */}
       {showOnboarding && (
-        <BlurView intensity={20} style={styles.overlay}>
+        <BlurView intensity={25} style={styles.overlay}>
           <View style={styles.onboardingCard}>
             <Text style={styles.onboardingTitle}>How to play</Text>
             <Text style={styles.onboardingText}>
-              Tap words to arrange the verse. Use Grace to add time and Discernment to reveal hints. You can enable Calm Mode to reduce time pressure.
+              Tap or drag words to arrange the verse. Use Grace to add time and Discernment to reveal hints.
             </Text>
             <TouchableOpacity
               style={styles.retryButton}
@@ -633,7 +954,19 @@ const VerseBuilderScreen = observer(() => {
           </View>
         </BlurView>
       )}
-    </View>
+      
+      {/* Empty state */}
+      {!isLoading && !error && !gameState && (
+        <View style={styles.emptyState}>
+          <Text style={styles.emptyStateTitle}>No verse loaded yet</Text>
+          <Text style={styles.emptyStateSubtitle}>Tap below to fetch a verse and start playing.</Text>
+          <TouchableOpacity style={styles.retryButton} onPress={startNewRound}>
+            <Text style={styles.retryButtonText}>Get Verse</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+      </View>
+    </ImageBackground>
   );
 });
 
@@ -645,63 +978,526 @@ const getWordColor = (word: string) => {
     'while', 'before', 'after', 'since', 'until', 'about', 'like', 'through'
   ]);
   const lowerWord = word.toLowerCase().replace(/[.,;:!?'"]/g, '');
-  if (articlePrepositions.has(lowerWord)) return '#2C3E50';
+  if (articlePrepositions.has(lowerWord)) return '#34495E';
+  
   const hash = word.split('').reduce((a, b) => a + b.charCodeAt(0), 0);
   const colors = [
-    '#1A365D', '#2D3748', '#3C366B', '#1E3A8A', '#1F2937',
-    '#4A5568', '#312E81', '#065F46', '#5B21B6', '#7B341E'
+    '#E74C3C', '#3498DB', '#9B59B6', '#E67E22', '#F39C12',
+    '#1ABC9C', '#2ECC71', '#8E44AD', '#34495E', '#16A085',
+    '#27AE60', '#2980B9', '#F1C40F', '#E74C3C', '#9B59B6'
   ];
   return colors[hash % colors.length];
 };
 
-// Styles
+// Enhanced Styles
 const createStyles = (theme: Theme) =>
   StyleSheet.create({
-    container: { flex: 1, backgroundColor: theme.colors.background, padding: theme.spacing.md },
-    versionSelector: { flexDirection: 'row', justifyContent: 'center', marginBottom: theme.spacing.md },
-    versionButton: { padding: theme.spacing.sm, margin: theme.spacing.xs, borderRadius: theme.borderRadius.sm, backgroundColor: theme.colors.surface },
-    versionButtonSelected: { backgroundColor: theme.colors.primary },
-    versionText: { color: theme.colors.text.primary, fontSize: 14 },
-    versionTextSelected: { color: '#FFF' },
-    header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: theme.spacing.md },
-    scoreContainer: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.xs },
-    scoreText: { fontSize: 18, color: theme.colors.primary, fontWeight: 'bold' },
-    highScoreText: { fontSize: 14, color: theme.colors.text.secondary, marginLeft: theme.spacing.sm },
-    // PR1: High score badge with shine
-    highScoreBadge: { position: 'relative', overflow: 'hidden', borderRadius: theme.borderRadius.full, paddingHorizontal: theme.spacing.xs, paddingVertical: 2 },
-    shine: { position: 'absolute', top: 0, bottom: 0, width: 36, backgroundColor: '#FFFFFF33', transform: [{ translateX: -100 }] },
-    timerContainer: { marginBottom: theme.spacing.md },
-    timerLabel: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: theme.spacing.xs },
-    progressBarContainer: { height: 4, width: '100%', backgroundColor: `${theme.colors.text.secondary}20`, borderRadius: theme.borderRadius.full, overflow: 'hidden' },
-    progressBar: { height: '100%', borderRadius: theme.borderRadius.full },
-    timerText: { marginLeft: theme.spacing.xs, color: theme.colors.text.primary, fontWeight: '600' },
-    calmControls: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: theme.spacing.md, marginBottom: theme.spacing.sm },
-    calmToggle: { paddingVertical: 6, paddingHorizontal: theme.spacing.md, borderRadius: theme.borderRadius.full, backgroundColor: `${theme.colors.text.secondary}10` },
-    calmToggleActive: { backgroundColor: `${theme.colors.primary}20`, borderWidth: 1, borderColor: `${theme.colors.primary}40` },
-    calmToggleText: { color: theme.colors.text.secondary, fontWeight: '600' },
-    calmToggleTextActive: { color: theme.colors.primary },
-    pauseButton: { paddingVertical: 6, paddingHorizontal: theme.spacing.md, borderRadius: theme.borderRadius.full, backgroundColor: `${theme.colors.text.secondary}10` },
-    pauseButtonText: { color: theme.colors.text.secondary, fontWeight: '600' },
-    powerUps: { flexDirection: 'row', gap: theme.spacing.sm },
-    powerUpText: { fontSize: 16, color: theme.colors.primary },
-    powerUpDisabled: { opacity: 0.5 },
-    streakContainer: { flexDirection: 'row', alignItems: 'center', alignSelf: 'center', paddingVertical: theme.spacing.xs, paddingHorizontal: theme.spacing.sm, backgroundColor: `${theme.colors.secondary}20`, borderRadius: theme.borderRadius.full, marginBottom: theme.spacing.sm },
-    streakText: { color: theme.colors.secondary, marginLeft: theme.spacing.xs, fontWeight: '500' },
-    gameArea: { flex: 1 },
-    reference: { textAlign: 'center', color: theme.colors.text.secondary, fontSize: 16, marginBottom: theme.spacing.md },
-    arrangementContainer: { padding: theme.spacing.md, backgroundColor: `${theme.colors.surface}80`, borderRadius: theme.borderRadius.lg, marginBottom: theme.spacing.lg },
-    arrangementHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: theme.spacing.sm },
-    arrangementContent: { flexDirection: 'row', flexWrap: 'wrap', gap: theme.spacing.sm, justifyContent: 'center' },
-    sectionTitle: { color: theme.colors.text.secondary },
-    undoButton: { padding: theme.spacing.xs, borderRadius: theme.borderRadius.full, backgroundColor: `${theme.colors.surface}60` },
-    undoButtonDisabled: { opacity: 0.4 },
-    wordTile: { padding: theme.spacing.sm, borderRadius: theme.borderRadius.md, justifyContent: 'center', alignItems: 'center', minWidth: WORD_SIZE, marginHorizontal: theme.spacing.xs },
-    prefilledWord: { opacity: 0.7, borderWidth: 1, borderColor: theme.colors.primary },
-    wordText: { color: '#FFFFFF', fontSize: 14, textAlign: 'center', fontWeight: '500' },
-    emptyText: { color: theme.colors.text.secondary, flex: 1, textAlign: 'center' },
-    poolContainer: { flex: 1 },
-    poolContent: { paddingVertical: theme.spacing.xs },
-    poolColumn: { justifyContent: 'center', marginVertical: theme.spacing.xs, flexWrap: 'wrap' },
+    container: { 
+      flex: 1, 
+      backgroundColor: 'transparent',
+      padding: theme.spacing.md 
+    },
+    bg: {
+      flex: 1,
+      width: '100%',
+      height: '100%'
+    },
+    gradientOverlay: {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+    },
+    // Compact top strip
+    topStrip: {
+      marginTop: theme.spacing.sm,
+      marginBottom: theme.spacing.sm,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      backgroundColor: `${theme.colors.surface}B3`,
+      paddingHorizontal: theme.spacing.md,
+      paddingVertical: theme.spacing.sm,
+      borderRadius: theme.borderRadius.full,
+      borderWidth: 1,
+      borderColor: `${theme.colors.text.secondary}20`,
+      shadowColor: '#000',
+      shadowOpacity: 0.08,
+      shadowRadius: 8,
+      shadowOffset: { width: 0, height: 3 },
+      elevation: 2,
+    },
+    topStripLeft: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: theme.spacing.sm,
+    },
+    topChip: {
+      paddingVertical: 4,
+      paddingHorizontal: theme.spacing.sm,
+      borderRadius: theme.borderRadius.full,
+      backgroundColor: `${theme.colors.text.secondary}15`,
+      color: theme.colors.text.primary,
+      fontWeight: '700',
+      fontSize: 12,
+    },
+    topChipPrimary: {
+      paddingVertical: 4,
+      paddingHorizontal: theme.spacing.sm,
+      borderRadius: theme.borderRadius.full,
+      backgroundColor: `${theme.colors.primary}25`,
+      color: theme.colors.primary,
+      fontWeight: '900',
+      fontSize: 12,
+    },
+    topChipIconed: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      paddingVertical: 4,
+      paddingHorizontal: theme.spacing.sm,
+      borderRadius: theme.borderRadius.full,
+      backgroundColor: `${theme.colors.text.secondary}15`,
+    },
+    topChipIconedText: {
+      color: theme.colors.text.primary,
+      fontWeight: '800',
+      fontSize: 12,
+    },
+    versionButtonCompact: {
+      paddingVertical: 6,
+      paddingHorizontal: theme.spacing.md,
+      borderRadius: theme.borderRadius.full,
+      backgroundColor: theme.colors.primary,
+      shadowColor: theme.colors.primary,
+      shadowOpacity: 0.25,
+      shadowRadius: 6,
+      shadowOffset: { width: 0, height: 2 },
+      elevation: 3,
+    },
+    versionButtonCompactText: {
+      color: '#FFF',
+      fontWeight: '800',
+      fontSize: 12,
+    },
+    
+    // Floating particles
+    particlesContainer: {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      zIndex: -1,
+    },
+    particle: {
+      position: 'absolute',
+      width: 20,
+      height: 20,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    particleText: {
+      fontSize: 12,
+      opacity: 0.6,
+    },
+    
+    // Version selector
+    versionSelector: { 
+      flexDirection: 'row', 
+      justifyContent: 'center', 
+      marginBottom: theme.spacing.md 
+    },
+    versionButton: { 
+      padding: theme.spacing.sm, 
+      margin: theme.spacing.xs, 
+      borderRadius: theme.borderRadius.lg, 
+      backgroundColor: theme.colors.surface,
+      shadowColor: '#000',
+      shadowOpacity: 0.1,
+      shadowRadius: 4,
+      shadowOffset: { width: 0, height: 2 },
+      elevation: 2,
+    },
+    versionButtonSelected: { 
+      backgroundColor: theme.colors.primary,
+      shadowOpacity: 0.3,
+      shadowRadius: 8,
+      elevation: 4,
+    },
+    versionText: { 
+      color: theme.colors.text.primary, 
+      fontSize: 14,
+      fontWeight: '600',
+    },
+    versionTextSelected: { 
+      color: '#FFF',
+      fontWeight: '700',
+    },
+
+    // Enhanced Game Header
+    gameHeaderCard: {
+      backgroundColor: theme.colors.surface,
+      borderRadius: theme.borderRadius.xl,
+      padding: theme.spacing.lg,
+      marginBottom: theme.spacing.md,
+      shadowColor: theme.colors.primary,
+      shadowOpacity: 0.15,
+      shadowRadius: 15,
+      shadowOffset: { width: 0, height: 6 },
+      elevation: 8,
+      borderWidth: 1,
+      borderColor: `${theme.colors.primary}20`,
+    },
+    gameHeaderTopRow: { 
+      flexDirection: 'row', 
+      alignItems: 'center', 
+      justifyContent: 'space-between', 
+      marginBottom: theme.spacing.md 
+    },
+    gameScoreWrap: { 
+      flexDirection: 'row', 
+      alignItems: 'center', 
+      gap: theme.spacing.sm 
+    },
+    gameScoreText: { 
+      fontSize: 28, 
+      color: theme.colors.primary, 
+      fontWeight: '900',
+      textShadowColor: `${theme.colors.primary}40`,
+      textShadowOffset: { width: 0, height: 2 },
+      textShadowRadius: 4,
+    },
+    
+    // Enhanced Power-ups
+    powerUpChipsRow: { 
+      flexDirection: 'row', 
+      alignItems: 'center', 
+      gap: theme.spacing.md, 
+      marginTop: theme.spacing.sm, 
+      marginBottom: theme.spacing.md 
+    },
+    // Icon bar variant under compact header
+    powerUpIconBar: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginBottom: theme.spacing.sm,
+    },
+    powerUpIconButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      paddingVertical: 6,
+      paddingHorizontal: theme.spacing.md,
+      borderRadius: theme.borderRadius.full,
+      backgroundColor: `${theme.colors.surface}CC`,
+      borderWidth: 1,
+      borderColor: `${theme.colors.text.secondary}20`,
+      shadowColor: '#000',
+      shadowOpacity: 0.08,
+      shadowRadius: 6,
+      shadowOffset: { width: 0, height: 2 },
+      elevation: 2,
+    },
+    powerUpIconEmoji: {
+      fontSize: 16,
+    },
+    powerUpBadge: {
+      color: theme.colors.text.primary,
+      fontWeight: '800',
+      fontSize: 12,
+    },
+    powerUpChip: { 
+      paddingVertical: 8, 
+      paddingHorizontal: theme.spacing.lg, 
+      borderRadius: theme.borderRadius.full, 
+      backgroundColor: `${theme.colors.primary}20`,
+      borderWidth: 1,
+      borderColor: `${theme.colors.primary}40`,
+      shadowColor: theme.colors.primary,
+      shadowOpacity: 0.2,
+      shadowRadius: 6,
+      shadowOffset: { width: 0, height: 2 },
+      elevation: 3,
+    },
+    powerUpChipText: { 
+      color: theme.colors.primary, 
+      fontWeight: '800',
+      fontSize: 13,
+    },
+    powerUpDisabled: { 
+      opacity: 0.4,
+      shadowOpacity: 0.1,
+    },
+
+    // Enhanced High Score Badge
+    highScoreBadge: { 
+      position: 'relative', 
+      overflow: 'hidden', 
+      borderRadius: theme.borderRadius.full, 
+      paddingHorizontal: theme.spacing.sm, 
+      paddingVertical: 4,
+      backgroundColor: `${theme.colors.secondary}15`,
+      borderWidth: 1,
+      borderColor: `${theme.colors.secondary}30`,
+    },
+    highScoreText: { 
+      fontSize: 13, 
+      color: theme.colors.secondary, 
+      fontWeight: '700',
+    },
+    shine: { 
+      position: 'absolute', 
+      top: 0, 
+      bottom: 0, 
+      width: 60, 
+      backgroundColor: 'rgba(255,255,255,0.5)',
+    },
+
+    // Enhanced Timer
+    timerContainer: { 
+      marginBottom: theme.spacing.lg,
+      padding: theme.spacing.sm,
+      backgroundColor: `${theme.colors.surface}80`,
+      borderRadius: theme.borderRadius.lg,
+      shadowColor: '#000',
+      shadowOpacity: 0.05,
+      shadowRadius: 8,
+      shadowOffset: { width: 0, height: 2 },
+      elevation: 2,
+    },
+    timerLabel: { 
+      flexDirection: 'row', 
+      alignItems: 'center', 
+      justifyContent: 'center', 
+      marginBottom: theme.spacing.sm 
+    },
+    timerText: { 
+      marginLeft: theme.spacing.sm, 
+      color: theme.colors.text.primary, 
+      fontWeight: '700',
+      fontSize: 16,
+    },
+    progressBarContainer: { 
+      height: 6, 
+      width: '100%', 
+      backgroundColor: `${theme.colors.text.secondary}15`, 
+      borderRadius: theme.borderRadius.full, 
+      overflow: 'hidden' 
+    },
+    progressBar: { 
+      height: '100%', 
+      borderRadius: theme.borderRadius.full,
+    },
+    // Circular timer wrap
+    circularTimerWrap: {
+      alignSelf: 'center',
+      marginBottom: theme.spacing.md,
+    },
+    circularTimerText: {
+      color: theme.colors.text.primary,
+      fontWeight: '900',
+      fontSize: 16,
+    },
+
+    // Enhanced Status Row
+    statusRow: { 
+      flexDirection: 'row', 
+      justifyContent: 'space-between', 
+      alignItems: 'center', 
+      marginBottom: theme.spacing.md 
+    },
+    streakBadge: { 
+      flexDirection: 'row', 
+      alignItems: 'center', 
+      gap: theme.spacing.xs, 
+      backgroundColor: `${theme.colors.secondary}25`, 
+      paddingVertical: 6, 
+      paddingHorizontal: theme.spacing.md, 
+      borderRadius: theme.borderRadius.full,
+      borderWidth: 2,
+      borderColor: `${theme.colors.secondary}50`,
+      shadowColor: theme.colors.secondary,
+      shadowOpacity: 0.3,
+      shadowRadius: 8,
+      shadowOffset: { width: 0, height: 2 },
+      elevation: 4,
+    },
+    streakEmoji: { 
+      fontSize: 18 
+    },
+    streakBadgeText: { 
+      color: theme.colors.secondary, 
+      fontWeight: '800',
+      fontSize: 14,
+    },
+    streakBadgeMuted: { 
+      paddingVertical: 6, 
+      paddingHorizontal: theme.spacing.md, 
+      borderRadius: theme.borderRadius.full, 
+      backgroundColor: `${theme.colors.text.secondary}15`,
+      borderWidth: 1,
+      borderColor: `${theme.colors.text.secondary}20`,
+    },
+    streakBadgeTextMuted: { 
+      color: theme.colors.text.secondary,
+      fontWeight: '600',
+      fontSize: 13,
+    },
+    heartsRow: { 
+      flexDirection: 'row', 
+      alignItems: 'center', 
+      gap: theme.spacing.xs 
+    },
+    heart: { 
+      fontSize: 20,
+      textShadowColor: 'rgba(0,0,0,0.2)',
+      textShadowOffset: { width: 0, height: 1 },
+      textShadowRadius: 2,
+    },
+    heartEmpty: { 
+      opacity: 0.4 
+    },
+
+    // Enhanced Game Area
+    gameArea: { 
+      flex: 1 
+    },
+    reference: { 
+      textAlign: 'center', 
+      color: theme.colors.text.secondary, 
+      fontSize: 17, 
+      marginBottom: theme.spacing.lg,
+      fontWeight: '600',
+      letterSpacing: 0.5,
+    },
+
+    // Enhanced Arrangement Container
+    arrangementContainer: { 
+      padding: theme.spacing.lg, 
+      backgroundColor: `${theme.colors.surface}90`, 
+      borderRadius: theme.borderRadius.xl, 
+      marginBottom: theme.spacing.xl,
+      borderWidth: 2,
+      borderColor: `${theme.colors.primary}20`,
+      shadowColor: theme.colors.primary,
+      shadowOpacity: 0.1,
+      shadowRadius: 12,
+      shadowOffset: { width: 0, height: 4 },
+      elevation: 6,
+    },
+    arrangementHeader: { 
+      flexDirection: 'row', 
+      justifyContent: 'space-between', 
+      alignItems: 'center', 
+      marginBottom: theme.spacing.md 
+    },
+    sectionTitle: { 
+      color: theme.colors.text.primary,
+      fontWeight: '700',
+      fontSize: 16,
+    },
+    arrangementContent: { 
+      flexDirection: 'row', 
+      flexWrap: 'wrap', 
+      gap: theme.spacing.sm, 
+      justifyContent: 'center' 
+    },
+    undoButton: { 
+      padding: theme.spacing.sm, 
+      borderRadius: theme.borderRadius.full, 
+      backgroundColor: `${theme.colors.surface}80`,
+      shadowColor: '#000',
+      shadowOpacity: 0.1,
+      shadowRadius: 4,
+      shadowOffset: { width: 0, height: 2 },
+      elevation: 2,
+    },
+    undoButtonDisabled: { 
+      opacity: 0.3 
+    },
+
+    // Enhanced Word Tiles
+    wordTile: { 
+      padding: theme.spacing.md, 
+      borderRadius: theme.borderRadius.lg, 
+      justifyContent: 'center', 
+      alignItems: 'center', 
+      minWidth: WORD_SIZE, 
+      marginHorizontal: theme.spacing.xs,
+      shadowColor: '#000',
+      shadowOpacity: 0.2,
+      shadowRadius: 6,
+      shadowOffset: { width: 0, height: 3 },
+      elevation: 4,
+      borderWidth: 1,
+      borderColor: 'rgba(255,255,255,0.2)',
+    },
+    successWordTile: {
+      shadowColor: theme.colors.secondary,
+      shadowOpacity: 0.4,
+      shadowRadius: 12,
+      borderColor: theme.colors.secondary,
+      borderWidth: 2,
+    },
+    prefilledWord: { 
+      opacity: 0.8, 
+      borderWidth: 2, 
+      borderColor: theme.colors.primary,
+      shadowColor: theme.colors.primary,
+      shadowOpacity: 0.3,
+    },
+    wordText: { 
+      color: '#FFFFFF', 
+      fontSize: 15, 
+      textAlign: 'center', 
+      fontWeight: '700',
+      textShadowColor: 'rgba(0,0,0,0.3)',
+      textShadowOffset: { width: 0, height: 1 },
+      textShadowRadius: 2,
+    },
+    emptyText: { 
+      color: theme.colors.text.secondary, 
+      flex: 1, 
+      textAlign: 'center',
+      fontStyle: 'italic',
+    },
+
+    // Enhanced Placeholder
+    placeholderTile: {
+      minWidth: WORD_SIZE,
+      height: 32,
+      marginHorizontal: theme.spacing.xs,
+      borderRadius: theme.borderRadius.lg,
+      borderWidth: 2,
+      borderStyle: 'dashed',
+      borderColor: `${theme.colors.primary}40`,
+      backgroundColor: `${theme.colors.primary}10`,
+    },
+
+    // Pool
+    poolContainer: { 
+      flex: 1,
+      backgroundColor: `${theme.colors.surface}60`,
+      borderRadius: theme.borderRadius.xl,
+      padding: theme.spacing.md,
+      shadowColor: '#000',
+      shadowOpacity: 0.05,
+      shadowRadius: 8,
+      shadowOffset: { width: 0, height: 2 },
+      elevation: 2,
+    },
+    poolContent: { 
+      paddingVertical: theme.spacing.sm 
+    },
+    poolColumn: { 
+      justifyContent: 'center', 
+      marginVertical: theme.spacing.xs, 
+      flexWrap: 'wrap' 
+    },
+
+    // Enhanced Success Overlay
     successOverlay: {
       position: 'absolute',
       top: 0,
@@ -710,79 +1506,444 @@ const createStyles = (theme: Theme) =>
       bottom: 0,
       justifyContent: 'center',
       alignItems: 'center',
-      backgroundColor: 'rgba(0,0,0,0.7)'
+      backgroundColor: 'rgba(0,0,0,0.8)'
     },
     successContent: {
-      padding: theme.spacing.lg,
-      backgroundColor: `${theme.colors.surface}F0`,
-      borderRadius: theme.borderRadius.lg,
+      padding: theme.spacing.xl,
+      backgroundColor: `${theme.colors.surface}F5`,
+      borderRadius: theme.borderRadius.xl,
       maxWidth: '90%',
       alignItems: 'center',
+      borderWidth: 2,
+      borderColor: `${theme.colors.primary}40`,
+      shadowColor: theme.colors.primary,
+      shadowOpacity: 0.3,
+      shadowRadius: 20,
+      shadowOffset: { width: 0, height: 8 },
+      elevation: 10,
     },
     successText: {
-      fontSize: 24,
+      fontSize: 28,
       color: theme.colors.primary,
-      fontWeight: 'bold',
+      fontWeight: '900',
       marginBottom: theme.spacing.md,
+      textShadowColor: `${theme.colors.primary}40`,
+      textShadowOffset: { width: 0, height: 2 },
+      textShadowRadius: 4,
     },
     fullVerseText: {
       color: theme.colors.text.primary,
       textAlign: 'center',
-      fontSize: 16,
-      lineHeight: 24,
-      marginBottom: theme.spacing.sm,
-      fontWeight: '500',
+      fontSize: 17,
+      lineHeight: 26,
+      marginBottom: theme.spacing.md,
+      fontWeight: '600',
     },
     referenceText: {
       color: theme.colors.text.secondary,
-      marginTop: theme.spacing.xs,
-      fontSize: 14,
+      marginTop: theme.spacing.sm,
+      fontSize: 15,
+      fontWeight: '600',
     },
-    overlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, justifyContent: 'center', alignItems: 'center' },
-    gameOverContainer: { backgroundColor: theme.colors.background, padding: theme.spacing.xl, borderRadius: theme.borderRadius.lg, alignItems: 'center' },
-    gameOverText: { fontSize: 24, color: theme.colors.primary, marginBottom: theme.spacing.md },
-    finalScore: { fontSize: 18, color: theme.colors.text.primary, marginBottom: theme.spacing.lg },
-    retryButton: { backgroundColor: theme.colors.primary, paddingVertical: theme.spacing.sm, paddingHorizontal: theme.spacing.lg, borderRadius: theme.borderRadius.full },
-    retryButtonText: { color: '#FFF', fontSize: 16, fontWeight: '600' },
-    pauseContainer: { backgroundColor: theme.colors.background, padding: theme.spacing.xl, borderRadius: theme.borderRadius.lg, alignItems: 'center' },
-    pauseTitle: { fontSize: 22, color: theme.colors.primary, marginBottom: theme.spacing.xs, fontWeight: '700' },
-    pauseSubtitle: { fontSize: 14, color: theme.colors.text.secondary, marginBottom: theme.spacing.lg, textAlign: 'center' },
-    onboardingCard: { backgroundColor: theme.colors.surface, padding: theme.spacing.lg, borderRadius: theme.borderRadius.lg, alignItems: 'center', marginHorizontal: theme.spacing.lg },
-    onboardingTitle: { fontSize: 18, color: theme.colors.text.primary, fontWeight: '700', marginBottom: theme.spacing.sm },
-    onboardingText: { color: theme.colors.text.secondary, textAlign: 'center', lineHeight: 20, marginBottom: theme.spacing.md },
-    loadingOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', zIndex: 10 },
-    loadingText: { color: theme.colors.primary, marginTop: theme.spacing.sm },
-    skeletonContainer: { marginTop: theme.spacing.md, width: '90%', maxWidth: 520 },
-    skeletonBar: { height: 10, backgroundColor: `${theme.colors.text.secondary}20`, borderRadius: theme.borderRadius.full, marginBottom: theme.spacing.md },
-    skeletonRow: { flexDirection: 'row', justifyContent: 'center', gap: theme.spacing.sm, marginBottom: theme.spacing.sm },
-    skeletonTile: { width: 72, height: 28, backgroundColor: `${theme.colors.text.secondary}15`, borderRadius: theme.borderRadius.md },
-    skeletonTileSmall: { width: 56, height: 24, backgroundColor: `${theme.colors.text.secondary}15`, borderRadius: theme.borderRadius.md },
-    errorContainer: { padding: theme.spacing.md, backgroundColor: `${theme.colors.error}20`, borderRadius: theme.borderRadius.md, marginBottom: theme.spacing.md, alignItems: 'center' },
-    errorText: { color: theme.colors.error, marginBottom: theme.spacing.sm },
-    correctAnswerContainer: { padding: theme.spacing.md, backgroundColor: `${theme.colors.error}10`, borderRadius: theme.borderRadius.md, marginBottom: theme.spacing.lg, alignItems: 'center' },
-    correctAnswerText: { color: theme.colors.text.primary, marginBottom: theme.spacing.md, textAlign: 'center', lineHeight: 22 },
-    // Session XP progress
-    sessionXpWrap: { alignItems: 'flex-end', justifyContent: 'center' },
-    sessionXpTrack: { position: 'relative', height: 6, width: 120, backgroundColor: `${theme.colors.text.secondary}20`, borderRadius: theme.borderRadius.full, overflow: 'hidden' },
-    sessionXpFill: { height: '100%', backgroundColor: theme.colors.secondary, borderRadius: theme.borderRadius.full },
-    sessionXpText: { fontSize: 12, color: theme.colors.text.secondary, marginTop: 4 },
-    sessionXpTick: { position: 'absolute', top: 0, bottom: 0, width: 1, backgroundColor: `${theme.colors.text.secondary}50` },
-    // PR1: Status row (streak + hearts)
-    statusRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: theme.spacing.sm },
-    streakBadge: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.xs, backgroundColor: `${theme.colors.secondary}20`, paddingVertical: 4, paddingHorizontal: theme.spacing.sm, borderRadius: theme.borderRadius.full },
-    streakEmoji: { fontSize: 16 },
-    streakBadgeText: { color: theme.colors.secondary, fontWeight: '600' },
-    streakBadgeMuted: { paddingVertical: 4, paddingHorizontal: theme.spacing.sm, borderRadius: theme.borderRadius.full, backgroundColor: `${theme.colors.text.secondary}10` },
-    streakBadgeTextMuted: { color: theme.colors.text.secondary },
-    heartsRow: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.xs },
-    heart: { fontSize: 18 },
-    heartEmpty: { opacity: 0.5 },
-    // Floating +points bubble
-    pointsBubble: { position: 'absolute', bottom: '35%', alignSelf: 'center', paddingVertical: 4, paddingHorizontal: 10, borderRadius: theme.borderRadius.full, backgroundColor: `${theme.colors.primary}20` },
-    pointsBubbleText: { color: theme.colors.primary, fontWeight: '700' },
-    // Level-up banner
-    levelUpBanner: { position: 'absolute', top: 0, left: 0, right: 0, height: 48, alignItems: 'center', justifyContent: 'center', backgroundColor: `${theme.colors.secondary}20` },
-    levelUpText: { color: theme.colors.secondary, fontWeight: '700' },
+    successStatsRow: { 
+      flexDirection: 'row', 
+      gap: theme.spacing.md, 
+      marginTop: theme.spacing.md, 
+      marginBottom: theme.spacing.md 
+    },
+    successStatChip: { 
+      paddingVertical: 6, 
+      paddingHorizontal: theme.spacing.md, 
+      borderRadius: theme.borderRadius.full, 
+      backgroundColor: `${theme.colors.primary}20`,
+      borderWidth: 1,
+      borderColor: `${theme.colors.primary}40`,
+    },
+    successStatText: { 
+      color: theme.colors.primary, 
+      fontWeight: '700',
+      fontSize: 13,
+    },
+
+    // Floating Points Bubble
+    pointsBubble: { 
+      position: 'absolute', 
+      bottom: '35%', 
+      alignSelf: 'center', 
+      paddingVertical: 8, 
+      paddingHorizontal: 16, 
+      borderRadius: theme.borderRadius.full, 
+      backgroundColor: `${theme.colors.secondary}30`,
+      borderWidth: 2,
+      borderColor: theme.colors.secondary,
+      shadowColor: theme.colors.secondary,
+      shadowOpacity: 0.4,
+      shadowRadius: 8,
+      shadowOffset: { width: 0, height: 2 },
+      elevation: 6,
+    },
+    pointsBubbleText: { 
+      color: theme.colors.secondary, 
+      fontWeight: '900',
+      fontSize: 16,
+    },
+
+    // Level-up Banner
+    levelUpBanner: { 
+      position: 'absolute', 
+      top: 0, 
+      left: 0, 
+      right: 0, 
+      height: 60, 
+      alignItems: 'center', 
+      justifyContent: 'center', 
+      backgroundColor: `${theme.colors.secondary}30`,
+      borderBottomWidth: 2,
+      borderBottomColor: theme.colors.secondary,
+    },
+    levelUpText: { 
+      color: theme.colors.secondary, 
+      fontWeight: '900',
+      fontSize: 16,
+    },
+
+    // Session XP
+    sessionXpWrap: { 
+      alignItems: 'flex-end', 
+      justifyContent: 'center' 
+    },
+    sessionXpTrack: { 
+      position: 'relative', 
+      height: 8, 
+      width: 140, 
+      backgroundColor: `${theme.colors.text.secondary}20`, 
+      borderRadius: theme.borderRadius.full, 
+      overflow: 'hidden',
+      borderWidth: 1,
+      borderColor: `${theme.colors.text.secondary}30`,
+    },
+    sessionXpFill: { 
+      height: '100%', 
+      backgroundColor: theme.colors.secondary, 
+      borderRadius: theme.borderRadius.full,
+      shadowColor: theme.colors.secondary,
+      shadowOpacity: 0.4,
+      shadowRadius: 4,
+      shadowOffset: { width: 0, height: 1 },
+    },
+    sessionXpText: { 
+      fontSize: 12, 
+      color: theme.colors.text.secondary, 
+      marginTop: 6,
+      fontWeight: '600',
+    },
+    sessionXpTick: { 
+      position: 'absolute', 
+      top: 0, 
+      bottom: 0, 
+      width: 1, 
+      backgroundColor: `${theme.colors.text.secondary}60` 
+    },
+
+    // Overlays
+    overlay: { 
+      position: 'absolute', 
+      top: 0, 
+      left: 0, 
+      right: 0, 
+      bottom: 0, 
+      justifyContent: 'center', 
+      alignItems: 'center' 
+    },
+    
+    // Game Over
+    gameOverContainer: { 
+      backgroundColor: theme.colors.background, 
+      padding: theme.spacing.xl, 
+      borderRadius: theme.borderRadius.xl, 
+      alignItems: 'center',
+      borderWidth: 2,
+      borderColor: `${theme.colors.error}40`,
+      shadowColor: theme.colors.error,
+      shadowOpacity: 0.2,
+      shadowRadius: 15,
+      shadowOffset: { width: 0, height: 6 },
+      elevation: 8,
+    },
+    gameOverText: { 
+      fontSize: 26, 
+      color: theme.colors.error, 
+      marginBottom: theme.spacing.md,
+      fontWeight: '900',
+      textShadowColor: `${theme.colors.error}40`,
+      textShadowOffset: { width: 0, height: 2 },
+      textShadowRadius: 4,
+    },
+    finalScore: { 
+      fontSize: 20, 
+      color: theme.colors.text.primary, 
+      marginBottom: theme.spacing.lg,
+      fontWeight: '700',
+    },
+
+    // Pause Container
+    pauseContainer: { 
+      backgroundColor: theme.colors.background, 
+      padding: theme.spacing.xl, 
+      borderRadius: theme.borderRadius.xl, 
+      alignItems: 'center',
+      borderWidth: 2,
+      borderColor: `${theme.colors.primary}40`,
+      shadowColor: theme.colors.primary,
+      shadowOpacity: 0.2,
+      shadowRadius: 15,
+      shadowOffset: { width: 0, height: 6 },
+      elevation: 8,
+    },
+    pauseTitle: { 
+      fontSize: 24, 
+      color: theme.colors.primary, 
+      marginBottom: theme.spacing.xs, 
+      fontWeight: '900' 
+    },
+    pauseSubtitle: { 
+      fontSize: 15, 
+      color: theme.colors.text.secondary, 
+      marginBottom: theme.spacing.lg, 
+      textAlign: 'center',
+      fontWeight: '500',
+    },
+
+    // Onboarding
+    onboardingCard: { 
+      backgroundColor: theme.colors.surface, 
+      padding: theme.spacing.xl, 
+      borderRadius: theme.borderRadius.xl, 
+      alignItems: 'center', 
+      marginHorizontal: theme.spacing.lg,
+      borderWidth: 2,
+      borderColor: `${theme.colors.primary}30`,
+      shadowColor: theme.colors.primary,
+      shadowOpacity: 0.15,
+      shadowRadius: 15,
+      shadowOffset: { width: 0, height: 6 },
+      elevation: 8,
+    },
+    onboardingTitle: { 
+      fontSize: 20, 
+      color: theme.colors.text.primary, 
+      fontWeight: '900', 
+      marginBottom: theme.spacing.sm 
+    },
+    onboardingText: { 
+      color: theme.colors.text.secondary, 
+      textAlign: 'center', 
+      lineHeight: 22, 
+      marginBottom: theme.spacing.lg,
+      fontSize: 15,
+      fontWeight: '500',
+    },
+
+    // Retry Button
+    retryButton: { 
+      backgroundColor: theme.colors.primary, 
+      paddingVertical: theme.spacing.md, 
+      paddingHorizontal: theme.spacing.xl, 
+      borderRadius: theme.borderRadius.full,
+      shadowColor: theme.colors.primary,
+      shadowOpacity: 0.3,
+      shadowRadius: 8,
+      shadowOffset: { width: 0, height: 4 },
+      elevation: 6,
+      borderWidth: 1,
+      borderColor: `${theme.colors.primary}20`,
+    },
+    retryButtonText: { 
+      color: '#FFF', 
+      fontSize: 16, 
+      fontWeight: '800',
+      textShadowColor: 'rgba(0,0,0,0.3)',
+      textShadowOffset: { width: 0, height: 1 },
+      textShadowRadius: 2,
+    },
+
+    // Loading States
+    loadingOverlay: { 
+      position: 'absolute', 
+      top: 0, 
+      left: 0, 
+      right: 0, 
+      bottom: 0, 
+      backgroundColor: 'rgba(0,0,0,0.7)', 
+      justifyContent: 'center', 
+      alignItems: 'center', 
+      zIndex: 10 
+    },
+    loadingText: { 
+      color: theme.colors.primary, 
+      marginTop: theme.spacing.md,
+      fontSize: 16,
+      fontWeight: '600',
+    },
+    skeletonContainer: { 
+      marginTop: theme.spacing.lg, 
+      width: '90%', 
+      maxWidth: 520 
+    },
+    skeletonBar: { 
+      height: 12, 
+      backgroundColor: `${theme.colors.text.secondary}25`, 
+      borderRadius: theme.borderRadius.full, 
+      marginBottom: theme.spacing.lg 
+    },
+    skeletonRow: { 
+      flexDirection: 'row', 
+      justifyContent: 'center', 
+      gap: theme.spacing.sm, 
+      marginBottom: theme.spacing.md 
+    },
+    skeletonTile: { 
+      width: 80, 
+      height: 32, 
+      backgroundColor: `${theme.colors.text.secondary}20`, 
+      borderRadius: theme.borderRadius.lg 
+    },
+    skeletonTileSmall: { 
+      width: 64, 
+      height: 28, 
+      backgroundColor: `${theme.colors.text.secondary}20`, 
+      borderRadius: theme.borderRadius.lg 
+    },
+
+    // Error States
+    errorContainer: { 
+      padding: theme.spacing.lg, 
+      backgroundColor: `${theme.colors.error}15`, 
+      borderRadius: theme.borderRadius.lg, 
+      marginBottom: theme.spacing.md, 
+      alignItems: 'center',
+      borderWidth: 1,
+      borderColor: `${theme.colors.error}30`,
+    },
+    errorText: { 
+      color: theme.colors.error, 
+      marginBottom: theme.spacing.md,
+      textAlign: 'center',
+      fontWeight: '600',
+    },
+    correctAnswerContainer: { 
+      padding: theme.spacing.lg, 
+      backgroundColor: `${theme.colors.error}10`, 
+      borderRadius: theme.borderRadius.lg, 
+      marginBottom: theme.spacing.xl, 
+      alignItems: 'center',
+      borderWidth: 2,
+      borderColor: `${theme.colors.error}30`,
+    },
+    correctAnswerText: { 
+      color: theme.colors.text.primary, 
+      marginBottom: theme.spacing.lg, 
+      textAlign: 'center', 
+      lineHeight: 24,
+      fontSize: 16,
+      fontWeight: '600',
+    },
+
+    // Empty State
+    emptyState: { 
+      alignItems: 'center', 
+      padding: theme.spacing.xl, 
+      marginTop: theme.spacing.xl 
+    },
+    emptyStateTitle: { 
+      fontSize: 20, 
+      fontWeight: '800', 
+      color: theme.colors.text.primary, 
+      marginBottom: theme.spacing.sm 
+    },
+    emptyStateSubtitle: { 
+      fontSize: 15, 
+      color: theme.colors.text.secondary, 
+      marginBottom: theme.spacing.lg, 
+      textAlign: 'center',
+      fontWeight: '500',
+    },
+
+    // Legacy styles for compatibility
+    header: { 
+      flexDirection: 'row', 
+      justifyContent: 'space-between', 
+      alignItems: 'center', 
+      marginBottom: theme.spacing.md 
+    },
+    scoreContainer: { 
+      flexDirection: 'row', 
+      alignItems: 'center', 
+      gap: theme.spacing.xs 
+    },
+    scoreText: { 
+      fontSize: 18, 
+      color: theme.colors.primary, 
+      fontWeight: 'bold' 
+    },
+    calmControls: { 
+      flexDirection: 'row', 
+      justifyContent: 'center', 
+      alignItems: 'center', 
+      gap: theme.spacing.md, 
+      marginBottom: theme.spacing.sm 
+    },
+    calmToggle: { 
+      paddingVertical: 6, 
+      paddingHorizontal: theme.spacing.md, 
+      borderRadius: theme.borderRadius.full, 
+      backgroundColor: `${theme.colors.text.secondary}10` 
+    },
+    calmToggleActive: { 
+      backgroundColor: `${theme.colors.primary}20`, 
+      borderWidth: 1, 
+      borderColor: `${theme.colors.primary}40` 
+    },
+    calmToggleText: { 
+      color: theme.colors.text.secondary, 
+      fontWeight: '600' 
+    },
+    calmToggleTextActive: { 
+      color: theme.colors.primary 
+    },
+    pauseButton: { 
+      paddingVertical: 6, 
+      paddingHorizontal: theme.spacing.md, 
+      borderRadius: theme.borderRadius.full, 
+      backgroundColor: `${theme.colors.text.secondary}10` 
+    },
+    pauseButtonText: { 
+      color: theme.colors.text.secondary, 
+      fontWeight: '600' 
+    },
+    powerUps: { 
+      flexDirection: 'row', 
+      gap: theme.spacing.sm 
+    },
+    powerUpText: { 
+      fontSize: 16, 
+      color: theme.colors.primary 
+    },
+    streakContainer: { 
+      flexDirection: 'row', 
+      alignItems: 'center', 
+      alignSelf: 'center', 
+      paddingVertical: theme.spacing.xs, 
+      paddingHorizontal: theme.spacing.sm, 
+      backgroundColor: `${theme.colors.secondary}20`, 
+      borderRadius: theme.borderRadius.full, 
+      marginBottom: theme.spacing.sm 
+    },
+    streakText: { 
+      color: theme.colors.secondary, 
+      marginLeft: theme.spacing.xs, 
+      fontWeight: '500' 
+    },
   });
 
 export default VerseBuilderScreen;
