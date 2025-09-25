@@ -42,6 +42,8 @@ const IntroScreen = ({
   
   const [currentStep, setCurrentStep] = useState(0);
   const [showGuestChoice, setShowGuestChoice] = useState(false);
+  const [showGuestFailure, setShowGuestFailure] = useState(false);
+  const [guestFailureMessage, setGuestFailureMessage] = useState<string>('');
   const scrollRef = useRef<ScrollView>(null);
   const scrollX = useSharedValue(0);
 
@@ -124,12 +126,40 @@ const IntroScreen = ({
         // Navigate directly to Home after successful guest account creation
         navigation.replace('Home');
       } else {
-        toast.error(error || 'Failed to create guest account. Please try again.');
+        // Show failure modal with options to Retry or go Home unauthenticated
+        setGuestFailureMessage(error || 'We created your account, but automatic sign-in failed. You can retry or continue to Home without sign-in.');
+        setShowGuestFailure(true);
       }
     } catch (error) {
       console.error('Failed to create guest account:', error);
-      toast.error((error as any)?.message || 'Failed to create guest account. Please try again.');
+      setGuestFailureMessage((error as any)?.message || 'Failed to create guest account. Please try again.');
+      setShowGuestFailure(true);
     }
+  };
+
+  const handleRetryGuest = async () => {
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      const success = await createGuestAccount();
+      if (success) {
+        await completeWelcome();
+        toast.success('Welcome to El-biblio!');
+        setShowGuestFailure(false);
+        navigation.replace('Home');
+      } else {
+        setGuestFailureMessage(error || 'Automatic sign-in still failing. You can try again or continue to Home.');
+      }
+    } catch (e) {
+      setGuestFailureMessage((e as any)?.message || 'Retry failed. You can try again or continue to Home.');
+    }
+  };
+
+  const handleGoHomeUnauthenticated = async () => {
+    try {
+      await completeWelcome();
+    } catch {}
+    setShowGuestFailure(false);
+    navigation.replace('Home');
   };
 
   const renderStep = (step: OnboardingStep, index: number) => {
@@ -264,6 +294,35 @@ const IntroScreen = ({
         onRegister={handleRegister}
         onContinueAsGuest={handleContinueAsGuest}
       />
+
+      {/* Guest Failure Modal */}
+      {showGuestFailure && (
+        <View style={styles.failureOverlay}>
+          <BlurView intensity={20} style={StyleSheet.absoluteFill} />
+          <View style={styles.failureCard}>
+            <Text style={styles.failureTitle}>We couldn't sign you in</Text>
+            {!!guestFailureMessage && (
+              <Text style={styles.failureMessage}>{guestFailureMessage}</Text>
+            )}
+            <View style={styles.failureActions}>
+              <TouchableOpacity
+                style={[styles.failureButton, styles.retryButton]}
+                onPress={handleRetryGuest}
+                disabled={isLoading}
+              >
+                <Text style={styles.failureButtonText}>Retry</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.failureButton, styles.homeButton]}
+                onPress={handleGoHomeUnauthenticated}
+                disabled={isLoading}
+              >
+                <Text style={styles.failureHomeText}>Go Home</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      )}
     </View>
   );
 };
@@ -411,6 +470,64 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     ...theme.typography.body.sans,
     color: theme.colors.text.primary,
     textAlign: 'center',
+  },
+  failureOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 1100,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: theme.spacing.lg,
+  },
+  failureCard: {
+    width: '100%',
+    maxWidth: 420,
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.borderRadius.lg,
+    padding: theme.spacing.xl,
+    gap: theme.spacing.md,
+  },
+  failureTitle: {
+    ...theme.typography.heading.small,
+    color: theme.colors.text.primary,
+    textAlign: 'center',
+  },
+  failureMessage: {
+    ...theme.typography.body.sans,
+    color: theme.colors.text.secondary,
+    textAlign: 'center',
+  },
+  failureActions: {
+    flexDirection: 'row',
+    gap: theme.spacing.md,
+    justifyContent: 'center',
+    marginTop: theme.spacing.sm,
+  },
+  failureButton: {
+    paddingVertical: theme.spacing.md,
+    paddingHorizontal: theme.spacing.lg,
+    borderRadius: theme.borderRadius.full,
+    minWidth: 120,
+    alignItems: 'center',
+  },
+  retryButton: {
+    backgroundColor: theme.colors.primary,
+  },
+  homeButton: {
+    backgroundColor: theme.colors.input.background,
+    borderWidth: 1,
+    borderColor: theme.colors.input.border,
+  },
+  failureButtonText: {
+    ...theme.typography.button.primary,
+    color: theme.colors.text.inverse,
+  },
+  failureHomeText: {
+    ...theme.typography.button.secondary,
+    color: theme.colors.text.primary,
   },
 });
 

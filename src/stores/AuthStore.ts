@@ -27,6 +27,9 @@ export class AuthStore {
     this.initialize();
   }
 
+  // Small helper to wait for a given time (used for retry backoff)
+  private wait = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms));
+
   private setLoading = (loading: boolean) => {
     this.isLoading = loading;
   };
@@ -301,14 +304,34 @@ export class AuthStore {
 
         // Case B: API returns only user (no token) -> perform login with generated credentials
         if (response.success) {
-          const loggedIn = await this.login(email, password);
-          if (loggedIn) {
-            runInAction(() => {
-              this.isGuest = true;
-            });
+          console.info('[Auth] Guest signup succeeded, attempting auto-login for:', email);
+          // Persist credentials early so we can retry later even if auto-login fails now
+          try {
             await AsyncStorage.setItem(this.GUEST_CREDENTIALS_KEY, JSON.stringify({ email, password }));
-            return true;
+          } catch (e) {
+            console.warn('[Auth] Failed to persist guest credentials before auto-login attempt');
           }
+          // Retry auto-login with exponential backoff to handle transient server errors
+          const maxLoginAttempts = 3;
+          for (let attempt = 1; attempt <= maxLoginAttempts; attempt++) {
+            if (attempt > 1) {
+              const delay = 500 * Math.pow(2, attempt - 2); // 500ms, 1000ms
+              console.info(`[Auth] Auto-login retry ${attempt}/${maxLoginAttempts} after ${delay}ms`);
+              await this.wait(delay);
+            }
+            const loggedIn = await this.login(email, password);
+            if (loggedIn) {
+              runInAction(() => {
+                this.isGuest = true;
+              });
+              return true;
+            }
+          }
+          // Signup succeeded but auto-login failed after retries. Avoid creating more accounts.
+          // Provide a clear error and stop retrying with new accounts.
+          console.warn('[Auth] Auto-login failed after guest signup for:', email);
+          lastError = 'Account created, but automatic sign-in failed. Please try again.';
+          break;
         }
 
         // Otherwise, remember error and try next attempt

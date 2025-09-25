@@ -167,11 +167,11 @@ const AppContent = () => {
       <ThemeProvider initialTheme={defaultTheme} onThemeChange={handleThemeChange}>
         <View style={{ flex: 1 }}>
           <CustomSplash onAnimationComplete={() => setIsSplashComplete(true)} />
-          <View style={stylesDebug.overlay} pointerEvents="none">
+          {/* <View style={stylesDebug.overlay} pointerEvents="none">
             <Text style={stylesDebug.text}>
               fontsLoaded: {String(fontsLoaded)} | isLoading: {String(isLoading)} | splash: {String(isSplashComplete)} | auth: {String(authInitialized)}
             </Text>
-          </View>
+          </View> */}
         </View>
       </ThemeProvider>
     );

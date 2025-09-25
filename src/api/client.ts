@@ -216,6 +216,7 @@ api.interceptors.response.use(
       }
 
       if (status && status >= 500) {
+        console.error('Server error:', response?.data);
         errorResponse.message = 'Server error. Please try again later.';
         return Promise.reject(errorResponse);
       }
