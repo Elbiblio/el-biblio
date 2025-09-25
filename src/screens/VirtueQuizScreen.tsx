@@ -47,6 +47,8 @@ import { PIConfetti, ConfettiMethods } from 'react-native-fast-confetti';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList, AppVirtue, FoundationalVirtue, Virtue } from '@/types';
 import { THEMES } from '@/types';
+import SoundSettingsModal from '@/components/SoundSettingsModal';
+import { playCue } from '@/services/audio';
 
 // Removed SCREEN_WIDTH; not needed after confetti migration
 
@@ -106,6 +108,8 @@ const VirtueQuizScreen = observer(({ navigation, route }: NativeStackScreenProps
     showExplanation,
   } = store;
 
+  const [showSoundSettings, setShowSoundSettings] = React.useState(false);
+
   // Effects
   useEffect(() => {
     store.loadInitialData();
@@ -132,6 +136,8 @@ const VirtueQuizScreen = observer(({ navigation, route }: NativeStackScreenProps
   useEffect(() => {
     if (quizStarted) {
       cardScale.value = withSpring(1);
+      // Play a subtle chime when quiz starts
+      play('chime');
     } else {
       cardScale.value = withTiming(0.95);
     }
@@ -148,6 +154,10 @@ const VirtueQuizScreen = observer(({ navigation, route }: NativeStackScreenProps
   useEffect(() => {
     if (quizStarted && questions.length > 0) {
       progressWidth.value = withTiming(((currentQuestionIndex + 1) / questions.length) * 100);
+      if (currentQuestionIndex > 0) {
+        // Advance sound to keep momentum
+        play('ding');
+      }
     } else {
       progressWidth.value = withTiming(0);
     }
@@ -161,30 +171,38 @@ const VirtueQuizScreen = observer(({ navigation, route }: NativeStackScreenProps
     }
   }, [showConfetti]);
 
+  // Delegated sound helper
+  const play = async (name: 'chime' | 'ding' | 'correct' | 'wrong' | 'cheers') => {
+    await playCue(name);
+  };
+
   // Animated Styles
   const cardAnimatedStyle = useAnimatedStyle(() => ({
     transform: [{ scale: cardScale.value }],
     opacity: cardScale.value
   }));
 
-
-  const progressAnimatedStyle = useAnimatedStyle(() => ({
-    width: `${progressWidth.value}%`
-  }));
-  
-  const explanationAnimatedStyle = useAnimatedStyle(() => ({
-    opacity: explanationHeight.value,
-    transform: [{ translateY: interpolate(
-      explanationHeight.value,
-      [0, 1],
-      [20, 0],
-      Extrapolation.CLAMP
-    )}]
-  }));
-  
   // Option press micro-scale
   const optionPressStyle = useAnimatedStyle(() => ({
     transform: [{ scale: optionPressScale.value }],
+  }));
+
+  // Progress bar width animation
+  const progressAnimatedStyle = useAnimatedStyle(() => ({
+    width: `${progressWidth.value}%`,
+  }));
+
+  // Explanation reveal animation
+  const explanationAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: explanationHeight.value,
+    transform: [{
+      translateY: interpolate(
+        explanationHeight.value,
+        [0, 1],
+        [20, 0],
+        Extrapolation.CLAMP
+      )
+    }]
   }));
 
   // Haptics on explanation reveal
@@ -193,12 +211,25 @@ const VirtueQuizScreen = observer(({ navigation, route }: NativeStackScreenProps
       Haptics.impactAsync(
         isAnswerCorrect ? Haptics.ImpactFeedbackStyle.Light : Haptics.ImpactFeedbackStyle.Medium
       );
+      // Sound feedback on answer result
+      if (isAnswerCorrect) {
+        play('correct');
+      } else {
+        play('wrong');
+      }
       if (isAnswerCorrect) {
         confettiInlineRef.current?.restart?.();
       }
     }
   }, [showExplanation, selectedAnswer, isAnswerCorrect]);
-  
+
+  // Completion sound
+  useEffect(() => {
+    if (!quizCompleted) return;
+    // Celebrate on completion
+    play('cheers');
+  }, [quizCompleted]);
+
   // Render functions
   const renderVirtueSelection = () => (
     <View style={styles.selectionContainer}>
@@ -259,6 +290,7 @@ const VirtueQuizScreen = observer(({ navigation, route }: NativeStackScreenProps
           );
         })}
       </ScrollView>
+      <SoundSettingsModal visible={showSoundSettings} onClose={() => setShowSoundSettings(false)} />
     </View>
   );
   
@@ -592,7 +624,9 @@ const VirtueQuizScreen = observer(({ navigation, route }: NativeStackScreenProps
             : 'Virtue Quiz'}
         </Text>
         
-        <View style={{ width: 24 }} />
+        <TouchableOpacity onPress={() => setShowSoundSettings(true)}>
+          <Text style={{ color: theme?.colors.primary }}>Sound</Text>
+        </TouchableOpacity>
       </View>
       
       <ScrollView 

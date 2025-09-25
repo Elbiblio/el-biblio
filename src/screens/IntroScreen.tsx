@@ -27,6 +27,7 @@ import { SCREEN_DIMENSIONS } from '@/constants';
 import { useAuthStore } from '@/stores/StoreProvider';
 import { toast } from 'sonner-native';
 import { parseDescription } from '@/utils/ui';
+import { playSound } from '@/services/audio';
 
 const SCREEN_WIDTH = SCREEN_DIMENSIONS.width;
 
@@ -123,6 +124,8 @@ const IntroScreen = ({
       if (success) {
         await completeWelcome();
         toast.success('Welcome to El-biblio!');
+        //play level up sound
+        playSound('level-up', 'mp3');
         // Navigate directly to Home after successful guest account creation
         navigation.replace('Home');
       } else {

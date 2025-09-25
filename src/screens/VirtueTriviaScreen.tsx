@@ -14,7 +14,9 @@ import { Theme } from '@/theme';
 import { useTheme } from '@/contexts/ThemeContext';
 import { observer } from 'mobx-react-lite';
 import { useVirtueStore, useGameStore } from '@/stores/StoreProvider';
-import { Audio } from 'expo-av';
+import SoundManager from '@/utils/SoundManager';
+import SoundSettingsModal from '@/components/SoundSettingsModal';
+import { playCue } from '@/services/audio';
 import * as Haptics from 'expo-haptics';
 
 import { shuffleArray } from '@/utils/helpers';
@@ -86,6 +88,7 @@ const VirtueTriviaScreen = () => {
     transform: [{ scale: optionPressScale.value }],
   }));
   const [isLoading, setIsLoading] = useState(true);
+  const [showSoundSettings, setShowSoundSettings] = useState(false);
   const [selectedVirtue, setSelectedVirtue] = useState<string>('');
   const [showVirtueSelector, setShowVirtueSelector] = useState(true);
   const [timeLeft, setTimeLeft] = useState(15);
@@ -103,15 +106,6 @@ const VirtueTriviaScreen = () => {
   // Refs
   const timeLeftRef = useRef(timeLeft);
   const confettiRef = useRef<any>(null);
-  const soundsRef = useRef({
-    tickTock: null as Audio.Sound | null,
-    timeout: null as Audio.Sound | null,
-    correct: null as Audio.Sound | null,
-    streak: null as Audio.Sound | null,
-    wrong: null as Audio.Sound | null,
-    gameOver: null as Audio.Sound | null,
-    cheers: null as Audio.Sound | null,
-  });
   const hasInitialized = useRef(false);
   const minimumQuestionsToPass = 7; // 70% correct answers to complete a virtue
 
@@ -134,25 +128,7 @@ const VirtueTriviaScreen = () => {
       setIsLoading(true);
 
       try {
-        // Load sound effects
-        const soundPaths = {
-          tickTock: require('../../assets/sounds/tick-tock.wav'),
-          timeout: require('../../assets/sounds/timeout.mp3'),
-          correct: require('../../assets/sounds/correct.mp3'),
-          streak: require('../../assets/sounds/streak.wav'),
-          wrong: require('../../assets/sounds/wrong.mp3'),
-          gameOver: require('../../assets/sounds/game-over.mp3'),
-          cheers: require('../../assets/sounds/cheers.mp3'),
-        };
-        
-        for (const [key, path] of Object.entries(soundPaths)) {
-          const sound = new Audio.Sound();
-          await sound.loadAsync(path);
-          soundsRef.current[key as keyof typeof soundsRef.current] = sound;
-        }
-
-        // Load user data from API
-        // await fetchVirtues(); // This is now handled by the useEffect above
+        await SoundManager.init();
         
         // Set default timer
         setTimeLeft(timerSettings.novice);
@@ -166,11 +142,7 @@ const VirtueTriviaScreen = () => {
     
     initializeApp();
 
-    return () => {
-      Object.values(soundsRef.current).forEach(sound => 
-        sound?.unloadAsync().catch(console.error)
-      );
-    };
+    return () => {};
   }, []);
 
   // Generate wrong options for book-only quiz
@@ -325,6 +297,10 @@ const VirtueTriviaScreen = () => {
     }
   }, [userLevel, processVerses]);
 
+  const play = async (name: 'tickTock' | 'timeout' | 'correct' | 'streak' | 'wrong' | 'gameOver' | 'cheers') => {
+    await playCue(name);
+  };
+
   // Handle answer selection
   const handleAnswerSelect = useCallback(async (answer: string) => {
     if (gameState.answered) return;
@@ -344,14 +320,10 @@ const VirtueTriviaScreen = () => {
       // Confetti micro-burst
       confettiRef.current?.restart?.();
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      soundsRef.current.correct?.setPositionAsync(0).then(() => 
-        soundsRef.current.correct?.playAsync()
-      );
+      play('correct');
     } else {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      soundsRef.current.wrong?.setPositionAsync(0).then(() => 
-        soundsRef.current.wrong?.playAsync()
-      );
+      play('wrong');
     }
     
     // Update streak
@@ -359,9 +331,7 @@ const VirtueTriviaScreen = () => {
     
     // Play streak sound on multiples of 5
     if (isCorrect && newStreak > 1 && newStreak % 5 === 0) {
-      soundsRef.current.streak?.setPositionAsync(0).then(() => 
-        soundsRef.current.streak?.playAsync()
-      );
+      play('streak');
     }
     
     // Calculate score
@@ -414,16 +384,12 @@ const VirtueTriviaScreen = () => {
         
         // Check for perfect score and play cheers
         if (correctAnswers === gameState.questions.length) {
-          soundsRef.current.cheers?.setPositionAsync(0).then(() => 
-            soundsRef.current.cheers?.playAsync()
-          );
+          play('cheers');
           // Perfect score celebration
           confettiRef.current?.restart?.();
         } else {
           // Play regular game over sound
-          soundsRef.current.gameOver?.setPositionAsync(0).then(() => 
-            soundsRef.current.gameOver?.playAsync()
-          );
+          play('gameOver');
         }
 
         gameStore.submitScore('virtue_trivia', newScore);
@@ -509,17 +475,13 @@ const VirtueTriviaScreen = () => {
       setTimeLeft(newTime);
       
       if (newTime <= 3) {
-        soundsRef.current.tickTock?.setPositionAsync(0).then(() => 
-          soundsRef.current.tickTock?.playAsync()
-        );
+        play('tickTock');
       }
       
       if (newTime <= 0) {
         clearInterval(interval);
         handleAnswerSelect(''); // Force incorrect answer
-        soundsRef.current.timeout?.setPositionAsync(0).then(() => 
-          soundsRef.current.timeout?.playAsync()
-        );
+        play('timeout');
       }
     }, 1000);
     
@@ -825,6 +787,9 @@ const VirtueTriviaScreen = () => {
               <Text style={styles.currentScoreText}>{gameState.score}</Text>
               <Text style={styles.highScoreText}>High: {highScore}</Text>
             </View>
+            <TouchableOpacity onPress={() => setShowSoundSettings(true)}>
+              <Text style={{ color: theme.colors.primary }}>Sound</Text>
+            </TouchableOpacity>
             
             {gameState.streak > 1 && (
               <View style={styles.streakContainer}>
@@ -857,6 +822,8 @@ const VirtueTriviaScreen = () => {
       )}
       
       {!error && !showVirtueSelector && gameState.gameOver && !isLoading && renderGameOver()}
+
+      <SoundSettingsModal visible={showSoundSettings} onClose={() => setShowSoundSettings(false)} />
     </View>
   );
 };
