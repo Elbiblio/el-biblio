@@ -34,16 +34,67 @@ export function generateVPLId(bookAbbr: string, chapter: number, verse: number):
 }
 
 export function parseVPLId(vplId: string): { bookAbbr: string, chapter: number, verse: number } {
-  const match = vplId.match(/^([A-Za-z]{2})(\d+)_(\d+)$/);
-  if (!match) throw new Error('Invalid VPL ID format');
+  // Accept forms like:
+  //   AB12_34  or AB12:34
+  //   AB12_34a
+  //   ABC12_34
+  //   AB12_34-35, AB12_34a-36b (we take the first verse number)
+  // Capture either 3 letters OR 2 alnum, then chapter:verse
+  const match = vplId.match(/^((?:[A-Za-z]{3})|(?:[A-Za-z0-9]{2}))\s*(\d+)[_:]([0-9]+)([A-Za-z]?)(?:[-–][0-9]+[A-Za-z]?)?$/);
+  if (!match) {
+    try { console.warn('[parseVPLId] Unrecognized verseID format:', vplId); } catch {}
+    throw new Error('Invalid VPL ID format');
+  }
 
+  const codeOrAbbr = match[1].toUpperCase();
+
+  // Build reverse map: two-letter DB code -> three-letter abbreviation used in constants
   const reverseMap = Object.fromEntries(
-    Object.entries(bookCodeMap).map(([k, v]) => [v, k])
+    Object.entries(bookCodeMap).map(([abbr3, code2]) => [code2, abbr3])
   );
 
-  const bookCode = match[1].toUpperCase();
-  const bookAbbr = reverseMap[bookCode];
-  if (!bookAbbr) throw new Error(`Unknown book code: ${bookCode}`);
+  // Known alias normalization to app's 3-letter abbreviations
+  const alias3ToApp: Record<string, string> = {
+    MAR: 'MRK', // Mark
+    JAM: 'JAS', // James
+    PSA: 'PSA',
+    PRO: 'PRO',
+    REV: 'REV',
+  };
+
+  // Secondary 2-letter alias map for DBs that use different 2-letter codes
+  const alias2ToApp: Record<string, string> = {
+    LU: 'LUK',
+    MR: 'MRK',
+    JO: 'JHN', // common NT shorthand; adjust if needed
+    PS: 'PSA',
+    PR: 'PRO',
+    RV: 'REV',
+    GE: 'GEN',
+    EX: 'EXO',
+    LE: 'LEV',
+    NU: 'NUM',
+    DT: 'DEU',
+    IS: 'ISA',
+    JR: 'JER',
+    DN: 'DAN',
+    HB: 'HEB',
+    JM: 'JAS',
+  };
+
+  let bookAbbr: string | undefined;
+  if (codeOrAbbr.length === 2) {
+    // 2-letter DB code
+    bookAbbr = reverseMap[codeOrAbbr] || alias2ToApp[codeOrAbbr];
+  } else {
+    // 3-letter already; normalize if needed
+    bookAbbr = alias3ToApp[codeOrAbbr] || codeOrAbbr;
+  }
+
+  if (!bookAbbr) {
+    try { console.warn('[parseVPLId] Unknown book code:', codeOrAbbr, 'from', vplId); } catch {}
+    throw new Error(`Unknown book code: ${codeOrAbbr}`);
+  }
 
   return {
     bookAbbr,
@@ -679,7 +730,7 @@ class BibleDBService {
       // Get configuration based on user level
       const config = levelConfigurations[userLevel];
 
-      // Build query giving preference to verses with a period at the end
+      // Build base filter
       let query = `
         SELECT verseID, verseText FROM ${normalizedVersion}
         WHERE length(verseText) > 10 AND length(verseText) < 200
@@ -697,19 +748,51 @@ class BibleDBService {
         }
       }
 
-      // Prioritize verses ending with a period
-      query += ` ORDER BY CASE WHEN verseText LIKE '%.%' THEN 1 ELSE 2 END, RANDOM() LIMIT ?`;
+      // Preference rules
+      // 1) Prefer New Testament books
+      const ntAbbr = ['MAT','MAR','LUK','JHN','ACT','ROM','1CO','2CO','GAL','EPH','PHP','COL','1TH','2TH','1TI','2TI','TIT','PHM','HEB','JAS','1PE','2PE','1JN','2JN','3JN','JUD','REV'];
+      const ntCodes = ntAbbr.map(abbr => bookCodeMap[abbr]).filter(Boolean);
+      const ntPlaceholders = ntCodes.map(() => '?').join(',');
+
+      // 2) Popular OT books to follow
+      const popularOT = ['GEN','PSA','PRO','ISA'];
+      const popularOTCodes = popularOT.map(abbr => bookCodeMap[abbr]).filter(Boolean);
+      const popularOTPlaceholders = popularOTCodes.map(() => '?').join(',');
+
+      // 3) Boost verses that mention any virtue-related keywords
+      const virtueWordList = Array.from(new Set(Object.values(virtueKeywords).flat()));
+      const virtuePlaceholders = virtueWordList.map(() => "verseText LIKE ?").join(' OR ');
+
+      // Compose ORDER BY weighting
+      // Lower rank values are preferred
+      query += `
+        ORDER BY
+          CASE
+            WHEN SUBSTR(verseID, 1, 2) IN (${ntPlaceholders}) THEN 0
+            WHEN SUBSTR(verseID, 1, 2) IN (${popularOTPlaceholders}) THEN 1
+            ELSE 2
+          END,
+          CASE WHEN (${virtuePlaceholders}) THEN 0 ELSE 1 END,
+          CASE WHEN verseText LIKE '%.%' THEN 0 ELSE 1 END,
+          RANDOM()
+        LIMIT ?
+      `;
 
       // Execute query with retry logic
       return await this.executeWithRetry(async (db) => {
         try {
           let results: VerseResult[];
           
-          if (bookCodes.length > 0) {
-            results = await db.getAllAsync<VerseResult>(query, [...bookCodes, count]);
-          } else {
-            results = await db.getAllAsync<VerseResult>(query, [count]);
-          }
+          // Build params in the order of placeholders:
+          // [bookCodes?], [ntCodes], [popularOTCodes], [virtue LIKE patterns], [count]
+          const virtueParams = virtueWordList.map(k => `%${k}%`);
+          const params: any[] = [];
+          if (bookCodes.length > 0) params.push(...bookCodes);
+          params.push(...ntCodes);
+          params.push(...popularOTCodes);
+          params.push(...virtueParams);
+          params.push(count);
+          results = await db.getAllAsync<VerseResult>(query, params);
 
           if (results.length === 0) {
             // Try a simpler fallback query if no results

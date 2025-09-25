@@ -49,6 +49,7 @@ interface VerseBuilderState {
   userProgress: Record<string, VerseMastery>;
   selectedVersion: string;
   availableVersions: string[];
+  recentVerseCacheKey?: string;
 }
 
 const initialState: VerseBuilderState = {
@@ -70,6 +71,7 @@ const initialState: VerseBuilderState = {
   userProgress: {},
   selectedVersion: 'RV',
   availableVersions: ['ASV', 'KJV', 'RV', 'AMP', 'WEB', 'BSB', 'YLT', 'DR'],
+  recentVerseCacheKey: 'vb_recent_verses',
 };
 
 export class VerseBuilderStore {
@@ -159,9 +161,23 @@ export class VerseBuilderStore {
       console.log('[VerseBuilder] Loading verses for version', this.state.selectedVersion);
       const primaryTable = await this.resolveTableName(this.state.selectedVersion);
       let verses = await BibleDBService.getRandomVerses(primaryTable, 40);
+
+      // Filter out verses seen within the last 30 days
+      const cacheKey = this.state.recentVerseCacheKey || 'vb_recent_verses';
+      const cacheRaw = (await AsyncStorage.getItem(cacheKey)) || '{}';
+      const cache: Record<string, number> = JSON.parse(cacheRaw);
+      const THIRTY_DAYS = 30 * 24 * 60 * 60 * 1000;
+      const now = Date.now();
+      const recent = new Set(
+        Object.entries(cache)
+          .filter(([_, ts]) => now - (ts as number) < THIRTY_DAYS)
+          .map(([id]) => id)
+      );
+
       let processedVerses = verses
         .map(this.processVerse)
-        .filter(Boolean) as VerseGame[];
+        .filter((v): v is VerseGame => !!v)
+        .filter((v) => !recent.has(v.id));
 
       // Fallback: if no verses found for current version, try common alternatives
       if (processedVerses.length === 0) {
@@ -199,11 +215,16 @@ export class VerseBuilderStore {
     }
   }
 
-  private processVerse = (verse: VerseResult): VerseGame | null => {
+  private processVerse = (verse: VerseResult | null): VerseGame | null => {
     if (!verse?.verseID || !verse.verseText) return null;
     try {
       const { bookAbbr, chapter, verse: v } = parseVPLId(verse.verseID);
-      const book = bibleBooks.find((b) => b.abbreviation === bookAbbr);
+      // Normalize DB abbreviations to our constants list
+      const abbrAlias: Record<string, string> = {
+        MAR: 'MRK', // Mark
+      };
+      const normalizedAbbr = abbrAlias[bookAbbr] || bookAbbr;
+      const book = bibleBooks.find((b) => b.abbreviation === normalizedAbbr);
       if (!book) throw new Error(`Invalid book abbreviation: ${bookAbbr}`);
       const words = verse.verseText.split(' ').filter((w: string) => w.length > 0);
       const mastery = this.state.userProgress[verse.verseID] || {
@@ -236,6 +257,12 @@ export class VerseBuilderStore {
       this.state.error = null;
     });
     await this.saveToStorage();
+
+    // Prevent re-entrancy while a round is already active and not transitioning
+    if (this.state.isPlaying && this.state.gameState && !this.state.isTransitioning) {
+      console.log('[VerseBuilder] Ignoring startNewRound because a round is active');
+      return;
+    }
 
     if (this.verseQueue.length === 0) {
       await this.loadVerseBatch();
@@ -275,6 +302,14 @@ export class VerseBuilderStore {
       this.state.showSuccess = false;
       this.state.showCorrectAnswer = false;
     });
+    // Record this verse in recent cache
+    try {
+      const cacheKey = this.state.recentVerseCacheKey || 'vb_recent_verses';
+      const cacheRaw = (await AsyncStorage.getItem(cacheKey)) || '{}';
+      const cache: Record<string, number> = JSON.parse(cacheRaw);
+      cache[newGameState.id] = Date.now();
+      await AsyncStorage.setItem(cacheKey, JSON.stringify(cache));
+    } catch {}
     await this.saveToStorage();
   }
 
@@ -287,14 +322,36 @@ export class VerseBuilderStore {
     this.saveToStorage();
   }
 
+  // Add a bit of time, capped at initialGameTime, to keep rounds flowing
+  addGraceTime = (seconds: number = 1) => {
+    runInAction(() => {
+      const inc = Math.max(0, Math.floor(seconds));
+      const cap = Math.max(0, this.state.initialGameTime || 0);
+      const next = Math.min(cap > 0 ? cap : Number.MAX_SAFE_INTEGER, (this.state.timeLeft || 0) + inc);
+      this.state.timeLeft = next;
+    });
+    this.saveToStorage();
+  }
+
+  // Deduct small points for a mistake (e.g., wrong slot tap)
+  penalizeMistake = (points: number = 2) => {
+    runInAction(() => {
+      const deduction = Math.max(1, points);
+      this.state.score = Math.max(0, this.state.score - deduction);
+    });
+    this.saveToStorage();
+  }
+
   selectWordFromPool = (word: string) => {
-    if (!this.state.gameState || !this.state.isPlaying) return;
+    if (!this.state.gameState || this.state.showCorrectAnswer || !this.state.isPlaying) return;
 
     runInAction(() => {
       if (!this.state.gameState) return;
+      try { console.log('[VB][store] selectWordFromPool before', { poolLen: this.state.gameState.poolWords.length, arrangedLen: this.state.gameState.arrangedWords.length, word }); } catch {}
       const newArrangedWords = [...this.state.gameState.arrangedWords, word];
       const newPoolWords = this.state.gameState.poolWords.filter((w) => w !== word);
       this.state.gameState = { ...this.state.gameState, poolWords: newPoolWords, arrangedWords: newArrangedWords };
+      try { console.log('[VB][store] selectWordFromPool after', { poolLen: newPoolWords.length, arrangedLen: newArrangedWords.length }); } catch {}
 
       if (newPoolWords.length === 0) {
         this.checkAnswer();
@@ -304,28 +361,32 @@ export class VerseBuilderStore {
   }
 
   undoLastWord = () => {
-    if (!this.state.gameState || !this.state.isPlaying) return;
+    if (!this.state.gameState || this.state.showCorrectAnswer) return;
     const { arrangedWords, prefilledCount } = this.state.gameState;
     if (arrangedWords.length <= prefilledCount) return;
 
     runInAction(() => {
       if (!this.state.gameState) return;
+      try { console.log('[VB][store] undoLastWord before', { poolLen: this.state.gameState.poolWords.length, arrangedLen: this.state.gameState.arrangedWords.length }); } catch {}
       const lastWord = this.state.gameState.arrangedWords[this.state.gameState.arrangedWords.length - 1];
       const newArrangedWords = this.state.gameState.arrangedWords.slice(0, -1);
       const newPoolWords = [...this.state.gameState.poolWords, lastWord];
       this.state.gameState = { ...this.state.gameState, arrangedWords: newArrangedWords, poolWords: newPoolWords };
+      try { console.log('[VB][store] undoLastWord after', { poolLen: newPoolWords.length, arrangedLen: newArrangedWords.length }); } catch {}
     });
     this.saveToStorage();
   }
 
   returnWordToPool = (word: string, index: number) => {
-    if (!this.state.gameState || !this.state.isPlaying) return;
+    if (!this.state.gameState || this.state.showCorrectAnswer) return;
     
     runInAction(() => {
       if (!this.state.gameState) return;
+      try { console.log('[VB][store] returnWordToPool before', { poolLen: this.state.gameState.poolWords.length, arrangedLen: this.state.gameState.arrangedWords.length, index, word }); } catch {}
       const newArranged = [...this.state.gameState.arrangedWords];
       newArranged.splice(index, 1);
       this.state.gameState = { ...this.state.gameState, arrangedWords: newArranged, poolWords: [...this.state.gameState.poolWords, word] };
+      try { console.log('[VB][store] returnWordToPool after', { poolLen: this.state.gameState.poolWords.length, arrangedLen: newArranged.length }); } catch {}
     });
     this.saveToStorage();
   }
