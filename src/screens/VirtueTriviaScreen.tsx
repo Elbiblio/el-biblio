@@ -84,9 +84,6 @@ const VirtueTriviaScreen = () => {
     correctAnswersCount: 0
   });
 
-  const optionPressStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: optionPressScale.value }],
-  }));
   const [isLoading, setIsLoading] = useState(true);
   const [showSoundSettings, setShowSoundSettings] = useState(false);
   const [selectedVirtue, setSelectedVirtue] = useState<string>('');
@@ -102,6 +99,10 @@ const VirtueTriviaScreen = () => {
   const timerColorAnim = useSharedValue(0);
   const successOpacity = useSharedValue(0);
   const optionPressScale = useSharedValue(1);
+
+  const optionPressStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: optionPressScale.value }],
+  }));
 
   // Refs
   const timeLeftRef = useRef(timeLeft);
@@ -254,8 +255,18 @@ const VirtueTriviaScreen = () => {
       // Use the first available version
       const version = versions[0];
       
-      // Use getVersesByVirtue to find related verses
-      const results = await BibleDBService.getVersesByVirtue(version, virtue, MAX_QUESTIONS);
+      // Map incoming virtue (often an id) to a keyword expected by DB service
+      let virtueKey = virtue;
+      const v = virtues.find(v => v.id === virtue);
+      if (v?.name) virtueKey = v.name.toLowerCase();
+      // Use getVersesByVirtue to find related verses; if keywords missing, fallback to random verses
+      let results: VerseResult[] = [];
+      try {
+        results = await BibleDBService.getVersesByVirtue(version, virtueKey, MAX_QUESTIONS);
+      } catch (e) {
+        // Fallback: random verses if no keywords defined for this virtue
+        results = await BibleDBService.getRandomVerses(version, MAX_QUESTIONS);
+      }
       
       if (!results || results.length === 0) {
         throw new Error(`No verses found for virtue: ${virtue}`);
@@ -295,7 +306,7 @@ const VirtueTriviaScreen = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [userLevel, processVerses]);
+  }, [userLevel, processVerses, virtues]);
 
   const play = async (name: 'tickTock' | 'timeout' | 'correct' | 'streak' | 'wrong' | 'gameOver' | 'cheers') => {
     await playCue(name);

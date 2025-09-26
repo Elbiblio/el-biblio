@@ -26,6 +26,8 @@ const SOUNDS = {
 } as const;
 
 export type SoundKey = keyof typeof SOUNDS;
+// Cooldown tracker per sound key
+const __lastPlayed: Partial<Record<SoundKey, number>> = {};
 
 // Human-friendly cue aliases used across the app
 const CUE_ALIASES: Record<string, SoundKey> = {
@@ -42,6 +44,7 @@ const CUE_ALIASES: Record<string, SoundKey> = {
   powerup: 'power-up.mp3',
   levelup: 'level-up.mp3',
   bell: 'bell.wav',
+  meditationBell: 'bell-meditation.mp3',
   successBell: 'success_bell.mp3',
   heartbeat: 'heartbeat.mp3',
   musicverse: 'musicverse.mp3',
@@ -96,6 +99,15 @@ const NO_RESTART_WHEN_PLAYING: Partial<Record<SoundKey, boolean>> = {
 };
 
 export const playByKey = async (key: SoundKey) => {
+  // Cooldown anti-spam per key
+  const now = Date.now();
+  const cooldownMs = key === 'tick-tock.wav' ? 900 : 200;
+  if (!(__lastPlayed as any)[key]) ( __lastPlayed as any)[key] = 0;
+  if (now - ( __lastPlayed as any)[key] < cooldownMs) {
+    return;
+  }
+  ( __lastPlayed as any)[key] = now;
+
   await initAudio();
   if (!SoundManager.isEnabled()) return;
   let s = await getSound(key);
@@ -139,7 +151,7 @@ export const playByKey = async (key: SoundKey) => {
 };
 
 // Music helpers
-export const playMusic = async (cue: 'musicverse' | 'verseplay' | 'meditation', volumeMultiplier = 0.15) => {
+export const playMusic = async (cue: 'musicverse' | 'verseplay' | 'meditation' | 'heartbeat', volumeMultiplier = 0.15) => {
   const key = CUE_ALIASES[cue];
   if (!key) return;
   try {
@@ -156,7 +168,7 @@ export const playMusic = async (cue: 'musicverse' | 'verseplay' | 'meditation', 
   } catch {}
 };
 
-export const stopMusic = async (cue: 'musicverse' | 'verseplay' | 'meditation') => {
+export const stopMusic = async (cue: 'musicverse' | 'verseplay' | 'meditation' | 'heartbeat') => {
   const key = CUE_ALIASES[cue];
   if (!key) return;
   try {

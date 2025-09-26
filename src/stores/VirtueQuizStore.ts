@@ -1,10 +1,12 @@
 import { makeAutoObservable, runInAction } from 'mobx';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { apiClient } from '@/api/client';
-import { Virtue, AppVirtue, VirtueProgress } from '@/types';
+import { Virtue, AppVirtue, VirtueProgress, VerseResult, UserLevel } from '@/types';
 import { RootStore } from '@/stores/RootStore';
 import * as Haptics from 'expo-haptics';
 import { toast } from 'sonner-native';
+import BibleDBService, { parseVPLId } from '@/utils/database';
+import { bibleBooks } from '@/constants/bibleBooks';
 
 interface QuizQuestion {
   id: string;
@@ -229,22 +231,116 @@ export class VirtueQuizStore {
         }
       );
 
-      if (!response.success || !response.data) {
-        throw new Error(response.message || 'Failed to fetch quiz questions');
+      if (response.success && response.data && response.data.length > 0) {
+        runInAction(() => {
+          this.state.questions = response.data!;
+        });
+      } else {
+        // Fallback to local generation
+        const built = await this.buildLocalQuestions(virtueId, level as number);
+        runInAction(() => { this.state.questions = built; });
       }
-
-      runInAction(() => {
-        this.state.questions = response.data!;
-      });
       
       await this.saveToStorage();
     } catch (error: any) {
-      const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
-      this.setError(errorMessage);
-      toast.error(errorMessage);
+      // As a fallback, try local generation before surfacing error
+      try {
+        const built = await this.buildLocalQuestions(virtueId, level as number);
+        runInAction(() => { this.state.questions = built; });
+        await this.saveToStorage();
+        return;
+      } catch (fallbackErr) {
+        const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
+        this.setError(errorMessage);
+        toast.error(errorMessage);
+      }
     } finally {
       this.setLoading(false);
     }
+  }
+
+  // Build questions locally from the bundled Bible DB if API is unavailable
+  private async buildLocalQuestions(virtueId: string, level: number): Promise<QuizQuestion[]> {
+    // Determine virtue keyword by id -> name mapping
+    const virtueObj = this.rootStore.virtueStore.virtues.find(v => v.id === virtueId);
+    const virtueKey = virtueObj?.name?.toLowerCase() || virtueId.toLowerCase();
+
+    // Choose a version
+    const versions = await BibleDBService.getInstalledVersions();
+    const version = versions[0] || 'eng_rv_vpl';
+
+    // Try to get verses by virtue, fallback to random
+    let verses: VerseResult[] = [];
+    try {
+      verses = await BibleDBService.getVersesByVirtue(version, virtueKey, 10);
+    } catch {
+      verses = await BibleDBService.getRandomVerses(version, 10);
+    }
+
+    // Build questions
+    const isExpert = level >= 3; // assume 3 is advanced/expert tier
+    const questions: QuizQuestion[] = verses.slice(0, 10).map((v) => {
+      const { bookAbbr, chapter, verse } = parseVPLId(v.verseID);
+      const bookObj = bibleBooks.find(b => b.abbreviation === bookAbbr);
+      const bookName = bookObj?.name || bookAbbr;
+      const reference = `${bookName} ${chapter}:${verse}`;
+      const correct = isExpert ? `${bookName} ${chapter}` : bookName;
+      const options = isExpert
+        ? this.generateBookChapterOptions(bookName, chapter)
+        : this.generateBookOptions(bookName);
+      return {
+        id: v.verseID,
+        question: 'Where is this verse found?',
+        type: 'multiple_choice',
+        options,
+        correctAnswer: options.indexOf(correct),
+        explanation: reference,
+        verseReference: reference,
+        virtue: virtueId,
+        level,
+      } as QuizQuestion;
+    });
+
+    return questions;
+  }
+
+  // Helpers to generate options
+  private generateBookOptions(correctBook: string): string[] {
+    const allBooks = bibleBooks.map(b => b.name);
+    const other = allBooks.filter(b => b !== correctBook);
+    const wrong = this.shuffle(other).slice(0, 3);
+    return this.shuffle([correctBook, ...wrong]);
+  }
+
+  private generateBookChapterOptions(correctBook: string, correctChapter: number): string[] {
+    const bookObj = bibleBooks.find(b => b.name === correctBook);
+    const correct = `${correctBook} ${correctChapter}`;
+    const set = new Set<string>();
+    // same book different chapter
+    if (bookObj && bookObj.chapters > 1) {
+      let ch = correctChapter;
+      for (let i = 0; i < 10 && set.size < 2; i++) {
+        ch = Math.max(1, Math.ceil(Math.random() * bookObj.chapters));
+        if (ch !== correctChapter) set.add(`${correctBook} ${ch}`);
+      }
+    }
+    // different books random chapters
+    while (set.size < 3) {
+      const rb = bibleBooks[Math.floor(Math.random() * bibleBooks.length)];
+      const rc = Math.max(1, Math.ceil(Math.random() * rb.chapters));
+      const opt = `${rb.name} ${rc}`;
+      if (opt !== correct) set.add(opt);
+    }
+    return this.shuffle([correct, ...Array.from(set).slice(0,3)]);
+  }
+
+  private shuffle<T>(arr: T[]): T[] {
+    const a = [...arr];
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
   }
 
   async handleAnswerSelection(answer: string | number) {

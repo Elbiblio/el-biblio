@@ -13,7 +13,6 @@ import Animated, {
   useSharedValue,
   useAnimatedStyle,
   useAnimatedProps,
-  useAnimatedGestureHandler,
   withTiming,
   withSpring,
   withRepeat,
@@ -22,7 +21,6 @@ import Animated, {
   Extrapolation,
   runOnJS,
 } from 'react-native-reanimated';
-import { PanGestureHandler } from 'react-native-gesture-handler';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -36,13 +34,13 @@ import AnimatedCircularProgress from '@/components/AnimatedCircularProgress';
 import { PIConfetti } from 'react-native-fast-confetti';
 import * as Haptics from 'expo-haptics';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
-import SimpleCradle from '@/components/SimpleCradle';
-import SoundManager from '@/utils/SoundManager';
 import SoundSettingsModal from '@/components/SoundSettingsModal';
 import { playCue, playMusic, stopMusic } from '@/services/audio';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const WORD_SIZE = Math.max(56, Math.floor(SCREEN_WIDTH / 7));
+// Cradle should be prominent; scale with screen height but clamp sensibly
+const CRADLE_HEIGHT = Math.max(160, Math.min(220, Math.floor(SCREEN_HEIGHT * 0.22)));
 
 const VerseBuilderScreen = observer(() => {
   const theme = useTheme();
@@ -114,9 +112,11 @@ const VerseBuilderScreen = observer(() => {
   // Game UX state
   const [isPaused, setIsPaused] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [showTips, setShowTips] = useState(true);
   const [sessionXp, setSessionXp] = useState(0);
   const sessionGoal = 100;
   const [showSoundSettings, setShowSoundSettings] = useState(false);
+  const [showAllWords, setShowAllWords] = useState(false);
 
   // Circular timer fill shared value for AnimatedCircularProgress (0..1)
   const circularFill = useSharedValue(1);
@@ -461,8 +461,10 @@ const VerseBuilderScreen = observer(() => {
   const handleSelectWord = (word: string) => {
     // Tap cooldown to avoid accidental multi-triggering (short for responsiveness)
     const now = Date.now();
-    if (now - (lastTapRef.current || 0) < 60) return;
+    if (now - (lastTapRef.current || 0) < 30) return;
     lastTapRef.current = now;
+    // Auto-hide tips after the first placement to save space
+    if (showTips) setShowTips(false);
     try {
       console.log('[VB] handleSelectWord tapped:', word, {
         hasGameState: !!gameState,
@@ -567,13 +569,13 @@ const VerseBuilderScreen = observer(() => {
     }));
 
     const handlePressIn = () => {
-      pressScale.value = withTiming(0.93, { duration: 100 });
-      glowIntensity.value = withTiming(1, { duration: 150 });
+      pressScale.value = withTiming(0.9, { duration: 80 });
+      glowIntensity.value = withTiming(1, { duration: 100 });
     };
 
     const handlePressOut = () => {
-      pressScale.value = withSpring(1, { damping: 15, stiffness: 200 });
-      glowIntensity.value = withTiming(0, { duration: 200 });
+      pressScale.value = withSpring(1, { damping: 14, stiffness: 260 });
+      glowIntensity.value = withTiming(0, { duration: 140 });
     };
 
     return (
@@ -587,6 +589,8 @@ const VerseBuilderScreen = observer(() => {
           ]}
           onPress={onPress}
           disabled={disabled}
+          delayPressIn={0}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           onPressIn={handlePressIn}
           onPressOut={handlePressOut}
         >
@@ -598,131 +602,15 @@ const VerseBuilderScreen = observer(() => {
 
   const renderPoolWord = useCallback(
     ({ item }: { item: string }) => (
-      <DraggableWordTile
+      <WordTile
         word={item}
-        onTap={() => handleSelectWord(item)}
+        onPress={() => handleSelectWord(item)}
         disabled={isTransitioning || showCorrectAnswer}
+        variant="pool"
       />
     ),
     [handleSelectWord, isTransitioning, showCorrectAnswer]
   );
-
-  // Enhanced Draggable Word Tile (memoized): unified tap + drag in one handler
-  const DraggableWordTile = memo(({ word, onTap, disabled }: { word: string; onTap: () => void; disabled: boolean }) => {
-    // Re-enable performant drag with low allocation and thresholds
-    const tx = useSharedValue(0);
-    const ty = useSharedValue(0);
-    const isDragging = useSharedValue(false);
-    const hoverGlow = useSharedValue(0);
-    const startTS = useSharedValue(0);
-
-    const style = useAnimatedStyle(() => ({
-      zIndex: isDragging.value ? 20 : 10,
-      transform: [
-        { translateX: tx.value },
-        { translateY: ty.value },
-      ],
-      shadowOpacity: isDragging.value ? 0.25 : 0.08,
-      shadowRadius: isDragging.value ? 6 : 3,
-      elevation: isDragging.value ? 6 : 2,
-    }));
-
-    const pressScale = useSharedValue(1);
-    const pressStyle = useAnimatedStyle(() => ({
-      transform: [{ scale: pressScale.value }],
-      shadowOpacity: hoverGlow.value * 0.35,
-      shadowRadius: 6 + hoverGlow.value * 4,
-      elevation: 2 + hoverGlow.value * 2,
-    }));
-
-    const gesture = useAnimatedGestureHandler<any, any>({
-      onStart: (_, ctx: any) => {
-        isDragging.value = true;
-        ctx.startX = tx.value;
-        ctx.startY = ty.value;
-        startTS.value = Date.now();
-        pressScale.value = withTiming(0.96, { duration: 90 });
-        hoverGlow.value = withTiming(1, { duration: 120 });
-      },
-      onActive: (event, ctx: any) => {
-        tx.value = ctx.startX + event.translationX;
-        ty.value = ctx.startY + event.translationY;
-      },
-      onEnd: (event) => {
-        const dx = event.translationX ?? 0;
-        const dy = event.translationY ?? 0;
-        const dist = Math.hypot(dx, dy);
-        const dur = Math.max(1, Date.now() - startTS.value);
-
-        // Treat as tap if tiny movement and short duration
-        if (dist < 6 && dur < 250) {
-          runOnJS(onTap)();
-          pressScale.value = withTiming(1, { duration: 110 });
-          hoverGlow.value = withTiming(0, { duration: 160 });
-          isDragging.value = false;
-          return;
-        }
-
-        if (arrangementLayout && typeof event.absoluteY === 'number') {
-          const y = event.absoluteY;
-          const withinCradle = y >= arrangementLayout.y && y <= (arrangementLayout.y + arrangementLayout.height);
-          if (withinCradle) {
-            runOnJS(onTap)();
-            tx.value = withSpring(0, { damping: 16, stiffness: 220 });
-            ty.value = withSpring(0, { damping: 16, stiffness: 220 }, () => {
-              isDragging.value = false;
-            });
-            runOnJS(Haptics.impactAsync)(Haptics.ImpactFeedbackStyle.Medium);
-            return;
-          }
-        }
-        tx.value = withSpring(0, { damping: 14, stiffness: 180 });
-        ty.value = withSpring(0, { damping: 14, stiffness: 180 }, () => {
-          isDragging.value = false;
-        });
-        runOnJS(triggerWrongFeedback)();
-        pressScale.value = withTiming(1, { duration: 110 });
-        hoverGlow.value = withTiming(0, { duration: 160 });
-      }
-    });
-
-    return (
-      <PanGestureHandler
-        enabled={!disabled}
-        onGestureEvent={gesture}
-        activeOffsetX={[-6, 6]}
-        activeOffsetY={[-6, 6]}
-        failOffsetY={[-300, 300]}
-        minPointers={1}
-        maxPointers={1}
-        shouldCancelWhenOutside={false}
-      >
-        <Animated.View style={[style]}>
-          <Animated.View style={pressStyle}>
-            <TouchableOpacity
-              style={[styles.wordTile, { backgroundColor: getWordColor(word) }]}
-              disabled={disabled}
-              onPress={() => {
-                onTap();
-                Haptics.selectionAsync();
-              }}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              onPressIn={() => {
-                pressScale.value = withTiming(0.96, { duration: 90 });
-                hoverGlow.value = withTiming(1, { duration: 120 });
-              }}
-              onPressOut={() => {
-                pressScale.value = withTiming(1, { duration: 110 });
-                hoverGlow.value = withTiming(0, { duration: 160 });
-              }}
-            >
-              <Text style={styles.wordText}>{word}</Text>
-            </TouchableOpacity>
-          </Animated.View>
-        </Animated.View>
-      </PanGestureHandler>
-    );
-  }, (prev, next) => prev.word === next.word && prev.disabled === next.disabled && prev.onTap === next.onTap);
 
   const renderArrangedWords = useCallback(() => {
     if (!gameState) return null;
@@ -746,13 +634,8 @@ const VerseBuilderScreen = observer(() => {
           </TouchableOpacity>
         </View>
         <View style={styles.arrangementInner}>
-          <SimpleCradle
-            width={SCREEN_WIDTH - theme.spacing.lg * 2}
-            height={120}
-            slotCount={gameState.originalWords.length}
-            highlightIndex={gameState.arrangedWords.length}
-            style={styles.arrangementCradle}
-          />
+          {/* Wooden slot background (scrabble-like), replacing the cradle */}
+          <View style={styles.woodSlotsBg} />
           <View style={styles.arrangementContent}>
             {gameState.arrangedWords.length === 0 ? (
               <Text style={styles.emptyText}>Start arranging words here</Text>
@@ -777,11 +660,6 @@ const VerseBuilderScreen = observer(() => {
     );
   }, [gameState, handleReturnWord, isPlaying, undoLastWord, showSuccess]);
 
-  // Play power-up sound when using a power-up
-  useEffect(() => {
-    // No direct event emitted here; the onPress handlers already call usePowerUp.
-    // We can intercept by wrapping usePowerUp if needed, but for now add sound in the button handlers below.
-  }, []);
 
   const renderErrorState = useCallback(
     () =>
@@ -811,6 +689,22 @@ const VerseBuilderScreen = observer(() => {
       ))}
     </View>
   ), [availableVersions, selectedVersion, setVersion]);
+
+  const renderInstructions = useCallback(() => (
+    <View style={styles.instructionCard}>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+        <Text style={styles.instructionTitle}>How to play</Text>
+        <TouchableOpacity onPress={() => setShowTips(false)}>
+          <Text style={{ color: theme.colors.primary }}>Hide</Text>
+        </TouchableOpacity>
+      </View>
+      <View style={styles.instructionList}>
+        <Text style={styles.instructionStep}>1. Tap a word from the cloud to place it in the cradle.</Text>
+        <Text style={styles.instructionStep}>2. Tap a placed word to return it if you change your mind.</Text>
+        <Text style={styles.instructionStep}>3. Use power-ups for extra time or hints when you’re stuck.</Text>
+      </View>
+    </View>
+  ), [theme.colors.primary]);
 
   // Particles removed for cleaner presentation
 
@@ -896,17 +790,20 @@ const VerseBuilderScreen = observer(() => {
           </View>
 
           {/* Focused verse HUD card with only session XP */}
-          <Animated.View style={[styles.gameHeaderCard, headerGlowStyle]}>
-            <View style={styles.sessionXpWrap}>
-              <View style={styles.sessionXpTrack}>
-                {[20, 40, 60, 80].map((t) => (
-                  <View key={t} style={[styles.sessionXpTick, { left: `${t}%` }]} />
-                ))}
-                <View style={[styles.sessionXpFill, { width: `${Math.min(100, (sessionXp / sessionGoal) * 100)}%` }]} />
+          {/* Compact UI: hide the XP progress card to keep only two top bars */}
+          {false && (
+            <Animated.View style={[styles.gameHeaderCard, headerGlowStyle]}>
+              <View style={styles.sessionXpWrap}>
+                <View style={styles.sessionXpTrack}>
+                  {[20, 40, 60, 80].map((t) => (
+                    <View key={t} style={[styles.sessionXpTick, { left: `${t}%` }]} />
+                  ))}
+                  <View style={[styles.sessionXpFill, { width: `${Math.min(100, (sessionXp / sessionGoal) * 100)}%` }]} />
+                </View>
+                <Text style={styles.sessionXpText}>{sessionXp}/{sessionGoal}</Text>
               </View>
-              <Text style={styles.sessionXpText}>{sessionXp}/{sessionGoal}</Text>
-            </View>
-          </Animated.View>
+            </Animated.View>
+          )}
 
           {/* Status row: show streak only when active */}
           {streak > 1 && (
@@ -962,14 +859,30 @@ const VerseBuilderScreen = observer(() => {
 
           {gameState && (
             <Animated.View style={[styles.gameArea, gameAreaStyle, fadeStyle]}>
-              {/* Pool cloud at the top */}
+              {/* Instructions (collapsible) */}
+              {gameState && !showCorrectAnswer && showTips && renderInstructions()}
+
+              {/* Word cloud */}
               {!showCorrectAnswer && gameState.poolWords.length > 0 && (
                 <View
                   style={styles.poolCloudContainer}
                   onLayout={(e) => { setPoolLayout(e.nativeEvent.layout); }}
                   pointerEvents="box-none"
                 >
-                  <View style={styles.poolWrap} pointerEvents="box-none">
+                  <View style={styles.poolHeaderRow}>
+                    <Text style={styles.poolHeaderText}>Available Words</Text>
+                    <View style={{ flexDirection: 'row', gap: 12 }}>
+                      {!showTips && (
+                        <TouchableOpacity onPress={() => setShowTips(true)}>
+                          <Text style={{ color: theme.colors.primary }}>Tips</Text>
+                        </TouchableOpacity>
+                      )}
+                      <TouchableOpacity onPress={() => setShowAllWords((s) => !s)}>
+                        <Text style={{ color: theme.colors.primary }}>{showAllWords ? 'Less' : 'More'}</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                  <View style={[styles.poolWrap, !showAllWords && styles.poolCollapsed]} pointerEvents="box-none">
                     {gameState.poolWords.map((w, i) => (
                       <View
                         key={`pool-${w}-${i}`}
@@ -982,9 +895,9 @@ const VerseBuilderScreen = observer(() => {
                         pointerEvents="box-none"
                         onStartShouldSetResponder={() => false}
                       >
-                        <DraggableWordTile
+                        <WordTile
                           word={w}
-                          onTap={() => handleSelectWord(w)}
+                          onPress={() => handleSelectWord(w)}
                           disabled={!gameState || showCorrectAnswer}
                         />
                       </View>
@@ -993,8 +906,10 @@ const VerseBuilderScreen = observer(() => {
                 </View>
               )}
 
+              {/* Divider between sections */}
+              <View style={styles.sectionDivider} />
+
               {/* Word cradle at the bottom */}
-              <View style={{ flex: 1 }} />
               {renderArrangedWords()}
 
               {showCorrectAnswer && (
@@ -1471,10 +1386,52 @@ const createStyles = (theme: Theme) =>
       alignSelf: 'center',
       marginBottom: theme.spacing.md,
     },
+    poolHeaderRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: theme.spacing.sm,
+      paddingBottom: theme.spacing.xs,
+    },
+    poolHeaderText: {
+      ...theme.typography.caption.primary,
+      color: theme.colors.text.secondary,
+      letterSpacing: 0.5,
+    },
     circularTimerText: {
       color: theme.colors.text.primary,
       fontWeight: '900',
       fontSize: 16,
+    },
+
+    // Instruction card and divider
+    instructionCard: {
+      backgroundColor: `${theme.colors.surface}A6`,
+      borderRadius: theme.borderRadius.lg,
+      padding: theme.spacing.md,
+      marginBottom: theme.spacing.sm,
+      borderWidth: 1,
+      borderColor: `${theme.colors.text.secondary}1A`,
+    },
+    instructionTitle: {
+      ...theme.typography.caption.primary,
+      color: theme.colors.text.primary,
+      marginBottom: theme.spacing.xs,
+      fontWeight: '700',
+    },
+    instructionList: {
+      gap: 4,
+    },
+    instructionStep: {
+      ...theme.typography.caption.secondary,
+      color: theme.colors.text.secondary,
+    },
+    sectionDivider: {
+      height: 1,
+      backgroundColor: `${theme.colors.text.secondary}22`,
+      marginVertical: theme.spacing.sm,
+      borderRadius: 1,
+      alignSelf: 'stretch',
     },
 
     // Prompt card
@@ -1593,8 +1550,8 @@ const createStyles = (theme: Theme) =>
     },
     // Pool cloud at the top
     poolCloudContainer: {
-      paddingVertical: theme.spacing.sm,
-      paddingHorizontal: theme.spacing.sm,
+      paddingVertical: theme.spacing.md,
+      paddingHorizontal: theme.spacing.md,
       backgroundColor: `${theme.colors.surface}9A`,
       borderRadius: theme.borderRadius.xl,
       borderWidth: 1,
@@ -1606,7 +1563,7 @@ const createStyles = (theme: Theme) =>
       elevation: 6,
       position: 'relative',
       zIndex: 50,
-      marginBottom: theme.spacing.sm,
+      marginBottom: theme.spacing.md,
     },
     arrangementHeader: {
       flexDirection: 'row',
@@ -1625,12 +1582,14 @@ const createStyles = (theme: Theme) =>
       gap: theme.spacing.xs,
       justifyContent: 'center',
       paddingHorizontal: theme.spacing.sm,
+      paddingTop: theme.spacing.sm,
     },
     arrangementInner: {
       position: 'relative',
       justifyContent: 'center',
       alignItems: 'center',
       paddingVertical: theme.spacing.sm,
+      minHeight: CRADLE_HEIGHT,
     },
     arrangementCradle: {
       position: 'absolute',
@@ -1638,6 +1597,22 @@ const createStyles = (theme: Theme) =>
       left: 0,
       right: 0,
       zIndex: 0,
+    },
+    woodSlotsBg: {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      borderRadius: theme.borderRadius.xl,
+      backgroundColor: '#A86E3B',
+      borderWidth: 2,
+      borderColor: '#7a4f29',
+      shadowColor: '#000',
+      shadowOpacity: 0.12,
+      shadowRadius: 8,
+      shadowOffset: { width: 0, height: 3 },
+      elevation: 5,
     },
     undoButton: {
       padding: theme.spacing.sm,
@@ -1743,9 +1718,15 @@ const createStyles = (theme: Theme) =>
     poolWrap: {
       flexDirection: 'row',
       flexWrap: 'wrap',
-      justifyContent: 'space-evenly',
+      justifyContent: 'space-between',
       alignItems: 'flex-start',
-      paddingHorizontal: theme.spacing.sm,
+      paddingHorizontal: theme.spacing.md,
+      rowGap: theme.spacing.xs,
+    },
+    // Show only ~2 rows by default to keep cradle visible
+    poolCollapsed: {
+      maxHeight: 92,
+      overflow: 'hidden',
     },
 
     // Enhanced Success Overlay

@@ -29,6 +29,8 @@ const PrayerRequestsScreen = ({ navigation }: PrayerRequestsScreenProps) => {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [showPrayerModal, setShowPrayerModal] = useState(false);
   const [secondsLeft, setSecondsLeft] = useState(120);
+  const [showComposeModal, setShowComposeModal] = useState(false);
+  const [composeDraft, setComposeDraft] = useState('');
   const [isBulkPraying, setIsBulkPraying] = useState(false);
 
   const categories = useMemo(() => (
@@ -198,6 +200,10 @@ const PrayerRequestsScreen = ({ navigation }: PrayerRequestsScreenProps) => {
           onChangeText={setContent}
           placeholder="Share a prayer request"
           placeholderTextColor={theme.colors.text.placeholder}
+          onFocus={() => {
+            setComposeDraft(content);
+            setShowComposeModal(true);
+          }}
         />
         <TouchableOpacity style={styles.sendButton} onPress={handleAdd} disabled={isLoading}>
           <Send size={18} color={theme.colors.text.inverse} />
@@ -277,6 +283,48 @@ const PrayerRequestsScreen = ({ navigation }: PrayerRequestsScreenProps) => {
             <TouchableOpacity style={[styles.modalBtn, { marginTop: theme.spacing.sm, backgroundColor: `${theme.colors.error}15`, borderColor: `${theme.colors.error}40` }]} onPress={() => setShowCategoryPicker(false)}>
               <Text style={[styles.modalBtnText, { color: theme.colors.error }]}>Close</Text>
             </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Compose modal */}
+      <Modal visible={showComposeModal} animationType="slide" transparent>
+        <View style={styles.modalBackdrop}>
+          <View style={styles.composeCard}>
+            <Text style={styles.modalTitle}>Share a Prayer Request</Text>
+            <Text style={styles.modalSubtitle}>Write from the heart. Others will pray with you.</Text>
+            <ScrollView style={{ maxHeight: 260 }}>
+              <TextInput
+                style={styles.composeInput}
+                value={composeDraft}
+                onChangeText={setComposeDraft}
+                placeholder="Type your prayer request..."
+                placeholderTextColor={theme.colors.text.placeholder}
+                autoFocus
+                multiline
+                textAlignVertical="top"
+              />
+            </ScrollView>
+            <View style={{ flexDirection: 'row', gap: theme.spacing.sm, marginTop: theme.spacing.md }}>
+              <TouchableOpacity
+                style={[styles.modalBtn, { backgroundColor: `${theme.colors.error}15`, borderColor: `${theme.colors.error}40` }]}
+                onPress={() => { setShowComposeModal(false); setComposeDraft(''); }}
+              >
+                <Text style={[styles.modalBtnText, { color: theme.colors.error }]}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalBtn, { backgroundColor: theme.colors.primary, borderColor: theme.colors.primary }]}
+                onPress={() => {
+                  const body = composeDraft.trim();
+                  if (!body) { setShowComposeModal(false); return; }
+                  setContent(body);
+                  setShowComposeModal(false);
+                  setTimeout(() => handleAdd(), 50);
+                }}
+              >
+                <Text style={[styles.modalBtnText, { color: theme.colors.text.inverse }]}>Post</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </Modal>
@@ -403,6 +451,14 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     borderWidth: 1,
     borderColor: `${theme.colors.primary}10`,
   },
+  composeCard: {
+    width: '100%',
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.borderRadius.lg,
+    padding: theme.spacing.lg,
+    borderWidth: 1,
+    borderColor: `${theme.colors.primary}10`,
+  },
   pickerItem: {
     paddingVertical: 10,
     paddingHorizontal: theme.spacing.md,
@@ -413,6 +469,16 @@ const createStyles = (theme: Theme) => StyleSheet.create({
   },
   pickerText: {
     ...theme.typography.body.sans,
+    color: theme.colors.text.primary,
+  },
+  composeInput: {
+    minHeight: 160,
+    borderRadius: theme.borderRadius.lg,
+    borderWidth: 1,
+    borderColor: `${theme.colors.primary}15`,
+    backgroundColor: theme.colors.surface,
+    padding: theme.spacing.md,
+    ...theme.typography.body.serif,
     color: theme.colors.text.primary,
   },
   modalTitle: {

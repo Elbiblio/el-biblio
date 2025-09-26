@@ -9,7 +9,7 @@ import { VerseStore } from './VerseStore';
 import { GameStore } from './GameStore';
 
 const INITIAL_TIME = 16;
-const MIN_TIME = 10;
+const MIN_TIME = 5; // absolute minimum cap per requirement
 const WORDS_BY_LEVEL: Record<UserLevel, [number, number]> = {
   novice: [3, 3],
   beginner: [4, 5],
@@ -50,6 +50,7 @@ interface VerseBuilderState {
   selectedVersion: string;
   availableVersions: string[];
   recentVerseCacheKey?: string;
+  hasPlayed?: boolean;
 }
 
 const initialState: VerseBuilderState = {
@@ -72,6 +73,7 @@ const initialState: VerseBuilderState = {
   selectedVersion: 'RV',
   availableVersions: ['ASV', 'KJV', 'RV', 'AMP', 'WEB', 'BSB', 'YLT', 'DR'],
   recentVerseCacheKey: 'vb_recent_verses',
+  hasPlayed: false,
 };
 
 export class VerseBuilderStore {
@@ -290,6 +292,7 @@ export class VerseBuilderStore {
       prefilledCount,
     };
 
+    const nextInitial = this.computeInitialTime();
     runInAction(() => {
       if (!this.state.gameState) {
         this.state.gameState = newGameState;
@@ -297,7 +300,8 @@ export class VerseBuilderStore {
         this.state.nextGameState = newGameState;
         this.state.isTransitioning = true;
       }
-      this.state.timeLeft = this.state.initialGameTime;
+      this.state.initialGameTime = nextInitial;
+      this.state.timeLeft = nextInitial;
       this.state.isPlaying = true;
       this.state.showSuccess = false;
       this.state.showCorrectAnswer = false;
@@ -311,6 +315,25 @@ export class VerseBuilderStore {
       await AsyncStorage.setItem(cacheKey, JSON.stringify(cache));
     } catch {}
     await this.saveToStorage();
+  }
+
+  // Determine initial countdown based on user level primarily, with streak influence when streak >= 10
+  private computeInitialTime(): number {
+    const level = this.state.userLevel || 'beginner';
+    // Baselines by level (seconds)
+    const baselineByLevel: Record<UserLevel, number> = {
+      novice: 30,
+      beginner: 30,
+      intermediate: 20,
+      advanced: 12,
+      expert: 8,
+    };
+    const base = baselineByLevel[level] ?? 30;
+    // Streak influence: >=20 -> 30% reduction, >=10 -> 20% reduction
+    let influenced = base;
+    if (this.state.streak >= 20) influenced = Math.floor(base * 0.7);
+    else if (this.state.streak >= 10) influenced = Math.floor(base * 0.8);
+    return Math.max(MIN_TIME, influenced);
   }
 
   completeTransition = () => {
@@ -422,6 +445,7 @@ export class VerseBuilderStore {
       }
 
       this.state.showSuccess = true;
+      this.state.hasPlayed = true;
       setTimeout(() => {
         this.startNewRound();
       }, 3500);
@@ -434,6 +458,7 @@ export class VerseBuilderStore {
       this.state.streak = 0;
       this.state.showCorrectAnswer = true;
       this.state.isPlaying = false;
+      this.state.hasPlayed = true;
     });
     this.saveToStorage();
   }
@@ -489,6 +514,7 @@ export class VerseBuilderStore {
         this.state.timeLeft -= 1;
         if (this.state.timeLeft <= 0) {
             this.state.isPlaying = false;
+            this.state.hasPlayed = true; // mark that at least one round has been attempted
         }
     });
     this.saveToStorage();

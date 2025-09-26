@@ -31,7 +31,8 @@ import {
 import { Theme } from '@/theme';
 import { useAuthStore, useVirtueStore, useMeditationStore } from '@/stores/StoreProvider';
 import * as Haptics from 'expo-haptics';
-import { useAudioPlayer, setAudioModeAsync } from 'expo-audio';
+import { setAudioModeAsync } from 'expo-audio';
+import { playMusic, stopMusic, playCue } from '@/services/audio';
 import { DailyChallenge, Challenge } from '@/types';
 import AnimatedCircularProgress from '@/components/AnimatedCircularProgress';
 import AnimatedParticles from '@/components/AnimatedParticles';
@@ -102,12 +103,7 @@ const MeditationScreen = () => {
   const promptOpacity = useSharedValue(0);
   const bellScale = useSharedValue(1);
 
-  // Audio players (expo-audio)
-  const tickPlayer = useAudioPlayer(require('../../assets/sounds/tick-tock.wav'));
-  const bellPlayer = useAudioPlayer(require('../../assets/sounds/bell.wav'));
-  const meditationBellPlayer = useAudioPlayer(require('../../assets/sounds/bell-meditation.mp3'));
-  const ambientBgPlayer = useAudioPlayer(require('../../assets/sounds/meditation-ambient.mp3'));
-  const heartbeatBgPlayer = useAudioPlayer(require('../../assets/sounds/heartbeat.mp3'));
+  // Centralized audio service
   const isSpeaking = useRef(false);
 
   // Refs for flow control
@@ -150,69 +146,28 @@ const MeditationScreen = () => {
   useEffect(() => {
     setAudioModeAsync({ playsInSilentMode: true }).catch(() => {});
     return () => {
-      // Pause any playing audio on unmount
-      try {
-        tickPlayer.pause();
-        bellPlayer.pause();
-        meditationBellPlayer.pause();
-        ambientBgPlayer.pause();
-        heartbeatBgPlayer.pause();
-      } catch {}
+      stopMusic('meditation');
+      stopMusic('heartbeat');
     };
   }, []);
 
-  // Background sound preview and playback controller
+  // Background sound preview and playback controller via audio service
   useEffect(() => {
-    // Ensure both background players are paused before switching
-    ambientBgPlayer.pause();
-    heartbeatBgPlayer.pause();
-
-    const player = selectedBackgroundSound === 'ambient'
-      ? ambientBgPlayer
-      : selectedBackgroundSound === 'heartbeat'
-        ? heartbeatBgPlayer
-        : null;
-
-    if (!player) return; // Silent
-
-    // Configure loop/volume
-    player.loop = true;
-    player.volume = 0.6;
-
-    if (meditationState === MeditationState.SETUP) {
-      player.seekTo(0);
-      player.play();
-    }
-    if (meditationState === MeditationState.ACTIVE) {
-      // If we entered ACTIVE while changing source
-      player.play();
+    // stop both before switching
+    stopMusic('meditation');
+    stopMusic('heartbeat');
+    if (meditationState === MeditationState.SETUP || meditationState === MeditationState.ACTIVE) {
+      if (selectedBackgroundSound === 'ambient') playMusic('meditation', 0.6);
+      if (selectedBackgroundSound === 'heartbeat') playMusic('heartbeat', 0.6);
     }
     if (meditationState === MeditationState.COUNTDOWN || meditationState === MeditationState.COMPLETE) {
-      player.pause();
+      stopMusic('meditation');
+      stopMusic('heartbeat');
     }
   }, [selectedBackgroundSound, meditationState]);
 
-  // Ensure background sound reacts to state changes even if selection didn't change
-  useEffect(() => {
-    const player = selectedBackgroundSound === 'ambient'
-      ? ambientBgPlayer
-      : selectedBackgroundSound === 'heartbeat'
-        ? heartbeatBgPlayer
-        : null;
-    if (!player) return;
-    if (meditationState === MeditationState.ACTIVE) player.play();
-    if (meditationState === MeditationState.COUNTDOWN || meditationState === MeditationState.COMPLETE) player.pause();
-  }, [meditationState]);
-
   // Play tick sound
-  const playTickSound = () => {
-    try {
-      tickPlayer.seekTo(0);
-      tickPlayer.play();
-    } catch (error) {
-      console.error('Failed to play tick sound', error);
-    }
-  };
+  const playTickSound = () => { playCue('tickTock'); };
 
   // Countdown animation
   const animateCountdownNumber = () => {
@@ -527,24 +482,10 @@ const MeditationScreen = () => {
   const bellButtonStyle = useAnimatedStyle(() => ({ transform: [{ scale: bellScale.value }] }));
 
   // Play bell sound
-  const playBellSound = () => {
-    try {
-      bellPlayer.seekTo(0);
-      bellPlayer.play();
-    } catch (error) {
-      console.error('Failed to play bell sound', error);
-    }
-  };
+  const playBellSound = () => { playCue('bell'); };
   
   // Play meditation bell sound
-  const playMeditationBellSound = () => {
-    try {
-      meditationBellPlayer.seekTo(0);
-      meditationBellPlayer.play();
-    } catch (error) {
-      console.error('Failed to play meditation bell sound', error);
-    }
-  };
+  const playMeditationBellSound = () => { playCue('meditationBell'); };
 
   // Render functions
   const renderSetupScreen = () => (
