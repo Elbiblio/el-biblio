@@ -217,9 +217,6 @@ const VirtueQuizScreen = observer(({ navigation, route }: NativeStackScreenProps
       } else {
         play('wrong');
       }
-      if (isAnswerCorrect) {
-        confettiInlineRef.current?.restart?.();
-      }
     }
   }, [showExplanation, selectedAnswer, isAnswerCorrect]);
 
@@ -228,6 +225,8 @@ const VirtueQuizScreen = observer(({ navigation, route }: NativeStackScreenProps
     if (!quizCompleted) return;
     // Celebrate on completion
     play('cheers');
+    // Trigger confetti only on level completion
+    confettiRef.current?.restart?.();
   }, [quizCompleted]);
 
   // Render functions

@@ -78,6 +78,7 @@ const VerseBuilderScreen = observer(() => {
     showCorrectAnswer,
     isTransitioning,
     initialGameTime,
+    hasPlayed,
   } = verseBuilderStore.state;
 
   // Enhanced Animation Values
@@ -127,6 +128,7 @@ const VerseBuilderScreen = observer(() => {
 
   // Refs
   const confettiRef = useRef<any>(null);
+  const levelConfettiRef = useRef<any>(null);
 
   // Remove animated background per new design (no-op)
 
@@ -240,6 +242,23 @@ const VerseBuilderScreen = observer(() => {
     }, 500);
   }, []);
 
+  // Load persisted tips visibility; default to true if never set
+  useEffect(() => {
+    (async () => {
+      try {
+        const tips = await AsyncStorage.getItem('vb_showTips');
+        if (tips != null) setShowTips(tips === '1');
+      } catch {}
+    })();
+  }, []);
+
+  // Auto-collapse the word cloud on small screens
+  useEffect(() => {
+    if (SCREEN_HEIGHT < 700) {
+      setShowAllWords(false);
+    }
+  }, []);
+
   // Timer Logic with Enhanced Animations
   useEffect(() => {
     if (!isPlaying) return;
@@ -329,6 +348,8 @@ const VerseBuilderScreen = observer(() => {
             withTiming(-60, { duration: 400 })
           );
           play('levelup');
+          // Big celebration for level completion
+          levelConfettiRef.current?.restart?.();
           return next - sessionGoal;
         }
         return next;
@@ -336,11 +357,11 @@ const VerseBuilderScreen = observer(() => {
 
       if (score > highScore) {
         play('cheers');
-        confettiRef.current?.restart?.();
+        confettiRef.current?.restart?.(); // small confetti
       }
       if (streak > 1 && streak % 5 === 0) {
         play('streak');
-        confettiRef.current?.restart?.();
+        confettiRef.current?.restart?.(); // small confetti
       }
       setTimeout(() => (successOpacity.value = withTiming(0, { duration: 400 })), 3500);
     }
@@ -636,23 +657,35 @@ const VerseBuilderScreen = observer(() => {
         <View style={styles.arrangementInner}>
           {/* Wooden slot background (scrabble-like), replacing the cradle */}
           <View style={styles.woodSlotsBg} />
+          {/* Subtle slot rails to suggest positions */}
+          <View style={styles.slotRails} pointerEvents="none">
+            {[0, 1, 2].map((i) => (
+              <View key={`rail-${i}`} style={styles.slotRail} />
+            ))}
+          </View>
           <View style={styles.arrangementContent}>
             {gameState.arrangedWords.length === 0 ? (
               <Text style={styles.emptyText}>Start arranging words here</Text>
             ) : (
               gameState.arrangedWords.map((word: string, index: number) => (
-                <WordTile
+                <View
                   key={`arranged-${word}-${index}`}
-                  word={word}
-                  onPress={() => index >= gameState.prefilledCount && handleReturnWord(word, index)}
-                  disabled={index < gameState.prefilledCount || !isPlaying}
-                  isPrefilled={index < gameState.prefilledCount}
-                  variant="arranged"
-                />
+                  style={{
+                    transform: [{ rotate: `${(index % 5 - 2) * 0.8}deg` }],
+                  }}
+                >
+                  <WordTile
+                    word={word}
+                    onPress={() => index >= gameState.prefilledCount && handleReturnWord(word, index)}
+                    disabled={index < gameState.prefilledCount || !isPlaying}
+                    isPrefilled={index < gameState.prefilledCount}
+                    variant="arranged"
+                  />
+                </View>
               ))
             )}
             {gameState.poolWords.map((_, idx) => (
-              <View key={`ph-${idx}`} style={styles.placeholderTile} />
+              <View key={`ph-${idx}`} style={[styles.placeholderTile, idx === 0 && styles.nextSlotHighlight]} />
             ))}
           </View>
         </View>
@@ -694,7 +727,7 @@ const VerseBuilderScreen = observer(() => {
     <View style={styles.instructionCard}>
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
         <Text style={styles.instructionTitle}>How to play</Text>
-        <TouchableOpacity onPress={() => setShowTips(false)}>
+        <TouchableOpacity onPress={async () => { setShowTips(false); try { await AsyncStorage.setItem('vb_showTips', '0'); } catch {} }}>
           <Text style={{ color: theme.colors.primary }}>Hide</Text>
         </TouchableOpacity>
       </View>
@@ -725,11 +758,19 @@ const VerseBuilderScreen = observer(() => {
           pointerEvents="none"
         />
         <View style={styles.container}>
+          {/* Small confetti for correct answers */}
           <PIConfetti
             ref={confettiRef}
-            count={150}
+            count={60}
             fadeOutOnEnd
             colors={['#FFD700', '#FF6347', '#4169E1', '#32CD32', '#FF69B4', '#BA55D3', '#00CED1']}
+          />
+          {/* Large confetti for level completion */}
+          <PIConfetti
+            ref={levelConfettiRef}
+            count={260}
+            fadeOutOnEnd
+            colors={['#FFD700', '#FF8C00', '#1E90FF', '#32CD32', '#FF69B4', '#BA55D3', '#00CED1']}
           />
 
           {isLoading && (
@@ -873,7 +914,7 @@ const VerseBuilderScreen = observer(() => {
                     <Text style={styles.poolHeaderText}>Available Words</Text>
                     <View style={{ flexDirection: 'row', gap: 12 }}>
                       {!showTips && (
-                        <TouchableOpacity onPress={() => setShowTips(true)}>
+                        <TouchableOpacity onPress={async () => { setShowTips(true); try { await AsyncStorage.setItem('vb_showTips', '1'); } catch {} }}>
                           <Text style={{ color: theme.colors.primary }}>Tips</Text>
                         </TouchableOpacity>
                       )}
@@ -912,7 +953,7 @@ const VerseBuilderScreen = observer(() => {
               {/* Word cradle at the bottom */}
               {renderArrangedWords()}
 
-              {showCorrectAnswer && (
+              {showCorrectAnswer && hasPlayed && (
                 <View style={styles.correctAnswerContainer}>
                   <Text style={styles.correctAnswerText}>{gameState.text}</Text>
                   <TouchableOpacity style={styles.retryButton} onPress={startNewRound}>
@@ -924,7 +965,7 @@ const VerseBuilderScreen = observer(() => {
           )}
 
           {/* Enhanced Success Overlay */}
-          {showSuccess && (
+          {showSuccess && hasPlayed && (
             <Animated.View style={[styles.successOverlay, successOverlayStyle]}>
               <View style={styles.successCard}>
                 <Text style={styles.successTitle}>Great Job!</Text>
@@ -972,7 +1013,7 @@ const VerseBuilderScreen = observer(() => {
           </Animated.View>
 
           {/* Game Over Overlay */}
-          {timeLeft <= 0 && !isPlaying && (
+          {timeLeft <= 0 && !isPlaying && hasPlayed && (
             <BlurView intensity={30} style={styles.overlay} pointerEvents="box-none">
               <View style={styles.gameOverContainer}>
                 <Text style={styles.gameOverText}>Game Over!</Text>
@@ -1614,6 +1655,21 @@ const createStyles = (theme: Theme) =>
       shadowOffset: { width: 0, height: 3 },
       elevation: 5,
     },
+    // Subtle rails suggesting slots
+    slotRails: {
+      position: 'absolute',
+      top: 10,
+      left: 12,
+      right: 12,
+      bottom: 10,
+      justifyContent: 'space-between',
+    },
+    slotRail: {
+      height: 2,
+      borderRadius: 1,
+      backgroundColor: 'rgba(255,255,255,0.2)',
+      marginVertical: 12,
+    },
     undoButton: {
       padding: theme.spacing.sm,
       borderRadius: theme.borderRadius.full,
@@ -1693,6 +1749,16 @@ const createStyles = (theme: Theme) =>
       borderStyle: 'dashed',
       borderColor: `${theme.colors.primary}40`,
       backgroundColor: `${theme.colors.primary}10`,
+    },
+    nextSlotHighlight: {
+      borderStyle: 'solid',
+      borderColor: theme.colors.secondary,
+      backgroundColor: `${theme.colors.secondary}14`,
+      shadowColor: theme.colors.secondary,
+      shadowOpacity: 0.25,
+      shadowRadius: 6,
+      shadowOffset: { width: 0, height: 2 },
+      elevation: 3,
     },
 
     // Pool

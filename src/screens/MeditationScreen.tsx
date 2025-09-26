@@ -427,7 +427,7 @@ const MeditationScreen = () => {
   };
 
   const startMeditation = () => {
-    if (!selectedVirtue || !selectedTime || !selectedChallenge) {
+    if (!selectedVirtue || !selectedTime) {
       fadeAnim.value = withSequence(withTiming(0.3, { duration: 200 }), withTiming(1, { duration: 200 }));
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       return;
@@ -675,7 +675,7 @@ const MeditationScreen = () => {
               </View>
             ) : (
               <Text style={styles.placeholderText}>
-                Select a challenge to begin
+                Optional: Select a challenge
               </Text>
             )
           ) : (

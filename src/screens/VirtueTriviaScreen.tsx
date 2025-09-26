@@ -21,6 +21,7 @@ import * as Haptics from 'expo-haptics';
 
 import { shuffleArray } from '@/utils/helpers';
 import { PIConfetti } from 'react-native-fast-confetti';
+import VirtueTriviaComplete from '@/components/VirtueTriviaComplete';
 import BibleDBService, { parseVPLId } from '@/utils/database';
 import { bibleBooks } from '@/constants/bibleBooks';
 import { ScrollView } from 'react-native-gesture-handler';
@@ -108,6 +109,7 @@ const VirtueTriviaScreen = () => {
   const timeLeftRef = useRef(timeLeft);
   const confettiRef = useRef<any>(null);
   const hasInitialized = useRef(false);
+  const autoAdvanceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const minimumQuestionsToPass = 7; // 70% correct answers to complete a virtue
 
   // Update timeLeftRef when timeLeft changes
@@ -347,7 +349,8 @@ const VirtueTriviaScreen = () => {
     
     // Calculate score
     const timeBonus = Math.floor(timeLeft * 2);
-    const questionScore = isCorrect ? 100 + timeBonus : 0;
+    const streakBonus = isCorrect ? Math.max(0, newStreak - 1) * 10 : 0; // small streak multiplier
+    const questionScore = isCorrect ? 100 + timeBonus + streakBonus : 0;
     const newScore = gameState.score + questionScore;
     
     // Update high score if needed
@@ -381,8 +384,9 @@ const VirtueTriviaScreen = () => {
       }, 1000);
     }
     
-    // Move to next question after delay
-    setTimeout(async () => {
+    // Move to next question after delay (can be overridden by Next button)
+    if (autoAdvanceRef.current) clearTimeout(autoAdvanceRef.current);
+    autoAdvanceRef.current = setTimeout(async () => {
       const nextIndex = gameState.currentQuestionIndex + 1;
       
       if (nextIndex >= gameState.questions.length) {
@@ -474,6 +478,39 @@ const VirtueTriviaScreen = () => {
       }
     }, 1500);
   }, [gameState, timeLeft, highScore, userLevel, successOpacity, selectedVirtue, minimumQuestionsToPass]);
+
+  const goToNext = useCallback(() => {
+    if (autoAdvanceRef.current) {
+      clearTimeout(autoAdvanceRef.current);
+      autoAdvanceRef.current = null;
+    }
+    // replicate the advance logic
+    const isCorrect = gameState.selectedAnswer === gameState.correctAnswer;
+    const nextIndex = gameState.currentQuestionIndex + 1;
+    if (nextIndex >= gameState.questions.length) {
+      const correctAnswers = isCorrect ? gameState.correctAnswersCount + 1 : gameState.correctAnswersCount;
+      const newScore = gameState.score; // already computed on selection
+      if (correctAnswers === gameState.questions.length) {
+        play('cheers');
+        confettiRef.current?.restart?.();
+      } else {
+        play('gameOver');
+      }
+      gameStore.submitScore('virtue_trivia', newScore);
+      setGameState(prev => ({ ...prev, gameOver: true, correctAnswersCount: correctAnswers }));
+    } else {
+      setGameState(prev => ({
+        ...prev,
+        currentQuestionIndex: nextIndex,
+        answered: false,
+        selectedAnswer: null,
+        correctAnswer: prev.questions[nextIndex].correctAnswer
+      }));
+      setTimeLeft(timerSettings[userLevel]);
+      progressWidth.value = 100;
+      timerColorAnim.value = 0;
+    }
+  }, [gameState, userLevel]);
 
   // Timer logic
   useEffect(() => {
@@ -582,6 +619,12 @@ const VirtueTriviaScreen = () => {
           <View style={styles.levelProgressBarContainer}>
             <View style={[styles.levelProgressBar, { width: `${progressPercent}%` }]} />
           </View>
+
+        {gameState.answered && (
+          <TouchableOpacity style={styles.nextButton} onPress={goToNext}>
+            <Text style={styles.nextButtonText}>Next</Text>
+          </TouchableOpacity>
+        )}
         </View>
         
         <View style={styles.virtueGrid}>
@@ -703,69 +746,19 @@ const VirtueTriviaScreen = () => {
       // AsyncStorage.setItem('VirtueTriviaScreenHighScore', gameState.score.toString()); // Removed
     }
 
-    const { completedCount, remainingCount } = calculateLevelProgress();
-    
+    const { remainingCount } = calculateLevelProgress();
+
     return (
-      <View style={styles.gameOverContainer}>
-        <Text style={styles.gameOverTitle}>
-          {isPerfectScore ? 'Perfect Score! 🎉' : 'Quiz Complete!'}
-        </Text>
-        
-        <View style={styles.resultsSummary}>
-          <Text style={styles.virtueResultText}>
-            Virtue: <Text style={styles.highlightText}>{selectedVirtue.charAt(0).toUpperCase() + selectedVirtue.slice(1)}</Text>
-          </Text>
-          
-          <Text style={styles.finalScoreText}>Final Score: {gameState.score}</Text>
-          
-          <View style={styles.correctnessContainer}>
-            <Text style={styles.correctnessText}>
-              {correctAnswers} of {totalAnswered} correct ({percentCorrect}%)
-            </Text>
-            <View style={styles.correctnessBar}>
-              <View style={[styles.correctnessProgress, { width: `${percentCorrect}%` }]} />
-            </View>
-          </View>
-          
-          {virtuePassed ? (
-            <View style={styles.passedContainer}>
-              <Text style={styles.passedText}>Virtue Mastered! ✓</Text>
-            </View>
-          ) : (
-            <View style={styles.failedContainer}>
-              <Text style={styles.failedText}>
-                Need {minimumQuestionsToPass - correctAnswers} more correct to master
-              </Text>
-            </View>
-          )}
-        </View>
-        
-        <View style={styles.statsContainer}>
-          <Text style={styles.statsText}>High Score: {highScore}</Text>
-          <Text style={styles.statsText}>Current Level: {virtueStatus?.current_level || 0}</Text>
-          <Text style={styles.statsText}>Total Levels: {virtueStatus?.total_levels || 3}</Text>
-        </View>
-        
-        <View style={styles.levelProgressInfoContainer}>
-          <Text style={styles.levelProgressInfoText}>
-            Level: {userLevel.charAt(0).toUpperCase() + userLevel.slice(1)}
-          </Text>
-          
-          {remainingCount > 0 ? (
-            <Text style={styles.levelProgressInfoText}>
-              Complete {remainingCount} more {remainingCount === 1 ? 'virtue' : 'virtues'} to level up
-            </Text>
-          ) : (
-            <Text style={styles.levelMaxText}>
-              {userLevel === 'expert' ? 'Maximum level reached!' : 'Ready to level up!'}
-            </Text>
-          )}
-        </View>
-        
-        <TouchableOpacity style={styles.retryButton} onPress={startNewGame}>
-          <Text style={styles.retryButtonText}>Play Again</Text>
-        </TouchableOpacity>
-      </View>
+      <VirtueTriviaComplete
+        virtueName={selectedVirtue.charAt(0).toUpperCase() + selectedVirtue.slice(1)}
+        score={gameState.score}
+        highScore={highScore}
+        correctAnswers={correctAnswers}
+        totalQuestions={totalAnswered}
+        userLevelLabel={userLevel.charAt(0).toUpperCase() + userLevel.slice(1)}
+        remainingToLevelUp={remainingCount}
+        onPlayAgain={startNewGame}
+      />
     );
   }, [gameState, highScore, startNewGame, styles, selectedVirtue, userProgress, minimumQuestionsToPass, userLevel, calculateLevelProgress]);
 
@@ -1082,6 +1075,19 @@ const createStyles = (theme: Theme) => StyleSheet.create({
   },
   optionsContainer: {
     gap: theme.spacing.sm,
+  },
+  nextButton: {
+    marginTop: theme.spacing.sm,
+    alignSelf: 'center',
+    paddingVertical: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.lg,
+    borderRadius: theme.borderRadius.full,
+    backgroundColor: theme.colors.primary,
+  },
+  nextButtonText: {
+    ...theme.typography.body.sans,
+    color: '#FFF',
+    fontWeight: '700',
   },
   optionButton: {
     backgroundColor: `${theme.colors.surface}80`,
