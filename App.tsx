@@ -44,6 +44,8 @@ import { appStore } from './src/stores/appStore';
 import { StoreProvider } from './src/stores/StoreProvider';
 import { useWebSocketVerseSync } from './src/services/websocket';
 import { useAuthStore } from './src/stores/StoreProvider';
+import PointsEarnedModal from './src/components/PointsEarnedModal';
+import { pointsTracker } from './src/utils/pointsTracker';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 // Separate untyped stack for debug mode to avoid param list type errors
@@ -94,6 +96,9 @@ const AppContent = () => {
   const [initialTheme, setInitialTheme] = useState(defaultTheme);
   const [showThemeSelector, setShowThemeSelector] = useState(false);
   const [isSplashComplete, setIsSplashComplete] = useState(false);
+  // Global points modal queue: show one award at a time, queue extras
+  const [pointsQueue, setPointsQueue] = useState<Array<{ points: number; title?: string }>>([]);
+  const [isPointsVisible, setIsPointsVisible] = useState(false);
   const { setInitialized } = useAppInitialization();
   const fontsLoaded = useAppFonts();
   const { isInitialized: authInitialized, user, token } = useAuthStore();
@@ -141,6 +146,23 @@ const AppContent = () => {
       return () => clearTimeout(timer);
     }
   }, [fontsLoaded, isLoading, isSplashComplete, authInitialized, setInitialized]);
+
+  // Subscribe to global points earned events emitted by the API interceptor
+  useEffect(() => {
+    const unsubscribe = pointsTracker.subscribe(({ points, title }) => {
+      setPointsQueue(prev => [...prev, { points, title }]);
+      // If nothing showing, trigger visibility
+      setIsPointsVisible(v => v || true);
+    });
+    return () => { unsubscribe(); };
+  }, []);
+
+  // If queue emptied, hide modal
+  useEffect(() => {
+    if (pointsQueue.length === 0) {
+      setIsPointsVisible(false);
+    }
+  }, [pointsQueue.length]);
 
 
 
@@ -256,6 +278,17 @@ const AppContent = () => {
           )}
         </ErrorBoundary>
         <Toaster />
+        <PointsEarnedModal
+          visible={isPointsVisible && pointsQueue.length > 0}
+          pointsEarned={pointsQueue[0]?.points || 0}
+          challengeTitle={pointsQueue[0]?.title}
+          title={pointsQueue[0]?.title ? 'Challenge Reward' : 'Points Earned!'}
+          autoCloseMs={2400}
+          onClose={() => {
+            setPointsQueue(prev => prev.slice(1));
+            // Keep visible if more in queue; visibility toggled by effect
+          }}
+        />
       </GestureHandlerRootView>
     </ThemeProvider>
   );

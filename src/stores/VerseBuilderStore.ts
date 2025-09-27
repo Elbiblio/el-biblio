@@ -88,6 +88,8 @@ export class VerseBuilderStore {
   private verseStore: VerseStore;
   private gameStore: GameStore;
   private verseQueue: VerseGame[] = [];
+  private saveTimeout: ReturnType<typeof setTimeout> | null = null;
+  private hasPendingSave = false;
 
   constructor(verseStore: VerseStore, gameStore: GameStore) {
     this.state = initialState;
@@ -97,15 +99,19 @@ export class VerseBuilderStore {
     makeAutoObservable(this);
     
     // Load from storage asynchronously
-    AsyncStorage.getItem(this.storageKey).then(stored => {
-      if (stored) {
-        runInAction(() => {
-          this.state = { ...this.state, ...JSON.parse(stored) };
-        });
-      }
-    }).catch(error => {
-      console.error('Error loading verse builder store from storage:', error);
-    });
+    AsyncStorage.getItem(this.storageKey)
+      .then(stored => {
+        if (stored) {
+          runInAction(() => {
+            this.state = { ...this.state, ...JSON.parse(stored) };
+          });
+        }
+      })
+      .catch(error => {
+        if (__DEV__) {
+          console.error('Error loading verse builder store from storage:', error);
+        }
+      });
   }
 
   private setLoading = (value: boolean) => {
@@ -116,11 +122,28 @@ export class VerseBuilderStore {
     this.error = message;
   };
 
-  private async saveToStorage() {
+  private scheduleSave = () => {
+    this.hasPendingSave = true;
+    if (this.saveTimeout) {
+      return;
+    }
+    this.saveTimeout = setTimeout(() => {
+      this.saveTimeout = null;
+      void this.flushSave();
+    }, 300);
+  };
+
+  private async flushSave() {
+    if (!this.hasPendingSave) {
+      return;
+    }
+    this.hasPendingSave = false;
     try {
       await AsyncStorage.setItem(this.storageKey, JSON.stringify(this.state));
     } catch (error) {
-      console.error(`Error saving ${this.storageKey} to storage:`, error);
+      if (__DEV__) {
+        console.error(`Error saving ${this.storageKey} to storage:`, error);
+      }
       this.error = 'Failed to save data';
     }
   }
@@ -131,12 +154,21 @@ export class VerseBuilderStore {
     this.isInitializing = true;
     this.setLoading(true);
     try {
+      if (!this.gameStore.state.lastSynced) {
+        await this.gameStore.initialize();
+      }
+      runInAction(() => {
+        const personalBest = this.gameStore.getPersonalBest('verse_builder');
+        if (personalBest > this.state.highScore) {
+          this.state.highScore = personalBest;
+        }
+      });
       await this.loadVerseBatch();
       await this.startNewRound();
     } finally {
       this.setLoading(false);
       this.isInitializing = false;
-      await this.saveToStorage();
+      await this.flushSave();
     }
   }
 
@@ -160,7 +192,6 @@ export class VerseBuilderStore {
     if (!this.state.selectedVersion) return;
 
     try {
-      console.log('[VerseBuilder] Loading verses for version', this.state.selectedVersion);
       const primaryTable = await this.resolveTableName(this.state.selectedVersion);
       let verses = await BibleDBService.getRandomVerses(primaryTable, 40);
 
@@ -186,8 +217,6 @@ export class VerseBuilderStore {
         const fallbacks = ['KJV', 'ASV', 'WEB', 'BSB', 'YLT', 'DR'];
         for (const v of fallbacks) {
           if (v === this.state.selectedVersion) continue;
-          // eslint-disable-next-line no-console
-          console.log('[VerseBuilder] No verses for version', this.state.selectedVersion, 'trying', v);
           try {
             const altTable = await this.resolveTableName(v);
             const alt = await BibleDBService.getRandomVerses(altTable, 40);
@@ -213,7 +242,7 @@ export class VerseBuilderStore {
       runInAction(() => {
         this.state.error = 'Failed to load verses. Please try again.';
       });
-      await this.saveToStorage();
+      await this.flushSave();
     }
   }
 
@@ -254,15 +283,16 @@ export class VerseBuilderStore {
 
   // Gameplay Actions
   startNewRound = async () => {
-    console.log('[VerseBuilder] Starting new round');
     runInAction(() => {
       this.state.error = null;
     });
-    await this.saveToStorage();
+    this.scheduleSave();
 
     // Prevent re-entrancy while a round is already active and not transitioning
     if (this.state.isPlaying && this.state.gameState && !this.state.isTransitioning) {
-      console.log('[VerseBuilder] Ignoring startNewRound because a round is active');
+      if (__DEV__) {
+        console.log('[VerseBuilder] Ignoring startNewRound because a round is active');
+      }
       return;
     }
 
@@ -275,7 +305,7 @@ export class VerseBuilderStore {
       runInAction(() => {
         this.state.error = 'Failed to get next verse';
       });
-      await this.saveToStorage();
+      await this.flushSave();
       return;
     }
 
@@ -314,7 +344,7 @@ export class VerseBuilderStore {
       cache[newGameState.id] = Date.now();
       await AsyncStorage.setItem(cacheKey, JSON.stringify(cache));
     } catch {}
-    await this.saveToStorage();
+    this.scheduleSave();
   }
 
   // Determine initial countdown based on user level primarily, with streak influence when streak >= 10
@@ -342,7 +372,7 @@ export class VerseBuilderStore {
       this.state.nextGameState = null;
       this.state.isTransitioning = false;
     });
-    this.saveToStorage();
+    this.scheduleSave();
   }
 
   // Add a bit of time, capped at initialGameTime, to keep rounds flowing
@@ -353,7 +383,7 @@ export class VerseBuilderStore {
       const next = Math.min(cap > 0 ? cap : Number.MAX_SAFE_INTEGER, (this.state.timeLeft || 0) + inc);
       this.state.timeLeft = next;
     });
-    this.saveToStorage();
+    this.scheduleSave();
   }
 
   // Deduct small points for a mistake (e.g., wrong slot tap)
@@ -362,7 +392,7 @@ export class VerseBuilderStore {
       const deduction = Math.max(1, points);
       this.state.score = Math.max(0, this.state.score - deduction);
     });
-    this.saveToStorage();
+    this.scheduleSave();
   }
 
   selectWordFromPool = (word: string) => {
@@ -370,17 +400,19 @@ export class VerseBuilderStore {
 
     runInAction(() => {
       if (!this.state.gameState) return;
-      try { console.log('[VB][store] selectWordFromPool before', { poolLen: this.state.gameState.poolWords.length, arrangedLen: this.state.gameState.arrangedWords.length, word }); } catch {}
       const newArrangedWords = [...this.state.gameState.arrangedWords, word];
-      const newPoolWords = this.state.gameState.poolWords.filter((w) => w !== word);
+      const newPoolWords = [...this.state.gameState.poolWords];
+      const wordIndex = newPoolWords.indexOf(word);
+      if (wordIndex !== -1) {
+        newPoolWords.splice(wordIndex, 1);
+      }
       this.state.gameState = { ...this.state.gameState, poolWords: newPoolWords, arrangedWords: newArrangedWords };
-      try { console.log('[VB][store] selectWordFromPool after', { poolLen: newPoolWords.length, arrangedLen: newArrangedWords.length }); } catch {}
 
       if (newPoolWords.length === 0) {
         this.checkAnswer();
       }
     });
-    this.saveToStorage();
+    this.scheduleSave();
   }
 
   undoLastWord = () => {
@@ -390,14 +422,12 @@ export class VerseBuilderStore {
 
     runInAction(() => {
       if (!this.state.gameState) return;
-      try { console.log('[VB][store] undoLastWord before', { poolLen: this.state.gameState.poolWords.length, arrangedLen: this.state.gameState.arrangedWords.length }); } catch {}
       const lastWord = this.state.gameState.arrangedWords[this.state.gameState.arrangedWords.length - 1];
       const newArrangedWords = this.state.gameState.arrangedWords.slice(0, -1);
       const newPoolWords = [...this.state.gameState.poolWords, lastWord];
       this.state.gameState = { ...this.state.gameState, arrangedWords: newArrangedWords, poolWords: newPoolWords };
-      try { console.log('[VB][store] undoLastWord after', { poolLen: newPoolWords.length, arrangedLen: newArrangedWords.length }); } catch {}
     });
-    this.saveToStorage();
+    this.scheduleSave();
   }
 
   returnWordToPool = (word: string, index: number) => {
@@ -405,13 +435,11 @@ export class VerseBuilderStore {
     
     runInAction(() => {
       if (!this.state.gameState) return;
-      try { console.log('[VB][store] returnWordToPool before', { poolLen: this.state.gameState.poolWords.length, arrangedLen: this.state.gameState.arrangedWords.length, index, word }); } catch {}
       const newArranged = [...this.state.gameState.arrangedWords];
       newArranged.splice(index, 1);
       this.state.gameState = { ...this.state.gameState, arrangedWords: newArranged, poolWords: [...this.state.gameState.poolWords, word] };
-      try { console.log('[VB][store] returnWordToPool after', { poolLen: this.state.gameState.poolWords.length, arrangedLen: newArranged.length }); } catch {}
     });
-    this.saveToStorage();
+    this.scheduleSave();
   }
 
   checkAnswer = async () => {
@@ -438,7 +466,7 @@ export class VerseBuilderStore {
       const newScore = this.state.score + 100 + timeBonus;
       this.state.score = newScore;
 
-      this.gameStore.submitScore('verse_builder', newScore);
+      void this.gameStore.submitScore('verse_builder', newScore);
 
       if (newScore > this.state.highScore) {
         this.state.highScore = newScore;
@@ -450,7 +478,7 @@ export class VerseBuilderStore {
         this.startNewRound();
       }, 3500);
     });
-    this.saveToStorage();
+    this.scheduleSave();
   }
 
   private handleIncorrectAnswer = () => {
@@ -460,7 +488,7 @@ export class VerseBuilderStore {
       this.state.isPlaying = false;
       this.state.hasPlayed = true;
     });
-    this.saveToStorage();
+    this.scheduleSave();
   }
 
   private async updateMastery(verseId: string, correct: boolean) {
@@ -485,7 +513,7 @@ export class VerseBuilderStore {
       this.state.userProgress = updated;
     });
 
-    await this.saveToStorage();
+    await this.flushSave();
 
     // This part requires the user from AuthStore, which should be passed in or accessed differently
     // For now, we'll skip the API call.
@@ -505,23 +533,22 @@ export class VerseBuilderStore {
         }
       }
     });
-    this.saveToStorage();
+    this.scheduleSave();
   }
 
   decrementTime = () => {
     if (!this.state.isPlaying || this.state.timeLeft <= 0) return;
     runInAction(() => {
-        this.state.timeLeft -= 1;
-        if (this.state.timeLeft <= 0) {
-            this.state.isPlaying = false;
-            this.state.hasPlayed = true; // mark that at least one round has been attempted
-        }
+      this.state.timeLeft -= 1;
+      if (this.state.timeLeft <= 0) {
+        this.state.isPlaying = false;
+        this.state.hasPlayed = true; // mark that at least one round has been attempted
+      }
     });
-    this.saveToStorage();
+    this.scheduleSave();
   }
 
   setVersion = async (version: string) => {
-    console.log('[VerseBuilder] Setting version to', version);
     runInAction(() => {
       this.state.selectedVersion = version;
       this.state.gameState = null;
@@ -531,7 +558,7 @@ export class VerseBuilderStore {
       this.state.showCorrectAnswer = false;
       this.verseQueue = [];
     });
-    await this.saveToStorage();
+    this.scheduleSave();
     // Avoid re-entrancy by not calling initialize(); explicitly load and start
     this.setLoading(true);
     try {
@@ -539,7 +566,7 @@ export class VerseBuilderStore {
       await this.startNewRound();
     } finally {
       this.setLoading(false);
-      await this.saveToStorage();
+      await this.flushSave();
     }
   }
 
@@ -549,6 +576,6 @@ export class VerseBuilderStore {
         this.state.streak = 0;
         this.startNewRound();
     });
-    this.saveToStorage();
+    this.scheduleSave();
   }
 }

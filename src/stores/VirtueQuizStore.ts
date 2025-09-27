@@ -100,10 +100,16 @@ export class VirtueQuizStore {
   }
 
   private setLoading = (value: boolean) => {
+    runInAction(() => {
+      this.state.isLoading = value;
+    });
     this.isLoading = value;
   };
 
   private setError = (message: string | null) => {
+    runInAction(() => {
+      this.state.error = message;
+    });
     this.error = message;
   };
 
@@ -185,6 +191,9 @@ export class VirtueQuizStore {
     if (Object.keys(this.rootStore.virtueStore.userProgress).length === 0) {
         await this.rootStore.virtueStore.fetchUserProgress();
     }
+    if (!this.rootStore.gameStore.state.lastSynced) {
+      await this.rootStore.gameStore.initialize();
+    }
   }
   selectVirtue(virtue: AppVirtue | null) {
     this.state.selectedVirtue = virtue;
@@ -198,7 +207,23 @@ export class VirtueQuizStore {
   }
 
   async startQuiz() {
-    if (!this.state.selectedVirtue || !this.state.selectedLevel) return;
+    if (this.state.isLoading) return;
+    if (!this.state.selectedVirtue || !this.state.selectedLevel) {
+      toast.error('Please select a virtue and level to begin.');
+      return;
+    }
+
+    this.setError(null);
+
+    runInAction(() => {
+      this.state.quizStarted = false;
+      this.state.quizCompleted = false;
+      this.state.currentQuestionIndex = 0;
+      this.state.score = 0;
+      this.state.selectedAnswer = null;
+      this.state.isAnswerCorrect = null;
+      this.state.showExplanation = false;
+    });
 
     await this.fetchQuizQuestions(
       this.state.selectedVirtue.id,
@@ -206,16 +231,12 @@ export class VirtueQuizStore {
     );
 
     if (this.state.questions.length > 0) {
-        runInAction(() => {
-            this.state.quizStarted = true;
-            this.state.quizCompleted = false;
-            this.state.currentQuestionIndex = 0;
-            this.state.score = 0;
-            this.state.selectedAnswer = null;
-            this.state.isAnswerCorrect = null;
-            this.state.showExplanation = false;
-        });
-        await this.saveToStorage();
+      runInAction(() => {
+        this.state.quizStarted = true;
+      });
+      await this.saveToStorage();
+    } else {
+      toast.error('No quiz questions available yet. Please try another level or virtue.');
     }
   }
 
@@ -223,6 +244,9 @@ export class VirtueQuizStore {
     this.setLoading(true);
     this.setError(null);
     try {
+      runInAction(() => {
+        this.state.questions = [];
+      });
       const response = await apiClient.get<QuizQuestion[]>(
         `/virtues/${virtueId}/quiz`,
         {
@@ -231,10 +255,21 @@ export class VirtueQuizStore {
         }
       );
 
-      if (response.success && response.data && response.data.length > 0) {
-        runInAction(() => {
-          this.state.questions = response.data!;
-        });
+      if (response.success && response.data) {
+        const payload = response.data as any;
+        const extracted: QuizQuestion[] = Array.isArray(payload)
+          ? payload
+          : Array.isArray(payload?.data)
+          ? payload.data
+          : Array.isArray(payload?.questions)
+          ? payload.questions
+          : [];
+
+        if (extracted.length > 0) {
+          runInAction(() => {
+            this.state.questions = extracted;
+          });
+        }
       } else {
         // Fallback to local generation
         const built = await this.buildLocalQuestions(virtueId, level as number);
@@ -392,6 +427,7 @@ export class VirtueQuizStore {
 
     try {
         await this.rootStore.virtueStore.completeQuiz(selectedVirtue.id, selectedLevel, points);
+        void this.rootStore.gameStore.submitScore('virtue_quiz', points);
         runInAction(() => {
             this.state.quizCompleted = true;
             this.state.showConfetti = true;

@@ -1,4 +1,4 @@
-import React, { useEffect, useCallback, useRef, memo, useState } from 'react';
+import React, { useEffect, useCallback, useRef, useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   ImageBackground,
   Share,
+  FlatList,
 } from 'react-native';
 import Animated, {
   useSharedValue,
@@ -31,6 +32,7 @@ import { useVerseBuilderStore } from '@/stores/StoreProvider';
 import { useBibleStore } from '@/stores/BibleStore';
 import { Trophy, ArrowCounterClockwise } from '../components/Icons';
 import AnimatedCircularProgress from '@/components/AnimatedCircularProgress';
+import VerseBuilderWordTile from '@/components/VerseBuilderWordTile';
 import { PIConfetti } from 'react-native-fast-confetti';
 import * as Haptics from 'expo-haptics';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
@@ -44,7 +46,7 @@ const CRADLE_HEIGHT = Math.max(160, Math.min(220, Math.floor(SCREEN_HEIGHT * 0.2
 
 const VerseBuilderScreen = observer(() => {
   const theme = useTheme();
-  const styles = createStyles(theme);
+  const styles = useMemo(() => createStyles(theme), [theme]);
   const verseBuilderStore = useVerseBuilderStore();
   const bibleStore = useBibleStore();
 
@@ -101,11 +103,7 @@ const VerseBuilderScreen = observer(() => {
 
   // New enhanced animations
   const headerGlow = useSharedValue(0);
-  const backgroundPulse = useSharedValue(1);
-  const starRotation = useSharedValue(0);
-  const particleFloat = useSharedValue(0);
   const timerPulse = useSharedValue(1);
-  const wordHover = useSharedValue(0);
   const correctWordBounce = useSharedValue(1);
   const powerUpGlow = useSharedValue(0);
   const streakFireAnimation = useSharedValue(0);
@@ -119,18 +117,24 @@ const VerseBuilderScreen = observer(() => {
   const [showSoundSettings, setShowSoundSettings] = useState(false);
   const [showAllWords, setShowAllWords] = useState(false);
 
+  const poolColumns = useMemo(() => {
+    const spacing = theme.spacing?.md ?? 8;
+    return Math.max(1, Math.floor(SCREEN_WIDTH / (WORD_SIZE + spacing * 2)));
+  }, [theme]);
+
   // Circular timer fill shared value for AnimatedCircularProgress (0..1)
   const circularFill = useSharedValue(1);
-
-  // Layout capture for DnD
-  const [arrangementLayout, setArrangementLayout] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
-  const [poolLayout, setPoolLayout] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
 
   // Refs
   const confettiRef = useRef<any>(null);
   const levelConfettiRef = useRef<any>(null);
+  const musicStateRef = useRef<'musicverse' | 'verseplay' | 'none'>('none');
+  const warningTickRef = useRef<number | null>(null);
+  const timeoutPlayedRef = useRef(false);
 
-  // Remove animated background per new design (no-op)
+  const play = useCallback(async (name: 'tickTock' | 'timeout' | 'correct' | 'streak' | 'retry' | 'cheers' | 'powerup' | 'levelup' | 'ding') => {
+    await playCue(name as any);
+  }, []);
 
   // Enhanced Header Glow Animation
   useEffect(() => {
@@ -159,46 +163,45 @@ const VerseBuilderScreen = observer(() => {
         -1,
         true
       );
+    } else {
+      powerUpGlow.value = withTiming(0, { duration: 400 });
     }
   }, [powerUps]);
 
-  // Enhanced streak fire animation
+  // Calmer streak animation to reduce continuous pulses
   useEffect(() => {
     if (streak > 1) {
-      streakFireAnimation.value = withRepeat(
-        withSequence(
-          withTiming(1.2, { duration: 400 }),
-          withTiming(0.9, { duration: 300 }),
-          withTiming(1.1, { duration: 350 }),
-          withTiming(1, { duration: 250 })
-        ),
-        -1,
-        false
+      streakFireAnimation.value = withSequence(
+        withTiming(1.12, { duration: 220 }),
+        withTiming(0.96, { duration: 160 }),
+        withTiming(1.04, { duration: 140 }),
+        withTiming(1, { duration: 180 })
       );
     } else {
       streakFireAnimation.value = withTiming(1, { duration: 200 });
     }
   }, [streak]);
 
-  // No local preloading; centralized audio service handles caching
-
   // Switch music based on game state via centralized audio service
   useEffect(() => {
+    const desired: 'musicverse' | 'verseplay' | 'none' = isPlaying ? 'verseplay' : timeLeft <= 0 ? 'none' : 'musicverse';
+    if (musicStateRef.current === desired) {
+      return;
+    }
+
     (async () => {
       try {
-        if (!isPlaying && timeLeft <= 0) {
+        if (desired === 'none') {
           await stopMusic('musicverse');
           await stopMusic('verseplay');
-          return;
-        }
-        if (isPlaying) {
+        } else if (desired === 'verseplay') {
           await stopMusic('musicverse');
           await playMusic('verseplay');
-          return;
+        } else {
+          await stopMusic('verseplay');
+          await playMusic('musicverse');
         }
-        // idle/menu state
-        await stopMusic('verseplay');
-        await playMusic('musicverse');
+        musicStateRef.current = desired;
       } catch {}
     })();
   }, [isPlaying, timeLeft]);
@@ -208,6 +211,7 @@ const VerseBuilderScreen = observer(() => {
     return () => {
       stopMusic('musicverse');
       stopMusic('verseplay');
+      musicStateRef.current = 'none';
     };
   }, []);
 
@@ -230,16 +234,6 @@ const VerseBuilderScreen = observer(() => {
       }
     } catch { }
 
-    setTimeout(() => {
-      try {
-        console.log('[VerseBuilder] post-initialize state', {
-          isLoading: verseBuilderStore.isLoading,
-          error: verseBuilderStore.error,
-          hasGameState: !!verseBuilderStore.state.gameState,
-          poolCount: verseBuilderStore.state.gameState?.poolWords?.length,
-        });
-      } catch { }
-    }, 500);
   }, []);
 
   // Load persisted tips visibility; default to true if never set
@@ -281,8 +275,15 @@ const VerseBuilderScreen = observer(() => {
     }
 
     const warnThreshold = 10;
+    if (timeLeft > warnThreshold) {
+      warningTickRef.current = null;
+    }
+
     if (timeLeft > 0 && timeLeft <= warnThreshold) {
-      play('tickTock');
+      if (warningTickRef.current !== timeLeft) {
+        warningTickRef.current = timeLeft;
+        play('tickTock');
+      }
 
       // Enhanced warning pulse
       timerPulse.value = withSequence(
@@ -297,9 +298,14 @@ const VerseBuilderScreen = observer(() => {
       });
     }
     if (timeLeft <= 0) {
-      play('timeout');
+      if (!timeoutPlayedRef.current) {
+        timeoutPlayedRef.current = true;
+        play('timeout');
+      }
+    } else {
+      timeoutPlayedRef.current = false;
     }
-  }, [timeLeft, initialGameTime, progressWidth, timerColorAnim]);
+  }, [timeLeft, initialGameTime, progressWidth, timerColorAnim, timerPulse, warnScale, play]);
 
   // Transition animation
   useEffect(() => {
@@ -378,18 +384,14 @@ const VerseBuilderScreen = observer(() => {
     );
   }, [score]);
 
-  // Enhanced flame animation
+  // Subtler flame animation tied to streak events
   useEffect(() => {
     if (streak > 1) {
-      flameScale.value = withRepeat(
-        withSequence(
-          withTiming(1.15, { duration: 600 }),
-          withTiming(0.95, { duration: 400 }),
-          withTiming(1.08, { duration: 500 }),
-          withTiming(1, { duration: 300 })
-        ),
-        -1,
-        false
+      flameScale.value = withSequence(
+        withTiming(1.08, { duration: 300 }),
+        withTiming(0.98, { duration: 200 }),
+        withTiming(1.02, { duration: 200 }),
+        withTiming(1, { duration: 240 })
       );
     } else {
       flameScale.value = withTiming(1, { duration: 200 });
@@ -410,32 +412,14 @@ const VerseBuilderScreen = observer(() => {
     calmAmp.value = withTiming(1, { duration: 200 });
   }, []);
 
-  // Enhanced Animated Styles
-  const backgroundStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: backgroundPulse.value }],
-  }));
-
   const headerGlowStyle = useAnimatedStyle(() => ({
     shadowOpacity: headerGlow.value * 0.3,
     shadowRadius: 15 + headerGlow.value * 10,
     elevation: 5 + headerGlow.value * 5,
   }));
 
-  const scoreAnimatedStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: scoreScale.value }],
-  }));
-
-  const scoreAnimatedProps = useAnimatedProps(() => ({
-    text: `${Math.round(animatedScore.value)}`,
-  }) as any);
-
   const flameStyle = useAnimatedStyle(() => ({
     transform: [{ scale: flameScale.value * streakFireAnimation.value }],
-  }));
-
-  const shineStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: shineX.value }],
-    opacity: 0.7,
   }));
 
   const wrongShakeStyle = useAnimatedStyle(() => ({
@@ -444,24 +428,6 @@ const VerseBuilderScreen = observer(() => {
         translateX: interpolate(wrongShake.value, [0, 1, 2, 3, 4], [0, -8, 8, -4, 0], Extrapolation.CLAMP) * calmAmp.value,
       },
     ],
-  }));
-
-  const timerPulseStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: timerPulse.value }],
-  }));
-
-  const powerUpGlowStyle = useAnimatedStyle(() => ({
-    shadowOpacity: powerUpGlow.value * 0.4,
-    shadowRadius: 8 + powerUpGlow.value * 4,
-  }));
-
-  const starRotationStyle = useAnimatedStyle(() => ({
-    transform: [{ rotate: `${starRotation.value}deg` }],
-  }));
-
-  const particleFloatStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: particleFloat.value * 20 }],
-    opacity: 0.6 + Math.abs(particleFloat.value) * 0.4,
   }));
 
   const correctBounceStyle = useAnimatedStyle(() => ({
@@ -476,8 +442,9 @@ const VerseBuilderScreen = observer(() => {
       withTiming(3, { duration: 50 }),
       withTiming(4, { duration: 50 })
     );
+    verseBuilderStore.penalizeMistake?.(1);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-  }, []);
+  }, [verseBuilderStore]);
 
   const handleSelectWord = (word: string) => {
     // Tap cooldown to avoid accidental multi-triggering (short for responsiveness)
@@ -486,31 +453,12 @@ const VerseBuilderScreen = observer(() => {
     lastTapRef.current = now;
     // Auto-hide tips after the first placement to save space
     if (showTips) setShowTips(false);
-    try {
-      console.log('[VB] handleSelectWord tapped:', word, {
-        hasGameState: !!gameState,
-        poolLen: gameState?.poolWords?.length,
-        arrangedLen: gameState?.arrangedWords?.length,
-        isPlaying,
-        showCorrectAnswer
-      });
-    } catch { }
     if (showCorrectAnswer) return;
     if (isTransitioning) return;
-    // Validate next expected word to prevent wrong insertions
     if (gameState) {
       const expected = gameState.originalWords[gameState.arrangedWords.length];
       if (expected && expected !== word) {
-        try { console.log('[VB] wrong slot tap', { expected, got: word }); } catch { }
-        // Shake and penalize
-        wrongShake.value = withSequence(
-          withTiming(1, { duration: 50 }),
-          withTiming(2, { duration: 50 }),
-          withTiming(3, { duration: 50 }),
-          withTiming(4, { duration: 50 })
-        );
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-        verseBuilderStore.penalizeMistake?.(2);
+        triggerWrongFeedback();
         return;
       }
     }
@@ -520,6 +468,7 @@ const VerseBuilderScreen = observer(() => {
       withTiming(1, { duration: 100 })
     );
     // Correct path: add 1s grace time to keep round flowing
+    play('ding');
     verseBuilderStore.addGraceTime?.(1);
     selectWordFromPool(word);
   };
@@ -534,32 +483,11 @@ const VerseBuilderScreen = observer(() => {
     returnWordToPool(word, index);
   };
 
-  const play = async (name: 'tickTock' | 'timeout' | 'correct' | 'streak' | 'retry' | 'cheers' | 'powerup' | 'levelup') => {
-    await playCue(name as any);
-  };
-
   const handleRetry = () => {
     retry();
     play('retry');
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
   };
-
-  // Animated Styles
-  const progressBarStyle = useAnimatedStyle(() => {
-    const color = interpolate(timerColorAnim.value, [0, 0.6, 1], [0, 1, 2], Extrapolation.CLAMP);
-    return {
-      position: 'absolute',
-      left: 0,
-      top: 0,
-      bottom: 0,
-      width: `${progressWidth.value}%`,
-      backgroundColor: color <= 0.5 ? '#4CAF50' : color <= 1.5 ? '#FF9800' : '#F44336',
-      shadowColor: color <= 0.5 ? '#4CAF50' : color <= 1.5 ? '#FF9800' : '#F44336',
-      shadowOpacity: 0.5,
-      shadowRadius: 4,
-      elevation: 2,
-    };
-  });
 
   const gameAreaStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scaleAnim.value }],
@@ -573,74 +501,29 @@ const VerseBuilderScreen = observer(() => {
     opacity: fadeAnim.value,
   }));
 
-  const timerWarnStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: warnScale.value }],
-  }));
-
   // Enhanced Word Tile Component (memoized)
-  const WordTile = memo(({ word, onPress, disabled, isPrefilled, variant = 'pool' }: { word: string; onPress: () => void; disabled: boolean; isPrefilled?: boolean; variant?: 'pool' | 'arranged' }) => {
-    const pressScale = useSharedValue(1);
-    const glowIntensity = useSharedValue(0);
-
-    const pressStyle = useAnimatedStyle(() => ({
-      transform: [{ scale: pressScale.value }],
-      shadowOpacity: glowIntensity.value * 0.35,
-      shadowRadius: 4 + glowIntensity.value * 3,
-      elevation: 1 + glowIntensity.value * 2,
-    }));
-
-    const handlePressIn = () => {
-      pressScale.value = withTiming(0.9, { duration: 80 });
-      glowIntensity.value = withTiming(1, { duration: 100 });
-    };
-
-    const handlePressOut = () => {
-      pressScale.value = withSpring(1, { damping: 14, stiffness: 260 });
-      glowIntensity.value = withTiming(0, { duration: 140 });
-    };
-
-    return (
-      <Animated.View style={pressStyle}>
-        <TouchableOpacity
-          style={[
-            styles.wordTile,
-            variant === 'pool' ? { backgroundColor: getWordColor(word) } : styles.arrangedWordTile,
-            isPrefilled && styles.prefilledWord,
-            showSuccess && styles.successWordTile
-          ]}
-          onPress={onPress}
-          disabled={disabled}
-          delayPressIn={0}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          onPressIn={handlePressIn}
-          onPressOut={handlePressOut}
-        >
-          <Text style={[styles.wordText, variant === 'arranged' && styles.arrangedWordText]}>{word}</Text>
-        </TouchableOpacity>
-      </Animated.View>
-    );
-  }, (prev, next) => prev.word === next.word && prev.disabled === next.disabled && prev.isPrefilled === next.isPrefilled && prev.variant === next.variant && prev.onPress === next.onPress);
-
   const renderPoolWord = useCallback(
-    ({ item }: { item: string }) => (
-      <WordTile
-        word={item}
-        onPress={() => handleSelectWord(item)}
-        disabled={isTransitioning || showCorrectAnswer}
-        variant="pool"
-      />
+    ({ item, index }: { item: string; index: number }) => (
+      <View style={styles.poolItem}>
+        <VerseBuilderWordTile
+          word={item}
+          onPress={handleSelectWord}
+          disabled={isTransitioning || showCorrectAnswer}
+          variant="pool"
+        />
+      </View>
     ),
-    [handleSelectWord, isTransitioning, showCorrectAnswer]
+    [handleSelectWord, isTransitioning, showCorrectAnswer, styles.poolItem]
   );
+
+  const poolKeyExtractor = useCallback((item: string, index: number) => `${item}-${index}`, []);
 
   const renderArrangedWords = useCallback(() => {
     if (!gameState) return null;
     const canUndo = gameState.arrangedWords.length > gameState.prefilledCount && isPlaying;
 
     return (
-      <Animated.View style={[styles.arrangementContainer, wrongShakeStyle, showSuccess && correctBounceStyle]}
-        onLayout={(e) => setArrangementLayout(e.nativeEvent.layout)}
-      >
+      <Animated.View style={[styles.arrangementContainer, wrongShakeStyle, showSuccess && correctBounceStyle]}>
         <View style={styles.arrangementHeader}>
           <Text style={styles.sectionTitle}>Arrange the Verse:</Text>
           <TouchableOpacity
@@ -674,12 +557,13 @@ const VerseBuilderScreen = observer(() => {
                     transform: [{ rotate: `${(index % 5 - 2) * 0.8}deg` }],
                   }}
                 >
-                  <WordTile
+                  <VerseBuilderWordTile
                     word={word}
-                    onPress={() => index >= gameState.prefilledCount && handleReturnWord(word, index)}
+                    onPress={(selectedWord) => index >= gameState.prefilledCount && handleReturnWord(selectedWord, index)}
                     disabled={index < gameState.prefilledCount || !isPlaying}
                     isPrefilled={index < gameState.prefilledCount}
                     variant="arranged"
+                    highlightSuccess={showSuccess}
                   />
                 </View>
               ))
@@ -707,22 +591,6 @@ const VerseBuilderScreen = observer(() => {
     [error, startNewRound]
   );
 
-  const renderVersionSelector = useCallback(() => (
-    <View style={styles.versionSelector}>
-      {availableVersions.map((version: string) => (
-        <TouchableOpacity
-          key={version}
-          style={[styles.versionButton, selectedVersion === version && styles.versionButtonSelected]}
-          onPress={() => setVersion(version)}
-        >
-          <Text style={[styles.versionText, selectedVersion === version && styles.versionTextSelected]}>
-            {version}
-          </Text>
-        </TouchableOpacity>
-      ))}
-    </View>
-  ), [availableVersions, selectedVersion, setVersion]);
-
   const renderInstructions = useCallback(() => (
     <View style={styles.instructionCard}>
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -733,13 +601,10 @@ const VerseBuilderScreen = observer(() => {
       </View>
       <View style={styles.instructionList}>
         <Text style={styles.instructionStep}>1. Tap a word from the cloud to place it in the cradle.</Text>
-        <Text style={styles.instructionStep}>2. Tap a placed word to return it if you change your mind.</Text>
-        <Text style={styles.instructionStep}>3. Use power-ups for extra time or hints when you’re stuck.</Text>
+        <Text style={styles.instructionStep}>2. Use power-ups for extra time or hints when you’re stuck.</Text>
       </View>
     </View>
   ), [theme.colors.primary]);
-
-  // Particles removed for cleaner presentation
 
   // Choose background asset by theme
   const isDark = (theme as any)?.isDark ?? ((theme as any)?.mode === 'dark');
@@ -907,7 +772,6 @@ const VerseBuilderScreen = observer(() => {
               {!showCorrectAnswer && gameState.poolWords.length > 0 && (
                 <View
                   style={styles.poolCloudContainer}
-                  onLayout={(e) => { setPoolLayout(e.nativeEvent.layout); }}
                   pointerEvents="box-none"
                 >
                   <View style={styles.poolHeaderRow}>
@@ -924,25 +788,18 @@ const VerseBuilderScreen = observer(() => {
                     </View>
                   </View>
                   <View style={[styles.poolWrap, !showAllWords && styles.poolCollapsed]} pointerEvents="box-none">
-                    {gameState.poolWords.map((w, i) => (
-                      <View
-                        key={`pool-${w}-${i}`}
-                        style={{
-                          marginHorizontal: theme.spacing.xs,
-                          marginVertical: theme.spacing.xs,
-                          zIndex: 1 + (i % 3),
-                          transform: [{ rotate: `${(i % 5 - 2) * 1.5}deg` }],
-                        }}
-                        pointerEvents="box-none"
-                        onStartShouldSetResponder={() => false}
-                      >
-                        <WordTile
-                          word={w}
-                          onPress={() => handleSelectWord(w)}
-                          disabled={!gameState || showCorrectAnswer}
-                        />
-                      </View>
-                    ))}
+                    <FlatList
+                      data={gameState.poolWords}
+                      renderItem={renderPoolWord}
+                      keyExtractor={poolKeyExtractor}
+                      numColumns={poolColumns}
+                      initialNumToRender={12}
+                      windowSize={5}
+                      removeClippedSubviews
+                      scrollEnabled={showAllWords}
+                      contentContainerStyle={styles.poolListContent}
+                      columnWrapperStyle={poolColumns > 1 ? styles.poolColumnWrapper : undefined}
+                    />
                   </View>
                 </View>
               )}
@@ -983,9 +840,9 @@ const VerseBuilderScreen = observer(() => {
                     <Text style={styles.successStatText}>✨ XP +10</Text>
                   </View>
                 </View>
-                <View style={{ flexDirection: 'row', gap: 12, marginTop: 8 }}>
+                <View style={styles.successButtonRow}>
                   <TouchableOpacity
-                    style={[styles.retryButton, { flex: 1, backgroundColor: '#3b82f6' }]}
+                    style={[styles.successButton, styles.successShareButton]}
                     onPress={async () => {
                       try {
                         await Share.share({
@@ -994,10 +851,10 @@ const VerseBuilderScreen = observer(() => {
                       } catch { }
                     }}
                   >
-                    <Text style={styles.retryButtonText}>Share</Text>
+                    <Text style={styles.successButtonText}>Share</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity style={[styles.retryButton, { flex: 1 }]} onPress={startNewRound}>
-                    <Text style={styles.retryButtonText}>Next Verse</Text>
+                  <TouchableOpacity style={[styles.successButton, styles.successNextButton]} onPress={startNewRound}>
+                    <Text style={styles.successButtonText}>Next Verse</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -1076,28 +933,6 @@ const VerseBuilderScreen = observer(() => {
   );
 });
 
-// Helper Functions (with caching)
-const __wordColorCache: Record<string, string> = Object.create(null);
-const getWordColor = (word: string) => {
-  const articlePrepositions = new Set([
-    'a', 'an', 'the', 'in', 'on', 'at', 'by', 'for', 'with', 'to', 'from',
-    'of', 'and', 'but', 'or', 'as', 'if', 'when', 'than', 'because',
-    'while', 'before', 'after', 'since', 'until', 'about', 'like', 'through'
-  ]);
-  const lowerWord = word.toLowerCase().replace(/[.,;:!?"']/g, '');
-  if (articlePrepositions.has(lowerWord)) return '#34495E';
-  if (__wordColorCache[word]) return __wordColorCache[word];
-
-  const hash = word.split('').reduce((a, b) => a + b.charCodeAt(0), 0);
-  const colors = [
-    '#E74C3C', '#3498DB', '#9B59B6', '#E67E22', '#F39C12',
-    '#1ABC9C', '#2ECC71', '#8E44AD', '#34495E', '#16A085',
-    '#27AE60', '#2980B9', '#F1C40F', '#E74C3C', '#9B59B6'
-  ];
-  const c = colors[hash % colors.length];
-  __wordColorCache[word] = c;
-  return c;
-};
 
 // Enhanced Styles
 const createStyles = (theme: Theme) =>
@@ -1193,14 +1028,6 @@ const createStyles = (theme: Theme) =>
     },
 
     // Floating particles
-    particlesContainer: {
-      position: 'absolute',
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      zIndex: -1,
-    },
     particle: {
       position: 'absolute',
       width: 20,
@@ -1208,17 +1035,7 @@ const createStyles = (theme: Theme) =>
       alignItems: 'center',
       justifyContent: 'center',
     },
-    particleText: {
-      fontSize: 12,
-      opacity: 0.6,
-    },
 
-    // Version selector
-    versionSelector: {
-      flexDirection: 'row',
-      justifyContent: 'center',
-      marginBottom: theme.spacing.md
-    },
     versionButton: {
       padding: theme.spacing.sm,
       margin: theme.spacing.xs,
@@ -1229,21 +1046,6 @@ const createStyles = (theme: Theme) =>
       shadowRadius: 4,
       shadowOffset: { width: 0, height: 2 },
       elevation: 2,
-    },
-    versionButtonSelected: {
-      backgroundColor: theme.colors.primary,
-      shadowOpacity: 0.3,
-      shadowRadius: 8,
-      elevation: 4,
-    },
-    versionText: {
-      color: theme.colors.text.primary,
-      fontSize: 14,
-      fontWeight: '600',
-    },
-    versionTextSelected: {
-      color: '#FFF',
-      fontWeight: '700',
     },
 
     // Enhanced Game Header
@@ -1261,34 +1063,7 @@ const createStyles = (theme: Theme) =>
       borderWidth: 1,
       borderColor: `${theme.colors.primary}20`,
     },
-    gameHeaderTopRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      marginBottom: theme.spacing.md
-    },
-    gameScoreWrap: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: theme.spacing.sm
-    },
-    gameScoreText: {
-      fontSize: 28,
-      color: theme.colors.primary,
-      fontWeight: '900',
-      textShadowColor: `${theme.colors.primary}40`,
-      textShadowOffset: { width: 0, height: 2 },
-      textShadowRadius: 4,
-    },
 
-    // Enhanced Power-ups
-    powerUpChipsRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: theme.spacing.md,
-      marginTop: theme.spacing.sm,
-      marginBottom: theme.spacing.md
-    },
     // Icon bar variant under compact header
     powerUpIconBar: {
       flexDirection: 'row',
@@ -1353,32 +1128,12 @@ const createStyles = (theme: Theme) =>
       shadowOffset: { width: 0, height: 2 },
       elevation: 3,
     },
-    powerUpChipText: {
-      color: theme.colors.primary,
-      fontWeight: '800',
-      fontSize: 13,
-    },
     powerUpDisabled: {
       opacity: 0.4,
       shadowOpacity: 0.1,
     },
 
     // Enhanced High Score Badge
-    highScoreBadge: {
-      position: 'relative',
-      overflow: 'hidden',
-      borderRadius: theme.borderRadius.full,
-      paddingHorizontal: theme.spacing.sm,
-      paddingVertical: 4,
-      backgroundColor: `${theme.colors.secondary}15`,
-      borderWidth: 1,
-      borderColor: `${theme.colors.secondary}30`,
-    },
-    highScoreText: {
-      fontSize: 13,
-      color: theme.colors.secondary,
-      fontWeight: '700',
-    },
     shine: {
       position: 'absolute',
       top: 0,
@@ -1388,35 +1143,11 @@ const createStyles = (theme: Theme) =>
     },
 
     // Enhanced Timer
-    timerContainer: {
-      marginBottom: theme.spacing.lg,
-      padding: theme.spacing.sm,
-      backgroundColor: `${theme.colors.surface}80`,
-      borderRadius: theme.borderRadius.lg,
-      shadowColor: '#000',
-      shadowOpacity: 0.05,
-      shadowRadius: 8,
-      shadowOffset: { width: 0, height: 2 },
-      elevation: 2,
-    },
-    timerLabel: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'center',
-      marginBottom: theme.spacing.sm
-    },
     timerText: {
       marginLeft: theme.spacing.sm,
       color: theme.colors.text.primary,
       fontWeight: '700',
       fontSize: 16,
-    },
-    progressBarContainer: {
-      height: 6,
-      width: '100%',
-      backgroundColor: `${theme.colors.text.secondary}15`,
-      borderRadius: theme.borderRadius.full,
-      overflow: 'hidden'
     },
     progressBar: {
       height: '100%',
@@ -1542,24 +1273,11 @@ const createStyles = (theme: Theme) =>
       fontWeight: '800',
       fontSize: 14,
     },
-    streakBadgeTextMuted: {
-      color: theme.colors.text.secondary,
-      fontWeight: '600',
-      fontSize: 13,
-    },
-    heartsRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: theme.spacing.xs
-    },
     heart: {
       fontSize: 20,
       textShadowColor: 'rgba(0,0,0,0.2)',
       textShadowOffset: { width: 0, height: 1 },
       textShadowRadius: 2,
-    },
-    heartEmpty: {
-      opacity: 0.4
     },
 
     // Enhanced Game Area
@@ -1632,13 +1350,6 @@ const createStyles = (theme: Theme) =>
       paddingVertical: theme.spacing.sm,
       minHeight: CRADLE_HEIGHT,
     },
-    arrangementCradle: {
-      position: 'absolute',
-      top: 0,
-      left: 0,
-      right: 0,
-      zIndex: 0,
-    },
     woodSlotsBg: {
       position: 'absolute',
       top: 0,
@@ -1683,55 +1394,6 @@ const createStyles = (theme: Theme) =>
     undoButtonDisabled: {
       opacity: 0.3
     },
-
-    // Enhanced Word Tiles
-    wordTile: {
-      paddingVertical: 10,
-      paddingHorizontal: theme.spacing.md,
-      borderRadius: theme.borderRadius.lg,
-      justifyContent: 'center',
-      alignItems: 'center',
-      minWidth: WORD_SIZE,
-      marginHorizontal: theme.spacing.xs,
-      shadowColor: '#000',
-      shadowOpacity: 0.2,
-      shadowRadius: 6,
-      shadowOffset: { width: 0, height: 3 },
-      elevation: 4,
-      borderWidth: 1,
-      borderColor: 'rgba(255,255,255,0.2)',
-    },
-    arrangedWordTile: {
-      backgroundColor: `${theme.colors.surface}E6`,
-      borderColor: `${theme.colors.text.secondary}26`,
-    },
-    successWordTile: {
-      shadowColor: theme.colors.secondary,
-      shadowOpacity: 0.4,
-      shadowRadius: 12,
-      borderColor: theme.colors.secondary,
-      borderWidth: 2,
-    },
-    prefilledWord: {
-      opacity: 0.8,
-      borderWidth: 2,
-      borderColor: theme.colors.primary,
-      shadowColor: theme.colors.primary,
-      shadowOpacity: 0.3,
-    },
-    wordText: {
-      color: '#FFFFFF',
-      fontSize: 15,
-      textAlign: 'center',
-      fontWeight: '700',
-      textShadowColor: 'rgba(0,0,0,0.3)',
-      textShadowOffset: { width: 0, height: 1 },
-      textShadowRadius: 2,
-    },
-    arrangedWordText: {
-      color: theme.colors.text.primary,
-      textShadowColor: 'transparent',
-    },
     emptyText: {
       color: theme.colors.text.secondary,
       flex: 1,
@@ -1762,20 +1424,6 @@ const createStyles = (theme: Theme) =>
     },
 
     // Pool
-    poolContainer: {
-      flex: 1,
-      backgroundColor: `${theme.colors.surface}60`,
-      borderRadius: theme.borderRadius.xl,
-      padding: theme.spacing.md,
-      shadowColor: '#000',
-      shadowOpacity: 0.05,
-      shadowRadius: 8,
-      shadowOffset: { width: 0, height: 2 },
-      elevation: 2,
-    },
-    poolContent: {
-      paddingVertical: theme.spacing.sm
-    },
     poolColumn: {
       justifyContent: 'center',
       marginVertical: theme.spacing.xs,
@@ -1788,6 +1436,17 @@ const createStyles = (theme: Theme) =>
       alignItems: 'flex-start',
       paddingHorizontal: theme.spacing.md,
       rowGap: theme.spacing.xs,
+    },
+    poolListContent: {
+      paddingBottom: theme.spacing.sm,
+      alignItems: 'flex-start',
+    },
+    poolColumnWrapper: {
+      justifyContent: 'flex-start',
+      gap: theme.spacing.sm,
+    },
+    poolItem: {
+      margin: theme.spacing.xs,
     },
     // Show only ~2 rows by default to keep cradle visible
     poolCollapsed: {
@@ -1805,20 +1464,6 @@ const createStyles = (theme: Theme) =>
       justifyContent: 'center',
       alignItems: 'center',
       backgroundColor: 'rgba(0,0,0,0.8)'
-    },
-    successContent: {
-      padding: theme.spacing.xl,
-      backgroundColor: `${theme.colors.surface}F5`,
-      borderRadius: theme.borderRadius.xl,
-      maxWidth: '90%',
-      alignItems: 'center',
-      borderWidth: 2,
-      borderColor: `${theme.colors.primary}40`,
-      shadowColor: theme.colors.primary,
-      shadowOpacity: 0.3,
-      shadowRadius: 20,
-      shadowOffset: { width: 0, height: 8 },
-      elevation: 10,
     },
     // Alias styles to match component usage
     successCard: {
@@ -1885,31 +1530,63 @@ const createStyles = (theme: Theme) =>
       paddingVertical: 6,
       paddingHorizontal: theme.spacing.md,
       borderRadius: theme.borderRadius.full,
-      backgroundColor: `${theme.colors.primary}20`,
+      backgroundColor: `${theme.colors.primary}18`,
       borderWidth: 1,
-      borderColor: `${theme.colors.primary}40`,
+      borderColor: `${theme.colors.primary}30`,
     },
     successStatText: {
       color: theme.colors.primary,
-      fontWeight: '700',
-      fontSize: 13,
+      fontWeight: '800',
+      fontSize: 12,
     },
-
-    // Floating Points Bubble
+    successButtonRow: {
+      flexDirection: 'row',
+      gap: theme.spacing.md,
+      marginTop: theme.spacing.md,
+      width: '100%',
+    },
+    successButton: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingVertical: 14,
+      borderRadius: theme.borderRadius.full,
+      backgroundColor: `${theme.colors.surface}F2`,
+      borderWidth: 1,
+      borderColor: `${theme.colors.text.secondary}26`,
+      shadowColor: '#000',
+      shadowOpacity: 0.12,
+      shadowRadius: 8,
+      shadowOffset: { width: 0, height: 3 },
+      elevation: 4,
+    },
+    successShareButton: {
+      backgroundColor: '#3b82f6',
+      borderColor: '#1d4ed8',
+    },
+    successNextButton: {
+      backgroundColor: theme.colors.primary,
+      borderColor: `${theme.colors.primary}80`,
+    },
+    successButtonText: {
+      color: '#FFF',
+      fontWeight: '800',
+      fontSize: 16,
+      letterSpacing: 0.3,
+    },
     pointsBubble: {
       position: 'absolute',
-      bottom: '35%',
-      alignSelf: 'center',
-      paddingVertical: 8,
-      paddingHorizontal: 16,
+      bottom: -20,
+      right: theme.spacing.lg,
+      backgroundColor: `${theme.colors.primary}D9`,
+      paddingVertical: 10,
+      paddingHorizontal: theme.spacing.lg,
       borderRadius: theme.borderRadius.full,
-      backgroundColor: `${theme.colors.secondary}30`,
-      borderWidth: 2,
-      borderColor: theme.colors.secondary,
-      shadowColor: theme.colors.secondary,
-      shadowOpacity: 0.4,
+      shadowColor: theme.colors.primary,
+      shadowOpacity: 0.3,
       shadowRadius: 8,
-      shadowOffset: { width: 0, height: 2 },
+      shadowOffset: { width: 0, height: 4 },
       elevation: 6,
     },
     pointsBubbleText: {
@@ -2205,74 +1882,6 @@ const createStyles = (theme: Theme) =>
       justifyContent: 'space-between',
       alignItems: 'center',
       marginBottom: theme.spacing.md
-    },
-    scoreContainer: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: theme.spacing.xs
-    },
-    scoreText: {
-      fontSize: 18,
-      color: theme.colors.primary,
-      fontWeight: 'bold'
-    },
-    calmControls: {
-      flexDirection: 'row',
-      justifyContent: 'center',
-      alignItems: 'center',
-      gap: theme.spacing.md,
-      marginBottom: theme.spacing.sm
-    },
-    calmToggle: {
-      paddingVertical: 6,
-      paddingHorizontal: theme.spacing.md,
-      borderRadius: theme.borderRadius.full,
-      backgroundColor: `${theme.colors.text.secondary}10`
-    },
-    calmToggleActive: {
-      backgroundColor: `${theme.colors.primary}20`,
-      borderWidth: 1,
-      borderColor: `${theme.colors.primary}40`
-    },
-    calmToggleText: {
-      color: theme.colors.text.secondary,
-      fontWeight: '600'
-    },
-    calmToggleTextActive: {
-      color: theme.colors.primary
-    },
-    pauseButton: {
-      paddingVertical: 6,
-      paddingHorizontal: theme.spacing.md,
-      borderRadius: theme.borderRadius.full,
-      backgroundColor: `${theme.colors.text.secondary}10`
-    },
-    pauseButtonText: {
-      color: theme.colors.text.secondary,
-      fontWeight: '600'
-    },
-    powerUps: {
-      flexDirection: 'row',
-      gap: theme.spacing.sm
-    },
-    powerUpText: {
-      fontSize: 16,
-      color: theme.colors.primary
-    },
-    streakContainer: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      alignSelf: 'center',
-      paddingVertical: theme.spacing.xs,
-      paddingHorizontal: theme.spacing.sm,
-      backgroundColor: `${theme.colors.secondary}20`,
-      borderRadius: theme.borderRadius.full,
-      marginBottom: theme.spacing.sm
-    },
-    streakText: {
-      color: theme.colors.secondary,
-      marginLeft: theme.spacing.xs,
-      fontWeight: '500'
     },
   });
 

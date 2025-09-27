@@ -2,6 +2,7 @@ import axios, { AxiosError, AxiosRequestConfig, AxiosResponse } from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { toast } from 'sonner-native';
 import { appState } from '@/utils/appInitialization';
+import { pointsTracker } from '@/utils/pointsTracker';
 
 export interface APIResponse<T> {
   success: boolean;
@@ -139,7 +140,23 @@ api.interceptors.request.use(
 
 api.interceptors.response.use(
   (response) => {
-    return transformResponse(response);
+    // Normalize response first
+    const transformed = transformResponse(response);
+    try {
+      // Attempt to read points from multiple potential locations
+      const headerPoints = Number(response.headers?.['x-points-earned'] || response.headers?.['X-Points-Earned']);
+      // Our API normalizes body into APIResponse<T>
+      const body: any = transformed.data;
+      const directPoints = Number((body?.data as any)?.points_earned ?? body?.points_earned);
+      const metaPoints = Number((body?.data as any)?.meta?.points_earned);
+      const points = [headerPoints, directPoints, metaPoints].find(v => typeof v === 'number' && !isNaN(v) && v > 0);
+      if (typeof points === 'number' && points > 0) {
+        // Optional title/context if backend includes it
+        const title = (body?.data as any)?.challenge?.title || (body?.data as any)?.title;
+        pointsTracker.emit(points, title);
+      }
+    } catch {}
+    return transformed;
   },
   async (error: unknown) => {
     if (axios.isCancel(error)) {

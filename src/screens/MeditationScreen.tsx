@@ -7,12 +7,12 @@ import {
   ScrollView,
   Platform,
   BackHandler,
+  Modal,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { LinearGradient } from 'expo-linear-gradient';
 import { observer } from 'mobx-react-lite';
-import { BlurView } from 'expo-blur';
 import * as Speech from 'expo-speech';
 import { useTheme } from '@/contexts/ThemeContext';
 import { MeditationSession, RootStackParamList, Virtue, FoundationalVirtue, THEMES } from '@/types';
@@ -36,6 +36,7 @@ import { playMusic, stopMusic, playCue } from '@/services/audio';
 import { DailyChallenge, Challenge } from '@/types';
 import AnimatedCircularProgress from '@/components/AnimatedCircularProgress';
 import AnimatedParticles from '@/components/AnimatedParticles';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -92,6 +93,8 @@ const MeditationScreen = () => {
   const [showPrompt, setShowPrompt] = useState(false);
   const [breathePhase, setBreathePhase] = useState<'in' | 'hold' | 'out'>('in');
   const [challengeExpanded, setChallengeExpanded] = useState(false);
+  const [showFirstTipModal, setShowFirstTipModal] = useState(false);
+  const pendingStartRef = useRef(false);
 
   // Animation values
   const fadeAnim = useSharedValue(1);
@@ -426,12 +429,21 @@ const MeditationScreen = () => {
     }, 500);
   };
 
-  const startMeditation = () => {
+  const startMeditation = async () => {
     if (!selectedVirtue || !selectedTime) {
       fadeAnim.value = withSequence(withTiming(0.3, { duration: 200 }), withTiming(1, { duration: 200 }));
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       return;
     }
+    try {
+      const seen = await AsyncStorage.getItem('med_first_tip_shown');
+      if (!seen) {
+        // show tips modal before starting
+        pendingStartRef.current = true;
+        setShowFirstTipModal(true);
+        return;
+      }
+    } catch {}
     progressAnim.value = 0;
     startMeditationStore();
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -455,17 +467,19 @@ const MeditationScreen = () => {
 
   const createChallenge = async () => {
     if (!selectedChallenge) return;
-    const pointsEarned = selectedTime === 7 ? 15 : selectedTime === 15 ? 25 : 50;
     const endTime = new Date();
+    // Keep server as source of truth for points; only compute local end_time for UI
     endTime.setHours(endTime.getHours() + (selectedTime === 40 ? 24 : selectedTime === 15 ? 6 : 3));
     const challenge = { ...selectedChallenge, end_time: endTime.toISOString() };
-  
+
     if (user) {
-      await auth.updateUserPoints((user.points || 0) + pointsEarned);
+      // Do not calculate or set points on the client. Let the backend handle it.
       await meditationStore.joinChallenge(selectedChallenge.id);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      // Optionally, refresh user data here if auth store exposes a fetch method
+      // await auth.refreshUser();
     }
-    navigation.navigate('Home', { meditationComplete: true, challenge, pointsEarned });
+    navigation.navigate('Home', { meditationComplete: true, challenge });
   };
 
   // Animated styles
@@ -840,6 +854,43 @@ const MeditationScreen = () => {
 
   return (
     <View style={styles.container}>
+      {/* First-time meditation tips modal */}
+      <Modal visible={showFirstTipModal} animationType="fade" transparent onRequestClose={() => setShowFirstTipModal(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Quick Tips</Text>
+            <Text style={styles.modalText}>• Switch on Do Not Disturb to avoid distractions
+            {'\n'}• If it’s safe, gently close your eyes
+            {'\n'}• Listen to the voice guide and breathe calmly</Text>
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={[styles.modalBtn, { backgroundColor: theme.colors.surface, borderWidth: 1, borderColor: theme.colors.border }]}
+                onPress={() => {
+                  setShowFirstTipModal(false);
+                  pendingStartRef.current = false;
+                }}
+              >
+                <Text style={[styles.modalBtnText, { color: theme.colors.text.primary }]}>Maybe Later</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalBtn, { backgroundColor: theme.colors.primary }]}
+                onPress={async () => {
+                  try { await AsyncStorage.setItem('med_first_tip_shown', '1'); } catch {}
+                  setShowFirstTipModal(false);
+                  if (pendingStartRef.current) {
+                    pendingStartRef.current = false;
+                    progressAnim.value = 0;
+                    startMeditationStore();
+                    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                  }
+                }}
+              >
+                <Text style={[styles.modalBtnText, { color: '#FFF' }]}>Got it, Begin</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
       {meditationState === MeditationState.SETUP && (
         <View style={styles.header}>
           <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
@@ -1238,6 +1289,60 @@ const createStyles = (theme: Theme, currentVirtue: Virtue | undefined) =>
       ...theme.typography.caption.secondary,
       fontWeight: '600',
       marginLeft: 4,
+    },
+    retryButton: {
+      backgroundColor: theme.colors.primary,
+      paddingVertical: theme.spacing.md,
+      paddingHorizontal: theme.spacing.lg,
+      borderRadius: theme.borderRadius.full,
+      marginTop: theme.spacing.md,
+    },
+    retryButtonText: {
+      color: '#FFF',
+    },
+    modalOverlay: {
+      flex: 1,
+      backgroundColor: 'rgba(0,0,0,0.45)',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: theme.spacing.lg,
+    },
+    modalCard: {
+      width: '100%',
+      backgroundColor: theme.colors.surface,
+      borderRadius: theme.borderRadius.xl,
+      padding: theme.spacing.lg,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      ...Platform.select({ ios: { shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 16, shadowOffset: { width: 0, height: 8 } }, android: { elevation: 8 } }),
+    },
+    modalTitle: {
+      ...theme.typography.heading.medium,
+      color: theme.colors.text.primary,
+      textAlign: 'center',
+      marginBottom: theme.spacing.sm,
+    },
+    modalText: {
+      ...theme.typography.body.sans,
+      color: theme.colors.text.secondary,
+      textAlign: 'center',
+      lineHeight: 22,
+      marginBottom: theme.spacing.md,
+    },
+    modalActions: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      gap: theme.spacing.sm,
+    },
+    modalBtn: {
+      flex: 1,
+      paddingVertical: theme.spacing.md,
+      borderRadius: theme.borderRadius.full,
+      alignItems: 'center',
+    },
+    modalBtnText: {
+      ...theme.typography.body.sans,
+      fontWeight: '700',
     },
     selectedChallengeCollapsed: {
       flexDirection: 'row',

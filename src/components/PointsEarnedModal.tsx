@@ -32,6 +32,8 @@ interface PointsEarnedModalProps {
   onClose: () => void;
   pointsEarned: number;
   challengeTitle?: string;
+  title?: string;
+  autoCloseMs?: number;
 }
 
 const { height } = Dimensions.get('window');
@@ -41,6 +43,8 @@ const PointsEarnedModal: React.FC<PointsEarnedModalProps> = ({
   onClose,
   pointsEarned,
   challengeTitle,
+  title,
+  autoCloseMs = 2500,
 }) => {
   const theme = useTheme();
   const confettiRef = useRef<any>(null);
@@ -88,6 +92,12 @@ const PointsEarnedModal: React.FC<PointsEarnedModalProps> = ({
         // Show challenge
         challengeOpacity.value = withDelay(800, withTiming(1, { duration: 400 }));
       }, 300);
+
+      // Auto close after a brief display, to allow queued awards to show
+      const t = setTimeout(() => {
+        onClose();
+      }, autoCloseMs);
+      return () => clearTimeout(t);
     }
   }, [visible, pointsScale, pulseValue, raysOpacity, challengeOpacity]);
 
@@ -146,7 +156,7 @@ const PointsEarnedModal: React.FC<PointsEarnedModalProps> = ({
             entering={FadeIn.delay(300)}
             style={[styles.title, { color: theme?.colors.text.primary }]}
           >
-            Meditation Complete!
+            {title || 'Points Earned!'}
           </Animated.Text>
           
           {/* Points container with animated background rays */}
@@ -234,12 +244,17 @@ const styles = StyleSheet.create({
   },
   modalContent: {
     width: '90%',
-    maxWidth: 340,
-    borderRadius: 20,
+    maxWidth: 360,
+    borderRadius: 24,
     overflow: 'hidden',
-    paddingVertical: 30,
-    paddingHorizontal: 20,
+    paddingVertical: 28,
+    paddingHorizontal: 22,
     alignItems: 'center',
+    ...Platform.select({
+      ios: { shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 18, shadowOffset: { width: 0, height: 10 } },
+      android: { elevation: 10 }
+    }),
+    backgroundColor: 'rgba(255,255,255,0.7)'
   },
   confetti: {
     position: 'absolute',
@@ -248,27 +263,27 @@ const styles = StyleSheet.create({
     top: -height * 0.3,
   },
   title: {
-    fontSize: 22,
+    fontSize: 24,
     fontWeight: '700',
-    marginBottom: 30,
+    marginBottom: 24,
     textAlign: 'center',
   },
   pointsOuterContainer: {
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 30,
+    marginBottom: 26,
   },
   rays: {
     position: 'absolute',
-    width: 160,
-    height: 160,
+    width: 176,
+    height: 176,
     alignItems: 'center',
     justifyContent: 'center',
   },
   ray: {
     position: 'absolute',
     width: 3,
-    height: 80,
+    height: 86,
     borderRadius: 3,
     top: 0,
     left: '50%',
@@ -277,9 +292,9 @@ const styles = StyleSheet.create({
     transform: [{ translateY: -40 }],
   },
   pointsContainer: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
+    width: 128,
+    height: 128,
+    borderRadius: 64,
     alignItems: 'center',
     justifyContent: 'center',
     ...Platform.select({
@@ -298,7 +313,7 @@ const styles = StyleSheet.create({
   },
   pointsText: {
     color: 'white',
-    fontSize: 32,
+    fontSize: 34,
     fontWeight: '800',
     marginVertical: 2,
   },
@@ -311,7 +326,7 @@ const styles = StyleSheet.create({
   },
   challengeContainer: {
     width: '100%',
-    marginBottom: 30,
+    marginBottom: 24,
   },
   challengeLabel: {
     fontSize: 12,
@@ -324,8 +339,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    padding: 15,
-    borderRadius: 12,
+    padding: 16,
+    borderRadius: 14,
     borderWidth: 1,
   },
   challengeContent: {
@@ -334,7 +349,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   challengeIcon: {
-    marginRight: 10,
+    marginRight: 12,
   },
   challengeTitle: {
     fontSize: 14,
@@ -355,18 +370,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 14,
-    paddingHorizontal: 24,
-    borderRadius: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 22,
+    borderRadius: 14,
     width: '100%',
   },
   buttonIcon: {
     marginRight: 8,
   },
   buttonText: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '600',
   },
 });
 
-export default PointsEarnedModal; 
+export default PointsEarnedModal;

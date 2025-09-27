@@ -58,7 +58,7 @@ import { useGameBadgeStore } from '@/stores/GameBadgeStore';
 import AuthModal from '@/components/AuthModal';
 
 import { AppState, AppStateStatus } from 'react-native';
-import PointsEarnedModal from '@/components/PointsEarnedModal';
+// Removed local PointsEarnedModal usage; global modal in App.tsx handles display via interceptor
 import { useNavigation } from '@react-navigation/native';
 import { useWebSocket } from '@/services/websocket';
 import * as Haptics from 'expo-haptics';
@@ -154,12 +154,11 @@ const HomeScreen = ({ navigation, route }: HomeProps) => {
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [isFirstVisitToday, setIsFirstVisitToday] = useState(false);
   const [showGamesModal, setShowGamesModal] = useState(false);
-  const [showPointsModal, setShowPointsModal] = useState(false);
+  // Removed: local points modal state; rely on global interceptor-driven modal
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   const meditationComplete = route.params?.meditationComplete || false;
   const challenge = route.params?.challenge;
-  const pointsEarned = route.params?.pointsEarned || 0;
 
   const theme = useTheme()
   const styles = React.useMemo(() => createStyles(theme), [theme]);
@@ -167,7 +166,7 @@ const HomeScreen = ({ navigation, route }: HomeProps) => {
   const themeText = { color: theme?.colors.primary };
 
   const [appState, setAppState] = useState(AppState.currentState);
-  const { user, updateUserTime, updateUserPoints, authRequired, logout } = useAuthStore();
+  const { user, updateUserTime, authRequired, logout } = useAuthStore();
   const { completeChallenge } = useMeditationStore();
   const { isConnected } = useWebSocket();
   const { unreadCount, computeUnreadFromReflections } = useCommunityStore();
@@ -675,10 +674,7 @@ const HomeScreen = ({ navigation, route }: HomeProps) => {
   const handleCompleteChallenge = async (challengeId: string) => {
     try {
       await completeChallenge(challengeId);
-      // Update user points after completion
-      if (user) {
-        await updateUserPoints(25); // Award points delta for completion
-      }
+      // Points are awarded by backend and surfaced via global PointsEarnedModal; no local updates
     } catch (error) {
       console.error('Failed to complete challenge:', error);
     }
@@ -1029,28 +1025,7 @@ const HomeScreen = ({ navigation, route }: HomeProps) => {
     </Modal>
   );
 
-  // Check if we need to show the points modal when navigation params change
-  useEffect(() => {
-    if (meditationComplete && pointsEarned > 0) {
-      // Small delay for better UX
-      setTimeout(() => {
-        setShowPointsModal(true);
-      }, 500);
-    }
-  }, [meditationComplete, pointsEarned]);
-  
-  // Handle points modal close
-  const handlePointsModalClose = () => {
-    setShowPointsModal(false);
-    
-    // Reset the navigation params to prevent showing the modal again
-    // on subsequent renders
-    navigation.setParams({
-      meditationComplete: undefined,
-      challenge: undefined,
-      pointsEarned: undefined
-    });
-  };
+  // Removed local points modal logic; global modal listens to API interceptor.
 
 
 
@@ -1079,12 +1054,7 @@ const HomeScreen = ({ navigation, route }: HomeProps) => {
       {renderGamesModal()}
       
       {/* Points Earned Modal */}
-      <PointsEarnedModal
-        visible={showPointsModal}
-        onClose={handlePointsModalClose}
-        pointsEarned={pointsEarned}
-        challengeTitle={challenge?.title}
-      />
+      {/* PointsEarnedModal is now shown globally in App.tsx via pointsTracker */}
 
       <AuthModal
         visible={showAuthModal}

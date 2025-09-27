@@ -4,6 +4,8 @@ import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withTiming,
+  withSequence,
+  withSpring,
   interpolate,
   Extrapolation,
 } from 'react-native-reanimated';
@@ -25,6 +27,7 @@ import VirtueTriviaComplete from '@/components/VirtueTriviaComplete';
 import BibleDBService, { parseVPLId } from '@/utils/database';
 import { bibleBooks } from '@/constants/bibleBooks';
 import { ScrollView } from 'react-native-gesture-handler';
+import { LinearGradient } from 'expo-linear-gradient';
 // game store now comes from StoreProvider
 
 // Constants
@@ -90,7 +93,6 @@ const VirtueTriviaScreen = () => {
   const [selectedVirtue, setSelectedVirtue] = useState<string>('');
   const [showVirtueSelector, setShowVirtueSelector] = useState(true);
   const [timeLeft, setTimeLeft] = useState(15);
-  const [highScore, setHighScore] = useState(0);
   const [userLevel, setUserLevel] = useState<UserLevel>('novice');
   const [showSuccess, setShowSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -100,9 +102,24 @@ const VirtueTriviaScreen = () => {
   const timerColorAnim = useSharedValue(0);
   const successOpacity = useSharedValue(0);
   const optionPressScale = useSharedValue(1);
+  const scorePulse = useSharedValue(1);
+  const bestPulse = useSharedValue(1);
+  const streakPulse = useSharedValue(1);
 
   const optionPressStyle = useAnimatedStyle(() => ({
     transform: [{ scale: optionPressScale.value }],
+  }));
+
+  const scoreCardStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scorePulse.value }],
+  }));
+
+  const bestCardStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: bestPulse.value }],
+  }));
+
+  const streakCardStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: streakPulse.value }],
   }));
 
   // Refs
@@ -112,10 +129,20 @@ const VirtueTriviaScreen = () => {
   const autoAdvanceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const minimumQuestionsToPass = 7; // 70% correct answers to complete a virtue
 
+  const personalBest = gameStore.getPersonalBest('virtue_trivia');
+  const displayedHighScore = Math.max(personalBest, gameState.score);
+  const isNewHighScore = gameState.score > personalBest;
+
   // Update timeLeftRef when timeLeft changes
   useEffect(() => {
     timeLeftRef.current = timeLeft;
   }, [timeLeft]);
+
+  useEffect(() => {
+    if (!gameStore.state.lastSynced && !gameStore.state.isLoading) {
+      void gameStore.initialize();
+    }
+  }, [gameStore.state.lastSynced, gameStore.state.isLoading]);
 
   // Fetch virtues on mount
   useEffect(() => {
@@ -314,6 +341,34 @@ const VirtueTriviaScreen = () => {
     await playCue(name);
   };
 
+  useEffect(() => {
+    scorePulse.value = withSequence(
+      withTiming(1.06, { duration: 140 }),
+      withSpring(1, { damping: 6, stiffness: 220 })
+    );
+  }, [gameState.score, scorePulse]);
+
+  useEffect(() => {
+    if (isNewHighScore) {
+      bestPulse.value = withSequence(
+        withTiming(1.1, { duration: 160 }),
+        withSpring(1, { damping: 5, stiffness: 240 })
+      );
+    }
+  }, [isNewHighScore, bestPulse]);
+
+  useEffect(() => {
+    if (gameState.streak > 1) {
+      streakPulse.value = withSequence(
+        withTiming(1.08, { duration: 150 }),
+        withTiming(1.02, { duration: 120 }),
+        withSpring(1, { damping: 6, stiffness: 220 })
+      );
+    } else {
+      streakPulse.value = withTiming(1, { duration: 180 });
+    }
+  }, [gameState.streak, streakPulse]);
+
   // Handle answer selection
   const handleAnswerSelect = useCallback(async (answer: string) => {
     if (gameState.answered) return;
@@ -354,11 +409,6 @@ const VirtueTriviaScreen = () => {
     const newScore = gameState.score + questionScore;
     
     // Update high score if needed
-    if (newScore > highScore) {
-      setHighScore(newScore);
-      // AsyncStorage.setItem('VirtueTriviaScreenHighScore', newScore.toString()); // Removed
-    }
-    
     // Update correctAnswersCount if answer is correct
     const newCorrectAnswersCount = isCorrect ? 
       gameState.correctAnswersCount + 1 : 
@@ -407,7 +457,7 @@ const VirtueTriviaScreen = () => {
           play('gameOver');
         }
 
-        gameStore.submitScore('virtue_trivia', newScore);
+        void gameStore.submitScore('virtue_trivia', newScore);
         
         // Update virtues progress
         // This logic needs to be adapted to use userProgress from the store
@@ -477,7 +527,7 @@ const VirtueTriviaScreen = () => {
         timerColorAnim.value = 0;
       }
     }, 1500);
-  }, [gameState, timeLeft, highScore, userLevel, successOpacity, selectedVirtue, minimumQuestionsToPass]);
+  }, [gameState, timeLeft, userLevel, successOpacity, selectedVirtue, minimumQuestionsToPass, gameStore]);
 
   const goToNext = useCallback(() => {
     if (autoAdvanceRef.current) {
@@ -496,7 +546,7 @@ const VirtueTriviaScreen = () => {
       } else {
         play('gameOver');
       }
-      gameStore.submitScore('virtue_trivia', newScore);
+      void gameStore.submitScore('virtue_trivia', newScore);
       setGameState(prev => ({ ...prev, gameOver: true, correctAnswersCount: correctAnswers }));
     } else {
       setGameState(prev => ({
@@ -510,7 +560,7 @@ const VirtueTriviaScreen = () => {
       progressWidth.value = 100;
       timerColorAnim.value = 0;
     }
-  }, [gameState, userLevel]);
+  }, [gameState, userLevel, gameStore]);
 
   // Timer logic
   useEffect(() => {
@@ -733,18 +783,7 @@ const VirtueTriviaScreen = () => {
   const renderGameOver = useCallback(() => {
     const correctAnswers = gameState.correctAnswersCount;
     const totalAnswered = gameState.questions.length;
-    const percentCorrect = Math.round((correctAnswers / totalAnswered) * 100) || 0;
-    const virtuePassed = correctAnswers >= minimumQuestionsToPass;
-    const virtueStatus = userProgress[selectedVirtue];
-    
-    const isPerfectScore = correctAnswers === totalAnswered;
-    const isHighScore = gameState.score > highScore;
-    
-    // Update high score if needed
-    if (isHighScore) {
-      setHighScore(gameState.score);
-      // AsyncStorage.setItem('VirtueTriviaScreenHighScore', gameState.score.toString()); // Removed
-    }
+    const bestScore = Math.max(personalBest, gameState.score);
 
     const { remainingCount } = calculateLevelProgress();
 
@@ -752,7 +791,7 @@ const VirtueTriviaScreen = () => {
       <VirtueTriviaComplete
         virtueName={selectedVirtue.charAt(0).toUpperCase() + selectedVirtue.slice(1)}
         score={gameState.score}
-        highScore={highScore}
+        highScore={bestScore}
         correctAnswers={correctAnswers}
         totalQuestions={totalAnswered}
         userLevelLabel={userLevel.charAt(0).toUpperCase() + userLevel.slice(1)}
@@ -760,11 +799,18 @@ const VirtueTriviaScreen = () => {
         onPlayAgain={startNewGame}
       />
     );
-  }, [gameState, highScore, startNewGame, styles, selectedVirtue, userProgress, minimumQuestionsToPass, userLevel, calculateLevelProgress]);
+  }, [gameState, personalBest, startNewGame, selectedVirtue, userProgress, userLevel, calculateLevelProgress]);
 
   // Main Render
   return (
     <View style={styles.container}>
+      <LinearGradient
+        colors={[`${theme.colors.primary}26`, `${theme.colors.background}`, `${theme.colors.secondary}18`]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.gradientBg}
+        pointerEvents="none"
+      />
       {isLoading && (
         <View style={styles.loadingOverlay}>
           <ActivityIndicator size="large" color={theme.colors.primary} />
@@ -786,21 +832,52 @@ const VirtueTriviaScreen = () => {
       {!error && !showVirtueSelector && !gameState.gameOver && !isLoading && (
         <>
           <View style={styles.header}>
-            <View style={styles.scoreContainer}>
-              <Trophy color={theme.colors.primary} size={24} />
-              <Text style={styles.currentScoreText}>{gameState.score}</Text>
-              <Text style={styles.highScoreText}>High: {highScore}</Text>
+            <View style={styles.headerTopRow}>
+              <Text style={styles.headerTitle}>Virtue Trivia</Text>
+              <TouchableOpacity style={styles.soundButton} onPress={() => setShowSoundSettings(true)}>
+                <Text style={styles.soundButtonText}>Sound</Text>
+              </TouchableOpacity>
             </View>
-            <TouchableOpacity onPress={() => setShowSoundSettings(true)}>
-              <Text style={{ color: theme.colors.primary }}>Sound</Text>
-            </TouchableOpacity>
-            
-            {gameState.streak > 1 && (
-              <View style={styles.streakContainer}>
-                <Sparkle color={theme.colors.secondary} size={16} />
-                <Text style={styles.streakText}>Streak: {gameState.streak}x</Text>
-              </View>
-            )}
+            <View style={styles.metricRow}>
+              <Animated.View style={[styles.metricCard, scoreCardStyle]}> 
+                <LinearGradient
+                  colors={[`${theme.colors.primary}55`, `${theme.colors.primary}10`]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.metricGradient}
+                />
+                <Trophy color={'#FFF'} size={18} />
+                <Text style={styles.metricLabel}>Score</Text>
+                <Text style={styles.metricValue}>{gameState.score}</Text>
+              </Animated.View>
+              <Animated.View style={[styles.metricCard, bestCardStyle]}>
+                <LinearGradient
+                  colors={[`${theme.colors.secondary}55`, `${theme.colors.secondary}10`]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.metricGradient}
+                />
+                <Star color={'#FFF'} size={18} />
+                <Text style={styles.metricLabel}>Best</Text>
+                <Text style={styles.metricValue}>{displayedHighScore}</Text>
+                {isNewHighScore && (
+                  <View style={styles.newBadge}>
+                    <Text style={styles.newBadgeText}>NEW</Text>
+                  </View>
+                )}
+              </Animated.View>
+              <Animated.View style={[styles.metricCard, streakCardStyle]}>
+                <LinearGradient
+                  colors={['rgba(255,190,92,0.6)', 'rgba(255,140,0,0.12)']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.metricGradient}
+                />
+                <Sparkle color={'#FFF'} size={18} />
+                <Text style={styles.metricLabel}>Streak</Text>
+                <Text style={styles.metricValue}>{gameState.streak > 1 ? `${gameState.streak}x` : '—'}</Text>
+              </Animated.View>
+            </View>
           </View>
           
           <View style={styles.timerContainer}>
@@ -838,6 +915,9 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     flex: 1,
     backgroundColor: theme.colors.background,
     padding: theme.spacing.md,
+  },
+  gradientBg: {
+    ...StyleSheet.absoluteFillObject,
   },
   
   // Loading and Error
@@ -970,38 +1050,75 @@ const createStyles = (theme: Theme) => StyleSheet.create({
   
   // Header
   header: {
+    marginBottom: theme.spacing.lg,
+  },
+  headerTopRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: theme.spacing.md,
+    marginBottom: theme.spacing.sm,
   },
-  scoreContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: theme.spacing.xs,
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: theme.colors.text.primary,
   },
-  currentScoreText: {
-    fontSize: 18,
-    color: theme.colors.primary,
-    fontWeight: 'bold',
-  },
-  highScoreText: {
-    fontSize: 14,
-    color: theme.colors.text.secondary,
-    marginLeft: theme.spacing.sm,
-  },
-  streakContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: theme.spacing.xs,
+  soundButton: {
+    paddingVertical: 6,
     paddingHorizontal: theme.spacing.sm,
-    backgroundColor: `${theme.colors.secondary}20`,
     borderRadius: theme.borderRadius.full,
+    backgroundColor: `${theme.colors.primary}20`,
   },
-  streakText: {
-    color: theme.colors.secondary,
-    marginLeft: theme.spacing.xs,
-    fontWeight: '500',
+  soundButtonText: {
+    color: theme.colors.primary,
+    fontWeight: '600',
+  },
+  metricRow: {
+    flexDirection: 'row',
+    gap: theme.spacing.sm,
+  },
+  metricCard: {
+    flex: 1,
+    backgroundColor: `${theme.colors.surface}D0`,
+    borderRadius: theme.borderRadius.lg,
+    paddingVertical: theme.spacing.md,
+    paddingHorizontal: theme.spacing.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: `${theme.colors.primary}20`,
+  },
+  metricGradient: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  metricLabel: {
+    fontSize: 12,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    marginTop: theme.spacing.xs,
+    color: 'rgba(255,255,255,0.9)',
+  },
+  metricValue: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#FFF',
+    marginTop: 4,
+  },
+  newBadge: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    borderRadius: theme.borderRadius.full,
+    paddingVertical: 2,
+    paddingHorizontal: 8,
+  },
+  newBadgeText: {
+    fontSize: 10,
+    letterSpacing: 0.8,
+    color: '#FFF',
+    fontWeight: '700',
   },
   
   // Timer

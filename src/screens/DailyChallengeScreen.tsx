@@ -31,15 +31,18 @@ import Animated, {
   Extrapolation
 } from 'react-native-reanimated';
 import { format, isToday, parseISO, differenceInHours, addDays } from 'date-fns';
-import { AvatarStack } from '@/components/AvatarStack';
+import AvatarStack from '@/components/AvatarStack';
 import { useTheme } from '@/contexts/ThemeContext';
-import { useVirtueStore } from '@/stores/StoreProvider';
-import { useAuthStore } from '@/stores/StoreProvider';
-import { useChallengeStore } from '@/stores/ChallengeStore';
+import {
+  useAuthStore,
+  useChallengeStore,
+  useVirtueStore,
+} from '@/stores/StoreProvider';
 import { Theme } from '@/theme';
 import { Challenge, ChallengeType } from '@/types/challenges';
 import * as Haptics from 'expo-haptics';
 import EmptyState from '@/components/EmptyState';
+import { observer } from 'mobx-react-lite';
 
 type DailyChallengesProps = {
   navigation: any;
@@ -56,7 +59,7 @@ const CHALLENGE_TYPES = [
   { id: 'vice', label: 'Reduce Vice', icon: X, color: '#F44336' },
 ];
 
-const DailyChallengesScreen = ({ navigation }: DailyChallengesProps) => {
+const DailyChallengesScreen = observer(({ navigation }: DailyChallengesProps) => {
   const insets = useSafeAreaInsets();
   const theme = useTheme();
   const styles = React.useMemo(() => createStyles(theme), [theme]);
@@ -115,6 +118,7 @@ const DailyChallengesScreen = ({ navigation }: DailyChallengesProps) => {
     endTime: '21:00',
     description: '',
   });
+
   const [showSuggestModal, setShowSuggestModal] = useState(false);
   const [showVoteModal, setShowVoteModal] = useState(false);
   const [voteTargetId, setVoteTargetId] = useState<string | null>(null);
@@ -737,7 +741,7 @@ const DailyChallengesScreen = ({ navigation }: DailyChallengesProps) => {
       </Modal>
     </View>
   );
-};
+});
 
 const createStyles = (theme: Theme) => StyleSheet.create({
   container: {

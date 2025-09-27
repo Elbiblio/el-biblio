@@ -269,16 +269,27 @@ export class VirtueStore {
         this.state.progressError = null;
       });
 
-      const response = await apiClient.get<VirtueProgress[]>(
+      const response = await apiClient.get<VirtueProgress[] | { data?: VirtueProgress[] }>(
         endpoints.themes.byUser('me'),
         { include: ['userProgress'] }
       );
 
       if (!response.success) throw new Error(response.message || 'Failed to fetch user progress');
 
+      const raw = response.data as VirtueProgress[] | { data?: VirtueProgress[] } | undefined;
+      const progressList = Array.isArray(raw)
+        ? raw
+        : Array.isArray(raw?.data)
+        ? raw.data ?? []
+        : [];
+
+      if (!Array.isArray(progressList)) {
+        throw new Error('Invalid user progress payload');
+      }
+
       // Convert array to record for easier access
       const progressRecord: Record<string, VirtueProgress> = {};
-      response.data.forEach(progress => {
+      progressList.forEach(progress => {
         progressRecord[progress.virtue] = progress;
       });
 
