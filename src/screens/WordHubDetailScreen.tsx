@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 
 import {
   View,
@@ -8,11 +8,13 @@ import {
   StyleSheet,
   ScrollView,
   ActivityIndicator,
+  FlatList,
 } from 'react-native';
 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
+import Feather from 'react-native-vector-icons/Feather';
 
 import {
   ArrowLeft,
@@ -22,15 +24,16 @@ import {
   Lock,
   Send,
 } from '../components/Icons';
+import AvatarStack from '@/components/AvatarStack';
 
 import { Theme } from '@/theme';
 import { useTheme } from '@/contexts/ThemeContext';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import type { RootStackParamList, WordHub, WordHubMessage } from '@/types';
+import type { RootStackParamList, WordHub, WordHubMessage, User } from '@/types';
 import { formatTimeLeft } from '@/utils/schedule';
-import AvatarStack from '@/components/AvatarStack';
 import { observer } from 'mobx-react-lite';
 import { useWordHubsStore } from '@/stores/StoreProvider';
+import { useLiveKitAudioRoom, AudioParticipant } from '@/hooks/useLiveKitAudioRoom';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'WordHubDetailScreen'>;
 
@@ -38,13 +41,22 @@ const WordHubDetailScreen = observer(({ navigation, route }: Props) => {
   const { hubId } = route.params;
   const theme = useTheme();
   const insets = useSafeAreaInsets();
-  const styles = React.useMemo(() => createStyles(theme), [theme]);
+  const styles = useMemo(() => createStyles(theme), [theme]);
 
   const wordHubsStore = useWordHubsStore();
   const hub = wordHubsStore.currentHub as WordHub | null;
   const messages = wordHubsStore.hubMessages as WordHubMessage[];
   const isLoading = wordHubsStore.isHubLoading;
+  const liveKitSession = wordHubsStore.activeLiveKitSession;
+  const activeLiveKitSession = useMemo(() => (
+    liveKitSession?.hubId === hubId ? liveKitSession : null
+  ), [liveKitSession, hubId]);
   const [message, setMessage] = useState('');
+  const hostUsers = useMemo(() => (
+    hub?.members
+      ?.map((member) => member.user)
+      .filter((user): user is User => Boolean(user)) ?? []
+  ), [hub?.members]);
 
   const fetchHubDetails = useCallback(async () => {
     await wordHubsStore.fetchHubById(hubId);
@@ -68,12 +80,101 @@ const WordHubDetailScreen = observer(({ navigation, route }: Props) => {
     }
   };
 
+  const handleAudioConnecting = useCallback((id: string) => {
+    if (id === hubId) {
+      wordHubsStore.markLiveKitConnecting(id);
+    }
+  }, [hubId, wordHubsStore]);
+
+  const handleAudioConnected = useCallback((id: string) => {
+    if (id === hubId) {
+      wordHubsStore.markLiveKitConnected(id);
+    }
+  }, [hubId, wordHubsStore]);
+
+  const handleAudioDisconnected = useCallback((id: string, reason?: string) => {
+    if (id === hubId) {
+      wordHubsStore.markLiveKitDisconnected(id, reason);
+    }
+  }, [hubId, wordHubsStore]);
+
+  const handleAudioError = useCallback((id: string, err: Error) => {
+    if (id === hubId) {
+      wordHubsStore.markLiveKitDisconnected(id, err.message);
+    }
+  }, [hubId, wordHubsStore]);
+
+  const {
+    participants,
+    isConnecting: audioConnecting,
+    isConnected: audioConnected,
+    isMuted: audioMuted,
+    error: audioError,
+    toggleMicrophone,
+    disconnect: disconnectAudio,
+  } = useLiveKitAudioRoom(activeLiveKitSession, {
+    onConnecting: handleAudioConnecting,
+    onConnected: handleAudioConnected,
+    onDisconnected: handleAudioDisconnected,
+    onError: handleAudioError,
+  });
+
   useEffect(() => {
     fetchHubDetails();
     return () => {
+      disconnectAudio('screen_unmount').catch(() => undefined);
+      wordHubsStore.clearLiveKitSession(hubId);
       wordHubsStore.clearCurrentHub();
     };
-  }, [fetchHubDetails, wordHubsStore]);
+  }, [fetchHubDetails, disconnectAudio, wordHubsStore, hubId]);
+
+  const audioStatusLabel = useMemo(() => {
+    if (audioConnected) return 'Connected';
+    if (audioConnecting) return 'Connecting…';
+    return 'Not connected';
+  }, [audioConnected, audioConnecting]);
+
+  const audioStatusStyle = useMemo(() => {
+    if (audioConnected) return styles.statusConnected;
+    if (audioConnecting) return styles.statusConnecting;
+    return styles.statusDisconnected;
+  }, [audioConnected, audioConnecting, styles.statusConnected, styles.statusConnecting, styles.statusDisconnected]);
+
+  const handleJoinAudio = useCallback(async () => {
+    await wordHubsStore.refreshLiveKitSession(hubId);
+  }, [wordHubsStore, hubId]);
+
+  const handleLeaveAudio = useCallback(async () => {
+    await disconnectAudio('user_leave');
+    wordHubsStore.clearLiveKitSession(hubId);
+  }, [disconnectAudio, wordHubsStore, hubId]);
+
+  const renderParticipant = useCallback(({ item }: { item: AudioParticipant }) => (
+    <View style={styles.participantItem}>
+      <View style={styles.participantIcon}>
+        <Feather
+          name={item.isSpeaking ? 'volume-2' : 'user'}
+          size={18}
+          color={theme.colors.text.inverse}
+        />
+      </View>
+      <View style={styles.participantInfo}>
+        <Text style={styles.participantName} numberOfLines={1}>
+          {item.name || item.identity}
+        </Text>
+        <Text style={styles.participantMeta}>
+          {item.isLocal ? 'You' : 'Participant'} · {item.isMuted ? 'Muted' : 'Live'}
+        </Text>
+      </View>
+      {item.isLocal && (
+        <Feather
+          name={audioMuted ? 'mic-off' : 'mic'}
+          size={18}
+          color={audioMuted ? theme.colors.error : theme.colors.success}
+        />
+      )}
+    </View>
+  ), [audioMuted, styles, theme.colors.error, theme.colors.success, theme.colors.text.inverse]);
 
   if (isLoading) {
     return (
@@ -139,6 +240,92 @@ const WordHubDetailScreen = observer(({ navigation, route }: Props) => {
         </BlurView>
       </View>
 
+      {/* Audio Room */}
+      <View style={styles.audioCard}>
+        <View style={styles.audioHeader}>
+          <Text style={styles.audioTitle}>Live Audio Room</Text>
+          <View style={[styles.statusBadge, audioStatusStyle]}>
+            {audioConnecting && !audioConnected && (
+              <ActivityIndicator color={theme.colors.primary} size="small" />
+            )}
+            <Text style={styles.statusText}>{audioStatusLabel}</Text>
+          </View>
+        </View>
+        {hostUsers.length > 0 && (
+          <View style={styles.hostRow}>
+            <Text style={styles.hostLabel}>Hosts & Speakers</Text>
+            <AvatarStack
+              users={hostUsers}
+              maxAvatars={4}
+              size={30}
+              offset={18}
+            />
+          </View>
+        )}
+        {audioError && (
+          <Text style={styles.audioErrorText}>
+            {audioError.message}
+          </Text>
+        )}
+
+        <FlatList
+          data={participants}
+          keyExtractor={(item) => item.identity}
+          renderItem={renderParticipant}
+          ListEmptyComponent={(
+            <View style={styles.participantEmpty}>
+              <Text style={styles.participantEmptyText}>
+                {audioConnecting ? 'Connecting to room…' : 'No one is speaking yet.'}
+              </Text>
+            </View>
+          )}
+          style={styles.participantsList}
+          contentContainerStyle={participants.length === 0 ? styles.participantsEmptyContent : undefined}
+        />
+
+        <View style={styles.audioControls}>
+          {audioConnecting && !audioConnected && activeLiveKitSession?.isConnecting && (
+            <View style={styles.audioLoader}>
+              <ActivityIndicator color={theme.colors.primary} size="small" />
+              <Text style={styles.audioLoaderText}>Joining audio room…</Text>
+            </View>
+          )}
+          {audioConnected ? (
+            <>
+              <TouchableOpacity
+                style={[styles.controlButton, audioMuted ? styles.controlButtonMuted : styles.controlButtonActive]}
+                onPress={toggleMicrophone}
+              >
+                <Feather
+                  name={audioMuted ? 'mic-off' : 'mic'}
+                  size={20}
+                  color={theme.colors.text.inverse}
+                />
+                <Text style={styles.controlButtonText}>{audioMuted ? 'Unmute' : 'Mute'}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.controlButton, styles.controlButtonSecondary]}
+                onPress={handleLeaveAudio}
+              >
+                <Feather name="phone-off" size={20} color={theme.colors.error} />
+                <Text style={styles.controlButtonSecondaryText}>Leave Audio</Text>
+              </TouchableOpacity>
+            </>
+          ) : (
+            <TouchableOpacity
+              style={[styles.controlButton, styles.controlButtonPrimary]}
+              onPress={handleJoinAudio}
+              disabled={audioConnecting}
+            >
+              <Feather name="headphones" size={20} color={theme.colors.text.inverse} />
+              <Text style={styles.controlButtonText}>
+                {audioConnecting ? 'Joining…' : 'Join Audio'}
+              </Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
+
       {/* Messages */}
       <ScrollView
         style={styles.messagesContainer}
@@ -199,6 +386,156 @@ const createStyles = (theme: Theme) => StyleSheet.create({
   },
   hubInfo: {
     padding: theme.spacing.md,
+  },
+  audioCard: {
+    marginHorizontal: theme.spacing.md,
+    marginBottom: theme.spacing.md,
+    padding: theme.spacing.md,
+    borderRadius: theme.borderRadius.lg,
+    backgroundColor: theme.colors.surface,
+    shadowColor: theme.colors.shadow,
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 2,
+  },
+  audioHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: theme.spacing.xs,
+  },
+  audioTitle: {
+    ...theme.typography.heading.small,
+    color: theme.colors.text.primary,
+  },
+  audioSubtitle: {
+    ...theme.typography.caption.secondary,
+    color: theme.colors.text.secondary,
+    marginBottom: theme.spacing.sm,
+  },
+  audioErrorText: {
+    ...theme.typography.caption.primary,
+    color: theme.colors.error,
+    marginBottom: theme.spacing.sm,
+  },
+  hostRow: {
+    marginTop: theme.spacing.sm,
+    marginBottom: theme.spacing.sm,
+    gap: theme.spacing.xs,
+  },
+  hostLabel: {
+    ...theme.typography.caption.primary,
+    color: theme.colors.text.secondary,
+  },
+  statusBadge: {
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: 4,
+    borderRadius: theme.borderRadius.full,
+  },
+  statusText: {
+    ...theme.typography.caption.primary,
+    color: theme.colors.text.inverse,
+  },
+  statusConnected: {
+    backgroundColor: theme.colors.success,
+  },
+  statusConnecting: {
+    backgroundColor: theme.colors.warning,
+  },
+  statusDisconnected: {
+    backgroundColor: theme.colors.border,
+  },
+  participantsList: {
+    maxHeight: 180,
+  },
+  participantsEmptyContent: {
+    paddingVertical: theme.spacing.md,
+  },
+  participantItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: theme.spacing.sm,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: `${theme.colors.border}80`,
+  },
+  participantIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: theme.colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: theme.spacing.sm,
+  },
+  participantInfo: {
+    flex: 1,
+  },
+  participantName: {
+    ...theme.typography.body.sans,
+    color: theme.colors.text.primary,
+  },
+  participantMeta: {
+    ...theme.typography.caption.secondary,
+    color: theme.colors.text.secondary,
+  },
+  participantEmpty: {
+    alignItems: 'center',
+    paddingVertical: theme.spacing.sm,
+  },
+  participantEmptyText: {
+    ...theme.typography.caption.secondary,
+    color: theme.colors.text.secondary,
+  },
+  audioControls: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: theme.spacing.md,
+    gap: theme.spacing.sm,
+  },
+  audioLoader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.xs,
+    paddingVertical: theme.spacing.xs,
+  },
+  audioLoaderText: {
+    ...theme.typography.caption.secondary,
+    color: theme.colors.text.secondary,
+  },
+  controlButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: theme.spacing.xs,
+    paddingVertical: theme.spacing.sm,
+    borderRadius: theme.borderRadius.full,
+  },
+  controlButtonPrimary: {
+    backgroundColor: theme.colors.primary,
+  },
+  controlButtonActive: {
+    backgroundColor: theme.colors.success,
+  },
+  controlButtonMuted: {
+    backgroundColor: theme.colors.warning,
+  },
+  controlButtonSecondary: {
+    backgroundColor: `${theme.colors.surface}00`,
+    borderWidth: 1,
+    borderColor: theme.colors.error,
+  },
+  controlButtonText: {
+    ...theme.typography.caption.primary,
+    color: theme.colors.text.inverse,
+    fontWeight: '600',
+  },
+  controlButtonSecondaryText: {
+    ...theme.typography.caption.primary,
+    color: theme.colors.error,
+    fontWeight: '600',
   },
   hubInfoContent: {
     padding: theme.spacing.md,

@@ -55,6 +55,13 @@
       "WS_SECURE": false
     },
     "plugins": [
+      "@livekit/react-native-expo-plugin",
+      [
+        "@config-plugins/react-native-webrtc",
+        {
+          "version": "10.0.0"
+        }
+      ],
       "expo-font",
       [
         "expo-image-picker",

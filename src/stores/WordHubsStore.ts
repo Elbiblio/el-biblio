@@ -1,6 +1,6 @@
 import { runInAction, makeAutoObservable } from 'mobx';
 import { apiClient, endpoints } from '@/api/client';
-import { WordHub, WordHubMessage, PaginatedResponse } from '@/types';
+import { WordHub, WordHubMessage, PaginatedResponse, WordHubMember, LiveKitCredentials } from '@/types';
 import { toast } from 'sonner-native';
 import * as Haptics from 'expo-haptics';
 
@@ -18,6 +18,21 @@ interface FiltersState {
   hasMinPoints?: boolean;
   sortBy?: 'created_at' | 'updated_at' | 'title' | 'member_count' | 'message_count';
   sortOrder?: 'asc' | 'desc';
+}
+
+interface WordHubJoinResponse {
+  member: WordHubMember;
+  livekit?: LiveKitCredentials | null;
+}
+
+export interface LiveKitSessionState {
+  hubId: string;
+  member: WordHubMember | null;
+  credentials: LiveKitCredentials;
+  accessCode?: string;
+  isConnecting: boolean;
+  isConnected: boolean;
+  error: string | null;
 }
 
 interface WordHubsStoreState {
@@ -45,6 +60,9 @@ interface WordHubsStoreState {
   // Real-time updates
   isConnected: boolean;
   lastUpdate: Date | null;
+
+  // LiveKit audio session
+  activeLiveKitSession: LiveKitSessionState | null;
 }
 
 export class WordHubsStore {
@@ -80,9 +98,19 @@ export class WordHubsStore {
 
       isConnected: false,
       lastUpdate: null,
+
+      activeLiveKitSession: null,
     };
 
     makeAutoObservable(this, {}, { autoBind: true });
+  }
+
+  async refreshLiveKitSession(hubId: string) {
+    const accessCode = this.state.activeLiveKitSession?.hubId === hubId
+      ? this.state.activeLiveKitSession?.accessCode
+      : undefined;
+
+    return this.joinHub(hubId, accessCode, { silent: true });
   }
 
   private setError(message: string | null) {
@@ -132,6 +160,10 @@ export class WordHubsStore {
 
   get lastUpdate() {
     return this.state.lastUpdate;
+  }
+
+  get activeLiveKitSession() {
+    return this.state.activeLiveKitSession;
   }
 
   private computePagination(meta: any, fallbackPage: number, currentTotal: number): PaginationState {
@@ -319,24 +351,96 @@ export class WordHubsStore {
     }
   }
 
-  async joinHub(hubId: string, accessCode?: string) {
+  private setLiveKitSession(session: LiveKitSessionState | null) {
+    runInAction(() => {
+      this.state.activeLiveKitSession = session;
+    });
+  }
+
+  markLiveKitConnecting(hubId: string) {
+    runInAction(() => {
+      if (this.state.activeLiveKitSession?.hubId === hubId) {
+        this.state.activeLiveKitSession = {
+          ...this.state.activeLiveKitSession,
+          isConnecting: true,
+          error: null,
+        };
+      }
+    });
+  }
+
+  markLiveKitConnected(hubId: string) {
+    runInAction(() => {
+      if (this.state.activeLiveKitSession?.hubId === hubId) {
+        this.state.activeLiveKitSession = {
+          ...this.state.activeLiveKitSession,
+          isConnecting: false,
+          isConnected: true,
+          error: null,
+        };
+      }
+    });
+  }
+
+  markLiveKitDisconnected(hubId: string, error?: string) {
+    runInAction(() => {
+      if (this.state.activeLiveKitSession?.hubId === hubId) {
+        this.state.activeLiveKitSession = {
+          ...this.state.activeLiveKitSession,
+          isConnecting: false,
+          isConnected: false,
+          error: error ?? null,
+        };
+      }
+    });
+  }
+
+  clearLiveKitSession(hubId?: string) {
+    runInAction(() => {
+      if (!hubId || this.state.activeLiveKitSession?.hubId === hubId) {
+        this.state.activeLiveKitSession = null;
+      }
+    });
+  }
+
+  async joinHub(hubId: string, accessCode?: string, options: { silent?: boolean } = {}) {
     try {
-      const response = await apiClient.post(
+      const response = await apiClient.post<WordHubJoinResponse>(
         endpoints.wordHubs.join(hubId),
         accessCode ? { access_code: accessCode } : {}
       );
 
       if (!response.success) throw new Error(response.message || 'Failed to join word hub');
 
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      toast.success('Successfully joined word hub!');
+      const data = response.data;
 
-      return true;
+      if (data?.livekit) {
+        this.setLiveKitSession({
+          hubId,
+          member: data.member ?? null,
+          credentials: data.livekit,
+          accessCode,
+          isConnecting: true,
+          isConnected: false,
+          error: null,
+        });
+      } else {
+        this.clearLiveKitSession(hubId);
+      }
+
+      if (!options.silent) {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        toast.success('Successfully joined word hub!');
+      }
+
+      return data;
     } catch (error: any) {
       console.error('Error joining word hub:', error);
       const message = error instanceof Error ? error.message : 'Failed to join word hub';
-      toast.error(message);
-      return false;
+      if (!options?.silent) {
+        toast.error(message);
+      }
+      return null;
     }
   }
 
@@ -348,6 +452,8 @@ export class WordHubsStore {
 
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       toast.success('Successfully left word hub!');
+
+      this.clearLiveKitSession(hubId);
 
       return true;
     } catch (error: any) {

@@ -188,11 +188,31 @@ export interface WordHub {
   messageCount: number;
   lastMessageTime: string;
   topicCount: number;
+  creator?: User;
   authors: User[]; // Number of shared reflections/content
+  members?: WordHubMember[];
   isBookmarked: boolean;
   created_at: string;
   updated_at: string;
   deleted_at?: string;
+}
+
+export interface WordHubMember {
+  id: string;
+  word_hub_id: string;
+  user_id: string;
+  joined_at?: string;
+  last_read_at?: string;
+  is_active: boolean;
+  role?: 'host' | 'member' | string;
+  user?: User;
+}
+
+export interface LiveKitCredentials {
+  token: string;
+  url: string;
+  identity: string;
+  room: string;
 }
 
 export interface ThemeInfo {

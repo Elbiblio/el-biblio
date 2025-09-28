@@ -221,8 +221,8 @@ const WordHubsScreen = ({
 
   const performJoinHub = async (hubId: string, accessCode?: string) => {
     try {
-      const success = await joinHub(hubId, accessCode);
-      if (success) {
+      const joinResult = await joinHub(hubId, accessCode);
+      if (joinResult) {
         // Navigate to hub detail screen
         navigation.navigate('WordHubDetailScreen', { hubId });
       }

@@ -46,6 +46,9 @@ import { useWebSocketVerseSync } from './src/services/websocket';
 import { useAuthStore } from './src/stores/StoreProvider';
 import PointsEarnedModal from './src/components/PointsEarnedModal';
 import { pointsTracker } from './src/utils/pointsTracker';
+import { registerGlobals, AudioSession } from '@livekit/react-native';
+
+registerGlobals();
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 // Separate untyped stack for debug mode to avoid param list type errors
@@ -134,6 +137,22 @@ const AppContent = () => {
     };
 
     initialize();
+  }, []);
+
+  useEffect(() => {
+    const startAudioSession = async () => {
+      try {
+        await AudioSession.startAudioSession();
+      } catch (error) {
+        console.warn('[LiveKit] Failed to start audio session', error);
+      }
+    };
+
+    startAudioSession();
+
+    return () => {
+      AudioSession.stopAudioSession().catch(() => undefined);
+    };
   }, []);
 
   useEffect(() => {
