@@ -5,12 +5,13 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { Theme } from '@/theme';
 import { type RootStackParamList, type PrayerRequest } from '@/types';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { ArrowLeft, Send, ChevronDown, Sparkle, Heart } from '@/components/Icons';
+import { ArrowLeft, ChevronDown, Sparkle, Heart } from '@/components/Icons';
 import { observer } from 'mobx-react-lite';
 import { usePrayerRequestsStore } from '@/stores/StoreProvider';
 import EmptyState from '@/components/EmptyState';
 import Animated, { useSharedValue, withSpring, useAnimatedStyle, withTiming } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
+import { toast } from 'sonner-native';
 
 export type PrayerRequestsScreenProps = NativeStackScreenProps<RootStackParamList, 'PrayerRequestsScreen'>;
 
@@ -22,7 +23,6 @@ const PrayerRequestsScreen = ({ navigation }: PrayerRequestsScreenProps) => {
   const prayerRequestsStore = usePrayerRequestsStore();
   const { requests, isLoading, pagination, fetchRequests, createRequest, prayForRequest } = prayerRequestsStore;
 
-  const [content, setContent] = useState('');
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [currentCategory, setCurrentCategory] = useState<'all' | string>('all');
   const [showCategoryPicker, setShowCategoryPicker] = useState(false);
@@ -31,6 +31,7 @@ const PrayerRequestsScreen = ({ navigation }: PrayerRequestsScreenProps) => {
   const [secondsLeft, setSecondsLeft] = useState(120);
   const [showComposeModal, setShowComposeModal] = useState(false);
   const [composeDraft, setComposeDraft] = useState('');
+  const [isPosting, setIsPosting] = useState(false);
   const [isBulkPraying, setIsBulkPraying] = useState(false);
 
   const categories = useMemo(() => (
@@ -41,12 +42,44 @@ const PrayerRequestsScreen = ({ navigation }: PrayerRequestsScreenProps) => {
     fetchRequests(1, { category: currentCategory });
   }, [fetchRequests, currentCategory]);
 
-  const handleAdd = useCallback(async () => {
-    const body = content.trim();
-    if (!body) return;
-    const created = await createRequest({ content: body, visibility: 'public' });
-    if (created) setContent('');
-  }, [content, createRequest]);
+  const openComposeModal = useCallback((draft: string = '') => {
+    setComposeDraft(draft);
+    setShowComposeModal(true);
+  }, []);
+
+  const submitRequest = useCallback(async () => {
+    const body = composeDraft.trim();
+    if (!body) {
+      toast.warning('Please share a prayer request before posting.');
+      return;
+    }
+
+    const payload: { content: string; visibility: 'public'; category?: string } = {
+      content: body,
+      visibility: 'public',
+    };
+
+    if (currentCategory !== 'all') {
+      payload.category = currentCategory;
+    }
+
+    setIsPosting(true);
+    try {
+      const created = await createRequest(payload);
+      if (created) {
+        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        toast.success('Prayer request shared');
+        setComposeDraft('');
+        setShowComposeModal(false);
+      } else {
+        toast.error('We could not share your prayer request. Please try again.');
+      }
+    } catch (error) {
+      toast.error('We could not share your prayer request. Please try again.');
+    } finally {
+      setIsPosting(false);
+    }
+  }, [composeDraft, currentCategory, createRequest]);
 
   const handlePray = useCallback(async (id: string) => {
     await prayForRequest(id);
@@ -194,19 +227,12 @@ const PrayerRequestsScreen = ({ navigation }: PrayerRequestsScreenProps) => {
       </View>
 
       <View style={styles.composer}>
-        <TextInput
-          style={styles.input}
-          value={content}
-          onChangeText={setContent}
-          placeholder="Share a prayer request"
-          placeholderTextColor={theme.colors.text.placeholder}
-          onFocus={() => {
-            setComposeDraft(content);
-            setShowComposeModal(true);
-          }}
-        />
-        <TouchableOpacity style={styles.sendButton} onPress={handleAdd} disabled={isLoading}>
-          <Send size={18} color={theme.colors.text.inverse} />
+        <TouchableOpacity style={styles.composeLauncher} onPress={() => openComposeModal('')}>
+          <Sparkle size={20} color={theme.colors.primary} />
+          <View style={styles.composeLauncherTextWrap}>
+            <Text style={styles.composeLauncherTitle}>Share a prayer request</Text>
+            <Text style={styles.composeLauncherSubtitle}>Open the composer to invite others to pray</Text>
+          </View>
         </TouchableOpacity>
       </View>
 
@@ -245,7 +271,7 @@ const PrayerRequestsScreen = ({ navigation }: PrayerRequestsScreenProps) => {
               title={`No ${currentCategory === 'all' ? '' : currentCategory + ' '}requests yet`}
               message={'Be the first to share a prayer request and invite others to pray.'}
               ctaText={'Create a request'}
-              onPressCTA={handleAdd}
+              onPressCTA={() => openComposeModal('')}
               IconComponent={Heart as any}
             />
           )}
@@ -308,21 +334,17 @@ const PrayerRequestsScreen = ({ navigation }: PrayerRequestsScreenProps) => {
             <View style={{ flexDirection: 'row', gap: theme.spacing.sm, marginTop: theme.spacing.md }}>
               <TouchableOpacity
                 style={[styles.modalBtn, { backgroundColor: `${theme.colors.error}15`, borderColor: `${theme.colors.error}40` }]}
-                onPress={() => { setShowComposeModal(false); setComposeDraft(''); }}
+                onPress={() => { if (!isPosting) { setShowComposeModal(false); setComposeDraft(''); } }}
+                disabled={isPosting}
               >
                 <Text style={[styles.modalBtnText, { color: theme.colors.error }]}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.modalBtn, { backgroundColor: theme.colors.primary, borderColor: theme.colors.primary }]}
-                onPress={() => {
-                  const body = composeDraft.trim();
-                  if (!body) { setShowComposeModal(false); return; }
-                  setContent(body);
-                  setShowComposeModal(false);
-                  setTimeout(() => handleAdd(), 50);
-                }}
+                style={[styles.modalBtn, { backgroundColor: theme.colors.primary, borderColor: theme.colors.primary, opacity: isPosting ? 0.8 : 1 }]}
+                onPress={submitRequest}
+                disabled={isPosting}
               >
-                <Text style={[styles.modalBtnText, { color: theme.colors.text.inverse }]}>Post</Text>
+                <Text style={[styles.modalBtnText, { color: theme.colors.text.inverse }]}>{isPosting ? 'Posting…' : 'Post'}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -534,30 +556,31 @@ const createStyles = (theme: Theme) => StyleSheet.create({
   chip: {},
   chipText: {},
   composer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: theme.spacing.sm,
     paddingHorizontal: theme.spacing.md,
     paddingVertical: theme.spacing.sm,
   },
-  input: {
-    flex: 1,
-    backgroundColor: theme.colors.surface,
-    borderRadius: theme.borderRadius.full,
+  composeLauncher: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
+    backgroundColor: `${theme.colors.primary}08`,
+    borderRadius: theme.borderRadius.lg,
+    paddingVertical: theme.spacing.sm,
     paddingHorizontal: theme.spacing.md,
-    minHeight: 40,
+    borderWidth: 1,
+    borderColor: `${theme.colors.primary}20`,
+  },
+  composeLauncherTextWrap: {
+    flex: 1,
+  },
+  composeLauncherTitle: {
     ...theme.typography.body.sans,
     color: theme.colors.text.primary,
-    borderWidth: 1,
-    borderColor: `${theme.colors.primary}10`,
+    fontWeight: '600',
   },
-  sendButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: theme.colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
+  composeLauncherSubtitle: {
+    ...theme.typography.caption.secondary,
+    color: theme.colors.text.secondary,
   },
   listContent: {
     padding: theme.spacing.md,
