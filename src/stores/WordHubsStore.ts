@@ -65,6 +65,22 @@ interface WordHubsStoreState {
   activeLiveKitSession: LiveKitSessionState | null;
 }
 
+const extractWordHubs = (payload: any) => {
+  if (Array.isArray(payload)) {
+    return { items: payload as WordHub[], meta: undefined };
+  }
+
+  if (payload && Array.isArray(payload.data)) {
+    return { items: payload.data as WordHub[], meta: payload.meta };
+  }
+
+  if (payload?.data && Array.isArray(payload.data.data)) {
+    return { items: payload.data.data as WordHub[], meta: payload.data.meta ?? payload.meta };
+  }
+
+  return { items: [] as WordHub[], meta: payload?.meta };
+};
+
 export class WordHubsStore {
   state: WordHubsStoreState;
   error: string | null = null;
@@ -218,11 +234,12 @@ export class WordHubsStore {
 
       if (!response.success) throw new Error(response.message || 'Failed to fetch word hubs');
 
-      const { data, meta } = response.data;
+      const { items, meta } = extractWordHubs(response.data);
 
       runInAction(() => {
-        this.state.wordHubs = page === 1 ? data : [...this.state.wordHubs, ...data];
-        this.state.pagination = this.computePagination(meta, page, Array.isArray(data) ? data.length : 0);
+        const current = page === 1 || !Array.isArray(this.state.wordHubs) ? [] : this.state.wordHubs;
+        this.state.wordHubs = page === 1 ? items : [...current, ...items];
+        this.state.pagination = this.computePagination(meta, page, items.length);
         this.state.filters = currentFilters;
         this.state.isWordHubsLoading = false;
         this.state.lastUpdate = new Date();
@@ -284,7 +301,8 @@ export class WordHubsStore {
       const hub = response.data;
 
       runInAction(() => {
-        this.state.wordHubs = [hub, ...this.state.wordHubs];
+        const current = Array.isArray(this.state.wordHubs) ? this.state.wordHubs : [];
+        this.state.wordHubs = [hub, ...current];
       });
 
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -622,11 +640,12 @@ export class WordHubsStore {
 
       if (!response.success) throw new Error(response.message || 'Failed to fetch user hubs');
 
-      const { data, meta } = response.data;
+      const { items, meta } = extractWordHubs(response.data);
 
       runInAction(() => {
-        this.state.wordHubs = page === 1 ? data : [...this.state.wordHubs, ...data];
-        this.state.pagination = this.computePagination(meta, page, Array.isArray(data) ? data.length : 0);
+        const current = page === 1 || !Array.isArray(this.state.wordHubs) ? [] : this.state.wordHubs;
+        this.state.wordHubs = page === 1 ? items : [...current, ...items];
+        this.state.pagination = this.computePagination(meta, page, items.length);
         this.state.isWordHubsLoading = false;
         this.state.lastUpdate = new Date();
       });
@@ -658,11 +677,12 @@ export class WordHubsStore {
 
       if (!response.success) throw new Error(response.message || 'Failed to fetch joined hubs');
 
-      const { data, meta } = response.data;
+      const { items, meta } = extractWordHubs(response.data);
 
       runInAction(() => {
-        this.state.wordHubs = page === 1 ? data : [...this.state.wordHubs, ...data];
-        this.state.pagination = this.computePagination(meta, page, Array.isArray(data) ? data.length : 0);
+        const current = page === 1 || !Array.isArray(this.state.wordHubs) ? [] : this.state.wordHubs;
+        this.state.wordHubs = page === 1 ? items : [...current, ...items];
+        this.state.pagination = this.computePagination(meta, page, items.length);
         this.state.isWordHubsLoading = false;
         this.state.lastUpdate = new Date();
       });

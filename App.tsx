@@ -18,6 +18,7 @@ import DailyVersesScreen from './src/screens/DailyVersesScreen';
 import MatchScreen from './src/screens/MatchScreen';
 import IntroScreen from './src/screens/IntroScreen';
 import WordHubsScreen from './src/screens/WordHubsScreen';
+import WordHubDetailScreen from './src/screens/WordHubDetailScreen';
 import SavedItemsScreen from './src/screens/SavedItemsScreen';
 import NotesScreen from './src/screens/NotesScreen';
 import BibleScreen from './src/screens/BibleScreen';
@@ -262,6 +263,7 @@ const AppContent = () => {
           <Stack.Screen name="DailyChallengeScreen" component={DailyChallengeScreen} />
           <Stack.Screen name="ChallengeDetail" component={ChallengeDetailScreen} />
           <Stack.Screen name="WordHubsScreen" component={WordHubsScreen} />
+          <Stack.Screen name="WordHubDetailScreen" component={WordHubDetailScreen} />
           <Stack.Screen name="MatchScreen" component={MatchScreen} />
           <Stack.Screen name="SavedItemsScreen" component={SavedItemsScreen} />
           <Stack.Screen name="NotesScreen" component={NotesScreen} />

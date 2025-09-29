@@ -102,16 +102,33 @@ export class GameStore {
         this.state.error = null;
       });
 
-      // Submit all unsynced scores
-      for (const score of this.state.unsyncedScores) {
-        await apiClient.post('/game/scores', {
-          game_id: score.gameId,
-          score: score.score,
-          timestamp: score.timestamp,
-        });
+      const scoresToSync = [...this.state.unsyncedScores];
+      const remaining: GameScore[] = [];
+
+      for (const score of scoresToSync) {
+        try {
+          await apiClient.post('/game/scores', {
+            game_id: score.gameId,
+            score: score.score,
+            submitted_at: score.submittedAt,
+            meta: score.meta,
+          });
+        } catch (error) {
+          console.error('Sync error for score', score.gameId, error);
+          remaining.push(score);
+        }
       }
 
-      // Fetch updated data
+      if (remaining.length === scoresToSync.length) {
+        runInAction(() => {
+          this.state.unsyncedScores = remaining;
+          this.state.isSyncing = false;
+          this.state.error = 'Failed to sync game data';
+        });
+        this.setError(this.state.error);
+        return;
+      }
+
       const [personalBestsResponse, leaderboardsResponse] = await Promise.all([
         apiClient.get<{ scores: Record<GameId, number> }>('/game/personal-bests'),
         apiClient.get<{ leaderboards: Record<GameId, LeaderboardEntry[]> }>('/game/leaderboards'),
@@ -123,8 +140,13 @@ export class GameStore {
 
         this.state.personalBests = newPersonalBests;
         this.state.leaderboards = newLeaderboards;
-        this.state.unsyncedScores = [];
-        this.state.lastSynced = new Date();
+        this.state.unsyncedScores = remaining;
+        if (remaining.length === 0) {
+          this.state.lastSynced = new Date();
+          this.state.error = null;
+        } else {
+          this.state.error = 'Some scores failed to sync';
+        }
         this.state.isSyncing = false;
       });
     } catch (error: any) {
@@ -137,15 +159,15 @@ export class GameStore {
     }
   }
 
-  async submitScore(gameId: GameId, score: number) {
-    const timestamp = new Date().toISOString();
+  async submitScore(gameId: GameId, score: number, meta?: Record<string, any>) {
+    const submittedAt = new Date().toISOString();
     const currentBest = this.state.personalBests[gameId] || 0;
 
     // Update local state immediately
     runInAction(() => {
       this.state.unsyncedScores = [
         ...this.state.unsyncedScores,
-        { gameId, score, timestamp },
+        { gameId, score, submittedAt, meta },
       ];
 
       if (score > currentBest) {

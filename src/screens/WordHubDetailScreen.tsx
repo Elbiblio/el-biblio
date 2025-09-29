@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 
 import {
   View,
@@ -32,7 +32,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList, WordHub, WordHubMessage, User } from '@/types';
 import { formatTimeLeft } from '@/utils/schedule';
 import { observer } from 'mobx-react-lite';
-import { useWordHubsStore } from '@/stores/StoreProvider';
+import { useAuthStore, useWordHubsStore } from '@/stores/StoreProvider';
 import { useLiveKitAudioRoom, AudioParticipant } from '@/hooks/useLiveKitAudioRoom';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'WordHubDetailScreen'>;
@@ -44,6 +44,7 @@ const WordHubDetailScreen = observer(({ navigation, route }: Props) => {
   const styles = useMemo(() => createStyles(theme), [theme]);
 
   const wordHubsStore = useWordHubsStore();
+  const { user } = useAuthStore();
   const hub = wordHubsStore.currentHub as WordHub | null;
   const messages = wordHubsStore.hubMessages as WordHubMessage[];
   const isLoading = wordHubsStore.isHubLoading;
@@ -58,10 +59,10 @@ const WordHubDetailScreen = observer(({ navigation, route }: Props) => {
       .filter((user): user is User => Boolean(user)) ?? []
   ), [hub?.members]);
 
-  const fetchHubDetails = useCallback(async () => {
-    await wordHubsStore.fetchHubById(hubId);
-    await wordHubsStore.fetchHubMessages(hubId, 1);
-  }, [hubId, wordHubsStore]);
+  const isMember = useMemo(() => {
+    if (!user?.id) return false;
+    return Boolean(hub?.members?.some((member) => member.user_id === user.id));
+  }, [hub?.members, user?.id]);
 
   const handleSendMessage = async () => {
     if (!message.trim()) return;
@@ -119,14 +120,43 @@ const WordHubDetailScreen = observer(({ navigation, route }: Props) => {
     onError: handleAudioError,
   });
 
+  const disconnectAudioRef = useRef(disconnectAudio);
   useEffect(() => {
-    fetchHubDetails();
+    disconnectAudioRef.current = disconnectAudio;
+  }, [disconnectAudio]);
+
+  const autoConnectAttemptedRef = useRef(false);
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        await Promise.all([
+          wordHubsStore.fetchHubById(hubId),
+          wordHubsStore.fetchHubMessages(hubId, 1),
+        ]);
+      } catch (error) {
+        console.error('Error loading hub detail:', error);
+      }
+    };
+
+    load();
+
     return () => {
-      disconnectAudio('screen_unmount').catch(() => undefined);
+      disconnectAudioRef.current('screen_unmount').catch(() => undefined);
       wordHubsStore.clearLiveKitSession(hubId);
       wordHubsStore.clearCurrentHub();
+      autoConnectAttemptedRef.current = false;
     };
-  }, [fetchHubDetails, disconnectAudio, wordHubsStore, hubId]);
+  }, [hubId, wordHubsStore]);
+
+  useEffect(() => {
+    if (!activeLiveKitSession && isMember && !autoConnectAttemptedRef.current) {
+      autoConnectAttemptedRef.current = true;
+      wordHubsStore.refreshLiveKitSession(hubId).catch(() => {
+        autoConnectAttemptedRef.current = false;
+      });
+    }
+  }, [activeLiveKitSession, hubId, isMember, wordHubsStore]);
 
   const audioStatusLabel = useMemo(() => {
     if (audioConnected) return 'Connected';
@@ -218,11 +248,11 @@ const WordHubDetailScreen = observer(({ navigation, route }: Props) => {
           <View style={styles.statsContainer}>
             <View style={styles.stat}>
               <Users size={16} color={theme.colors.text.secondary} />
-              <Text style={styles.statText}>{hub.memberCount} members</Text>
+              <Text style={styles.statText}>{hub.members?.length ?? 0} members</Text>
             </View>
             <View style={styles.stat}>
               <MessageCircle size={16} color={theme.colors.text.secondary} />
-              <Text style={styles.statText}>{hub.messageCount} messages</Text>
+              <Text style={styles.statText}>{hub.messages?.length ?? 0} messages</Text>
             </View>
             <View style={styles.stat}>
               <Clock size={16} color={theme.colors.text.secondary} />
@@ -231,7 +261,7 @@ const WordHubDetailScreen = observer(({ navigation, route }: Props) => {
           </View>
 
           <AvatarStack
-            users={hub.authors}
+            users={hub.authors ?? []}
             maxAvatars={5}
             size={32}
             offset={20}

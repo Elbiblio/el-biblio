@@ -55,11 +55,12 @@
       "WS_SECURE": false
     },
     "plugins": [
-      "@livekit/react-native-expo-plugin",
       [
-        "@config-plugins/react-native-webrtc",
+        "@livekit/react-native-expo-plugin",
         {
-          "version": "10.0.0"
+          "iosMicrophonePermission": "Allow El-Biblio to use the microphone so you can speak in live sessions.",
+          "iosBluetoothPermission": "Allow El-Biblio to use Bluetooth for improved audio during live sessions.",
+          "androidMicrophonePermission": "Allow El-Biblio to record audio during live sessions."
         }
       ],
       "expo-font",

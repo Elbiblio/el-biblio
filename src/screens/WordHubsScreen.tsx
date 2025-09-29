@@ -36,11 +36,12 @@ import {
 import { Theme } from '@/theme';
 import { useTheme } from '@/contexts/ThemeContext';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { type RootStackParamList, type User, type WordHub } from '@/types';
+import { type RootStackParamList, type User, type WordHub, type WordHubMember } from '@/types';
 import { formatTimeLeft } from '@/utils/schedule';
 import AvatarStack from '@/components/AvatarStack';
 import { observer } from 'mobx-react-lite';
 import { useWordHubsStore } from '@/stores/StoreProvider';
+import { runInAction } from 'mobx';
 
 import { useAuthStore } from '@/stores/StoreProvider';
 import { useWebSocket } from '@/services/websocket';
@@ -48,6 +49,36 @@ import { toast } from 'sonner-native';
 import { useGuestRestrictions } from '@/hooks/useGuestRestrictions';
 import GuestRestrictionModal from '@/components/GuestRestrictionModal';
 import EmptyState from '@/components/EmptyState';
+
+const tabConfig = {
+  discover: {
+    title: 'Discover Word Hubs',
+    description: 'Explore curated hubs for spiritual growth and meaningful conversations.',
+    emptyTitle: 'No Word Hubs Found',
+    emptyMessage: 'Be the first to create a Word Hub and start meaningful discussions!'
+  },
+  joined: {
+    title: 'Your Word Hubs',
+    description: 'Stay connected with the hubs youve joined and keep the discussions going.',
+    emptyTitle: 'No Joined Hubs',
+    emptyMessage: 'Join some Word Hubs to see them here.'
+  }
+} as const;
+
+const normalizeWordHubs = (collection: unknown): WordHub[] => {
+  if (!collection) return [];
+  if (Array.isArray(collection)) return collection as WordHub[];
+
+  const candidate = collection as any;
+  if (typeof candidate.slice === 'function') {
+    return candidate.slice();
+  }
+  if (typeof candidate[Symbol.iterator] === 'function') {
+    return Array.from(candidate);
+  }
+
+  return [];
+};
 
 const WordHubsScreen = ({
   navigation,
@@ -58,6 +89,8 @@ const WordHubsScreen = ({
   const { user } = useAuthStore();
   const { restrictions } = useGuestRestrictions();
   const { isConnected: wsConnected } = useWebSocket();
+
+  const wordHubsStore = useWordHubsStore();
 
   const {
     wordHubs,
@@ -76,7 +109,7 @@ const WordHubsScreen = ({
     setFilters,
     resetFilters,
     setConnectionStatus,
-  } = useWordHubsStore();
+  } = wordHubsStore;
 
   // States
   const [searchQuery, setSearchQuery] = useState('');
@@ -249,20 +282,30 @@ const WordHubsScreen = ({
 
   const handleSearch = useCallback(async (text: string) => {
     setSearchQuery(text);
-    
-    if (text.trim()) {
-      try {
-        const results = await searchHubs(text, 20);
-        // Update local state with search results
-        // Note: In a real implementation, you might want to handle this differently
-      } catch (error) {
-        console.error('Error searching hubs:', error);
+
+    const trimmed = text.trim();
+    setFilters({ searchQuery: trimmed || undefined });
+
+    try {
+      if (activeTab === 'discover') {
+        await fetchWordHubs(1, { searchQuery: trimmed || undefined });
+      } else {
+        if (trimmed) {
+          const results = await searchHubs(trimmed, 50);
+          runInAction(() => {
+            const normalized = normalizeWordHubs(results);
+            wordHubsStore.state.wordHubs = normalized;
+          });
+        } else {
+          await fetchJoinedHubs(1);
+        }
       }
-    } else {
-      // Reset to normal list
-      loadData();
+    } catch (error) {
+      console.error('Error searching hubs:', error);
     }
-  }, [searchHubs, loadData]);
+  }, [activeTab, fetchJoinedHubs, fetchWordHubs, searchHubs, setFilters]);
+
+  const safeWordHubs = normalizeWordHubs(wordHubs);
 
   const renderHubCard = (hub: WordHub) => (
     <TouchableOpacity
@@ -379,21 +422,29 @@ const WordHubsScreen = ({
     </TouchableOpacity>
   );
 
-  const renderConnectionStatus = () => (
-    <View style={styles.connectionStatus}>
-      {isConnected ? (
-        <Check size={16} color={theme.colors.success} />
-      ) : (
-        <XCircle size={16} color={theme.colors.error} />
-      )}
-      <Text style={[
-        styles.connectionText,
-        { color: isConnected ? theme.colors.success : theme.colors.error }
-      ]}>
-        {isConnected ? 'Live' : 'Offline'}
-      </Text>
-    </View>
-  );
+  const renderConnectionStatus = () => {
+    if (safeWordHubs.length === 0) return null;
+
+    const joinedCount = safeWordHubs.filter((hub: WordHub) => hub.members?.some((member: WordHubMember) => member.user_id === user?.id)).length;
+    const availableCount = safeWordHubs.length - joinedCount;
+
+    let label: string | null = null;
+    if (joinedCount > 0) {
+      const joinedLabel = joinedCount === 1 ? 'hub' : 'hubs';
+      label = `${joinedCount} ${joinedLabel} joined`;
+    } else if (availableCount > 0) {
+      label = `${availableCount} hubs`;
+    }
+
+    if (!label) return null;
+
+    return (
+      <View style={styles.connectionStatus}>
+        <Sparkle size={16} color={theme.colors.primary} />
+        <Text style={[styles.connectionText, { color: theme.colors.primary }]}>{label}</Text>
+      </View>
+    );
+  };
 
   const renderErrorState = () => (
     <View style={styles.errorContainer}>
@@ -408,10 +459,8 @@ const WordHubsScreen = ({
 
   const renderEmptyState = () => (
     <EmptyState
-      title={activeTab === 'discover' ? 'No Word Hubs Found' : 'No Joined Hubs'}
-      message={activeTab === 'discover'
-        ? 'Be the first to create a Word Hub and start meaningful discussions!'
-        : 'Join some Word Hubs to see them here.'}
+      title={tabConfig[activeTab].emptyTitle}
+      message={tabConfig[activeTab].emptyMessage}
       ctaText={activeTab === 'discover' ? 'Create a Word Hub' : 'Browse Word Hubs'}
       onPressCTA={activeTab === 'discover' ? () => setShowCreateHub(true) : () => handleTabChange('discover')}
       IconComponent={Users as any}
@@ -499,11 +548,11 @@ const WordHubsScreen = ({
           </View>
         ) : error ? (
           renderErrorState()
-        ) : wordHubs.length === 0 ? (
+        ) : safeWordHubs.length === 0 ? (
           renderEmptyState()
         ) : (
           <>
-            {wordHubs.map(renderHubCard)}
+            {safeWordHubs.map(renderHubCard)}
             {lastUpdate && (
               <Text style={styles.lastUpdateText}>
                 Last updated: {lastUpdate.toLocaleTimeString()}

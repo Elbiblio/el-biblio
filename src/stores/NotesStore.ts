@@ -55,7 +55,7 @@ export class NotesStore {
     this.state = initialState;
     this.storageKey = 'notes_store';
     
-    makeAutoObservable(this);
+    makeAutoObservable(this, {}, { autoBind: true });
     
     // Load from storage asynchronously
     AsyncStorage.getItem(this.storageKey).then(stored => {

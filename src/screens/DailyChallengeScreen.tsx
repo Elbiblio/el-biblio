@@ -398,16 +398,12 @@ const DailyChallengesScreen = observer(({ navigation }: DailyChallengesProps) =>
                 <Star size={16} color={theme?.colors.primary} />
                 <Text style={[styles.actionText, { color: theme?.colors.primary }]}>Vote</Text>
               </TouchableOpacity>
-            ) : (
-              <Text style={styles.pendingText}>
-                {challenge.hasUpvoted ? 'You voted' : !withinWindow ? 'Voting closed' : 'Reached 100 votes'}
-              </Text>
-            )}
+            ) : null}
           </View>
         )}
 
         {/* Compact insights: time-left and vote cap progress */}
-        {activeCategory === 'community' && (
+        {activeCategory === 'community' && canVote && (
           <View style={styles.compactInfoRow}>
             <Text style={styles.compactInfoText}>{Math.max(0, Math.ceil((ms3days - (now.getTime() - createdAt.getTime()))/(24*60*60*1000)))}d window · {(challenge.upvotes||0)}/100 votes</Text>
           </View>
@@ -564,6 +560,10 @@ const DailyChallengesScreen = observer(({ navigation }: DailyChallengesProps) =>
             <ActivityIndicator color={theme?.colors.primary} />
           </View>
         ) : null}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+        contentContainerStyle={styles.scrollContent}
       />
     );
   };
@@ -624,20 +624,14 @@ const DailyChallengesScreen = observer(({ navigation }: DailyChallengesProps) =>
         </TouchableOpacity>
       </View>
 
-      <ScrollView
-        style={styles.content}
-        contentContainerStyle={styles.scrollContent}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        }
-      >
+      <View style={styles.content}>
         {/* For Joined tab, we won't show create form/button */}
         {activeCategory !== 'personal' && renderNewChallengeForm()}
 
         <Animated.View style={listAnimatedStyle}>
           {renderChallenges()}
         </Animated.View>
-      </ScrollView>
+      </View>
 
       {/* Suggest Community Challenge Modal */}
       <Modal visible={showSuggestModal} animationType="fade" transparent onRequestClose={() => setShowSuggestModal(false)}>

@@ -454,17 +454,26 @@ export class ChallengeStore {
   async joinChallenge(challengeId: string) {
     try {
       this.setLoading(true);
-      await apiClient.post(endpoints.challenges.join(challengeId));
-      
+      const response = await apiClient.post<BackendChallenge>(endpoints.challenges.join(challengeId));
+
       runInAction(() => {
-        const current = this.getChallengeById(challengeId);
-        const participants = (current?.participants || 0) + 1;
+        const mapped = mapChallenge(response.data as BackendChallenge);
+        const participants = (mapped?.participants || 0);
+
         this.updateChallengeInLists(challengeId, {
           hasJoined: true,
           participants,
         });
+
+        const existsInPersonal = this.state.personalChallenges.some(c => c.id === mapped.id);
+        if (!existsInPersonal) {
+          this.state.personalChallenges = [
+            { ...mapped, hasJoined: true },
+            ...this.state.personalChallenges,
+          ];
+        }
       });
-      
+
       await this.saveToStorage();
       toast.success('Successfully joined the challenge');
       return this.getChallengeById(challengeId);
@@ -489,6 +498,8 @@ export class ChallengeStore {
           hasJoined: false,
           participants,
         });
+
+        this.state.personalChallenges = this.state.personalChallenges.filter(c => c.id !== challengeId);
       });
       
       await this.saveToStorage();

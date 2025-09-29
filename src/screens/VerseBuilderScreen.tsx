@@ -111,7 +111,7 @@ const VerseBuilderScreen = observer(() => {
   // Game UX state
   const [isPaused, setIsPaused] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
-  const [showTips, setShowTips] = useState(true);
+  const [showTips, setShowTips] = useState(false);
   const [sessionXp, setSessionXp] = useState(0);
   const sessionGoal = 100;
   const [showSoundSettings, setShowSoundSettings] = useState(false);
@@ -122,6 +122,19 @@ const VerseBuilderScreen = observer(() => {
     return Math.max(1, Math.floor(SCREEN_WIDTH / (WORD_SIZE + spacing * 2)));
   }, [theme]);
 
+  const useCompactPoolTiles = useMemo(() => {
+    if (!gameState) return false;
+    const spacing = (theme.spacing?.md ?? 8) * 2;
+    const baseTileWidth = WORD_SIZE + spacing;
+    const estimatedWidth = gameState.poolWords.reduce((acc, word) => {
+      const charWidth = 7.5;
+      const estimatedWordWidth = Math.min(baseTileWidth, word.length * charWidth + spacing + 24);
+      return acc + estimatedWordWidth;
+    }, 0);
+    const threshold = SCREEN_WIDTH * (showAllWords ? 1.4 : 1.05);
+    return estimatedWidth > threshold || gameState.poolWords.length > poolColumns * 2;
+  }, [gameState, poolColumns, showAllWords, theme]);
+
   // Circular timer fill shared value for AnimatedCircularProgress (0..1)
   const circularFill = useSharedValue(1);
 
@@ -131,6 +144,7 @@ const VerseBuilderScreen = observer(() => {
   const musicStateRef = useRef<'musicverse' | 'verseplay' | 'none'>('none');
   const warningTickRef = useRef<number | null>(null);
   const timeoutPlayedRef = useRef(false);
+  const timerIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const play = useCallback(async (name: 'tickTock' | 'timeout' | 'correct' | 'streak' | 'retry' | 'cheers' | 'powerup' | 'levelup' | 'ding') => {
     await playCue(name as any);
@@ -209,6 +223,10 @@ const VerseBuilderScreen = observer(() => {
   // Stop music on unmount for safety
   useEffect(() => {
     return () => {
+      if (timerIntervalRef.current) {
+        clearInterval(timerIntervalRef.current);
+        timerIntervalRef.current = null;
+      }
       stopMusic('musicverse');
       stopMusic('verseplay');
       musicStateRef.current = 'none';
@@ -245,22 +263,12 @@ const VerseBuilderScreen = observer(() => {
       } catch {}
     })();
   }, []);
-
   // Auto-collapse the word cloud on small screens
   useEffect(() => {
     if (SCREEN_HEIGHT < 700) {
       setShowAllWords(false);
     }
   }, []);
-
-  // Timer Logic with Enhanced Animations
-  useEffect(() => {
-    if (!isPlaying) return;
-    const interval = setInterval(() => {
-      decrementTime();
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [isPlaying, decrementTime]);
 
   // Update circular timer fill whenever timeLeft changes
   useEffect(() => {
@@ -306,6 +314,27 @@ const VerseBuilderScreen = observer(() => {
       timeoutPlayedRef.current = false;
     }
   }, [timeLeft, initialGameTime, progressWidth, timerColorAnim, timerPulse, warnScale, play]);
+
+  useEffect(() => {
+    if (!isPlaying || isPaused) {
+      if (timerIntervalRef.current) {
+        clearInterval(timerIntervalRef.current);
+        timerIntervalRef.current = null;
+      }
+      return;
+    }
+
+    timerIntervalRef.current = setInterval(() => {
+      decrementTime();
+    }, 1000);
+
+    return () => {
+      if (timerIntervalRef.current) {
+        clearInterval(timerIntervalRef.current);
+        timerIntervalRef.current = null;
+      }
+    };
+  }, [decrementTime, isPaused, isPlaying]);
 
   // Transition animation
   useEffect(() => {
@@ -442,24 +471,25 @@ const VerseBuilderScreen = observer(() => {
       withTiming(3, { duration: 50 }),
       withTiming(4, { duration: 50 })
     );
-    verseBuilderStore.penalizeMistake?.(1);
+    verseBuilderStore.penalizeMistake?.(5, true);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
   }, [verseBuilderStore]);
 
   const handleSelectWord = (word: string) => {
     // Tap cooldown to avoid accidental multi-triggering (short for responsiveness)
     const now = Date.now();
-    if (now - (lastTapRef.current || 0) < 30) return;
+    if (now - (lastTapRef.current || 0) < 30) return false;
     lastTapRef.current = now;
     // Auto-hide tips after the first placement to save space
     if (showTips) setShowTips(false);
-    if (showCorrectAnswer) return;
-    if (isTransitioning) return;
+    if (!isPlaying) return false;
+    if (showCorrectAnswer) return false;
+    if (isTransitioning) return false;
     if (gameState) {
       const expected = gameState.originalWords[gameState.arrangedWords.length];
       if (expected && expected !== word) {
         triggerWrongFeedback();
-        return;
+        return false;
       }
     }
     scaleAnim.value = withSequence(
@@ -471,6 +501,7 @@ const VerseBuilderScreen = observer(() => {
     play('ding');
     verseBuilderStore.addGraceTime?.(1);
     selectWordFromPool(word);
+    return true;
   };
 
   const handleReturnWord = (word: string, index: number) => {
@@ -510,10 +541,11 @@ const VerseBuilderScreen = observer(() => {
           onPress={handleSelectWord}
           disabled={isTransitioning || showCorrectAnswer}
           variant="pool"
+          compact={useCompactPoolTiles}
         />
       </View>
     ),
-    [handleSelectWord, isTransitioning, showCorrectAnswer, styles.poolItem]
+    [handleSelectWord, isTransitioning, showCorrectAnswer, styles.poolItem, useCompactPoolTiles]
   );
 
   const poolKeyExtractor = useCallback((item: string, index: number) => `${item}-${index}`, []);
@@ -711,16 +743,6 @@ const VerseBuilderScreen = observer(() => {
             </Animated.View>
           )}
 
-          {/* Status row: show streak only when active */}
-          {streak > 1 && (
-            <View style={styles.statusRow}>
-              <Animated.View style={[styles.streakBadge, flameStyle]}>
-                <Text style={styles.streakEmoji}>🔥</Text>
-                <Text style={styles.streakBadgeText}>Streak {streak}x</Text>
-              </Animated.View>
-            </View>
-          )}
-
           {/* Power-ups as left/right icon buttons under top strip */}
           <View style={styles.powerUpIconBar}>
             <TouchableOpacity
@@ -733,7 +755,13 @@ const VerseBuilderScreen = observer(() => {
               </View>
               <Text style={styles.powerUpBadge}>×{powerUps.grace}</Text>
             </TouchableOpacity>
-            <View style={{ flex: 1 }} />
+            <View style={styles.powerUpCenter}>
+              {streak > 1 ? (
+                <Animated.View style={[styles.streakBadgeCompact, flameStyle]}>
+                  <Text style={styles.streakBadgeCompactText}>🔥 {streak}x</Text>
+                </Animated.View>
+              ) : null}
+            </View>
             <TouchableOpacity
               style={[styles.powerUpIconButton, powerUps.discernment <= 0 && styles.powerUpDisabled]}
               onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); play('powerup'); usePowerUp('discernment'); }}
@@ -870,7 +898,7 @@ const VerseBuilderScreen = observer(() => {
           </Animated.View>
 
           {/* Game Over Overlay */}
-          {timeLeft <= 0 && !isPlaying && hasPlayed && (
+          {timeLeft <= 0 && !isPlaying && hasPlayed && !showSuccess && (
             <BlurView intensity={30} style={styles.overlay} pointerEvents="box-none">
               <View style={styles.gameOverContainer}>
                 <Text style={styles.gameOverText}>Game Over!</Text>
@@ -1161,6 +1189,7 @@ const createStyles = (theme: Theme) =>
     poolHeaderRow: {
       flexDirection: 'row',
       alignItems: 'center',
+      marginTop: theme.spacing.md,
       justifyContent: 'space-between',
       paddingHorizontal: theme.spacing.sm,
       paddingBottom: theme.spacing.xs,
@@ -1202,24 +1231,18 @@ const createStyles = (theme: Theme) =>
       height: 1,
       backgroundColor: `${theme.colors.text.secondary}22`,
       marginVertical: theme.spacing.sm,
-      borderRadius: 1,
-      alignSelf: 'stretch',
     },
-
-    // Prompt card
     promptCard: {
       backgroundColor: `${theme.colors.surface}F0`,
       borderRadius: theme.borderRadius.xl,
       paddingHorizontal: theme.spacing.lg,
-      paddingVertical: 10,
-      marginBottom: theme.spacing.sm,
-      borderWidth: 1,
-      borderColor: `${theme.colors.text.secondary}20`,
-      shadowColor: '#000',
-      shadowOpacity: 0.12,
-      shadowRadius: 10,
-      shadowOffset: { width: 0, height: 4 },
-      elevation: 5,
+      paddingVertical: theme.spacing.sm,
+      marginBottom: theme.spacing.sm
+    },
+    powerUpCenter: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
     },
     promptHeaderRow: {
       flexDirection: 'row',
@@ -1245,33 +1268,48 @@ const createStyles = (theme: Theme) =>
     // Enhanced Status Row
     statusRow: {
       flexDirection: 'row',
-      justifyContent: 'space-between',
       alignItems: 'center',
-      marginBottom: theme.spacing.md
+      gap: 6,
+      paddingHorizontal: theme.spacing.md,
+      paddingVertical: 6,
+      borderRadius: theme.borderRadius.full,
+      backgroundColor: `${theme.colors.error}26`,
+      borderWidth: 1,
+      borderColor: `${theme.colors.error}35`,
+      shadowColor: theme.colors.error,
+      shadowOpacity: 0.25,
+      shadowRadius: 10,
+      shadowOffset: { width: 0, height: 4 },
+      elevation: 2,
     },
-    streakBadge: {
+    streakBadgeCompact: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: theme.spacing.xs,
-      backgroundColor: `${theme.colors.secondary}25`,
-      paddingVertical: 6,
-      paddingHorizontal: theme.spacing.md,
+      gap: 4,
+      paddingHorizontal: theme.spacing.sm,
+      paddingVertical: 4,
       borderRadius: theme.borderRadius.full,
-      borderWidth: 2,
-      borderColor: `${theme.colors.secondary}50`,
-      shadowColor: theme.colors.secondary,
-      shadowOpacity: 0.3,
-      shadowRadius: 8,
+      backgroundColor: `${theme.colors.error}20`,
+      borderWidth: 1,
+      borderColor: `${theme.colors.error}30`,
+      shadowColor: theme.colors.error,
+      shadowOpacity: 0.18,
+      shadowRadius: 6,
       shadowOffset: { width: 0, height: 2 },
-      elevation: 4,
+      elevation: 2,
     },
     streakEmoji: {
-      fontSize: 18
+      fontSize: 16,
     },
     streakBadgeText: {
-      color: theme.colors.secondary,
-      fontWeight: '800',
       fontSize: 14,
+      fontWeight: '800',
+      color: theme.colors.error,
+    },
+    streakBadgeCompactText: {
+      fontSize: 13,
+      fontWeight: '800',
+      color: theme.colors.error,
     },
     heart: {
       fontSize: 20,
@@ -1666,7 +1704,8 @@ const createStyles = (theme: Theme) =>
     // Game Over
     gameOverContainer: {
       backgroundColor: theme.colors.background,
-      padding: theme.spacing.xl,
+      paddingHorizontal: 64,
+      paddingVertical: theme.spacing.xl,
       borderRadius: theme.borderRadius.xl,
       alignItems: 'center',
       borderWidth: 2,

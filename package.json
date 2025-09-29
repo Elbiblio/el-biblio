@@ -46,7 +46,8 @@
     "react-native-svg": "15.8.0",
     "react-native-vector-icons": "^10.3.0",
     "sonner-native": "^0.16.2",
-    "@config-plugins/react-native-webrtc": "10.0.0"
+    "@config-plugins/react-native-webrtc": "10.0.0",
+    "react-native-screens": "~4.4.0"
   },
   "devDependencies": {
     "@babel/core": "^7.20.0",

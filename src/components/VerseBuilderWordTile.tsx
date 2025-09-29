@@ -17,11 +17,12 @@ export type WordTileVariant = 'pool' | 'arranged';
 
 export interface WordTileProps {
   word: string;
-  onPress: (word: string) => void;
+  onPress: (word: string) => boolean | Promise<boolean | void> | void;
   disabled?: boolean;
   isPrefilled?: boolean;
   variant?: WordTileVariant;
   highlightSuccess?: boolean;
+  compact?: boolean;
 }
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
@@ -49,7 +50,7 @@ export const getWordColor = (word: string) => {
   return color;
 };
 
-const VerseBuilderWordTile: React.FC<WordTileProps> = memo(({ word, onPress, disabled, isPrefilled, variant = 'pool', highlightSuccess }) => {
+const VerseBuilderWordTile: React.FC<WordTileProps> = memo(({ word, onPress, disabled, isPrefilled, variant = 'pool', highlightSuccess, compact = false }) => {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
 
@@ -92,9 +93,10 @@ const VerseBuilderWordTile: React.FC<WordTileProps> = memo(({ word, onPress, dis
   const finishInteraction = useCallback(() => {
     localDisabled.current = false;
     isAnimatingOut.current = false;
-  }, []);
+    exitProgress.value = 0;
+  }, [exitProgress]);
 
-  const handlePress = useCallback((event?: GestureResponderEvent) => {
+  const handlePress = useCallback(async (event?: GestureResponderEvent) => {
     event?.preventDefault?.();
     event?.stopPropagation?.();
 
@@ -103,13 +105,19 @@ const VerseBuilderWordTile: React.FC<WordTileProps> = memo(({ word, onPress, dis
     }
 
     localDisabled.current = true;
-    onPress(word);
+    const result = await Promise.resolve(onPress(word) as any);
+    const accepted = result !== false;
 
     if (variant === 'pool') {
-      isAnimatingOut.current = true;
-      exitProgress.value = withTiming(1, { duration: 140 }, () => {
+      if (accepted) {
+        isAnimatingOut.current = true;
+        exitProgress.value = withTiming(1, { duration: 140 }, () => {
+          runOnJS(finishInteraction)();
+        });
+      } else {
         runOnJS(finishInteraction)();
-      });
+        resetPressFeedback();
+      }
     } else {
       resetPressFeedback();
       runOnJS(() => {
@@ -124,10 +132,14 @@ const VerseBuilderWordTile: React.FC<WordTileProps> = memo(({ word, onPress, dis
       variant === 'pool' ? { backgroundColor: getWordColor(word) } : styles.arrangedTile,
       isPrefilled ? styles.prefilledTile : null,
       highlightSuccess ? styles.highlightTile : null,
+      compact && variant === 'pool' ? styles.compactTile : null,
     ]) as ViewStyle;
-  }, [highlightSuccess, isPrefilled, styles.arrangedTile, styles.highlightTile, styles.prefilledTile, styles.tile, variant, word]);
+  }, [compact, highlightSuccess, isPrefilled, styles.arrangedTile, styles.compactTile, styles.highlightTile, styles.prefilledTile, styles.tile, variant, word]);
 
-  const textStyle = variant === 'arranged' ? styles.arrangedText : styles.tileText;
+  const textStyle = useMemo(() => {
+    if (variant === 'arranged') return styles.arrangedText;
+    return compact ? styles.tileTextCompact : styles.tileText;
+  }, [compact, styles.arrangedText, styles.tileText, styles.tileTextCompact, variant]);
 
   return (
     <Animated.View style={[tileBackgroundStyle, animatedContainerStyle]} pointerEvents={localDisabled.current ? 'none' : 'auto'}>
@@ -141,7 +153,12 @@ const VerseBuilderWordTile: React.FC<WordTileProps> = memo(({ word, onPress, dis
         onPress={handlePress}
         disabled={disabled}
       >
-        <Text style={textStyle} numberOfLines={1} adjustsFontSizeToFit>
+        <Text
+          style={textStyle}
+          numberOfLines={1}
+          adjustsFontSizeToFit
+          minimumFontScale={compact && variant === 'pool' ? 0.75 : 0.9}
+        >
           {word}
         </Text>
       </AnimatedPressable>
@@ -155,12 +172,14 @@ const createStyles = (theme: Theme) =>
   StyleSheet.create({
     tile: {
       minWidth: WORD_TILE_SIZE,
+      maxWidth: '100%',
       paddingVertical: 10,
       paddingHorizontal: theme.spacing?.md ?? 12,
       borderRadius: theme.borderRadius?.lg ?? 16,
       justifyContent: 'center',
       alignItems: 'center',
       marginHorizontal: theme.spacing?.xs ?? 6,
+      flexShrink: 1,
       borderWidth: 1,
       borderColor: 'rgba(255,255,255,0.2)',
       shadowColor: '#000',
@@ -181,6 +200,11 @@ const createStyles = (theme: Theme) =>
       borderColor: theme.colors.secondary,
       borderWidth: 2,
     },
+    compactTile: {
+      paddingHorizontal: Math.max(8, (theme.spacing?.sm ?? 8)),
+      paddingVertical: 8,
+      marginHorizontal: Math.max(4, (theme.spacing?.xs ?? 6) * 0.75),
+    },
     prefilledTile: {
       opacity: 0.82,
       borderWidth: 2,
@@ -196,6 +220,15 @@ const createStyles = (theme: Theme) =>
       textShadowColor: 'rgba(0,0,0,0.3)',
       textShadowOffset: { width: 0, height: 1 },
       textShadowRadius: 2,
+    },
+    tileTextCompact: {
+      color: '#FFFFFF',
+      fontSize: 13,
+      fontWeight: '700',
+      textAlign: 'center',
+      textShadowColor: 'rgba(0,0,0,0.25)',
+      textShadowOffset: { width: 0, height: 1 },
+      textShadowRadius: 1,
     },
     arrangedText: {
       color: theme.colors.text.primary,

@@ -174,24 +174,32 @@ export const FaithTheme: Virtue = {
   description: "Faith is the strength of our belief in the supremacy and omniscience of God, and the confidence that we can trust in God's love and justice and align our attitudes and actions accordingly.",
 }
 
+export interface WordHubMetadata {
+  created_at_formatted?: string;
+  updated_at_formatted?: string;
+}
+
 export interface WordHub {
   id: string;
   title: string;
   description: string;
-  creator_id: string;
+  creator_id: number;
   is_private: boolean;
   access_code: string;
-  min_points?: number;
+  min_points?: number | null;
   expires_at: string;
-  memberCount: number;
-  activeMembers: number; // Currently online/active
-  messageCount: number;
-  lastMessageTime: string;
-  topicCount: number;
   creator?: User;
-  authors: User[]; // Number of shared reflections/content
+  bookmarks?: Bookmark[];
+  messages?: WordHubMessage[];
   members?: WordHubMember[];
-  isBookmarked: boolean;
+  activities?: Activity[];
+  notifications?: Notification[];
+  userInteractions?: UserInteraction[];
+  meta?: WordHubMetadata;
+  authors?: User[];
+  activeMembers?: number;
+  messageCount?: number;
+  isBookmarked?: boolean;
   created_at: string;
   updated_at: string;
   deleted_at?: string;
@@ -735,7 +743,8 @@ export interface GameScore {
   timeSpent?: number;
   correctAnswers?: number;
   totalQuestions?: number;
-  timestamp: string;
+  submittedAt: string;
+  meta?: Record<string, any>;
 }
 
 export interface GameLeaderboard {

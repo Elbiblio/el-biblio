@@ -41,6 +41,7 @@ interface VerseBuilderState {
   powerUps: { grace: number; discernment: number };
   isPlaying: boolean;
   streak: number;
+  totalCorrectVerses: number;
   userLevel: UserLevel;
   showSuccess: boolean;
   showCorrectAnswer: boolean;
@@ -64,6 +65,7 @@ const initialState: VerseBuilderState = {
   powerUps: { grace: 3, discernment: 2 },
   isPlaying: false,
   streak: 0,
+  totalCorrectVerses: 0,
   userLevel: 'novice',
   showSuccess: false,
   showCorrectAnswer: false,
@@ -387,16 +389,18 @@ export class VerseBuilderStore {
   }
 
   // Deduct small points for a mistake (e.g., wrong slot tap)
-  penalizeMistake = (points: number = 2) => {
+  penalizeMistake = (points: number = 2, resetStreak: boolean = false) => {
     runInAction(() => {
       const deduction = Math.max(1, points);
       this.state.score = Math.max(0, this.state.score - deduction);
+      if (resetStreak) {
+        this.state.streak = 0;
+      }
     });
     this.scheduleSave();
   }
 
   selectWordFromPool = (word: string) => {
-    if (!this.state.gameState || this.state.showCorrectAnswer || !this.state.isPlaying) return;
 
     runInAction(() => {
       if (!this.state.gameState) return;
@@ -465,8 +469,11 @@ export class VerseBuilderStore {
       const timeBonus = Math.floor(this.state.timeLeft * 2);
       const newScore = this.state.score + 100 + timeBonus;
       this.state.score = newScore;
+      this.state.totalCorrectVerses += 1;
 
-      void this.gameStore.submitScore('verse_builder', newScore);
+      void this.gameStore.submitScore('verse_builder', newScore, {
+        verses_correct: this.state.totalCorrectVerses,
+      });
 
       if (newScore > this.state.highScore) {
         this.state.highScore = newScore;
