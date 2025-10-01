@@ -395,11 +395,7 @@ export class VirtueQuizStore {
     
     await this.saveToStorage();
 
-    try {
-        await apiClient.post<{ correct: boolean }>(`/quiz-questions/${currentQuestion.id}/answer`, { answer });
-    } catch (error) {
-        console.error('Failed to submit quiz answer', error);
-    }
+    // Individual answer submission removed - answers submitted in batch at quiz completion
   }
 
   goToNextQuestion() {
@@ -423,11 +419,48 @@ export class VirtueQuizStore {
     const { selectedVirtue, selectedLevel, score, questions } = this.state;
     if (!selectedVirtue || !selectedLevel) return;
 
-    const points = score * 10; // Example scoring
+    const points = score * 10; // 10 points per correct answer
+    const percentageScore = (score / questions.length) * 100;
 
     try {
-        await this.rootStore.virtueStore.completeQuiz(selectedVirtue.id, selectedLevel, points);
-        void this.rootStore.gameStore.submitScore('virtue_quiz', points);
+        // Call dedicated endpoint to complete quiz
+        const response = await apiClient.post(
+          `/virtues/${selectedVirtue.id}/complete-quiz`,
+          {
+            level: selectedLevel,
+            score: percentageScore,
+            points: points,
+          }
+        );
+
+        if (!response.success) {
+          throw new Error(response.message || 'Failed to complete quiz');
+        }
+
+        // Submit to game scores for leaderboard
+        await this.rootStore.gameStore.submitScore('virtue_quiz', points);
+
+        // Submit batch answers for analytics (optional - if backend needs detailed answer data)
+        try {
+          await apiClient.post(
+            `/virtues/${selectedVirtue.id}/quiz/answers`,
+            {
+              level: selectedLevel,
+              answers: questions.map((q, idx) => ({
+                questionId: q.id,
+                selectedAnswer: idx === this.state.currentQuestionIndex ? this.state.selectedAnswer : null,
+                isCorrect: String(this.state.selectedAnswer) === String(q.correctAnswer),
+              })),
+            }
+          );
+        } catch (analyticsError) {
+          // Analytics submission is optional, don't fail the quiz if it errors
+          console.warn('Failed to submit quiz analytics:', analyticsError);
+        }
+
+        // Refresh user progress
+        await this.rootStore.virtueStore.fetchUserProgress();
+
         runInAction(() => {
             this.state.quizCompleted = true;
             this.state.showConfetti = true;

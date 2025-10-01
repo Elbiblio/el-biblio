@@ -204,8 +204,9 @@ export class VirtueStore {
         this.state.virtuesError = null;
       });
 
+      // Use dedicated virtues endpoint
       const response = await apiClient.get<Virtue[]>(
-        endpoints.themes.list,
+        '/virtues',
         {
           include: ['userProgress'],
           sort: 'name',
@@ -269,9 +270,9 @@ export class VirtueStore {
         this.state.progressError = null;
       });
 
+      // Use dedicated virtues progress endpoint
       const response = await apiClient.get<VirtueProgress[] | { data?: VirtueProgress[] }>(
-        endpoints.themes.byUser('me'),
-        { include: ['userProgress'] }
+        '/virtues/progress'
       );
 
       if (!response.success) throw new Error(response.message || 'Failed to fetch user progress');
@@ -562,32 +563,21 @@ export class VirtueStore {
     }
   }
 
-  async completeQuiz(virtueId: string, level: number, score: number) {
+  async completeQuiz(virtueId: string, level: number, score: number, points: number) {
     try {
+      // Use the new dedicated endpoint
       const response = await apiClient.post(
-        `/virtues/${virtueId}/quiz/complete`,
-        { level, score }
+        `/virtues/${virtueId}/complete-quiz`,
+        { level, score, points }
       );
 
       if (!response.success) throw new Error(response.message || 'Failed to complete quiz');
 
-      // Update user progress
-      const currentProgress = this.state.userProgress[virtueId];
-      if (currentProgress) {
-        const newProgress = {
-          ...currentProgress,
-          total_points: currentProgress.total_points + score,
-          total_challenges: currentProgress.total_challenges + 1,
-          current_level: Math.max(currentProgress.current_level, level)
-        };
-
-        runInAction(() => {
-          this.state.userProgress[virtueId] = newProgress;
-        });
-      }
+      // Refresh user progress from server to get updated data
+      await this.fetchUserProgress();
 
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      toast.success(`Quiz completed! You earned ${score} points.`);
+      toast.success(`Quiz completed! You earned ${points} points.`);
 
       return true;
     } catch (error: any) {

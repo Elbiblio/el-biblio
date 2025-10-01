@@ -3,12 +3,13 @@ import { observer } from 'mobx-react-lite';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { BookOpen, Trophy, Lightning, Flame, ChevronRight } from '@/components/Icons';
+import { BookOpen, Trophy, Lightning, Flame, ChevronRight, Brain, Lock } from '@/components/Icons';
 import { RootStackParamList, GameId } from '@/types';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuthStore, useGameStore, useLeaderboardStore } from '@/stores/StoreProvider';
 import { useGameBadgeStore } from '@/stores/GameBadgeStore';
+import { isGameUnlocked, getGameUnlockRequirement, getNextUnlock } from '@/utils/gameUnlocks';
 
 const GameScreen = () => {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
@@ -42,7 +43,12 @@ const GameScreen = () => {
     { icon: BookOpen, title: 'Verse Builder', subtitle: 'Assemble the verse', color: theme?.colors.primary, route: 'VerseBuilderScreen', bestKey: 'verse_builder' },
     { icon: Flame, title: 'Virtue Trivia', subtitle: 'Test your knowledge', color: theme?.colors.secondary, route: 'VirtueTriviaScreen', bestKey: 'virtue_trivia' },
     { icon: Lightning, title: 'Virtue Quiz', subtitle: 'Level up your virtue', color: theme?.colors.success, route: 'VirtueQuizScreen', bestKey: 'virtue_quiz' },
+    { icon: Brain, title: 'Spiritual Career', subtitle: 'Craft your plan', color: theme?.colors.warning || theme?.colors.primary, route: 'SpiritualCareerScreen', bestKey: 'sp_career' },
   ];
+
+  const totalPoints = leaderboardStore.userStats?.totalPoints ?? 0;
+  const verseBuilderPoints = gameStore.getPersonalBest('verse_builder') || 0;
+  const nextUnlock = getNextUnlock(totalPoints, verseBuilderPoints);
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -52,26 +58,63 @@ const GameScreen = () => {
       <View style={styles.tiles}>
         {tiles.map((t) => {
           const best = gameStore.getPersonalBest(t.bestKey) || 0;
+          const unlocked = isGameUnlocked(t.bestKey, verseBuilderPoints, totalPoints);
+          const requirement = getGameUnlockRequirement(t.bestKey);
+          
           return (
-            <TouchableOpacity key={t.title} style={styles.tile} activeOpacity={0.85}
-              onPress={() => navigation.navigate(t.route as any)}>
-              <LinearGradient colors={[`${t.color}18`, `${t.color}08`]} style={styles.tileGradient} start={{x:0,y:0}} end={{x:1,y:1}} />
-              <View style={[styles.tileIcon, { backgroundColor: `${t.color}16` }]}>
-                <t.icon size={22} color={t.color} />
+            <TouchableOpacity 
+              key={t.title} 
+              style={[styles.tile, !unlocked && styles.tileLocked]} 
+              activeOpacity={unlocked ? 0.85 : 1}
+              onPress={() => unlocked && navigation.navigate(t.route as any)}
+              disabled={!unlocked}
+            >
+              <LinearGradient 
+                colors={unlocked ? [`${t.color}18`, `${t.color}08`] : ['#00000008', '#00000004']} 
+                style={styles.tileGradient} 
+                start={{x:0,y:0}} 
+                end={{x:1,y:1}} 
+              />
+              <View style={[styles.tileIcon, { backgroundColor: unlocked ? `${t.color}16` : '#00000010' }]}>
+                {unlocked ? (
+                  <t.icon size={22} color={t.color} />
+                ) : (
+                  <Lock size={22} color={theme?.colors.text.secondary} />
+                )}
               </View>
               <View style={styles.tileContent}>
-                <Text style={[styles.tileTitle, { color: t.color }]}>{t.title}</Text>
-                <Text style={styles.tileSubtitle}>{t.subtitle}</Text>
-                <View style={styles.bestRow}>
-                  <Trophy size={14} color={theme?.colors.text.secondary} />
-                  <Text style={styles.bestText}>Personal best: {best}</Text>
-                </View>
+                <Text style={[styles.tileTitle, { color: unlocked ? t.color : theme?.colors.text.secondary }]}>
+                  {t.title}
+                </Text>
+                <Text style={[styles.tileSubtitle, !unlocked && { opacity: 0.6 }]}>
+                  {unlocked ? t.subtitle : requirement?.unlockMessage || 'Locked'}
+                </Text>
+                {unlocked && (
+                  <View style={styles.bestRow}>
+                    <Trophy size={14} color={theme?.colors.text.secondary} />
+                    <Text style={styles.bestText}>Personal best: {best}</Text>
+                  </View>
+                )}
               </View>
-              <ChevronRight size={18} color={theme?.colors.text.secondary} />
+              {unlocked ? (
+                <ChevronRight size={18} color={theme?.colors.text.secondary} />
+              ) : (
+                <Lock size={18} color={theme?.colors.text.secondary} />
+              )}
             </TouchableOpacity>
           );
         })}
       </View>
+
+      {nextUnlock && (
+        <View style={styles.unlockCard}>
+          <Text style={styles.unlockTitle}>🎯 Next Unlock</Text>
+          <Text style={styles.unlockGame}>{nextUnlock.game.title}</Text>
+          <Text style={styles.unlockProgress}>
+            {nextUnlock.pointsNeeded} more points needed
+          </Text>
+        </View>
+      )}
 
       <View style={styles.statsCard}>
         <LinearGradient colors={[`${theme?.colors.primary}12`, `${theme?.colors.primary}04`]} style={styles.statsGradient} />
@@ -107,6 +150,7 @@ const createStyles = (theme: any) => StyleSheet.create({
   subtitle: { fontSize: 14, color: theme?.colors.text.secondary, marginBottom: theme?.spacing.lg },
   tiles: { gap: theme?.spacing.sm },
   tile: { flexDirection: 'row', alignItems: 'center', borderRadius: 14, padding: 14, overflow: 'hidden' },
+  tileLocked: { opacity: 0.6 },
   tileGradient: { ...StyleSheet.absoluteFillObject, borderRadius: 14 },
   tileIcon: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', marginRight: 12 },
   tileContent: { flex: 1 },
@@ -120,6 +164,10 @@ const createStyles = (theme: any) => StyleSheet.create({
   statsRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 12 },
   cta: { marginTop: 16, backgroundColor: theme?.colors.primary, paddingVertical: 10, borderRadius: 12, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 6 },
   ctaText: { color: '#fff', fontWeight: '700' },
+  unlockCard: { marginTop: theme?.spacing.md, padding: 16, borderRadius: 12, backgroundColor: `${theme?.colors.primary}08`, borderWidth: 1, borderColor: `${theme?.colors.primary}20` },
+  unlockTitle: { fontSize: 14, fontWeight: '700', color: theme?.colors.text.primary, marginBottom: 4 },
+  unlockGame: { fontSize: 16, fontWeight: '800', color: theme?.colors.primary, marginBottom: 2 },
+  unlockProgress: { fontSize: 12, color: theme?.colors.text.secondary },
 });
 
 export default observer(GameScreen);

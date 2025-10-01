@@ -515,6 +515,17 @@ export const endpoints = {
   uploads: {
     presign: '/uploads/presign',
   },
+
+  // Spiritual Career (Kingdom Calling)
+  spiritualCareer: {
+    progress: '/spiritual-career/progress',
+    submit: '/spiritual-career/submit',
+    config: '/spiritual-career/config',
+    applyGrowth: '/spiritual-career/apply-growth',
+    leaderboard: '/spiritual-career/leaderboard',
+    growthHistory: '/spiritual-career/growth-history',
+    reset: '/spiritual-career/progress',
+  },
 };
 
 export const apiClient = {

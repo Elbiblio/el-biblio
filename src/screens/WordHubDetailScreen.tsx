@@ -6,15 +6,18 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  ScrollView,
   ActivityIndicator,
   FlatList,
+  ScrollView,
+  Alert,
+  Modal,
 } from 'react-native';
 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Participant, ConnectionState } from 'livekit-client';
+import Feather from 'react-native-vector-icons/Feather';
 import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
-import Feather from 'react-native-vector-icons/Feather';
 
 import {
   ArrowLeft,
@@ -30,7 +33,7 @@ import { Theme } from '@/theme';
 import { useTheme } from '@/contexts/ThemeContext';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList, WordHub, WordHubMessage, User } from '@/types';
-import { formatTimeLeft } from '@/utils/schedule';
+import { formatTimeLeft, formatRelativeTime } from '@/utils/schedule';
 import { observer } from 'mobx-react-lite';
 import { useAuthStore, useWordHubsStore } from '@/stores/StoreProvider';
 import { useLiveKitAudioRoom, AudioParticipant } from '@/hooks/useLiveKitAudioRoom';
@@ -49,14 +52,31 @@ const WordHubDetailScreen = observer(({ navigation, route }: Props) => {
   const messages = wordHubsStore.hubMessages as WordHubMessage[];
   const isLoading = wordHubsStore.isHubLoading;
   const liveKitSession = wordHubsStore.activeLiveKitSession;
+  const lastSocketDisconnectReason = wordHubsStore.lastSocketDisconnectReason;
+  const [message, setMessage] = useState('');
+  const [isVerseModalVisible, setVerseModalVisible] = useState(false);
+  const [verseReference, setVerseReference] = useState<string | null>(null);
+  const [verseModalLoading, setVerseModalLoading] = useState(false);
+  const [verseModalError, setVerseModalError] = useState<string | null>(null);
+  const [verseModalText, setVerseModalText] = useState<string>('');
+  const [verseModalTranslation, setVerseModalTranslation] = useState<string>('en-kjv');
+
+  const wordHubsStoreRef = useRef(wordHubsStore);
+  const hubIdRef = useRef(hubId);
+
+  useEffect(() => {
+    wordHubsStoreRef.current = wordHubsStore;
+    hubIdRef.current = hubId;
+  });
+
   const activeLiveKitSession = useMemo(() => (
     liveKitSession?.hubId === hubId ? liveKitSession : null
   ), [liveKitSession, hubId]);
-  const [message, setMessage] = useState('');
+
   const hostUsers = useMemo(() => (
     hub?.members
       ?.map((member) => member.user)
-      .filter((user): user is User => Boolean(user)) ?? []
+      .filter((candidate): candidate is User => Boolean(candidate)) ?? []
   ), [hub?.members]);
 
   const isMember = useMemo(() => {
@@ -64,48 +84,80 @@ const WordHubDetailScreen = observer(({ navigation, route }: Props) => {
     return Boolean(hub?.members?.some((member) => member.user_id === user.id));
   }, [hub?.members, user?.id]);
 
-  const handleSendMessage = async () => {
-    if (!message.trim()) return;
-    const sent = await wordHubsStore.sendMessage(hubId, message.trim());
-    if (sent) {
-      setMessage('');
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    }
-  };
-
-  const handleLeaveHub = async () => {
-    const ok = await wordHubsStore.leaveHub(hubId);
-    if (ok) {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      navigation.goBack();
-    }
-  };
-
   const handleAudioConnecting = useCallback((id: string) => {
-    if (id === hubId) {
-      wordHubsStore.markLiveKitConnecting(id);
+    if (id === hubIdRef.current) {
+      wordHubsStoreRef.current.markLiveKitConnecting(id);
     }
-  }, [hubId, wordHubsStore]);
+  }, []);
 
   const handleAudioConnected = useCallback((id: string) => {
-    if (id === hubId) {
-      wordHubsStore.markLiveKitConnected(id);
+    if (id === hubIdRef.current && wordHubsStoreRef.current) {
+      wordHubsStoreRef.current.markLiveKitConnected(id);
+      if (typeof wordHubsStoreRef.current.clearSocketDisconnectReason === 'function') {
+        wordHubsStoreRef.current.clearSocketDisconnectReason();
+      }
     }
-  }, [hubId, wordHubsStore]);
+  }, []);
 
   const handleAudioDisconnected = useCallback((id: string, reason?: string) => {
-    if (id === hubId) {
-      wordHubsStore.markLiveKitDisconnected(id, reason);
+    if (id === hubIdRef.current) {
+      wordHubsStoreRef.current.markLiveKitDisconnected(id, reason);
     }
-  }, [hubId, wordHubsStore]);
+  }, []);
 
   const handleAudioError = useCallback((id: string, err: Error) => {
-    if (id === hubId) {
-      wordHubsStore.markLiveKitDisconnected(id, err.message);
+    if (id === hubIdRef.current) {
+      wordHubsStoreRef.current.markLiveKitDisconnected(id, err.message);
     }
-  }, [hubId, wordHubsStore]);
+  }, []);
+
+  const handleLiveKitData = useCallback((payload: Uint8Array | string, _participant?: Participant, topic?: string) => {
+    const targetTopic = 'wordhub:message';
+    if (topic && topic !== targetTopic) {
+      return;
+    }
+
+    let text: string | null = null;
+    if (typeof payload === 'string') {
+      text = payload;
+    } else if (payload instanceof Uint8Array) {
+      if (typeof TextDecoder !== 'undefined') {
+        try {
+          text = new TextDecoder().decode(payload);
+        } catch (decodeError) {
+          console.warn('Failed to decode LiveKit payload with TextDecoder', decodeError);
+        }
+      }
+      if (!text) {
+        text = Array.from(payload)?.map(code => String.fromCharCode(code)).join('');
+      }
+    }
+
+    if (!text) {
+      return;
+    }
+
+    try {
+      const data = JSON.parse(text);
+      if (data?.type === 'wordhub_message' && data?.hubId === hubIdRef.current && data?.message) {
+        wordHubsStoreRef.current.addMessageInRealTime(data.hubId, data.message as WordHubMessage);
+      }
+    } catch (parseError) {
+      console.warn('Failed to parse LiveKit message payload', parseError);
+    }
+  }, []);
+
+  const liveKitCallbacks = useMemo(() => ({
+    onConnecting: handleAudioConnecting,
+    onConnected: handleAudioConnected,
+    onDisconnected: handleAudioDisconnected,
+    onError: handleAudioError,
+    onData: handleLiveKitData,
+  }), [handleAudioConnecting, handleAudioConnected, handleAudioDisconnected, handleAudioError, handleLiveKitData]);
 
   const {
+    LiveKitView: LiveKitRoomView,
+    room,
     participants,
     isConnecting: audioConnecting,
     isConnected: audioConnected,
@@ -113,12 +165,46 @@ const WordHubDetailScreen = observer(({ navigation, route }: Props) => {
     error: audioError,
     toggleMicrophone,
     disconnect: disconnectAudio,
-  } = useLiveKitAudioRoom(activeLiveKitSession, {
-    onConnecting: handleAudioConnecting,
-    onConnected: handleAudioConnected,
-    onDisconnected: handleAudioDisconnected,
-    onError: handleAudioError,
-  });
+  } = useLiveKitAudioRoom(activeLiveKitSession, liveKitCallbacks);
+
+  const handleSendMessage = useCallback(async () => {
+    const trimmed = message.trim();
+    if (!trimmed) return;
+
+    setMessage('');
+
+    const sent = await wordHubsStoreRef.current.sendMessage(hubIdRef.current, trimmed);
+    if (sent) {
+      if (room && room.state === ConnectionState.Connected) {
+        const packet = {
+          type: 'wordhub_message' as const,
+          hubId: hubIdRef.current,
+          message: sent,
+        };
+
+        const payloadText = JSON.stringify(packet);
+        const encoded = typeof TextEncoder !== 'undefined'
+          ? new TextEncoder().encode(payloadText)
+          : new Uint8Array(Array.from(payloadText)?.map(char => char.charCodeAt(0)));
+
+        try {
+          await room.localParticipant.publishData(encoded, {
+            topic: 'wordhub:message',
+            reliable: true,
+          });
+        } catch (publishError) {
+          console.warn('Failed to broadcast message via LiveKit', publishError);
+        }
+      } else if (!room) {
+        console.warn('Skipping LiveKit broadcast: room not available');
+      } else {
+        console.warn('Skipping LiveKit broadcast: room not connected', room.state);
+      }
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } else {
+      setMessage(trimmed);
+    }
+  }, [message, room]);
 
   const disconnectAudioRef = useRef(disconnectAudio);
   useEffect(() => {
@@ -126,58 +212,137 @@ const WordHubDetailScreen = observer(({ navigation, route }: Props) => {
   }, [disconnectAudio]);
 
   const autoConnectAttemptedRef = useRef(false);
+  const audioStateRef = useRef({ connected: false, connecting: false });
 
   useEffect(() => {
-    const load = async () => {
+    audioStateRef.current = {
+      connected: audioConnected,
+      connecting: audioConnecting,
+    };
+  }, [audioConnected, audioConnecting]);
+
+  useEffect(() => {
+    const loadHubData = async () => {
       try {
         await Promise.all([
-          wordHubsStore.fetchHubById(hubId),
-          wordHubsStore.fetchHubMessages(hubId, 1),
+          wordHubsStoreRef.current.fetchHubById(hubIdRef.current),
+          wordHubsStoreRef.current.fetchHubMessages(hubIdRef.current, 1),
         ]);
       } catch (error) {
         console.error('Error loading hub detail:', error);
       }
     };
 
-    load();
+    autoConnectAttemptedRef.current = false;
+    loadHubData();
 
     return () => {
-      disconnectAudioRef.current('screen_unmount').catch(() => undefined);
-      wordHubsStore.clearLiveKitSession(hubId);
-      wordHubsStore.clearCurrentHub();
+      wordHubsStoreRef.current.clearCurrentHub();
       autoConnectAttemptedRef.current = false;
     };
-  }, [hubId, wordHubsStore]);
+  }, [hubId]);
 
   useEffect(() => {
-    if (!activeLiveKitSession && isMember && !autoConnectAttemptedRef.current) {
-      autoConnectAttemptedRef.current = true;
-      wordHubsStore.refreshLiveKitSession(hubId).catch(() => {
+    return () => {
+      const { connected, connecting } = audioStateRef.current;
+      if (connected || connecting) {
+        disconnectAudioRef.current('screen_unmount').catch(console.error);
+      }
+      wordHubsStoreRef.current.clearLiveKitSession(hubIdRef.current);
+    };
+  }, []);
+
+  const isExpired = useMemo(() => {
+    if (!hub?.expires_at) return false;
+    return new Date(hub.expires_at).getTime() <= Date.now();
+  }, [hub?.expires_at]);
+
+  const shouldAutoConnect = useMemo(() => (
+    !activeLiveKitSession &&
+    isMember &&
+    !isExpired &&
+    !autoConnectAttemptedRef.current &&
+    Boolean(hub) &&
+    !audioConnected &&
+    !audioConnecting
+  ), [activeLiveKitSession, isMember, isExpired, hub, audioConnected, audioConnecting]);
+
+  useEffect(() => {
+    if (!shouldAutoConnect) {
+      return;
+    }
+
+    autoConnectAttemptedRef.current = true;
+
+    wordHubsStoreRef.current.refreshLiveKitSession(hubIdRef.current, user?.id)
+      .catch((error) => {
+        console.error('Auto-connect to LiveKit failed:', error);
         autoConnectAttemptedRef.current = false;
       });
+  }, [shouldAutoConnect, user?.id]);
+
+  useEffect(() => {
+    if (!lastSocketDisconnectReason) {
+      return;
     }
-  }, [activeLiveKitSession, hubId, isMember, wordHubsStore]);
+
+    wordHubsStoreRef.current.fetchHubMessages(hubIdRef.current, 1, { silent: true }).catch((error) => {
+      console.error('Silent resync after LiveKit disconnect failed:', error);
+    });
+  }, [lastSocketDisconnectReason]);
 
   const audioStatusLabel = useMemo(() => {
+    if (isExpired) return 'Ended';
     if (audioConnected) return 'Connected';
     if (audioConnecting) return 'Connecting…';
     return 'Not connected';
-  }, [audioConnected, audioConnecting]);
+  }, [audioConnected, audioConnecting, isExpired]);
 
   const audioStatusStyle = useMemo(() => {
+    if (isExpired) return styles.statusDisconnected;
     if (audioConnected) return styles.statusConnected;
     if (audioConnecting) return styles.statusConnecting;
     return styles.statusDisconnected;
-  }, [audioConnected, audioConnecting, styles.statusConnected, styles.statusConnecting, styles.statusDisconnected]);
+  }, [audioConnected, audioConnecting, isExpired, styles.statusConnected, styles.statusConnecting, styles.statusDisconnected]);
 
   const handleJoinAudio = useCallback(async () => {
-    await wordHubsStore.refreshLiveKitSession(hubId);
-  }, [wordHubsStore, hubId]);
+    if (isExpired || audioConnecting || audioConnected) return;
+
+    try {
+      await disconnectAudioRef.current('user_reconnect').catch(() => {});
+    } catch {}
+
+    wordHubsStoreRef.current.clearLiveKitSession(hubIdRef.current);
+    await new Promise(resolve => setTimeout(resolve, 100));
+
+    try {
+      await wordHubsStoreRef.current.refreshLiveKitSession(hubIdRef.current, user?.id);
+    } catch (error) {
+      console.error('Failed to join audio:', error);
+      autoConnectAttemptedRef.current = false;
+    }
+  }, [audioConnected, audioConnecting, user?.id]);
 
   const handleLeaveAudio = useCallback(async () => {
-    await disconnectAudio('user_leave');
-    wordHubsStore.clearLiveKitSession(hubId);
-  }, [disconnectAudio, wordHubsStore, hubId]);
+    try {
+      await disconnectAudio('user_leave');
+      wordHubsStore.clearLiveKitSession(hubId);
+    } catch (error) {
+      console.error('Failed to leave audio:', error);
+    }
+  }, [disconnectAudio, hubId]); // Removed wordHubsStore
+
+  const handleLeaveHub = useCallback(async () => {
+    if (audioConnected || audioConnecting) {
+      await handleLeaveAudio();
+    }
+
+    const ok = await wordHubsStoreRef.current.leaveHub(hubIdRef.current);
+    if (ok) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      navigation.goBack();
+    }
+  }, [audioConnected, audioConnecting, handleLeaveAudio, navigation]);
 
   const renderParticipant = useCallback(({ item }: { item: AudioParticipant }) => (
     <View style={styles.participantItem}>
@@ -222,6 +387,136 @@ const WordHubDetailScreen = observer(({ navigation, route }: Props) => {
     );
   }
 
+  const timeStatusLabel = useMemo(() => {
+    if (!hub?.expires_at) return 'No schedule';
+    if (isExpired) {
+      const startedAt = hub.created_at ? new Date(hub.created_at) : null;
+      const endedAt = new Date(hub.expires_at);
+      const durationMs = startedAt ? endedAt.getTime() - startedAt.getTime() : 0;
+      const durationMinutes = Math.max(0, Math.round(durationMs / 60000));
+      return `Ended (${durationMinutes}m)`;
+    }
+    return formatTimeLeft(hub.expires_at);
+  }, [hub?.created_at, hub?.expires_at, isExpired]);
+
+  const handleTimePress = useCallback(() => {
+    if (!hub?.expires_at) return;
+    const endedAt = new Date(hub.expires_at);
+    const relative = formatRelativeTime(hub.expires_at);
+    const startedAt = hub.created_at ? formatRelativeTime(hub.created_at) : null;
+    const duration = hub.created_at
+      ? Math.max(0, Math.round((endedAt.getTime() - new Date(hub.created_at).getTime()) / 60000))
+      : null;
+
+    Alert.alert(
+      'Session ended',
+      [
+        `Ended ${relative}`,
+        duration !== null ? `Duration ${duration} minutes` : undefined,
+        startedAt ? `Started ${startedAt}` : undefined,
+      ].filter(Boolean).join('\n')
+    );
+  }, [hub?.created_at, hub?.expires_at]);
+
+  const extractVerseReferences = useCallback((text: string) => {
+    const regex = /\b([1-3]?\s?[A-Za-z]+)\s(\d{1,3})(?::(\d{1,3})(?:-(\d{1,3}))?)?/g;
+    const matches: { start: number; end: number; reference: string }[] = [];
+    let match: RegExpExecArray | null;
+    while ((match = regex.exec(text)) !== null) {
+      const reference = match[0];
+      matches.push({ start: match.index, end: regex.lastIndex, reference });
+    }
+    return matches;
+  }, []);
+
+  const parseVerseReference = useCallback((reference: string) => {
+    const parsed = reference.trim().match(/^([1-3]?\s?[A-Za-z]+)\s(\d{1,3})(?::(\d{1,3})(?:-(\d{1,3}))?)?/);
+    if (!parsed) {
+      throw new Error('Unable to parse verse reference');
+    }
+    const book = parsed[1].replace(/\s+/g, '').toLowerCase();
+    const chapter = parsed[2];
+    const verse = parsed[3];
+    return { book, chapter, verse };
+  }, []);
+
+  const fetchVerseContent = useCallback(async (reference: string) => {
+    try {
+      setVerseModalLoading(true);
+      setVerseModalError(null);
+      const { book, chapter, verse } = parseVerseReference(reference);
+      const translation = verseModalTranslation;
+      const response = await fetch(`https://cdn.jsdelivr.net/gh/wldeh/bible-api/bibles/${translation}/books/${book}/chapters/${chapter}/verses/${verse}.json`);
+      if (!response.ok) {
+        throw new Error('Failed to load verse');
+      }
+      const data = await response.json();
+      setVerseModalText(data?.text ?? '');
+    } catch (error) {
+      setVerseModalError(error instanceof Error ? error.message : 'Failed to load verse');
+      setVerseModalText('');
+    } finally {
+      setVerseModalLoading(false);
+    }
+  }, [parseVerseReference, verseModalTranslation]);
+
+  const handleVersePress = useCallback((reference: string) => {
+    setVerseReference(reference);
+    setVerseModalVisible(true);
+    void fetchVerseContent(reference);
+  }, [fetchVerseContent]);
+
+  const handleCloseVerseModal = useCallback(() => {
+    setVerseModalVisible(false);
+    setVerseReference(null);
+    setVerseModalError(null);
+    setVerseModalText('');
+  }, []);
+
+  const renderMessageText = useCallback((text: string) => {
+    const segments = [] as { key: string; content: string; reference?: string }[];
+    const matches = extractVerseReferences(text);
+
+    if (matches.length === 0) {
+      return <Text style={styles.messageText}>{text}</Text>;
+    }
+
+    let cursor = 0;
+    matches.forEach((match, index) => {
+      if (cursor < match.start) {
+        segments.push({ key: `text-${index}-${cursor}`, content: text.slice(cursor, match.start) });
+      }
+      segments.push({
+        key: `ref-${index}-${match.start}`,
+        content: text.slice(match.start, match.end),
+        reference: match.reference,
+      });
+      cursor = match.end;
+    });
+
+    if (cursor < text.length) {
+      segments.push({ key: `tail-${cursor}`, content: text.slice(cursor) });
+    }
+
+    return (
+      <Text style={styles.messageText}>
+        {segments.map((segment) => (
+          segment.reference ? (
+            <Text
+              key={segment.key}
+              style={styles.verseHighlight}
+              onPress={() => handleVersePress(segment.reference!)}
+            >
+              {segment.content}
+            </Text>
+          ) : (
+            <Text key={segment.key}>{segment.content}</Text>
+          )
+        ))}
+      </Text>
+    );
+  }, [extractVerseReferences, styles.messageText, styles.verseHighlight, handleVersePress]);
+
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       {/* Header */}
@@ -254,10 +549,10 @@ const WordHubDetailScreen = observer(({ navigation, route }: Props) => {
               <MessageCircle size={16} color={theme.colors.text.secondary} />
               <Text style={styles.statText}>{hub.messages?.length ?? 0} messages</Text>
             </View>
-            <View style={styles.stat}>
-              <Clock size={16} color={theme.colors.text.secondary} />
-              <Text style={styles.statText}>{formatTimeLeft(hub.expires_at)}</Text>
-            </View>
+            <TouchableOpacity style={styles.stat} onPress={handleTimePress} disabled={!hub.expires_at || isExpired}>
+            <Clock size={16} color={theme.colors.text.secondary} />
+            <Text style={styles.statText}>{timeStatusLabel}</Text>
+          </TouchableOpacity>
           </View>
 
           <AvatarStack
@@ -271,6 +566,7 @@ const WordHubDetailScreen = observer(({ navigation, route }: Props) => {
       </View>
 
       {/* Audio Room */}
+      {!isExpired && (
       <View style={styles.audioCard}>
         <View style={styles.audioHeader}>
           <Text style={styles.audioTitle}>Live Audio Room</Text>
@@ -292,11 +588,16 @@ const WordHubDetailScreen = observer(({ navigation, route }: Props) => {
             />
           </View>
         )}
-        {audioError && (
-          <Text style={styles.audioErrorText}>
-            {audioError.message}
-          </Text>
-        )}
+
+        <View style={styles.audioRoomContainer}>
+          {LiveKitRoomView ? (
+            <LiveKitRoomView />
+          ) : (
+            <View style={styles.audioRoomPlaceholder}>
+              <Text style={styles.audioRoomPlaceholderText}>Audio room not available</Text>
+            </View>
+          )}
+        </View>
 
         <FlatList
           data={participants}
@@ -355,16 +656,17 @@ const WordHubDetailScreen = observer(({ navigation, route }: Props) => {
           )}
         </View>
       </View>
+      )}
 
       {/* Messages */}
       <ScrollView
         style={styles.messagesContainer}
         contentContainerStyle={styles.messagesContent}
       >
-        {messages.map((msg) => (
+        {messages?.map((msg) => (
           <View key={msg.id} style={styles.messageItem}>
             <Text style={styles.messageAuthor}>{msg.user.name}</Text>
-            <Text style={styles.messageText}>{msg.message}</Text>
+            {renderMessageText(msg.message)}
             <Text style={styles.messageTime}>
               {new Date(msg.created_at).toLocaleTimeString()}
             </Text>
@@ -390,6 +692,36 @@ const WordHubDetailScreen = observer(({ navigation, route }: Props) => {
           <Send size={20} color={theme.colors.text.inverse} />
         </TouchableOpacity>
       </View>
+      <Modal
+        visible={isVerseModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={handleCloseVerseModal}
+      >
+        <View style={styles.verseModalOverlay}>
+          <View style={styles.verseModalContainer}>
+            <BlurView intensity={20} style={StyleSheet.absoluteFill} />
+            <View style={styles.verseModalContent}>
+              <View style={styles.verseModalHeader}>
+                <Text style={styles.verseModalTitle}>{verseReference}</Text>
+                <TouchableOpacity onPress={handleCloseVerseModal}>
+                  <Feather name="x" size={20} color={theme.colors.text.secondary} />
+                </TouchableOpacity>
+              </View>
+              {verseModalLoading ? (
+                <ActivityIndicator color={theme.colors.primary} />
+              ) : verseModalError ? (
+                <Text style={styles.verseModalError}>{verseModalError}</Text>
+              ) : (
+                <ScrollView style={styles.verseModalScroll}>
+                  <Text style={styles.verseModalText}>{verseModalText}</Text>
+                  <Text style={styles.verseModalMeta}>{verseModalTranslation.toUpperCase()}</Text>
+                </ScrollView>
+              )}
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 });
@@ -448,6 +780,76 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     ...theme.typography.caption.primary,
     color: theme.colors.error,
     marginBottom: theme.spacing.sm,
+  },
+  audioRoomContainer: {
+    marginTop: theme.spacing.sm,
+    marginBottom: theme.spacing.sm,
+    borderRadius: theme.borderRadius.md,
+    overflow: 'hidden',
+    backgroundColor: theme.colors.surface,
+    minHeight: 140,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  audioRoomPlaceholder: {
+    paddingVertical: theme.spacing.lg,
+    paddingHorizontal: theme.spacing.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  audioRoomPlaceholderText: {
+    ...theme.typography.caption.secondary,
+    color: theme.colors.text.secondary,
+  },
+  verseHighlight: {
+    color: theme.colors.primary,
+    textDecorationLine: 'underline',
+    fontWeight: '600',
+  },
+  verseModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: theme.spacing.lg,
+  },
+  verseModalContainer: {
+    width: '100%',
+    maxWidth: 420,
+    borderRadius: theme.borderRadius.lg,
+    overflow: 'hidden',
+  },
+  verseModalContent: {
+    padding: theme.spacing.lg,
+    backgroundColor: `${theme.colors.surface}F2`,
+    gap: theme.spacing.md,
+  },
+  verseModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  verseModalTitle: {
+    ...theme.typography.heading.small,
+    color: theme.colors.primary,
+  },
+  verseModalScroll: {
+    maxHeight: 240,
+  },
+  verseModalText: {
+    ...theme.typography.body.sans,
+    color: theme.colors.text.primary,
+    lineHeight: 24,
+  },
+  verseModalMeta: {
+    ...theme.typography.caption.secondary,
+    color: theme.colors.text.secondary,
+    marginTop: theme.spacing.sm,
+  },
+  verseModalError: {
+    ...theme.typography.caption.primary,
+    color: theme.colors.error,
+    textAlign: 'center',
   },
   hostRow: {
     marginTop: theme.spacing.sm,
@@ -658,4 +1060,4 @@ const createStyles = (theme: Theme) => StyleSheet.create({
   },
 });
 
-export default WordHubDetailScreen; 
+export default WordHubDetailScreen;

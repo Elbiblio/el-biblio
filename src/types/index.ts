@@ -148,6 +148,7 @@ export interface Verse {
   id: string;
   text: string;
   reference: string;
+  reference_display: string;
   date: string;
   translation: string;
   theme_id?: string;
@@ -668,6 +669,7 @@ export type RootStackParamList = {
   QuizDetail: { id: string };
   BibleScreen: {book?: string, chapter?: number, verse?: number};
   ChallengeDetail: { id: string };
+  SpiritualCareerScreen: undefined;
 };
 
 export interface BibleVersion {

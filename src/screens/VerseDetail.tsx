@@ -4,13 +4,14 @@ import {
   Text,
   FlatList,
   TouchableOpacity,
+  TouchableWithoutFeedback,
   StyleSheet,
   Platform,
   TextInput,
   ScrollView,
   ActivityIndicator,
-  Image,
-  RefreshControl,
+  KeyboardAvoidingView,
+  Keyboard,
 } from 'react-native';
 import Animated, {
   useSharedValue,
@@ -59,7 +60,7 @@ const VerseDetail = ({ navigation, route }: VerseDetailProps) => {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const { user } = useAuthStore();
-  const styles = React.useMemo(() => createStyles(theme), [theme]);
+  const styles = React.useMemo(() => createStyles(theme, insets.bottom), [theme, insets.bottom]);
   
   // Store state and actions
   const {
@@ -96,6 +97,8 @@ const VerseDetail = ({ navigation, route }: VerseDetailProps) => {
   const scrollY = useSharedValue(0);
   const scrollX = useSharedValue(0);
   const headerOpacity = useSharedValue(1);
+  const composerOpacity = useSharedValue(0);
+  const composerTranslateY = useSharedValue(100);
 
   // Refs
   const flatListRef = useRef<FlatList>(null);
@@ -176,7 +179,7 @@ const VerseDetail = ({ navigation, route }: VerseDetailProps) => {
 
   const handleCopyVerse = async () => {
     try {
-      await Clipboard.setStringAsync(`${currentVerse?.text} (${currentVerse?.reference})`);
+      await Clipboard.setStringAsync(`${currentVerse?.text} (${currentVerse?.reference_display})`);
       toast.success('Verse copied to clipboard');
     } catch (e) {
       toast.error('Failed to copy');
@@ -186,7 +189,7 @@ const VerseDetail = ({ navigation, route }: VerseDetailProps) => {
   const handleShareVerse = async () => {
     if (!currentVerse) return;
     try {
-      const msg = `${currentVerse.text} (${currentVerse.reference})`;
+      const msg = `${currentVerse.text} (${currentVerse.reference_display})`;
       await NativeShare.share({ message: msg });
     } catch {}
   };
@@ -403,7 +406,26 @@ const VerseDetail = ({ navigation, route }: VerseDetailProps) => {
         Extrapolation.CLAMP
       )
     );
+    
+    // Show sticky composer after scrolling past verse content (~400px)
+    const shouldShowComposer = nativeEvent.contentOffset.y > 400;
+    composerOpacity.value = withTiming(shouldShowComposer ? 1 : 0, { duration: 200 });
+    composerTranslateY.value = withSpring(shouldShowComposer ? 0 : 100, {
+      damping: 20,
+      stiffness: 90,
+    });
   }, []);
+
+  // Anchor: measure Reflections section to support precise scrolling
+  const reflectionsAnchorRef = useRef<View>(null);
+  const scrollViewRef = useRef<ScrollView>(null);
+  const [reflectionsY, setReflectionsY] = useState<number | null>(null);
+  const scrollToReflections = useCallback(() => {
+    if (scrollViewRef.current && reflectionsY !== null) {
+      const y = Math.max(0, reflectionsY - 8);
+      scrollViewRef.current.scrollTo({ y, animated: true });
+    }
+  }, [reflectionsY, scrollViewRef]);
 
   // Derived reflections (filter + sort)
   const filteredReflections = useMemo(() => {
@@ -453,6 +475,26 @@ const VerseDetail = ({ navigation, route }: VerseDetailProps) => {
     setCurrentReflectionIndex(Math.max(0, Math.min(idx, filteredReflections.length - 1)));
   }, [filteredReflections.length, theme.spacing.md]);
 
+  const trimmedReflection = reflectionText.trim();
+  const wordCount = trimmedReflection ? trimmedReflection.split(/\s+/).filter(Boolean).length : 0;
+  const isWordBiteType = reflectionType === 1;
+  const isFace2FaceType = reflectionType === 2;
+  const exceedsWordLimit = isWordBiteType && wordCount > 50;
+  const canSubmit = !isUploading && (
+    (isWordBiteType && !!trimmedReflection && !exceedsWordLimit) ||
+    (isFace2FaceType && !!videoUri)
+  );
+  const submitLabel = isUploading
+    ? 'Uploading…'
+    : isFace2FaceType
+      ? (videoUri ? 'Share' : 'Add video to share')
+      : 'Share';
+
+  const stickyComposerStyle = useAnimatedStyle(() => ({
+    opacity: composerOpacity.value,
+    transform: [{ translateY: composerTranslateY.value }],
+  }));
+
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       {/* Navigation Header */}
@@ -463,13 +505,18 @@ const VerseDetail = ({ navigation, route }: VerseDetailProps) => {
         >
           <ArrowLeft size={24} color={theme.colors.text.primary} />
         </TouchableOpacity>
-        <Text style={styles.navigationTitle}>{currentVerse?.reference}</Text>
+        <Text style={styles.navigationTitle}>{currentVerse?.reference_display}</Text>
         <View style={styles.navigationRight} />
       </Animated.View>
 
       {/* Main Content */}
       <ScrollView
         style={styles.mainContent}
+        ref={scrollViewRef}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingBottom: (insets.bottom || 0) + (showReflectionInput ? 96 : 72) }
+        ]}
         onScroll={handleScroll}
         scrollEventThrottle={16}
         showsVerticalScrollIndicator={false}
@@ -483,7 +530,7 @@ const VerseDetail = ({ navigation, route }: VerseDetailProps) => {
             {/* Verse Content */}
             <Animated.View style={[styles.verseContent, headerStyle]}>
               <Text style={styles.verseTitle}>
-                {currentVerse.reference}
+                {currentVerse.reference_display}
                 <Text style={styles.translation}> · {currentVerse.translation}</Text>
               </Text>
               <Text style={styles.verseText}>{currentVerse.text}</Text>
@@ -533,24 +580,27 @@ const VerseDetail = ({ navigation, route }: VerseDetailProps) => {
                 </TouchableOpacity>
               </View>
 
-              <TouchableOpacity
-                style={styles.copyButton}
-                onPress={handleCopyVerse}
-              >
-                <Copy size={16} color={theme.colors.text.secondary} />
-                <Text style={styles.copyText}>Copy Verse</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.copyButton}
-                onPress={handleShareVerse}
-              >
-                <Share size={16} color={theme.colors.text.secondary} />
-                <Text style={styles.copyText}>Share</Text>
-              </TouchableOpacity>
+              {/* Secondary Actions */}
+              <View style={styles.secondaryActions}>
+                <TouchableOpacity
+                  style={styles.copyButton}
+                  onPress={handleCopyVerse}
+                >
+                  <Copy size={16} color={theme.colors.text.secondary} />
+                  <Text style={styles.copyText}>Copy Verse</Text>
+                </TouchableOpacity>
+              </View>
             </Animated.View>
 
             {/* Reflections Section */}
-            <View style={styles.reflectionsSection}>
+            <View
+              ref={reflectionsAnchorRef}
+              style={[
+                styles.reflectionsSection,
+                (!isReflectionsLoading && filteredReflections.length === 0) && { minHeight: SCREEN_DIMENSIONS.height * 0.5 }
+              ]}
+              onLayout={(e) => setReflectionsY(e.nativeEvent.layout.y)}
+            >
               <View style={styles.reflectionsHeaderRow}>
                 <Text style={styles.sectionTitle}>Reflections</Text>
                 <View style={styles.sortToggleGroup}>
@@ -633,95 +683,140 @@ const VerseDetail = ({ navigation, route }: VerseDetailProps) => {
         ) : null}
       </ScrollView>
 
+      {/* Sticky Composer FAB */}
+      {!showReflectionInput && (
+        <Animated.View style={[styles.stickyComposer, stickyComposerStyle]}>
+          <TouchableOpacity
+            style={styles.composerFab}
+            onPress={() => {
+              scrollToReflections();
+              setTimeout(() => setShowReflectionInput(true), 150);
+            }}
+          >
+            <MessageCircle size={20} color={theme.colors.text.inverse} />
+            <Text style={styles.composerFabText}>Share a reflection</Text>
+          </TouchableOpacity>
+        </Animated.View>
+      )}
+
       {/* Reflection Input Modal */}
       {showReflectionInput && (
-        <BlurView intensity={20} style={[styles.reflectionInputContainer, {paddingBottom: theme.spacing.lg + Platform.OS === "ios" ? 20 : 0 }]}>
-          <View style={styles.reflectionTypeSelector}>
-            <TouchableOpacity
-              style={[
-                styles.typeButton,
-                reflectionType === 1 && styles.typeButtonActive
-              ]}
-              onPress={() => setReflectionType(1)}
-            >
-              <Text style={[
-                styles.typeButtonText,
-                reflectionType === 1 && styles.typeButtonTextActive
-              ]}>Word Bite</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[
-                styles.typeButton,
-                reflectionType === 2 && styles.typeButtonActive
-              ]}
-              onPress={() => setReflectionType(2)}
-            >
-              <Text style={[
-                styles.typeButtonText,
-                reflectionType === 2 && styles.typeButtonTextActive
-              ]}>Face2Face</Text>
-            </TouchableOpacity>
-          </View>
-          
-          <TextInput
-            style={styles.reflectionInput}
-            placeholder={reflectionType === 1 ? "Share a Word Bite... (<= 50 words)" : "Face2Face: short video (<= 90s, square) — caption (optional)"}
-            multiline
-            maxLength={500}
-            value={reflectionText}
-            onChangeText={setReflectionText}
-            autoFocus
-          />
-          {/* Word count for Word Bites */}
-          {reflectionType === 1 && (
-            <Text style={[styles.actionCount, { alignSelf: 'flex-end', marginRight: 8 }]}>
-              {reflectionText.trim().split(/\s+/).filter(Boolean).length}/50 words
-            </Text>
-          )}
-          {/* Face2Face capture controls */}
-          {reflectionType === 2 && (
-            <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginTop: theme.spacing.xs }}>
-              <View style={{ flexDirection: 'row', gap: theme.spacing.sm }}>
-                <TouchableOpacity style={[styles.copyButton]} onPress={() => setShowFaceTips(true)}>
-                  <Sparkle size={16} color={theme.colors.text.secondary} />
-                  <Text style={styles.copyText}>Tips</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={[styles.copyButton]} onPress={openFace2Face}>
-                  <Text style={styles.copyText}>{videoUri ? 'Retake Face2Face' : 'Record Face2Face'}</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          )}
-          
-          {/* Helper hint */}
-          <View style={{ marginTop: theme.spacing.xs, paddingHorizontal: theme.spacing.xs }}>
-            {reflectionType === 1 ? (
-              <Text style={[styles.actionCount, { alignSelf: 'flex-start' }]}>Keep it concise and heartfelt. Max 50 words.</Text>
-            ) : (
-              <Text style={[styles.actionCount, { alignSelf: 'flex-start' }]}>Square portrait · up to 90s · good lighting · speak clearly. Caption optional.</Text>
-            )}
-          </View>
+        <BlurView
+          intensity={25}
+          tint={theme.colors.isDark ? 'dark' : 'light'}
+          style={styles.reflectionOverlay}
+        >
+          <TouchableWithoutFeedback onPress={() => !isUploading && setShowReflectionInput(false)}>
+            <View style={styles.backdropDismiss} />
+          </TouchableWithoutFeedback>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            keyboardVerticalOffset={insets.bottom + 32}
+            style={styles.sheetAvoider}
+          >
+            <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+              <View style={styles.reflectionSheet}>
+                <View style={styles.sheetHandle} />
 
-          <View style={styles.inputActions}>
-            <TouchableOpacity
-              style={styles.cancelButton}
-              onPress={() => !isUploading && setShowReflectionInput(false)}
-              disabled={isUploading}
-            >
-              <Text style={styles.cancelText}>Cancel</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[
-                styles.submitButton,
-                (isUploading || !reflectionText.trim() || (reflectionType === 1 && (reflectionText.trim().split(/\s+/).filter(Boolean).length > 50))) && styles.submitButtonDisabled
-              ]}
-              onPress={isUploading ? undefined : (reflectionType === 2 && videoUri ? submitFace2Face : handleSubmitReflection)}
-              disabled={isUploading || !reflectionText.trim() || (reflectionType === 1 && (reflectionText.trim().split(/\s+/).filter(Boolean).length > 50))}
-            >
-              <Text style={styles.submitText}>{isUploading ? 'Uploading…' : (reflectionType === 2 ? (videoUri ? 'Share' : 'Add video to share') : 'Share')}</Text>
-              <Send size={16} color={theme.colors.text.inverse} />
-            </TouchableOpacity>
-          </View>
+                <View style={styles.reflectionTypeSelector}>
+                  <TouchableOpacity
+                    style={[
+                      styles.typeButton,
+                      reflectionType === 1 && styles.typeButtonActive
+                    ]}
+                    onPress={() => setReflectionType(1)}
+                    disabled={isUploading}
+                  >
+                    <Text style={[
+                      styles.typeButtonText,
+                      reflectionType === 1 && styles.typeButtonTextActive
+                    ]}>Word Bite</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      styles.typeButton,
+                      reflectionType === 2 && styles.typeButtonActive
+                    ]}
+                    onPress={() => setReflectionType(2)}
+                    disabled={isUploading}
+                  >
+                    <Text style={[
+                      styles.typeButtonText,
+                      reflectionType === 2 && styles.typeButtonTextActive
+                    ]}>Face2Face</Text>
+                  </TouchableOpacity>
+                </View>
+
+                <TextInput
+                  style={styles.reflectionInput}
+                  placeholder={reflectionType === 1 ? 'Share a Word Bite… (≤ 50 words)' : 'Face2Face caption (optional)'}
+                  multiline
+                  maxLength={500}
+                  value={reflectionText}
+                  onChangeText={setReflectionText}
+                  autoFocus
+                  editable={!isUploading}
+                  placeholderTextColor={theme.colors.text.tertiary}
+                  textAlignVertical="top"
+                />
+
+                {isWordBiteType && (
+                  <Text
+                    style={[
+                      styles.wordCount,
+                      exceedsWordLimit && styles.wordCountExceeded
+                    ]}
+                  >
+                    {wordCount}/50 words
+                  </Text>
+                )}
+
+                {isFace2FaceType && (
+                  <View style={styles.faceActionsRow}>
+                    <TouchableOpacity
+                      style={styles.faceActionButton}
+                      onPress={() => setShowFaceTips(true)}
+                      disabled={isUploading}
+                    >
+                      <Sparkle size={16} color={theme.colors.text.secondary} />
+                      <Text style={styles.faceActionText}>Tips</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.faceActionButton}
+                      onPress={openFace2Face}
+                      disabled={isUploading}
+                    >
+                      <Text style={styles.faceActionText}>{videoUri ? 'Retake Face2Face' : 'Record Face2Face'}</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+
+                <Text style={styles.helperText}>
+                  {isWordBiteType
+                    ? 'Keep it concise and heartfelt. Max 50 words.'
+                    : 'Square portrait · up to 90s · good lighting · speak clearly.'}
+                </Text>
+
+                <View style={styles.inputActions}>
+                  <TouchableOpacity
+                    style={styles.cancelButton}
+                    onPress={() => !isUploading && setShowReflectionInput(false)}
+                    disabled={isUploading}
+                  >
+                    <Text style={styles.cancelText}>Cancel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.submitButton, !canSubmit && styles.submitButtonDisabled]}
+                    onPress={canSubmit ? (isFace2FaceType ? submitFace2Face : handleSubmitReflection) : undefined}
+                    disabled={!canSubmit}
+                  >
+                    <Text style={styles.submitText}>{submitLabel}</Text>
+                    <Send size={16} color={theme.colors.text.inverse} />
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </TouchableWithoutFeedback>
+          </KeyboardAvoidingView>
         </BlurView>
       )}
 
@@ -837,7 +932,10 @@ const VerseDetail = ({ navigation, route }: VerseDetailProps) => {
   );
 };
 
-const createStyles = (theme: Theme) => StyleSheet.create({
+const createStyles = (theme: Theme, safeAreaBottom: number = 0) => {
+  const modalBottomPadding = theme.spacing.lg + safeAreaBottom;
+
+  return StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.colors.background,
@@ -870,8 +968,12 @@ const createStyles = (theme: Theme) => StyleSheet.create({
   mainContent: {
     flex: 1,
   },
+  scrollContent: {
+    paddingBottom: 0,
+  },
   verseContent: {
     padding: theme.spacing.lg,
+    paddingTop: theme.spacing.lg,
   },
   verseTitle: {
     ...theme.typography.verse.emphasis,
@@ -888,13 +990,14 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     color: theme.colors.text.primary,
     fontSize: 24,
     lineHeight: 36,
-    marginBottom: theme.spacing.lg,
+    marginBottom: theme.spacing.md,
   },
   actionRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: theme.spacing.sm,
+    paddingVertical: theme.spacing.md,
+    marginTop: theme.spacing.sm,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderColor: theme.colors.border,
@@ -914,29 +1017,33 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     ...theme.typography.caption.primary,
     color: theme.colors.text.secondary,
   },
+  secondaryActions: {
+    flexDirection: 'row',
+    gap: theme.spacing.sm,
+    marginTop: theme.spacing.md,
+  },
   copyButton: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: theme.spacing.xs,
-    alignSelf: 'flex-start',
     backgroundColor: theme.colors.surface,
-    paddingHorizontal: theme.spacing.sm,
-    paddingVertical: theme.spacing.xs,
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.sm,
     borderRadius: theme.borderRadius.full,
-    marginTop: theme.spacing.sm,
   },
   copyText: {
     ...theme.typography.caption.secondary,
     color: theme.colors.text.secondary,
   },
   reflectionsSection: {
-    paddingTop: theme.spacing.xl,
+    paddingTop: theme.spacing.md,
   },
   reflectionsHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: theme.spacing.lg,
+    marginBottom: theme.spacing.xs,
   },
   sortToggleGroup: {
     flexDirection: 'row',
@@ -992,6 +1099,63 @@ const createStyles = (theme: Theme) => StyleSheet.create({
   },
   reflectionsList: {
     paddingHorizontal: theme.spacing.md,
+  },
+  stickyComposer: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    paddingHorizontal: theme.spacing.md,
+    paddingBottom: safeAreaBottom + theme.spacing.md,
+    paddingTop: theme.spacing.sm,
+    backgroundColor: theme.colors.background,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: theme.colors.border,
+    ...theme.shadows.lg,
+  },
+  composerFab: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: theme.spacing.xs,
+    backgroundColor: theme.colors.primary,
+    paddingVertical: theme.spacing.md,
+    paddingHorizontal: theme.spacing.lg,
+    borderRadius: theme.borderRadius.full,
+    ...theme.shadows.md,
+  },
+  composerFabText: {
+    ...theme.typography.button.secondary,
+    color: theme.colors.text.inverse,
+    fontWeight: '600',
+  },
+  reflectionOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'flex-end',
+  },
+  backdropDismiss: {
+    flex: 1,
+  },
+  sheetAvoider: {
+    width: '100%',
+  },
+  reflectionSheet: {
+    backgroundColor: theme.colors.background,
+    borderTopLeftRadius: theme.borderRadius.xl,
+    borderTopRightRadius: theme.borderRadius.xl,
+    paddingHorizontal: theme.spacing.lg,
+    paddingBottom: modalBottomPadding,
+    paddingTop: theme.spacing.lg,
+    ...theme.shadows.md,
+    minHeight: SCREEN_DIMENSIONS.height * 0.7,
+  },
+  sheetHandle: {
+    alignSelf: 'center',
+    width: 48,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: theme.colors.surfaceVariant,
+    marginBottom: theme.spacing.md,
   },
   pageDotsRow: {
     flexDirection: 'row',
@@ -1054,9 +1218,43 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     backgroundColor: theme.colors.surface,
     borderRadius: theme.borderRadius.lg,
     padding: theme.spacing.md,
-    maxHeight: 120,
+    minHeight: 100,
+    maxHeight: 160,
     ...theme.typography.body.sans,
     color: theme.colors.text.primary,
+  },
+  wordCount: {
+    ...theme.typography.caption.primary,
+    color: theme.colors.text.secondary,
+    alignSelf: 'flex-end',
+    marginTop: theme.spacing.xs,
+  },
+  wordCountExceeded: {
+    color: theme.colors.error,
+  },
+  faceActionsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: theme.spacing.sm,
+  },
+  faceActionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.xs,
+    backgroundColor: theme.colors.surface,
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.xs,
+    borderRadius: theme.borderRadius.full,
+  },
+  faceActionText: {
+    ...theme.typography.caption.primary,
+    color: theme.colors.text.secondary,
+  },
+  helperText: {
+    ...theme.typography.caption.secondary,
+    color: theme.colors.text.secondary,
+    marginTop: theme.spacing.sm,
   },
   inputActions: {
     flexDirection: 'row',
@@ -1180,5 +1378,6 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     borderRadius: 3,
   },
 });
+};
 
 export default observer(VerseDetail);

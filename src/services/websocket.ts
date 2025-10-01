@@ -1,6 +1,7 @@
 import * as React from 'react';
 import Constants from 'expo-constants';
-import { useAuthStore, useVerseStore } from '@/stores/StoreProvider';
+import Pusher, { Channel, PresenceChannel } from 'pusher-js';
+import { useAuthStore, useVerseStore, useWordHubsStore } from '@/stores/StoreProvider';
 
 // WebSocket event types
 export interface WebSocketEvent {
@@ -24,11 +25,8 @@ export interface WebSocketAuthInfo {
 }
 
 class WebSocketService {
-  private ws: WebSocket | null = null;
-  private reconnectAttempts = 0;
-  private maxReconnectAttempts = 5;
-  private reconnectDelay = 1000;
-  private heartbeatInterval: ReturnType<typeof setInterval> | null = null;
+  private pusher: Pusher | null = null;
+  private channels: Map<string, Channel | PresenceChannel> = new Map();
   private subscriptions: Map<string, (data: any) => void> = new Map();
   private authInfo: WebSocketAuthInfo = { token: null };
   private verseHandlers?: {
@@ -36,12 +34,17 @@ class WebSocketService {
     updateVerseLikes: (id: any, likes: any, is_liked: any) => void;
     updateVerseShares: (id: any, shares: any) => void;
   };
+  private wordHubHandlers?: {
+    addMessageInRealTime: (hubId: string, message: any, author?: any) => void;
+    updateHubInRealTime: (hubId: string, updates: any) => void;
+    setConnectionStatus: (isConnected: boolean) => void;
+  };
   
   // Configuration sourced from app.json extra to avoid process.env on SDK 52
   private config = (() => {
     const extra: any = (Constants as any)?.expoConfig?.extra || (Constants as any)?.manifest?.extra || {};
     return {
-      host: extra.WS_HOST || 'localhost',
+      host: extra.WS_HOST || 'api.elbiblio.com',
       port: String(extra.WS_PORT || '8080'),
       appKey: extra.WS_APP_KEY || 'your-app-key',
       secure: !!extra.WS_SECURE,
@@ -60,7 +63,7 @@ class WebSocketService {
   private listeners: Map<string, ((state: WebSocketState) => void)[]> = new Map();
 
   constructor() {
-    // Remove the setupEventListeners call from constructor
+    // Pusher will be initialized when auth info is set
   }
 
   // Method to set auth information
@@ -77,7 +80,7 @@ class WebSocketService {
   }
 
   public async connect(): Promise<boolean> {
-    if (this.ws?.readyState === WebSocket.OPEN) {
+    if (this.pusher?.connection.state === 'connected') {
       return true;
     }
 
@@ -94,56 +97,61 @@ class WebSocketService {
     this.setState({ isConnecting: true, error: null });
 
     try {
-      const protocol = this.config.secure ? 'wss' : 'ws';
-      const url = `${protocol}://${this.config.host}:${this.config.port}/app/${this.config.appKey}`;
+      // Initialize Pusher with Reverb configuration
+      this.pusher = new Pusher(this.config.appKey, {
+        wsHost: this.config.host,
+        wsPort: parseInt(this.config.port),
+        wssPort: parseInt(this.config.port),
+        forceTLS: this.config.secure,
+        enabledTransports: ['ws', 'wss'],
+        disableStats: true,
+        cluster: 'mt1', // dummy for self-hosted Reverb
+        authEndpoint: 'https://api.elbiblio.com/api/broadcasting/auth',
+        auth: {
+          headers: {
+            'Authorization': `Bearer ${this.authInfo.token}`,
+            'Accept': 'application/json'
+          }
+        }
+      });
 
-      this.ws = new WebSocket(url);
-
-      this.ws.onopen = () => {
-        console.log('WebSocket connected');
+      // Set up connection state handlers
+      this.pusher.connection.bind('connected', () => {
+        console.log('Pusher connected');
         this.setState({ 
           isConnected: true, 
           isConnecting: false, 
           error: null,
           lastMessage: new Date()
         });
-        this.reconnectAttempts = 0;
-        this.startHeartbeat();
+        this.wordHubHandlers?.setConnectionStatus(true);
         this.subscribeToChannels();
-      };
+      });
 
-      this.ws.onmessage = (event) => {
-        try {
-          const message = JSON.parse(event.data);
-          this.handleMessage(message);
-          this.setState({ lastMessage: new Date() });
-        } catch (error) {
-          console.error('Error parsing WebSocket message:', error);
-        }
-      };
-
-      this.ws.onclose = (event) => {
-        console.log('WebSocket disconnected:', event.code, event.reason);
+      this.pusher.connection.bind('disconnected', () => {
+        console.log('Pusher disconnected');
         this.setState({ 
           isConnected: false, 
-          isConnecting: false,
-          error: event.reason || 'Connection closed'
+          isConnecting: false
         });
-        this.stopHeartbeat();
-        this.handleReconnect();
-      };
+        this.wordHubHandlers?.setConnectionStatus(false);
+      });
 
-      this.ws.onerror = (error) => {
-        console.error('WebSocket error:', error);
+      this.pusher.connection.bind('error', (error: any) => {
+        console.error('Pusher connection error:', error);
         this.setState({ 
           isConnecting: false,
-          error: 'Connection failed'
+          error: error.message || 'Connection failed'
         });
-      };
+      });
+
+      this.pusher.connection.bind('state_change', (states: any) => {
+        console.log('Pusher state changed:', states.previous, '->', states.current);
+      });
 
       return true;
     } catch (error) {
-      console.error('Failed to connect to WebSocket:', error);
+      console.error('Failed to initialize Pusher:', error);
       this.setState({ 
         isConnecting: false,
         error: error instanceof Error ? error.message : 'Connection failed'
@@ -153,114 +161,168 @@ class WebSocketService {
   }
 
   public disconnect(): void {
-    if (this.ws) {
-      this.ws.close(1000, 'User initiated disconnect');
-      this.ws = null;
+    if (this.pusher) {
+      // Unsubscribe from all channels
+      this.channels.forEach((channel, channelName) => {
+        channel.unbind_all();
+        this.pusher?.unsubscribe(channelName);
+      });
+      this.channels.clear();
+      
+      // Disconnect Pusher
+      this.pusher.disconnect();
+      this.pusher = null;
     }
-    this.stopHeartbeat();
+    
     this.setState({ 
       isConnected: false, 
       isConnecting: false,
       error: null
     });
-  }
-
-  private startHeartbeat(): void {
-    this.heartbeatInterval = setInterval(() => {
-      if (this.ws?.readyState === WebSocket.OPEN) {
-        this.ws.send(JSON.stringify({ event: 'ping' }));
-      }
-    }, 30000); // Send ping every 30 seconds
-  }
-
-  private stopHeartbeat(): void {
-    if (this.heartbeatInterval) {
-      clearInterval(this.heartbeatInterval);
-      this.heartbeatInterval = null;
-    }
-  }
-
-  private handleReconnect(): void {
-    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      this.setState({ error: 'Max reconnection attempts reached' });
-      return;
-    }
-
-    this.reconnectAttempts++;
-    const delay = this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1);
-
-    setTimeout(() => {
-      console.log(`Attempting to reconnect (${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
-      this.connect();
-    }, delay);
+    this.wordHubHandlers?.setConnectionStatus(false);
   }
 
   private subscribeToChannels(): void {
-    if (!this.authInfo.userId) return;
+    if (!this.authInfo.userId || !this.pusher) return;
 
-    // Subscribe to user-specific channels
-    this.subscribe('private-user.' + this.authInfo.userId);
+    // Subscribe to private user channel
+    this.subscribeToChannel(`private-user.${this.authInfo.userId}`);
+    
+    // Subscribe to private notifications channel
+    this.subscribeToChannel(`private-notifications.${this.authInfo.userId}`);
     
     // Subscribe to public channels
-    this.subscribe('community-challenges');
-    this.subscribe('daily-verses');
-    this.subscribe('notifications');
+    this.subscribeToChannel('community-challenges');
   }
 
-  private subscribe(channel: string): void {
-    if (this.ws?.readyState === WebSocket.OPEN) {
-      const message = {
-        event: 'pusher:subscribe',
-        data: {
-          channel: channel,
-          auth: this.authInfo.token
-        }
-      };
-      this.ws.send(JSON.stringify(message));
+  // Public method to subscribe to a specific channel (e.g., WordHub presence channels)
+  public subscribeToChannel(channelName: string): Channel | PresenceChannel | null {
+    if (!this.pusher) {
+      console.warn('Cannot subscribe: Pusher not initialized');
+      return null;
+    }
+
+    // Check if already subscribed
+    if (this.channels.has(channelName)) {
+      return this.channels.get(channelName)!;
+    }
+
+    try {
+      const channel = this.pusher.subscribe(channelName);
+      this.channels.set(channelName, channel);
+      
+      // Set up event listeners based on channel type
+      this.setupChannelListeners(channelName, channel);
+      
+      console.log(`Subscribed to channel: ${channelName}`);
+      return channel;
+    } catch (error) {
+      console.error(`Failed to subscribe to channel ${channelName}:`, error);
+      return null;
     }
   }
 
-  private handleMessage(message: any): void {
-    // Handle different message types
-    switch (message.event) {
-      case 'pong':
-        // Heartbeat response
-        break;
-        
-      case 'verse.voted':
-        this.handleVerseVoted(message.data);
-        break;
-        
-      case 'verse.liked':
-        this.handleVerseLiked(message.data);
-        break;
-        
-      case 'verse.shared':
-        this.handleVerseShared(message.data);
-        break;
-        
-      case 'challenge.joined':
-        this.handleChallengeJoined(message.data);
-        break;
-        
-      case 'challenge.left':
-        this.handleChallengeLeft(message.data);
-        break;
-        
-      case 'challenge.completed':
-        this.handleChallengeCompleted(message.data);
-        break;
-        
-      case 'notification.sent':
-        this.handleNotification(message.data);
-        break;
-        
-      default:
-        // Handle custom events
-        const handler = this.subscriptions.get(message.event);
-        if (handler) {
-          handler(message.data);
-        }
+  // Public method to unsubscribe from a specific channel
+  public unsubscribeFromChannel(channelName: string): void {
+    const channel = this.channels.get(channelName);
+    if (channel && this.pusher) {
+      channel.unbind_all();
+      this.pusher.unsubscribe(channelName);
+      this.channels.delete(channelName);
+      console.log(`Unsubscribed from channel: ${channelName}`);
+    }
+  }
+
+  private setupChannelListeners(channelName: string, channel: Channel | PresenceChannel): void {
+    // Notification events
+    if (channelName.includes('notifications')) {
+      channel.bind('notification.sent', (data: any) => {
+        this.handleNotification(data);
+      });
+    }
+
+    // Challenge events
+    if (channelName.includes('challenges')) {
+      channel.bind('challenge.joined', (data: any) => {
+        this.handleChallengeJoined(data);
+      });
+      
+      channel.bind('challenge.left', (data: any) => {
+        this.handleChallengeLeft(data);
+      });
+      
+      channel.bind('challenge.completed', (data: any) => {
+        this.handleChallengeCompleted(data);
+      });
+    }
+
+    // WordHub events (presence channels)
+    if (channelName.startsWith('presence-wordhub.')) {
+      const hubId = channelName.replace('presence-wordhub.', '');
+      
+      channel.bind('wordhub.message.sent', (data: any) => {
+        this.handleWordHubMessage(hubId, data);
+      });
+
+      channel.bind('wordhub.updated', (data: any) => {
+        this.handleWordHubUpdated(hubId, data);
+      });
+
+      // Presence channel specific events
+      if ((channel as PresenceChannel).members) {
+        (channel as PresenceChannel).bind('pusher:subscription_succeeded', (members: any) => {
+          console.log(`WordHub ${hubId} members:`, members.count);
+        });
+
+        (channel as PresenceChannel).bind('pusher:member_added', (member: any) => {
+          console.log(`Member joined WordHub ${hubId}:`, member.id);
+        });
+
+        (channel as PresenceChannel).bind('pusher:member_removed', (member: any) => {
+          console.log(`Member left WordHub ${hubId}:`, member.id);
+        });
+      }
+    }
+
+    // Verse events
+    channel.bind('verse.voted', (data: any) => {
+      this.handleVerseVoted(data);
+    });
+    
+    channel.bind('verse.liked', (data: any) => {
+      this.handleVerseLiked(data);
+    });
+    
+    channel.bind('verse.shared', (data: any) => {
+      this.handleVerseShared(data);
+    });
+
+    // Allow custom event subscriptions
+    this.subscriptions.forEach((handler, event) => {
+      channel.bind(event, handler);
+    });
+  }
+
+  // WordHub event handlers
+  private handleWordHubMessage(hubId: string, data: any): void {
+    console.log('WordHub message received:', hubId, data);
+    this.setState({ lastMessage: new Date() });
+    
+    // Delegate to WordHubsStore if handler is set
+    if (this.wordHubHandlers?.addMessageInRealTime) {
+      const message = data.message || data;
+      const author = data.author || data.user;
+      this.wordHubHandlers.addMessageInRealTime(hubId, message, author);
+    }
+  }
+
+  private handleWordHubUpdated(hubId: string, data: any): void {
+    console.log('WordHub updated:', hubId, data);
+    this.setState({ lastMessage: new Date() });
+    
+    // Delegate to WordHubsStore if handler is set
+    if (this.wordHubHandlers?.updateHubInRealTime) {
+      this.wordHubHandlers.updateHubInRealTime(hubId, data);
     }
   }
 
@@ -309,10 +371,10 @@ class WebSocketService {
     this.subscriptions.delete(event);
   }
 
-  public sendMessage(event: string, data: any): boolean {
-    if (this.ws?.readyState === WebSocket.OPEN) {
-      const message = { event, data };
-      this.ws.send(JSON.stringify(message));
+  public sendMessage(channelName: string, event: string, data: any): boolean {
+    const channel = this.channels.get(channelName);
+    if (channel && this.pusher?.connection.state === 'connected') {
+      channel.trigger(event, data);
       return true;
     }
     return false;
@@ -362,6 +424,10 @@ class WebSocketService {
   public setVerseHandlers(handlers?: WebSocketService['verseHandlers']): void {
     this.verseHandlers = handlers;
   }
+
+  public setWordHubHandlers(handlers?: WebSocketService['wordHubHandlers']): void {
+    this.wordHubHandlers = handlers;
+  }
 }
 
 // Create singleton instance
@@ -384,7 +450,10 @@ export const useWebSocket = () => {
     ...state,
     connect: () => webSocketService.connect(),
     disconnect: () => webSocketService.disconnect(),
-    sendMessage: (event: string, data: any) => webSocketService.sendMessage(event, data),
+    sendMessage: (channelName: string, event: string, data: any) => 
+      webSocketService.sendMessage(channelName, event, data),
+    subscribeToChannel: (channelName: string) => webSocketService.subscribeToChannel(channelName),
+    unsubscribeFromChannel: (channelName: string) => webSocketService.unsubscribeFromChannel(channelName),
     subscribeToEvent: (event: string, handler: (data: any) => void) => 
       webSocketService.subscribeToEvent(event, handler),
     unsubscribeFromEvent: (event: string) => webSocketService.unsubscribeFromEvent(event),
@@ -423,6 +492,23 @@ export const useWebSocketVerseSync = () => {
       webSocketService.setVerseHandlers(undefined);
     };
   }, [verseStore]);
+};
+
+// Hook to bind WordHub store handlers to the WebSocket service
+export const useWebSocketWordHubSync = () => {
+  const wordHubsStore = useWordHubsStore();
+
+  React.useEffect(() => {
+    webSocketService.setWordHubHandlers({
+      addMessageInRealTime: wordHubsStore.addMessageInRealTime.bind(wordHubsStore),
+      updateHubInRealTime: wordHubsStore.updateHubInRealTime.bind(wordHubsStore),
+      setConnectionStatus: wordHubsStore.setConnectionStatus.bind(wordHubsStore),
+    });
+
+    return () => {
+      webSocketService.setWordHubHandlers(undefined);
+    };
+  }, [wordHubsStore]);
 };
 
 export default webSocketService; 

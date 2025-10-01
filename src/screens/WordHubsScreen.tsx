@@ -229,6 +229,13 @@ const WordHubsScreen = ({
       return;
     }
 
+    const alreadyJoined = hub.members?.some((member) => member.user_id === user?.id);
+    if (alreadyJoined) {
+      wordHubsStore.activateCachedLiveKitSession(hub.id);
+      navigation.navigate('WordHubDetailScreen', { hubId: hub.id });
+      return;
+    }
+
     if (hub.is_private) {
       // Show access code input
       Alert.prompt(
@@ -307,7 +314,10 @@ const WordHubsScreen = ({
 
   const safeWordHubs = normalizeWordHubs(wordHubs);
 
-  const renderHubCard = (hub: WordHub) => (
+  const renderHubCard = (hub: WordHub) => {
+    const isJoined = hub.members?.some((member) => member.user_id === user?.id);
+
+    return (
     <TouchableOpacity
       key={hub.id}
       style={styles.hubCard}
@@ -413,14 +423,15 @@ const WordHubsScreen = ({
             onPress={() => handleJoinHub(hub)}
           >
             <Text style={styles.joinButtonText}>
-              Join Discussion
+              {isJoined ? 'Open Hub' : 'Join Discussion'}
             </Text>
             <ChevronRight size={16} color={theme.colors.text.inverse} />
           </TouchableOpacity>
         </View>
       </View>
     </TouchableOpacity>
-  );
+    );
+  };
 
   const renderConnectionStatus = () => {
     if (safeWordHubs.length === 0) return null;

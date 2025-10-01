@@ -37,6 +37,7 @@ import NoteDetailScreen from './src/screens/NoteDetailScreen';
 import ProfileScreen from './src/screens/ProfileScreen';
 import LeaderboardScreen from './src/screens/LeaderboardScreen';
 import GameScreen from './src/screens/GameScreen';
+import SpiritualCareerScreen from './src/screens/SpiritualCareerScreen';
 import RegistrationScreen from './src/screens/RegistrationScreen';
 import CommunityScreen from './src/screens/CommunityScreen';
 import PrayerRequestsScreen from './src/screens/PrayerRequestsScreen';
@@ -280,6 +281,7 @@ const AppContent = () => {
           <Stack.Screen name="ProfileScreen" component={ProfileScreen} />
           <Stack.Screen name="LeaderboardScreen" component={LeaderboardScreen} />
           <Stack.Screen name="GameScreen" component={GameScreen} />
+          <Stack.Screen name="SpiritualCareerScreen" component={SpiritualCareerScreen} />
         </Stack.Navigator>
       </NavigationContainer>
     );

@@ -36,6 +36,7 @@ import {
   Bible,
   Flame,
   Lightning,
+  Lock,
 } from './../components/Icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Reflection, RootStackParamList, Verse, User } from '@/types';
@@ -46,6 +47,7 @@ import { Theme } from '@/theme';
 import { useTheme } from '@/contexts/ThemeContext';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { SCREEN_DIMENSIONS } from '@/constants';
+import { isSoulForgeUnlocked } from '@/utils/gameUnlocks';
 import { 
   useVerseStore,
   useAuthStore,
@@ -604,17 +606,22 @@ const HomeScreen = ({ navigation, route }: HomeProps) => {
         <Text style={styles.sectionTitle}>QUICK MENU</Text>
         <View style={styles.toolsGrid}>
           {[
-            { icon: BookOpen, label: 'Meditation', route: 'MeditationScreen', badge: hasUnfinishedMeditation ? 1 : null, color: theme?.colors.primary },
-            { icon: Bible, label: 'Bible', route: 'BibleScreen', badge: null, color: theme?.colors.secondary },
-            { icon: Fire, label: 'SoulForge', route: 'VirtueScreen', badge: null, color: theme?.colors.primaryDark },
-            { icon: BookmarkSimple, label: 'Bookmarks', route: 'SavedItemsScreen', badge: null, color: theme?.colors.like },
-            { icon: Users, label: 'Community', route: 'CommunityScreen', badge: communityUnreadBadge, color: theme?.colors.success },
-            { icon: Trophy, label: 'Games', route: 'GameScreen', badge: shouldShowBadge ? 1 : null, color: theme?.colors.success },
-          ].map((tool, index) => (
+            { icon: BookOpen, label: 'Meditation', route: 'MeditationScreen', badge: hasUnfinishedMeditation ? 1 : null, color: theme?.colors.primary, requiresUnlock: false },
+            { icon: Bible, label: 'Bible', route: 'BibleScreen', badge: null, color: theme?.colors.secondary, requiresUnlock: false },
+            { icon: Fire, label: 'SoulForge', route: 'VirtueScreen', badge: null, color: theme?.colors.primaryDark, requiresUnlock: true },
+            { icon: BookmarkSimple, label: 'Bookmarks', route: 'SavedItemsScreen', badge: null, color: theme?.colors.like, requiresUnlock: false },
+            { icon: Users, label: 'Community', route: 'CommunityScreen', badge: communityUnreadBadge, color: theme?.colors.success, requiresUnlock: false },
+            { icon: Trophy, label: 'Games', route: 'GameScreen', badge: shouldShowBadge ? 1 : null, color: theme?.colors.success, requiresUnlock: false },
+          ].map((tool, index) => {
+            const totalPoints = leaderboardStore.userStats?.totalPoints ?? 0;
+            const isUnlocked = tool.requiresUnlock ? isSoulForgeUnlocked(totalPoints) : true;
+            
+            return (
             <TouchableOpacity
               key={tool.label}
-              style={styles.toolButton}
+              style={[styles.toolButton, !isUnlocked && { opacity: 0.6 }]}
               onPress={() => {
+                if (!isUnlocked) return;
                 // Add press animation
                 toolsScale.value = withSequence(
                   withTiming(0.97, { duration: 100 }),
@@ -622,6 +629,7 @@ const HomeScreen = ({ navigation, route }: HomeProps) => {
                 );
                 handleQuickActionPress(tool.route);
               }}
+              disabled={!isUnlocked}
             >
               <LinearGradient
                 colors={[`${tool.color}15`, `${tool.color}05`]}
@@ -629,17 +637,25 @@ const HomeScreen = ({ navigation, route }: HomeProps) => {
                 end={{ x: 1, y: 1 }}
                 style={styles.toolGradient}
               />
-              <View style={[styles.toolIconContainer, { backgroundColor: `${tool.color}15` }]}>
-                <tool.icon size={24} color={tool.color} strokeWidth={2} />
-                {tool.badge && (
+              <View style={[styles.toolIconContainer, { backgroundColor: isUnlocked ? `${tool.color}15` : '#00000010' }]}>
+                {isUnlocked ? (
+                  <tool.icon size={24} color={tool.color} strokeWidth={2} />
+                ) : (
+                  <Lock size={24} color={theme?.colors.text.secondary} />
+                )}
+                {tool.badge && isUnlocked && (
                   <View style={styles.badgeContainer}>
                     <Text style={styles.badgeText}>{tool.badge}</Text>
                   </View>
                 )}
               </View>
-              <Text style={styles.toolLabel}>{tool.label}</Text>
+              <Text style={[styles.toolLabel, !isUnlocked && { opacity: 0.5 }]}>
+                {tool.label}
+                {!isUnlocked && ' 🔒'}
+              </Text>
             </TouchableOpacity>
-          ))}
+          );
+          })}
         </View>
         { !meditationComplete && (
           <Text style={styles.toolTip}>
@@ -883,7 +899,7 @@ const HomeScreen = ({ navigation, route }: HomeProps) => {
             end={{ x: 1, y: 1 }}
             style={styles.cardGradient}
           />
-          <Text style={styles.verseReference}>{verse.reference}</Text>
+          <Text style={styles.verseReference}>{verse.reference_display}</Text>
           <Text style={styles.verseText} numberOfLines={3}>
             {verse.text}
           </Text>

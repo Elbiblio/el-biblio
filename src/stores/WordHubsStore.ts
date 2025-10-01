@@ -25,6 +25,18 @@ interface WordHubJoinResponse {
   livekit?: LiveKitCredentials | null;
 }
 
+interface CachedLiveKitSession {
+  credentials: LiveKitCredentials;
+  member: WordHubMember | null;
+  accessCode?: string;
+}
+
+interface MessageAuthor {
+  id?: string;
+  name?: string;
+  avatar?: string;
+}
+
 export interface LiveKitSessionState {
   hubId: string;
   member: WordHubMember | null;
@@ -63,6 +75,8 @@ interface WordHubsStoreState {
 
   // LiveKit audio session
   activeLiveKitSession: LiveKitSessionState | null;
+  liveKitSessionCache: Record<string, CachedLiveKitSession>;
+  lastSocketDisconnectReason?: string;
 }
 
 const extractWordHubs = (payload: any) => {
@@ -116,17 +130,62 @@ export class WordHubsStore {
       lastUpdate: null,
 
       activeLiveKitSession: null,
+      liveKitSessionCache: {},
+      lastSocketDisconnectReason: undefined,
     };
 
     makeAutoObservable(this, {}, { autoBind: true });
   }
 
-  async refreshLiveKitSession(hubId: string) {
-    const accessCode = this.state.activeLiveKitSession?.hubId === hubId
-      ? this.state.activeLiveKitSession?.accessCode
-      : undefined;
+  activateCachedLiveKitSession(hubId: string) {
+    const cached = this.state.liveKitSessionCache[hubId];
+    if (!cached) {
+      return null;
+    }
 
+    const session: LiveKitSessionState = {
+      hubId,
+      member: cached.member,
+      credentials: cached.credentials,
+      accessCode: cached.accessCode,
+      isConnecting: false,
+      isConnected: false,
+      error: null,
+    };
+
+    this.setLiveKitSession(session);
+    return session;
+  }
+
+  async refreshLiveKitSession(hubId: string, userId?: string) {
+    const activeSession = this.state.activeLiveKitSession;
+    if (activeSession?.hubId === hubId) {
+      return activeSession;
+    }
+
+    const cachedSession = this.activateCachedLiveKitSession(hubId);
+    if (cachedSession) {
+      return cachedSession;
+    }
+
+    const accessCode = this.state.liveKitSessionCache[hubId]?.accessCode;
     return this.joinHub(hubId, accessCode, { silent: true });
+  }
+
+  private cacheLiveKitSession(session: LiveKitSessionState) {
+    runInAction(() => {
+      this.state.liveKitSessionCache[session.hubId] = {
+        credentials: session.credentials,
+        member: session.member,
+        accessCode: session.accessCode,
+      };
+    });
+  }
+
+  private removeCachedLiveKitSession(hubId: string) {
+    runInAction(() => {
+      delete this.state.liveKitSessionCache[hubId];
+    });
   }
 
   private setError(message: string | null) {
@@ -180,6 +239,79 @@ export class WordHubsStore {
 
   get activeLiveKitSession() {
     return this.state.activeLiveKitSession;
+  }
+
+  get lastSocketDisconnectReason() {
+    return this.state.lastSocketDisconnectReason;
+  }
+
+  private getMemberByUserId(userId?: string | null) {
+    if (!userId) return undefined;
+    return this.state.currentHub?.members?.find((member) => member.user?.id === userId);
+  }
+
+  private resolveDisplayName(input: any): string {
+    if (!input) return 'Unknown User';
+    if (typeof input.name === 'string' && input.name.trim()) {
+      return input.name.trim();
+    }
+
+    const first = input.first_name ?? input.firstName ?? '';
+    const last = input.last_name ?? input.lastName ?? '';
+    const combined = `${first} ${last}`.trim();
+    if (combined) {
+      return combined;
+    }
+
+    const username = input.username ?? input.email ?? input.handle;
+    if (typeof username === 'string' && username.trim()) {
+      return username.trim();
+    }
+
+    return 'Unknown User';
+  }
+
+  private normalizeMessage(message: WordHubMessage, author?: MessageAuthor): WordHubMessage {
+    const currentUser = message.user;
+    const candidateId = (message as any).user_id ?? currentUser?.id ?? author?.id;
+
+    if (currentUser && currentUser.name) {
+      return {
+        ...message,
+        user: {
+          id: currentUser.id,
+          name: this.resolveDisplayName(currentUser),
+          avatar: currentUser.avatar,
+        },
+      };
+    }
+
+    const member = candidateId ? this.getMemberByUserId(candidateId) : undefined;
+    const memberUser = member?.user;
+
+    const resolvedAuthor = currentUser
+      ?? (memberUser ? {
+        id: memberUser.id,
+        name: this.resolveDisplayName(memberUser),
+        avatar: memberUser.avatar,
+      } : undefined)
+      ?? (author?.id ? {
+        id: author.id,
+        name: author.name ?? 'Unknown User',
+        avatar: author.avatar,
+      } : undefined);
+
+    const fallbackId = candidateId ?? author?.id ?? 'unknown';
+    const fallbackName = author?.name ?? (memberUser ? this.resolveDisplayName(memberUser) : 'Unknown User');
+
+    return {
+      ...message,
+      user: {
+        id: resolvedAuthor?.id ?? fallbackId,
+        name: resolvedAuthor?.name ?? fallbackName ?? 'Unknown User',
+        avatar: resolvedAuthor?.avatar ?? memberUser?.avatar ?? author?.avatar,
+      },
+    };
   }
 
   private computePagination(meta: any, fallbackPage: number, currentTotal: number): PaginationState {
@@ -263,7 +395,7 @@ export class WordHubsStore {
 
       const response = await apiClient.get<WordHub>(
         endpoints.wordHubs.show(id),
-        { include: ['members', 'creator', 'recent_messages'] }
+        { include: ['members', 'creator'] }
       );
 
       if (!response.success) throw new Error(response.message || 'Failed to fetch word hub');
@@ -324,7 +456,7 @@ export class WordHubsStore {
       if (!response.success) throw new Error(response.message || 'Failed to update word hub');
 
       runInAction(() => {
-        this.state.wordHubs = this.state.wordHubs.map(hub => 
+        this.state.wordHubs = this.state.wordHubs?.map(hub => 
           hub.id === id ? { ...hub, ...data } : hub
         );
         if (this.state.currentHub?.id === id) {
@@ -410,6 +542,13 @@ export class WordHubsStore {
           error: error ?? null,
         };
       }
+      this.state.lastSocketDisconnectReason = error;
+    });
+  }
+
+  clearSocketDisconnectReason() {
+    runInAction(() => {
+      this.state.lastSocketDisconnectReason = undefined;
     });
   }
 
@@ -433,7 +572,7 @@ export class WordHubsStore {
       const data = response.data;
 
       if (data?.livekit) {
-        this.setLiveKitSession({
+        const session: LiveKitSessionState = {
           hubId,
           member: data.member ?? null,
           credentials: data.livekit,
@@ -441,7 +580,10 @@ export class WordHubsStore {
           isConnecting: true,
           isConnected: false,
           error: null,
-        });
+        };
+
+        this.setLiveKitSession(session);
+        this.cacheLiveKitSession(session);
       } else {
         this.clearLiveKitSession(hubId);
       }
@@ -482,12 +624,14 @@ export class WordHubsStore {
     }
   }
 
-  async fetchHubMessages(hubId: string, page = 1) {
+  async fetchHubMessages(hubId: string, page = 1, options: { silent?: boolean } = {}) {
     try {
-      runInAction(() => {
-        this.state.isMessagesLoading = true;
-        this.state.messagesError = null;
-      });
+      if (!options.silent) {
+        runInAction(() => {
+          this.state.isMessagesLoading = true;
+          this.state.messagesError = null;
+        });
+      }
 
       const response = await apiClient.get<PaginatedResponse<WordHubMessage>>(
         endpoints.wordHubs.messages(hubId),
@@ -501,24 +645,30 @@ export class WordHubsStore {
 
       if (!response.success) throw new Error(response.message || 'Failed to fetch hub messages');
 
-      const { data } = response.data;
+      const payload = response.data;
+      const list = Array.isArray((payload as any)?.data) ? (payload as any).data as WordHubMessage[] : [];
+      const normalized = list?.map((msg) => this.normalizeMessage(msg));
 
       runInAction(() => {
-        this.state.hubMessages = page === 1 ? data : [...this.state.hubMessages, ...data];
-        this.state.isMessagesLoading = false;
+        this.state.hubMessages = page === 1 ? normalized : [...this.state.hubMessages, ...normalized];
+        if (!options.silent) {
+          this.state.isMessagesLoading = false;
+        }
         this.state.lastUpdate = new Date();
       });
     } catch (error: any) {
       console.error('Error fetching hub messages:', error);
       runInAction(() => {
-        this.state.isMessagesLoading = false;
+        if (!options.silent) {
+          this.state.isMessagesLoading = false;
+        }
         this.state.messagesError = error instanceof Error ? error.message : 'Failed to fetch hub messages';
       });
       this.setError(this.state.messagesError);
     }
   }
 
-  async sendMessage(hubId: string, message: string) {
+  async sendMessage(hubId: string, message: string, author?: MessageAuthor) {
     try {
       const response = await apiClient.post<WordHubMessage>(
         endpoints.wordHubs.sendMessage(hubId),
@@ -527,10 +677,16 @@ export class WordHubsStore {
 
       if (!response.success) throw new Error(response.message || 'Failed to send message');
 
-      const newMessage = response.data;
+      const payload = (response.data as any)?.message ?? response.data;
+      if (!payload) {
+        throw new Error('Message payload missing from server response');
+      }
+
+      const newMessage = this.normalizeMessage(payload as WordHubMessage, author);
 
       runInAction(() => {
-        this.state.hubMessages = [newMessage, ...this.state.hubMessages];
+        const remaining = this.state.hubMessages.filter(msg => msg.id !== newMessage.id);
+        this.state.hubMessages = [newMessage, ...remaining];
       });
 
       return newMessage;
@@ -705,7 +861,7 @@ export class WordHubsStore {
 
   updateHubInRealTime(hubId: string, updates: Partial<WordHub>) {
     runInAction(() => {
-      this.state.wordHubs = this.state.wordHubs.map(hub => 
+      this.state.wordHubs = this.state.wordHubs?.map(hub => 
         hub.id === hubId ? { ...hub, ...updates } : hub
       );
       if (this.state.currentHub?.id === hubId) {
@@ -714,10 +870,18 @@ export class WordHubsStore {
     });
   }
 
-  addMessageInRealTime(hubId: string, message: WordHubMessage) {
+  addMessageInRealTime(hubId: string, message: WordHubMessage, author?: MessageAuthor) {
     runInAction(() => {
       if (this.state.currentHub?.id === hubId) {
-        this.state.hubMessages = [message, ...this.state.hubMessages];
+        const normalized = this.normalizeMessage(message, author);
+        const existingIndex = this.state.hubMessages.findIndex(existing => existing.id === normalized.id);
+        if (existingIndex >= 0) {
+          const updated = [...this.state.hubMessages];
+          updated.splice(existingIndex, 1);
+          this.state.hubMessages = [normalized, ...updated];
+        } else {
+          this.state.hubMessages = [normalized, ...this.state.hubMessages];
+        }
       }
     });
   }
