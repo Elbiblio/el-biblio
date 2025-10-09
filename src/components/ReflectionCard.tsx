@@ -69,7 +69,7 @@ const ReflectionCard: React.FC<ReflectionCardProps> = ({
   const heartOpacity = useSharedValue(0);
   const [muted, setMuted] = useState<boolean>(true);
 
-  const topComment = reflection.comments[0];
+  const topComment = (reflection.comments ?? [])[0];
 
   // Animation configs
   const springConfig = {
@@ -102,22 +102,30 @@ const ReflectionCard: React.FC<ReflectionCardProps> = ({
   });
  
   // Card content
-  const renderHeader = () => (
-    <View style={styles.header}>
-      <Image source={{ uri: reflection.user.avatar }} style={styles.avatar} />
-      <View style={styles.authorInfo}>
-        <Text style={[styles.authorName, { color: theme.colors.text.primary }]}>
-          {`${reflection.user.first_name} ${reflection.user.last_name}`}
-        </Text>
-        <Text style={[styles.reflectionType, { color: theme.colors.text.secondary }]}>
-          {reflection.type === ReflectionType.Story ? 'Sharing a story' : 'Sharing an insight'}
-        </Text>
+  const renderHeader = () => {
+    const authorName = `${reflection?.user?.first_name ?? ''} ${reflection?.user?.last_name ?? ''}`.trim() || 'User';
+    const avatarUri = reflection?.user?.avatar;
+    return (
+      <View style={styles.header}>
+        {avatarUri ? (
+          <Image source={{ uri: avatarUri }} style={styles.avatar} />
+        ) : (
+          <View style={[styles.avatar, { backgroundColor: theme.colors.surface }]} />
+        )}
+        <View style={styles.authorInfo}>
+          <Text style={[styles.authorName, { color: theme.colors.text.primary }]}>
+            {authorName}
+          </Text>
+          <Text style={[styles.reflectionType, { color: theme.colors.text.secondary }]}>
+            {reflection.type === ReflectionType.Story ? 'Sharing a story' : 'Sharing an insight'}
+          </Text>
+        </View>
+        <View style={[styles.iconContainer, { backgroundColor: theme.colors.surface }]}>
+          <Text style={styles.icon}>{reflection.icon ?? ''}</Text>
+        </View>
       </View>
-      <View style={[styles.iconContainer, { backgroundColor: theme.colors.surface }]}>
-        <Text style={styles.icon}>{reflection.icon}</Text>
-      </View>
-    </View>
-  );
+    );
+  };
 
   const formatDuration = (secs?: number | null) => {
     if (!secs || secs <= 0) return null;
@@ -252,7 +260,7 @@ const ReflectionCard: React.FC<ReflectionCardProps> = ({
             </TouchableOpacity>
             <TouchableOpacity style={[styles.quickBtn, { backgroundColor: `${theme.colors.background}CC` }]} onPress={onCommentPress}>
               <MessageCircle size={18} color={theme.colors.text.primary} />
-              <Text style={styles.quickText}>{reflection.comments.length}</Text>
+              <Text style={styles.quickText}>{reflection.comments?.length ?? 0}</Text>
             </TouchableOpacity>
           </View>
           {/* Duration badge */}
@@ -348,7 +356,7 @@ const ReflectionCard: React.FC<ReflectionCardProps> = ({
       >
         <MessageCircle size={!expanded ? 20 : 24} color={theme.colors.text.secondary} />
         <Text style={[styles.actionText, { color: theme.colors.text.secondary }]}>
-          {reflection.comments.length}
+          {reflection.comments?.length ?? 0}
         </Text>
       </TouchableOpacity>
 
@@ -399,7 +407,7 @@ const ReflectionCard: React.FC<ReflectionCardProps> = ({
           {renderContent()}
           {expanded && showComments && (
             <View style={styles.commentSection}>
-              {reflection.comments.map((comment) => (
+              {(reflection.comments ?? []).map((comment) => (
                 <CommentThread
                   key={comment.id}
                   comment={comment}

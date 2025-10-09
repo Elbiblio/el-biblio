@@ -163,12 +163,12 @@ const ProfileScreen = () => {
     
     return {
       totalPoints: stats?.totalPoints || user?.points || 0,
-      totalReflections: stats?.totalReflections || reflections.length,
-      totalNotes: stats?.totalNotes || notes.length,
-      totalChallenges: stats?.totalChallenges || personalChallenges.length,
-      totalComments: reflections.reduce((acc: number, reflection: Reflection) => acc + (reflection.comments?.length || 0), 0),
+      totalReflections: stats?.totalReflections || (reflections?.length ?? 0),
+      totalNotes: stats?.totalNotes || (notes?.length ?? 0),
+      totalChallenges: stats?.totalChallenges || (personalChallenges?.length ?? 0),
+      totalComments: (reflections ?? []).reduce((acc: number, reflection: Reflection) => acc + (reflection.comments?.length || 0), 0),
       totalBookmarks: stats?.totalBookmarks || 0,
-      totalMeditationMinutes: stats?.totalMeditationMinutes || sessions.reduce((total: number, session: MeditationSession) => total + (session.duration_minutes || 0), 0),
+      totalMeditationMinutes: stats?.totalMeditationMinutes || (sessions?.reduce((total: number, session: MeditationSession) => total + (session.duration_minutes || 0), 0) ?? 0),
       totalActiveDays: stats?.totalActiveDays || 0,
       currentStreak: stats?.currentStreak || 0,
       longestStreak: stats?.longestStreak || 0,
@@ -326,10 +326,13 @@ const ProfileScreen = () => {
           </View>
           
           {/* User Ranking */}
-          {globalLeaderboard.length > 0 && (
+          {(globalLeaderboard?.length ?? 0) > 0 && (
             <View style={styles.rankingContainer}>
               <Text style={styles.rankingText}>
-                Rank #{globalLeaderboard.findIndex(entry => entry.user.id === user.id) + 1 || 'N/A'}
+                {(() => {
+                  const idx = (globalLeaderboard ?? []).findIndex(entry => entry.user.id === user.id);
+                  return `Rank #${idx >= 0 ? idx + 1 : 'N/A'}`;
+                })()}
               </Text>
               <Text style={styles.rankingSubtext}>Global Ranking</Text>
             </View>

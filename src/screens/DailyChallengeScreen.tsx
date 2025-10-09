@@ -185,12 +185,16 @@ const DailyChallengesScreen = observer(({ navigation }: DailyChallengesProps) =>
       return;
     }
     
+    // Determine category based on active tab
+    const category = activeCategory === 'community' ? 'community' : 'suggested';
+    
     const result = await createChallenge({
       title: newChallenge.title,
       description: newChallenge.description || 'No description provided',
       type: newChallenge.type,
-      category: 'personal',
+      category: category,
       endTime: newChallenge.endTime,
+      isPublic: category === 'community', // Community challenges are public
     });
     
     if (result) {
@@ -203,6 +207,7 @@ const DailyChallengesScreen = observer(({ navigation }: DailyChallengesProps) =>
       });
       
       toggleNewChallengeForm();
+      Alert.alert('Success', 'Challenge created successfully!');
     }
   };
   
@@ -219,6 +224,8 @@ const DailyChallengesScreen = observer(({ navigation }: DailyChallengesProps) =>
   };
   
   const handleJoinChallenge = async (challenge: Challenge) => {
+    if (isJoiningLoading) return; // Prevent multiple clicks
+    
     const success = await (challenge.hasJoined 
       ? leaveChallenge(challenge.id)
       : joinChallenge(challenge.id)
@@ -230,6 +237,8 @@ const DailyChallengesScreen = observer(({ navigation }: DailyChallengesProps) =>
   };
   
   const handleUpvoteChallenge = async (challenge: Challenge) => {
+    if (isUpvotingLoading) return; // Prevent multiple clicks
+    
     const success = await upvoteChallenge(challenge.id);
     
     if (success) {
@@ -238,6 +247,8 @@ const DailyChallengesScreen = observer(({ navigation }: DailyChallengesProps) =>
   };
   
   const handleAddSuggestedChallenge = async (challenge: Challenge) => {
+    if (isCreatingLoading) return; // Prevent multiple clicks
+    
     const success = await addSuggestedToPersonal(challenge.id);
     
     if (success) {
@@ -261,6 +272,14 @@ const DailyChallengesScreen = observer(({ navigation }: DailyChallengesProps) =>
       Alert.alert('Error', 'Please enter a challenge title');
       return;
     }
+    
+    // Double-check points requirement (should already be checked in handleSuggestCommunityChallenge)
+    if (!user || (user.points || 0) < 200) {
+      Alert.alert('Points Required', 'You need at least 200 points to suggest community challenges.');
+      setShowSuggestModal(false);
+      return;
+    }
+    
     const result = await createChallenge({
       title: newChallenge.title,
       description: newChallenge.description || '',
@@ -269,10 +288,11 @@ const DailyChallengesScreen = observer(({ navigation }: DailyChallengesProps) =>
       endTime: newChallenge.endTime,
       isPublic: true,
     });
+    
     if (result) {
       setShowSuggestModal(false);
       setNewChallenge({ title: '', type: 'virtue', endTime: '21:00', description: '' });
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Alert.alert('Success', 'Community challenge suggested successfully!');
     }
   };
 
@@ -403,9 +423,11 @@ const DailyChallengesScreen = observer(({ navigation }: DailyChallengesProps) =>
         )}
 
         {/* Compact insights: time-left and vote cap progress */}
-        {activeCategory === 'community' && canVote && (
+        {activeCategory === 'community' && (
           <View style={styles.compactInfoRow}>
-            <Text style={styles.compactInfoText}>{Math.max(0, Math.ceil((ms3days - (now.getTime() - createdAt.getTime()))/(24*60*60*1000)))}d window · {(challenge.upvotes||0)}/100 votes</Text>
+            <Text style={styles.compactInfoText}>
+              {Math.max(0, Math.ceil((ms3days - (now.getTime() - createdAt.getTime()))/(24*60*60*1000)))}d window · {(challenge.upvotes||0)}/100 votes
+            </Text>
           </View>
         )}
       </TouchableOpacity>

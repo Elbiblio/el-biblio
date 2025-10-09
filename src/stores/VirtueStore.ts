@@ -177,7 +177,7 @@ export class VirtueStore {
       pagination: {
         currentPage: 1,
         lastPage: 1,
-        perPage: 20,
+        perPage: 50,
         total: 0,
         hasMore: false,
       },
@@ -205,7 +205,7 @@ export class VirtueStore {
       });
 
       // Use dedicated virtues endpoint
-      const response = await apiClient.get<Virtue[]>(
+      const response = await apiClient.get<{data: Virtue[]}>(
         '/virtues',
         {
           include: ['userProgress'],
@@ -216,9 +216,10 @@ export class VirtueStore {
       );
 
       if (!response.success) throw new Error(response.message || 'Failed to fetch virtues');
+      console.log('data', response)
 
       runInAction(() => {
-        this.state.virtues = page === 1 ? response.data : [...this.state.virtues, ...response.data];
+        this.state.virtues = page === 1 ? response.data.data : [...this.state.virtues, ...response.data.data];
         this.state.isVirtuesLoading = false;
         this.state.lastUpdate = new Date();
       });

@@ -45,6 +45,69 @@ import EmptyState from '@/components/EmptyState';
 
 export type NotesScreenProps = NativeStackScreenProps<RootStackParamList, 'NotesScreen'>;
 
+type NotesHeaderProps = {
+  showPublicNotes: boolean;
+  isSearchingCommunity: boolean;
+  showFeaturedOnly: boolean;
+  groupedNotes: { pinned: Note[]; unpinned: Note[] };
+  isGridView: boolean;
+  renderItem: ({ item }: { item: Note }) => JSX.Element;
+  onToggleCommunitySearch: () => void;
+  styles: ReturnType<typeof createStyles>;
+  theme: Theme;
+};
+
+const NotesHeader: React.FC<NotesHeaderProps> = React.memo(({
+  showPublicNotes,
+  isSearchingCommunity,
+  showFeaturedOnly,
+  groupedNotes,
+  isGridView,
+  renderItem,
+  onToggleCommunitySearch,
+  styles,
+  theme,
+}) => {
+  return (
+    <>
+      {showPublicNotes && (
+        <View style={styles.communityHeader}>
+          <Text style={styles.sectionTitle}>
+            {showFeaturedOnly ? 'Featured Community Notes' : 'All Community Notes'}
+          </Text>
+          {!isSearchingCommunity && (
+            <TouchableOpacity 
+              style={styles.searchCommunityButton}
+              onPress={onToggleCommunitySearch}
+            >
+              <Search size={16} color={theme.colors.primary} />
+              <Text style={styles.searchCommunityButtonText}>
+                Search Community
+              </Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
+
+      {!showPublicNotes && groupedNotes.pinned.length > 0 && (
+        <>
+          <Text style={styles.sectionTitle}>Pinned</Text>
+          <FlatList
+            data={groupedNotes.pinned}
+            renderItem={renderItem}
+            keyExtractor={item => item.id.toString()}
+            numColumns={isGridView ? 2 : 1}
+            scrollEnabled={false}
+          />
+          <Text style={[styles.sectionTitle, { marginTop: theme.spacing.lg }] }>
+            All Notes
+          </Text>
+        </>
+      )}
+    </>
+  );
+});
+
 const NotesScreen = ({ navigation, route }: NotesScreenProps) => {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
@@ -91,10 +154,6 @@ const NotesScreen = ({ navigation, route }: NotesScreenProps) => {
     initializeData();
   }, [fetchNotes]);
 
-  useEffect(() => {
-    fetchNotes(1);
-  }, [fetchNotes]);
-
   // Handle load more
   const handleLoadMore = useCallback(() => {
     if (pagination.hasMore && !isLoading) {
@@ -112,13 +171,13 @@ const NotesScreen = ({ navigation, route }: NotesScreenProps) => {
     }
   }, [fetchNotes]);
 
-  if (isInitialLoad) {
-    return (
-      <View style={[styles.container, styles.centerContent]}>
-        <ActivityIndicator size="large" color={theme.colors.primary} />
-      </View>
-    );
-  }
+  // if (isInitialLoad) {
+  //   return (
+  //     <View style={[styles.container, styles.centerContent]}>
+  //       <ActivityIndicator size="large" color={theme.colors.primary} />
+  //     </View>
+  //   );
+  // }
 
   const filteredNotes = useMemo(() => {
     return notes.filter(note => {
@@ -427,44 +486,19 @@ const NotesScreen = ({ navigation, route }: NotesScreenProps) => {
           }
           onEndReached={handleLoadMore}
           onEndReachedThreshold={0.5}
-          ListHeaderComponent={() => (
-            <>
-              {showPublicNotes && (
-                <View style={styles.communityHeader}>
-                  <Text style={styles.sectionTitle}>
-                    {showFeaturedOnly ? 'Featured Community Notes' : 'All Community Notes'}
-                  </Text>
-                  {!isSearchingCommunity && (
-                    <TouchableOpacity 
-                      style={styles.searchCommunityButton}
-                      onPress={toggleCommunitySearch}
-                    >
-                      <Search size={16} color={theme.colors.primary} />
-                      <Text style={styles.searchCommunityButtonText}>
-                        Search Community
-                      </Text>
-                    </TouchableOpacity>
-                  )}
-                </View>
-              )}
-              
-              {!showPublicNotes && groupedNotes.pinned.length > 0 && (
-                <>
-                  <Text style={styles.sectionTitle}>Pinned</Text>
-                  <FlatList
-                    data={groupedNotes.pinned}
-                    renderItem={renderItem}
-                    keyExtractor={item => item.id.toString()}
-                    numColumns={isGridView ? 2 : 1}
-                    scrollEnabled={false}
-                  />
-                  <Text style={[styles.sectionTitle, { marginTop: theme.spacing.lg }]}>
-                    All Notes
-                  </Text>
-                </>
-              )}
-            </>
-          )}
+          ListHeaderComponent={
+            <NotesHeader
+              showPublicNotes={showPublicNotes}
+              isSearchingCommunity={isSearchingCommunity}
+              showFeaturedOnly={showFeaturedOnly}
+              groupedNotes={groupedNotes}
+              isGridView={isGridView}
+              renderItem={renderItem}
+              onToggleCommunitySearch={toggleCommunitySearch}
+              styles={styles}
+              theme={theme}
+            />
+          }
           ListEmptyComponent={ListEmptyComponent}
           ListFooterComponent={
             isLoading && pagination.currentPage > 1 ? (

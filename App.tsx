@@ -49,6 +49,7 @@ import { useAuthStore } from './src/stores/StoreProvider';
 import PointsEarnedModal from './src/components/PointsEarnedModal';
 import { pointsTracker } from './src/utils/pointsTracker';
 import { registerGlobals, AudioSession } from '@livekit/react-native';
+import ChallengeCompletionBanner from './src/components/ChallengeCompletionBanner';
 
 registerGlobals();
 
@@ -104,6 +105,7 @@ const AppContent = () => {
   // Global points modal queue: show one award at a time, queue extras
   const [pointsQueue, setPointsQueue] = useState<Array<{ points: number; title?: string }>>([]);
   const [isPointsVisible, setIsPointsVisible] = useState(false);
+  const [showChallengeBanner, setShowChallengeBanner] = useState(false);
   const { setInitialized } = useAppInitialization();
   const fontsLoaded = useAppFonts();
   const { isInitialized: authInitialized, user, token } = useAuthStore();
@@ -162,11 +164,27 @@ const AppContent = () => {
       // Small delay to ensure all contexts are properly initialized
       const timer = setTimeout(() => {
         setInitialized(true);
+        
+        // Check for uncompleted challenges after initialization
+        checkForUncompletedChallenges();
       }, 500);
       
       return () => clearTimeout(timer);
     }
   }, [fontsLoaded, isLoading, isSplashComplete, authInitialized, setInitialized]);
+
+  const checkForUncompletedChallenges = () => {
+    // Import the store here to avoid circular dependencies
+    const { challengeStore } = require('./src/stores/ChallengeStore');
+    
+    const uncompletedChallenges = challengeStore.personalChallenges.filter(
+      challenge => !challenge.isCompleted && challenge.hasJoined
+    );
+    
+    if (uncompletedChallenges.length > 0) {
+      setShowChallengeBanner(true);
+    }
+  };
 
   // Subscribe to global points earned events emitted by the API interceptor
   useEffect(() => {
@@ -301,6 +319,9 @@ const AppContent = () => {
           )}
         </ErrorBoundary>
         <Toaster />
+        {showChallengeBanner && (
+          <ChallengeCompletionBanner onDismiss={() => setShowChallengeBanner(false)} />
+        )}
         <PointsEarnedModal
           visible={isPointsVisible && pointsQueue.length > 0}
           pointsEarned={pointsQueue[0]?.points || 0}

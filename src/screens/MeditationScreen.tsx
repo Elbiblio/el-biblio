@@ -122,7 +122,7 @@ const MeditationScreen = () => {
 
   // Derived values
   const currentVirtue = React.useMemo(
-    () => virtues.find((v: Virtue) => v.id === selectedVirtue),
+    () => virtues?.find((v: Virtue) => v.id === selectedVirtue),
     [selectedVirtue, virtues]
   );
   const totalMeditationSeconds = React.useMemo(
@@ -131,7 +131,7 @@ const MeditationScreen = () => {
   );
   const promptInterval = totalMeditationSeconds > 0 ? Math.floor(totalMeditationSeconds / 4) : 0;
   // Use a default prompt since prompts don't exist on Virtue type
-  const currentPrompt = "Focus on your breath and let your mind settle";
+  const currentPrompt = "Focus on your breathing and let your mind settle";
   
   // Get theme info for the current virtue
   const getThemeInfo = (virtueName: string) => {
@@ -414,7 +414,7 @@ const MeditationScreen = () => {
       setShowPrompt(true);
       promptOpacity.value = withTiming(1, { duration: 1000 });
       // Use a default prompt since prompts don't exist on Virtue type
-      const prompt = "Focus on your breath and let your mind settle";
+      const prompt = "Focus on your breathing and let your mind settle";
       isSpeaking.current = true;
       Speech.speak(`${introWord}...`, {
         rate: 0.85, onDone: () => {
@@ -466,7 +466,10 @@ const MeditationScreen = () => {
   };
 
   const createChallenge = async () => {
-    if (!selectedChallenge) return;
+    if (!selectedChallenge) {
+      navigation.navigate('DailyChallengeScreen');
+      return;
+    }
     const endTime = new Date();
     // Keep server as source of truth for points; only compute local end_time for UI
     endTime.setHours(endTime.getHours() + (selectedTime === 40 ? 24 : selectedTime === 15 ? 6 : 3));
@@ -816,7 +819,7 @@ const MeditationScreen = () => {
         <Text style={styles.bellText}>Activate Daily Challenge</Text>
       </TouchableOpacity>
 
-      <TouchableOpacity
+      {selectedChallenge && <TouchableOpacity
         style={styles.challengeSummaryContainer}
         onPress={() => setChallengeExpanded(!challengeExpanded)}
       >
@@ -849,6 +852,7 @@ const MeditationScreen = () => {
           )}
         </View>
       </TouchableOpacity>
+      }
     </View>
   );
 

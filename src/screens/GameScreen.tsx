@@ -10,6 +10,8 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useAuthStore, useGameStore, useLeaderboardStore } from '@/stores/StoreProvider';
 import { useGameBadgeStore } from '@/stores/GameBadgeStore';
 import { isGameUnlocked, getGameUnlockRequirement, getNextUnlock } from '@/utils/gameUnlocks';
+import { toast } from 'sonner-native';
+import * as Haptics from 'expo-haptics';
 
 const GameScreen = () => {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
@@ -39,6 +41,26 @@ const GameScreen = () => {
     load();
   }, [user?.id, leaderboardStore, gameBadgeStore]);
 
+  // Ensure game personal bests are up to date whenever this screen gains focus
+  useFocusEffect(React.useCallback(() => {
+    let isActive = true;
+    const refresh = async () => {
+      try {
+        if (!gameStore.state.lastSynced) {
+          await gameStore.initialize();
+        } else {
+          await gameStore.sync();
+        }
+      } catch {}
+    };
+    if (isActive) {
+      void refresh();
+    }
+    return () => {
+      isActive = false;
+    };
+  }, [gameStore]));
+
   const tiles: Array<{ icon: any; title: string; subtitle: string; color: string; route: keyof RootStackParamList; bestKey: GameId; }>= [
     { icon: BookOpen, title: 'Verse Builder', subtitle: 'Assemble the verse', color: theme?.colors.primary, route: 'VerseBuilderScreen', bestKey: 'verse_builder' },
     { icon: Flame, title: 'Virtue Trivia', subtitle: 'Test your knowledge', color: theme?.colors.secondary, route: 'VirtueTriviaScreen', bestKey: 'virtue_trivia' },
@@ -66,7 +88,24 @@ const GameScreen = () => {
               key={t.title} 
               style={[styles.tile, !unlocked && styles.tileLocked]} 
               activeOpacity={unlocked ? 0.85 : 1}
-              onPress={() => unlocked && navigation.navigate(t.route as any)}
+              onPress={() => {
+                if (!unlocked) {
+                  const requirement = getGameUnlockRequirement(t.bestKey);
+                  const totalPoints = leaderboardStore.userStats?.totalPoints ?? 0;
+                  const verseBuilderPoints = gameStore.getPersonalBest('verse_builder') || 0;
+                  const pointsNeeded = requirement?.gameId === 'virtue_trivia'
+                    ? Math.max(0, (requirement?.requiredPoints || 0) - verseBuilderPoints)
+                    : Math.max(0, (requirement?.requiredPoints || 0) - totalPoints);
+                  const message = requirement
+                    ? `Earn ${pointsNeeded} more points to unlock ${requirement.title}.`
+                    : 'This game is locked.';
+                  toast.info(message);
+                  Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+                  return;
+                }
+
+                navigation.navigate(t.route as any);
+              }}
               disabled={!unlocked}
             >
               <LinearGradient 

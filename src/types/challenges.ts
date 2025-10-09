@@ -11,9 +11,16 @@ export interface Challenge {
   endTime: string;
   createdAt: string;
   expiresAt: string;
+  startDate?: string;
   isCompleted: boolean;
   userId: string;
   isFeatured?: boolean;
+  
+  // New fields from API
+  frequency?: 'd' | 'w' | 'm' | string;
+  level?: string;
+  points?: number;
+  finalPoints?: number;
   
   // For community challenges
   participants?: number;
@@ -31,6 +38,9 @@ export interface Challenge {
     updated_at?: string;
   }>;
   hasJoined?: boolean;
+  
+  // Theme/category name from backend
+  theme_name?: string;
   
   // For community and suggested challenges
   upvotes?: number;

@@ -529,6 +529,7 @@ export class ChallengeStore {
       });
       
       await this.saveToStorage();
+      toast.success('Challenge upvoted successfully');
       return { hasUpvoted: mapped.hasUpvoted, upvotes: mapped.upvotes };
     } catch (error) {
       console.error(`Error upvoting challenge ${challengeId}:`, error);

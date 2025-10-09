@@ -385,6 +385,8 @@ const SpiritualCareerScreen = () => {
       });
       
       if (response.success) {
+        // Update game personal best so GameScreen shows correct value
+        await gameStore.submitScore('sp_career', overallScore.percentage);
         toast.success('✨ Progress saved!');
       } else {
         toast.error(response.message || 'Failed to save progress');
@@ -445,6 +447,8 @@ const SpiritualCareerScreen = () => {
       });
       
       if (response.success) {
+        // Keep personal best in sync when monthly growth recalculates the score
+        await gameStore.submitScore('sp_career', overallScore.percentage);
         toast.success('🌱 Monthly growth applied! Your gifts are maturing.');
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       } else {

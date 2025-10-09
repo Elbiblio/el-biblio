@@ -488,6 +488,7 @@ export const endpoints = {
     community: '/challenges/community',
     suggested: '/challenges/suggested',
     daily: '/challenges/daily',
+    show: (id: string) => `/challenges/${id}`,
     create: '/challenges',
     update: (id: string) => `/challenges/${id}`,
     delete: (id: string) => `/challenges/${id}`,

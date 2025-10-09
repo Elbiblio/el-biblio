@@ -47,7 +47,8 @@ import { Theme } from '@/theme';
 import { useTheme } from '@/contexts/ThemeContext';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { SCREEN_DIMENSIONS } from '@/constants';
-import { isSoulForgeUnlocked } from '@/utils/gameUnlocks';
+import { isSoulForgeUnlocked, SOUL_FORGE_UNLOCK_POINTS } from '@/utils/gameUnlocks';
+import { toast } from 'sonner-native';
 import { 
   useVerseStore,
   useAuthStore,
@@ -621,7 +622,13 @@ const HomeScreen = ({ navigation, route }: HomeProps) => {
               key={tool.label}
               style={[styles.toolButton, !isUnlocked && { opacity: 0.6 }]}
               onPress={() => {
-                if (!isUnlocked) return;
+                if (!isUnlocked) {
+                  const totalPoints = leaderboardStore.userStats?.totalPoints ?? 0;
+                  const remaining = Math.max(0, SOUL_FORGE_UNLOCK_POINTS - totalPoints);
+                  toast.info(`Earn ${remaining} more points to unlock SoulForge.`);
+                  Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+                  return;
+                }
                 // Add press animation
                 toolsScale.value = withSequence(
                   withTiming(0.97, { duration: 100 }),

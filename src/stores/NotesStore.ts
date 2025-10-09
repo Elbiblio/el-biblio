@@ -116,16 +116,25 @@ export class NotesStore {
     try {
       this.setLoading(true);
       const params = this.buildQueryParams(page, { ...this.state.filters, ...filters });
-      const response = await apiClient.get<PaginatedResponse<Note>>(endpoints.notes.list, params);
-      
+      const response = await apiClient.get<PaginatedResponse<Note> | Note[]>(endpoints.notes.list, params);
+
+      const isArrayPayload = Array.isArray((response as any).data);
+      const payload = (response as any).data;
+      const items: Note[] = isArrayPayload ? (payload as Note[]) : (payload?.data ?? []);
+      const meta = isArrayPayload ? null : (payload?.meta ?? null);
+
       runInAction(() => {
-        this.state.notes = page === 1 ? response.data.data : [...this.state.notes, ...response.data.data];
+        this.state.notes = page === 1 ? items : [...this.state.notes, ...items];
+        const current_page = meta?.current_page ?? page;
+        const last_page = meta?.last_page ?? 1;
+        const per_page = meta?.per_page ?? items.length ?? this.state.pagination.perPage;
+        const total = meta?.total ?? (page === 1 ? items.length : this.state.pagination.total + items.length);
         this.state.pagination = {
-          currentPage: page,
-          lastPage: response.data.meta.last_page,
-          perPage: response.data.meta.per_page,
-          total: response.data.meta.total,
-          hasMore: response.data.meta.current_page < response.data.meta.last_page,
+          currentPage: current_page,
+          lastPage: last_page,
+          perPage: per_page,
+          total,
+          hasMore: current_page < last_page,
         };
         this.state.filters = { ...this.state.filters, ...filters };
       });
@@ -341,15 +350,25 @@ export class NotesStore {
     try {
       this.setLoading(true);
       const params = this.buildQueryParams(page, this.state.filters);
-      const response = await apiClient.get<PaginatedResponse<Note>>(endpoints.notes.byUser(userId), params);
+      const response = await apiClient.get<PaginatedResponse<Note> | Note[]>(endpoints.notes.byUser(userId), params);
+
+      const isArrayPayload = Array.isArray((response as any).data);
+      const payload = (response as any).data;
+      const items: Note[] = isArrayPayload ? (payload as Note[]) : (payload?.data ?? []);
+      const meta = isArrayPayload ? null : (payload?.meta ?? null);
+
       runInAction(() => {
-        this.state.notes = page === 1 ? response.data.data : [...this.state.notes, ...response.data.data];
+        this.state.notes = page === 1 ? items : [...this.state.notes, ...items];
+        const current_page = meta?.current_page ?? page;
+        const last_page = meta?.last_page ?? 1;
+        const per_page = meta?.per_page ?? items.length ?? this.state.pagination.perPage;
+        const total = meta?.total ?? (page === 1 ? items.length : this.state.pagination.total + items.length);
         this.state.pagination = {
-          currentPage: page,
-          lastPage: response.data.meta.last_page,
-          perPage: response.data.meta.per_page,
-          total: response.data.meta.total,
-          hasMore: response.data.meta.current_page < response.data.meta.last_page,
+          currentPage: current_page,
+          lastPage: last_page,
+          perPage: per_page,
+          total,
+          hasMore: current_page < last_page,
         };
       });
       

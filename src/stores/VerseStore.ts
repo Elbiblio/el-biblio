@@ -481,21 +481,44 @@ export class VerseStore {
 
       if (!response.success) throw new Error(response.message || 'Failed to create reflection');
 
-      const reflection = response.data;
+      let reflection = response.data;
+
+      // Try to enrich the reflection with required relations (user, comments)
+      try {
+        if (reflection?.id) {
+          const enriched = await apiClient.get<Reflection>(
+            endpoints.reflections.show(reflection.id.toString()),
+            { include: ['user', 'comments.user', 'verse'] }
+          );
+          if (enriched?.success && enriched.data) {
+            reflection = enriched.data;
+          }
+        }
+      } catch {}
+
+      // Normalize minimal safe shape in case backend didn't include relations
+      const base = { ...(reflection as any) } as Reflection & { [k: string]: any };
+      const safeReflection: Reflection = {
+        ...base,
+        comments: Array.isArray(base.comments) ? base.comments : [],
+        likes: typeof base.likes === 'number' ? base.likes : 0,
+        shares: typeof base.shares === 'number' ? base.shares : 0,
+        isLiked: Boolean(base.isLiked),
+      } as Reflection;
 
       // Update local verse state with new reflection
       runInAction(() => {
         if (this.state.currentVerse) {
           this.state.currentVerse = {
             ...this.state.currentVerse,
-            reflections: [reflection, ...(this.state.currentVerse.reflections || [])]
+            reflections: [safeReflection, ...(this.state.currentVerse.reflections || [])]
           };
         }
       });
       
       await this.saveToStorage();
 
-      return reflection;
+      return safeReflection;
     } catch (error) {
       console.error('Error creating reflection:', error);
       return null;

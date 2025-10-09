@@ -21,7 +21,13 @@ const PrayerRequestsScreen = ({ navigation }: PrayerRequestsScreenProps) => {
   const styles = useMemo(() => createStyles(theme), [theme]);
 
   const prayerRequestsStore = usePrayerRequestsStore();
-  const { requests, isLoading, pagination, fetchRequests, createRequest, prayForRequest } = prayerRequestsStore;
+  // Safeguard undefined values during initial render to avoid `.length` of undefined errors
+  const requests = prayerRequestsStore?.requests ?? [];
+  const isLoading = prayerRequestsStore?.isLoading ?? false;
+  const pagination = prayerRequestsStore?.pagination ?? ({ currentPage: 1, hasMore: false } as any);
+  const fetchRequests = prayerRequestsStore?.fetchRequests as (page: number, opts: { category: string }) => Promise<void>;
+  const createRequest = prayerRequestsStore?.createRequest as (payload: { content: string; visibility: 'public'; category?: string }) => Promise<PrayerRequest | null>;
+  const prayForRequest = prayerRequestsStore?.prayForRequest as (id: string) => Promise<boolean>;
 
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [currentCategory, setCurrentCategory] = useState<'all' | string>('all');
@@ -39,7 +45,9 @@ const PrayerRequestsScreen = ({ navigation }: PrayerRequestsScreenProps) => {
   ), []);
 
   useEffect(() => {
-    fetchRequests(1, { category: currentCategory });
+    if (fetchRequests) {
+      fetchRequests(1, { category: currentCategory });
+    }
   }, [fetchRequests, currentCategory]);
 
   const openComposeModal = useCallback((draft: string = '') => {
@@ -87,12 +95,14 @@ const PrayerRequestsScreen = ({ navigation }: PrayerRequestsScreenProps) => {
 
   const onRefresh = useCallback(async () => {
     setIsRefreshing(true);
-    await fetchRequests(1, { category: currentCategory });
+    if (fetchRequests) {
+      await fetchRequests(1, { category: currentCategory });
+    }
     setIsRefreshing(false);
   }, [fetchRequests, currentCategory]);
 
   const loadMore = useCallback(() => {
-    if (isLoading || !pagination.hasMore) return;
+    if (isLoading || !pagination.hasMore || !fetchRequests) return;
     fetchRequests((pagination.currentPage || 1) + 1, { category: currentCategory });
   }, [isLoading, pagination, fetchRequests, currentCategory]);
 
