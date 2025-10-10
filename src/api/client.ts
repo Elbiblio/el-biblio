@@ -475,6 +475,7 @@ export const endpoints = {
     versions: '/bible/versions',
     verses: '/bible/verses',
     search: '/bible/search',
+    compare: (version: string, reference: string) => `/bible/${version}/compare/${encodeURIComponent(reference)}`,
     installVersion: (version: string) => `/bible/versions/${version}/install`,
     toggleHighlight: (verseId: string) => `/bible/verses/${verseId}/highlight`,
     toggleBookmark: (verseId: string) => `/bible/verses/${verseId}/bookmark`,

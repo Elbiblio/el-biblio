@@ -39,6 +39,83 @@ type ApiResponse<T> = {
   // Add other response fields if needed
 };
 
+type RemoteBibleSearchMeta = {
+  current_page?: number;
+  last_page?: number;
+  per_page?: number;
+  total?: number;
+  has_more?: boolean;
+};
+
+type RemoteBibleSearchResult = {
+  id?: string | number;
+  text: string;
+  version?: string;
+  reference?: string;
+  verse_number?: number;
+  book?: string | { name?: string; abbreviation?: string };
+  chapter?: number;
+  verse?: number;
+  reference_text?: string;
+};
+
+type RemoteBibleSearchResponse = {
+  data: RemoteBibleSearchResult[];
+  meta?: RemoteBibleSearchMeta;
+};
+
+type RemoteVerseComparisonVersion = {
+  tableName: string;
+  shortName: string;
+  englishName: string;
+};
+
+type RemoteVerseComparisonEntry = {
+  version: RemoteVerseComparisonVersion;
+  available: boolean;
+  installed: boolean;
+  text?: string | null;
+  verses?: Array<{
+    id?: string | number;
+    text: string;
+    verse: number;
+    chapter: number;
+    book: string;
+    reference_text?: string;
+  }>;
+  message?: string | null;
+};
+
+type RemoteVerseComparisonReference = {
+  formatted: string;
+  book: string;
+  book_abbreviation?: string;
+  chapter: number;
+  start_verse: number;
+  end_verse?: number;
+};
+
+type RemoteVerseComparisonResponse = {
+  data: {
+    reference: RemoteVerseComparisonReference;
+    comparisons: RemoteVerseComparisonEntry[];
+  };
+};
+
+export type BibleSearchResult = BibleVerse & {
+  bookAbbr?: string;
+  chapter?: number;
+  verseNumber?: number;
+  versionId?: string;
+  referenceText?: string;
+  source?: 'remote' | 'local';
+};
+
+type LocalBibleSearchRow = {
+  verseID: string;
+  verseText: string;
+};
+
 // Storage keys
 const STORAGE_KEYS = {
   HIGHLIGHTED_VERSES: 'bible_highlighted_verses',
@@ -74,6 +151,9 @@ export type VerseComparisonItem = {
   shortName: string;
   englishName: string;
   text: string;
+  source: 'remote' | 'local';
+  available: boolean;
+  installed: boolean;
 };
 
 class BibleStore {
@@ -82,7 +162,8 @@ class BibleStore {
   currentChapter: number = 1;
   currentVersion: ExtendedBibleVersion | null = null;
   verses: BibleVerse[] = [];
-  searchResults: BibleVerse[] = [];
+  searchResults: BibleSearchResult[] = [];
+  searchMeta: RemoteBibleSearchMeta | null = null;
   savedSearches: string[] = [];
   
   // Loading states
@@ -115,14 +196,20 @@ class BibleStore {
   comparisonResults: VerseComparisonItem[] = [];
   isComparisonLoading: boolean = false;
   comparisonError: string | null = null;
+  comparisonReference: string | null = null;
   // Bible versions
   installedVersions: string[] = [];
   availableVersions: ExtendedBibleVersion[] = [];
   availableBooks: ExtendedBook[] = [];
   chapterCountByBook: Map<string, number> = new Map();
 
+  private currentSearchRequestId: number = 0;
+  private lastSavedSearchAt: number = 0;
+  private lastSavedSearchQuery: string | null = null;
+
   // Comparison cache
   comparisonCache: Map<string, VerseComparisonItem[]> = new Map();
+  comparisonReferenceCache: Map<string, string> = new Map();
 
   // Local storage
   localVerses: Map<string, BibleVerse[]> = new Map();
@@ -160,6 +247,206 @@ class BibleStore {
     });
     
     this.initialize();
+  }
+
+  private mapRemoteComparisonEntry(entry: RemoteVerseComparisonEntry, installedTables: string[]): VerseComparisonItem | null {
+    if (!entry?.version) {
+      return null;
+    }
+
+    const { version } = entry;
+    const isInstalled = installedTables.includes(version.tableName);
+    const text = entry.text || (entry.verses?.map(v => v.text).join(' ') ?? null);
+    const finalText = text && text.trim().length ? text.trim() : (entry.message ?? (isInstalled ? 'Not available locally' : 'Version not installed'));
+
+    return {
+      versionId: version.tableName,
+      shortName: version.shortName,
+      englishName: version.englishName,
+      text: finalText,
+      source: entry.text ? 'remote' : 'local',
+      available: entry.available,
+      installed: entry.installed || isInstalled,
+    } as VerseComparisonItem;
+  }
+
+  private async fetchLocalComparisonEntries(installedTables: string[], verse: number): Promise<VerseComparisonItem[]> {
+    if (!this.currentBook || !this.currentChapter) {
+      return [];
+    }
+
+    const bookAbbr = this.currentBook.abbreviation;
+    const tasks = this.availableVersions.map(async version => {
+      const isInstalled = installedTables.includes(version.tableName);
+      if (!isInstalled) {
+        return {
+          versionId: version.tableName,
+          shortName: version.shortName,
+          englishName: version.englishName,
+          text: 'Version not installed',
+          source: 'local',
+          available: false,
+          installed: false,
+        } as VerseComparisonItem;
+      }
+
+      try {
+        const text = await BibleDBService.getVerse(version.tableName, bookAbbr, this.currentChapter!, verse);
+        return {
+          versionId: version.tableName,
+          shortName: version.shortName,
+          englishName: version.englishName,
+          text: text || 'Not available',
+          source: 'local',
+          available: !!text,
+          installed: true,
+        } as VerseComparisonItem;
+      } catch (error) {
+        console.warn('Failed to fetch local comparison verse', version.tableName, error);
+        return {
+          versionId: version.tableName,
+          shortName: version.shortName,
+          englishName: version.englishName,
+          text: 'Not available',
+          source: 'local',
+          available: false,
+          installed: true,
+        } as VerseComparisonItem;
+      }
+    });
+
+    return (await Promise.all(tasks)).filter(Boolean) as VerseComparisonItem[];
+  }
+
+  private mapRemoteSearchResult(item: RemoteBibleSearchResult): BibleSearchResult | null {
+    if (!item || !item.text) {
+      return null;
+    }
+
+    const referenceText = item.reference_text || item.reference || '';
+    const { bookMeta, chapter, verse } = this.resolveRemoteReference(item, referenceText);
+
+    const bookAbbr = bookMeta?.abbreviation;
+    const bookName = bookMeta?.name || this.extractReferenceParts(referenceText).bookName || bookAbbr;
+    const verseNumber = item.verse_number ?? item.verse ?? verse ?? undefined;
+
+    let reference = referenceText;
+    if (!reference) {
+      if (bookName && chapter) {
+        reference = `${bookName} ${chapter}${verseNumber ? `:${verseNumber}` : ''}`;
+      } else if (bookName) {
+        reference = bookName;
+      } else {
+        reference = 'Scripture';
+      }
+    }
+
+    const idCandidate = item.id ?? referenceText ?? reference;
+    const id = typeof idCandidate === 'number' ? `${idCandidate}` : (idCandidate || `${bookAbbr || 'verse'}-${chapter || 0}-${verseNumber || 0}`);
+
+    return {
+      id,
+      text: item.text,
+      reference: reference || 'Scripture',
+      bookAbbr,
+      chapter: chapter ?? undefined,
+      verseNumber,
+      versionId: item.version,
+      referenceText: referenceText || undefined,
+      source: 'remote',
+    };
+  }
+
+  private mapLocalSearchResult(row: LocalBibleSearchRow): BibleSearchResult | null {
+    if (!row || !row.verseID) {
+      return null;
+    }
+
+    try {
+      const { bookAbbr, chapter, verse } = parseVPLId(row.verseID);
+      const metadata = this.getBookMetadata(bookAbbr);
+      const bookName = metadata?.name || bookAbbr;
+      return {
+        id: row.verseID,
+        text: row.verseText,
+        reference: `${bookName} ${chapter}:${verse}`,
+        bookAbbr,
+        chapter,
+        verseNumber: verse,
+        versionId: this.currentVersion?.tableName,
+        source: 'local',
+      };
+    } catch (error) {
+      console.warn('Failed to map local search row', row.verseID, error);
+      return null;
+    }
+  }
+
+  private shouldStoreSearchQuery(query: string, resultCount: number): boolean {
+    const normalized = query.trim();
+    if (resultCount <= 0) {
+      return false;
+    }
+    if (normalized.length < 4) {
+      return false;
+    }
+
+    if (this.lastSavedSearchQuery && this.lastSavedSearchQuery.toLowerCase() === normalized.toLowerCase()) {
+      return false;
+    }
+
+    const now = Date.now();
+    if (this.lastSavedSearchAt && (now - this.lastSavedSearchAt) < 2000) {
+      return false;
+    }
+
+    return true;
+  }
+
+  private resolveRemoteReference(item: RemoteBibleSearchResult, referenceText: string) {
+    let bookMeta: ExtendedBook | null = null;
+    if (typeof item.book === 'string') {
+      bookMeta = this.resolveBookByValue(item.book);
+    } else if (item.book?.abbreviation) {
+      bookMeta = this.getBookMetadata(item.book.abbreviation) || this.resolveBookByValue(item.book.abbreviation);
+    } else if (item.book?.name) {
+      bookMeta = this.resolveBookByValue(item.book.name);
+    }
+
+    const referenceParts = this.extractReferenceParts(referenceText);
+    if (!bookMeta && referenceParts.bookName) {
+      bookMeta = this.resolveBookByValue(referenceParts.bookName);
+    }
+
+    const chapter = item.chapter ?? referenceParts.chapter ?? undefined;
+    const verse = item.verse ?? item.verse_number ?? referenceParts.verse ?? undefined;
+
+    return { bookMeta, chapter, verse };
+  }
+
+  private resolveBookByValue(value?: string): ExtendedBook | null {
+    if (!value) {
+      return null;
+    }
+    const normalized = value.trim().toLowerCase();
+    const found = bibleBooks.find(b => b.name.toLowerCase() === normalized || b.abbreviation.toLowerCase() === normalized);
+    return found ? toExtendedBook(found) : null;
+  }
+
+  private extractReferenceParts(reference?: string): { bookName?: string; chapter?: number; verse?: number } {
+    if (!reference) {
+      return {};
+    }
+
+    const match = reference.trim().match(/^([0-9I]{0,3}\s*[A-Za-z\. ]+?)\s+(\d+)(?::(\d+))?/);
+    if (!match) {
+      return {};
+    }
+
+    const bookName = match[1]?.trim();
+    const chapter = match[2] ? parseInt(match[2], 10) : undefined;
+    const verse = match[3] ? parseInt(match[3], 10) : undefined;
+    return { bookName, chapter, verse };
   }
 
   // Fetch available versions and detect installed ones
@@ -204,15 +491,15 @@ class BibleStore {
     }
   }
 
-  async loadComparisonForSelectedVerse() {
-    if (!this.selectedVerseId || !this.currentBook || !this.currentChapter) {
+  async loadComparisonForSelectedVerse(forceRefresh: boolean = false) {
+    if (!this.selectedVerseId || !this.currentBook || !this.currentChapter || !this.currentVersion) {
       return;
     }
 
     const { verse } = parseVPLId(this.selectedVerseId);
     const cacheKey = `${this.currentBook.abbreviation}:${this.currentChapter}:${verse}`;
 
-    if (this.comparisonCache.has(cacheKey)) {
+    if (!forceRefresh && this.comparisonCache.has(cacheKey)) {
       runInAction(() => {
         this.comparisonResults = this.comparisonCache.get(cacheKey)!;
         this.comparisonError = null;
@@ -230,36 +517,47 @@ class BibleStore {
         await this.fetchBibleVersions();
       }
 
-      const versePromises = this.availableVersions.map(async version => {
+      const baseVersion = this.currentVersion.tableName;
+      const installedTables = await BibleDBService.getInstalledVersions();
+      const additionalVersions = this.availableVersions
+        .map(v => v.tableName)
+        .filter(table => table !== baseVersion)
+        .join(',');
+
+      let remoteComparisons: VerseComparisonItem[] | null = null;
+      let remoteReference: string | undefined = undefined;
+
+      if (!this.isOffline) {
         try {
-          const text = await BibleDBService.getVerse(
-            version.tableName,
-            this.currentBook!.abbreviation,
-            this.currentChapter,
-            verse
+          const apiResponse = await apiClient.get<RemoteVerseComparisonResponse>(
+            endpoints.bible.compare(baseVersion, `${this.currentBook.abbreviation} ${this.currentChapter}:${verse}`),
+            additionalVersions ? { versions: additionalVersions } : undefined
           );
 
-          return {
-            versionId: version.id,
-            shortName: version.shortName,
-            englishName: version.englishName,
-            text,
-          } as VerseComparisonItem;
+          if (apiResponse.success && apiResponse.data?.data?.comparisons) {
+            const payload = apiResponse.data.data;
+            remoteReference = payload.reference?.formatted;
+            remoteComparisons = payload.comparisons.map(entry => this.mapRemoteComparisonEntry(entry, installedTables)).filter(Boolean) as VerseComparisonItem[];
+          } else {
+            throw new Error(apiResponse.message || 'Remote comparison failed');
+          }
         } catch (error) {
-          console.warn('Failed to load verse for comparison', version.shortName, error);
-          return {
-            versionId: version.id,
-            shortName: version.shortName,
-            englishName: version.englishName,
-            text: 'Not available',
-          } as VerseComparisonItem;
+          console.warn('Remote verse comparison failed; falling back to local data', error);
         }
-      });
+      }
 
-      const results = (await Promise.all(versePromises)).filter(Boolean) as VerseComparisonItem[];
+      let results: VerseComparisonItem[] = [];
+      if (remoteComparisons && remoteComparisons.length) {
+        results = remoteComparisons;
+      } else {
+        results = await this.fetchLocalComparisonEntries(installedTables, verse);
+      }
+
+      const referenceText = remoteReference || `${this.currentBook.name} ${this.currentChapter}:${verse}`;
 
       runInAction(() => {
         this.comparisonResults = results;
+        this.comparisonReference = referenceText;
         this.comparisonCache.set(cacheKey, results);
       });
     } catch (error) {
@@ -401,6 +699,8 @@ class BibleStore {
     this.searchQuery = '';
     this.searchResults = [];
     this.searchError = null;
+    this.searchMeta = null;
+    this.isSearchLoading = false;
   }
   
   // Verse fetching (offline-first using local SQLite via BibleDBService)
@@ -494,62 +794,118 @@ class BibleStore {
 
   // Search functionality (local DB)
   async searchVerses(query: string, version?: BibleVersion) {
-    const normalizedQuery = query.trim();
+    const rawQuery = query ?? '';
+    const normalizedQuery = rawQuery.trim();
+
     if (!normalizedQuery) {
       this.clearSearch();
       return;
     }
 
+    const requestId = ++this.currentSearchRequestId;
     const searchVersion = version || this.currentVersion;
-    if (!searchVersion) {
-      this.searchError = 'No version selected for search';
+
+    runInAction(() => {
+      this.isSearchLoading = true;
+      this.searchError = null;
+      this.searchMeta = null;
+      this.searchQuery = rawQuery;
+    });
+
+    let aggregatedResults: BibleSearchResult[] = [];
+    let meta: RemoteBibleSearchMeta | null = null;
+    let usedSource: 'remote' | 'local' | null = null;
+
+    const trySetResults = (results: BibleSearchResult[], source: 'remote' | 'local', responseMeta?: RemoteBibleSearchMeta | null) => {
+      aggregatedResults = results;
+      meta = responseMeta ?? null;
+      usedSource = source;
+    };
+
+    // Attempt remote search first when online or when no version is selected locally
+    if (!this.isOffline) {
+      try {
+        const response = await apiClient.get<RemoteBibleSearchResponse>(endpoints.bible.search, {
+          query: normalizedQuery,
+          version: searchVersion?.tableName,
+          page: 1,
+          per_page: 20,
+        });
+
+        if (response.success && response.data) {
+          const remotePayload = response.data;
+          const remoteResults = (remotePayload.data || [])
+            .map(item => this.mapRemoteSearchResult(item))
+            .filter(Boolean) as BibleSearchResult[];
+
+          trySetResults(remoteResults, 'remote', remotePayload.meta ?? null);
+        } else {
+          throw new Error(response.message || 'Remote search failed');
+        }
+      } catch (error) {
+        console.warn('Remote Bible search failed, falling back to local search', error);
+      }
+    }
+
+    // Fallback to local search when remote fails or returns nothing
+    if ((!aggregatedResults.length || !usedSource) && searchVersion) {
+      try {
+        await BibleDBService.initialize();
+        const localRows = await BibleDBService.searchVerses(searchVersion.tableName, normalizedQuery);
+        const localResults = localRows
+          .map(row => this.mapLocalSearchResult(row))
+          .filter(Boolean) as BibleSearchResult[];
+
+        trySetResults(localResults, 'local');
+      } catch (error) {
+        console.error('Local Bible search failed:', error);
+      }
+    }
+
+    // Persist history and saved searches for successful lookups
+    const persistTracking = async () => {
+      if (!aggregatedResults.length) {
+        return;
+      }
+
+      const historyVersion = searchVersion?.tableName ?? (aggregatedResults[0]?.versionId ?? '');
+      if (historyVersion) {
+        await BibleDBService.recordHistory({
+          type: 'search',
+          version: historyVersion,
+          query: normalizedQuery,
+        });
+      }
+
+      if (this.shouldStoreSearchQuery(normalizedQuery, aggregatedResults.length)) {
+        await this.addSavedSearch(normalizedQuery);
+        runInAction(() => {
+          this.lastSavedSearchAt = Date.now();
+          this.lastSavedSearchQuery = normalizedQuery;
+        });
+      }
+    };
+
+    try {
+      await persistTracking();
+    } catch (error) {
+      console.warn('Failed to persist search tracking:', error);
+    }
+
+    if (this.currentSearchRequestId !== requestId) {
       return;
     }
 
-    this.isSearchLoading = true;
-    this.searchError = null;
-    this.searchQuery = normalizedQuery;
-
-    try {
-      // Ensure DB is ready
-      await BibleDBService.initialize();
-      const results = await BibleDBService.searchVerses((searchVersion as BibleVersion).tableName, normalizedQuery);
-      const mapped: BibleVerse[] = results.map(v => {
-        const { bookAbbr, chapter, verse } = parseVPLId(v.verseID);
-        const book = bibleBooks.find(b => b.abbreviation === bookAbbr)!;
-        return {
-          id: v.verseID,
-          text: v.verseText,
-          reference: `${book.name} ${chapter}:${verse}`,
-        };
-      });
-
-      runInAction(() => {
-        this.searchResults = mapped;
-      });
-
-      await BibleDBService.recordHistory({
-        type: 'search',
-        version: (searchVersion as BibleVersion).tableName,
-        query: normalizedQuery,
-      });
-
-      if (mapped.length > 0) {
-        await this.addSavedSearch(normalizedQuery);
+    runInAction(() => {
+      this.searchResults = aggregatedResults;
+      this.searchMeta = meta;
+      this.isSearchLoading = false;
+      if (!aggregatedResults.length) {
+        this.searchError = this.isOffline
+          ? 'No results found while offline. Try again when connected.'
+          : 'No results found for that query.';
       }
-    } catch (error) {
-      console.error('Error searching verses:', error);
-      runInAction(() => {
-        this.searchError = 'Failed to search verses. Please try again.';
-        if (this.isOffline) {
-          this.searchError += ' You are currently offline.';
-        }
-      });
-    } finally {
-      runInAction(() => {
-        this.isSearchLoading = false;
-      });
-    }
+    });
   }
 
   // Version Management
@@ -1003,9 +1359,13 @@ class BibleStore {
     await this.setCurrentBook(targetBook);
     this.setCurrentChapter(chapter);
 
-    runInAction(() => {
-      this.hasAppliedLastPosition = true;
-    });
+    if (this.currentBook && this.currentChapter && this.currentVersion) {
+      await this.fetchVerses(this.currentBook, this.currentChapter, this.currentVersion, 1);
+    } else {
+      runInAction(() => {
+        this.hasAppliedLastPosition = true;
+      });
+    }
 
     return true;
   }
