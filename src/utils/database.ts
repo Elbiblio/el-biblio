@@ -17,14 +17,43 @@ const bookCodeMap: { [key: string]: string } = {
   'ZEP': 'ZP', 'HAG': 'HG', 'ZEC': 'ZC', 'MAL': 'ML',
   'MAT': 'MT', 'MAR': 'MK', 'LUK': 'LK', 'JHN': 'JN', 'ACT': 'AC',
   'ROM': 'RM', '1CO': 'C1', '2CO': 'C2', 'GAL': 'GL', 'EPH': 'EP',
-  'PHP': 'PP', 'COL': 'CL', '1TH': 'H1', '2TH': 'H2', '1TI': 'T1',
   '2TI': 'T2', 'TIT': 'TT', 'PHM': 'PM', 'HEB': 'HB', 'JAS': 'JM',
   '1PE': 'P1', '2PE': 'P2', '1JN': 'J1', '2JN': 'J2', '3JN': 'J3',
-  'JUD': 'JD', 'REV': 'RV',
   // Apocrypha
   'TOB': 'TB', 'JDT': 'JT', 'WIS': 'WS', 'SIR': 'SR', 'BAR': 'BR',
-  '1MA': 'M1', '2MA': 'M2', '1ES': 'E1', 'MAN': 'PN', 'PS2': 'PA'
+  '1MA': 'M1', '2MA': 'M2',  '1ES': 'E1', '2ES': 'E2', 'MAN': 'PN', 'PS2': 'PA'
 };
+
+const reverseBookMap: Record<string, string> = Object.fromEntries(
+  Object.entries(bookCodeMap).map(([abbr, code]) => [code.toUpperCase(), abbr])
+);
+
+function resolveBookMetadata(input?: Book | string) {
+  if (!input) {
+    return undefined;
+  }
+
+  if (typeof input !== 'string') {
+    const meta = bibleBooks.find(b => b.abbreviation === input.abbreviation || b.name === input.name);
+    return meta ? { name: meta.name, abbreviation: meta.abbreviation } : { name: input.name, abbreviation: input.abbreviation };
+  }
+
+  const normalized = input.toUpperCase();
+  const byAbbr = bibleBooks.find(b => b.abbreviation.toUpperCase() === normalized || b.name.toUpperCase() === normalized);
+  if (byAbbr) {
+    return { name: byAbbr.name, abbreviation: byAbbr.abbreviation };
+  }
+
+  const byCode = reverseBookMap[normalized];
+  if (byCode) {
+    const meta = bibleBooks.find(b => b.abbreviation.toUpperCase() === byCode);
+    if (meta) {
+      return { name: meta.name, abbreviation: meta.abbreviation };
+    }
+  }
+
+  return undefined;
+}
 
 export function generateVPLId(bookAbbr: string, chapter: number, verse: number): string {
   const bookCode = bookCodeMap[bookAbbr.toUpperCase()];
@@ -80,6 +109,7 @@ export function parseVPLId(vplId: string): { bookAbbr: string, chapter: number, 
     DN: 'DAN',
     HB: 'HEB',
     JM: 'JAS',
+    E2: '2ES',
   };
 
   let bookAbbr: string | undefined;
@@ -163,9 +193,23 @@ class BibleDBService {
   private static instances: Map<string, SQLiteDatabase> = new Map();
   private static readonly DEFAULT_VERSION = 'eng_rv_vpl';
   private static isInitialized = false;
+  private static isInitializing = false;
   private static appStateSubscription: any = null;
 
   static async initialize(): Promise<void> {
+    if (this.isInitialized) {
+      return;
+    }
+
+    if (this.isInitializing) {
+      // Wait for ongoing initialization to complete
+      while (this.isInitializing) {
+        await new Promise(resolve => setTimeout(resolve, 50));
+      }
+      return;
+    }
+
+    this.isInitializing = true;
     try {
       console.log("Initializing Bible database service...");
       const sqliteDir = `${FileSystem.documentDirectory}SQLite`;
@@ -236,6 +280,8 @@ class BibleDBService {
       this.isInitialized = false;
       console.error('Failed to initialize Bible database:', error);
       throw new Error(`Bible database initialization failed: ${(error as Error).message}`);
+    } finally {
+      this.isInitializing = false;
     }
   }
 
@@ -435,7 +481,7 @@ class BibleDBService {
   static async recordHistory(entry: {
     type: 'search' | 'verse' | 'navigation';
     version: string;
-    book?: Book;
+    book?: Book | string;
     chapter?: number;
     verse?: number;
     query?: string;
@@ -443,13 +489,35 @@ class BibleDBService {
     const history = await AsyncStorage.getItem('bibleHistory');
     const historyArray = history ? JSON.parse(history) : [];
 
-    const newEntry = {
-      ...entry,
+    const normalizedVersion = entry.version.replace('.db', '');
+    const bookMeta = resolveBookMetadata(entry.book);
+
+    const sanitizedEntry = {
+      type: entry.type,
+      version: normalizedVersion,
       timestamp: Date.now(),
+      book: bookMeta
+        ? { name: bookMeta.name, abbreviation: bookMeta.abbreviation, chapters: 0 }
+        : undefined,
+      chapter: entry.chapter ?? null,
+      verse: entry.verse ?? null,
+      query: entry.query ?? null,
     };
 
-    // Keep only the last 40 entries
-    const updatedHistory = [newEntry, ...historyArray.slice(0, 39)];
+    const lastEntry = historyArray[0];
+    const isDuplicate = lastEntry &&
+      lastEntry.type === sanitizedEntry.type &&
+      (lastEntry.version || '') === sanitizedEntry.version &&
+      ((lastEntry.query || '').toLowerCase() === (sanitizedEntry.query || '').toLowerCase()) &&
+      ((lastEntry.book?.abbreviation || '') === (sanitizedEntry.book?.abbreviation || '')) &&
+      (lastEntry.chapter || null) === sanitizedEntry.chapter &&
+      (lastEntry.verse || null) === sanitizedEntry.verse;
+
+    if (isDuplicate) {
+      return;
+    }
+
+    const updatedHistory = [sanitizedEntry, ...historyArray.slice(0, 39)];
     await AsyncStorage.setItem('bibleHistory', JSON.stringify(updatedHistory));
   }
 
@@ -531,15 +599,6 @@ class BibleDBService {
     limit: number = 100
   ): Promise<Array<{ verseID: string; verseText: string }>> {
     const normalizedVersion = version.replace('.db', '');
-
-    await this.recordHistory({
-      type: 'verse',
-      version,
-      book: undefined,
-      chapter: undefined,
-      verse: undefined,
-      query,
-    });
 
     return this.executeWithRetry(async (db) => {
       return db.getAllAsync(

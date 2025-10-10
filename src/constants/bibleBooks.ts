@@ -76,6 +76,7 @@ export const bibleBooks: Book[] = [
     { name: '1 Maccabees', abbreviation: '1MA', chapters: 16 },
     { name: '2 Maccabees', abbreviation: '2MA', chapters: 16 },
     { name: '1 Esdras', abbreviation: '1ES', chapters: 16 },
+    { name: '2 Esdras', abbreviation: '2ES', chapters: 16 },
     { name: 'Manasseh', abbreviation: 'MAN', chapters: 1 },
     { name: 'Psalms of Solomon', abbreviation: 'PS2', chapters: 1 },
 ];

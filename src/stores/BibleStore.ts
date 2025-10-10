@@ -5,6 +5,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { bibleBooks } from '@/constants/bibleBooks';
 import BibleDBService, { generateVPLId, parseVPLId } from '@/utils/database';
 import { toast } from 'sonner-native';
+import { Share } from 'react-native';
+import * as Clipboard from 'expo-clipboard';
 
 // Extend the BibleVersion type to include id
 interface ExtendedBibleVersion extends Omit<BibleVersion, 'id'> {
@@ -46,7 +48,33 @@ const STORAGE_KEYS = {
   FONT_SIZE: 'bible_font_size',
   SELECTED_VERSION: 'bible_selected_version',
   INSTALLED_VERSIONS: 'bible_installed_versions',
+  LAST_POSITION: 'bible_last_position',
+  SAVED_SEARCHES: 'bible_saved_searches',
 } as const;
+
+type LastReadPosition = {
+  book: string;
+  chapter: number;
+  version?: string;
+};
+
+export type HistoryEntry = {
+  type: 'search' | 'verse' | 'navigation';
+  version: string;
+  timestamp: number;
+  bookName?: string;
+  bookAbbr?: string;
+  chapter?: number;
+  verse?: number;
+  query?: string;
+};
+
+export type VerseComparisonItem = {
+  versionId: string;
+  shortName: string;
+  englishName: string;
+  text: string;
+};
 
 class BibleStore {
   // Current state
@@ -55,12 +83,14 @@ class BibleStore {
   currentVersion: ExtendedBibleVersion | null = null;
   verses: BibleVerse[] = [];
   searchResults: BibleVerse[] = [];
+  savedSearches: string[] = [];
   
   // Loading states
   isVersesLoading: boolean = false;
   isSearchLoading: boolean = false;
   isInstallingVersion: boolean = false;
   isVersionsLoading: boolean = false;
+  isHistoryLoading: boolean = false;
   
   // Error states
   versesError: string | null = null;
@@ -73,6 +103,7 @@ class BibleStore {
   bookmarkedVerses: Set<string> = new Set();
   likedVerses: Set<string> = new Set();
   verseActivity: VerseActivityMap = {};
+  historyEntries: HistoryEntry[] = [];
   
   // UI state
   fontSize: number = 16;
@@ -80,17 +111,27 @@ class BibleStore {
   showSearch: boolean = false;
   showActivityPanel: boolean = false;
   selectedVerseId: string | null = null;
-  
+  shareFallback: boolean = false;
+  comparisonResults: VerseComparisonItem[] = [];
+  isComparisonLoading: boolean = false;
+  comparisonError: string | null = null;
   // Bible versions
   installedVersions: string[] = [];
   availableVersions: ExtendedBibleVersion[] = [];
   availableBooks: ExtendedBook[] = [];
   chapterCountByBook: Map<string, number> = new Map();
-  
-  
+
+  // Comparison cache
+  comparisonCache: Map<string, VerseComparisonItem[]> = new Map();
+
   // Local storage
   localVerses: Map<string, BibleVerse[]> = new Map();
   isOffline: boolean = false;
+
+  // Resume state
+  lastReadPosition: LastReadPosition | null = null;
+  hasAppliedLastPosition: boolean = false;
+  isInitialized: boolean = false;
 
   // Pagination (for compatibility with BibleScreen)
   pagination = {
@@ -115,6 +156,7 @@ class BibleStore {
       setIsOffline: action.bound,
       clearErrors: action.bound,
       clearSearch: action.bound,
+      loadHistory: action.bound,
     });
     
     this.initialize();
@@ -161,6 +203,76 @@ class BibleStore {
       });
     }
   }
+
+  async loadComparisonForSelectedVerse() {
+    if (!this.selectedVerseId || !this.currentBook || !this.currentChapter) {
+      return;
+    }
+
+    const { verse } = parseVPLId(this.selectedVerseId);
+    const cacheKey = `${this.currentBook.abbreviation}:${this.currentChapter}:${verse}`;
+
+    if (this.comparisonCache.has(cacheKey)) {
+      runInAction(() => {
+        this.comparisonResults = this.comparisonCache.get(cacheKey)!;
+        this.comparisonError = null;
+      });
+      return;
+    }
+
+    runInAction(() => {
+      this.isComparisonLoading = true;
+      this.comparisonError = null;
+    });
+
+    try {
+      if (!this.availableVersions.length) {
+        await this.fetchBibleVersions();
+      }
+
+      const versePromises = this.availableVersions.map(async version => {
+        try {
+          const text = await BibleDBService.getVerse(
+            version.tableName,
+            this.currentBook!.abbreviation,
+            this.currentChapter,
+            verse
+          );
+
+          return {
+            versionId: version.id,
+            shortName: version.shortName,
+            englishName: version.englishName,
+            text,
+          } as VerseComparisonItem;
+        } catch (error) {
+          console.warn('Failed to load verse for comparison', version.shortName, error);
+          return {
+            versionId: version.id,
+            shortName: version.shortName,
+            englishName: version.englishName,
+            text: 'Not available',
+          } as VerseComparisonItem;
+        }
+      });
+
+      const results = (await Promise.all(versePromises)).filter(Boolean) as VerseComparisonItem[];
+
+      runInAction(() => {
+        this.comparisonResults = results;
+        this.comparisonCache.set(cacheKey, results);
+      });
+    } catch (error) {
+      console.error('Error loading comparison verses:', error);
+      runInAction(() => {
+        this.comparisonError = 'Failed to load verse comparison.';
+      });
+    } finally {
+      runInAction(() => {
+        this.isComparisonLoading = false;
+      });
+    }
+  }
   
   // Initialization
   private async initialize() {
@@ -168,16 +280,25 @@ class BibleStore {
       await Promise.all([
         this.loadUserPreferences(),
         this.loadInstalledVersions(),
+        this.loadLastReadPosition(),
+        this.loadSavedSearches(),
       ]);
+
+      runInAction(() => {
+        this.isInitialized = true;
+      });
     } catch (error) {
       console.error('Failed to initialize BibleStore:', error);
+      runInAction(() => {
+        this.isInitialized = false;
+      });
     }
   }
   
   // State setters
-  async setCurrentBook(book: Book) {
+  async setCurrentBook(book: Book | ExtendedBook) {
     if (!book) return;
-    const extendedBook = toExtendedBook(book);
+    const extendedBook = 'id' in book ? book as ExtendedBook : toExtendedBook(book);
 
     // If same book is selected, do nothing to avoid loops
     if (this.currentBook?.abbreviation === extendedBook.abbreviation) {
@@ -200,20 +321,22 @@ class BibleStore {
     // Clamp to valid range for current book
     const max = this.getChapterCount();
     const next = Math.min(Math.max(1, chapter), max);
-    this.currentChapter = next;
+    runInAction(() => {
+      this.currentChapter = next;
+    });
     this.saveUserPreferences();
   }
   
   async setCurrentVersion(version: BibleVersion) {
     if (!version) return;
-    
+
     const extendedVersion = toExtendedVersion(version);
-    
+
     runInAction(() => {
       this.currentVersion = extendedVersion;
       this.verses = [];
     });
-    
+
     // Save selected version to storage
     try {
       await AsyncStorage.setItem(STORAGE_KEYS.SELECTED_VERSION, JSON.stringify(extendedVersion));
@@ -237,7 +360,7 @@ class BibleStore {
     
     // Reload verses if we have a book and chapter
     if (this.currentBook && this.currentChapter) {
-      await this.loadVerses();
+      await this.loadVerses(true);
     }
   }
   
@@ -281,7 +404,7 @@ class BibleStore {
   }
   
   // Verse fetching (offline-first using local SQLite via BibleDBService)
-  async fetchVerses(book: Book, chapter: number, version: BibleVersion, page: number = 1) {
+  async fetchVerses(book: Book | ExtendedBook, chapter: number, version: BibleVersion | ExtendedBibleVersion, page: number = 1) {
     if (!version) {
       this.versesError = 'No version selected';
       return;
@@ -294,8 +417,20 @@ class BibleStore {
       // Ensure DB is ready
       await BibleDBService.initialize();
 
-      const extendedBook = toExtendedBook(book);
-      const extendedVersion = toExtendedVersion(version);
+      const extendedBook = 'id' in book ? book as ExtendedBook : toExtendedBook(book);
+      const extendedVersion = 'id' in version ? version as ExtendedBibleVersion : toExtendedVersion(version);
+
+      const cacheVersionKey = extendedVersion.tableName;
+      const cacheBookKey = extendedBook.abbreviation;
+
+      if (page === 1) {
+        const cached = await this.loadLocalVerses(cacheVersionKey, cacheBookKey, chapter);
+        if (cached && cached.length) {
+          runInAction(() => {
+            this.verses = cached;
+          });
+        }
+      }
 
       // Read chapter from local DB
       const rows = await BibleDBService.getChapter(
@@ -326,17 +461,25 @@ class BibleStore {
 
       // Save a copy for offline cache
       if (versesArray.length > 0) {
-        await this.saveLocalVerses(extendedVersion.id, extendedBook.id, chapter, versesArray);
+        await this.saveLocalVerses(cacheVersionKey, cacheBookKey, chapter, versesArray);
       }
 
-      // Persist last position
-      try {
-        await AsyncStorage.setItem('bible_last_position', JSON.stringify({
-          book: book.abbreviation,
-          chapter,
-          version: version.tableName,
-        }));
-      } catch {}
+      await BibleDBService.recordHistory({
+        type: 'navigation',
+        version: extendedVersion.tableName,
+        book: extendedBook,
+        chapter,
+      });
+
+      await this.updateLastReadPosition({
+        book: cacheBookKey,
+        chapter,
+        version: cacheVersionKey,
+      });
+
+      runInAction(() => {
+        this.hasAppliedLastPosition = true;
+      });
     } catch (error) {
       console.error('Error fetching verses:', error);
       runInAction(() => {
@@ -351,7 +494,8 @@ class BibleStore {
 
   // Search functionality (local DB)
   async searchVerses(query: string, version?: BibleVersion) {
-    if (!query.trim()) {
+    const normalizedQuery = query.trim();
+    if (!normalizedQuery) {
       this.clearSearch();
       return;
     }
@@ -364,12 +508,12 @@ class BibleStore {
 
     this.isSearchLoading = true;
     this.searchError = null;
-    this.searchQuery = query;
+    this.searchQuery = normalizedQuery;
 
     try {
       // Ensure DB is ready
       await BibleDBService.initialize();
-      const results = await BibleDBService.searchVerses((searchVersion as BibleVersion).tableName, query);
+      const results = await BibleDBService.searchVerses((searchVersion as BibleVersion).tableName, normalizedQuery);
       const mapped: BibleVerse[] = results.map(v => {
         const { bookAbbr, chapter, verse } = parseVPLId(v.verseID);
         const book = bibleBooks.find(b => b.abbreviation === bookAbbr)!;
@@ -383,6 +527,16 @@ class BibleStore {
       runInAction(() => {
         this.searchResults = mapped;
       });
+
+      await BibleDBService.recordHistory({
+        type: 'search',
+        version: (searchVersion as BibleVersion).tableName,
+        query: normalizedQuery,
+      });
+
+      if (mapped.length > 0) {
+        await this.addSavedSearch(normalizedQuery);
+      }
     } catch (error) {
       console.error('Error searching verses:', error);
       runInAction(() => {
@@ -551,10 +705,27 @@ class BibleStore {
       // In a real app, this would use the Share API
       // For now, we'll just copy to clipboard
       const shareText = `${verse.text}\n- ${verse.reference}`;
-      await navigator.clipboard.writeText(shareText);
-      
-      toast.success('Verse copied to clipboard');
-      return true;
+
+      try {
+        const result = await Share.share({ message: shareText });
+        if (result.action === Share.sharedAction) {
+          toast.success('Verse shared');
+          runInAction(() => {
+            this.shareFallback = false;
+          });
+          return true;
+        }
+        // User dismissed share sheet
+        return false;
+      } catch (shareError) {
+        console.warn('Native Share unavailable, falling back to clipboard', shareError);
+        await Clipboard.setStringAsync(shareText);
+        runInAction(() => {
+          this.shareFallback = true;
+        });
+        toast.success('Verse copied to clipboard');
+        return true;
+      }
     } catch (error) {
       console.error('Error sharing verse:', error);
       toast.error('Failed to share verse');
@@ -580,6 +751,9 @@ class BibleStore {
         AsyncStorage.removeItem(STORAGE_KEYS.FONT_SIZE),
         AsyncStorage.removeItem(STORAGE_KEYS.SELECTED_VERSION),
         AsyncStorage.removeItem(STORAGE_KEYS.INSTALLED_VERSIONS),
+        AsyncStorage.removeItem(STORAGE_KEYS.LAST_POSITION),
+        AsyncStorage.removeItem(STORAGE_KEYS.SAVED_SEARCHES),
+        AsyncStorage.removeItem('bibleHistory'),
       ]);
       
       runInAction(() => {
@@ -589,10 +763,14 @@ class BibleStore {
         this.verseActivity = {};
         this.verses = [];
         this.searchResults = [];
+        this.savedSearches = [];
         this.fontSize = 16;
         this.currentVersion = null;
         this.currentBook = null;
         this.currentChapter = 1;
+        this.lastReadPosition = null;
+        this.hasAppliedLastPosition = false;
+        this.isInitialized = false;
       });
       
       return true;
@@ -621,67 +799,61 @@ class BibleStore {
       console.warn('Cannot load verses: Missing book, version, or chapter');
       return [];
     }
+    if (!forceRefresh && this.verses.length > 0) {
+      return this.verses;
+    }
 
-    const cacheKey = `verse_${this.currentVersion.id}_${this.currentBook.id}_${this.currentChapter}`;
-    
-    // Check cache first if not forcing refresh
-    if (!forceRefresh) {
-      try {
-        const cachedVerses = await AsyncStorage.getItem(cacheKey);
-        if (cachedVerses) {
-          const parsed = JSON.parse(cachedVerses);
-          runInAction(() => {
-            this.verses = parsed;
-          });
-          return parsed;
-        }
-      } catch (error) {
-        console.error('Error loading cached verses:', error);
+    await this.fetchVerses(this.currentBook, this.currentChapter, this.currentVersion);
+    return this.verses;
+  }
+
+  async ensureInitialPassage(forceReload: boolean = false) {
+    // Ensure we have a version selected
+    if (!this.currentVersion) {
+      if (!this.availableVersions.length) {
+        await this.fetchBibleVersions();
+      }
+
+      if (!this.currentVersion && this.availableVersions.length > 0) {
+        await this.setCurrentVersion(this.availableVersions[0]);
       }
     }
 
-    // Set loading state
-    runInAction(() => {
-      this.isVersesLoading = true;
-      this.versesError = null;
-    });
-
-    try {
-      // Simulate API call - replace with actual API call
-      // const response = await apiClient.get<ApiResponse<BibleVerse[]>>(
-      //   `/verses/${this.currentVersion.id}/${this.currentBook.id}/${this.currentChapter}`
-      // );
-      
-      // Mock data for now
-      await new Promise(resolve => setTimeout(resolve, 500));
-      const mockVerses: BibleVerse[] = Array.from({ length: 10 }, (_, i) => ({
-        id: `${this.currentBook?.id}-${this.currentChapter}-${i + 1}`,
-        text: `This is verse ${i + 1} of ${this.currentBook?.name} ${this.currentChapter}`,
-        reference: `${this.currentBook?.name} ${this.currentChapter}:${i + 1}`,
-      }));
-
-      // Cache the result
-      await AsyncStorage.setItem(cacheKey, JSON.stringify(mockVerses));
-
-      runInAction(() => {
-        this.verses = mockVerses;
-      });
-
-      return mockVerses;
-    } catch (error) {
-      console.error('Error loading verses:', error);
-      runInAction(() => {
-        this.versesError = 'Failed to load verses. Please check your connection and try again.';
-      });
-      return [];
-    } finally {
-      runInAction(() => {
-        this.isVersesLoading = false;
-      });
+    if (!this.currentVersion) {
+      console.warn('Unable to determine a Bible version for initial load');
+      return;
     }
+
+    // Ensure books metadata is available
+    if (!this.availableBooks.length) {
+      await this.loadAvailableBooks();
+    }
+
+    // Try to resume last read position first
+    if (this.lastReadPosition && !this.hasAppliedLastPosition) {
+      const resumed = await this.resumeLastRead(true);
+      if (resumed && !forceReload) {
+        return;
+      }
+    }
+
+    if (!this.currentBook && this.availableBooks.length > 0) {
+      await this.setCurrentBook(this.availableBooks[0]);
+    }
+
+    if (!this.currentBook) {
+      console.warn('Unable to determine a book for initial load');
+      return;
+    }
+
+    if (!this.currentChapter) {
+      this.setCurrentChapter(1);
+    }
+
+    await this.fetchVerses(this.currentBook, this.currentChapter, this.currentVersion, 1);
   }
 
-  
+
 
   // Helper methods
   async loadAvailableBooks() {
@@ -767,24 +939,107 @@ class BibleStore {
     if (!code) return this.currentBook?.chapters || 1;
     return this.chapterCountByBook.get(code) || (this.currentBook?.chapters || 1);
   }
+
+  get resumeTarget() {
+    if (!this.lastReadPosition) {
+      return null;
+    }
+
+    const { book, chapter } = this.lastReadPosition;
+    const currentBookCode = this.currentBook?.abbreviation?.toUpperCase();
+    if (currentBookCode === book && this.currentChapter === chapter) {
+      return null;
+    }
+
+    const isDefaultGenesis = (book === 'GEN' || book === 'GENESIS') && chapter === 1;
+    if (isDefaultGenesis) {
+      return null;
+    }
+
+    const metadata = this.getBookMetadata(book);
+    return metadata ? {
+      book,
+      chapter,
+      bookName: metadata.name,
+    } : {
+      book,
+      chapter,
+      bookName: book,
+    };
+  }
+
+  async resumeLastRead(force = false) {
+    if (!this.lastReadPosition) {
+      return false;
+    }
+
+    const { book, chapter, version } = this.lastReadPosition;
+    const currentBookCode = this.currentBook?.abbreviation?.toUpperCase();
+    if (!force && currentBookCode === book && this.currentChapter === chapter) {
+      runInAction(() => {
+        this.hasAppliedLastPosition = true;
+      });
+      return false;
+    }
+
+    let targetVersion: ExtendedBibleVersion | null = this.currentVersion;
+    if (version) {
+      targetVersion = this.availableVersions.find(v => v.tableName === version) || targetVersion;
+    }
+
+    if (!targetVersion && this.availableVersions.length > 0) {
+      targetVersion = this.availableVersions[0];
+    }
+
+    if (targetVersion && (!this.currentVersion || this.currentVersion.tableName !== targetVersion.tableName)) {
+      await this.setCurrentVersion(targetVersion);
+    }
+
+    const targetBook = this.availableBooks.find(b => b.abbreviation === book) || this.getBookMetadata(book);
+    if (!targetBook) {
+      return false;
+    }
+
+    await this.setCurrentBook(targetBook);
+    this.setCurrentChapter(chapter);
+
+    runInAction(() => {
+      this.hasAppliedLastPosition = true;
+    });
+
+    return true;
+  }
   async loadUserPreferences() {
     try {
-      const [fontSize, selectedVersion, highlightedVerses, bookmarkedVerses, likedVerses, verseActivity] = await Promise.all([
+      const [storedFontSize, selectedVersion] = await Promise.all([
         AsyncStorage.getItem(STORAGE_KEYS.FONT_SIZE),
         AsyncStorage.getItem(STORAGE_KEYS.SELECTED_VERSION),
+      ]);
+
+      await Promise.all([
         this.loadHighlightedVerses(),
         this.loadBookmarkedVerses(),
         this.loadLikedVerses(),
         this.loadVerseActivity(),
       ]);
-      
-      // Process the selected version if it exists
+
+      if (storedFontSize) {
+        const parsed = parseInt(storedFontSize, 10);
+        if (!Number.isNaN(parsed)) {
+          runInAction(() => {
+            this.fontSize = parsed;
+          });
+        }
+      }
+
       if (selectedVersion) {
         try {
-          // Prefer JSON shape
           const versionObj = JSON.parse(selectedVersion);
           if (versionObj) {
-            this.currentVersion = toExtendedVersion(versionObj);
+            const extended = toExtendedVersion(versionObj);
+            runInAction(() => {
+              this.currentVersion = extended;
+            });
           }
         } catch (e) {
           // It might have been stored as a plain ID previously; ignore and let fetchBibleVersions reconcile
@@ -805,7 +1060,10 @@ class BibleStore {
     try {
       const installed = await AsyncStorage.getItem(STORAGE_KEYS.INSTALLED_VERSIONS);
       if (installed) {
-        this.installedVersions = JSON.parse(installed);
+        const parsed = JSON.parse(installed);
+        runInAction(() => {
+          this.installedVersions = parsed;
+        });
       }
       
       // Load available versions from API
@@ -834,7 +1092,10 @@ class BibleStore {
     try {
       const stored = await AsyncStorage.getItem(STORAGE_KEYS.HIGHLIGHTED_VERSES);
       if (stored) {
-        this.highlightedVerses = new Set(JSON.parse(stored));
+        const parsed = JSON.parse(stored);
+        runInAction(() => {
+          this.highlightedVerses = new Set(parsed);
+        });
       }
     } catch (error) {
       console.error('Error loading highlighted verses:', error);
@@ -845,7 +1106,10 @@ class BibleStore {
     try {
       const stored = await AsyncStorage.getItem(STORAGE_KEYS.BOOKMARKED_VERSES);
       if (stored) {
-        this.bookmarkedVerses = new Set(JSON.parse(stored));
+        const parsed = JSON.parse(stored);
+        runInAction(() => {
+          this.bookmarkedVerses = new Set(parsed);
+        });
       }
     } catch (error) {
       console.error('Error loading bookmarked verses:', error);
@@ -856,7 +1120,10 @@ class BibleStore {
     try {
       const stored = await AsyncStorage.getItem(STORAGE_KEYS.LIKED_VERSES);
       if (stored) {
-        this.likedVerses = new Set(JSON.parse(stored));
+        const parsed = JSON.parse(stored);
+        runInAction(() => {
+          this.likedVerses = new Set(parsed);
+        });
       }
     } catch (error) {
       console.error('Error loading liked verses:', error);
@@ -867,13 +1134,190 @@ class BibleStore {
     try {
       const stored = await AsyncStorage.getItem(STORAGE_KEYS.VERSE_ACTIVITY);
       if (stored) {
-        this.verseActivity = JSON.parse(stored);
+        const parsed = JSON.parse(stored);
+        runInAction(() => {
+          this.verseActivity = parsed;
+        });
       }
     } catch (error) {
       console.error('Error loading verse activity:', error);
     }
   }
-  
+
+  async loadSavedSearches() {
+    try {
+      const stored = await AsyncStorage.getItem(STORAGE_KEYS.SAVED_SEARCHES);
+      if (stored) {
+        runInAction(() => {
+          this.savedSearches = JSON.parse(stored);
+        });
+      }
+    } catch (error) {
+      console.error('Error loading saved searches:', error);
+    }
+  }
+
+  async addSavedSearch(query: string) {
+    const trimmed = query.trim();
+    if (!trimmed) return;
+    const next = [trimmed, ...this.savedSearches.filter(q => q.toLowerCase() !== trimmed.toLowerCase())].slice(0, 20);
+    runInAction(() => {
+      this.savedSearches = next;
+    });
+    try {
+      await AsyncStorage.setItem(STORAGE_KEYS.SAVED_SEARCHES, JSON.stringify(next));
+    } catch (error) {
+      console.error('Error saving search query:', error);
+    }
+  }
+
+  async removeSavedSearch(query: string) {
+    const trimmed = query.trim();
+    const next = this.savedSearches.filter(q => q.toLowerCase() !== trimmed.toLowerCase());
+    runInAction(() => {
+      this.savedSearches = next;
+    });
+    try {
+      await AsyncStorage.setItem(STORAGE_KEYS.SAVED_SEARCHES, JSON.stringify(next));
+    } catch (error) {
+      console.error('Error removing saved search query:', error);
+    }
+  }
+
+  async clearSavedSearches() {
+    runInAction(() => {
+      this.savedSearches = [];
+    });
+    try {
+      await AsyncStorage.removeItem(STORAGE_KEYS.SAVED_SEARCHES);
+    } catch (error) {
+      console.error('Error clearing saved searches:', error);
+    }
+  }
+
+  async loadHistory(limit: number = 10) {
+    runInAction(() => {
+      this.isHistoryLoading = true;
+    });
+    try {
+      const raw = await AsyncStorage.getItem('bibleHistory');
+      if (!raw) {
+        runInAction(() => {
+          this.historyEntries = [];
+        });
+        return;
+      }
+
+      const parsed = JSON.parse(raw) as Array<{
+        type: 'search' | 'verse' | 'navigation';
+        version: string;
+        timestamp: number;
+        book?: Book;
+        chapter?: number;
+        verse?: number;
+        query?: string;
+      }>;
+
+      const entries: HistoryEntry[] = parsed.slice(0, limit).map(entry => {
+        const bookAbbr = entry.book?.abbreviation;
+        const metadata = bookAbbr ? this.getBookMetadata(bookAbbr) : null;
+        return {
+          type: entry.type,
+          version: entry.version,
+          timestamp: entry.timestamp,
+          bookName: entry.book?.name || metadata?.name,
+          bookAbbr: bookAbbr || metadata?.abbreviation,
+          chapter: entry.chapter,
+          verse: entry.verse,
+          query: entry.query,
+        };
+      });
+
+      runInAction(() => {
+        this.historyEntries = entries;
+      });
+    } catch (error) {
+      console.error('Error loading history entries:', error);
+    } finally {
+      runInAction(() => {
+        this.isHistoryLoading = false;
+      });
+    }
+  }
+
+  async clearHistory() {
+    try {
+      await AsyncStorage.removeItem('bibleHistory');
+      runInAction(() => {
+        this.historyEntries = [];
+      });
+    } catch (error) {
+      console.error('Error clearing history entries:', error);
+    }
+  }
+
+  private async loadLastReadPosition() {
+    try {
+      const stored = await AsyncStorage.getItem(STORAGE_KEYS.LAST_POSITION);
+      if (!stored) {
+        return;
+      }
+
+      const parsed = JSON.parse(stored) as LastReadPosition;
+      if (!parsed?.book || !parsed?.chapter) {
+        return;
+      }
+
+      runInAction(() => {
+        this.lastReadPosition = {
+          book: parsed.book.toUpperCase(),
+          chapter: Math.max(1, parsed.chapter),
+          version: parsed.version,
+        };
+        this.hasAppliedLastPosition = false;
+      });
+    } catch (error) {
+      console.error('Error loading last read position:', error);
+    }
+  }
+
+  private async updateLastReadPosition(position: LastReadPosition) {
+    const normalized: LastReadPosition = {
+      book: position.book.toUpperCase(),
+      chapter: Math.max(1, position.chapter),
+      version: position.version,
+    };
+
+    runInAction(() => {
+      this.lastReadPosition = normalized;
+    });
+
+    try {
+      await AsyncStorage.setItem(STORAGE_KEYS.LAST_POSITION, JSON.stringify(normalized));
+    } catch (error) {
+      console.error('Error saving last read position:', error);
+    }
+  }
+
+  private getBookMetadata(bookAbbr: string): ExtendedBook | null {
+    if (!bookAbbr) {
+      return null;
+    }
+
+    const normalized = bookAbbr.toUpperCase();
+    const fromAvailable = this.availableBooks.find(b => b.abbreviation === normalized);
+    if (fromAvailable) {
+      return fromAvailable;
+    }
+
+    const fallback = bibleBooks.find(b => b.abbreviation === normalized);
+    if (fallback) {
+      return toExtendedBook(fallback);
+    }
+
+    return null;
+  }
+
   private async saveLocalVerses(version: string, book: string, chapter: number, verses: BibleVerse[]) {
     try {
       const key = `${version}:${book}:${chapter}`;
