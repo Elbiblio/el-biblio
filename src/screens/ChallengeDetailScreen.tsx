@@ -8,7 +8,12 @@ import { useChallengeStore } from '@/stores/ChallengeStore';
 import { ArrowLeft, ArrowUp, Users, Clock, Star, X, Calendar, Trophy } from '@/components/Icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Notifications from 'expo-notifications';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import {
+  loadStoredReminder,
+  upsertStoredReminder,
+  removeStoredReminder,
+  updateReminderNextDue,
+} from '@/tasks/challengeReminderTask';
 
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ChallengeDetail'>;
@@ -56,19 +61,16 @@ const ChallengeDetailScreen = ({ route, navigation }: Props) => {
 
     const checkReminderDue = async () => {
       try {
-        const reminderKey = `challenge_reminder_${challenge.id}`;
-        const storedReminder = await AsyncStorage.getItem(reminderKey);
+        const storedReminder = await loadStoredReminder(challenge.id);
+        if (!storedReminder?.nextReminderDue) {
+          return;
+        }
 
-        if (storedReminder) {
-          const reminderData = JSON.parse(storedReminder);
-          const nextReminderDue = new Date(reminderData.nextReminderDue);
-          const now = new Date();
+        const nextReminderDue = new Date(storedReminder.nextReminderDue);
+        const now = new Date();
 
-          // Check if reminder is due and not dismissed
-          if (now >= nextReminderDue &&
-              (!reminderDismissedUntil || now >= reminderDismissedUntil)) {
-            setShowReminderAlert(true);
-          }
+        if (now >= nextReminderDue && (!reminderDismissedUntil || now >= reminderDismissedUntil)) {
+          setShowReminderAlert(true);
         }
       } catch (error) {
         console.error('Error checking reminder due:', error);
@@ -103,7 +105,7 @@ const ChallengeDetailScreen = ({ route, navigation }: Props) => {
     if (!challenge) return;
     try {
       await store.joinChallenge(challenge.id);
-      
+
       // Schedule reminder notification
       await scheduleChallengeReminder(challenge, selectedReminderHours);
       
@@ -160,14 +162,15 @@ const ChallengeDetailScreen = ({ route, navigation }: Props) => {
       }
 
       // Store reminder info locally
-      const reminderKey = `challenge_reminder_${challenge.id}`;
-      await AsyncStorage.setItem(reminderKey, JSON.stringify({
+      const nextReminderDue = new Date(now.getTime() + (hours * 60 * 60 * 1000));
+      await upsertStoredReminder({
         challengeId: challenge.id,
+        challengeTitle: challenge.title,
         reminderHours: hours,
         scheduledFor: now.toISOString(),
+        nextReminderDue: nextReminderDue.toISOString(),
         notificationIds,
-        nextReminderDue: new Date(now.getTime() + (hours * 60 * 60 * 1000)).toISOString(),
-      }));
+      });
 
     } catch (error) {
       console.error('Error scheduling periodic reminders:', error);
@@ -176,22 +179,15 @@ const ChallengeDetailScreen = ({ route, navigation }: Props) => {
 
   const cancelChallengeReminder = async (challengeId: string) => {
     try {
-      // Get stored reminder info to cancel specific notifications
-      const reminderKey = `challenge_reminder_${challengeId}`;
-      const storedReminder = await AsyncStorage.getItem(reminderKey);
+      const reminderData = await loadStoredReminder(challengeId);
 
-      if (storedReminder) {
-        const reminderData = JSON.parse(storedReminder);
-        if (reminderData.notificationIds && Array.isArray(reminderData.notificationIds)) {
-          // Cancel all scheduled notifications
-          for (const notificationId of reminderData.notificationIds) {
-            await Notifications.cancelScheduledNotificationAsync(notificationId);
-          }
+      if (reminderData?.notificationIds?.length) {
+        for (const notificationId of reminderData.notificationIds) {
+          await Notifications.cancelScheduledNotificationAsync(notificationId);
         }
       }
 
-      // Remove stored reminder info
-      await AsyncStorage.removeItem(reminderKey);
+      await removeStoredReminder(challengeId);
     } catch (error) {
       console.error('Error canceling reminder:', error);
     }
@@ -212,23 +208,14 @@ const ChallengeDetailScreen = ({ route, navigation }: Props) => {
     if (!challenge) return;
 
     try {
-      const reminderKey = `challenge_reminder_${challenge.id}`;
-      const storedReminder = await AsyncStorage.getItem(reminderKey);
+      const reminderData = await loadStoredReminder(challenge.id);
 
-      if (storedReminder) {
-        const reminderData = JSON.parse(storedReminder);
+      if (reminderData) {
         const reminderHours = reminderData.reminderHours || 1;
-
-        // Set dismissed until next reminder interval
         const dismissedUntil = new Date(Date.now() + (reminderHours * 60 * 60 * 1000));
         setReminderDismissedUntil(dismissedUntil);
 
-        // Update stored reminder data with new next reminder time
-        const updatedReminderData = {
-          ...reminderData,
-          nextReminderDue: dismissedUntil.toISOString(),
-        };
-        await AsyncStorage.setItem(reminderKey, JSON.stringify(updatedReminderData));
+        await updateReminderNextDue(challenge.id, dismissedUntil);
       }
 
       setShowReminderAlert(false);

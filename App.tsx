@@ -50,6 +50,7 @@ import PointsEarnedModal from './src/components/PointsEarnedModal';
 import { pointsTracker } from './src/utils/pointsTracker';
 import { registerGlobals, AudioSession } from '@livekit/react-native';
 import ChallengeCompletionBanner from './src/components/ChallengeCompletionBanner';
+import { registerChallengeReminderTask } from './src/tasks/challengeReminderTask';
 
 registerGlobals();
 
@@ -132,6 +133,7 @@ const AppContent = () => {
         }
         // Initialize welcome state
         await initializeWelcomeState();
+        await registerChallengeReminderTask();
       } catch (error) {
         console.warn('Error loading theme:', error);
         setShowThemeSelector(true);

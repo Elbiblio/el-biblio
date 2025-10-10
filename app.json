@@ -73,7 +73,8 @@
       "expo-sqlite",
       "expo-audio",
       "expo-camera",
-      "expo-media-library"
+      "expo-media-library",
+      "expo-background-task"
     ]
   }
 }
