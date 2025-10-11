@@ -4,7 +4,8 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList, User } from '@/types';
 import { useTheme } from '@/contexts/ThemeContext';
 import { Theme } from '@/theme';
-import { useChallengeStore } from '@/stores/ChallengeStore';
+import { observer } from 'mobx-react-lite';
+import { useChallengeStore } from '@/stores/StoreProvider';
 import { ArrowLeft, ArrowUp, Users, Clock, Star, X, Calendar, Trophy } from '@/components/Icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Notifications from 'expo-notifications';
@@ -18,7 +19,7 @@ import {
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ChallengeDetail'>;
 
-const ChallengeDetailScreen = ({ route, navigation }: Props) => {
+const ChallengeDetailScreen = observer(({ route, navigation }: Props) => {
   const { id } = route.params;
   const theme = useTheme();
   const styles = React.useMemo(() => createStyles(theme), [theme]);
@@ -503,7 +504,7 @@ const ChallengeDetailScreen = ({ route, navigation }: Props) => {
       </Modal>
       </>
   );
-};
+});
 
 const createStyles = (theme: Theme) => StyleSheet.create({
   container: {

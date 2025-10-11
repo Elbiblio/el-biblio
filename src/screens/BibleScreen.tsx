@@ -248,10 +248,12 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
     bibleStore.setSelectedVerseId(null);
   }, [bibleStore]);
 
-  const handleCompareSelectedVerse = useCallback(async () => {
+  const handleCompareSelectedVerse = useCallback(() => {
     if (!bibleStore.selectedVerseId) return;
-    await bibleStore.loadComparisonForSelectedVerse();
+    // Open modal first so the spinner is visible while loading
     setShowComparisonModal(true);
+    // Fire-and-forget to avoid blocking UI updates
+    void bibleStore.loadComparisonForSelectedVerse();
   }, [bibleStore]);
 
   const handleCloseComparisonModal = useCallback(() => {
@@ -410,6 +412,8 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
       verseNum = match ? parseInt(match[1], 10) : 0;
     }
     const isHighlighted = bibleStore.highlightedVerses.has(item.id);
+    const isBookmarked = bibleStore.bookmarkedVerses.has(item.id);
+    const isLiked = bibleStore.likedVerses.has(item.id);
     
     return (
       <View style={[
@@ -421,6 +425,17 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
           onLongPress={() => handleToggleHighlight(item.id)}
           onPress={() => handleOpenVerseActions(item.id)}
         >
+          {(isBookmarked || isLiked) && (
+            <View style={styles.verseMarkers}>
+              {isBookmarked && (
+                <MaterialIcons name="bookmark" size={14} color={theme.colors.primary} />
+              )}
+              {isLiked && (
+                <MaterialIcons name="favorite" size={14} color={theme.colors.error} />
+              )}
+            </View>
+          )}
+
           <Text style={styles.verseNumber}>
             {verseNum}
           </Text>
@@ -717,7 +732,7 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
         results={bibleStore.comparisonResults}
         isLoading={bibleStore.isComparisonLoading}
         error={bibleStore.comparisonError}
-        reference={selectedVerse?.reference}
+        reference={bibleStore.comparisonReference || selectedVerse?.reference}
         offline={isOffline}
       />
     </View>
@@ -814,6 +829,13 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     flex: 1,
     ...theme.typography.verse.regular,
     color: theme.colors.text.primary,
+  },
+  verseMarkers: {
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+    gap: theme.spacing.xs,
+    marginLeft: 0-theme.spacing.sm,
+    marginTop: theme.spacing.xs,
   },
   highlightedVerse: {
     backgroundColor: `${theme.colors.primary}15`,

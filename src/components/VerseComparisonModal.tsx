@@ -64,20 +64,24 @@ const VerseComparisonModal: React.FC<VerseComparisonModalProps> = ({
     }
 
     return (
-      <FlatList
-        data={results}
-        keyExtractor={(item) => item.versionId}
-        renderItem={({ item }) => (
-          <View style={styles.versionCard}>
-            <View style={styles.versionHeader}>
-              <Text style={styles.versionTitle}>{item.englishName}</Text>
-              <Text style={styles.versionSubtitle}>{item.shortName}</Text>
+      <View style={styles.listWrapper}>
+        <FlatList
+          data={results}
+          keyExtractor={(item) => item.versionId}
+          renderItem={({ item }) => (
+            <View style={styles.versionCard}>
+              <View style={styles.versionHeader}>
+                <Text style={styles.versionTitle}>{item.englishName}</Text>
+                <Text style={styles.versionSubtitle}>{item.shortName}</Text>
+              </View>
+              <Text style={styles.verseText}>{item.text || 'Not available'}</Text>
             </View>
-            <Text style={styles.verseText}>{item.text || 'Not available'}</Text>
-          </View>
-        )}
-        contentContainerStyle={styles.listContent}
-      />
+          )}
+          style={styles.list}
+          contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator
+        />
+      </View>
     );
   };
 
@@ -124,7 +128,7 @@ const createStyles = (theme: Theme) => StyleSheet.create({
   },
   container: {
     width: '100%',
-    maxHeight: '85%',
+    maxHeight: '90%',
     backgroundColor: theme.colors.background,
     borderRadius: theme.borderRadius.lg,
     padding: theme.spacing.lg,
@@ -207,6 +211,13 @@ const createStyles = (theme: Theme) => StyleSheet.create({
   listContent: {
     gap: theme.spacing.md,
     paddingBottom: theme.spacing.lg,
+  },
+  listWrapper: {
+    flexGrow: 1,
+    flexShrink: 1,
+  },
+  list: {
+    flexGrow: 0,
   },
   versionCard: {
     borderRadius: theme.borderRadius.md,

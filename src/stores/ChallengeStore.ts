@@ -458,19 +458,35 @@ export class ChallengeStore {
 
       runInAction(() => {
         const mapped = mapChallenge(response.data as BackendChallenge);
-        const participants = (mapped?.participants || 0);
+        const existing = this.getChallengeById(challengeId);
+        const participants =
+          typeof mapped.participants === 'number'
+            ? mapped.participants
+            : existing?.participants ?? 0;
 
-        this.updateChallengeInLists(challengeId, {
+        const merged = {
+          ...(existing ?? {}),
+          ...mapped,
           hasJoined: true,
           participants,
-        });
+        } as Challenge;
 
-        const existsInPersonal = this.state.personalChallenges.some(c => c.id === mapped.id);
-        if (!existsInPersonal) {
-          this.state.personalChallenges = [
-            { ...mapped, hasJoined: true },
-            ...this.state.personalChallenges,
-          ];
+        if (existing) {
+          this.replaceChallengeInLists(challengeId, merged);
+        } else {
+          this.updateChallengeInLists(challengeId, {
+            hasJoined: true,
+            participants,
+          });
+        }
+
+        const existsInPersonal = this.state.personalChallenges.some(c => c.id === merged.id);
+        if (existsInPersonal) {
+          this.state.personalChallenges = this.state.personalChallenges.map(c =>
+            c.id === merged.id ? { ...merged } : c
+          );
+        } else {
+          this.state.personalChallenges = [merged, ...this.state.personalChallenges];
         }
       });
 

@@ -33,6 +33,8 @@ const toExtendedVersion = (version: BibleVersion): ExtendedBibleVersion => ({
   id: version.englishName.toLowerCase().replace(/\s+/g, '-'),
 });
 
+const DEFAULT_BIBLE_TABLE = 'eng_rv_vpl';
+
 // API Response type
 type ApiResponse<T> = {
   data: T;
@@ -96,10 +98,8 @@ type RemoteVerseComparisonReference = {
 };
 
 type RemoteVerseComparisonResponse = {
-  data: {
-    reference: RemoteVerseComparisonReference;
-    comparisons: RemoteVerseComparisonEntry[];
-  };
+  reference: RemoteVerseComparisonReference;
+  comparisons: RemoteVerseComparisonEntry[];
 };
 
 export type BibleSearchResult = BibleVerse & {
@@ -199,6 +199,7 @@ class BibleStore {
   comparisonReference: string | null = null;
   // Bible versions
   installedVersions: string[] = [];
+  installedVersionTables: string[] = [];
   availableVersions: ExtendedBibleVersion[] = [];
   availableBooks: ExtendedBook[] = [];
   chapterCountByBook: Map<string, number> = new Map();
@@ -249,38 +250,86 @@ class BibleStore {
     this.initialize();
   }
 
+  private getVersionSlug(version?: { shortName?: string; tableName?: string } | null): string | null {
+    if (!version) {
+      return null;
+    }
+
+    if (version.tableName) {
+      const normalized = version.tableName
+        .replace(/^eng[_-]?/, '')
+        .replace(/_vpl$/i, '')
+        .replace(/[^a-z0-9]+/gi, '')
+        .toLowerCase();
+      if (normalized) {
+        return normalized;
+      }
+    }
+
+    if (version.shortName) {
+      const short = version.shortName.trim().toLowerCase();
+      if (short.length >= 3) {
+        return short;
+      }
+    }
+
+    return null;
+  }
+
   private mapRemoteComparisonEntry(entry: RemoteVerseComparisonEntry, installedTables: string[]): VerseComparisonItem | null {
     if (!entry?.version) {
       return null;
     }
 
     const { version } = entry;
-    const isInstalled = installedTables.includes(version.tableName);
-    const text = entry.text || (entry.verses?.map(v => v.text).join(' ') ?? null);
-    const finalText = text && text.trim().length ? text.trim() : (entry.message ?? (isInstalled ? 'Not available locally' : 'Version not installed'));
+    let versionSlug = this.getVersionSlug(version);
+    if (!versionSlug && version.shortName) {
+      const short = version.shortName.trim().toLowerCase();
+      if (short) {
+        versionSlug = short;
+      }
+    }
+    if (!versionSlug && version.englishName) {
+      versionSlug = version.englishName.trim().toLowerCase().replace(/[^a-z0-9]+/g, '');
+    }
+    if (!versionSlug) {
+      versionSlug = 'unknown';
+    }
+    const isInstalled = version.tableName ? installedTables.includes(version.tableName) : false;
+    const sourceText = entry.text || (entry.verses?.map(v => v.text).join(' ') ?? null);
+    const finalText = sourceText && sourceText.trim().length
+      ? sourceText.trim()
+      : (entry.message ?? (isInstalled ? 'Not available locally' : 'Version not installed'));
 
     return {
-      versionId: version.tableName,
+      versionId: versionSlug,
       shortName: version.shortName,
       englishName: version.englishName,
       text: finalText,
-      source: entry.text ? 'remote' : 'local',
-      available: entry.available,
+      source: 'remote',
+      available: entry.available ?? Boolean(sourceText),
       installed: entry.installed || isInstalled,
     } as VerseComparisonItem;
   }
 
-  private async fetchLocalComparisonEntries(installedTables: string[], verse: number): Promise<VerseComparisonItem[]> {
+  private async fetchLocalComparisonEntries(installedTables: string[], verses: number): Promise<VerseComparisonItem[]> {
     if (!this.currentBook || !this.currentChapter) {
       return [];
     }
 
     const bookAbbr = this.currentBook.abbreviation;
+    const deriveSlug = (value?: string | null) => value ? value.trim().toLowerCase().replace(/[^a-z0-9]+/g, '') : null;
+
     const tasks = this.availableVersions.map(async version => {
+      let versionSlug = this.getVersionSlug(version) || deriveSlug(version.tableName) || deriveSlug(version.shortName) || deriveSlug(version.englishName);
+      if (!versionSlug) {
+        versionSlug = 'unknown';
+      }
+
       const isInstalled = installedTables.includes(version.tableName);
       if (!isInstalled) {
         return {
-          versionId: version.tableName,
+          versionId: versionSlug,
           shortName: version.shortName,
           englishName: version.englishName,
           text: 'Version not installed',
@@ -291,9 +340,9 @@ class BibleStore {
       }
 
       try {
-        const text = await BibleDBService.getVerse(version.tableName, bookAbbr, this.currentChapter!, verse);
+        const text = await BibleDBService.getVerse(version.tableName, bookAbbr, this.currentChapter!, verses);
         return {
-          versionId: version.tableName,
+          versionId: versionSlug,
           shortName: version.shortName,
           englishName: version.englishName,
           text: text || 'Not available',
@@ -302,9 +351,9 @@ class BibleStore {
           installed: true,
         } as VerseComparisonItem;
       } catch (error) {
-        console.warn('Failed to fetch local comparison verse', version.tableName, error);
+        console.warn('Failed to fetch local comparison verses', version.tableName, error);
         return {
-          versionId: version.tableName,
+          versionId: versionSlug,
           shortName: version.shortName,
           englishName: version.englishName,
           text: 'Not available',
@@ -475,9 +524,17 @@ class BibleStore {
         }
       }
 
+      const mappedVersions = versions.map(v => toExtendedVersion(v));
+      mappedVersions.sort((a, b) => {
+        if (a.tableName === DEFAULT_BIBLE_TABLE) return -1;
+        if (b.tableName === DEFAULT_BIBLE_TABLE) return 1;
+        return a.englishName.localeCompare(b.englishName);
+      });
+
       runInAction(() => {
-        this.availableVersions = versions.map(v => toExtendedVersion(v));
-        this.installedVersions = installedShortNames;
+        this.availableVersions = mappedVersions;
+        this.installedVersions = Array.from(new Set(installedShortNames));
+        this.installedVersionTables = Array.from(new Set(installedTables));
       });
     } catch (error) {
       console.error('Error loading Bible versions:', error);
@@ -503,6 +560,7 @@ class BibleStore {
       runInAction(() => {
         this.comparisonResults = this.comparisonCache.get(cacheKey)!;
         this.comparisonError = null;
+        this.comparisonReference = this.comparisonReferenceCache.get(cacheKey) ?? null;
       });
       return;
     }
@@ -517,27 +575,29 @@ class BibleStore {
         await this.fetchBibleVersions();
       }
 
-      const baseVersion = this.currentVersion.tableName;
+      const baseVersionSlug = this.getVersionSlug(this.currentVersion);
+      const baseVersionTable = this.currentVersion.tableName;
       const installedTables = await BibleDBService.getInstalledVersions();
-      const additionalVersions = this.availableVersions
-        .map(v => v.tableName)
-        .filter(table => table !== baseVersion)
-        .join(',');
+      const additionalVersionSlugs = this.availableVersions
+        .filter(v => v.tableName !== baseVersionTable)
+        .map(v => this.getVersionSlug(v))
+        .filter((slug): slug is string => Boolean(slug));
+      const versionsParam = additionalVersionSlugs.length ? `${additionalVersionSlugs.join(',')},` : undefined;
 
       let remoteComparisons: VerseComparisonItem[] | null = null;
       let remoteReference: string | undefined = undefined;
 
-      if (!this.isOffline) {
+      if (!this.isOffline && baseVersionSlug) {
         try {
           const apiResponse = await apiClient.get<RemoteVerseComparisonResponse>(
-            endpoints.bible.compare(baseVersion, `${this.currentBook.abbreviation} ${this.currentChapter}:${verse}`),
-            additionalVersions ? { versions: additionalVersions } : undefined
+            endpoints.bible.compare(baseVersionSlug, `${this.currentBook.abbreviation} ${this.currentChapter}:${verse}`),
+            versionsParam ? { versions: versionsParam } : undefined
           );
 
-          if (apiResponse.success && apiResponse.data?.data?.comparisons) {
-            const payload = apiResponse.data.data;
+          if (apiResponse.success && apiResponse.data?.comparisons) {
+            const payload = apiResponse.data;
             remoteReference = payload.reference?.formatted;
-            remoteComparisons = payload.comparisons.map(entry => this.mapRemoteComparisonEntry(entry, installedTables)).filter(Boolean) as VerseComparisonItem[];
+            remoteComparisons = payload.comparisons.map((entry: RemoteVerseComparisonEntry) => this.mapRemoteComparisonEntry(entry, installedTables)).filter(Boolean) as VerseComparisonItem[];
           } else {
             throw new Error(apiResponse.message || 'Remote comparison failed');
           }
@@ -559,6 +619,7 @@ class BibleStore {
         this.comparisonResults = results;
         this.comparisonReference = referenceText;
         this.comparisonCache.set(cacheKey, results);
+        this.comparisonReferenceCache.set(cacheKey, referenceText);
       });
     } catch (error) {
       console.error('Error loading comparison verses:', error);
@@ -1127,6 +1188,10 @@ class BibleStore {
         this.lastReadPosition = null;
         this.hasAppliedLastPosition = false;
         this.isInitialized = false;
+        this.comparisonResults = [];
+        this.comparisonReference = null;
+        this.comparisonCache.clear();
+        this.comparisonReferenceCache.clear();
       });
       
       return true;
@@ -1165,17 +1230,43 @@ class BibleStore {
 
   async ensureInitialPassage(forceReload: boolean = false) {
     // Ensure we have a version selected
-    if (!this.currentVersion) {
+    let installedTables = this.installedVersionTables;
+    if (!installedTables.length) {
+      try {
+        installedTables = await BibleDBService.getInstalledVersions();
+        runInAction(() => {
+          this.installedVersionTables = installedTables;
+        });
+      } catch (error) {
+        console.warn('Unable to determine installed Bible versions', error);
+        installedTables = [];
+      }
+    }
+
+    const hasCurrentInstalled = this.currentVersion && installedTables.includes(this.currentVersion.tableName);
+
+    if (!hasCurrentInstalled) {
       if (!this.availableVersions.length) {
         await this.fetchBibleVersions();
       }
 
-      if (!this.currentVersion && this.availableVersions.length > 0) {
-        await this.setCurrentVersion(this.availableVersions[0]);
+      let targetVersion: ExtendedBibleVersion | undefined;
+
+      const defaultVersion = this.availableVersions.find(v => v.tableName === DEFAULT_BIBLE_TABLE);
+      if (defaultVersion && installedTables.includes(DEFAULT_BIBLE_TABLE)) {
+        targetVersion = defaultVersion;
+      } else if (installedTables.length) {
+        targetVersion = this.availableVersions.find(v => installedTables.includes(v.tableName));
+      } else {
+        targetVersion = defaultVersion || this.availableVersions[0];
+      }
+
+      if (targetVersion) {
+        await this.setCurrentVersion(targetVersion);
       }
     }
 
-    if (!this.currentVersion) {
+    if (!this.currentVersion || !installedTables.includes(this.currentVersion.tableName)) {
       console.warn('Unable to determine a Bible version for initial load');
       return;
     }
@@ -1338,13 +1429,13 @@ class BibleStore {
       return false;
     }
 
-    let targetVersion: ExtendedBibleVersion | null = this.currentVersion;
+    let targetVersion: ExtendedBibleVersion | undefined;
     if (version) {
-      targetVersion = this.availableVersions.find(v => v.tableName === version) || targetVersion;
+      targetVersion = this.availableVersions.find(v => v.tableName === version) ?? targetVersion;
     }
 
     if (!targetVersion && this.availableVersions.length > 0) {
-      targetVersion = this.availableVersions[0];
+      targetVersion = this.availableVersions.find(v => v.tableName === DEFAULT_BIBLE_TABLE) || this.availableVersions[0];
     }
 
     if (targetVersion && (!this.currentVersion || this.currentVersion.tableName !== targetVersion.tableName)) {
@@ -1428,8 +1519,17 @@ class BibleStore {
       
       // Load available versions from API
       const response = await apiClient.get<ApiResponse<ExtendedBibleVersion[]>>('/bible/versions');
+      const data = (response as unknown as { data: { data: ExtendedBibleVersion[] } }).data.data || [];
+      const sorted = data.slice().sort((a, b) => {
+        if (a.tableName === DEFAULT_BIBLE_TABLE) return -1;
+        if (b.tableName === DEFAULT_BIBLE_TABLE) return 1;
+        return a.englishName.localeCompare(b.englishName);
+      });
       runInAction(() => {
-        this.availableVersions = (response as unknown as { data: { data: ExtendedBibleVersion[] } }).data.data || [];
+        this.availableVersions = sorted.map(toExtendedVersion);
+        if (!this.installedVersionTables.includes(DEFAULT_BIBLE_TABLE)) {
+          this.installedVersionTables = [DEFAULT_BIBLE_TABLE, ...this.installedVersionTables];
+        }
       });
     } catch (error) {
       console.error('Error loading installed versions:', error);

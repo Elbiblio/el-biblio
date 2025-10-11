@@ -211,56 +211,56 @@ const DailyChallengesScreen = observer(({ navigation }: DailyChallengesProps) =>
     }
   };
   
-  const handleCompleteChallenge = async (challenge: Challenge, isCompleted: boolean) => {
-    const success = await completeChallenge(challenge.id, isCompleted);
+  // const handleCompleteChallenge = async (challenge: Challenge, isCompleted: boolean) => {
+  //   const success = await completeChallenge(challenge.id, isCompleted);
     
-    if (success) {
-      Haptics.notificationAsync(
-        isCompleted 
-          ? Haptics.NotificationFeedbackType.Success 
-          : Haptics.NotificationFeedbackType.Warning
-      );
-    }
-  };
+  //   if (success) {
+  //     Haptics.notificationAsync(
+  //       isCompleted 
+  //         ? Haptics.NotificationFeedbackType.Success 
+  //         : Haptics.NotificationFeedbackType.Warning
+  //     );
+  //   }
+  // };
   
-  const handleJoinChallenge = async (challenge: Challenge) => {
-    if (isJoiningLoading) return; // Prevent multiple clicks
+  // const handleJoinChallenge = async (challenge: Challenge) => {
+  //   if (isJoiningLoading) return; // Prevent multiple clicks
     
-    const success = await (challenge.hasJoined 
-      ? leaveChallenge(challenge.id)
-      : joinChallenge(challenge.id)
-    );
+  //   const success = await (challenge.hasJoined 
+  //     ? leaveChallenge(challenge.id)
+  //     : joinChallenge(challenge.id)
+  //   );
     
-    if (success) {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    }
-  };
+  //   if (success) {
+  //     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  //   }
+  // };
   
-  const handleUpvoteChallenge = async (challenge: Challenge) => {
-    if (isUpvotingLoading) return; // Prevent multiple clicks
+  // const handleUpvoteChallenge = async (challenge: Challenge) => {
+  //   if (isUpvotingLoading) return; // Prevent multiple clicks
     
-    const success = await upvoteChallenge(challenge.id);
+  //   const success = await upvoteChallenge(challenge.id);
     
-    if (success) {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    }
-  };
+  //   if (success) {
+  //     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  //   }
+  // };
   
-  const handleAddSuggestedChallenge = async (challenge: Challenge) => {
-    if (isCreatingLoading) return; // Prevent multiple clicks
+  // const handleAddSuggestedChallenge = async (challenge: Challenge) => {
+  //   if (isCreatingLoading) return; // Prevent multiple clicks
     
-    const success = await addSuggestedToPersonal(challenge.id);
+  //   const success = await addSuggestedToPersonal(challenge.id);
     
-    if (success) {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    }
-  };
+  //   if (success) {
+  //     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  //   }
+  // };
   
   const handleSuggestCommunityChallenge = () => {
-    if (!user || (user.points || 0) < 200) {
+    if (!user || (user.points || 0) < 100) {
       Alert.alert(
         'Points Required',
-        'You need at least 200 points to suggest community challenges.'
+        'You need at least 100 points to suggest community challenges.'
       );
       return;
     }
@@ -274,8 +274,8 @@ const DailyChallengesScreen = observer(({ navigation }: DailyChallengesProps) =>
     }
     
     // Double-check points requirement (should already be checked in handleSuggestCommunityChallenge)
-    if (!user || (user.points || 0) < 200) {
-      Alert.alert('Points Required', 'You need at least 200 points to suggest community challenges.');
+    if (!user || (user.points || 0) < 100) {
+      Alert.alert('Points Required', 'You need at least 100 points to suggest community challenges.');
       setShowSuggestModal(false);
       return;
     }
@@ -577,9 +577,18 @@ const DailyChallengesScreen = observer(({ navigation }: DailyChallengesProps) =>
         renderItem={({ item }) => renderChallengeCard(item)}
         onEndReached={loadMore}
         onEndReachedThreshold={0.4}
-        ListFooterComponent={state.pagination.hasMore && isLoading ? (
-          <View style={{ paddingVertical: 16, alignItems: 'center' }}>
-            <ActivityIndicator color={theme?.colors.primary} />
+        ListFooterComponent={activeCategory === 'suggested' ? (
+          <View style={styles.listFooter}>
+            <TouchableOpacity
+              style={styles.suggestYourOwnButton}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                handleSuggestCommunityChallenge();
+              }}
+            >
+              <Sparkle size={18} color={theme?.colors.primary} />
+              <Text style={styles.suggestYourOwnText}>Suggest your own challenge</Text>
+            </TouchableOpacity>
           </View>
         ) : null}
         refreshControl={
@@ -604,7 +613,7 @@ const DailyChallengesScreen = observer(({ navigation }: DailyChallengesProps) =>
           </TouchableOpacity>
         </Animated.View>
         <Text style={styles.headerTitle}>Daily Challenges</Text>
-        {user && (user.points || 0) >= 200 && activeCategory === 'community' && (
+        {user && (user.points || 0) >= 100 && activeCategory === 'community' && (
           <Animated.View style={suggestAnimatedStyle}>
             <TouchableOpacity 
               style={styles.suggestButton}
@@ -814,6 +823,29 @@ const createStyles = (theme: Theme) => StyleSheet.create({
   },
   scrollContent: {
     padding: theme?.spacing.md,
+  },
+  listFooter: {
+    paddingVertical: theme?.spacing.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: theme?.spacing.sm,
+  },
+  suggestYourOwnButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: theme?.spacing.sm,
+    paddingHorizontal: theme?.spacing.lg,
+    borderRadius: theme?.borderRadius.full,
+    backgroundColor: `${theme?.colors.primary}12`,
+    borderWidth: 1,
+    borderColor: `${theme?.colors.primary}25`,
+    gap: theme?.spacing.sm,
+  },
+  suggestYourOwnText: {
+    ...theme?.typography.body.sans,
+    color: theme?.colors.primary,
+    fontWeight: '600',
   },
   addChallengeButton: {
     flexDirection: 'row',
