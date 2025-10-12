@@ -101,11 +101,17 @@ export class PrayerRequestsStore {
     }
   };
 
-  createRequest = async (data: { content: string; category?: string; visibility?: 'public' | 'community' | 'private' }) => {
+  createRequest = async (data: { content: string; category?: 'healing' | 'spiritual_growth' | 'faith_encounter' | 'forgiveness' | 'prosperity'; visibility?: 'anonymous' | 'first_name' | 'full_name' }) => {
     this.setLoading(true);
     try {
-      const response = await apiClient.post<PrayerRequest>(endpoints.prayerRequests.create, data);
+      const payload = {
+        detail: data.content,
+        category: data.category ?? 'healing',
+        visibility: data.visibility ?? 'anonymous',
+      };
+      const response = await apiClient.post<PrayerRequest>(endpoints.prayerRequests.create, payload as any);
       if (!response.success || !response.data) {
+        console.error('Failed to create prayer req', response);
         throw new Error(response.message || 'Failed to create prayer request');
       }
       const req = response.data;
@@ -116,6 +122,7 @@ export class PrayerRequestsStore {
       await this.saveToStorage();
       return req;
     } catch (err) {
+      console.error('Failed to create prayer request', err);
       this.setError(err instanceof Error ? err.message : 'An unknown error occurred');
       return null;
     } finally {

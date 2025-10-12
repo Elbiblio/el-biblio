@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, memo } from 'react';
 import {
   View,
   Text,
@@ -20,7 +20,8 @@ import {
   Clock,
   Trophy,
   Star,
-  Sparkle
+  Sparkle,
+  Check
 } from '@/components/Icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, {
@@ -145,25 +146,24 @@ const DailyChallengesScreen = observer(({ navigation }: DailyChallengesProps) =>
     setRefreshing(true);
     try {
       const promises: Promise<any>[] = [];
-      if (!personalChallenges || personalChallenges.length === 0) {
+      if (!personalChallenges?.length) {
         promises.push(fetchPersonalChallenges(1));
       }
-      if (!communityChallenges || communityChallenges.length === 0) {
+      if (!communityChallenges?.length) {
         promises.push(fetchCommunityChallenges(1));
       }
-      if (!suggestedChallenges || suggestedChallenges.length === 0) {
+      if (!suggestedChallenges?.length) {
         promises.push(fetchSuggestedChallenges(1));
       }
       if (promises.length > 0) {
-        await Promise.all(promises);
+        await Promise.allSettled(promises);
       }
     } catch (error) {
       console.error('Error loading challenges:', error);
-      Alert.alert('Error', 'Failed to load challenges. Please try again.');
     } finally {
       setRefreshing(false);
     }
-  }, [personalChallenges, communityChallenges, suggestedChallenges, fetchPersonalChallenges, fetchCommunityChallenges, fetchSuggestedChallenges, setRefreshing]);
+  }, [personalChallenges?.length, communityChallenges?.length, suggestedChallenges?.length, fetchPersonalChallenges, fetchCommunityChallenges, fetchSuggestedChallenges, setRefreshing]);
   
   const onRefresh = useCallback(() => {
     refreshAll();
@@ -267,13 +267,12 @@ const DailyChallengesScreen = observer(({ navigation }: DailyChallengesProps) =>
     setShowSuggestModal(true);
   };
 
-  const handleSubmitSuggestion = async () => {
+  const handleSubmitSuggestion = useCallback(async () => {
     if (!newChallenge.title.trim()) {
       Alert.alert('Error', 'Please enter a challenge title');
       return;
     }
     
-    // Double-check points requirement (should already be checked in handleSuggestCommunityChallenge)
     if (!user || (user.points || 0) < 100) {
       Alert.alert('Points Required', 'You need at least 100 points to suggest community challenges.');
       setShowSuggestModal(false);
@@ -294,22 +293,22 @@ const DailyChallengesScreen = observer(({ navigation }: DailyChallengesProps) =>
       setNewChallenge({ title: '', type: 'virtue', endTime: '21:00', description: '' });
       Alert.alert('Success', 'Community challenge suggested successfully!');
     }
-  };
+  }, [newChallenge, user, createChallenge]);
 
-  const openVoteModal = (challengeId: string) => {
+  const openVoteModal = useCallback((challengeId: string) => {
     setVoteTargetId(challengeId);
     setVoteSpiritual(3);
     setVoteEffort(3);
     setShowVoteModal(true);
-  };
+  }, []);
 
-  const submitVote = async () => {
+  const submitVote = useCallback(async () => {
     if (!voteTargetId) return;
     await voteChallenge(voteTargetId, { spiritual: voteSpiritual, effort: voteEffort });
     setShowVoteModal(false);
     setVoteTargetId(null);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  };
+  }, [voteTargetId, voteSpiritual, voteEffort, voteChallenge]);
   
   const getTimeRemaining = (endTime: string) => {
     const [hours, minutes] = endTime.split(':').map(Number);
@@ -344,8 +343,8 @@ const DailyChallengesScreen = observer(({ navigation }: DailyChallengesProps) =>
     transform: [{ scale: suggestScale.value }],
   }));
 
-  // Render a single challenge card
-  const renderChallengeCard = (challenge: Challenge) => {
+  // Memoized challenge card component for better performance
+  const renderChallengeCard = useCallback((challenge: Challenge) => {
     const isVirtue = challenge.type === 'virtue';
     const color = isVirtue ? theme?.colors.success : theme?.colors.error;
     const CIcon = isVirtue ? Star : X;
@@ -375,7 +374,12 @@ const DailyChallengesScreen = observer(({ navigation }: DailyChallengesProps) =>
               {isVirtue ? 'Virtue' : 'Vice'}
             </Text>
           </View>
-
+          {challenge.hasJoined && (
+            <View style={[styles.badge, { backgroundColor: `${theme?.colors.success}15` }]}>
+              <Check size={12} color={theme?.colors.success} />
+              <Text style={[styles.badgeText, { color: theme?.colors.success }]}>Joined</Text>
+            </View>
+          )}
           <View style={styles.timeContainer}>
             <Clock size={14} color={isExpired ? theme?.colors.error : theme?.colors.text.secondary} />
             <Text style={[
@@ -432,7 +436,7 @@ const DailyChallengesScreen = observer(({ navigation }: DailyChallengesProps) =>
         )}
       </TouchableOpacity>
     );
-  };
+  }, [theme?.colors, activeCategory, navigation]);
 
   // No form for now (and hidden on Joined tab anyway)
   const renderNewChallengeForm = () => null;
@@ -449,6 +453,18 @@ const DailyChallengesScreen = observer(({ navigation }: DailyChallengesProps) =>
       { translateY: interpolate(listOpacity.value, [0, 1], [20, 0], Extrapolation.CLAMP) }
     ]
   }));
+
+  // Memoize filtered challenges for suggested category
+  const filteredSuggestedChallenges = useMemo(() => {
+    const goalVirtue = (allVirtues || []).find(v => v.id === currentGoalVirtueId);
+    const goalName = goalVirtue?.name?.toLowerCase();
+    return (suggestedChallenges || []).filter(c => {
+      if (c.isFeatured) return true;
+      if (!goalName) return false;
+      const hay = `${c.title || ''} ${c.description || ''}`.toLowerCase();
+      return hay.includes(goalName);
+    });
+  }, [suggestedChallenges, allVirtues, currentGoalVirtueId]);
 
   const renderChallenges = () => {
     let challenges: Challenge[] = [];
@@ -467,15 +483,7 @@ const DailyChallengesScreen = observer(({ navigation }: DailyChallengesProps) =>
         error = communityError;
         break;
       case 'suggested':
-        // Featured or goal-aware suggestions (match virtue name in title/description)
-        const goalVirtue = (allVirtues || []).find(v => v.id === currentGoalVirtueId);
-        const goalName = goalVirtue?.name?.toLowerCase();
-        challenges = (suggestedChallenges || []).filter(c => {
-          if (c.isFeatured) return true;
-          if (!goalName) return false;
-          const hay = `${c.title || ''} ${c.description || ''}`.toLowerCase();
-          return hay.includes(goalName);
-        });
+        challenges = filteredSuggestedChallenges;
         isLoading = isSuggestedLoading;
         error = suggestedError;
         break;

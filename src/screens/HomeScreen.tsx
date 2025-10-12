@@ -58,6 +58,7 @@ import {
   useMeditationStore,
 } from '@/stores/StoreProvider';
 import { useGameBadgeStore } from '@/stores/GameBadgeStore';
+import { observer } from 'mobx-react-lite';
 import AuthModal from '@/components/AuthModal';
 
 import { AppState, AppStateStatus } from 'react-native';
@@ -66,6 +67,7 @@ import { useNavigation } from '@react-navigation/native';
 import { useWebSocket } from '@/services/websocket';
 import * as Haptics from 'expo-haptics';
 import { useCommunityStore } from '@/stores/CommunityStore';
+import { useFocusEffect } from '@react-navigation/native';
 
 const WELCOME_BACK_THRESHOLD = 10 * 60 * 1000; // 10 minutes in milliseconds
 const MAX_ACTIVE_TIME = 30 * 60 * 1000; // 30 minutes in milliseconds
@@ -146,13 +148,13 @@ const FIRST_VISIT_VARIANTS = [
   "Your daily moment of peace awaits",
 ];
 
-const HomeScreen = ({ navigation, route }: HomeProps) => {
+const HomeScreen = observer(({ navigation, route }: HomeProps) => {
   const insets = useSafeAreaInsets();
   const pointsScale = useSharedValue(1);
-  const [activeVerse, setActiveVerse] = useState<string | null>(null);
+  // const [activeVerse, setActiveVerse] = useState<string | null>(null);
   const cardScale = useSharedValue(1);
   const scrollY = useSharedValue(0);
-  const [currentVerseIndex, setCurrentVerseIndex] = useState(0);
+  // const [currentVerseIndex, setCurrentVerseIndex] = useState(0);
   const scrollX = useSharedValue(0);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [isFirstVisitToday, setIsFirstVisitToday] = useState(false);
@@ -161,12 +163,12 @@ const HomeScreen = ({ navigation, route }: HomeProps) => {
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   const meditationComplete = route.params?.meditationComplete || false;
-  const challenge = route.params?.challenge;
+  // const challenge = route.params?.challenge;
 
   const theme = useTheme()
   const styles = React.useMemo(() => createStyles(theme), [theme]);
-  const actionStyles = React.useMemo(() => createActionStyles(theme), [theme]);
-  const themeText = { color: theme?.colors.primary };
+  // const actionStyles = React.useMemo(() => createActionStyles(theme), [theme]);
+  // const themeText = { color: theme?.colors.primary };
 
   const [appState, setAppState] = useState(AppState.currentState);
   const { user, updateUserTime, authRequired, logout } = useAuthStore();
@@ -190,24 +192,21 @@ const HomeScreen = ({ navigation, route }: HomeProps) => {
     loadTimeTracking();
     const subscription = AppState.addEventListener('change', handleAppStateChange);
 
-    // Set up periodic sync
     const syncInterval = setInterval(() => {
       if (appState === 'active') {
         handleTimeSync();
       }
     }, SYNC_INTERVAL);
 
-    // Animate elements when screen loads
+    verseTranslateY.value = withTiming(0, { duration: 600 });
     challengeOpacity.value = withTiming(1, { duration: 600 });
-    verseTranslateY.value = withSpring(0);
-    spotlightTranslateX.value = withSpring(0);
 
     return () => {
-      handleAppInactive();
       subscription.remove();
       clearInterval(syncInterval);
     };
   }, []);
+
 
   // If an API call returns 401, the global unauthorized handler sets authRequired=true.
   // When that happens, present the AuthModal. If the user logs in successfully, close it.
@@ -308,6 +307,14 @@ const HomeScreen = ({ navigation, route }: HomeProps) => {
   const { personalChallenges, communityChallenges } = challengeStore;
   const { fetchPersonalChallenges, fetchCommunityChallenges } = challengeStore;
 
+  // Refresh challenges whenever Home gains focus (ensures newly joined show up)
+  useFocusEffect(
+    React.useCallback(() => {
+      fetchPersonalChallenges(1);
+      fetchCommunityChallenges(1);
+    }, [fetchPersonalChallenges, fetchCommunityChallenges])
+  );
+
   const reflectionStore = useReflectionStore();
   const { reflections, isReflectionsLoading } = reflectionStore.state;
   const { fetchReflections } = reflectionStore;
@@ -397,96 +404,96 @@ const HomeScreen = ({ navigation, route }: HomeProps) => {
     return hasMinimumBreak && withinActiveTimeLimit;
   };
 
-  const { mainGreeting, subGreeting } = useMemo(() => {
-    if (!user) {
-      return {
-        mainGreeting: "Welcome to Elbiblio",
-        subGreeting: "Don't be a stranger, join us today"
-      };
-    }
+  // const { mainGreeting, subGreeting } = useMemo(() => {
+  //   if (!user) {
+  //     return {
+  //       mainGreeting: "Welcome to Elbiblio",
+  //       subGreeting: "Don't be a stranger, join us today"
+  //     };
+  //   }
 
-    let mainGreeting: string;
-    let subGreeting: string;
+  //   let mainGreeting: string;
+  //   let subGreeting: string;
 
-    if (isFirstVisitToday) {
-      mainGreeting = getTimeBasedGreeting();
-      subGreeting = FIRST_VISIT_VARIANTS[Math.floor(Math.random() * FIRST_VISIT_VARIANTS.length)];
-    } else if (shouldShowWelcomeBack()) {
-      mainGreeting = "Welcome back";
-      subGreeting = GREETING_VARIANTS[Math.floor(Math.random() * GREETING_VARIANTS.length)];
-    } else {
-      mainGreeting = getTimeBasedGreeting();
-      subGreeting = GREETING_VARIANTS[Math.floor(Math.random() * GREETING_VARIANTS.length)];
-    }
+  //   if (isFirstVisitToday) {
+  //     mainGreeting = getTimeBasedGreeting();
+  //     subGreeting = FIRST_VISIT_VARIANTS[Math.floor(Math.random() * FIRST_VISIT_VARIANTS.length)];
+  //   } else if (shouldShowWelcomeBack()) {
+  //     mainGreeting = "Welcome back";
+  //     subGreeting = GREETING_VARIANTS[Math.floor(Math.random() * GREETING_VARIANTS.length)];
+  //   } else {
+  //     mainGreeting = getTimeBasedGreeting();
+  //     subGreeting = GREETING_VARIANTS[Math.floor(Math.random() * GREETING_VARIANTS.length)];
+  //   }
 
-    return {
-      mainGreeting: `${mainGreeting}, ${user.first_name}`,
-      subGreeting
-    };
-  }, [user, isFirstVisitToday, timeTracking]);
+  //   return {
+  //     mainGreeting: `${mainGreeting}, ${user.first_name}`,
+  //     subGreeting
+  //   };
+  // }, [user, isFirstVisitToday, timeTracking]);
 
-  const headerAnimatedStyle = useAnimatedStyle(() => ({
-    transform: [
-      {
-        translateY: interpolate(
-          scrollY.value,
-          [0, 100],
-          [0, -50],
-          Extrapolation.CLAMP
-        ),
-      },
-    ],
-    opacity: interpolate(
-      scrollY.value,
-      [0, 100],
-      [1, 0],
-      Extrapolation.CLAMP
-    ),
-  }));
+  // const headerAnimatedStyle = useAnimatedStyle(() => ({
+  //   transform: [
+  //     {
+  //       translateY: interpolate(
+  //         scrollY.value,
+  //         [0, 100],
+  //         [0, -50],
+  //         Extrapolation.CLAMP
+  //       ),
+  //     },
+  //   ],
+  //   opacity: interpolate(
+  //     scrollY.value,
+  //     [0, 100],
+  //     [1, 0],
+  //     Extrapolation.CLAMP
+  //   ),
+  // }));
 
-  const ScrollIndicators = () => {
-    return (
-      <View style={styles.indicatorContainer}>
-        {dailyVerses?.map((_: any, index: number) => {
-          const animatedStyle = useAnimatedStyle(() => {
-            const width = interpolate(
-              scrollX.value,
-              [
-                (index - 1) * (CARD_WIDTH + theme?.spacing.sm),
-                index * (CARD_WIDTH + theme?.spacing.sm),
-                (index + 1) * (CARD_WIDTH + theme?.spacing.sm),
-              ],
-              [8, 24, 8],
-              Extrapolation.CLAMP
-            );
+  // const ScrollIndicators = () => {
+  //   return (
+  //     <View style={styles.indicatorContainer}>
+  //       {dailyVerses?.map((_: any, index: number) => {
+  //         const animatedStyle = useAnimatedStyle(() => {
+  //           const width = interpolate(
+  //             scrollX.value,
+  //             [
+  //               (index - 1) * (CARD_WIDTH + theme?.spacing.sm),
+  //               index * (CARD_WIDTH + theme?.spacing.sm),
+  //               (index + 1) * (CARD_WIDTH + theme?.spacing.sm),
+  //             ],
+  //             [8, 24, 8],
+  //             Extrapolation.CLAMP
+  //           );
 
-            const opacity = interpolate(
-              scrollX.value,
-              [
-                (index - 1) * (CARD_WIDTH + theme?.spacing.sm),
-                index * (CARD_WIDTH + theme?.spacing.sm),
-                (index + 1) * (CARD_WIDTH + theme?.spacing.sm),
-              ],
-              [0.5, 1, 0.5],
-              Extrapolation.CLAMP
-            );
+  //           const opacity = interpolate(
+  //             scrollX.value,
+  //             [
+  //               (index - 1) * (CARD_WIDTH + theme?.spacing.sm),
+  //               index * (CARD_WIDTH + theme?.spacing.sm),
+  //               (index + 1) * (CARD_WIDTH + theme?.spacing.sm),
+  //             ],
+  //             [0.5, 1, 0.5],
+  //             Extrapolation.CLAMP
+  //           );
 
-            return {
-              width,
-              opacity,
-            };
-          });
+  //           return {
+  //             width,
+  //             opacity,
+  //           };
+  //         });
 
-          return (
-            <Animated.View
-              key={index}
-              style={[styles.indicator, animatedStyle]}
-            />
-          );
-        })}
-      </View>
-    );
-  };
+  //         return (
+  //           <Animated.View
+  //             key={index}
+  //             style={[styles.indicator, animatedStyle]}
+  //           />
+  //         );
+  //       })}
+  //     </View>
+  //   );
+  // };
 
   const handleScroll = (event: { nativeEvent: { contentOffset: { y: number } } }) => {
     scrollY.value = event.nativeEvent.contentOffset.y;
@@ -494,7 +501,7 @@ const HomeScreen = ({ navigation, route }: HomeProps) => {
 
   const handleVersePress = (verse: Verse) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setActiveVerse(verse.id);
+    // setActiveVerse(verse.id);
     cardScale.value = withSequence(
       withTiming(0.95, { duration: 100 }),
       withTiming(1, { duration: 100 })
@@ -502,11 +509,11 @@ const HomeScreen = ({ navigation, route }: HomeProps) => {
     navigation.navigate("VerseDetail", { verse });
   };
 
-  const handleVerseScroll = useCallback((event: { nativeEvent: { contentOffset: { x: number } } }) => {
-    scrollX.value = event.nativeEvent.contentOffset.x;
-    const newIndex = Math.round(event.nativeEvent.contentOffset.x / (CARD_WIDTH + theme?.spacing.sm));
-    setCurrentVerseIndex(newIndex);
-  }, []);
+  // const handleVerseScroll = useCallback((event: { nativeEvent: { contentOffset: { x: number } } }) => {
+  //   scrollX.value = event.nativeEvent.contentOffset.x;
+  //   const newIndex = Math.round(event.nativeEvent.contentOffset.x / (CARD_WIDTH + theme?.spacing.sm));
+  //   setCurrentVerseIndex(newIndex);
+  // }, []);
 
   const handleQuickActionPress = (route: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -1085,7 +1092,7 @@ const HomeScreen = ({ navigation, route }: HomeProps) => {
       />
     </View>
   );
-};
+});
 
 
 const createActionStyles = (theme: Theme) => StyleSheet.create({

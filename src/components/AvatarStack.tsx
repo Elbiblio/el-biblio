@@ -29,7 +29,8 @@ export const AvatarStack: React.FC<AvatarStackProps> = ({
   onPress,
   showRemaining = true,
 }) => {
-  const displayUsers = users.slice(0, maxAvatars);
+  const safeUsers = React.useMemo(() => (users || []).map(u => ({ ...u })), [users]);
+  const displayUsers = safeUsers.slice(0, maxAvatars);
   const remainingCount = Math.max(0, users.length - maxAvatars);
   const theme = useTheme();
   const styles = React.useMemo(() => createStyles(theme), [theme]);
@@ -78,23 +79,50 @@ export const AvatarStack: React.FC<AvatarStackProps> = ({
       hoveredIndex.value = -1;
     };
 
+    const uri = typeof user.avatar === 'string' && user.avatar.trim().length > 0 ? user.avatar : undefined;
+
     return (
       <Pressable 
         onPressIn={handlePressIn}
         onPressOut={handlePressOut}
       >
         <Animated.View style={[styles.avatarContainer, animatedStyle]}>
-          <Image
-            source={{ uri: user.avatar }}
-            style={[
-              styles.avatar,
-              {
-                width: size,
-                height: size,
-                borderRadius: size / 2,
-              }
-            ]}
-          />
+          {uri ? (
+            <Image
+              source={{ uri }}
+              style={[
+                styles.avatar,
+                {
+                  width: size,
+                  height: size,
+                  borderRadius: size / 2,
+                }
+              ]}
+            />
+          ) : (
+            <View
+              style={[
+                styles.avatar,
+                {
+                  width: size,
+                  height: size,
+                  borderRadius: size / 2,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  backgroundColor: `${theme.colors.primary}15`,
+                }
+              ]}
+            >
+              <Text style={{
+                ...theme.typography.caption.primary,
+                color: theme.colors.primary,
+                fontWeight: '700',
+                fontSize: Math.max(10, Math.round(size / 3))
+              }}>
+                {(user.first_name?.[0] || user.last_name?.[0] || String(user.id || '?')[0] || '?').toUpperCase()}
+              </Text>
+            </View>
+          )}
         </Animated.View>
       </Pressable>
     );
@@ -107,7 +135,7 @@ export const AvatarStack: React.FC<AvatarStackProps> = ({
     <View style={[styles.container, { width: containerWidth }]}>
       {displayUsers.map((user, index) => (
         <Avatar 
-          key={user.id} 
+          key={`${user.id ?? 'u'}-${index}`} 
           user={user} 
           index={index}
         />

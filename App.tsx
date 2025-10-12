@@ -303,6 +303,10 @@ const AppContent = () => {
           <Stack.Screen name="GameScreen" component={GameScreen} />
           <Stack.Screen name="SpiritualCareerScreen" component={SpiritualCareerScreen} />
         </Stack.Navigator>
+        {/* Place overlay components inside NavigationContainer so they have navigation context */}
+        {showChallengeBanner && (
+          <ChallengeCompletionBanner onDismiss={() => setShowChallengeBanner(false)} />
+        )}
       </NavigationContainer>
     );
   };
@@ -321,9 +325,6 @@ const AppContent = () => {
           )}
         </ErrorBoundary>
         <Toaster />
-        {showChallengeBanner && (
-          <ChallengeCompletionBanner onDismiss={() => setShowChallengeBanner(false)} />
-        )}
         <PointsEarnedModal
           visible={isPointsVisible && pointsQueue.length > 0}
           pointsEarned={pointsQueue[0]?.points || 0}

@@ -254,18 +254,26 @@ export class LeaderboardStore {
         { timeframe }
       );
 
-      if (!response.success) throw new Error(response.message || 'Failed to fetch user rank');
+      if (!response || !response.success || !response.data) {
+        const errMsg = response?.message || 'Failed to fetch user rank';
+        const err = new Error(errMsg);
+        (err as any).status = (response as any)?.status;
+        (err as any).response = response as any;
+        throw err;
+      }
 
       return response.data;
     } catch (error) {
-      const message = (error as any)?.message ? String((error as any).message) : '';
       const status = (error as any)?.status || (error as any)?.response?.status;
+      const message = (error as any)?.message ? String((error as any).message) : '';
+      const serverMessage = (error as any)?.response?.message || (error as any)?.response?.data?.message;
+      const details = (error as any)?.response?.data || (error as any)?.data || null;
       // Suppress noisy logs when user rank is simply not found yet
       if (status === 404 || message.includes('Resource not found')) {
         // Do not log, but rethrow so callers (e.g., HomeScreen) can handle logout for deleted guest accounts
         throw error;
       }
-      console.error('Error fetching user rank:', error);
+      console.error('Error fetching user rank:', { status, message, serverMessage, details });
       return null;
     }
   }
@@ -279,7 +287,13 @@ export class LeaderboardStore {
 
       const response = await apiClient.get<BackendUserStats>(endpoints.stats.user(userId));
 
-      if (!response.success) throw new Error(response.message || 'Failed to fetch user stats');
+      if (!response || !response.success || !response.data) {
+        const errMsg = response?.message || 'Failed to fetch user stats';
+        const err = new Error(errMsg);
+        (err as any).status = (response as any)?.status;
+        (err as any).response = response as any;
+        throw err;
+      }
 
       const b = response.data;
       const mapped: UserStats = {

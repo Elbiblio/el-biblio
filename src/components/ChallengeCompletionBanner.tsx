@@ -1,10 +1,12 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Animated, Platform, Dimensions } from 'react-native';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, Animated, Platform } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useTheme } from '@/contexts/ThemeContext';
 import { Theme } from '@/theme';
 import { useChallengeStore } from '@/stores/ChallengeStore';
 import { Challenge } from '@/types/challenges';
+import { RootStackParamList } from '@/types';
 import { Trophy, X, Check, Flame, Star, Sparkle } from '@/components/Icons';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -15,33 +17,43 @@ interface ChallengeCompletionBannerProps {
 
 const ChallengeCompletionBanner: React.FC<ChallengeCompletionBannerProps> = ({ onDismiss }) => {
   const theme = useTheme();
-  const navigation = useNavigation();
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const store = useChallengeStore();
-  const styles = React.useMemo(() => createStyles(theme), [theme]);
+  const styles = useMemo(() => createStyles(theme), [theme]);
 
-  // Get uncompleted personal challenges
-  const uncompletedChallenges = store.personalChallenges.filter(
-    challenge => !challenge.isCompleted && challenge.hasJoined
+  // Get uncompleted personal challenges - memoized for performance
+  const uncompletedChallenges = useMemo(
+    () => store.personalChallenges.filter(challenge => challenge?.id && challenge.title && !challenge.isCompleted && challenge.hasJoined),
+    [store.personalChallenges]
   );
 
-  const [selectedChallenge, setSelectedChallenge] = useState<Challenge | null>(
+  const [selectedChallenge, setSelectedChallenge] = useState<Challenge | null>(() => 
     uncompletedChallenges.length > 0 ? uncompletedChallenges[0] : null
   );
   const [countdown, setCountdown] = useState(15);
   const [canDismiss, setCanDismiss] = useState(false);
   const [isCompleting, setIsCompleting] = useState(false);
 
-  // Animation refs
-  const countdownInterval = useRef<number | null>(null);
+  // Sync selected challenge when store updates
+  useEffect(() => {
+    if (!selectedChallenge && uncompletedChallenges.length > 0) {
+      setSelectedChallenge(uncompletedChallenges[0]);
+    } else if (selectedChallenge && !uncompletedChallenges.find(ch => ch.id === selectedChallenge.id)) {
+      // Current challenge was removed, select next one
+      setSelectedChallenge(uncompletedChallenges[0] ?? null);
+    }
+  }, [uncompletedChallenges, selectedChallenge]);
+
+  // Animation refs - created once
+  const countdownInterval = useRef<ReturnType<typeof setInterval> | null>(null);
   const slideAnim = useRef(new Animated.Value(-300)).current;
   const scaleAnim = useRef(new Animated.Value(0.8)).current;
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const sparkleAnim = useRef(new Animated.Value(0)).current;
 
-  const { width: screenWidth } = Dimensions.get('window');
-
+  // Mount animations and countdown - runs once
   useEffect(() => {
-    // Animate banner in with bounce effect
+    // Animate banner in
     Animated.parallel([
       Animated.spring(slideAnim, {
         toValue: 0,
@@ -57,63 +69,52 @@ const ChallengeCompletionBanner: React.FC<ChallengeCompletionBannerProps> = ({ o
       }),
     ]).start();
 
-    // Start pulsing animation for encouragement
-    const startPulseAnimation = () => {
-      Animated.loop(
-        Animated.sequence([
-          Animated.timing(pulseAnim, {
-            toValue: 1.05,
-            duration: 1000,
-            useNativeDriver: true,
-          }),
-          Animated.timing(pulseAnim, {
-            toValue: 1,
-            duration: 1000,
-            useNativeDriver: true,
-          }),
-        ])
-      ).start();
-    };
+    // Start pulsing animation
+    const pulseAnimation = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 1.05,
+          duration: 1000,
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 1,
+          duration: 1000,
+          useNativeDriver: true,
+        }),
+      ])
+    );
+    
+    const pulseTimeout = setTimeout(() => pulseAnimation.start(), 500);
 
-    // Start countdown with sparkle effect
+    // Start countdown
     countdownInterval.current = setInterval(() => {
       setCountdown(prev => {
         if (prev <= 1) {
           setCanDismiss(true);
-          // Trigger sparkle animation when countdown completes
           Animated.spring(sparkleAnim, {
             toValue: 1,
             useNativeDriver: true,
             tension: 200,
             friction: 5,
-          }).start(() => {
-            // Fade out sparkle after a moment
-            setTimeout(() => {
-              Animated.timing(sparkleAnim, {
-                toValue: 0,
-                duration: 500,
-                useNativeDriver: true,
-              }).start();
-            }, 1000);
-          });
+          }).start();
           return 0;
         }
         return prev - 1;
       });
     }, 1000);
 
-    // Start animations after a brief delay
-    setTimeout(startPulseAnimation, 500);
-
     return () => {
       if (countdownInterval.current) {
         clearInterval(countdownInterval.current);
       }
+      clearTimeout(pulseTimeout);
+      pulseAnimation.stop();
     };
-  }, []);
+  }, [slideAnim, scaleAnim, pulseAnim, sparkleAnim]);
 
-  const handleComplete = async () => {
-    if (!selectedChallenge) return;
+  const handleComplete = useCallback(async () => {
+    if (!selectedChallenge || isCompleting) return;
 
     setIsCompleting(true);
     try {
@@ -128,7 +129,6 @@ const ChallengeCompletionBanner: React.FC<ChallengeCompletionBannerProps> = ({ o
         setCanDismiss(false);
         setIsCompleting(false);
       } else {
-        // No more challenges, dismiss banner
         handleDismiss();
       }
     } catch (error) {
@@ -136,16 +136,12 @@ const ChallengeCompletionBanner: React.FC<ChallengeCompletionBannerProps> = ({ o
       setIsCompleting(false);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     }
-  };
+  }, [selectedChallenge, isCompleting, store, uncompletedChallenges]);
 
-  const handleViewChallenge = () => {
-    if (selectedChallenge) {
-      (navigation as any).navigate('ChallengeDetail', { id: selectedChallenge.id });
-      handleDismiss();
+  const handleDismiss = useCallback(() => {
+    if (countdownInterval.current) {
+      clearInterval(countdownInterval.current);
     }
-  };
-
-  const handleDismiss = () => {
     Animated.parallel([
       Animated.spring(slideAnim, {
         toValue: -300,
@@ -161,16 +157,26 @@ const ChallengeCompletionBanner: React.FC<ChallengeCompletionBannerProps> = ({ o
     ]).start(() => {
       onDismiss();
     });
-  };
+  }, [slideAnim, scaleAnim, onDismiss]);
+
+  const handleViewChallenge = useCallback(() => {
+    if (selectedChallenge) {
+      navigation.navigate('ChallengeDetail', { id: selectedChallenge.id });
+      handleDismiss();
+    }
+  }, [selectedChallenge, navigation, handleDismiss]);
 
   if (!selectedChallenge) {
     return null;
   }
 
+  const overlayColors = useMemo(() => ['rgba(0,0,0,0.7)', 'rgba(0,0,0,0.7)'] as const, []);
+  const surfaceColors = useMemo(() => [theme?.colors.surface ?? '#F5F7F3', theme?.colors.surface ?? '#F5F7F3'] as const, [theme?.colors.surface]);
+
   return (
-    <Animated.View style={[styles.overlay]}>
+    <Animated.View style={styles.overlay}>
       <LinearGradient
-        colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.3)', 'rgba(0,0,0,0.5)']}
+        colors={overlayColors}
         style={styles.overlayGradient}
       >
         <Animated.View
@@ -185,7 +191,7 @@ const ChallengeCompletionBanner: React.FC<ChallengeCompletionBannerProps> = ({ o
           ]}
         >
           <LinearGradient
-            colors={[`${theme?.colors.primary}20`, `${theme?.colors.primary}10`, 'transparent']}
+            colors={surfaceColors}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
             style={styles.bannerGradient}
@@ -198,8 +204,8 @@ const ChallengeCompletionBanner: React.FC<ChallengeCompletionBannerProps> = ({ o
                 </Animated.View>
               </View>
               <View style={styles.titleContainer}>
-                <Text style={styles.mainTitle}>Challenge Time! 👋</Text>
-                <Text style={styles.subtitle}>You asked for a reminder, so here it is! Let's crush this challenge now shall we? 💪</Text>
+                <Text style={styles.mainTitle} numberOfLines={1} ellipsizeMode="tail">Challenge Time! 👋</Text>
+                <Text style={styles.subtitle}>You asked for a reminder, Let's crush this challenge now shall we? 💪</Text>
               </View>
               {canDismiss && (
                 <TouchableOpacity style={styles.closeButton} onPress={handleDismiss}>
@@ -211,7 +217,7 @@ const ChallengeCompletionBanner: React.FC<ChallengeCompletionBannerProps> = ({ o
             {/* Challenge card */}
             <Animated.View style={[styles.challengeCard, { transform: [{ scale: pulseAnim }] }]}>
               <LinearGradient
-                colors={[theme?.colors.surface, `${theme?.colors.primary}05`]}
+                colors={surfaceColors}
                 style={styles.challengeGradient}
               >
                 <View style={styles.challengeHeader}>
@@ -228,11 +234,16 @@ const ChallengeCompletionBanner: React.FC<ChallengeCompletionBannerProps> = ({ o
                       {selectedChallenge.points ? `${selectedChallenge.points} pts` : 'Complete now'}
                     </Text>
                   </View>
-                  <View style={styles.statItem}>
-                    <Star size={16} color={theme?.colors.success} />
-                    <Text style={styles.statText}>Ready to conquer!</Text>
-                  </View>
                 </View>
+
+                {!!selectedChallenge.description && (
+                  <Text
+                    style={styles.previewText}
+                    numberOfLines={2}
+                  >
+                    {selectedChallenge.description.slice(0, 100)}{selectedChallenge.description.length > 100 ? '…' : ''}
+                  </Text>
+                )}
               </LinearGradient>
             </Animated.View>
 
@@ -242,8 +253,8 @@ const ChallengeCompletionBanner: React.FC<ChallengeCompletionBannerProps> = ({ o
                 <View style={styles.countdownContainer}>
                   <Text style={styles.countdownLabel}>⏰ Just {countdown} more seconds...</Text>
                   <View style={styles.countdownDisplay}>
-                    <Text style={styles.countdownNumber}>{countdown}</Text>
-                    <Text style={styles.countdownUnit}>sec</Text>
+                    <Text allowFontScaling={false} style={styles.countdownNumber}>{countdown}</Text>
+                    <Text allowFontScaling={false} style={styles.countdownUnit}>sec</Text>
                   </View>
                   <Animated.View
                     style={[
@@ -325,13 +336,14 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: theme?.spacing.md,
+    padding: theme?.spacing.xs,
   },
   banner: {
     width: '100%',
-    maxWidth: 400,
+    maxWidth: 360,
     borderRadius: theme?.borderRadius.xl,
     overflow: 'hidden',
+    backgroundColor: theme?.colors.surface,
     ...Platform.select({
       ios: {
         shadowColor: '#000',
@@ -345,13 +357,13 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     }),
   },
   bannerGradient: {
-    padding: theme?.spacing.xl,
+    padding: theme?.spacing.lg,
     alignItems: 'center',
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: theme?.spacing.lg,
+    marginBottom: theme?.spacing.md,
     width: '100%',
   },
   trophyContainer: {
@@ -365,6 +377,7 @@ const createStyles = (theme: Theme) => StyleSheet.create({
   },
   titleContainer: {
     flex: 1,
+    minWidth: 0,
   },
   mainTitle: {
     ...theme?.typography.heading.medium,
@@ -372,6 +385,7 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     fontSize: 24,
     fontWeight: '800',
     marginBottom: 4,
+    flexShrink: 1,
   },
   subtitle: {
     ...theme?.typography.body.sans,
@@ -384,10 +398,10 @@ const createStyles = (theme: Theme) => StyleSheet.create({
   },
   challengeCard: {
     width: '100%',
-    marginBottom: theme?.spacing.lg,
+    marginBottom: theme?.spacing.md,
   },
   challengeGradient: {
-    padding: theme?.spacing.lg,
+    padding: theme?.spacing.md,
     borderRadius: theme?.borderRadius.lg,
     borderWidth: 1,
     borderColor: theme?.colors.border,
@@ -425,12 +439,21 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     fontSize: 14,
     marginLeft: theme?.spacing.sm,
   },
+  previewText: {
+    ...theme?.typography.body.sans,
+    color: theme?.colors.text.secondary,
+    marginTop: theme?.spacing.sm,
+  },
   progressSection: {
-    marginBottom: theme?.spacing.lg,
+    flex: 1,
+    marginBottom: theme?.spacing.md,
     alignItems: 'center',
   },
   countdownContainer: {
     alignItems: 'center',
+    gap: theme?.spacing.xs,
+    paddingVertical: theme?.spacing.xs,
+    overflow: 'visible',
   },
   countdownLabel: {
     ...theme?.typography.body.sans,
@@ -440,14 +463,18 @@ const createStyles = (theme: Theme) => StyleSheet.create({
   },
   countdownDisplay: {
     flexDirection: 'row',
-    alignItems: 'baseline',
-    marginBottom: theme?.spacing.sm,
+    alignItems: 'flex-end',
+    gap: theme?.spacing.xs,
+    minHeight: 48,
+    overflow: 'visible',
   },
   countdownNumber: {
     ...theme?.typography.heading.large,
     color: theme?.colors.primary,
-    fontSize: 48,
-    fontWeight: '900',
+    fontSize: 40,
+    lineHeight: 48,
+    fontWeight: '800',
+    includeFontPadding: false, // Android: remove extra top padding that can cause clipping
   },
   countdownUnit: {
     ...theme?.typography.body.sans,
@@ -455,6 +482,10 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     marginLeft: theme?.spacing.xs,
+    marginBottom: theme?.spacing.xxs,
+    alignSelf: 'flex-end',
+    includeFontPadding: false,
+    textAlignVertical: 'bottom',
   },
   sparkleEffect: {
     position: 'absolute',
@@ -474,14 +505,14 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     flexDirection: 'row',
     gap: theme?.spacing.md,
     width: '100%',
-    marginBottom: theme?.spacing.lg,
+    marginBottom: theme?.spacing.md,
   },
   actionButton: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: theme?.spacing.lg,
+    paddingVertical: theme?.spacing.md,
     paddingHorizontal: theme?.spacing.md,
     borderRadius: theme?.borderRadius.lg,
     gap: theme?.spacing.sm,

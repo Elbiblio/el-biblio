@@ -7,6 +7,7 @@ interface TypographyStyle extends TextStyle {
 // Base theme configuration that's shared across all themes
 const baseTheme = {
   spacing: {
+    xxs: 2,
     xs: 4,
     sm: 8,
     md: 16,

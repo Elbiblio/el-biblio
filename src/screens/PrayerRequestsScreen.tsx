@@ -26,7 +26,7 @@ const PrayerRequestsScreen = ({ navigation }: PrayerRequestsScreenProps) => {
   const isLoading = prayerRequestsStore?.isLoading ?? false;
   const pagination = prayerRequestsStore?.pagination ?? ({ currentPage: 1, hasMore: false } as any);
   const fetchRequests = prayerRequestsStore?.fetchRequests as (page: number, opts: { category: string }) => Promise<void>;
-  const createRequest = prayerRequestsStore?.createRequest as (payload: { content: string; visibility: 'public'; category?: string }) => Promise<PrayerRequest | null>;
+  const createRequest = prayerRequestsStore?.createRequest as unknown as (payload: { content: string; category?: 'healing' | 'spiritual_growth' | 'faith_encounter' | 'forgiveness' | 'prosperity'; visibility?: 'anonymous' | 'first_name' | 'full_name' }) => Promise<PrayerRequest | null>;
   const prayForRequest = prayerRequestsStore?.prayForRequest as (id: string) => Promise<boolean>;
 
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -39,6 +39,11 @@ const PrayerRequestsScreen = ({ navigation }: PrayerRequestsScreenProps) => {
   const [composeDraft, setComposeDraft] = useState('');
   const [isPosting, setIsPosting] = useState(false);
   const [isBulkPraying, setIsBulkPraying] = useState(false);
+  const allowedCategories = useMemo(() => (
+    ['healing','spiritual_growth','faith_encounter','forgiveness','prosperity'] as const
+  ), []);
+  const [composeCategory, setComposeCategory] = useState<typeof allowedCategories[number]>('healing');
+  const [composeVisibility, setComposeVisibility] = useState<'anonymous'|'first_name'|'full_name'>('anonymous');
 
   const categories = useMemo(() => (
     ['all','healing','guidance','provision','thanksgiving','protection','relationships','work','other']
@@ -62,27 +67,32 @@ const PrayerRequestsScreen = ({ navigation }: PrayerRequestsScreenProps) => {
       return;
     }
 
-    const payload: { content: string; visibility: 'public'; category?: string } = {
-      content: body,
-      visibility: 'public',
-    };
+    const cat = allowedCategories.includes(currentCategory as any)
+      ? (currentCategory as typeof allowedCategories[number])
+      : composeCategory;
 
-    if (currentCategory !== 'all') {
-      payload.category = currentCategory;
-    }
+    const payload: { content: string; visibility: 'anonymous'|'first_name'|'full_name'; category?: typeof allowedCategories[number] } = {
+      content: body,
+      visibility: composeVisibility,
+      category: cat,
+    };
 
     setIsPosting(true);
     try {
-      const created = await createRequest(payload);
+      const created = await createRequest(payload as any);
       if (created) {
         await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         toast.success('Prayer request shared');
         setComposeDraft('');
+        setComposeCategory('healing');
+        setComposeVisibility('anonymous');
         setShowComposeModal(false);
       } else {
+        console.error('Failed to create prayer request');
         toast.error('We could not share your prayer request. Please try again.');
       }
     } catch (error) {
+      console.error('Failed to create prayer request', error);
       toast.error('We could not share your prayer request. Please try again.');
     } finally {
       setIsPosting(false);
@@ -340,6 +350,52 @@ const PrayerRequestsScreen = ({ navigation }: PrayerRequestsScreenProps) => {
                 multiline
                 textAlignVertical="top"
               />
+              <View style={{ marginTop: theme.spacing.sm }}>
+                <Text style={{ ...theme.typography.caption.primary, color: theme.colors.text.secondary, marginBottom: theme.spacing.xs }}>Category</Text>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: theme.spacing.xs }}>
+                  {allowedCategories.map(cat => (
+                    <TouchableOpacity
+                      key={cat}
+                      style={{
+                        paddingVertical: 6,
+                        paddingHorizontal: 10,
+                        borderRadius: 999,
+                        borderWidth: 1,
+                        borderColor: composeCategory === cat ? theme.colors.primary : `${theme.colors.border}80`,
+                        backgroundColor: composeCategory === cat ? `${theme.colors.primary}10` : 'transparent',
+                      }}
+                      onPress={() => setComposeCategory(cat)}
+                    >
+                      <Text style={{ color: composeCategory === cat ? theme.colors.primary : theme.colors.text.primary }}>
+                        {cat.replace('_', ' ')}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+              <View style={{ marginTop: theme.spacing.sm }}>
+                <Text style={{ ...theme.typography.caption.primary, color: theme.colors.text.secondary, marginBottom: theme.spacing.xs }}>Visibility</Text>
+                <View style={{ flexDirection: 'row', gap: theme.spacing.xs }}>
+                  {(['anonymous','first_name','full_name'] as const).map(v => (
+                    <TouchableOpacity
+                      key={v}
+                      style={{
+                        paddingVertical: 6,
+                        paddingHorizontal: 10,
+                        borderRadius: 999,
+                        borderWidth: 1,
+                        borderColor: composeVisibility === v ? theme.colors.primary : `${theme.colors.border}80`,
+                        backgroundColor: composeVisibility === v ? `${theme.colors.primary}10` : 'transparent',
+                      }}
+                      onPress={() => setComposeVisibility(v)}
+                    >
+                      <Text style={{ color: composeVisibility === v ? theme.colors.primary : theme.colors.text.primary }}>
+                        {v.replace('_', ' ')}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
             </ScrollView>
             <View style={{ flexDirection: 'row', gap: theme.spacing.sm, marginTop: theme.spacing.md }}>
               <TouchableOpacity

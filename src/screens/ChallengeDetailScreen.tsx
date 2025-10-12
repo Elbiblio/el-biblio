@@ -92,7 +92,8 @@ const ChallengeDetailScreen = observer(({ route, navigation }: Props) => {
         // Leave challenge - cancel any pending notifications
         await cancelChallengeReminder(challenge.id);
         await store.leaveChallenge(challenge.id);
-        navigation.goBack();
+        // Use setTimeout to avoid unmounting during state updates
+        setTimeout(() => navigation.goBack(), 100);
       } else {
         // Join challenge - show reminder selection modal
         setShowReminderModal(true);
@@ -105,15 +106,17 @@ const ChallengeDetailScreen = observer(({ route, navigation }: Props) => {
   const handleConfirmJoin = async () => {
     if (!challenge) return;
     try {
+      setShowReminderModal(false);
       await store.joinChallenge(challenge.id);
 
       // Schedule reminder notification
       await scheduleChallengeReminder(challenge, selectedReminderHours);
       
-      setShowReminderModal(false);
-      navigation.goBack();
+      // Use setTimeout to avoid unmounting during state updates
+      setTimeout(() => navigation.goBack(), 100);
     } catch (e) {
       Alert.alert('Error', 'Unable to join challenge.');
+      setShowReminderModal(false);
     }
   };
 
@@ -273,6 +276,58 @@ const ChallengeDetailScreen = observer(({ route, navigation }: Props) => {
   const isVirtue = challenge.type === 'virtue';
   const color = isVirtue ? theme?.colors.success : theme?.colors.error;
 
+  const timeProgress = useMemo(() => {
+    if (challenge.isCompleted) {
+      return { percent: 100, remaining: 'Completed' };
+    }
+
+    const startSource = challenge.createdAt || challenge.startDate;
+    const endSource = challenge.expiresAt || challenge.endTime;
+
+    if (!startSource || !endSource) {
+      return { percent: 0, remaining: 'Ongoing' };
+    }
+
+    const startTime = new Date(startSource).getTime();
+    const endTime = new Date(endSource).getTime();
+
+    if (!Number.isFinite(startTime) || !Number.isFinite(endTime) || endTime <= startTime) {
+      return { percent: 0, remaining: 'Ongoing' };
+    }
+
+    const now = Date.now();
+
+    if (now >= endTime) {
+      return { percent: 100, remaining: 'Expired' };
+    }
+
+    const totalDuration = endTime - startTime;
+    const elapsed = Math.max(0, now - startTime);
+    const percent = Math.min(100, Math.round((elapsed / totalDuration) * 100));
+    const remainingMs = Math.max(0, endTime - now);
+    const days = Math.floor(remainingMs / 86400000);
+    const hours = Math.floor((remainingMs % 86400000) / 3600000);
+    const minutes = Math.floor((remainingMs % 3600000) / 60000);
+
+    if (days > 0) {
+      const labelDays = Math.ceil(remainingMs / 86400000);
+      return { percent, remaining: `${labelDays} day${labelDays === 1 ? '' : 's'} remaining` };
+    }
+
+    if (hours > 0) {
+      return { percent, remaining: `${hours}h ${minutes}m remaining` };
+    }
+
+    if (minutes > 0) {
+      return { percent, remaining: `${minutes}m remaining` };
+    }
+
+    return { percent, remaining: 'Less than 1m remaining' };
+  }, [challenge.createdAt, challenge.startDate, challenge.expiresAt, challenge.endTime, challenge.isCompleted]);
+
+  const progressPercent = timeProgress.percent;
+  const timeRemainingLabel = timeProgress.remaining;
+
   // Helper functions
   const getFrequencyLabel = (freq?: string) => {
     switch (freq) {
@@ -333,6 +388,17 @@ const ChallengeDetailScreen = observer(({ route, navigation }: Props) => {
               {isVirtue ? <Star size={14} color={color} /> : <X size={14} color={color} />}
               <Text style={[styles.typeText, { color }]}>{challenge.theme_name || challenge.category.charAt(0).toUpperCase() + challenge.category.slice(1)}</Text>
             </View>
+          </View>
+
+          <View style={styles.progressSummary}>
+            <View style={styles.progressHeaderRow}>
+              <Text style={styles.progressHeading}>Progress</Text>
+              <Text style={styles.progressValue}>{progressPercent}%</Text>
+            </View>
+            <View style={styles.progressTrack}>
+              <View style={[styles.progressFill, { width: `${progressPercent}%`, backgroundColor: color }]} />
+            </View>
+            <Text style={styles.progressCaption}>{timeRemainingLabel}</Text>
           </View>
 
           <Text style={styles.title}>{challenge.title}</Text>
@@ -559,6 +625,45 @@ const createStyles = (theme: Theme) => StyleSheet.create({
   statusText: {
     ...theme?.typography.caption.secondary,
     fontWeight: '600',
+  },
+  progressSummary: {
+    marginTop: theme?.spacing.sm,
+    marginBottom: theme?.spacing.md,
+    backgroundColor: `${theme?.colors.text.secondary}10`,
+    padding: theme?.spacing.md,
+    borderRadius: theme?.borderRadius.lg,
+    gap: theme?.spacing.sm,
+  },
+  progressHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  progressHeading: {
+    ...theme?.typography.caption.primary,
+    color: theme?.colors.text.secondary,
+    fontWeight: '600',
+    letterSpacing: 0.5,
+  },
+  progressValue: {
+    ...theme?.typography.heading.small,
+    color: theme?.colors.text.primary,
+    fontWeight: '700',
+  },
+  progressTrack: {
+    height: 10,
+    borderRadius: theme?.borderRadius.full,
+    backgroundColor: `${theme?.colors.text.secondary}08`,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    borderRadius: theme?.borderRadius.full,
+  },
+  progressCaption: {
+    ...theme?.typography.caption.secondary,
+    color: theme?.colors.text.secondary,
+    fontWeight: '500',
   },
   rowBetween: {
     flexDirection: 'row',

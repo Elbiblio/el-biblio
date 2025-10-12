@@ -52,15 +52,25 @@ export class BookmarkStore {
       this.setError(null);
       
       const response = await apiClient.get<PaginatedResponse<Bookmark>>(endpoints.bookmarks.list, params);
+      if (!response || !response.success || !response.data) {
+        const errMsg = response?.message || 'Failed to fetch bookmarks';
+        const err: any = new Error(errMsg);
+        err.status = (response as any)?.status;
+        err.response = response as any;
+        throw err;
+      }
       
       runInAction(() => {
-        this.state.bookmarks = response.data.data;
+        this.state.bookmarks = Array.isArray(response.data.data) ? response.data.data : [];
       });
       
       await this.saveToStorage();
-    } catch (error) {
-      console.error('Failed to fetch bookmarks:', error);
-      this.setError('Failed to fetch bookmarks');
+    } catch (error: any) {
+      const status = error?.status || error?.response?.status;
+      const message = error?.message;
+      const details = error?.response?.data || null;
+      console.error('Failed to fetch bookmarks:', { status, message, details });
+      this.setError(message || 'Failed to fetch bookmarks');
       throw error;
     } finally {
       this.setLoading(false);
@@ -75,16 +85,24 @@ export class BookmarkStore {
     try {
       this.setLoading(true);
       const response = await apiClient.post<{ data: Bookmark }>(endpoints.bookmarks.create, data);
+      if (!response || !response.success || !response.data) {
+        const err: any = new Error(response?.message || 'Failed to create bookmark');
+        err.status = (response as any)?.status; err.response = response as any; throw err;
+      }
       
       runInAction(() => {
-        this.state.bookmarks = [response.data.data, ...this.state.bookmarks];
+        const created = (response as any).data?.data || (response as any).data;
+        this.state.bookmarks = created ? [created, ...this.state.bookmarks] : this.state.bookmarks;
       });
       
       await this.saveToStorage();
       return response.data.data;
-    } catch (error) {
-      console.error('Failed to create bookmark:', error);
-      this.setError('Failed to create bookmark');
+    } catch (error: any) {
+      const status = error?.status || error?.response?.status;
+      const message = error?.message;
+      const details = error?.response?.data || null;
+      console.error('Failed to create bookmark:', { status, message, details });
+      this.setError(message || 'Failed to create bookmark');
       throw error;
     } finally {
       this.setLoading(false);
@@ -119,19 +137,27 @@ export class BookmarkStore {
         throw new Error('Bookmark not found');
       }
       const response = await apiClient.patch<{ data: Bookmark }>(`${endpoints.bookmarks.update(id.toString())}/toggle-pin`);
+      if (!response || !response.success || !response.data) {
+        const err: any = new Error(response?.message || 'Failed to toggle pin status');
+        err.status = (response as any)?.status; err.response = response as any; throw err;
+      }
       
       runInAction(() => {
         const index = this.state.bookmarks.findIndex(b => b.id === id);
         if (index !== -1) {
-          this.state.bookmarks[index] = response.data.data;
+          const updated = (response as any).data?.data || (response as any).data;
+          if (updated) this.state.bookmarks[index] = updated;
         }
       });
       
       await this.saveToStorage();
       return true;
-    } catch (error) {
-      console.error('Failed to toggle pin:', error);
-      this.setError('Failed to toggle pin status');
+    } catch (error: any) {
+      const status = error?.status || error?.response?.status;
+      const message = error?.message;
+      const details = error?.response?.data || null;
+      console.error('Failed to toggle pin:', { status, message, details });
+      this.setError(message || 'Failed to toggle pin status');
       return false;
     } finally {
       this.setLoading(false);

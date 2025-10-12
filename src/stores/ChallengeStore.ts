@@ -459,38 +459,52 @@ export class ChallengeStore {
       runInAction(() => {
         const mapped = mapChallenge(response.data as BackendChallenge);
         const existing = this.getChallengeById(challengeId);
-        const participants =
-          typeof mapped.participants === 'number'
+
+        // prefer defined backend values, otherwise keep existing
+        const merged: Challenge = {
+          ...(existing || ({} as Challenge)),
+          hasJoined: true,
+        } as Challenge;
+
+        const assignIfDefined = <K extends keyof Challenge>(key: K, value: Challenge[K]) => {
+          if (value !== undefined && value !== null) {
+            (merged as any)[key] = value;
+          }
+        };
+
+        // Apply all mapped fields conditionally
+        (Object.keys(mapped) as (keyof Challenge)[]).forEach((k) => assignIfDefined(k, mapped[k]));
+
+        // Participants: take mapped if defined else existing, default 0
+        merged.participants =
+          mapped.participants !== undefined && mapped.participants !== null
             ? mapped.participants
             : existing?.participants ?? 0;
 
-        const merged = {
-          ...(existing ?? {}),
-          ...mapped,
-          hasJoined: true,
-          participants,
-        } as Challenge;
+        // Ensure id consistency
+        merged.id = existing?.id || mapped.id || challengeId;
 
+        // Replace in all lists if present; otherwise just update flags
         if (existing) {
           this.replaceChallengeInLists(challengeId, merged);
         } else {
-          this.updateChallengeInLists(challengeId, {
-            hasJoined: true,
-            participants,
-          });
+          this.updateChallengeInLists(challengeId, { hasJoined: true, participants: merged.participants });
         }
 
-        const existsInPersonal = this.state.personalChallenges.some(c => c.id === merged.id);
+        // Ensure it exists in personal list with full details
+        const existsInPersonal = this.state.personalChallenges.some((c) => c.id === merged.id);
         if (existsInPersonal) {
-          this.state.personalChallenges = this.state.personalChallenges.map(c =>
-            c.id === merged.id ? { ...merged } : c
-          );
+          this.state.personalChallenges = this.state.personalChallenges.map((c) => (c.id === merged.id ? { ...c, ...merged } : c));
         } else {
           this.state.personalChallenges = [merged, ...this.state.personalChallenges];
         }
       });
 
       await this.saveToStorage();
+      // Best-effort enrichment: fetch participants endpoint which also returns the full challenge
+      try {
+        await this.fetchChallengeParticipants(challengeId);
+      } catch {}
       toast.success('Successfully joined the challenge');
       return this.getChallengeById(challengeId);
     } catch (error) {
@@ -730,27 +744,23 @@ export class ChallengeStore {
   }
 
   private updateChallengeInLists(challengeId: string, updates: Partial<Challenge>) {
-    const updateFn = (challenge: Challenge) => 
-      challenge.id === challengeId ? { ...challenge, ...updates } : challenge;
-    
-    this.state.personalChallenges = this.state.personalChallenges.map(updateFn);
-    this.state.communityChallenges = this.state.communityChallenges.map(updateFn);
-    this.state.suggestedChallenges = this.state.suggestedChallenges.map(updateFn);
-    
-    // Also update current challenge if it's the one being updated
-    if (updates.id === challengeId || 
-        (this.state.personalChallenges.some(c => c.id === challengeId) ||
-         this.state.communityChallenges.some(c => c.id === challengeId) ||
-         this.state.suggestedChallenges.some(c => c.id === challengeId))) {
-      // The challenge exists in one of the lists
-      const updatedChallenge = this.getChallengeById(challengeId);
-      if (updatedChallenge) {
-        // The challenge was found and updated
-        return { ...updatedChallenge, ...updates };
-      }
-    }
-    
-    return null;
+    const mergeDefined = (challenge: Challenge): Challenge => {
+      if (challenge.id !== challengeId) return challenge;
+      const next = { ...challenge } as Challenge;
+      (Object.keys(updates) as (keyof Challenge)[]).forEach((k) => {
+        const val = updates[k];
+        if (val !== undefined && val !== null) {
+          (next as any)[k] = val;
+        }
+      });
+      return next;
+    };
+
+    this.state.personalChallenges = this.state.personalChallenges.map(mergeDefined);
+    this.state.communityChallenges = this.state.communityChallenges.map(mergeDefined);
+    this.state.suggestedChallenges = this.state.suggestedChallenges.map(mergeDefined);
+
+    return this.getChallengeById(challengeId) || null;
   }
 
   private replaceChallengeInLists(challengeId: string, replacement: Challenge) {
