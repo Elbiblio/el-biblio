@@ -115,38 +115,38 @@ const QuickActionCard = ({ action, index, actionStyles, onPress }: {
 
 type HomeProps = NativeStackScreenProps<RootStackParamList, 'Home'>;
 
-const getTimeBasedGreeting = () => {
-  const hour = new Date().getHours();
+// const getTimeBasedGreeting = () => {
+//   const hour = new Date().getHours();
 
-  if (hour >= 5 && hour < 12) {
-    return "Good morning";
-  } else if (hour >= 12 && hour < 17) {
-    return "Good day";
-  } else if (hour >= 17 && hour < 22) {
-    return "Good evening";
-  } else {
-    return "Hello"; // Late night/early morning
-  }
-};
+//   if (hour >= 5 && hour < 12) {
+//     return "Good morning";
+//   } else if (hour >= 12 && hour < 17) {
+//     return "Good day";
+//   } else if (hour >= 17 && hour < 22) {
+//     return "Good evening";
+//   } else {
+//     return "Hello"; // Late night/early morning
+//   }
+// };
 
-// Engaging subtitles for different contexts
-const GREETING_VARIANTS = [
-  "How's your spiritual journey today?",
-  "Ready to dive into Scripture?",
-  "Let's explore God's word together",
-  "Time for reflection and growth",
-  "Find peace in His presence",
-  "Discover new insights today",
-  "Continue your faith journey",
-];
+// // Engaging subtitles for different contexts
+// const GREETING_VARIANTS = [
+//   "How's your spiritual journey today?",
+//   "Ready to dive into Scripture?",
+//   "Let's explore God's word together",
+//   "Time for reflection and growth",
+//   "Find peace in His presence",
+//   "Discover new insights today",
+//   "Continue your faith journey",
+// ];
 
-const FIRST_VISIT_VARIANTS = [
-  "What would you like to explore today?",
-  "Begin your journey with purpose",
-  "Let's start this day with grace",
-  "Ready for today's reflection?",
-  "Your daily moment of peace awaits",
-];
+// const FIRST_VISIT_VARIANTS = [
+//   "What would you like to explore today?",
+//   "Begin your journey with purpose",
+//   "Let's start this day with grace",
+//   "Ready for today's reflection?",
+//   "Your daily moment of peace awaits",
+// ];
 
 const HomeScreen = observer(({ navigation, route }: HomeProps) => {
   const insets = useSafeAreaInsets();

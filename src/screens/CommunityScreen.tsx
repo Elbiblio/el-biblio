@@ -33,7 +33,7 @@ const CARDS = (colors: Theme['colors']) => ([
   {
     key: 'wordhubs',
     title: 'WordHubs',
-    subtitle: 'Find and join study hubs',
+    subtitle: 'Create or join study hubs',
     icon: Users,
     color: colors.secondary,
     route: 'WordHubsScreen' as const,
@@ -49,7 +49,7 @@ const CARDS = (colors: Theme['colors']) => ([
   {
     key: 'prayer_requests',
     title: 'Prayer Requests',
-    subtitle: 'Share and pray with others',
+    subtitle: 'Share and pray with the community',
     icon: MessageSquare,
     color: colors.success,
     route: 'PrayerRequestsScreen' as const,

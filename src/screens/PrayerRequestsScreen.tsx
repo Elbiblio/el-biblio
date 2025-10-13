@@ -3,15 +3,36 @@ import { View, Text, TouchableOpacity, StyleSheet, StatusBar, FlatList, TextInpu
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
 import { Theme } from '@/theme';
-import { type RootStackParamList, type PrayerRequest } from '@/types';
+import { type RootStackParamList, type PrayerRequest, PRAYER_CATEGORIES, type PrayerCategory } from '@/types';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { ArrowLeft, ChevronDown, Sparkle, Heart } from '@/components/Icons';
 import { observer } from 'mobx-react-lite';
-import { usePrayerRequestsStore } from '@/stores/StoreProvider';
+import { usePrayerRequestsStore, useAuthStore } from '@/stores/StoreProvider';
 import EmptyState from '@/components/EmptyState';
 import Animated, { useSharedValue, withSpring, useAnimatedStyle, withTiming } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { toast } from 'sonner-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+const getPrayedCount = (request: PrayerRequest): number => {
+  if (typeof request.meta?.prayed_count === 'number') {
+    return request.meta.prayed_count;
+  }
+  if (typeof request.prayed_count === 'number') {
+    return request.prayed_count;
+  }
+  return 0;
+};
+
+const hasUserPrayed = (request: PrayerRequest, userId?: string): boolean => {
+  if (!userId) {
+    return false;
+  }
+  if (request.has_prayed) {
+    return true;
+  }
+  return false;
+};
 
 export type PrayerRequestsScreenProps = NativeStackScreenProps<RootStackParamList, 'PrayerRequestsScreen'>;
 
@@ -21,16 +42,12 @@ const PrayerRequestsScreen = ({ navigation }: PrayerRequestsScreenProps) => {
   const styles = useMemo(() => createStyles(theme), [theme]);
 
   const prayerRequestsStore = usePrayerRequestsStore();
-  // Safeguard undefined values during initial render to avoid `.length` of undefined errors
-  const requests = prayerRequestsStore?.requests ?? [];
-  const isLoading = prayerRequestsStore?.isLoading ?? false;
-  const pagination = prayerRequestsStore?.pagination ?? ({ currentPage: 1, hasMore: false } as any);
-  const fetchRequests = prayerRequestsStore?.fetchRequests as (page: number, opts: { category: string }) => Promise<void>;
-  const createRequest = prayerRequestsStore?.createRequest as unknown as (payload: { content: string; category?: 'healing' | 'spiritual_growth' | 'faith_encounter' | 'forgiveness' | 'prosperity'; visibility?: 'anonymous' | 'first_name' | 'full_name' }) => Promise<PrayerRequest | null>;
-  const prayForRequest = prayerRequestsStore?.prayForRequest as (id: string) => Promise<boolean>;
+  const { requests, isLoading, pagination } = prayerRequestsStore;
+  const { fetchRequests, createRequest, prayForRequest } = prayerRequestsStore;
+  const { user } = useAuthStore();
 
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [currentCategory, setCurrentCategory] = useState<'all' | string>('all');
+  const [currentCategory, setCurrentCategory] = useState<PrayerCategory>('help');
   const [showCategoryPicker, setShowCategoryPicker] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [showPrayerModal, setShowPrayerModal] = useState(false);
@@ -39,21 +56,80 @@ const PrayerRequestsScreen = ({ navigation }: PrayerRequestsScreenProps) => {
   const [composeDraft, setComposeDraft] = useState('');
   const [isPosting, setIsPosting] = useState(false);
   const [isBulkPraying, setIsBulkPraying] = useState(false);
-  const allowedCategories = useMemo(() => (
-    ['healing','spiritual_growth','faith_encounter','forgiveness','prosperity'] as const
-  ), []);
-  const [composeCategory, setComposeCategory] = useState<typeof allowedCategories[number]>('healing');
+  const [showPrayGuideModal, setShowPrayGuideModal] = useState(false);
+  const [activePrayerId, setActivePrayerId] = useState<string | null>(null);
+  const guideDuration = 15;
+  const [guideSecondsLeft, setGuideSecondsLeft] = useState(guideDuration);
+  const [hasSeenPrayerGuide, setHasSeenPrayerGuide] = useState(false);
+  const [isRecordingPrayer, setIsRecordingPrayer] = useState(false);
+  const [prayedIds, setPrayedIds] = useState<string[]>([]);
+
+  const [composeCategory, setComposeCategory] = useState<PrayerCategory>('healing');
   const [composeVisibility, setComposeVisibility] = useState<'anonymous'|'first_name'|'full_name'>('anonymous');
 
-  const categories = useMemo(() => (
-    ['all','healing','guidance','provision','thanksgiving','protection','relationships','work','other']
-  ), []);
+  const categories = PRAYER_CATEGORIES;
+
+  const activePrayerRequest = useMemo(() => {
+    if (!activePrayerId) return null;
+    return requests.find(r => r.id === activePrayerId) ?? null;
+  }, [activePrayerId, requests]);
+
+  const prayedIdSet = useMemo(() => new Set(prayedIds), [prayedIds]);
+  const userId = useMemo(() => (user?.id ? String(user.id) : undefined), [user?.id]);
 
   useEffect(() => {
-    if (fetchRequests) {
-      fetchRequests(1, { category: currentCategory });
+    AsyncStorage.getItem('prayer_requests_guide_seen')
+      .then(value => {
+        if (value === 'true') {
+          setHasSeenPrayerGuide(true);
+        }
+      })
+      .catch(error => {
+        console.error('Failed to load prayer guide preference:', error);
+      });
+  }, []);
+
+  useEffect(() => {
+    fetchRequests(1, { category: currentCategory });
+  }, [currentCategory, fetchRequests]);
+
+  useEffect(() => {
+    if (!userId) {
+      return;
     }
-  }, [fetchRequests, currentCategory]);
+
+    const ids = requests
+      .filter(req => hasUserPrayed(req, userId))
+      .map(req => req.id);
+
+    if (!ids.length) {
+      return;
+    }
+
+    setPrayedIds(prev => {
+      const merged = new Set(prev);
+      ids.forEach(id => merged.add(id));
+      if (merged.size === prev.length) {
+        return prev;
+      }
+      return Array.from(merged);
+    });
+  }, [requests, userId]);
+
+  useEffect(() => {
+    if (!showPrayGuideModal) {
+      return;
+    }
+    if (guideSecondsLeft <= 0) {
+      return;
+    }
+
+    const timeout = setTimeout(() => {
+      setGuideSecondsLeft(prev => Math.max(prev - 1, 0));
+    }, 1000);
+
+    return () => clearTimeout(timeout);
+  }, [showPrayGuideModal, guideSecondsLeft]);
 
   const openComposeModal = useCallback((draft: string = '') => {
     setComposeDraft(draft);
@@ -67,53 +143,83 @@ const PrayerRequestsScreen = ({ navigation }: PrayerRequestsScreenProps) => {
       return;
     }
 
-    const cat = allowedCategories.includes(currentCategory as any)
-      ? (currentCategory as typeof allowedCategories[number])
-      : composeCategory;
+    if (body.length < 10) {
+      toast.warning('Please write at least 10 characters.');
+      return;
+    }
 
-    const payload: { content: string; visibility: 'anonymous'|'first_name'|'full_name'; category?: typeof allowedCategories[number] } = {
+    if (body.length > 500) {
+      toast.warning('Prayer request is too long. Please keep it under 500 characters.');
+      return;
+    }
+
+    const cat = currentCategory ?? composeCategory;
+
+    setIsPosting(true);
+    const created = await createRequest({
       content: body,
       visibility: composeVisibility,
       category: cat,
-    };
-
-    setIsPosting(true);
-    try {
-      const created = await createRequest(payload as any);
-      if (created) {
-        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        toast.success('Prayer request shared');
-        setComposeDraft('');
-        setComposeCategory('healing');
-        setComposeVisibility('anonymous');
-        setShowComposeModal(false);
-      } else {
-        console.error('Failed to create prayer request');
-        toast.error('We could not share your prayer request. Please try again.');
-      }
-    } catch (error) {
-      console.error('Failed to create prayer request', error);
-      toast.error('We could not share your prayer request. Please try again.');
-    } finally {
-      setIsPosting(false);
+    });
+    
+    if (created) {
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setComposeDraft('');
+      setComposeCategory('healing');
+      setComposeVisibility('anonymous');
+      setShowComposeModal(false);
     }
-  }, [composeDraft, currentCategory, createRequest]);
+    setIsPosting(false);
+  }, [composeDraft, currentCategory, createRequest, composeCategory, composeVisibility]);
 
-  const handlePray = useCallback(async (id: string) => {
-    await prayForRequest(id);
-  }, [prayForRequest]);
+  const handlePray = useCallback((id: string, alreadyPrayed?: boolean) => {
+    if (alreadyPrayed) {
+      return;
+    }
+    setActivePrayerId(id);
+    setGuideSecondsLeft(guideDuration);
+    setShowPrayGuideModal(true);
+  }, [guideDuration]);
+
+  const closePrayGuide = useCallback(() => {
+    setShowPrayGuideModal(false);
+    setGuideSecondsLeft(guideDuration);
+    setActivePrayerId(null);
+    setIsRecordingPrayer(false);
+  }, [guideDuration]);
+
+  const confirmPrayerRecording = useCallback(async () => {
+    if (!activePrayerId) return;
+    setIsRecordingPrayer(true);
+    const success = await prayForRequest(activePrayerId);
+
+    if (success) {
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      toast.success('Prayer recorded');
+      if (!hasSeenPrayerGuide) {
+        setHasSeenPrayerGuide(true);
+        AsyncStorage.setItem('prayer_requests_guide_seen', 'true').catch(error => {
+          console.error('Failed to persist prayer guide preference:', error);
+        });
+      }
+      setPrayedIds(prev => (prev.includes(activePrayerId) ? prev : [...prev, activePrayerId]));
+      closePrayGuide();
+    } else {
+      toast.error('Could not record prayer. Please try again.');
+    }
+
+    setIsRecordingPrayer(false);
+  }, [activePrayerId, prayForRequest, hasSeenPrayerGuide, closePrayGuide]);
 
   const onRefresh = useCallback(async () => {
     setIsRefreshing(true);
-    if (fetchRequests) {
-      await fetchRequests(1, { category: currentCategory });
-    }
+    await fetchRequests(1, { category: currentCategory });
     setIsRefreshing(false);
   }, [fetchRequests, currentCategory]);
 
   const loadMore = useCallback(() => {
-    if (isLoading || !pagination.hasMore || !fetchRequests) return;
-    fetchRequests((pagination.currentPage || 1) + 1, { category: currentCategory });
+    if (isLoading || !pagination.hasMore) return;
+    fetchRequests(pagination.currentPage + 1, { category: currentCategory });
   }, [isLoading, pagination, fetchRequests, currentCategory]);
 
   const toggleSelect = useCallback((id: string) => {
@@ -154,21 +260,27 @@ const PrayerRequestsScreen = ({ navigation }: PrayerRequestsScreenProps) => {
   const completeBulkPrayer = useCallback(async () => {
     if (isBulkPraying) return;
     setIsBulkPraying(true);
-    try {
-      const ids = Array.from(selectedIds);
-      for (const id of ids) {
-        // best-effort; continue on failures
-        // eslint-disable-next-line no-await-in-loop
-        await prayForRequest(id);
+    
+    const ids = Array.from(selectedIds);
+    let successCount = 0;
+    for (const id of ids) {
+      // eslint-disable-next-line no-await-in-loop
+      const success = await prayForRequest(id);
+      if (success) {
+        successCount++;
+        setPrayedIds(prev => (prev.includes(id) ? prev : [...prev, id]));
       }
-      setSelectedIds(new Set());
-      setShowPrayerModal(false);
-    } finally {
-      setIsBulkPraying(false);
     }
+    
+    setSelectedIds(new Set());
+    setShowPrayerModal(false);
+    setIsBulkPraying(false);
+    
+    await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    toast.success(`Prayed for ${successCount} request${successCount !== 1 ? 's' : ''}`);
   }, [selectedIds, prayForRequest, isBulkPraying]);
 
-  const PrayButton = ({ count, onPress }: { count?: number; onPress: () => void }) => {
+  const PrayButton = ({ count, onPress, disabled, label }: { count?: number; onPress: () => void; disabled?: boolean; label: string }) => {
     const scale = useSharedValue(1);
     const burstScale = useSharedValue(0.6);
     const burstOpacity = useSharedValue(0);
@@ -177,6 +289,9 @@ const PrayerRequestsScreen = ({ navigation }: PrayerRequestsScreenProps) => {
     const burstStyle = useAnimatedStyle(() => ({ opacity: burstOpacity.value, transform: [{ scale: burstScale.value }] }));
 
     const handlePress = async () => {
+      if (disabled) {
+        return;
+      }
       // micro interaction
       scale.value = withSpring(1.07, { damping: 12 }, () => { scale.value = withSpring(1); });
       burstOpacity.value = 1; burstScale.value = 0.6; burstScale.value = withSpring(1.2, { damping: 10, stiffness: 120 });
@@ -191,8 +306,14 @@ const PrayerRequestsScreen = ({ navigation }: PrayerRequestsScreenProps) => {
           <Animated.View pointerEvents="none" style={[styles.prayBurstOverlay, burstStyle]}>
             <Heart size={40} color={theme.colors.success} filled={true} />
           </Animated.View>
-          <TouchableOpacity style={styles.prayButton} onPress={handlePress}>
-            <Text style={styles.prayButtonText}>I prayed 🙏 {count ? `(${count})` : ''}</Text>
+          <TouchableOpacity
+            style={[styles.prayButton, disabled && { backgroundColor: `${theme.colors.success}08` }]}
+            onPress={handlePress}
+            disabled={disabled}
+          >
+            <Text style={[styles.prayButtonText, disabled && { color: `${theme.colors.success}80` }]}>
+              {label} {count ? `(${count})` : ''}
+            </Text>
           </TouchableOpacity>
         </View>
       </Animated.View>
@@ -201,18 +322,36 @@ const PrayerRequestsScreen = ({ navigation }: PrayerRequestsScreenProps) => {
 
   const renderItem = ({ item }: { item: PrayerRequest }) => {
     const isSelected = selectedIds.has(item.id);
+    const displayContent = item.content || item.detail || 'No content';
+    const displayAuthor = item.user 
+      ? `${item.user.first_name || ''} ${item.user.last_name || ''}`.trim() || 'Anonymous'
+      : 'Anonymous';
+    const alreadyPrayed = hasUserPrayed(item, userId) || prayedIdSet.has(item.id);
+    const prayedCount = getPrayedCount(item);
+    const prayButtonLabel = alreadyPrayed ? 'Prayed 🙏' : 'Pray now 🙏';
+
     return (
       <TouchableOpacity activeOpacity={0.9} onPress={() => toggleSelect(item.id)}>
-        <View style={[styles.card, isSelected && { borderColor: theme.colors.primary }]}>
+        <View style={[styles.card, isSelected && { borderColor: theme.colors.primary }] }>
           <View style={styles.cardHeaderRow}>
-            <Text style={styles.cardAuthor}>{item.user ? `${item.user.first_name} ${item.user.last_name}` : 'Anonymous'}</Text>
+            <Text style={styles.cardAuthor}>{displayAuthor}</Text>
             <View style={[styles.checkbox, isSelected && { backgroundColor: theme.colors.primary }]} />
           </View>
-          <Text style={styles.cardContent}>{item.content}</Text>
+          <Text style={styles.cardContent}>{displayContent}</Text>
           <Text style={styles.cardTime}>{new Date(item.created_at).toLocaleString()}</Text>
           <View style={styles.cardActions}>
-            <PrayButton count={item.prayed_count} onPress={() => handlePray(item.id)} />
+            <PrayButton
+              count={prayedCount}
+              onPress={() => handlePray(item.id, alreadyPrayed)}
+              disabled={alreadyPrayed}
+              label={prayButtonLabel}
+            />
           </View>
+          {prayedCount > 0 && (
+            <Text style={styles.prayerCountText}>
+              {prayedCount} prayed so far
+            </Text>
+          )}
         </View>
       </TouchableOpacity>
     );
@@ -288,7 +427,7 @@ const PrayerRequestsScreen = ({ navigation }: PrayerRequestsScreenProps) => {
           ) : null}
           ListEmptyComponent={(
             <EmptyState
-              title={`No ${currentCategory === 'all' ? '' : currentCategory + ' '}requests yet`}
+              title={`No ${currentCategory ?? '' + ' '}requests yet`}
               message={'Be the first to share a prayer request and invite others to pray.'}
               ctaText={'Create a request'}
               onPressCTA={() => openComposeModal('')}
@@ -349,11 +488,15 @@ const PrayerRequestsScreen = ({ navigation }: PrayerRequestsScreenProps) => {
                 autoFocus
                 multiline
                 textAlignVertical="top"
+                maxLength={500}
               />
+              <Text style={{ ...theme.typography.caption.secondary, color: theme.colors.text.secondary, textAlign: 'right', marginTop: 4 }}>
+                {composeDraft.length}/500
+              </Text>
               <View style={{ marginTop: theme.spacing.sm }}>
                 <Text style={{ ...theme.typography.caption.primary, color: theme.colors.text.secondary, marginBottom: theme.spacing.xs }}>Category</Text>
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: theme.spacing.xs }}>
-                  {allowedCategories.map(cat => (
+                  {categories.map(cat => (
                     <TouchableOpacity
                       key={cat}
                       style={{
@@ -417,20 +560,74 @@ const PrayerRequestsScreen = ({ navigation }: PrayerRequestsScreenProps) => {
         </View>
       </Modal>
 
+      {/* Pray guide modal */}
+      <Modal visible={showPrayGuideModal} animationType="fade" transparent>
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Committment to God</Text>
+            <Text style={styles.modalSubtitle}>
+              {hasSeenPrayerGuide
+                ? 'Take a focused moment to lift this intention before the Lord Jesus who loves us all so much.'
+                : 'Elbiblio prayer requests unite brethren in testimony. Intercessory prayer reflects are unselfish and refelect God’s nature obtaining graces for both the one who prays and the one lifted up to God in prayer.'}
+            </Text>
+            <View style={{ alignItems: 'center', marginVertical: theme.spacing.md }}>
+              <Text style={styles.timerText}>00:{String(Math.max(guideSecondsLeft, 0)).padStart(2, '0')}</Text>
+              <Text style={{ ...theme.typography.caption.secondary, color: theme.colors.text.secondary, marginTop: theme.spacing.xs }}>
+                Take these {guideDuration} seconds to pray before recording your Amen.
+              </Text>
+            </View>
+            {guideSecondsLeft <= 0 && activePrayerRequest && (
+              <View style={{ marginBottom: theme.spacing.md }}>
+                <Text style={{ ...theme.typography.caption.primary, color: theme.colors.text.secondary, marginBottom: theme.spacing.xs }}>
+                  You're praying for {activePrayerRequest.user?.first_name || activePrayerRequest.user?.last_name || 'Anonymous'}:
+                </Text>
+                <View style={{ padding: theme.spacing.sm, borderRadius: theme.borderRadius.md, backgroundColor: `${theme.colors.surface}80` }}>
+                  <Text style={{ ...theme.typography.body.sans, color: theme.colors.text.primary }}>
+                    {activePrayerRequest?.detail || activePrayerRequest?.content || 'No content'}
+                  </Text>
+                </View>
+              </View>
+            )}
+            <View style={{ flexDirection: 'row', gap: theme.spacing.sm, marginTop: theme.spacing.lg }}>
+              <TouchableOpacity
+                style={[styles.modalBtn, { backgroundColor: `${theme.colors.error}15`, borderColor: `${theme.colors.error}40` }]}
+                onPress={closePrayGuide}
+                disabled={isRecordingPrayer}
+              >
+                <Text style={[styles.modalBtnText, { color: theme.colors.error }]}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalBtn, { backgroundColor: theme.colors.primary, borderColor: theme.colors.primary, opacity: guideSecondsLeft > 0 || isRecordingPrayer ? 0.6 : 1 }]}
+                onPress={confirmPrayerRecording}
+                disabled={guideSecondsLeft > 0 || isRecordingPrayer}
+              >
+                <Text style={[styles.modalBtnText, { color: theme.colors.text.inverse }]}>
+                  {isRecordingPrayer ? 'Recording…' : guideSecondsLeft > 0 ? 'Pray first…' : 'Record Prayer'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       {/* Prayer modal */}
       <Modal visible={showPrayerModal} animationType="slide" transparent>
         <View style={styles.modalBackdrop}>
           <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Prayer Time</Text>
-            <Text style={styles.modalSubtitle}>Lift these intentions for the next 2 minutes</Text>
+            <Text style={styles.modalTitle}>Thanksgiving</Text>
+            <Text style={styles.modalSubtitle}>Lift these intentions in thanksgiving for the next 2 minutes</Text>
             <ScrollView style={{ maxHeight: 200 }} contentContainerStyle={{ paddingVertical: 8 }}>
               {Array.from(selectedIds).map(id => {
                 const req = requests.find(r => r.id === id);
                 if (!req) return null;
+                const displayContent = req.content || req.detail || 'No content';
+                const displayAuthor = req.user 
+                  ? `${req.user.first_name || ''} ${req.user.last_name || ''}`.trim() || 'Anonymous'
+                  : 'Anonymous';
                 return (
                   <View key={id} style={styles.intentItem}>
-                    <Text style={styles.intentAuthor}>{req.user ? `${req.user.first_name} ${req.user.last_name}` : 'Anonymous'}</Text>
-                    <Text style={styles.intentText}>{req.content}</Text>
+                    <Text style={styles.intentAuthor}>{displayAuthor}</Text>
+                    <Text style={styles.intentText}>{displayContent}</Text>
                   </View>
                 );
               })}
@@ -693,6 +890,11 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     marginTop: theme.spacing.sm,
     flexDirection: 'row',
     justifyContent: 'flex-end',
+  },
+  prayerCountText: {
+    ...theme.typography.caption.secondary,
+    color: theme.colors.text.secondary,
+    marginTop: theme.spacing.xs,
   },
   prayButton: {
     backgroundColor: `${theme.colors.success}15`,

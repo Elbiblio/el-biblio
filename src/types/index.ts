@@ -12,15 +12,37 @@ export enum UserRole {
   Admin = 99
 }
 
+export const PRAYER_CATEGORIES = [
+  'healing',
+  'guidance',
+  'growth',
+  'encounter',
+  'forgiveness',
+  'provision',
+  'thanksgiving',
+  'protection',
+  'relationships',
+  'work',
+  'help',
+] as const;
+
+export type PrayerCategory = typeof PRAYER_CATEGORIES[number];
+
 // Prayer Requests
 export interface PrayerRequest {
   id: string;
   user_id?: string;
   user?: User;
-  content: string; // request detail/body
-  category?: string;
-  visibility?: 'public' | 'community' | 'private';
-  prayed_users?: User[];
+  content?: string; // legacy field or frontend display
+  detail?: string; // backend field name
+  category?: PrayerCategory;
+  visibility?: 'anonymous' | 'first_name' | 'full_name';
+  prayed_users?: (number | string)[] | User[];
+  has_prayed?: boolean;
+  meta?: {
+    prayed_count?: number;
+    [key: string]: any;
+  };
   prayed_count?: number;
   created_at: string;
   updated_at?: string;

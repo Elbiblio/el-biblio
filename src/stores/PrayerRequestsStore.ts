@@ -1,19 +1,33 @@
 import { makeAutoObservable, runInAction } from 'mobx';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { apiClient, endpoints } from '@/api/client';
-import { PaginatedResponse, PrayerRequest } from '@/types';
-import { buildPagination, initialPagination } from '@/utils/pagination';
+import { PrayerCategory, PrayerRequest } from '@/types';
+import { toast } from 'sonner-native';
 
 interface PrayerRequestsStoreState {
   requests: PrayerRequest[];
-  pagination: typeof initialPagination;
+  pagination: {
+    currentPage: number;
+    lastPage: number;
+    perPage: number;
+    total: number;
+    hasMore: boolean;
+  };
 }
 
+const initialState: PrayerRequestsStoreState = {
+  requests: [],
+  pagination: {
+    currentPage: 1,
+    lastPage: 1,
+    perPage: 15,
+    total: 0,
+    hasMore: false,
+  },
+};
+
 export class PrayerRequestsStore {
-  state: PrayerRequestsStoreState = {
-    requests: [],
-    pagination: initialPagination,
-  };
+  state: PrayerRequestsStoreState = initialState;
 
   // Common store props
   isLoading = false;
@@ -21,13 +35,10 @@ export class PrayerRequestsStore {
   private storageKey = 'prayer_requests_store';
 
   constructor() {
-    this.state = {
-      requests: [],
-      pagination: initialPagination,
-    };
+    this.state = initialState;
     this.storageKey = 'prayer_requests_store';
     
-    makeAutoObservable(this);
+    makeAutoObservable(this, {}, { autoBind: true });
     
     // Load from storage asynchronously
     AsyncStorage.getItem(this.storageKey).then(stored => {
@@ -59,71 +70,89 @@ export class PrayerRequestsStore {
   }
 
   get requests(): PrayerRequest[] {
-    return this.state.requests;
+    return this.state.requests || [];
   }
 
   get pagination() {
     return this.state.pagination;
   }
 
+  clearErrors() {
+    this.setError(null);
+  }
+
   fetchRequests = async (page = 1, params: { category?: string | 'all' } = {}) => {
-    this.setLoading(true);
     try {
-      const response = await apiClient.get<PaginatedResponse<PrayerRequest>>(
+      this.setLoading(true);
+      this.setError(null);
+      
+      const response = await apiClient.get<any>(
         endpoints.prayerRequests.list,
         {
-          params: {
-            include: ['user'],
-            per_page: this.pagination.perPage,
-            page,
-            sort: '-created_at',
-            ...(params.category && params.category !== 'all' ? { 'filter[category]': params.category } : {}),
-          }
+          include: ['user'],
+          per_page: this.pagination.perPage,
+          page,
+          _sort_by: '-created_at',
+          ...(params.category && params.category !== 'all' ? { category: params.category } : {}),
         }
       );
 
       if (!response.success || !response.data) {
         throw new Error(response.message || 'Failed to fetch prayer requests');
       }
-
-      const { data, meta } = response.data;
-
+      
       runInAction(() => {
-        this.state.requests = page === 1 ? data : [...this.state.requests, ...data];
-        this.state.pagination = buildPagination(meta as any, this.pagination, page, data.length);
+        // Backend returns { success: true, data: PrayerRequest[], message: string }
+        // with Laravel pagination meta in data.meta if paginated
+        const payload = response.data as any;
+        const list = (payload.data ?? payload) as PrayerRequest[];
+        const meta = payload.meta ?? null;
+        
+        this.state.requests = page === 1 ? list : [...this.state.requests, ...list];
+        this.updatePagination(meta, page);
       });
       
       await this.saveToStorage();
-    } catch (err) {
-      this.setError(err instanceof Error ? err.message : 'An unknown error occurred');
+      return this.state.requests;
+    } catch (error) {
+      console.error('Error fetching prayer requests:', error);
+      this.setError('Failed to fetch prayer requests');
+      return [];
     } finally {
       this.setLoading(false);
     }
   };
 
-  createRequest = async (data: { content: string; category?: 'healing' | 'spiritual_growth' | 'faith_encounter' | 'forgiveness' | 'prosperity'; visibility?: 'anonymous' | 'first_name' | 'full_name' }) => {
-    this.setLoading(true);
+  createRequest = async (data: { content: string; category?: PrayerCategory; visibility?: 'anonymous' | 'first_name' | 'full_name' }) => {
     try {
+      this.setLoading(true);
+      this.setError(null);
+      
       const payload = {
-        detail: data.content,
+        detail: data.content.trim(),
         category: data.category ?? 'healing',
         visibility: data.visibility ?? 'anonymous',
       };
-      const response = await apiClient.post<PrayerRequest>(endpoints.prayerRequests.create, payload as any);
+      
+      const response = await apiClient.post<PrayerRequest>(endpoints.prayerRequests.create, payload);
+      
       if (!response.success || !response.data) {
-        console.error('Failed to create prayer req', response);
         throw new Error(response.message || 'Failed to create prayer request');
       }
-      const req = response.data;
+      
+      const created = response.data as PrayerRequest;
+      
       runInAction(() => {
-        this.state.requests.unshift(req);
+        this.state.requests = [created, ...this.state.requests];
+        this.state.pagination.total += 1;
       });
       
       await this.saveToStorage();
-      return req;
-    } catch (err) {
-      console.error('Failed to create prayer request', err);
-      this.setError(err instanceof Error ? err.message : 'An unknown error occurred');
+      toast.success('Prayer request shared');
+      return created;
+    } catch (error) {
+      console.error('Error creating prayer request:', error);
+      this.setError('Failed to create prayer request');
       return null;
     } finally {
       this.setLoading(false);
@@ -132,41 +161,51 @@ export class PrayerRequestsStore {
 
   prayForRequest = async (id: string) => {
     try {
-      const response = await apiClient.post<{ prayed: boolean }>(endpoints.prayerRequests.pray(id));
-      if (!response.success) {
+      const response = await apiClient.post<PrayerRequest>(endpoints.prayerRequests.pray(id));
+      
+      if (!response.success || !response.data) {
         throw new Error(response.message || 'Failed to mark as prayed');
       }
 
       runInAction(() => {
-        const request = this.state.requests.find(r => r.id === id);
-        if (request) {
-          request.prayed_count = (request.prayed_count ?? 0) + 1;
+        const updated = response.data as PrayerRequest;
+        const index = this.state.requests.findIndex(r => r.id === id);
+        if (index !== -1) {
+          this.state.requests[index] = updated;
         }
       });
       
       await this.saveToStorage();
       return true;
-    } catch (err) {
-      this.setError(err instanceof Error ? err.message : 'An unknown error occurred');
+    } catch (error) {
+      console.error('Error marking prayer as prayed:', error);
+      this.setError('Failed to mark as prayed');
       return false;
     }
   };
 
   deleteRequest = async (id: string) => {
-    this.setLoading(true);
     try {
+      this.setLoading(true);
+      this.setError(null);
+      
       const response = await apiClient.delete(endpoints.prayerRequests.delete(id));
+      
       if (!response.success) {
         throw new Error(response.message || 'Failed to delete request');
       }
+      
       runInAction(() => {
         this.state.requests = this.state.requests.filter(r => r.id !== id);
+        this.state.pagination.total = Math.max(0, this.state.pagination.total - 1);
       });
       
       await this.saveToStorage();
+      toast.success('Prayer request deleted');
       return true;
-    } catch (err) {
-      this.setError(err instanceof Error ? err.message : 'An unknown error occurred');
+    } catch (error) {
+      console.error('Error deleting prayer request:', error);
+      this.setError('Failed to delete request');
       return false;
     } finally {
       this.setLoading(false);
@@ -175,11 +214,49 @@ export class PrayerRequestsStore {
 
   reset = async () => {
     runInAction(() => {
-        this.state.requests = [];
-        this.state.pagination = initialPagination;
-        this.setError(null);
+      this.state = initialState;
+      this.setError(null);
     });
     
     await this.saveToStorage();
   };
+
+  private updatePagination(meta: any, currentPage: number) {
+    if (meta && typeof meta === 'object' &&
+        (typeof meta.last_page !== 'undefined' || typeof meta.current_page !== 'undefined')) {
+      const lastPage = Number(meta.last_page ?? currentPage) || currentPage;
+      const perPage = Number(meta.per_page ?? this.state.pagination.perPage) || this.state.pagination.perPage;
+      const total = Number(meta.total ?? this.state.pagination.total) || this.state.pagination.total;
+      const current = Number(meta.current_page ?? currentPage) || currentPage;
+      this.state.pagination = {
+        currentPage: current,
+        lastPage,
+        perPage,
+        total,
+        hasMore: current < lastPage,
+      };
+      return;
+    }
+
+    // No meta provided: set hasMore to false
+    this.state.pagination = {
+      currentPage,
+      lastPage: currentPage,
+      perPage: this.state.pagination.perPage,
+      total: this.state.pagination.total,
+      hasMore: false,
+    };
+  }
+
+  cleanup() {
+    // Clean up any resources if needed
+  }
 }
+
+// Create a singleton instance
+export const prayerRequestsStore = new PrayerRequestsStore();
+
+// For backward compatibility
+export const usePrayerRequestsStore = () => prayerRequestsStore;
+
+export default prayerRequestsStore;
