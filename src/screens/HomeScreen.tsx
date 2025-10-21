@@ -67,6 +67,7 @@ import { useNavigation } from '@react-navigation/native';
 import { useWebSocket } from '@/services/websocket';
 import * as Haptics from 'expo-haptics';
 import { useCommunityStore } from '@/stores/CommunityStore';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from '@react-navigation/native';
 
 const WELCOME_BACK_THRESHOLD = 10 * 60 * 1000; // 10 minutes in milliseconds
@@ -82,6 +83,18 @@ interface TimeTracking {
 
 const AnimatedBlurView = Animated.createAnimatedComponent(BlurView);
 const CARD_WIDTH = SCREEN_DIMENSIONS.width * 0.9;
+const QUICK_MENU_STORAGE_KEY = 'home_quick_menu_usage';
+const getUsageStage = (usage: QuickMenuUsage) => {
+  if (usage.unlockedItems.includes('coreTools')) return 2;
+  if (usage.meditationCount > 0 && usage.bibleCount > 0) return 1;
+  return 0;
+};
+
+type QuickMenuUsage = {
+  meditationCount: number;
+  bibleCount: number;
+  unlockedItems: string[];
+};
 
 const QuickActionCard = ({ action, index, actionStyles, onPress }: { 
   action: any; 
@@ -161,6 +174,7 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
   const [showGamesModal, setShowGamesModal] = useState(false);
   // Removed: local points modal state; rely on global interceptor-driven modal
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [quickMenuUsage, setQuickMenuUsage] = useState<QuickMenuUsage>({ meditationCount: 0, bibleCount: 0, unlockedItems: [] });
 
   const meditationComplete = route.params?.meditationComplete || false;
   // const challenge = route.params?.challenge;
@@ -515,6 +529,29 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
   //   setCurrentVerseIndex(newIndex);
   // }, []);
 
+  const persistQuickMenuUsage = async (nextUsage: QuickMenuUsage) => {
+    try {
+      await AsyncStorage.setItem(QUICK_MENU_STORAGE_KEY, JSON.stringify(nextUsage));
+    } catch (error) {
+      console.error('Failed to persist quick menu usage:', error);
+    }
+  };
+
+  const loadQuickMenuUsage = useCallback(async () => {
+    try {
+      const stored = await AsyncStorage.getItem(QUICK_MENU_STORAGE_KEY);
+      if (stored) {
+        setQuickMenuUsage(JSON.parse(stored));
+      }
+    } catch (error) {
+      console.error('Failed to load quick menu usage:', error);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadQuickMenuUsage();
+  }, [loadQuickMenuUsage]);
+
   const handleQuickActionPress = (route: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     if (!user && route !== 'BibleScreen') {
@@ -522,6 +559,21 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
       return;
     }
     navigation.navigate(route as any);
+    setQuickMenuUsage(prev => {
+      const next: QuickMenuUsage = { ...prev };
+      if (route === 'MeditationScreen') {
+        next.meditationCount += 1;
+      }
+      if (route === 'BibleScreen') {
+        next.bibleCount += 1;
+      }
+      const shouldUnlockExtraBar = next.meditationCount >= 2 && next.bibleCount >= 2;
+      if (shouldUnlockExtraBar && !next.unlockedItems.includes('coreTools')) {
+        next.unlockedItems = [...next.unlockedItems, 'coreTools'];
+      }
+      persistQuickMenuUsage(next);
+      return next;
+    });
   };
 
   const handleRefresh = async () => {
@@ -614,15 +666,20 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
         <Text style={styles.sectionTitle}>QUICK MENU</Text>
         <View style={styles.toolsGrid}>
           {[
-            { icon: BookOpen, label: 'Meditation', route: 'MeditationScreen', badge: hasUnfinishedMeditation ? 1 : null, color: theme?.colors.primary, requiresUnlock: false },
-            { icon: Bible, label: 'Bible', route: 'BibleScreen', badge: null, color: theme?.colors.secondary, requiresUnlock: false },
-            { icon: Fire, label: 'SoulForge', route: 'VirtueScreen', badge: null, color: theme?.colors.primaryDark, requiresUnlock: true },
-            { icon: BookmarkSimple, label: 'Bookmarks', route: 'SavedItemsScreen', badge: null, color: theme?.colors.like, requiresUnlock: false },
-            { icon: Users, label: 'Community', route: 'CommunityScreen', badge: communityUnreadBadge, color: theme?.colors.success, requiresUnlock: false },
-            { icon: Trophy, label: 'Games', route: 'GameScreen', badge: shouldShowBadge ? 1 : null, color: theme?.colors.success, requiresUnlock: false },
-          ].map((tool, index) => {
+            { icon: BookOpen, label: 'Meditation', route: 'MeditationScreen', badge: hasUnfinishedMeditation ? 1 : null, color: theme?.colors.primary, requiresUnlock: false, stage: 0 },
+            { icon: Bible, label: 'Bible', route: 'BibleScreen', badge: null, color: theme?.colors.secondary, requiresUnlock: false, stage: 0 },
+            { icon: BookmarkSimple, label: 'Bookmarks', route: 'SavedItemsScreen', badge: null, color: theme?.colors.like, requiresUnlock: false, stage: 1 },
+            { icon: Users, label: 'Community', route: 'CommunityScreen', badge: communityUnreadBadge, color: theme?.colors.success, requiresUnlock: false, stage: 1 },
+            { icon: Trophy, label: 'Games', route: 'GameScreen', badge: shouldShowBadge ? 1 : null, color: theme?.colors.success, requiresUnlock: false, stage: 2 },
+            { icon: Fire, label: 'SoulForge', route: 'VirtueScreen', badge: null, color: theme?.colors.primaryDark, requiresUnlock: true, stage: 2 },
+          ].map((tool) => {
             const totalPoints = leaderboardStore.userStats?.totalPoints ?? 0;
             const isUnlocked = tool.requiresUnlock ? isSoulForgeUnlocked(totalPoints) : true;
+            const usageStage = quickMenuUsage.unlockedItems.includes('coreTools') ? 2 : (quickMenuUsage.meditationCount > 0 && quickMenuUsage.bibleCount > 0 ? 1 : 0);
+            const isStageUnlocked = tool.stage <= usageStage;
+            if (!isStageUnlocked) {
+              return null;
+            }
             
             return (
             <TouchableOpacity
@@ -671,9 +728,9 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
           );
           })}
         </View>
-        { !meditationComplete && (
+        {getUsageStage(quickMenuUsage) === 0 && (
           <Text style={styles.toolTip}>
-            Tip: Complete daily meditation to earn bonus points
+            Tip: Start with meditation and Bible to unlock more tools
           </Text>
         )}
       </Animated.View>
@@ -741,13 +798,38 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
     const personalChallenge = personalChallenges && personalChallenges.length > 0
       ? personalChallenges[0]
       : undefined;
-    const communityChallenge = communityChallenges && communityChallenges.length > 0
-      ? communityChallenges[0]
-      : undefined;
+    const joinedChallengeIds = new Set((personalChallenges || []).map(challenge => challenge.id));
+    const communityChallenge = (communityChallenges || []).find(challenge => {
+      if (joinedChallengeIds.has(challenge.id)) return false;
+      if (challenge.hasJoined) return false;
+      return true;
+    });
     
     // Calculate progress for personal challenge
     const personalProgress = personalChallenge ? calculateChallengeProgress(personalChallenge as any) : 0;
     const isPersonalChallengeComplete = personalChallenge ? personalProgress >= 100 : false;
+    const hasCompletedFrequencyGoal = !!(personalChallenge?.isCompleted && (personalChallenge?.frequency === 'd' || personalChallenge?.frequency === 'w'));
+    const personalCompletionLabel = personalChallenge?.frequency === 'd'
+      ? 'Completed Today'
+      : personalChallenge?.frequency === 'w'
+        ? 'Completed This Week'
+        : 'Completed';
+    const completionBadgeStyles = {
+      container: {
+        marginTop: theme?.spacing.sm,
+        alignSelf: 'flex-start' as const,
+        backgroundColor: `${theme?.colors.success}15`,
+        borderRadius: theme?.borderRadius.full,
+        paddingHorizontal: theme?.spacing.sm,
+        paddingVertical: theme?.spacing.xs,
+      },
+      text: {
+        ...theme?.typography.caption.primary,
+        color: theme?.colors.success,
+        fontWeight: '600' as const,
+        fontSize: 12,
+      },
+    };
 
     return (
       <Animated.View style={[styles.section, challengeAnimatedStyle]}>
@@ -777,6 +859,11 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
               </View>
               <Text style={styles.progressText}>{personalProgress}%</Text>
             </View>
+            {hasCompletedFrequencyGoal && (
+              <View style={completionBadgeStyles.container}>
+                <Text style={completionBadgeStyles.text}>{personalCompletionLabel}</Text>
+              </View>
+            )}
             <TouchableOpacity 
               style={[styles.completeButton, 
                 isPersonalChallengeComplete ? styles.completeButtonActive : {}]}
@@ -1541,6 +1628,20 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     ...theme?.typography.caption.secondary,
     color: theme?.colors.text.secondary,
     fontWeight: '600',
+  },
+  completionBadge: {
+    marginTop: theme?.spacing.sm,
+    alignSelf: 'flex-start',
+    backgroundColor: `${theme?.colors.success}15`,
+    borderRadius: theme?.borderRadius.full,
+    paddingHorizontal: theme?.spacing.sm,
+    paddingVertical: theme?.spacing.xs,
+  },
+  completionBadgeText: {
+    ...theme?.typography.caption.primary,
+    color: theme?.colors.success,
+    fontWeight: '600',
+    fontSize: 12,
   },
   completeButton: {
     alignSelf: 'flex-end',

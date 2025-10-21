@@ -7,6 +7,7 @@ import BibleDBService, { generateVPLId, parseVPLId } from '@/utils/database';
 import { toast } from 'sonner-native';
 import { Share } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
+import * as Notifications from 'expo-notifications';
 
 // Extend the BibleVersion type to include id
 interface ExtendedBibleVersion extends Omit<BibleVersion, 'id'> {
@@ -116,6 +117,38 @@ type LocalBibleSearchRow = {
   verseText: string;
 };
 
+type ReadingPlanSegment = {
+  id: string;
+  bookAbbreviation: string;
+  bookName: string;
+  chapterStart: number;
+  chapterEnd: number;
+  completedAt?: string | null;
+};
+
+type BibleReadingPlan = {
+  id: string;
+  createdAt: string;
+  books: string[];
+  chaptersPerDay: number;
+  segments: ReadingPlanSegment[];
+  currentIndex: number;
+  reminderTime?: string | null;
+  versionTable: string;
+  versionName?: string | null;
+};
+
+type ReadingReminder = {
+  time: string;
+  notificationId: string;
+};
+
+type CreateReadingPlanParams = {
+  books: string[];
+  chaptersPerDay: number;
+  reminderTime?: string | null;
+};
+
 // Storage keys
 const STORAGE_KEYS = {
   HIGHLIGHTED_VERSES: 'bible_highlighted_verses',
@@ -127,6 +160,8 @@ const STORAGE_KEYS = {
   INSTALLED_VERSIONS: 'bible_installed_versions',
   LAST_POSITION: 'bible_last_position',
   SAVED_SEARCHES: 'bible_saved_searches',
+  READING_PLAN: 'bible_reading_plan',
+  READING_REMINDER: 'bible_reading_reminder',
 } as const;
 
 type LastReadPosition = {

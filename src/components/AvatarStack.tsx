@@ -8,6 +8,7 @@ import Animated, {
   withTiming,
   interpolate,
 } from 'react-native-reanimated';
+import { toJS } from 'mobx';
 import { User } from '../types';
 import { useTheme } from '@/contexts/ThemeContext';
 import { Theme } from '@/theme';
@@ -29,9 +30,11 @@ export const AvatarStack: React.FC<AvatarStackProps> = ({
   onPress,
   showRemaining = true,
 }) => {
-  const safeUsers = React.useMemo(() => (users || []).map(u => ({ ...u })), [users]);
+  // Convert MobX observables to plain JS to avoid freeze errors
+  // Do NOT use useMemo here - MobX observables maintain the same reference
+  const safeUsers = toJS(users || []);
   const displayUsers = safeUsers.slice(0, maxAvatars);
-  const remainingCount = Math.max(0, users.length - maxAvatars);
+  const remainingCount = Math.max(0, safeUsers.length - maxAvatars);
   const theme = useTheme();
   const styles = React.useMemo(() => createStyles(theme), [theme]);
 

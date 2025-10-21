@@ -15,7 +15,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { observer } from 'mobx-react-lite';
 import * as Speech from 'expo-speech';
 import { useTheme } from '@/contexts/ThemeContext';
-import { MeditationSession, RootStackParamList, Virtue, FoundationalVirtue, THEMES } from '@/types';
+import { MeditationSession, RootStackParamList, Virtue } from '@/types';
 import {
   ArrowLeft,
   Heart,
@@ -47,10 +47,68 @@ import Animated, {
   Easing,
   interpolate,
 } from 'react-native-reanimated';
-// MobX meditation store accessed via StoreProvider
+import { buildMeditationPlan, MeditationLevel, MeditationPlan } from '@/data/meditationPlans';
 
-// Time options for meditation - moved to constants or could be fetched from API
-const TIME_OPTIONS = [5, 10, 15, 20, 30, 45, 60];
+const TIME_OPTIONS: number[] = [5, 10, 15, 20, 30, 45, 60];
+
+type MeditationGuide = {
+  title: string;
+  imagery: string;
+  scripture: string;
+  prompts: string[];
+  declaration: string;
+  leadIn: string;
+  focus: string;
+  breathInvitation: string;
+  closingReminder: string;
+  openReflection?: string;
+  guidanceTips?: string[];
+  stageNote?: string;
+};
+
+const determineMeditationLevel = (
+  sessionCount: number,
+  selectedMinutes: number | null
+): MeditationLevel => {
+  if (!selectedMinutes || sessionCount <= 2) {
+    return 'foundation';
+  }
+  if (selectedMinutes >= 25 || sessionCount >= 8) {
+    return 'deep';
+  }
+  return 'growth';
+};
+
+const composeMeditationGuide = (
+  plan: MeditationPlan,
+  virtueName?: string | null
+): MeditationGuide => {
+  const virtueLine = virtueName
+    ? `Notice how this connects with ${virtueName.toLowerCase()} in your life today.`
+    : 'Notice how this story meets your life today.';
+  const prompts = [
+    plan.reflectionPrompts[0],
+    virtueLine,
+    plan.reflectionPrompts[1],
+    plan.reflectionPrompts[2],
+    plan.reflectionPrompts[3],
+  ].filter(Boolean) as string[];
+
+  return {
+    title: plan.title,
+    imagery: plan.overview,
+    scripture: plan.scripture,
+    prompts: prompts.slice(0, 4),
+    declaration: plan.closingReminder,
+    leadIn: `Spend a moment with the ${plan.parable}. ${plan.overview}`,
+    focus: plan.breathInvitation,
+    breathInvitation: plan.breathInvitation,
+    closingReminder: plan.closingReminder,
+    openReflection: plan.openReflection,
+    guidanceTips: plan.guidanceTips,
+    stageNote: plan.stageNote,
+  };
+};
 
 enum MeditationState {
   SETUP = 'setup',
@@ -130,14 +188,30 @@ const MeditationScreen = () => {
     [selectedTime]
   );
   const promptInterval = totalMeditationSeconds > 0 ? Math.floor(totalMeditationSeconds / 4) : 0;
-  // Use a default prompt since prompts don't exist on Virtue type
-  const currentPrompt = "Focus on your breathing and let your mind settle";
+  const sessions = meditationStore.state.sessions;
+  const completedSessions = React.useMemo(() => {
+    if (!selectedVirtue) return sessions.length;
+    return sessions.filter(session => session.virtue_id === selectedVirtue).length;
+  }, [sessions, selectedVirtue]);
+  const meditationGuide = React.useMemo(() => {
+    const level = determineMeditationLevel(completedSessions, selectedTime);
+    const challengeText = selectedChallenge?.title || selectedChallenge?.description || null;
+    const plan = buildMeditationPlan({
+      level,
+      dateSeed: Date.now(),
+      challengeText,
+      sessionCount: completedSessions,
+    });
+    return composeMeditationGuide(plan, currentVirtue?.name);
+  }, [
+    completedSessions,
+    selectedTime,
+    selectedChallenge?.title,
+    selectedChallenge?.description,
+    currentVirtue?.name,
+  ]);
+  const currentPrompt = meditationGuide.prompts[currentPromptIndex] || meditationGuide.prompts[0];
   
-  // Get theme info for the current virtue
-  const getThemeInfo = (virtueName: string) => {
-    const themeKey = virtueName.toLowerCase() as FoundationalVirtue;
-    return THEMES[themeKey];
-  };
   const styles = React.useMemo(
     () => createStyles(theme, currentVirtue),
     [theme, currentVirtue]
@@ -322,7 +396,8 @@ const MeditationScreen = () => {
           hasStartedFinalCountdown.current = true;
           if (isSpeaking.current) Speech.stop();
           
-          Speech.speak("You resolve to do better today.", {
+          const closingLine = meditationGuide.closingReminder || 'You resolve to do better today.';
+          Speech.speak(closingLine, {
             rate: 0.85, onDone: () => {
               // Start the bell-based countdown
               let countdownNumber = 10;
@@ -371,30 +446,65 @@ const MeditationScreen = () => {
       setTimeout(() => Speech.speak('Close your eyes if you are able to do so...', {
         rate: 0.8, onDone: () => {
           setTimeout(() => {
-            Speech.speak('Visualize yourself calm. Peaceful. Empty; and ready to grow spiritually...', {
-              rate: 0.8, onDone: () => {
-                setTimeout(() => {
-                  playMeditationBellSound();
-                  setTimeout(() => {
-                    Speech.speak('Breathe in...', {
-                      rate: 0.8, onDone: () => {
+            Speech.speak(meditationGuide.leadIn, {
+            rate: 0.8, onDone: () => {
+              setTimeout(() => {
+                Speech.speak(meditationGuide.focus, {
+                    rate: 0.8, onDone: () => {
+                      setTimeout(() => {
+                        const breathIntro = meditationGuide.breathInvitation || 'Breathe in...';
+                        const stageNote = meditationGuide.stageNote?.trim();
+                        const openReflection = meditationGuide.openReflection?.trim();
+                        playMeditationBellSound();
                         setTimeout(() => {
-                          Speech.speak('Keep still...', {
+                          Speech.speak(breathIntro, {
                             rate: 0.8, onDone: () => {
-                              setTimeout(() => {
-                                Speech.speak('Breathe out...', {
-                                  rate: 0.8, onDone: () => {
-                                    setIntroCompleted(true);
-                                    setBreathePhase('in');
+                              const speakHoldPhase = () => {
+                                setTimeout(() => {
+                                  Speech.speak('Keep still...', {
+                                    rate: 0.8,
+                                    onDone: () => {
+                                      setTimeout(() => {
+                                        Speech.speak('Breathe out...', {
+                                          rate: 0.8,
+                                          onDone: () => {
+                                            setIntroCompleted(true);
+                                            setBreathePhase('in');
+                                          },
+                                        });
+                                      }, 4000);
+                                    },
+                                  });
+                                }, 4000);
+                              };
+
+                              if (stageNote || openReflection) {
+                                const insights = [stageNote, openReflection].filter((text): text is string => Boolean(text));
+                                const speakInsight = (index: number) => {
+                                  if (index >= insights.length) {
+                                    speakHoldPhase();
+                                    return;
                                   }
-                                });
-                              }, 4000);
+                                  const delay = index === 0 ? 400 : 600;
+                                  setTimeout(() => {
+                                    Speech.speak(insights[index], {
+                                      rate: 0.8,
+                                      onDone: () => {
+                                        speakInsight(index + 1);
+                                      },
+                                    });
+                                  }, delay);
+                                };
+                                speakInsight(0);
+                              } else {
+                                speakHoldPhase();
+                              }
                             }
                           });
-                        }, 4000);
-                      }
-                    });
-                  }, 500);
+                        }, 500);
+                      }, 1000);
+                    }
+                  });
                 }, 1000);
               }
             });
@@ -413,15 +523,22 @@ const MeditationScreen = () => {
     setTimeout(() => {
       setShowPrompt(true);
       promptOpacity.value = withTiming(1, { duration: 1000 });
-      // Use a default prompt since prompts don't exist on Virtue type
-      const prompt = "Focus on your breathing and let your mind settle";
+      const prompt = meditationGuide.prompts[index] || meditationGuide.prompts[0];
+      const declaration = meditationGuide.declaration;
       isSpeaking.current = true;
       Speech.speak(`${introWord}...`, {
         rate: 0.85, onDone: () => {
           setTimeout(() => {
             Speech.speak(prompt, {
               rate: 0.85,
-              onDone: () => { isSpeaking.current = false },
+              onDone: () => {
+                isSpeaking.current = false;
+                if (index === meditationGuide.prompts.length - 1 && !isEndingPhase.current) {
+                  setTimeout(() => {
+                    Speech.speak(declaration, { rate: 0.85 });
+                  }, 1200);
+                }
+              },
             });
           }, 1000);
         }
@@ -508,6 +625,25 @@ const MeditationScreen = () => {
   const renderSetupScreen = () => (
     <ScrollView style={styles.scrollContainer} showsVerticalScrollIndicator={false}>
       <Animated.View style={[styles.setupContainer, fadeAnimStyle]}>
+        <View style={styles.guideCard}>
+          <Text style={styles.guideTitle}>{meditationGuide.title}</Text>
+          <Text style={styles.guideImagery}>{meditationGuide.imagery}</Text>
+          <Text style={styles.guideScripture}>{meditationGuide.scripture}</Text>
+          <Text style={styles.guideFocus}>{meditationGuide.focus}</Text>
+          {meditationGuide.stageNote && (
+            <Text style={styles.guideStageNote}>{meditationGuide.stageNote}</Text>
+          )}
+          {meditationGuide.openReflection && (
+            <Text style={styles.guideReflection}>{meditationGuide.openReflection}</Text>
+          )}
+          {!!meditationGuide.guidanceTips?.length && (
+            <View style={styles.guideTipsContainer}>
+              {meditationGuide.guidanceTips.map((tip, index) => (
+                <Text key={index} style={styles.guideTipText}>• {tip}</Text>
+              ))}
+            </View>
+          )}
+        </View>
         <Text style={styles.sectionTitle}>CHOOSE A VIRTUE</Text>
         {selectedVirtue ? (
           <View style={styles.selectedVirtueCollapsed}>
@@ -797,6 +933,10 @@ const MeditationScreen = () => {
           ))}
         </View>
       </Animated.View>
+      <View style={styles.declarationContainer}>
+        <Text style={styles.declarationLabel}>Declaration</Text>
+        <Text style={styles.declarationText}>{meditationGuide.declaration}</Text>
+      </View>
     </View>
   );
 
@@ -935,6 +1075,53 @@ const createStyles = (theme: Theme, currentVirtue: Virtue | undefined) =>
     },
     scrollContainer: { flex: 1 },
     setupContainer: { padding: theme?.spacing.md },
+    guideCard: {
+      padding: theme?.spacing.md,
+      borderRadius: theme?.borderRadius.lg,
+      backgroundColor: theme?.colors.surface,
+      borderWidth: 1,
+      borderColor: theme?.colors.border,
+      marginBottom: theme?.spacing.lg,
+      gap: theme?.spacing.sm,
+    },
+    guideTitle: {
+      ...theme?.typography.heading.small,
+      color: theme?.colors.text.primary,
+      fontWeight: '700',
+    },
+    guideImagery: {
+      ...theme?.typography.body.sans,
+      color: theme?.colors.text.secondary,
+      lineHeight: 22,
+    },
+    guideScripture: {
+      ...theme?.typography.caption.secondary,
+      color: theme?.colors.text.primary,
+      fontStyle: 'italic',
+    },
+    guideFocus: {
+      ...theme?.typography.body.sans,
+      color: theme?.colors.text.primary,
+      fontWeight: '600',
+    },
+    guideStageNote: {
+      ...theme?.typography.caption.secondary,
+      color: theme?.colors.text.secondary,
+      fontStyle: 'italic',
+    },
+    guideReflection: {
+      ...theme?.typography.body.sans,
+      color: theme?.colors.text.primary,
+      marginTop: theme?.spacing.xs,
+    },
+    guideTipsContainer: {
+      marginTop: theme?.spacing.sm,
+      gap: theme?.spacing.xs,
+    },
+    guideTipText: {
+      ...theme?.typography.caption.secondary,
+      color: theme?.colors.text.secondary,
+    },
     sectionTitle: {
       ...theme?.typography.caption.secondary,
       color: theme?.colors.text.secondary,
@@ -1172,6 +1359,28 @@ const createStyles = (theme: Theme, currentVirtue: Virtue | undefined) =>
     promptProgress: { flexDirection: 'row', marginTop: theme?.spacing.md, gap: theme?.spacing.xs },
     progressDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: theme?.colors.border },
     activeProgressDot: { width: 16 },
+    declarationContainer: {
+      width: '100%',
+      marginTop: theme?.spacing.lg,
+      padding: theme?.spacing.md,
+      borderRadius: theme?.borderRadius.md,
+      backgroundColor: `${theme?.colors.surface}E6`,
+      borderWidth: 1,
+      borderColor: `${theme?.colors.border}80`,
+      gap: theme?.spacing.sm,
+    },
+    declarationLabel: {
+      ...theme?.typography.caption.secondary,
+      color: theme?.colors.text.secondary,
+      textTransform: 'uppercase',
+      letterSpacing: 1,
+      fontWeight: '600',
+    },
+    declarationText: {
+      ...theme?.typography.body.sans,
+      color: theme?.colors.text.primary,
+      lineHeight: 22,
+    },
     completeContainer: { flex: 1, alignItems: 'center', justifyContent: 'space-between', padding: theme.spacing.lg },
     completeBanner: { width: '100%', alignItems: 'center', marginTop: theme.spacing.xl },
     completeTitle: {
