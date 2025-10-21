@@ -1,42 +1,67 @@
-import React, { useMemo } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, StatusBar, ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import { useFocusEffect } from '@react-navigation/native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { Theme } from '@/theme';
 import { type RootStackParamList } from '@/types';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { ArrowLeft, Bible, BookOpen, Fire, Globe, MessageSquare, NotePencil, Users } from '@/components/Icons';
+import { ArrowLeft, BookOpen, Fire, MessageSquare, NotePencil, Users } from '@/components/Icons';
 import { observer } from 'mobx-react-lite';
 import { useCommunityStore } from '@/stores/StoreProvider';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export type CommunityScreenProps = NativeStackScreenProps<RootStackParamList, 'CommunityScreen'>;
 
-const CARDS = (colors: Theme['colors']) => ([
-  {
-    key: 'daily_verses',
-    title: 'Daily Verses & Reflections',
-    subtitle: 'See what the community is sharing today',
-    icon: BookOpen,
-    color: colors.primary,
-    route: 'DailyVersesScreen' as const,
-  },
+type QuickMenuUsage = {
+  meditationCount: number;
+  bibleCount: number;
+  unlockedItems: string[];
+};
+
+const getUsageStage = (usage: QuickMenuUsage | null) => {
+  if (!usage) return 0;
+  if (usage.unlockedItems?.includes('coreTools')) return 2;
+  if ((usage.meditationCount ?? 0) > 0 && (usage.bibleCount ?? 0) > 0) return 1;
+  return 0;
+};
+
+type CommunityRoute =
+  | 'DailyChallengeScreen'
+  | 'DailyVersesScreen'
+  | 'NotesScreen'
+  | 'WordHubsScreen'
+  | 'PrayerRequestsScreen';
+
+type CommunityCard = {
+  key: string;
+  title: string;
+  subtitle: string;
+  icon: React.FC<{ size?: number; color?: string }>;
+  color: string;
+  route: CommunityRoute;
+  stage: number;
+};
+
+const COMMUNITY_CARDS = (colors: Theme['colors']): CommunityCard[] => ([
   {
     key: 'community_challenges',
     title: 'Community Challenges',
     subtitle: 'Join today\'s challenge',
     icon: Fire,
     color: colors.primaryDark,
-    route: 'DailyChallengeScreen' as const,
+    route: 'DailyChallengeScreen',
+    stage: 0,
   },
   {
-    key: 'wordhubs',
-    title: 'WordHubs',
-    subtitle: 'Create or join study hubs',
-    icon: Users,
-    color: colors.secondary,
-    route: 'WordHubsScreen' as const,
+    key: 'daily_verses',
+    title: 'Daily Verses & Reflections',
+    subtitle: 'See what the community is sharing today',
+    icon: BookOpen,
+    color: colors.primary,
+    route: 'DailyVersesScreen',
+    stage: 1,
   },
   {
     key: 'community_notes',
@@ -44,7 +69,17 @@ const CARDS = (colors: Theme['colors']) => ([
     subtitle: 'Read and share insights',
     icon: NotePencil,
     color: colors.like,
-    route: 'NotesScreen' as const,
+    route: 'NotesScreen',
+    stage: 1,
+  },
+  {
+    key: 'wordhubs',
+    title: 'WordHubs',
+    subtitle: 'Create or join study hubs',
+    icon: Users,
+    color: colors.secondary,
+    route: 'WordHubsScreen',
+    stage: 2,
   },
   {
     key: 'prayer_requests',
@@ -52,7 +87,8 @@ const CARDS = (colors: Theme['colors']) => ([
     subtitle: 'Share and pray with the community',
     icon: MessageSquare,
     color: colors.success,
-    route: 'PrayerRequestsScreen' as const,
+    route: 'PrayerRequestsScreen',
+    stage: 2,
   },
 ]);
 
@@ -61,15 +97,39 @@ const CommunityScreen = ({ navigation }: CommunityScreenProps) => {
   const insets = useSafeAreaInsets();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const { markOpened } = useCommunityStore();
+  const [usageStage, setUsageStage] = useState(0);
 
-  const cards = useMemo(() => CARDS(theme.colors), [theme.colors]);
+  const loadUsageStage = useCallback(async () => {
+    try {
+      const stored = await AsyncStorage.getItem('home_quick_menu_usage');
+      const parsed = stored ? (JSON.parse(stored) as QuickMenuUsage) : null;
+      setUsageStage(getUsageStage(parsed));
+    } catch {
+      setUsageStage(0);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadUsageStage();
+  }, [loadUsageStage]);
+
+  const cards = useMemo(() => COMMUNITY_CARDS(theme.colors), [theme.colors]);
+  const availableCards = useMemo(
+    () => cards.filter(card => card.stage <= usageStage),
+    [cards, usageStage]
+  );
+
+  const handleNavigate = useCallback((route: CommunityRoute) => {
+    navigation.navigate(route);
+  }, [navigation]);
 
   // Reset unread count and set last opened when this screen gains focus
   useFocusEffect(
     React.useCallback(() => {
       markOpened();
+      loadUsageStage();
       return () => {};
-    }, [markOpened])
+    }, [markOpened, loadUsageStage])
   );
 
   return (
@@ -86,12 +146,12 @@ const CommunityScreen = ({ navigation }: CommunityScreenProps) => {
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <Text style={styles.sectionTitle}>Explore</Text>
         <View style={styles.grid}>
-          {cards.map((card) => (
+          {availableCards.map((card) => (
             <TouchableOpacity
               key={card.key}
               style={styles.card}
               activeOpacity={0.85}
-              onPress={() => navigation.navigate(card.route as any)}
+              onPress={() => handleNavigate(card.route)}
             >
               <LinearGradient
                 colors={[`${card.color}15`, `${card.color}05`]}
@@ -109,6 +169,11 @@ const CommunityScreen = ({ navigation }: CommunityScreenProps) => {
             </TouchableOpacity>
           ))}
         </View>
+        {usageStage === 0 && (
+          <Text style={styles.tipText}>
+            Grow your journey to unlock more community spaces.
+          </Text>
+        )}
       </ScrollView>
     </View>
   );
@@ -140,6 +205,11 @@ const createStyles = (theme: Theme) => StyleSheet.create({
   },
   grid: {
     gap: theme.spacing.md,
+  },
+  tipText: {
+    ...theme.typography.caption.secondary,
+    color: theme.colors.text.secondary,
+    marginTop: theme.spacing.md,
   },
   card: {
     position: 'relative',

@@ -613,7 +613,9 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
     <View style={styles.header}>
       <View style={styles.headerContent}>
         <View style={styles.headerLeft}>
-          <Text style={styles.appTitle}>ELBIBLIO</Text>
+          <TouchableOpacity onPress={() => navigation.navigate('MyJourneyScreen')} activeOpacity={0.7}>
+            <Text style={styles.appTitle}>ELBIBLIO</Text>
+          </TouchableOpacity>
           {isConnected && (
             <View style={styles.connectionIndicator}>
               <View style={[styles.connectionDot, { backgroundColor: theme?.colors.success }]} />
@@ -625,7 +627,7 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
           <TouchableOpacity
             style={styles.pointsContainer}
             onPress={() => {
-              navigation.navigate('ProfileScreen');
+              navigation.navigate('MyJourneyScreen');
               pointsScale.value = withSequence(
                 withSpring(1.1),
               );
@@ -666,11 +668,11 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
         <Text style={styles.sectionTitle}>QUICK MENU</Text>
         <View style={styles.toolsGrid}>
           {[
-            { icon: BookOpen, label: 'Meditation', route: 'MeditationScreen', badge: hasUnfinishedMeditation ? 1 : null, color: theme?.colors.primary, requiresUnlock: false, stage: 0 },
+            { icon: Trophy, label: 'Games', route: 'GameScreen', badge: shouldShowBadge ? 1 : null, color: theme?.colors.success, requiresUnlock: false, stage: 0 },
             { icon: Bible, label: 'Bible', route: 'BibleScreen', badge: null, color: theme?.colors.secondary, requiresUnlock: false, stage: 0 },
+            { icon: Users, label: 'Community', route: 'CommunityScreen', badge: communityUnreadBadge, color: theme?.colors.success, requiresUnlock: false, stage: 0 },
+            { icon: BookOpen, label: 'Meditation', route: 'MeditationScreen', badge: hasUnfinishedMeditation ? 1 : null, color: theme?.colors.primary, requiresUnlock: false, stage: 0 },
             { icon: BookmarkSimple, label: 'Bookmarks', route: 'SavedItemsScreen', badge: null, color: theme?.colors.like, requiresUnlock: false, stage: 1 },
-            { icon: Users, label: 'Community', route: 'CommunityScreen', badge: communityUnreadBadge, color: theme?.colors.success, requiresUnlock: false, stage: 1 },
-            { icon: Trophy, label: 'Games', route: 'GameScreen', badge: shouldShowBadge ? 1 : null, color: theme?.colors.success, requiresUnlock: false, stage: 2 },
             { icon: Fire, label: 'SoulForge', route: 'VirtueScreen', badge: null, color: theme?.colors.primaryDark, requiresUnlock: true, stage: 2 },
           ].map((tool) => {
             const totalPoints = leaderboardStore.userStats?.totalPoints ?? 0;

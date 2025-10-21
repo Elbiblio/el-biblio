@@ -220,7 +220,9 @@ class BibleStore {
   likedVerses: Set<string> = new Set();
   verseActivity: VerseActivityMap = {};
   historyEntries: HistoryEntry[] = [];
-  
+  readingPlan: BibleReadingPlan | null = null;
+  readingReminder: ReadingReminder | null = null;
+
   // UI state
   fontSize: number = 16;
   searchQuery: string = '';
@@ -676,6 +678,8 @@ class BibleStore {
         this.loadInstalledVersions(),
         this.loadLastReadPosition(),
         this.loadSavedSearches(),
+        this.loadReadingPlan(),
+        this.loadReadingReminder(),
       ]);
 
       runInAction(() => {
@@ -774,13 +778,294 @@ class BibleStore {
   setShowActivityPanel(show: boolean) {
     this.showActivityPanel = show;
   }
-  
+
   setSelectedVerseId(id: string | null) {
     this.selectedVerseId = id;
   }
-  
+
   setIsOffline(offline: boolean) {
     this.isOffline = offline;
+  }
+
+  // Bible Studio plan helpers
+  get activeReadingSegment(): ReadingPlanSegment | null {
+    if (!this.readingPlan) {
+      return null;
+    }
+    return this.readingPlan.segments[this.readingPlan.currentIndex] ?? null;
+  }
+
+  get readingPlanProgress() {
+    if (!this.readingPlan) {
+      return { completed: 0, total: 0 };
+    }
+    const completed = this.readingPlan.segments.filter(segment => !!segment.completedAt).length;
+    const total = this.readingPlan.segments.length;
+    return { completed, total };
+  }
+
+  get upcomingSegments(): ReadingPlanSegment[] {
+    if (!this.readingPlan) {
+      return [];
+    }
+    return this.readingPlan.segments.slice(this.readingPlan.currentIndex, this.readingPlan.currentIndex + 5);
+  }
+
+  async loadReadingPlan() {
+    try {
+      const stored = await AsyncStorage.getItem(STORAGE_KEYS.READING_PLAN);
+      if (!stored) {
+        runInAction(() => {
+          this.readingPlan = null;
+        });
+        return;
+      }
+
+      const parsed = JSON.parse(stored) as BibleReadingPlan;
+      runInAction(() => {
+        this.readingPlan = parsed;
+      });
+    } catch (error) {
+      console.error('Failed to load reading plan', error);
+      runInAction(() => {
+        this.readingPlan = null;
+      });
+    }
+  }
+
+  async createReadingPlan(params: CreateReadingPlanParams) {
+    if (!params.books?.length) {
+      throw new Error('Please choose at least one book for your plan.');
+    }
+    const chaptersPerDay = Math.max(1, Math.floor(params.chaptersPerDay || 1));
+    const versionTable = this.currentVersion?.tableName ?? DEFAULT_BIBLE_TABLE;
+    const versionName = this.currentVersion?.englishName ?? this.currentVersion?.shortName ?? null;
+
+    const segments = this.buildReadingSegments(params.books, chaptersPerDay);
+    const plan: BibleReadingPlan = {
+      id: `plan-${Date.now()}`,
+      createdAt: new Date().toISOString(),
+      books: params.books,
+      chaptersPerDay,
+      segments,
+      currentIndex: this.resolveCurrentSegmentIndex(segments),
+      reminderTime: params.reminderTime ?? null,
+      versionTable,
+      versionName,
+    };
+
+    await this.saveReadingPlan(plan);
+    runInAction(() => {
+      this.readingPlan = plan;
+    });
+
+    if (params.reminderTime) {
+      await this.setReadingReminder(params.reminderTime);
+    }
+
+    return plan;
+  }
+
+  async togglePlanSegmentCompletion(segmentId: string) {
+    if (!this.readingPlan) return;
+
+    const segments = this.readingPlan.segments.map(segment => {
+      if (segment.id !== segmentId) return segment;
+      const isCompleted = Boolean(segment.completedAt);
+      return {
+        ...segment,
+        completedAt: isCompleted ? null : new Date().toISOString(),
+      };
+    });
+
+    const currentIndex = this.resolveCurrentSegmentIndex(segments);
+    const nextPlan: BibleReadingPlan = {
+      ...this.readingPlan,
+      segments,
+      currentIndex,
+    };
+
+    await this.saveReadingPlan(nextPlan);
+    runInAction(() => {
+      this.readingPlan = nextPlan;
+    });
+  }
+
+  async clearReadingPlan() {
+    await this.saveReadingPlan(null);
+    runInAction(() => {
+      this.readingPlan = null;
+    });
+  }
+
+  async loadReadingReminder() {
+    try {
+      const stored = await AsyncStorage.getItem(STORAGE_KEYS.READING_REMINDER);
+      if (!stored) {
+        runInAction(() => {
+          this.readingReminder = null;
+        });
+        return;
+      }
+
+      const parsed = JSON.parse(stored) as ReadingReminder;
+      runInAction(() => {
+        this.readingReminder = parsed;
+      });
+    } catch (error) {
+      console.error('Failed to load reading reminder', error);
+      runInAction(() => {
+        this.readingReminder = null;
+      });
+    }
+  }
+
+  async setReadingReminder(time: string | null) {
+    if (!time) {
+      if (this.readingReminder?.notificationId) {
+        await this.cancelReadingReminder(this.readingReminder.notificationId);
+      }
+      await this.saveReadingReminder(null);
+      runInAction(() => {
+        this.readingReminder = null;
+        if (this.readingPlan) {
+          this.readingPlan = { ...this.readingPlan, reminderTime: null };
+        }
+      });
+      return;
+    }
+
+    const notificationId = await this.scheduleReadingReminder(time);
+    if (!notificationId) return;
+
+    const reminder: ReadingReminder = {
+      time,
+      notificationId,
+    };
+
+    await this.saveReadingReminder(reminder);
+
+    runInAction(() => {
+      this.readingReminder = reminder;
+      if (this.readingPlan) {
+        this.readingPlan = { ...this.readingPlan, reminderTime: time };
+      }
+    });
+  }
+
+  private buildReadingSegments(bookInputs: string[], chaptersPerDay: number): ReadingPlanSegment[] {
+    const segments: ReadingPlanSegment[] = [];
+
+    bookInputs.forEach(bookInput => {
+      const book = this.resolveBookMeta(bookInput);
+      if (!book) return;
+
+      let chapter = 1;
+      const totalChapters = book.chapters;
+      while (chapter <= totalChapters) {
+        const start = chapter;
+        const end = Math.min(totalChapters, chapter + chaptersPerDay - 1);
+        segments.push({
+          id: `${book.abbreviation}-${start}-${end}`,
+          bookAbbreviation: book.abbreviation,
+          bookName: book.name,
+          chapterStart: start,
+          chapterEnd: end,
+          completedAt: null,
+        });
+        chapter = end + 1;
+      }
+    });
+
+    return segments;
+  }
+
+  private resolveBookMeta(input: string) {
+    const normalized = input.trim().toLowerCase();
+    return bibleBooks.find(book =>
+      book.abbreviation.toLowerCase() === normalized || book.name.toLowerCase() === normalized
+    );
+  }
+
+  private resolveCurrentSegmentIndex(segments: ReadingPlanSegment[]) {
+    const nextIndex = segments.findIndex(segment => !segment.completedAt);
+    return nextIndex === -1 ? segments.length : nextIndex;
+  }
+
+  private async saveReadingPlan(plan: BibleReadingPlan | null) {
+    if (!plan) {
+      await AsyncStorage.removeItem(STORAGE_KEYS.READING_PLAN);
+      return;
+    }
+    await AsyncStorage.setItem(STORAGE_KEYS.READING_PLAN, JSON.stringify(plan));
+  }
+
+  private async saveReadingReminder(reminder: ReadingReminder | null) {
+    if (!reminder) {
+      await AsyncStorage.removeItem(STORAGE_KEYS.READING_REMINDER);
+      return;
+    }
+    await AsyncStorage.setItem(STORAGE_KEYS.READING_REMINDER, JSON.stringify(reminder));
+  }
+
+  private async scheduleReadingReminder(time: string): Promise<string | null> {
+    try {
+      const [hour, minute] = this.parseReminderTime(time);
+      const { status } = await Notifications.getPermissionsAsync();
+      let permissionStatus = status;
+      if (status !== 'granted') {
+        const request = await Notifications.requestPermissionsAsync();
+        permissionStatus = request.status;
+      }
+      if (permissionStatus !== 'granted') {
+        toast.error('Notification permissions are required for reading reminders.');
+        return null;
+      }
+
+      if (this.readingReminder?.notificationId) {
+        await this.cancelReadingReminder(this.readingReminder.notificationId);
+      }
+
+      const trigger: Notifications.DailyTriggerInput = {
+        hour,
+        minute,
+        type: Notifications.SchedulableTriggerInputTypes.DAILY,
+      };
+
+      const notificationId = await Notifications.scheduleNotificationAsync({
+        content: {
+          title: 'Bible Studio — Reading Reminder',
+          body: 'Take a moment to sit with today’s reading plan.',
+          sound: true,
+        },
+        trigger,
+      });
+
+      return notificationId;
+    } catch (error) {
+      console.error('Failed to schedule reading reminder', error);
+      toast.error('Unable to schedule the reading reminder.');
+      return null;
+    }
+  }
+
+  private async cancelReadingReminder(notificationId: string) {
+    try {
+      await Notifications.cancelScheduledNotificationAsync(notificationId);
+    } catch (error) {
+      console.error('Failed to cancel reading reminder', error);
+    }
+  }
+
+  private parseReminderTime(time: string): [number, number] {
+    const trimmed = time.trim();
+    const parts = trimmed.split(':');
+    if (parts.length < 2) {
+      throw new Error('Reminder time must be in HH:MM format.');
+    }
+    const hour = Math.min(23, Math.max(0, Number(parts[0])));
+    const minute = Math.min(59, Math.max(0, Number(parts[1])));
+    return [hour, minute];
   }
   
   // Clear state

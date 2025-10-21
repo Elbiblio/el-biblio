@@ -33,6 +33,41 @@ import { toast } from 'sonner-native';
 import * as Haptics from 'expo-haptics';
 import EmptyState from '@/components/EmptyState';
 
+const PLAN_PRESETS = [
+  {
+    id: 'gospels',
+    label: 'Journey through the Gospels',
+    books: ['Matthew', 'Mark', 'Luke', 'John'],
+    description: 'Walk with Jesus across the four gospel accounts.',
+  },
+  {
+    id: 'wisdom',
+    label: 'Wisdom & Poetry',
+    books: ['Psalms', 'Proverbs', 'Ecclesiastes'],
+    description: 'Sit with songs, proverbs, and reflections for the heart.',
+  },
+  {
+    id: 'acts-letters',
+    label: 'Acts & Early Letters',
+    books: ['Acts', 'Romans', '1 Corinthians', '2 Corinthians', 'Galatians', 'Ephesians'],
+    description: 'Follow the story of the early church and letters of Paul.',
+  },
+  {
+    id: 'torah',
+    label: 'Foundations (Torah)',
+    books: ['Genesis', 'Exodus', 'Leviticus', 'Numbers', 'Deuteronomy'],
+    description: 'Trace God’s covenant story from creation to the promised land.',
+  },
+  {
+    id: 'letters',
+    label: 'Letters of Hope',
+    books: ['Philippians', 'Colossians', '1 Thessalonians', '2 Thessalonians', 'James', '1 Peter'],
+    description: 'Lean into letters that encourage perseverance and joy.',
+  },
+];
+
+const CHAPTER_OPTIONS = [1, 2, 3, 4, 5];
+
 interface BibleScreenProps {
   route?: { params?: { book?: string; chapter?: number; verse?: number } };
 }
@@ -41,7 +76,7 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const verseListRef = useRef<FlatList>(null);
-  
+
   // Network status
   const { isOffline } = useNetworkStatus();
 
@@ -55,7 +90,28 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
   const [showFontModal, setShowFontModal] = useState(false);
   const [showVerseActions, setShowVerseActions] = useState(false);
   const [showComparisonModal, setShowComparisonModal] = useState(false);
+  const [showPlanBookModal, setShowPlanBookModal] = useState(false);
   const resumeTarget = bibleStore.resumeTarget;
+
+  const [selectedPresetIds, setSelectedPresetIds] = useState<string[]>([]);
+  const [manualPlanBooks, setManualPlanBooks] = useState<string[]>([]);
+  const builderBooks = useMemo(() => {
+    const presetBooks = selectedPresetIds.flatMap(id => {
+      const preset = PLAN_PRESETS.find(p => p.id === id);
+      return preset ? preset.books : [];
+    });
+    const combined = new Set<string>([...presetBooks, ...manualPlanBooks]);
+    return Array.from(combined);
+  }, [selectedPresetIds, manualPlanBooks]);
+  const [chaptersPerDayOption, setChaptersPerDayOption] = useState<number>(1);
+  const [builderReminder, setBuilderReminder] = useState('');
+
+  useEffect(() => {
+    if (!bibleStore.readingPlan) {
+      return;
+    }
+    setBuilderReminder(bibleStore.readingPlan.reminderTime ?? bibleStore.readingReminder?.time ?? '');
+  }, [bibleStore.readingPlan, bibleStore.readingReminder?.time]);
 
   // Handle initial params (apply once and only if different)
   const appliedInitialParamsRef = useRef(false);
@@ -265,6 +321,298 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
     return bibleStore.verses.find(v => v.id === bibleStore.selectedVerseId) ?? null;
   }, [bibleStore.selectedVerseId, bibleStore.verses]);
 
+  const handleTogglePreset = useCallback((presetId: string) => {
+    setSelectedPresetIds(prev => {
+      if (prev.includes(presetId)) {
+        return prev.filter(id => id !== presetId);
+      }
+      return [...prev, presetId];
+    });
+  }, []);
+
+  const handleAddManualBook = useCallback((bookName: string) => {
+    setManualPlanBooks(prev => {
+      if (prev.includes(bookName)) {
+        return prev;
+      }
+      return [...prev, bookName];
+    });
+  }, []);
+
+  const handleRemovePlanBook = useCallback((bookName: string) => {
+    setManualPlanBooks(prev => prev.filter(book => book !== bookName));
+    setSelectedPresetIds(prev => prev.filter(id => {
+      const preset = PLAN_PRESETS.find(p => p.id === id);
+      if (!preset) return true;
+      return !preset.books.includes(bookName);
+    }));
+  }, []);
+
+  const handleCreatePlan = useCallback(async () => {
+    try {
+      await bibleStore.createReadingPlan({
+        books: builderBooks,
+        chaptersPerDay: chaptersPerDayOption,
+        reminderTime: builderReminder.trim() ? builderReminder.trim() : undefined,
+      });
+      toast.success('Bible Studio plan ready');
+      setSelectedPresetIds([]);
+      setManualPlanBooks([]);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unable to create plan.';
+      toast.error(message);
+    }
+  }, [bibleStore, builderBooks, chaptersPerDayOption, builderReminder]);
+
+  const handleApplyReminder = useCallback(async () => {
+    try {
+      await bibleStore.setReadingReminder(builderReminder.trim() || null);
+      toast.success(builderReminder.trim() ? 'Reminder updated' : 'Reminder cleared');
+    } catch (error) {
+      console.error('Failed to update reminder', error);
+      toast.error('Unable to update reminder.');
+    }
+  }, [bibleStore, builderReminder]);
+
+  const handleClearPlan = useCallback(async () => {
+    await bibleStore.clearReadingPlan();
+    toast.success('Reading plan cleared');
+  }, [bibleStore]);
+
+  const handleToggleSegment = useCallback(async (segmentId: string) => {
+    try {
+      await bibleStore.togglePlanSegmentCompletion(segmentId);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    } catch (error) {
+      console.error('Failed to update segment', error);
+      toast.error('Unable to update segment progress.');
+    }
+  }, [bibleStore]);
+
+  const renderPlanBookModal = () => (
+    <Modal
+      visible={showPlanBookModal}
+      animationType="slide"
+      onRequestClose={() => setShowPlanBookModal(false)}
+    >
+      <View style={styles.modalContainer}>
+        <View style={styles.modalHeader}>
+          <Text style={styles.modalTitle}>Add books to your plan</Text>
+          <TouchableOpacity onPress={() => setShowPlanBookModal(false)}>
+            <MaterialIcons name="close" size={24} color={theme.colors.text.secondary} />
+          </TouchableOpacity>
+        </View>
+
+        <FlatList
+          data={bibleBooks}
+          keyExtractor={item => item.abbreviation}
+          renderItem={({ item }) => (
+            <TouchableOpacity
+              style={styles.versionItem}
+              onPress={() => {
+                handleAddManualBook(item.name);
+                setShowPlanBookModal(false);
+              }}
+            >
+              <Text style={styles.versionName}>{item.name}</Text>
+              <MaterialIcons
+                name={manualPlanBooks.includes(item.name) ? 'check-circle' : 'add-circle-outline'}
+                size={22}
+                color={manualPlanBooks.includes(item.name) ? theme.colors.primary : theme.colors.text.secondary}
+              />
+            </TouchableOpacity>
+          )}
+        />
+      </View>
+    </Modal>
+  );
+
+  const renderPlanHeader = () => {
+    if (!bibleStore.isInitialized) {
+      return null;
+    }
+
+    const readingPlan = bibleStore.readingPlan;
+    const { completed, total } = bibleStore.readingPlanProgress;
+    const progressPercent = total ? Math.round((completed / total) * 100) : 0;
+    const upcoming = bibleStore.upcomingSegments;
+    const [currentSegment, ...upcomingSegments] = upcoming;
+
+    return (
+      <View style={styles.planContainer}>
+        <Text style={styles.planTitle}>Bible Studio</Text>
+        <Text style={styles.planSubtitle}>
+          Shape a rhythm of Scripture that meets you today and keeps you growing.
+        </Text>
+
+        {readingPlan ? (
+          <View style={styles.planCard}>
+            <View style={styles.planCardHeader}>
+              <View>
+                <Text style={styles.planCardTitle}>Your current plan</Text>
+                <Text style={styles.planCardSummary}>
+                  {completed} of {total} sessions complete ({progressPercent}%)
+                </Text>
+              </View>
+              <TouchableOpacity style={styles.planClearButton} onPress={handleClearPlan}>
+                <MaterialIcons name="delete-outline" size={18} color={theme.colors.error} />
+                <Text style={styles.planClearButtonText}>Clear plan</Text>
+              </TouchableOpacity>
+            </View>
+
+            {currentSegment && (
+              <View style={styles.planActiveSegment}>
+                <Text style={styles.planSectionTitle}>Today’s focus</Text>
+                <TouchableOpacity
+                  style={[styles.planSegmentChip, currentSegment.completedAt && styles.planSegmentCompleted]}
+                  onPress={() => handleToggleSegment(currentSegment.id)}
+                >
+                  <MaterialIcons
+                    name={currentSegment.completedAt ? 'check-circle' : 'radio-button-unchecked'}
+                    size={18}
+                    color={currentSegment.completedAt ? theme.colors.primary : theme.colors.text.secondary}
+                  />
+                  <Text style={styles.planSegmentText}>
+                    {`${currentSegment.bookName} ${currentSegment.chapterStart}${currentSegment.chapterEnd !== currentSegment.chapterStart ? `-${currentSegment.chapterEnd}` : ''}`}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {!!upcomingSegments.length && (
+              <View style={styles.planUpcomingSection}>
+                <Text style={styles.planSectionTitle}>Up next</Text>
+                <View style={styles.planSegmentList}>
+                  {upcomingSegments.map(segment => (
+                    <TouchableOpacity
+                      key={segment.id}
+                      style={[styles.planSegmentChip, segment.completedAt && styles.planSegmentCompleted]}
+                      onPress={() => handleToggleSegment(segment.id)}
+                    >
+                      <MaterialIcons
+                        name={segment.completedAt ? 'check-circle' : 'radio-button-unchecked'}
+                        size={18}
+                        color={segment.completedAt ? theme.colors.primary : theme.colors.text.secondary}
+                      />
+                      <Text style={styles.planSegmentText}>
+                        {`${segment.bookName} ${segment.chapterStart}${segment.chapterEnd !== segment.chapterStart ? `-${segment.chapterEnd}` : ''}`}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+            )}
+
+            <View style={styles.planReminderRow}>
+              <View style={styles.planReminderInfo}>
+                <Text style={styles.planSectionTitle}>Daily reminder</Text>
+                <Text style={styles.planReminderHint}>Enter time in 24h format, e.g. 07:30</Text>
+              </View>
+              <View style={styles.planReminderControls}>
+                <TextInput
+                  value={builderReminder}
+                  onChangeText={setBuilderReminder}
+                  placeholder="HH:MM"
+                  style={styles.planReminderInput}
+                  keyboardType="numbers-and-punctuation"
+                />
+                <TouchableOpacity style={styles.planReminderButton} onPress={handleApplyReminder}>
+                  <Text style={styles.planReminderButtonText}>Save</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        ) : (
+          <View style={styles.planCard}>
+            <Text style={styles.planCardTitle}>Start a new reading journey</Text>
+            <Text style={styles.planCardSummary}>
+              Choose a focus, decide how many chapters per day, and set an optional reminder.
+            </Text>
+
+            <View style={styles.planPresetList}>
+              {PLAN_PRESETS.map(preset => {
+                const active = selectedPresetIds.includes(preset.id);
+                return (
+                  <TouchableOpacity
+                    key={preset.id}
+                    style={[styles.planPresetItem, active && styles.planPresetItemActive]}
+                    onPress={() => handleTogglePreset(preset.id)}
+                  >
+                    <View style={styles.planPresetHeader}>
+                      <Text style={styles.planPresetTitle}>{preset.label}</Text>
+                      <MaterialIcons
+                        name={active ? 'check-circle' : 'add-circle-outline'}
+                        size={20}
+                        color={active ? theme.colors.primary : theme.colors.text.secondary}
+                      />
+                    </View>
+                    <Text style={styles.planPresetDescription}>{preset.description}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            <View style={styles.planBooksRow}>
+              <Text style={styles.planSectionTitle}>Selected books</Text>
+              <TouchableOpacity onPress={() => setShowPlanBookModal(true)}>
+                <Text style={styles.planActionLink}>Add books</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.planBookChips}>
+              {builderBooks.length ? (
+                builderBooks.map(book => (
+                  <TouchableOpacity key={book} style={styles.planBookChip} onPress={() => handleRemovePlanBook(book)}>
+                    <Text style={styles.planBookChipText}>{book}</Text>
+                    <MaterialIcons name="close" size={16} color={theme.colors.text.secondary} />
+                  </TouchableOpacity>
+                ))
+              ) : (
+                <Text style={styles.planEmptyText}>No books selected yet.</Text>
+              )}
+            </View>
+
+            <View style={styles.planControlsRow}>
+              <View style={styles.planChaptersGroup}>
+                <Text style={styles.planSectionTitle}>Chapters per day</Text>
+                <View style={styles.planChaptersOptions}>
+                  {CHAPTER_OPTIONS.map(option => (
+                    <TouchableOpacity
+                      key={option}
+                      style={[styles.planChapterOption, chaptersPerDayOption === option && styles.planChapterOptionActive]}
+                      onPress={() => setChaptersPerDayOption(option)}
+                    >
+                      <Text style={styles.planChapterOptionText}>{option}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+
+              <View style={styles.planReminderInline}>
+                <Text style={styles.planSectionTitle}>Reminder (optional)</Text>
+                <TextInput
+                  value={builderReminder}
+                  onChangeText={setBuilderReminder}
+                  placeholder="HH:MM"
+                  style={styles.planReminderInput}
+                  keyboardType="numbers-and-punctuation"
+                />
+              </View>
+            </View>
+
+            <TouchableOpacity
+              style={[styles.planPrimaryButton, (!builderBooks.length) && styles.planPrimaryButtonDisabled]}
+              onPress={handleCreatePlan}
+              disabled={!builderBooks.length}
+            >
+              <Text style={styles.planPrimaryButtonText}>Create plan</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+      </View>
+    );
+  };
+
   const handleSavedSearchSelect = useCallback((term: string) => {
     bibleStore.setSearchQuery(term);
     handleSearch(term);
@@ -284,7 +632,7 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
             onPress={() => setShowVersionsModal(true)}
           >
             <Text style={styles.headerButtonText}>
-              {bibleStore.currentVersion?.shortName || 'RV'}
+              Bible Studio
             </Text>
             <MaterialIcons name="menu-book" size={20} color={theme.colors.text.primary} />
           </TouchableOpacity>
@@ -490,6 +838,7 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
 
   return (
     <View style={styles.container}>
+      {renderPlanBookModal()}
       <View style={styles.headerContainer}>
         {renderHeader()}
       </View>
@@ -520,6 +869,8 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
         renderItem={renderVerse}
         keyExtractor={item => item.id}
         contentContainerStyle={styles.contentContainer}
+        ListHeaderComponent={renderPlanHeader}
+        ListHeaderComponentStyle={styles.planHeader}
         initialNumToRender={20}
         maxToRenderPerBatch={10}
         windowSize={5}
@@ -784,6 +1135,243 @@ const createStyles = (theme: Theme) => StyleSheet.create({
   },
   contentContainer: {
     padding: theme.spacing.md,
+  },
+  planHeader: {
+    paddingBottom: theme.spacing.lg,
+  },
+  planContainer: {
+    gap: theme.spacing.lg,
+    paddingTop: theme.spacing.lg,
+    paddingBottom: theme.spacing.md,
+  },
+  planTitle: {
+    ...theme.typography.heading.medium,
+    color: theme.colors.text.primary,
+  },
+  planSubtitle: {
+    ...theme.typography.body.sans,
+    color: theme.colors.text.secondary,
+    marginTop: theme.spacing.xs,
+  },
+  planCard: {
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.borderRadius.lg,
+    padding: theme.spacing.lg,
+    gap: theme.spacing.md,
+    shadowColor: theme.colors.shadow,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    elevation: 3,
+  },
+  planCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: theme.spacing.md,
+  },
+  planCardTitle: {
+    ...theme.typography.heading.small,
+    color: theme.colors.text.primary,
+  },
+  planCardSummary: {
+    ...theme.typography.caption.secondary,
+    color: theme.colors.text.secondary,
+    marginTop: theme.spacing.xs,
+  },
+  planClearButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.xs,
+    paddingVertical: theme.spacing.xs,
+    paddingHorizontal: theme.spacing.sm,
+    backgroundColor: `${theme.colors.error}12`,
+    borderRadius: theme.borderRadius.sm,
+  },
+  planClearButtonText: {
+    ...theme.typography.caption.primary,
+    color: theme.colors.error,
+  },
+  planActiveSegment: {
+    gap: theme.spacing.xs,
+  },
+  planSectionTitle: {
+    ...theme.typography.caption.primary,
+    color: theme.colors.text.secondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+  },
+  planSegmentChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.xs,
+    paddingVertical: theme.spacing.xs,
+    paddingHorizontal: theme.spacing.sm,
+    borderRadius: theme.borderRadius.md,
+    backgroundColor: `${theme.colors.primary}12`,
+  },
+  planSegmentCompleted: {
+    backgroundColor: `${theme.colors.primary}22`,
+  },
+  planSegmentText: {
+    ...theme.typography.caption.primary,
+    color: theme.colors.text.primary,
+  },
+  planUpcomingSection: {
+    gap: theme.spacing.sm,
+  },
+  planSegmentList: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: theme.spacing.xs,
+  },
+  planReminderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: theme.spacing.md,
+  },
+  planReminderInfo: {
+    flex: 1,
+    gap: theme.spacing.xs,
+  },
+  planReminderHint: {
+    ...theme.typography.caption.secondary,
+    color: theme.colors.text.secondary,
+  },
+  planReminderControls: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.xs,
+  },
+  planReminderInput: {
+    width: 76,
+    ...theme.typography.caption.primary,
+    color: theme.colors.text.primary,
+    paddingVertical: theme.spacing.xs,
+    paddingHorizontal: theme.spacing.sm,
+    borderRadius: theme.borderRadius.sm,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.background,
+  },
+  planReminderButton: {
+    paddingVertical: theme.spacing.xs,
+    paddingHorizontal: theme.spacing.sm,
+    borderRadius: theme.borderRadius.sm,
+    backgroundColor: theme.colors.primary,
+  },
+  planReminderButtonText: {
+    ...theme.typography.caption.primary,
+    color: theme.colors.text.inverse,
+  },
+  planPresetList: {
+    gap: theme.spacing.sm,
+  },
+  planPresetItem: {
+    borderRadius: theme.borderRadius.md,
+    borderWidth: 1,
+    borderColor: `${theme.colors.primary}25`,
+    padding: theme.spacing.md,
+    gap: theme.spacing.xs,
+    backgroundColor: theme.colors.background,
+  },
+  planPresetItemActive: {
+    borderColor: theme.colors.primary,
+    backgroundColor: `${theme.colors.primary}12`,
+  },
+  planPresetHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  planPresetTitle: {
+    ...theme.typography.body.sans,
+    color: theme.colors.text.primary,
+  },
+  planPresetDescription: {
+    ...theme.typography.caption.secondary,
+    color: theme.colors.text.secondary,
+  },
+  planBooksRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  planActionLink: {
+    ...theme.typography.caption.primary,
+    color: theme.colors.primary,
+  },
+  planBookChips: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: theme.spacing.xs,
+  },
+  planBookChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.xs,
+    paddingVertical: theme.spacing.xs,
+    paddingHorizontal: theme.spacing.sm,
+    borderRadius: theme.borderRadius.sm,
+    backgroundColor: `${theme.colors.primary}15`,
+  },
+  planBookChipText: {
+    ...theme.typography.caption.primary,
+    color: theme.colors.text.primary,
+  },
+  planEmptyText: {
+    ...theme.typography.caption.secondary,
+    color: theme.colors.text.secondary,
+  },
+  planControlsRow: {
+    flexDirection: 'row',
+    gap: theme.spacing.md,
+    flexWrap: 'wrap',
+  },
+  planChaptersGroup: {
+    flex: 1,
+    gap: theme.spacing.sm,
+  },
+  planChaptersOptions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: theme.spacing.xs,
+  },
+  planChapterOption: {
+    paddingVertical: theme.spacing.xs,
+    paddingHorizontal: theme.spacing.sm,
+    borderRadius: theme.borderRadius.sm,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.background,
+  },
+  planChapterOptionActive: {
+    borderColor: theme.colors.primary,
+    backgroundColor: `${theme.colors.primary}18`,
+  },
+  planChapterOptionText: {
+    ...theme.typography.caption.primary,
+    color: theme.colors.text.primary,
+  },
+  planReminderInline: {
+    flexBasis: 140,
+    gap: theme.spacing.xs,
+  },
+  planPrimaryButton: {
+    marginTop: theme.spacing.sm,
+    alignSelf: 'flex-start',
+    paddingVertical: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.lg,
+    borderRadius: theme.borderRadius.md,
+    backgroundColor: theme.colors.primary,
+  },
+  planPrimaryButtonDisabled: {
+    backgroundColor: `${theme.colors.primary}40`,
+  },
+  planPrimaryButtonText: {
+    ...theme.typography.button.primary,
+    color: theme.colors.text.inverse,
   },
   resumeBar: {
     flexDirection: 'row',

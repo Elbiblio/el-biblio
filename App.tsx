@@ -41,6 +41,7 @@ import SpiritualCareerScreen from './src/screens/SpiritualCareerScreen';
 import RegistrationScreen from './src/screens/RegistrationScreen';
 import CommunityScreen from './src/screens/CommunityScreen';
 import PrayerRequestsScreen from './src/screens/PrayerRequestsScreen';
+import MyJourneyScreen from './src/screens/MyJourneyScreen';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { appStore } from './src/stores/appStore';
 import { StoreProvider } from './src/stores/StoreProvider';
@@ -302,6 +303,7 @@ const AppContent = () => {
           <Stack.Screen name="LeaderboardScreen" component={LeaderboardScreen} />
           <Stack.Screen name="GameScreen" component={GameScreen} />
           <Stack.Screen name="SpiritualCareerScreen" component={SpiritualCareerScreen} />
+          <Stack.Screen name="MyJourneyScreen" component={MyJourneyScreen} />
         </Stack.Navigator>
         {/* Place overlay components inside NavigationContainer so they have navigation context */}
         {showChallengeBanner && (

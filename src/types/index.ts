@@ -692,6 +692,7 @@ export type RootStackParamList = {
   BibleScreen: {book?: string, chapter?: number, verse?: number};
   ChallengeDetail: { id: string };
   SpiritualCareerScreen: undefined;
+  MyJourneyScreen: undefined;
 };
 
 export interface BibleVersion {
