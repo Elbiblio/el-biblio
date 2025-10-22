@@ -37,6 +37,7 @@ import {
   Flame,
   Lightning,
   Lock,
+  X,
 } from './../components/Icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Reflection, RootStackParamList, Verse, User } from '@/types';
@@ -170,6 +171,7 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
   // const [currentVerseIndex, setCurrentVerseIndex] = useState(0);
   const scrollX = useSharedValue(0);
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const [selectedVerse, setSelectedVerse] = useState<Verse | null>(null);
   const [isFirstVisitToday, setIsFirstVisitToday] = useState(false);
   const [showGamesModal, setShowGamesModal] = useState(false);
   // Removed: local points modal state; rely on global interceptor-driven modal
@@ -515,7 +517,6 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
 
   const handleVersePress = (verse: Verse) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    // setActiveVerse(verse.id);
     cardScale.value = withSequence(
       withTiming(0.95, { duration: 100 }),
       withTiming(1, { duration: 100 })
@@ -971,7 +972,7 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
           <Text style={styles.sectionTitle}>VERSE OF THE DAY</Text>
           <View style={styles.verseCard}>
             <Text style={styles.loadingText}>No verse of the day yet. Please check back later.</Text>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={[styles.joinChallengeButton, { marginTop: theme?.spacing.md }]}
               onPress={() => navigation.navigate('DailyVersesScreen')}
             >
@@ -986,14 +987,14 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
     return (
       <Animated.View style={[styles.section, verseAnimatedStyle]}>
         <Text style={styles.sectionTitle}>VERSE OF THE DAY</Text>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.verseCard}
           onPress={() => {
             verseTranslateY.value = withSequence(
               withTiming(5, { duration: 100 }),
               withTiming(0, { duration: 100 })
             );
-            handleVersePress(verse);
+            setSelectedVerse(verse);
           }}
         >
           <LinearGradient
@@ -1002,7 +1003,12 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
             end={{ x: 1, y: 1 }}
             style={styles.cardGradient}
           />
-          <Text style={styles.verseReference}>{verse.reference_display}</Text>
+          <Text style={styles.verseReference}>{verse.reference_display || verse.reference}</Text>
+          {verse.context_reference && (
+            <Text style={styles.verseContextReference}>
+              {verse.context_reference}
+            </Text>
+          )}
           <Text style={styles.verseText} numberOfLines={3}>
             {verse.text}
           </Text>
@@ -1020,7 +1026,6 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
               </Text>
             </View>
           </View>
-          
           <View style={styles.interactionsContainer}>
             <View style={styles.reflectionMeta}>
               {verse.reflections && verse.reflections.length > 0 && (
@@ -1031,7 +1036,7 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
                     size={24}
                   />
                   <Text style={styles.reflectionCount}>
-                    {verse.reflections.length > 3 
+                    {verse.reflections.length > 3
                       ? `+${verse.reflections.length - 3} others sharing`
                       : `${verse.reflections.length} sharing`}
                   </Text>
@@ -1169,6 +1174,61 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
         {renderVerseOfTheDay()}
         {renderLearningSpotlight()}
       </ScrollView>
+
+      {selectedVerse && (
+        <Modal
+          visible={true}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setSelectedVerse(null)}
+        >
+          <View style={styles.contextOverlay}>
+            <View style={styles.contextContainer}>
+              <View style={styles.contextHeader}>
+                <Text style={styles.contextTitle} numberOfLines={2}>
+                  {selectedVerse.context_reference || selectedVerse.reference_display || selectedVerse.reference}
+                </Text>
+                <TouchableOpacity onPress={() => setSelectedVerse(null)}>
+                  <X size={20} color={theme?.colors.text.secondary ?? '#666'} />
+                </TouchableOpacity>
+              </View>
+              <ScrollView style={styles.contextBody} showsVerticalScrollIndicator={false}>
+                <Text style={styles.contextText}>
+                  {selectedVerse.context_text || 'Context not available yet.'}
+                </Text>
+              </ScrollView>
+              <View style={styles.contextFooter}>
+                {selectedVerse.book && selectedVerse.chapter && (
+                  <TouchableOpacity
+                    style={styles.contextPrimaryButton}
+                    onPress={() => {
+                      navigation.navigate('BibleScreen', {
+                        book: selectedVerse.book || undefined,
+                        chapter: selectedVerse.chapter || undefined,
+                        verse: selectedVerse.verse || undefined,
+                      });
+                      setSelectedVerse(null);
+                    }}
+                  >
+                    <Text style={styles.contextPrimaryText}>Open in Bible</Text>
+                  </TouchableOpacity>
+                )}
+                <TouchableOpacity
+                  style={selectedVerse.book && selectedVerse.chapter ? styles.contextSecondaryButton : styles.contextPrimaryButton}
+                  onPress={() => {
+                    handleVersePress(selectedVerse);
+                    setSelectedVerse(null);
+                  }}
+                >
+                  <Text style={selectedVerse.book && selectedVerse.chapter ? styles.contextSecondaryText : styles.contextPrimaryText}>
+                    View Details
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+      )}
 
       {renderGamesModal()}
       
@@ -1704,9 +1764,14 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
   },
   verseReference: {
-    ...theme?.typography.verse.emphasis,
-    color: theme?.colors.primary,
-    marginBottom: theme?.spacing.sm,
+    ...theme?.typography.heading.small,
+    color: theme?.colors.text.primary,
+    marginBottom: theme?.spacing.xs,
+  },
+  verseContextReference: {
+    ...theme?.typography.caption.secondary,
+    color: theme?.colors.text.secondary,
+    marginBottom: theme?.spacing.xs,
   },
   verseText: {
     ...theme?.typography.verse.regular,
@@ -1729,9 +1794,78 @@ const createStyles = (theme: Theme) => StyleSheet.create({
   },
   loadingText: {
     ...theme?.typography.body.sans,
-    color: theme?.colors.text.secondary,
     textAlign: 'center',
+    color: theme?.colors.text.secondary,
+  },
+  contextOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: theme?.spacing.lg,
+  },
+  contextContainer: {
+    width: '100%',
+    maxWidth: 420,
+    backgroundColor: theme?.colors.background,
+    borderRadius: theme?.borderRadius.lg,
+    overflow: 'hidden',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: theme?.colors.border,
+  },
+  contextHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
     padding: theme?.spacing.md,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: theme?.colors.border,
+  },
+  contextTitle: {
+    ...theme?.typography.heading.small,
+    flex: 1,
+    color: theme?.colors.text.primary,
+    marginRight: theme?.spacing.sm,
+  },
+  contextBody: {
+    maxHeight: 300,
+    paddingHorizontal: theme?.spacing.md,
+    paddingVertical: theme?.spacing.sm,
+  },
+  contextText: {
+    ...theme?.typography.body.sans,
+    color: theme?.colors.text.primary,
+    lineHeight: 22,
+  },
+  contextFooter: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: theme?.spacing.sm,
+    padding: theme?.spacing.md,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: theme?.colors.border,
+  },
+  contextPrimaryButton: {
+    paddingVertical: theme?.spacing.xs,
+    paddingHorizontal: theme?.spacing.md,
+    borderRadius: theme?.borderRadius.full,
+    backgroundColor: theme?.colors.primary,
+  },
+  contextPrimaryText: {
+    ...theme?.typography.caption.primary,
+    color: theme?.colors.text.inverse,
+    fontWeight: '600',
+  },
+  contextSecondaryButton: {
+    paddingVertical: theme?.spacing.xs,
+    paddingHorizontal: theme?.spacing.md,
+    borderRadius: theme?.borderRadius.full,
+    backgroundColor: theme?.colors.surface,
+  },
+  contextSecondaryText: {
+    ...theme?.typography.caption.primary,
+    color: theme?.colors.text.primary,
+    fontWeight: '600',
   },
   interactionsContainer: {
     flexDirection: 'row',

@@ -1,11 +1,11 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, StatusBar, FlatList, TextInput, ActivityIndicator, RefreshControl, Modal, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, StatusBar, FlatList, TextInput, ActivityIndicator, RefreshControl, Modal, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
 import { Theme } from '@/theme';
 import { type RootStackParamList, type PrayerRequest, PRAYER_CATEGORIES, type PrayerCategory } from '@/types';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { ArrowLeft, ChevronDown, Sparkle, Heart } from '@/components/Icons';
+import { ArrowLeft, ChevronDown, Sparkle, Heart, MessageCircle } from '@/components/Icons';
 import { observer } from 'mobx-react-lite';
 import { usePrayerRequestsStore, useAuthStore } from '@/stores/StoreProvider';
 import EmptyState from '@/components/EmptyState';
@@ -15,11 +15,11 @@ import { toast } from 'sonner-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const getPrayedCount = (request: PrayerRequest): number => {
-  if (typeof request.meta?.prayed_count === 'number') {
-    return request.meta.prayed_count;
-  }
   if (typeof request.prayed_count === 'number') {
     return request.prayed_count;
+  }
+  if (Array.isArray(request.prayed_users)) {
+    return request.prayed_users.length;
   }
   return 0;
 };
@@ -30,6 +30,27 @@ const hasUserPrayed = (request: PrayerRequest, userId?: string): boolean => {
   }
   if (request.has_prayed) {
     return true;
+  }
+  if (Array.isArray(request.prayed_users)) {
+    return request.prayed_users.some(prayedUser => String(prayedUser) === userId);
+  }
+  return false;
+};
+
+const hasUserAmen = (request: PrayerRequest, userId?: string): boolean => {
+  if (!userId) {
+    return false;
+  }
+  if (Array.isArray(request.amen_users)) {
+    return request.amen_users.some(amenUser => String(amenUser) === userId);
+  }
+  return false;
+};
+
+const hasUserAmenComment = (comment: any, userId?: string): boolean => {
+  if (!userId) return false;
+  if (Array.isArray(comment.amen_users)) {
+    return comment.amen_users.some((amenUser: any) => String(amenUser) === userId);
   }
   return false;
 };
@@ -43,11 +64,12 @@ const PrayerRequestsScreen = ({ navigation }: PrayerRequestsScreenProps) => {
 
   const prayerRequestsStore = usePrayerRequestsStore();
   const { requests, isLoading, pagination } = prayerRequestsStore;
-  const { fetchRequests, createRequest, prayForRequest } = prayerRequestsStore;
+  const { fetchRequests, createRequest, prayForRequest, toggleAmen, addComment, toggleCommentAmen } = prayerRequestsStore;
   const { user } = useAuthStore();
 
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [currentCategory, setCurrentCategory] = useState<PrayerCategory>('help');
+  const [currentCategory, setCurrentCategory] = useState<PrayerCategory>('healing');
+  const [currentType, setCurrentType] = useState<'all' | 'prayer' | 'testimony'>('all');
   const [showCategoryPicker, setShowCategoryPicker] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [showPrayerModal, setShowPrayerModal] = useState(false);
@@ -66,6 +88,11 @@ const PrayerRequestsScreen = ({ navigation }: PrayerRequestsScreenProps) => {
 
   const [composeCategory, setComposeCategory] = useState<PrayerCategory>('healing');
   const [composeVisibility, setComposeVisibility] = useState<'anonymous'|'first_name'|'full_name'>('anonymous');
+  const [composeType, setComposeType] = useState<'prayer' | 'testimony'>('prayer');
+  const [amenLoadingId, setAmenLoadingId] = useState<string | null>(null);
+  const [selectedRequestId, setSelectedRequestId] = useState<string | null>(null);
+  const [commentDraft, setCommentDraft] = useState('');
+  const [isCommentPosting, setIsCommentPosting] = useState(false);
 
   const categories = PRAYER_CATEGORIES;
 
@@ -73,6 +100,11 @@ const PrayerRequestsScreen = ({ navigation }: PrayerRequestsScreenProps) => {
     if (!activePrayerId) return null;
     return requests.find(r => r.id === activePrayerId) ?? null;
   }, [activePrayerId, requests]);
+
+  const activeDetailRequest = useMemo(() => {
+    if (!selectedRequestId) return null;
+    return requests.find(r => r.id === selectedRequestId) ?? null;
+  }, [selectedRequestId, requests]);
 
   const prayedIdSet = useMemo(() => new Set(prayedIds), [prayedIds]);
   const userId = useMemo(() => (user?.id ? String(user.id) : undefined), [user?.id]);
@@ -90,8 +122,8 @@ const PrayerRequestsScreen = ({ navigation }: PrayerRequestsScreenProps) => {
   }, []);
 
   useEffect(() => {
-    fetchRequests(1, { category: currentCategory });
-  }, [currentCategory, fetchRequests]);
+    fetchRequests(1, { category: currentCategory, type: currentType });
+  }, [currentCategory, currentType, fetchRequests]);
 
   useEffect(() => {
     if (!userId) {
@@ -160,6 +192,7 @@ const PrayerRequestsScreen = ({ navigation }: PrayerRequestsScreenProps) => {
       content: body,
       visibility: composeVisibility,
       category: cat,
+      type: composeType,
     });
     
     if (created) {
@@ -167,6 +200,7 @@ const PrayerRequestsScreen = ({ navigation }: PrayerRequestsScreenProps) => {
       setComposeDraft('');
       setComposeCategory('healing');
       setComposeVisibility('anonymous');
+      setComposeType('prayer');
       setShowComposeModal(false);
     }
     setIsPosting(false);
@@ -213,14 +247,14 @@ const PrayerRequestsScreen = ({ navigation }: PrayerRequestsScreenProps) => {
 
   const onRefresh = useCallback(async () => {
     setIsRefreshing(true);
-    await fetchRequests(1, { category: currentCategory });
+    await fetchRequests(1, { category: currentCategory, type: currentType });
     setIsRefreshing(false);
-  }, [fetchRequests, currentCategory]);
+  }, [fetchRequests, currentCategory, currentType]);
 
   const loadMore = useCallback(() => {
     if (isLoading || !pagination.hasMore) return;
-    fetchRequests(pagination.currentPage + 1, { category: currentCategory });
-  }, [isLoading, pagination, fetchRequests, currentCategory]);
+    fetchRequests(pagination.currentPage + 1, { category: currentCategory, type: currentType });
+  }, [isLoading, pagination, fetchRequests, currentCategory, currentType]);
 
   const toggleSelect = useCallback((id: string) => {
     setSelectedIds(prev => {
@@ -320,6 +354,55 @@ const PrayerRequestsScreen = ({ navigation }: PrayerRequestsScreenProps) => {
     );
   };
 
+  const handleAmen = useCallback(async (id: string) => {
+    setAmenLoadingId(id);
+    const success = await toggleAmen(id);
+    if (!success) {
+      toast.error('Unable to update amen right now.');
+    }
+    setAmenLoadingId(null);
+  }, [toggleAmen]);
+
+  const openDetail = useCallback((id: string) => {
+    setSelectedRequestId(id);
+    setCommentDraft('');
+  }, []);
+
+  const handleCommentAmen = useCallback(async (commentId: string) => {
+    const success = await toggleCommentAmen(commentId);
+    if (!success) {
+      toast.error('Unable to update comment amen.');
+    }
+  }, [toggleCommentAmen]);
+
+  const submitComment = useCallback(async () => {
+    if (!selectedRequestId) return;
+    const trimmed = commentDraft.trim();
+    if (!trimmed) {
+      toast.warning('Share a short encouragement first.');
+      return;
+    }
+    setIsCommentPosting(true);
+    const result = await addComment(selectedRequestId, trimmed);
+    if (result) {
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      setCommentDraft('');
+    } else {
+      toast.error('Could not post your comment. Please retry.');
+    }
+    setIsCommentPosting(false);
+  }, [addComment, commentDraft, selectedRequestId]);
+
+  const amenCount = (request: PrayerRequest) => {
+    if (typeof request.amen_count === 'number') {
+      return request.amen_count;
+    }
+    if (Array.isArray(request.amen_users)) {
+      return request.amen_users.length;
+    }
+    return 0;
+  };
+
   const renderItem = ({ item }: { item: PrayerRequest }) => {
     const isSelected = selectedIds.has(item.id);
     const displayContent = item.content || item.detail || 'No content';
@@ -328,17 +411,26 @@ const PrayerRequestsScreen = ({ navigation }: PrayerRequestsScreenProps) => {
       : 'Anonymous';
     const alreadyPrayed = hasUserPrayed(item, userId) || prayedIdSet.has(item.id);
     const prayedCount = getPrayedCount(item);
+    const amened = hasUserAmen(item, userId);
+    const amenTotal = amenCount(item);
     const prayButtonLabel = alreadyPrayed ? 'Prayed 🙏' : 'Pray now 🙏';
 
     return (
       <TouchableOpacity activeOpacity={0.9} onPress={() => toggleSelect(item.id)}>
-        <View style={[styles.card, isSelected && { borderColor: theme.colors.primary }] }>
+        <View style={[styles.card, isSelected && { borderColor: theme.colors.primary }]}>
           <View style={styles.cardHeaderRow}>
             <Text style={styles.cardAuthor}>{displayAuthor}</Text>
             <View style={[styles.checkbox, isSelected && { backgroundColor: theme.colors.primary }]} />
           </View>
+          <View style={styles.cardMetaRow}>
+            <View style={[styles.typeBadge, item.type === 'testimony' && { backgroundColor: `${theme.colors.like}20` }]}>
+              <Text style={[styles.typeBadgeText, item.type === 'testimony' && { color: theme.colors.like }]}>
+                {item.type === 'testimony' ? 'Testimony' : 'Prayer'}
+              </Text>
+            </View>
+            <Text style={styles.cardTime}>{new Date(item.created_at).toLocaleString()}</Text>
+          </View>
           <Text style={styles.cardContent}>{displayContent}</Text>
-          <Text style={styles.cardTime}>{new Date(item.created_at).toLocaleString()}</Text>
           <View style={styles.cardActions}>
             <PrayButton
               count={prayedCount}
@@ -352,6 +444,27 @@ const PrayerRequestsScreen = ({ navigation }: PrayerRequestsScreenProps) => {
               {prayedCount} prayed so far
             </Text>
           )}
+          <View style={styles.communityActions}>
+            <TouchableOpacity
+              style={[styles.communityButton, amened && styles.communityButtonActive]}
+              onPress={() => handleAmen(item.id)}
+              disabled={amenLoadingId === item.id}
+            >
+              <Heart size={16} color={amened ? theme.colors.like : theme.colors.text.secondary} filled={amened} />
+              <Text style={[styles.communityButtonText, amened && { color: theme.colors.like }]}>
+                Amen {amenTotal ? `(${amenTotal})` : ''}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.communityButton}
+              onPress={() => openDetail(item.id)}
+            >
+              <MessageCircle size={16} color={theme.colors.primary} />
+              <Text style={styles.communityButtonText}>
+                Encourage {item.comments_count ? `(${item.comments_count})` : ''}
+              </Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </TouchableOpacity>
     );
@@ -398,6 +511,19 @@ const PrayerRequestsScreen = ({ navigation }: PrayerRequestsScreenProps) => {
       {/* Category toggle / dropdown */}
       <View style={styles.categoryWrap}>
         {renderCategoryControl()}
+        <View style={styles.typeToggleRow}>
+          {(['all', 'prayer', 'testimony'] as const).map(typeOption => (
+            <TouchableOpacity
+              key={typeOption}
+              style={[styles.typeChip, currentType === typeOption && styles.typeChipActive]}
+              onPress={() => setCurrentType(typeOption)}
+            >
+              <Text style={[styles.typeChipText, currentType === typeOption && styles.typeChipTextActive]}>
+                {typeOption === 'all' ? 'All' : typeOption === 'prayer' ? 'Prayers' : 'Testimonies'}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
       </View>
 
       {isLoading && requests.length === 0 ? (
@@ -474,7 +600,10 @@ const PrayerRequestsScreen = ({ navigation }: PrayerRequestsScreenProps) => {
 
       {/* Compose modal */}
       <Modal visible={showComposeModal} animationType="slide" transparent>
-        <View style={styles.modalBackdrop}>
+        <KeyboardAvoidingView
+          style={styles.modalBackdrop}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        >
           <View style={styles.composeCard}>
             <Text style={styles.modalTitle}>Share a Prayer Request</Text>
             <Text style={styles.modalSubtitle}>Write from the heart. Others will pray with you.</Text>
@@ -539,6 +668,29 @@ const PrayerRequestsScreen = ({ navigation }: PrayerRequestsScreenProps) => {
                   ))}
                 </View>
               </View>
+              <View style={{ marginTop: theme.spacing.sm }}>
+                <Text style={{ ...theme.typography.caption.primary, color: theme.colors.text.secondary, marginBottom: theme.spacing.xs }}>Share as</Text>
+                <View style={{ flexDirection: 'row', gap: theme.spacing.xs }}>
+                  {(['prayer','testimony'] as const).map(typeOpt => (
+                    <TouchableOpacity
+                      key={typeOpt}
+                      style={{
+                        paddingVertical: 6,
+                        paddingHorizontal: 10,
+                        borderRadius: 999,
+                        borderWidth: 1,
+                        borderColor: composeType === typeOpt ? theme.colors.primary : `${theme.colors.border}80`,
+                        backgroundColor: composeType === typeOpt ? `${theme.colors.primary}10` : 'transparent',
+                      }}
+                      onPress={() => setComposeType(typeOpt)}
+                    >
+                      <Text style={{ color: composeType === typeOpt ? theme.colors.primary : theme.colors.text.primary }}>
+                        {typeOpt === 'prayer' ? 'Prayer Request' : 'Testimony'}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
             </ScrollView>
             <View style={{ flexDirection: 'row', gap: theme.spacing.sm, marginTop: theme.spacing.md }}>
               <TouchableOpacity
@@ -557,7 +709,7 @@ const PrayerRequestsScreen = ({ navigation }: PrayerRequestsScreenProps) => {
               </TouchableOpacity>
             </View>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* Pray guide modal */}
@@ -643,6 +795,84 @@ const PrayerRequestsScreen = ({ navigation }: PrayerRequestsScreenProps) => {
             </View>
           </View>
         </View>
+      </Modal>
+
+      {/* Detail modal */}
+      <Modal visible={!!selectedRequestId} animationType="slide" transparent>
+        <KeyboardAvoidingView
+          style={styles.detailBackdrop}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        >
+          <View style={styles.detailCard}>
+            <TouchableOpacity style={styles.detailClose} onPress={() => setSelectedRequestId(null)}>
+              <Text style={styles.detailCloseText}>Close</Text>
+            </TouchableOpacity>
+            {activeDetailRequest ? (
+              <>
+                <Text style={styles.detailTitle}>{activeDetailRequest.title || (activeDetailRequest.type === 'testimony' ? 'Testimony' : 'Prayer Request')}</Text>
+                <Text style={styles.detailAuthor}>
+                  {activeDetailRequest.user ? `${activeDetailRequest.user.first_name || ''} ${activeDetailRequest.user.last_name || ''}`.trim() || 'Anonymous' : 'Anonymous'} · {new Date(activeDetailRequest.created_at).toLocaleString()}
+                </Text>
+                <ScrollView style={styles.detailBody}>
+                  <Text style={styles.detailContent}>{activeDetailRequest.detail || activeDetailRequest.content || 'No content provided.'}</Text>
+                  <View style={styles.detailMetaRow}>
+                    <Text style={styles.detailMetaText}>Prayers: {getPrayedCount(activeDetailRequest)}</Text>
+                    <Text style={styles.detailMetaText}>Amens: {amenCount(activeDetailRequest)}</Text>
+                    <Text style={styles.detailMetaText}>Comments: {activeDetailRequest.comments_count ?? 0}</Text>
+                  </View>
+                  <View style={styles.commentSection}>
+                    <Text style={styles.commentHeading}>Community Replies</Text>
+                    {(activeDetailRequest.comments ?? []).length === 0 ? (
+                      <Text style={styles.commentEmpty}>Be the first to encourage this request.</Text>
+                    ) : (
+                      (activeDetailRequest.comments ?? []).map(comment => (
+                        <View key={comment.id} style={styles.commentBubble}>
+                          <View style={styles.commentHeader}>
+                            <Text style={styles.commentAuthor}>
+                              {comment.user ? `${comment.user.first_name || ''} ${comment.user.last_name || ''}`.trim() || 'Anonymous' : 'Anonymous'}
+                            </Text>
+                            <TouchableOpacity
+                              style={[styles.commentAmenButton, hasUserAmenComment(comment, userId) && styles.commentAmenButtonActive]}
+                              onPress={() => handleCommentAmen(comment.id)}
+                            >
+                              <Heart size={12} color={hasUserAmenComment(comment, userId) ? theme.colors.like : theme.colors.text.secondary} filled={hasUserAmenComment(comment, userId)} />
+                              <Text style={[styles.commentAmenText, hasUserAmenComment(comment, userId) && { color: theme.colors.like }]}>
+                                {comment.amen_count || 0}
+                              </Text>
+                            </TouchableOpacity>
+                          </View>
+                          <Text style={styles.commentBody}>{comment.content}</Text>
+                          <Text style={styles.commentTimestamp}>{new Date(comment.created_at).toLocaleString()}</Text>
+                        </View>
+                      ))
+                    )}
+                  </View>
+                </ScrollView>
+                <View style={styles.commentComposer}>
+                  <TextInput
+                    style={styles.commentInput}
+                    value={commentDraft}
+                    onChangeText={setCommentDraft}
+                    placeholder="Let them know you prayed or share encouragement..."
+                    placeholderTextColor={theme.colors.text.placeholder}
+                    multiline
+                  />
+                  <TouchableOpacity
+                    style={[styles.commentSendButton, { opacity: isCommentPosting ? 0.6 : 1 }]}
+                    onPress={submitComment}
+                    disabled={isCommentPosting}
+                  >
+                    <Text style={styles.commentSendText}>{isCommentPosting ? 'Sending…' : 'Send'}</Text>
+                  </TouchableOpacity>
+                </View>
+              </>
+            ) : (
+              <View style={styles.detailLoading}>
+                <ActivityIndicator color={theme.colors.primary} />
+              </View>
+            )}
+          </View>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );
@@ -817,7 +1047,6 @@ const createStyles = (theme: Theme) => StyleSheet.create({
   },
   chipsRow: {},
   chip: {},
-  chipText: {},
   composer: {
     paddingHorizontal: theme.spacing.md,
     paddingVertical: theme.spacing.sm,
@@ -850,6 +1079,32 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     paddingBottom: theme.spacing.xl,
     gap: theme.spacing.md,
   },
+  typeToggleRow: {
+    flexDirection: 'row',
+    gap: theme.spacing.xs,
+    marginTop: theme.spacing.sm,
+  },
+  typeChip: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 6,
+    borderRadius: theme.borderRadius.full,
+    borderWidth: 1,
+    borderColor: `${theme.colors.primary}10`,
+    backgroundColor: theme.colors.surface,
+  },
+  typeChipActive: {
+    borderColor: theme.colors.primary,
+    backgroundColor: `${theme.colors.primary}12`,
+  },
+  typeChipText: {
+    ...theme.typography.caption.primary,
+    color: theme.colors.text.secondary,
+  },
+  typeChipTextActive: {
+    color: theme.colors.primary,
+    fontWeight: '600',
+  },
   card: {
     backgroundColor: theme.colors.surface,
     borderRadius: theme.borderRadius.lg,
@@ -862,6 +1117,23 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 4,
+  },
+  cardMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: theme.spacing.xs,
+  },
+  typeBadge: {
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: 4,
+    borderRadius: theme.borderRadius.full,
+    backgroundColor: `${theme.colors.primary}10`,
+  },
+  typeBadgeText: {
+    ...theme.typography.caption.primary,
+    color: theme.colors.primary,
+    fontWeight: '600',
   },
   checkbox: {
     width: 18,
@@ -886,15 +1158,41 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     color: theme.colors.text.secondary,
     fontSize: 11,
   },
+  prayerCountText: {
+    ...theme.typography.caption.secondary,
+    color: theme.colors.text.secondary,
+    marginTop: theme.spacing.xs,
+  },
   cardActions: {
     marginTop: theme.spacing.sm,
     flexDirection: 'row',
     justifyContent: 'flex-end',
   },
-  prayerCountText: {
-    ...theme.typography.caption.secondary,
+  communityActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
+    marginTop: theme.spacing.sm,
+  },
+  communityButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.xs,
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: 6,
+    borderRadius: theme.borderRadius.full,
+    backgroundColor: `${theme.colors.surface}90`,
+    borderWidth: 1,
+    borderColor: `${theme.colors.border}80`,
+  },
+  communityButtonText: {
+    ...theme.typography.caption.primary,
     color: theme.colors.text.secondary,
-    marginTop: theme.spacing.xs,
+    fontWeight: '600',
+  },
+  communityButtonActive: {
+    backgroundColor: `${theme.colors.like}15`,
+    borderColor: `${theme.colors.like}40`,
   },
   prayButton: {
     backgroundColor: `${theme.colors.success}15`,
@@ -916,6 +1214,159 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     pointerEvents: 'none',
+    zIndex: -1,
+  },
+  detailBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'center',
+    padding: theme.spacing.lg,
+  },
+  detailCard: {
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.borderRadius.lg,
+    borderWidth: 1,
+    borderColor: `${theme.colors.primary}10`,
+    maxHeight: '90%',
+    padding: theme.spacing.lg,
+  },
+  detailClose: {
+    alignSelf: 'flex-end',
+    paddingVertical: 4,
+    paddingHorizontal: theme.spacing.sm,
+  },
+  detailCloseText: {
+    ...theme.typography.caption.primary,
+    color: theme.colors.error,
+    fontWeight: '600',
+  },
+  detailTitle: {
+    ...theme.typography.heading.small,
+    color: theme.colors.text.primary,
+    marginBottom: theme.spacing.xs,
+  },
+  detailAuthor: {
+    ...theme.typography.caption.primary,
+    color: theme.colors.text.secondary,
+    marginBottom: theme.spacing.sm,
+  },
+  detailBody: {
+    maxHeight: 320,
+  },
+  detailContent: {
+    ...theme.typography.body.serif,
+    color: theme.colors.text.primary,
+    marginBottom: theme.spacing.sm,
+  },
+  detailMetaRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: theme.spacing.sm,
+    marginBottom: theme.spacing.sm,
+  },
+  detailMetaText: {
+    ...theme.typography.caption.secondary,
+    color: theme.colors.text.secondary,
+  },
+  commentSection: {
+    marginTop: theme.spacing.md,
+    gap: theme.spacing.sm,
+  },
+  commentHeading: {
+    ...theme.typography.caption.primary,
+    color: theme.colors.text.secondary,
+    fontWeight: '600',
+    marginBottom: theme.spacing.xs,
+  },
+  commentEmpty: {
+    ...theme.typography.caption.secondary,
+    color: theme.colors.text.secondary,
+    fontStyle: 'italic',
+  },
+  commentBubble: {
+    padding: theme.spacing.sm,
+    borderRadius: theme.borderRadius.md,
+    backgroundColor: `${theme.colors.surface}95`,
+    borderWidth: 1,
+    borderColor: `${theme.colors.primary}08`,
+    marginBottom: theme.spacing.xs,
+  },
+  commentHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: theme.spacing.xs,
+  },
+  commentAmenButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: theme.borderRadius.full,
+    backgroundColor: `${theme.colors.surface}90`,
+    borderWidth: 1,
+    borderColor: `${theme.colors.border}40`,
+  },
+  commentAmenButtonActive: {
+    backgroundColor: `${theme.colors.like}15`,
+    borderColor: `${theme.colors.like}40`,
+  },
+  commentAmenText: {
+    fontSize: 11,
+    color: theme.colors.text.secondary,
+    fontWeight: '600',
+  },
+  commentAuthor: {
+    ...theme.typography.caption.primary,
+    color: theme.colors.text.secondary,
+    marginBottom: 4,
+  },
+  commentBody: {
+    ...theme.typography.body.sans,
+    color: theme.colors.text.primary,
+  },
+  commentTimestamp: {
+    ...theme.typography.caption.secondary,
+    color: theme.colors.text.secondary,
+    fontSize: 10,
+    marginTop: 4,
+  },
+  commentComposer: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: theme.spacing.sm,
+    marginTop: theme.spacing.md,
+  },
+  commentInput: {
+    flex: 1,
+    minHeight: 48,
+    maxHeight: 120,
+    borderRadius: theme.borderRadius.md,
+    borderWidth: 1,
+    borderColor: `${theme.colors.primary}15`,
+    backgroundColor: theme.colors.surface,
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.sm,
+    ...theme.typography.body.sans,
+    color: theme.colors.text.primary,
+  },
+  commentSendButton: {
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.sm,
+    borderRadius: theme.borderRadius.full,
+    backgroundColor: theme.colors.primary,
+  },
+  commentSendText: {
+    ...theme.typography.caption.primary,
+    color: theme.colors.text.inverse,
+    fontWeight: '600',
+  },
+  detailLoading: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: theme.spacing.lg,
   },
 });
 

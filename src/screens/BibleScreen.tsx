@@ -10,7 +10,8 @@ import {
   FlatList,
   Modal,
   ActivityIndicator,
-  RefreshControl
+  RefreshControl,
+  ScrollView,
 } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -91,6 +92,7 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
   const [showVerseActions, setShowVerseActions] = useState(false);
   const [showComparisonModal, setShowComparisonModal] = useState(false);
   const [showPlanBookModal, setShowPlanBookModal] = useState(false);
+  const [showAIInsights, setShowAIInsights] = useState(false);
   const resumeTarget = bibleStore.resumeTarget;
 
   const [selectedPresetIds, setSelectedPresetIds] = useState<string[]>([]);
@@ -348,6 +350,48 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
     }));
   }, []);
 
+  const handleEnterPlanMode = useCallback(() => {
+    if (!bibleStore.readingPlan) {
+      return;
+    }
+    if (bibleStore.isPlanMode) {
+      void bibleStore.focusPlanSegment();
+      return;
+    }
+    bibleStore.enablePlanMode();
+    void bibleStore.focusPlanSegment();
+  }, [bibleStore]);
+
+  const handleExitPlanMode = useCallback(() => {
+    if (!bibleStore.isPlanMode) {
+      void bibleStore.restoreBrowsePosition();
+      return;
+    }
+    bibleStore.disablePlanMode();
+    void bibleStore.restoreBrowsePosition();
+  }, [bibleStore]);
+
+  const handleOpenCurrentSegment = useCallback(() => {
+    if (!bibleStore.readingPlan) {
+      return;
+    }
+    void bibleStore.focusPlanSegment();
+  }, [bibleStore]);
+
+  const handleExplainWithAI = useCallback(async () => {
+    if (!selectedVerse) {
+      return;
+    }
+    bibleStore.clearAIInsights();
+    setShowAIInsights(true);
+    await bibleStore.explainVerse(selectedVerse);
+  }, [bibleStore, selectedVerse]);
+
+  const handleCloseAIInsights = useCallback(() => {
+    setShowAIInsights(false);
+    bibleStore.clearAIInsights();
+  }, [bibleStore]);
+
   const handleCreatePlan = useCallback(async () => {
     try {
       await bibleStore.createReadingPlan({
@@ -358,6 +402,8 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
       toast.success('Bible Studio plan ready');
       setSelectedPresetIds([]);
       setManualPlanBooks([]);
+      bibleStore.enablePlanMode();
+      void bibleStore.focusPlanSegment();
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unable to create plan.';
       toast.error(message);
@@ -1074,6 +1120,10 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
           handleShareVerse(selectedVerse.id);
         }}
         onCompare={handleCompareSelectedVerse}
+        onExplainWithAI={() => {
+          handleCloseVerseActions();
+          handleExplainWithAI();
+        }}
       />
 
       <VerseComparisonModal
@@ -1086,6 +1136,52 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
         reference={bibleStore.comparisonReference || selectedVerse?.reference}
         offline={isOffline}
       />
+
+      <Modal
+        visible={showAIInsights}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={handleCloseAIInsights}
+      >
+        <View style={styles.aiModalContainer}>
+          <View style={styles.aiModalHeader}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.aiModalTitle}>AI Insights</Text>
+              {bibleStore.aiInsightReference ? (
+                <Text style={styles.aiModalReference}>{bibleStore.aiInsightReference}</Text>
+              ) : null}
+            </View>
+            <TouchableOpacity onPress={handleCloseAIInsights}>
+              <MaterialIcons name="close" size={24} color={theme.colors.text.secondary} />
+            </TouchableOpacity>
+          </View>
+
+          {bibleStore.isAIInsightLoading ? (
+            <View style={styles.aiModalLoading}>
+              <ActivityIndicator size="large" color={theme.colors.primary} />
+              <Text style={styles.aiModalLoadingText}>Gathering historical context...</Text>
+            </View>
+          ) : bibleStore.aiInsightError ? (
+            <View style={styles.aiModalError}>
+              <MaterialIcons name="error-outline" size={20} color={theme.colors.error} />
+              <Text style={styles.aiModalErrorText}>{bibleStore.aiInsightError}</Text>
+            </View>
+          ) : (
+            <ScrollView contentContainerStyle={styles.aiModalContent}>
+              {bibleStore.aiInsightSections.length ? (
+                bibleStore.aiInsightSections.map(section => (
+                  <View key={`${section.title}-${section.content.slice(0, 20)}`} style={styles.aiSection}>
+                    <Text style={styles.aiSectionTitle}>{section.title}</Text>
+                    <Text style={styles.aiSectionBody}>{section.content}</Text>
+                  </View>
+                ))
+              ) : (
+                <Text style={styles.aiModalPlaceholder}>No insights available for this verse yet.</Text>
+              )}
+            </ScrollView>
+          )}
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -1644,6 +1740,81 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     ...theme.typography.caption.secondary,
     color: theme.colors.warning,
     fontSize: 10,
+  },
+  aiModalContainer: {
+    flex: 1,
+    backgroundColor: theme.colors.background,
+    paddingTop: theme.spacing.xl,
+    paddingHorizontal: theme.spacing.lg,
+  },
+  aiModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: theme.spacing.lg,
+  },
+  aiModalTitle: {
+    ...theme.typography.heading.small,
+    color: theme.colors.text.primary,
+    fontWeight: '700',
+  },
+  aiModalReference: {
+    ...theme.typography.caption.secondary,
+    color: theme.colors.text.secondary,
+    marginTop: theme.spacing.xs,
+  },
+  aiModalLoading: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: theme.spacing.md,
+  },
+  aiModalLoadingText: {
+    ...theme.typography.caption.secondary,
+    color: theme.colors.text.secondary,
+  },
+  aiModalError: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
+    borderRadius: theme.borderRadius.md,
+    padding: theme.spacing.md,
+    backgroundColor: `${theme.colors.error}10`,
+  },
+  aiModalErrorText: {
+    ...theme.typography.caption.primary,
+    color: theme.colors.error,
+    flex: 1,
+  },
+  aiModalContent: {
+    paddingBottom: theme.spacing.xxl,
+    gap: theme.spacing.lg,
+  },
+  aiSection: {
+    borderRadius: theme.borderRadius.lg,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    padding: theme.spacing.md,
+    backgroundColor: theme.colors.surface,
+    gap: theme.spacing.sm,
+  },
+  aiSectionTitle: {
+    ...theme.typography.caption.primary,
+    color: theme.colors.text.primary,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+  },
+  aiSectionBody: {
+    ...theme.typography.body.sans,
+    color: theme.colors.text.primary,
+    lineHeight: 20,
+  },
+  aiModalPlaceholder: {
+    ...theme.typography.caption.secondary,
+    color: theme.colors.text.secondary,
+    textAlign: 'center',
+    marginTop: theme.spacing.xl,
   },
 });
 

@@ -1,7 +1,7 @@
 import { makeAutoObservable, runInAction } from 'mobx';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { apiClient, endpoints } from '@/api/client';
-import { PrayerCategory, PrayerRequest } from '@/types';
+import { PrayerCategory, PrayerRequest, PrayerRequestComment } from '@/types';
 import { toast } from 'sonner-native';
 
 interface PrayerRequestsStoreState {
@@ -81,7 +81,10 @@ export class PrayerRequestsStore {
     this.setError(null);
   }
 
-  fetchRequests = async (page = 1, params: { category?: string | 'all' } = {}) => {
+  fetchRequests = async (
+    page = 1,
+    params: { category?: string | 'all'; type?: 'prayer' | 'testimony' | 'all' } = {}
+  ) => {
     try {
       this.setLoading(true);
       this.setError(null);
@@ -89,11 +92,18 @@ export class PrayerRequestsStore {
       const response = await apiClient.get<any>(
         endpoints.prayerRequests.list,
         {
-          include: ['user'],
+          include: [
+            'user',
+            'rootComments.user',
+            'rootComments.children.user',
+            'rootComments.children.children.user',
+            'rootComments.children.children.children.user',
+          ],
           per_page: this.pagination.perPage,
           page,
           _sort_by: '-created_at',
           ...(params.category && params.category !== 'all' ? { category: params.category } : {}),
+          ...(params.type && params.type !== 'all' ? { type: params.type } : {}),
         }
       );
 
@@ -105,7 +115,7 @@ export class PrayerRequestsStore {
         // Backend returns { success: true, data: PrayerRequest[], message: string }
         // with Laravel pagination meta in data.meta if paginated
         const payload = response.data as any;
-        const list = (payload.data ?? payload) as PrayerRequest[];
+        const list = ((payload.data ?? payload) as PrayerRequest[]).map(this.normalizeRequest);
         const meta = payload.meta ?? null;
         
         this.state.requests = page === 1 ? list : [...this.state.requests, ...list];
@@ -123,15 +133,23 @@ export class PrayerRequestsStore {
     }
   };
 
-  createRequest = async (data: { content: string; category?: PrayerCategory; visibility?: 'anonymous' | 'first_name' | 'full_name' }) => {
+  createRequest = async (data: {
+    content: string;
+    category?: PrayerCategory;
+    visibility?: 'anonymous' | 'first_name' | 'full_name';
+    title?: string | null;
+    type?: 'prayer' | 'testimony';
+  }) => {
     try {
       this.setLoading(true);
       this.setError(null);
       
       const payload = {
+        title: data.title?.trim() || undefined,
         detail: data.content.trim(),
         category: data.category ?? 'healing',
         visibility: data.visibility ?? 'anonymous',
+        type: data.type ?? 'prayer',
       };
       
       const response = await apiClient.post<PrayerRequest>(endpoints.prayerRequests.create, payload);
@@ -140,7 +158,7 @@ export class PrayerRequestsStore {
         throw new Error(response.message || 'Failed to create prayer request');
       }
       
-      const created = response.data as PrayerRequest;
+      const created = this.normalizeRequest(response.data as PrayerRequest);
       
       runInAction(() => {
         this.state.requests = [created, ...this.state.requests];
@@ -168,11 +186,8 @@ export class PrayerRequestsStore {
       }
 
       runInAction(() => {
-        const updated = response.data as PrayerRequest;
-        const index = this.state.requests.findIndex(r => r.id === id);
-        if (index !== -1) {
-          this.state.requests[index] = updated;
-        }
+        const updated = this.normalizeRequest(response.data as PrayerRequest);
+        this.replaceRequest(updated);
       });
       
       await this.saveToStorage();
@@ -181,6 +196,148 @@ export class PrayerRequestsStore {
       console.error('Error marking prayer as prayed:', error);
       this.setError('Failed to mark as prayed');
       return false;
+    }
+  };
+
+  toggleAmen = async (id: string) => {
+    try {
+      const response = await apiClient.post<PrayerRequest>(endpoints.prayerRequests.amen(id));
+
+      if (!response.success || !response.data) {
+        throw new Error(response.message || 'Failed to toggle amen');
+      }
+
+      runInAction(() => {
+        const updated = this.normalizeRequest(response.data as PrayerRequest);
+        this.replaceRequest(updated);
+      });
+
+      await this.saveToStorage();
+      return true;
+    } catch (error) {
+      console.error('Error toggling amen:', error);
+      this.setError('Failed to update amen');
+      return false;
+    }
+  };
+
+  addComment = async (
+    prayerRequestId: string,
+    content: string,
+    parentId?: string | null
+  ) => {
+    try {
+      const response = await apiClient.post<PrayerRequestComment>(
+        endpoints.prayerRequestComments.create,
+        {
+          content,
+          prayer_request_id: prayerRequestId,
+          ...(parentId ? { parent_id: parentId } : {}),
+        }
+      );
+
+      if (!response.success || !response.data) {
+        throw new Error(response.message || 'Failed to add comment');
+      }
+
+      runInAction(() => {
+        const request = this.state.requests.find(r => r.id === prayerRequestId);
+        if (!request) return;
+
+        const newComment = response.data as PrayerRequestComment;
+
+        if (!parentId) {
+          request.comments = [newComment, ...(request.comments ?? [])];
+        } else if (request.comments?.length) {
+          request.comments = request.comments.map(comment => this.appendReply(comment, newComment));
+        }
+
+        request.comments_count = (request.comments_count ?? 0) + 1;
+        this.replaceRequest(this.normalizeRequest(request));
+      });
+
+      await this.saveToStorage();
+      return response.data;
+    } catch (error) {
+      console.error('Error adding comment:', error);
+      this.setError('Failed to add comment');
+      return null;
+    }
+  };
+
+  toggleCommentAmen = async (commentId: string) => {
+    try {
+      const response = await apiClient.post<PrayerRequestComment>(
+        endpoints.prayerRequestComments.amen(commentId)
+      );
+
+      if (!response.success || !response.data) {
+        throw new Error(response.message || 'Failed to toggle comment amen');
+      }
+
+      const normalizedComment = this.normalizeComment(response.data);
+
+      runInAction(() => {
+        // Update the comment in all prayer requests
+        this.state.requests.forEach(request => {
+          if (request.comments?.length) {
+            this.updateCommentInTree(request.comments, normalizedComment);
+          }
+        });
+      });
+
+      await this.saveToStorage();
+      return normalizedComment;
+    } catch (error) {
+      console.error('Error toggling comment amen:', error);
+      this.setError('Failed to update comment amen');
+      return null;
+    }
+  };
+
+  private updateCommentInTree(comments: PrayerRequestComment[], updatedComment: PrayerRequestComment): boolean {
+    for (let i = 0; i < comments.length; i++) {
+      if (comments[i].id === updatedComment.id) {
+        comments[i] = updatedComment;
+        return true;
+      }
+      if (comments[i].replies?.length && this.updateCommentInTree(comments[i].replies!, updatedComment)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  fetchComments = async (prayerRequestId: string, options: { rootsOnly?: boolean; withChildren?: boolean } = {}) => {
+    try {
+      const params: any = {
+        prayer_request_id: prayerRequestId,
+        include: 'user,parent.user,children.user',
+        per_page: 50,
+      };
+
+      if (options.rootsOnly) {
+        params.roots_only = '1';
+      }
+
+      if (options.withChildren) {
+        params.with_children = '1';
+      }
+
+      const response = await apiClient.get<any>(
+        endpoints.prayerRequestComments.list,
+        params
+      );
+
+      if (!response.success || !response.data) {
+        throw new Error(response.message || 'Failed to fetch comments');
+      }
+
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching comments:', error);
+      this.setError('Failed to fetch comments');
+      return [];
     }
   };
 
@@ -219,6 +376,47 @@ export class PrayerRequestsStore {
     });
     
     await this.saveToStorage();
+  };
+
+  private replaceRequest(updated: PrayerRequest) {
+    const index = this.state.requests.findIndex(r => r.id === updated.id);
+    if (index !== -1) {
+      this.state.requests[index] = updated;
+    }
+  }
+
+  private appendReply(
+    comment: PrayerRequestComment,
+    incoming: PrayerRequestComment
+  ): PrayerRequestComment {
+    if (comment.id === incoming.parent_id) {
+      return {
+        ...comment,
+        replies: [this.normalizeComment(incoming), ...(comment.replies ?? [])],
+      };
+    }
+
+    return {
+      ...comment,
+      replies: comment.replies?.map(reply => this.appendReply(reply, incoming)) ?? comment.replies,
+    };
+  }
+
+  private normalizeRequest = (request: PrayerRequest): PrayerRequest => {
+    return {
+      ...request,
+      comments: request.comments ?? [],
+      comments_count: request.comments_count ?? request.comments?.length ?? 0,
+      prayed_count: request.prayed_count ?? (Array.isArray(request.prayed_users) ? request.prayed_users.length : 0),
+      amen_count: request.amen_count ?? (Array.isArray(request.amen_users) ? request.amen_users.length : 0),
+    };
+  };
+
+  private normalizeComment = (comment: PrayerRequestComment): PrayerRequestComment => {
+    return {
+      ...comment,
+      amen_count: comment.amen_count ?? (Array.isArray(comment.amen_users) ? comment.amen_users.length : 0),
+    };
   };
 
   private updatePagination(meta: any, currentPage: number) {

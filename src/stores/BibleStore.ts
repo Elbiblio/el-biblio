@@ -162,6 +162,7 @@ const STORAGE_KEYS = {
   SAVED_SEARCHES: 'bible_saved_searches',
   READING_PLAN: 'bible_reading_plan',
   READING_REMINDER: 'bible_reading_reminder',
+  PLAN_MODE: 'bible_plan_mode',
 } as const;
 
 type LastReadPosition = {
@@ -228,12 +229,17 @@ class BibleStore {
   searchQuery: string = '';
   showSearch: boolean = false;
   showActivityPanel: boolean = false;
+  isInitialized = false;
   selectedVerseId: string | null = null;
   shareFallback: boolean = false;
   comparisonResults: VerseComparisonItem[] = [];
   isComparisonLoading: boolean = false;
   comparisonError: string | null = null;
   comparisonReference: string | null = null;
+  aiInsightSections: { title: string; content: string }[] = [];
+  aiInsightReference: string | null = null;
+  isAIInsightLoading = false;
+  aiInsightError: string | null = null;
   // Bible versions
   installedVersions: string[] = [];
   installedVersionTables: string[] = [];
@@ -256,7 +262,8 @@ class BibleStore {
   // Resume state
   lastReadPosition: LastReadPosition | null = null;
   hasAppliedLastPosition: boolean = false;
-  isInitialized: boolean = false;
+  browsePositionBeforePlan: LastReadPosition | null = null;
+  isPlanMode = false;
 
   // Pagination (for compatibility with BibleScreen)
   pagination = {
@@ -268,23 +275,72 @@ class BibleStore {
   };
   
   constructor() {
-    makeAutoObservable(this, {
-      // Mark actions for MobX
-      setCurrentBook: action.bound,
-      setCurrentChapter: action.bound,
-      setCurrentVersion: action.bound,
-      setFontSize: action.bound,
-      setSearchQuery: action.bound,
-      setShowSearch: action.bound,
-      setShowActivityPanel: action.bound,
-      setSelectedVerseId: action.bound,
-      setIsOffline: action.bound,
-      clearErrors: action.bound,
-      clearSearch: action.bound,
-      loadHistory: action.bound,
-    });
-    
+    makeAutoObservable(this, {}, { autoBind: true });
+
     this.initialize();
+  }
+
+  setCurrentBook(book: Book): void;
+  setCurrentBook(book: ExtendedBook): void;
+  setCurrentBook(book: Book | ExtendedBook) {
+    const extended = 'id' in book ? book : toExtendedBook(book);
+    this.currentBook = extended;
+  }
+
+  setCurrentChapter(chapter: number) {
+    this.currentChapter = Math.max(1, Math.floor(chapter || 1));
+  }
+
+  setCurrentVersion(version: BibleVersion): void;
+  setCurrentVersion(version: ExtendedBibleVersion): void;
+  setCurrentVersion(version: BibleVersion | ExtendedBibleVersion) {
+    const extended = 'id' in version ? version : toExtendedVersion(version);
+    this.currentVersion = extended;
+  }
+
+  setCurrentBookByCode(abbreviation: string) {
+    if (!abbreviation) return;
+    const meta = this.availableBooks.find(book => book.abbreviation === abbreviation)
+      || this.getBookMetadata(abbreviation)
+      || null;
+    if (meta) {
+      this.setCurrentBook(meta);
+    }
+  }
+
+  setFontSize(size: number) {
+    const clamped = Math.max(12, Math.min(36, Math.floor(size)));
+    this.fontSize = clamped;
+    void AsyncStorage.setItem(STORAGE_KEYS.FONT_SIZE, clamped.toString()).catch(error => {
+      console.warn('Failed to persist Bible font size', error);
+    });
+  }
+
+  setSearchQuery(query: string) {
+    this.searchQuery = query;
+  }
+
+  setShowSearch(show: boolean) {
+    this.showSearch = show;
+  }
+
+  setShowActivityPanel(show: boolean) {
+    this.showActivityPanel = show;
+  }
+
+  setSelectedVerseId(id: string | null) {
+    this.selectedVerseId = id;
+  }
+
+  setIsOffline(offline: boolean) {
+    this.isOffline = offline;
+  }
+
+  clearAIInsights() {
+    this.aiInsightSections = [];
+    this.aiInsightReference = null;
+    this.aiInsightError = null;
+    this.isAIInsightLoading = false;
   }
 
   private getVersionSlug(version?: { shortName?: string; tableName?: string } | null): string | null {
@@ -489,6 +545,134 @@ class BibleStore {
     return true;
   }
 
+  async explainVerse(verse: BibleVerse | null) {
+    if (!verse) {
+      return;
+    }
+
+    if (this.isOffline) {
+      runInAction(() => {
+        this.aiInsightError = 'AI insights require an internet connection.';
+        this.aiInsightSections = [];
+        this.aiInsightReference = verse.reference ?? null;
+      });
+      return;
+    }
+
+    this.aiInsightReference = verse.reference ?? null;
+    this.aiInsightError = null;
+    this.isAIInsightLoading = true;
+    this.aiInsightSections = [];
+
+    try {
+      const verseId = verse.id;
+      const reference = verse.reference ?? verseId;
+      const payload = {
+        reference,
+        text: verse.text,
+      };
+
+      const { success, data, message } = await apiClient.post(endpoints.bible.explain(verseId), payload);
+      if (!success || !data) {
+        throw new Error(message || 'Unable to generate insight.');
+      }
+
+      const sections = this.normalizeInsightPayload(data);
+
+      runInAction(() => {
+        this.aiInsightSections = sections.length ? sections : [{ title: 'Insight', content: typeof data === 'string' ? data : JSON.stringify(data, null, 2) }];
+        this.aiInsightError = null;
+      });
+    } catch (error) {
+      const fallback = error instanceof Error ? error.message : 'Unable to fetch AI insight.';
+      console.error('BibleStore.explainVerse error', error);
+      runInAction(() => {
+        this.aiInsightError = fallback;
+        this.aiInsightSections = [];
+      });
+    } finally {
+      runInAction(() => {
+        this.isAIInsightLoading = false;
+      });
+    }
+  }
+
+  private normalizeInsightPayload(data: any): { title: string; content: string }[] {
+    if (!data) {
+      return [];
+    }
+
+    if (typeof data === 'string') {
+      return [{ title: 'Summary', content: data.trim() }];
+    }
+
+    if (Array.isArray(data)) {
+      return data
+        .map((entry, index) => {
+          if (!entry) return null;
+          if (typeof entry === 'string') {
+            return { title: `Section ${index + 1}`, content: entry.trim() };
+          }
+          if (typeof entry === 'object') {
+            const title = this.humanizeKey(entry.title ?? `Section ${index + 1}`);
+            const body = this.serializeInsightContent(entry.content ?? entry.body ?? entry.summary ?? entry.text ?? entry);
+            return body ? { title, content: body } : null;
+          }
+          return null;
+        })
+        .filter(Boolean) as { title: string; content: string }[];
+    }
+
+    if (typeof data === 'object') {
+      const entries: { title: string; content: string }[] = [];
+      const candidates: Record<string, any> = data;
+      const orderedKeys = ['summary', 'historical_context', 'cultural_background', 'application', 'practical_application', 'reflection', 'prayer', 'keywords'];
+
+      const keys = new Set([...orderedKeys, ...Object.keys(candidates)]);
+      keys.forEach(key => {
+        const value = candidates[key];
+        if (value === undefined || value === null) return;
+        const content = this.serializeInsightContent(value);
+        if (!content) return;
+        const title = this.humanizeKey(key);
+        entries.push({ title, content });
+      });
+
+      return entries;
+    }
+
+    return [];
+  }
+
+  private humanizeKey(key: string): string {
+    if (!key) return 'Insight';
+    return key
+      .replace(/_/g, ' ')
+      .replace(/\b\w/g, char => char.toUpperCase())
+      .trim();
+  }
+
+  private serializeInsightContent(value: any): string {
+    if (value === null || value === undefined) {
+      return '';
+    }
+    if (typeof value === 'string') {
+      return value.trim();
+    }
+    if (Array.isArray(value)) {
+      return value
+        .map(item => (typeof item === 'string' ? item : JSON.stringify(item, null, 2)))
+        .join('\n\n');
+    }
+    if (typeof value === 'object') {
+      const lines = Object.entries(value)
+        .map(([k, v]) => `${this.humanizeKey(k)}: ${this.serializeInsightContent(v)}`)
+        .filter(Boolean);
+      return lines.join('\n\n');
+    }
+    return String(value);
+  }
+
   private resolveRemoteReference(item: RemoteBibleSearchResult, referenceText: string) {
     let bookMeta: ExtendedBook | null = null;
     if (typeof item.book === 'string') {
@@ -675,116 +859,205 @@ class BibleStore {
     try {
       await Promise.all([
         this.loadUserPreferences(),
-        this.loadInstalledVersions(),
-        this.loadLastReadPosition(),
-        this.loadSavedSearches(),
+        this.fetchBibleVersions(),
         this.loadReadingPlan(),
         this.loadReadingReminder(),
+        this.loadPlanModePreference(),
       ]);
 
       runInAction(() => {
         this.isInitialized = true;
       });
     } catch (error) {
-      console.error('Failed to initialize BibleStore:', error);
+      console.error('Failed to initialize BibleStore', error);
+    }
+  }
+
+  async loadReadingReminder() {
+    try {
+      const stored = await AsyncStorage.getItem(STORAGE_KEYS.READING_REMINDER);
+      if (!stored) {
+        runInAction(() => {
+          this.readingReminder = null;
+        });
+        return;
+      }
+
+      const parsed = JSON.parse(stored) as ReadingReminder;
       runInAction(() => {
-        this.isInitialized = false;
+        this.readingReminder = parsed;
+      });
+    } catch (error) {
+      console.error('Failed to load reading reminder', error);
+      runInAction(() => {
+        this.readingReminder = null;
       });
     }
   }
-  
-  // State setters
-  async setCurrentBook(book: Book | ExtendedBook) {
-    if (!book) return;
-    const extendedBook = 'id' in book ? book as ExtendedBook : toExtendedBook(book);
 
-    // If same book is selected, do nothing to avoid loops
-    if (this.currentBook?.abbreviation === extendedBook.abbreviation) {
+  private async savePlanModePreference(enabled: boolean) {
+    try {
+      if (enabled) {
+        await AsyncStorage.setItem(STORAGE_KEYS.PLAN_MODE, 'true');
+      } else {
+        await AsyncStorage.removeItem(STORAGE_KEYS.PLAN_MODE);
+      }
+    } catch (error) {
+      console.warn('Failed to persist plan mode preference', error);
+    }
+  }
+
+  private setPlanModeState(enabled: boolean) {
+    this.isPlanMode = enabled;
+  }
+
+  async loadPlanModePreference() {
+    try {
+      const stored = await AsyncStorage.getItem(STORAGE_KEYS.PLAN_MODE);
+      runInAction(() => {
+        this.isPlanMode = stored === 'true';
+      });
+    } catch (error) {
+      console.warn('Failed to load plan mode preference', error);
+      runInAction(() => {
+        this.isPlanMode = false;
+      });
+    }
+  }
+
+  enablePlanMode() {
+    if (!this.readingPlan) {
       return;
     }
-
-    // Determine a valid chapter for the new book
-    const desiredChapter = this.currentChapter || 1;
-    const maxChapter = this.getChapterCount(extendedBook.abbreviation) || extendedBook.chapters || 1;
-    const nextChapter = Math.min(Math.max(1, desiredChapter), maxChapter);
-
+    if (!this.isPlanMode) {
+      this.captureBrowsePosition();
+    }
     runInAction(() => {
-      this.currentBook = extendedBook;
-      this.currentChapter = nextChapter;
-      this.verses = [];
+      this.setPlanModeState(true);
     });
+    void this.savePlanModePreference(true);
   }
-  
-  setCurrentChapter(chapter: number) {
-    // Clamp to valid range for current book
-    const max = this.getChapterCount();
-    const next = Math.min(Math.max(1, chapter), max);
+
+  disablePlanMode() {
+    if (!this.isPlanMode) {
+      return;
+    }
     runInAction(() => {
-      this.currentChapter = next;
+      this.setPlanModeState(false);
     });
-    this.saveUserPreferences();
+    void this.savePlanModePreference(false);
   }
-  
-  async setCurrentVersion(version: BibleVersion) {
-    if (!version) return;
 
-    const extendedVersion = toExtendedVersion(version);
+  togglePlanMode() {
+    if (this.isPlanMode) {
+      this.disablePlanMode();
+    } else {
+      this.enablePlanMode();
+    }
+  }
 
-    runInAction(() => {
-      this.currentVersion = extendedVersion;
-      this.verses = [];
-    });
+  private captureBrowsePosition() {
+    if (!this.currentBook) {
+      return;
+    }
+    this.browsePositionBeforePlan = {
+      book: this.currentBook.abbreviation,
+      chapter: this.currentChapter,
+      version: this.currentVersion?.tableName,
+    };
+  }
 
-    // Save selected version to storage
-    try {
-      await AsyncStorage.setItem(STORAGE_KEYS.SELECTED_VERSION, JSON.stringify(extendedVersion));
-    } catch (error) {
-      console.error('Error saving selected version:', error);
+  async focusPlanSegment(segmentId?: string) {
+    if (!this.readingPlan) {
+      return false;
     }
 
-    // Refresh dynamic books for this version
-    try {
-      await this.loadAvailableBooks();
-      // If no book selected yet, set a sensible default
-      if (!this.currentBook && this.availableBooks.length > 0) {
-        runInAction(() => {
-          this.currentBook = this.availableBooks[0];
-          this.currentChapter = 1;
-        });
+    const segment = segmentId
+      ? this.readingPlan.segments.find(item => item.id === segmentId) ?? null
+      : this.activeReadingSegment;
+
+    if (!segment) {
+      return false;
+    }
+
+    if (!this.currentVersion || this.currentVersion.tableName !== this.readingPlan.versionTable) {
+      if (!this.availableVersions.length) {
+        await this.fetchBibleVersions();
       }
-    } catch (e) {
-      console.error('Error loading available books for version:', e);
+      const targetVersion = this.availableVersions.find(v => v.tableName === this.readingPlan?.versionTable);
+      if (targetVersion) {
+        this.setCurrentVersion(targetVersion);
+      }
     }
-    
-    // Reload verses if we have a book and chapter
-    if (this.currentBook && this.currentChapter) {
-      await this.loadVerses(true);
+
+    if (!this.currentVersion) {
+      return false;
     }
-  }
-  
-  setFontSize(size: number) {
-    this.fontSize = size;
-    AsyncStorage.setItem(STORAGE_KEYS.FONT_SIZE, size.toString());
-  }
-  
-  setSearchQuery(query: string) {
-    this.searchQuery = query;
-  }
-  
-  setShowSearch(show: boolean) {
-    this.showSearch = show;
-  }
-  
-  setShowActivityPanel(show: boolean) {
-    this.showActivityPanel = show;
+
+    if (!this.availableBooks.length) {
+      await this.loadAvailableBooks();
+    }
+
+    const bookMeta = this.availableBooks.find(b => b.abbreviation === segment.bookAbbreviation)
+      || this.getBookMetadata(segment.bookAbbreviation)
+      || null;
+
+    if (!bookMeta) {
+      console.warn('Plan segment book not found', segment.bookAbbreviation);
+      return false;
+    }
+
+    this.setCurrentBook(bookMeta);
+    this.setCurrentChapter(segment.chapterStart);
+
+    if (this.currentBook && this.currentVersion) {
+      await this.fetchVerses(this.currentBook, this.currentChapter, this.currentVersion, 1);
+    }
+
+    return true;
   }
 
-  setSelectedVerseId(id: string | null) {
-    this.selectedVerseId = id;
-  }
+  async restoreBrowsePosition() {
+    const target = this.browsePositionBeforePlan || this.lastReadPosition;
+    if (!target) {
+      return false;
+    }
 
-  setIsOffline(offline: boolean) {
-    this.isOffline = offline;
+    if (target.version && (!this.currentVersion || this.currentVersion.tableName !== target.version)) {
+      if (!this.availableVersions.length) {
+        await this.fetchBibleVersions();
+      }
+      const versionMatch = this.availableVersions.find(v => v.tableName === target.version);
+      if (versionMatch) {
+        this.setCurrentVersion(versionMatch);
+      }
+    }
+
+    if (!this.currentVersion) {
+      return false;
+    }
+
+    if (!this.availableBooks.length) {
+      await this.loadAvailableBooks();
+    }
+
+    const bookMeta = this.availableBooks.find(b => b.abbreviation === target.book)
+      || this.getBookMetadata(target.book)
+      || null;
+
+    if (!bookMeta) {
+      console.warn('Browse position book not found', target.book);
+      return false;
+    }
+
+    this.setCurrentBook(bookMeta);
+    this.setCurrentChapter(target.chapter);
+
+    if (this.currentBook && this.currentVersion) {
+      await this.fetchVerses(this.currentBook, this.currentChapter, this.currentVersion, 1);
+    }
+
+    return true;
   }
 
   // Bible Studio plan helpers
@@ -895,29 +1168,9 @@ class BibleStore {
     await this.saveReadingPlan(null);
     runInAction(() => {
       this.readingPlan = null;
+      this.browsePositionBeforePlan = null;
     });
-  }
-
-  async loadReadingReminder() {
-    try {
-      const stored = await AsyncStorage.getItem(STORAGE_KEYS.READING_REMINDER);
-      if (!stored) {
-        runInAction(() => {
-          this.readingReminder = null;
-        });
-        return;
-      }
-
-      const parsed = JSON.parse(stored) as ReadingReminder;
-      runInAction(() => {
-        this.readingReminder = parsed;
-      });
-    } catch (error) {
-      console.error('Failed to load reading reminder', error);
-      runInAction(() => {
-        this.readingReminder = null;
-      });
-    }
+    this.disablePlanMode();
   }
 
   async setReadingReminder(time: string | null) {

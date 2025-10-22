@@ -17,6 +17,8 @@ export interface Verse {
     created_at: string;
     updated_at: string;
     reference: string;
+    context_reference?: string | null;
+    context_text?: string | null;
     date: string;
     text: string;
     votes: number;
@@ -24,6 +26,9 @@ export interface Verse {
     theme_id: number | null;
     likes: number;
     shares: number;
+    book?: string | null;
+    chapter?: number | null;
+    verse?: number | null;
     is_trending: boolean;
     is_active: boolean;
     is_featured: boolean;

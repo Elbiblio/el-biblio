@@ -38,6 +38,7 @@ import {
   Copy,
   Sparkle,
   X,
+  Book,
 } from '@/components/Icons';
 import ReflectionCard from '@/components/ReflectionCard';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -52,6 +53,7 @@ import * as Clipboard from 'expo-clipboard';
 import { toast } from 'sonner-native';
 import { observer } from 'mobx-react-lite';
 import EmptyState from '@/components/EmptyState';
+import ReflectionComposeModal from '@/components/ReflectionComposeModal';
 import { Share as NativeShare } from 'react-native';
 
 type VerseDetailProps = NativeStackScreenProps<RootStackParamList, 'VerseDetail'>;
@@ -78,6 +80,9 @@ const VerseDetail = ({ navigation, route }: VerseDetailProps) => {
   const [reflectionFilter, setReflectionFilter] = useState<'all' | 'word' | 'face'>('all');
   const [reflectionSort, setReflectionSort] = useState<'new' | 'top'>('new');
   const [showReflectionInput, setShowReflectionInput] = useState(false);
+  const [showGuide, setShowGuide] = useState(false);
+  const [guideCountdown, setGuideCountdown] = useState(30);
+  const guideTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [reflectionText, setReflectionText] = useState('');
   const [reflectionType, setReflectionType] = useState<1 | 2>(1); // 1: story, 2: insight
   const [activeCommentReflectionId, setActiveCommentReflectionId] = useState<string | null>(null);
@@ -127,6 +132,41 @@ const VerseDetail = ({ navigation, route }: VerseDetailProps) => {
       } catch {}
     })();
   }, []);
+
+  // When opening composer, decide whether to show first-time guide
+  useEffect(() => {
+    (async () => {
+      if (!showReflectionInput) return;
+      try {
+        const seen = await AsyncStorage.getItem('vd_reflection_guide_seen');
+        if (seen === '1') {
+          setShowGuide(false);
+          return;
+        }
+        setShowGuide(true);
+        setGuideCountdown(30);
+        if (guideTimerRef.current) clearInterval(guideTimerRef.current);
+        guideTimerRef.current = setInterval(() => {
+          setGuideCountdown(prev => {
+            if (prev <= 1) {
+              if (guideTimerRef.current) clearInterval(guideTimerRef.current);
+              guideTimerRef.current = null;
+              AsyncStorage.setItem('vd_reflection_guide_seen', '1').catch(() => {});
+              setShowGuide(false);
+              return 0;
+            }
+            return prev - 1;
+          });
+        }, 1000);
+      } catch {
+        setShowGuide(false);
+      }
+    })();
+    return () => {
+      if (guideTimerRef.current) clearInterval(guideTimerRef.current);
+      guideTimerRef.current = null;
+    };
+  }, [showReflectionInput]);
 
   // Persist prefs on change
   useEffect(() => {
@@ -589,6 +629,20 @@ const VerseDetail = ({ navigation, route }: VerseDetailProps) => {
                   <Copy size={16} color={theme.colors.text.secondary} />
                   <Text style={styles.copyText}>Copy Verse</Text>
                 </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.copyButton}
+                  onPress={() => {
+                    if (!currentVerse) return;
+                    navigation.navigate('BibleScreen', {
+                      book: currentVerse.book || undefined,
+                      chapter: currentVerse.chapter || undefined,
+                      verse: currentVerse.verse || undefined,
+                    } as any);
+                  }}
+                >
+                  <Book size={16} color={theme.colors.text.secondary} />
+                  <Text style={styles.copyText}>View Context</Text>
+                </TouchableOpacity>
               </View>
             </Animated.View>
 
@@ -699,126 +753,21 @@ const VerseDetail = ({ navigation, route }: VerseDetailProps) => {
         </Animated.View>
       )}
 
-      {/* Reflection Input Modal */}
-      {showReflectionInput && (
-        <BlurView
-          intensity={25}
-          tint={theme.colors.isDark ? 'dark' : 'light'}
-          style={styles.reflectionOverlay}
-        >
-          <TouchableWithoutFeedback onPress={() => !isUploading && setShowReflectionInput(false)}>
-            <View style={styles.backdropDismiss} />
-          </TouchableWithoutFeedback>
-          <KeyboardAvoidingView
-            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-            keyboardVerticalOffset={insets.bottom + 32}
-            style={styles.sheetAvoider}
-          >
-            <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-              <View style={styles.reflectionSheet}>
-                <View style={styles.sheetHandle} />
-
-                <View style={styles.reflectionTypeSelector}>
-                  <TouchableOpacity
-                    style={[
-                      styles.typeButton,
-                      reflectionType === 1 && styles.typeButtonActive
-                    ]}
-                    onPress={() => setReflectionType(1)}
-                    disabled={isUploading}
-                  >
-                    <Text style={[
-                      styles.typeButtonText,
-                      reflectionType === 1 && styles.typeButtonTextActive
-                    ]}>Word Bite</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[
-                      styles.typeButton,
-                      reflectionType === 2 && styles.typeButtonActive
-                    ]}
-                    onPress={() => setReflectionType(2)}
-                    disabled={isUploading}
-                  >
-                    <Text style={[
-                      styles.typeButtonText,
-                      reflectionType === 2 && styles.typeButtonTextActive
-                    ]}>Face2Face</Text>
-                  </TouchableOpacity>
-                </View>
-
-                <TextInput
-                  style={styles.reflectionInput}
-                  placeholder={reflectionType === 1 ? 'Share a Word Bite… (≤ 50 words)' : 'Face2Face caption (optional)'}
-                  multiline
-                  maxLength={500}
-                  value={reflectionText}
-                  onChangeText={setReflectionText}
-                  autoFocus
-                  editable={!isUploading}
-                  placeholderTextColor={theme.colors.text.tertiary}
-                  textAlignVertical="top"
-                />
-
-                {isWordBiteType && (
-                  <Text
-                    style={[
-                      styles.wordCount,
-                      exceedsWordLimit && styles.wordCountExceeded
-                    ]}
-                  >
-                    {wordCount}/50 words
-                  </Text>
-                )}
-
-                {isFace2FaceType && (
-                  <View style={styles.faceActionsRow}>
-                    <TouchableOpacity
-                      style={styles.faceActionButton}
-                      onPress={() => setShowFaceTips(true)}
-                      disabled={isUploading}
-                    >
-                      <Sparkle size={16} color={theme.colors.text.secondary} />
-                      <Text style={styles.faceActionText}>Tips</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={styles.faceActionButton}
-                      onPress={openFace2Face}
-                      disabled={isUploading}
-                    >
-                      <Text style={styles.faceActionText}>{videoUri ? 'Retake Face2Face' : 'Record Face2Face'}</Text>
-                    </TouchableOpacity>
-                  </View>
-                )}
-
-                <Text style={styles.helperText}>
-                  {isWordBiteType
-                    ? 'Keep it concise and heartfelt. Max 50 words.'
-                    : 'Square portrait · up to 90s · good lighting · speak clearly.'}
-                </Text>
-
-                <View style={styles.inputActions}>
-                  <TouchableOpacity
-                    style={styles.cancelButton}
-                    onPress={() => !isUploading && setShowReflectionInput(false)}
-                    disabled={isUploading}
-                  >
-                    <Text style={styles.cancelText}>Cancel</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.submitButton, !canSubmit && styles.submitButtonDisabled]}
-                    onPress={canSubmit ? (isFace2FaceType ? submitFace2Face : handleSubmitReflection) : undefined}
-                    disabled={!canSubmit}
-                  >
-                    <Text style={styles.submitText}>{submitLabel}</Text>
-                    <Send size={16} color={theme.colors.text.inverse} />
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </TouchableWithoutFeedback>
-          </KeyboardAvoidingView>
-        </BlurView>
-      )}
+      {/* Reflection Compose Full Screen */}
+      <ReflectionComposeModal
+        visible={showReflectionInput}
+        onClose={() => !isUploading && setShowReflectionInput(false)}
+        reflectionText={reflectionText}
+        onChangeText={setReflectionText}
+        reflectionType={reflectionType}
+        onChangeType={(t) => setReflectionType(t)}
+        isUploading={isUploading}
+        canSubmit={canSubmit}
+        submitLabel={submitLabel}
+        onSubmit={isFace2FaceType ? submitFace2Face : handleSubmitReflection}
+        onOpenFaceTips={() => setShowFaceTips(true)}
+        onOpenFace2Face={openFace2Face}
+      />
 
       {/* Face2Face Modal */}
       {showFace2Face && (
@@ -933,7 +882,6 @@ const VerseDetail = ({ navigation, route }: VerseDetailProps) => {
 };
 
 const createStyles = (theme: Theme, safeAreaBottom: number = 0) => {
-  const modalBottomPadding = theme.spacing.lg + safeAreaBottom;
 
   return StyleSheet.create({
   container: {
@@ -1129,34 +1077,6 @@ const createStyles = (theme: Theme, safeAreaBottom: number = 0) => {
     color: theme.colors.text.inverse,
     fontWeight: '600',
   },
-  reflectionOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    justifyContent: 'flex-end',
-  },
-  backdropDismiss: {
-    flex: 1,
-  },
-  sheetAvoider: {
-    width: '100%',
-  },
-  reflectionSheet: {
-    backgroundColor: theme.colors.background,
-    borderTopLeftRadius: theme.borderRadius.xl,
-    borderTopRightRadius: theme.borderRadius.xl,
-    paddingHorizontal: theme.spacing.lg,
-    paddingBottom: modalBottomPadding,
-    paddingTop: theme.spacing.lg,
-    ...theme.shadows.md,
-    minHeight: SCREEN_DIMENSIONS.height * 0.7,
-  },
-  sheetHandle: {
-    alignSelf: 'center',
-    width: 48,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: theme.colors.surfaceVariant,
-    marginBottom: theme.spacing.md,
-  },
   pageDotsRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1176,44 +1096,6 @@ const createStyles = (theme: Theme, safeAreaBottom: number = 0) => {
     height: 8,
     borderRadius: 4,
   },
-  emptyState: {
-    padding: theme.spacing.xl,
-    alignItems: 'center',
-  },
-  emptyText: {
-    ...theme.typography.body.serif,
-    color: theme.colors.text.secondary,
-    textAlign: 'center',
-  },
-  reflectionInputContainer: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    padding: theme.spacing.lg,
-  },
-  reflectionTypeSelector: {
-    flexDirection: 'row',
-    gap: theme.spacing.sm,
-    marginBottom: theme.spacing.md,
-  },
-  typeButton: {
-    flex: 1,
-    padding: theme.spacing.sm,
-    borderRadius: theme.borderRadius.full,
-    backgroundColor: theme.colors.surface,
-    alignItems: 'center',
-  },
-  typeButtonActive: {
-    backgroundColor: theme.colors.primary,
-  },
-  typeButtonText: {
-    ...theme.typography.caption.primary,
-    color: theme.colors.text.primary,
-  },
-  typeButtonTextActive: {
-    color: theme.colors.text.inverse,
-  },
   reflectionInput: {
     backgroundColor: theme.colors.surface,
     borderRadius: theme.borderRadius.lg,
@@ -1222,70 +1104,6 @@ const createStyles = (theme: Theme, safeAreaBottom: number = 0) => {
     maxHeight: 160,
     ...theme.typography.body.sans,
     color: theme.colors.text.primary,
-  },
-  wordCount: {
-    ...theme.typography.caption.primary,
-    color: theme.colors.text.secondary,
-    alignSelf: 'flex-end',
-    marginTop: theme.spacing.xs,
-  },
-  wordCountExceeded: {
-    color: theme.colors.error,
-  },
-  faceActionsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: theme.spacing.sm,
-  },
-  faceActionButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: theme.spacing.xs,
-    backgroundColor: theme.colors.surface,
-    paddingHorizontal: theme.spacing.md,
-    paddingVertical: theme.spacing.xs,
-    borderRadius: theme.borderRadius.full,
-  },
-  faceActionText: {
-    ...theme.typography.caption.primary,
-    color: theme.colors.text.secondary,
-  },
-  helperText: {
-    ...theme.typography.caption.secondary,
-    color: theme.colors.text.secondary,
-    marginTop: theme.spacing.sm,
-  },
-  inputActions: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    alignItems: 'center',
-    gap: theme.spacing.sm,
-    marginTop: theme.spacing.sm,
-  },
-  cancelButton: {
-    paddingHorizontal: theme.spacing.md,
-    paddingVertical: theme.spacing.sm,
-  },
-  cancelText: {
-    ...theme.typography.caption.primary,
-    color: theme.colors.text.secondary,
-  },
-  submitButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: theme.spacing.xs,
-    backgroundColor: theme.colors.primary,
-    paddingHorizontal: theme.spacing.md,
-    paddingVertical: theme.spacing.sm,
-    borderRadius: theme.borderRadius.full,
-  },
-  submitButtonDisabled: {
-    opacity: 0.5,
-  },
-  submitText: {
-    ...theme.typography.caption.primary,
-    color: theme.colors.text.inverse,
   },
   // Face2Face styles
   faceModalOverlay: {

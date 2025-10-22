@@ -18,6 +18,7 @@ interface VerseActionsSheetProps {
   onLike: () => void;
   onShare: () => void;
   onCompare: () => void;
+  onExplainWithAI: () => void;
 }
 
 const VerseActionsSheet: React.FC<VerseActionsSheetProps> = ({
@@ -32,6 +33,7 @@ const VerseActionsSheet: React.FC<VerseActionsSheetProps> = ({
   onLike,
   onShare,
   onCompare,
+  onExplainWithAI,
 }) => {
   const theme = useTheme();
   const styles = createStyles(theme);
@@ -105,6 +107,12 @@ const VerseActionsSheet: React.FC<VerseActionsSheetProps> = ({
                   icon={<MaterialIcons name="compare-arrows" size={24} color={theme.colors.primary} />}
                   label="Compare"
                   onPress={onCompare}
+                />
+
+                <ActionButton
+                  icon={<MaterialIcons name="auto-awesome" size={24} color={theme.colors.primary} />}
+                  label="Explain with AI"
+                  onPress={onExplainWithAI}
                 />
               </View>
             </View>

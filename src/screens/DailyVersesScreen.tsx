@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -8,6 +8,7 @@ import {
   Platform,
   ActivityIndicator,
   RefreshControl,
+  Modal,
 } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -18,11 +19,11 @@ import {
   Info,
   Upvote,
   Check,
+  X,
 } from '@/components/Icons';
 import { Theme } from '@/theme';
 import { useTheme } from '@/contexts/ThemeContext';
 import * as Haptics from 'expo-haptics';
-import VerseTooltip from '@/components/VerseTooltip';
 import { RootStackParamList, Verse, THEMES, FoundationalVirtue } from '@/types';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useThemeOfDay } from '@/utils/schedule';
@@ -63,11 +64,19 @@ const DailyVersesScreen = ({ navigation }: NativeStackScreenProps<RootStackParam
     if (!dailyVerses?.length) return { current: [], upcoming: [] };
 
     const now = new Date();
-    return dailyVerses.reduce<{ current: Verse[], upcoming: Verse[] }>((acc, verse) => {
-      const verseDate = new Date(verse.created_at);
-      if (verseDate.getDate() === now.getDate()) {
+    const todayKey = now.toDateString();
+    const tomorrow = new Date(now);
+    tomorrow.setDate(now.getDate() + 1);
+    const tomorrowKey = tomorrow.toDateString();
+
+    return dailyVerses.reduce<{ current: Verse[]; upcoming: Verse[] }>((acc, verse) => {
+      const verseDate = verse.date ? new Date(verse.date) : new Date(verse.created_at);
+      const isValidDate = !Number.isNaN(verseDate.getTime());
+      const dateKey = (isValidDate ? verseDate : now).toDateString();
+
+      if (dateKey === todayKey) {
         acc.current.push(verse);
-      } else if (verseDate.getDate() === now.getDate() + 1) {
+      } else if (dateKey === tomorrowKey) {
         acc.upcoming.push(verse);
       }
       return acc;
@@ -123,7 +132,19 @@ const DailyVersesScreen = ({ navigation }: NativeStackScreenProps<RootStackParam
   const [selectedTab, setSelectedTab] = useState<'current' | 'upcoming'>('current');
   const [selectedVerse, setSelectedVerse] = useState<Verse | null>(null);
   const [refreshing, setRefreshing] = useState(false);
-  const verseRef = useRef<View>(null);
+
+  const hasBibleContext = !!(selectedVerse?.book && selectedVerse?.chapter);
+  const dateLabel = React.useMemo(() => {
+    const baseDate = new Date();
+    if (selectedTab === 'upcoming') {
+      baseDate.setDate(baseDate.getDate() + 1);
+    }
+    return baseDate.toLocaleDateString('en-US', {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric'
+    });
+  }, [selectedTab]);
 
   const selectedTheme = selectedTab === 'current' ? todayTheme : tomorrowTheme;
 
@@ -167,7 +188,7 @@ const DailyVersesScreen = ({ navigation }: NativeStackScreenProps<RootStackParam
           onPress={() => setSelectedVerse(verse)}
           style={styles.verseContent}
         >
-          <View ref={verseRef}>
+          <View>
             {/* Moderator Badge if applicable */}
             {verse.is_featured && (
               <View style={[
@@ -327,14 +348,9 @@ const DailyVersesScreen = ({ navigation }: NativeStackScreenProps<RootStackParam
           ) : (
             <>
               <Text style={[
-                styles.dateText,
-                { alignSelf: selectedTab === 'current' ? 'flex-start' : 'flex-end' }
+                styles.dateText, { alignSelf: selectedTab === 'current' ? 'flex-start' : 'flex-end' }
               ]}>
-                {new Date().toLocaleDateString('en-US', {
-                  weekday: 'short',
-                  month: 'short',
-                  day: 'numeric'
-                })}
+                {dateLabel}
               </Text>
 
               <TouchableOpacity
@@ -370,13 +386,56 @@ const DailyVersesScreen = ({ navigation }: NativeStackScreenProps<RootStackParam
           )}
         </ScrollView>
 
-        {/* Verse Tooltip */}
         {selectedVerse && (
-          <VerseTooltip
-            verseRef={selectedVerse.reference}
-            targetRef={verseRef}
-            onClose={() => setSelectedVerse(null)}
-          />
+          <Modal
+            visible={true}
+            transparent
+            animationType="fade"
+            onRequestClose={() => setSelectedVerse(null)}
+          >
+            <View style={styles.contextOverlay}>
+              <View style={styles.contextContainer}>
+                <View style={styles.contextHeader}>
+                  <Text style={styles.contextTitle} numberOfLines={2}>
+                    {selectedVerse.context_reference || selectedVerse.reference}
+                  </Text>
+                  <TouchableOpacity onPress={() => setSelectedVerse(null)}>
+                    <X size={20} color={theme.colors.text.secondary} />
+                  </TouchableOpacity>
+                </View>
+                <ScrollView style={styles.contextBody} showsVerticalScrollIndicator={false}>
+                  <Text style={styles.contextText}>
+                    {selectedVerse.context_text || 'Context not available yet.'}
+                  </Text>
+                </ScrollView>
+                <View style={styles.contextFooter}>
+                  {hasBibleContext && (
+                    <TouchableOpacity
+                      style={styles.contextPrimaryButton}
+                      onPress={() => {
+                        navigation.navigate('BibleScreen', {
+                          book: selectedVerse.book || undefined,
+                          chapter: selectedVerse.chapter || undefined,
+                          verse: selectedVerse.verse || undefined,
+                        });
+                        setSelectedVerse(null);
+                      }}
+                    >
+                      <Text style={styles.contextPrimaryText}>Open in Bible</Text>
+                    </TouchableOpacity>
+                  )}
+                  <TouchableOpacity
+                    style={hasBibleContext ? styles.contextSecondaryButton : styles.contextPrimaryButton}
+                    onPress={() => setSelectedVerse(null)}
+                  >
+                    <Text style={hasBibleContext ? styles.contextSecondaryText : styles.contextPrimaryText}>
+                      Close
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+          </Modal>
         )}
       </View>
       {/* Theme Info Modal */}
@@ -571,6 +630,76 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     color: theme.colors.text.secondary,
     textAlign: 'center',
     marginTop: theme.spacing.md,
+  },
+  contextOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: theme.spacing.lg,
+  },
+  contextContainer: {
+    width: '100%',
+    maxWidth: 420,
+    backgroundColor: theme.colors.background,
+    borderRadius: theme.borderRadius.lg,
+    overflow: 'hidden',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: theme.colors.border,
+  },
+  contextHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    padding: theme.spacing.md,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: theme.colors.border,
+  },
+  contextTitle: {
+    ...theme.typography.heading.small,
+    flex: 1,
+    color: theme.colors.text.primary,
+    marginRight: theme.spacing.sm,
+  },
+  contextBody: {
+    maxHeight: 300,
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.sm,
+  },
+  contextText: {
+    ...theme.typography.body.sans,
+    color: theme.colors.text.primary,
+    lineHeight: 22,
+  },
+  contextFooter: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: theme.spacing.sm,
+    padding: theme.spacing.md,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: theme.colors.border,
+  },
+  contextPrimaryButton: {
+    paddingVertical: theme.spacing.xs,
+    paddingHorizontal: theme.spacing.md,
+    borderRadius: theme.borderRadius.full,
+    backgroundColor: theme.colors.primary,
+  },
+  contextPrimaryText: {
+    ...theme.typography.caption.primary,
+    color: theme.colors.text.inverse,
+    fontWeight: '600',
+  },
+  contextSecondaryButton: {
+    paddingVertical: theme.spacing.xs,
+    paddingHorizontal: theme.spacing.md,
+    borderRadius: theme.borderRadius.full,
+    backgroundColor: theme.colors.surface,
+  },
+  contextSecondaryText: {
+    ...theme.typography.caption.primary,
+    color: theme.colors.text.primary,
+    fontWeight: '600',
   },
   cardBorder: {
     borderTopWidth: 3,

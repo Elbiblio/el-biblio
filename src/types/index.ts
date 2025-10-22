@@ -14,16 +14,10 @@ export enum UserRole {
 
 export const PRAYER_CATEGORIES = [
   'healing',
-  'guidance',
-  'growth',
-  'encounter',
+  'spiritual_growth',
+  'faith_encounter',
   'forgiveness',
-  'provision',
-  'thanksgiving',
-  'protection',
-  'relationships',
-  'work',
-  'help',
+  'prosperity',
 ] as const;
 
 export type PrayerCategory = typeof PRAYER_CATEGORIES[number];
@@ -33,19 +27,37 @@ export interface PrayerRequest {
   id: string;
   user_id?: string;
   user?: User;
-  content?: string; // legacy field or frontend display
-  detail?: string; // backend field name
+  title?: string | null;
+  type?: 'prayer' | 'testimony';
+  content?: string;
+  detail?: string | null;
   category?: PrayerCategory;
   visibility?: 'anonymous' | 'first_name' | 'full_name';
-  prayed_users?: (number | string)[] | User[];
-  has_prayed?: boolean;
-  meta?: {
-    prayed_count?: number;
-    [key: string]: any;
-  };
+  is_published?: boolean;
+  answered_at?: string | null;
+  prayed_users?: Array<number | string | User> | null;
+  amen_users?: Array<number | string | User> | null;
   prayed_count?: number;
+  amen_count?: number;
+  comments_count?: number;
+  comments?: PrayerRequestComment[];
+  has_prayed?: boolean;
   created_at: string;
   updated_at?: string;
+}
+
+export interface PrayerRequestComment {
+  id: string;
+  prayer_request_id: string;
+  user_id: string;
+  user?: User;
+  parent_id?: string | null;
+  content: string;
+  created_at: string;
+  updated_at: string;
+  replies?: PrayerRequestComment[];
+  amen_users?: Array<number | string | User> | null;
+  amen_count?: number;
 }
 
 export enum ActivityType {
@@ -171,6 +183,11 @@ export interface Verse {
   text: string;
   reference: string;
   reference_display: string;
+  context_reference?: string | null;
+  context_text?: string | null;
+  book?: string | null;
+  chapter?: number | null;
+  verse?: number | null;
   date: string;
   translation: string;
   theme_id?: string;
@@ -480,6 +497,7 @@ export interface MeditationSession {
   duration_minutes: number;
   started_at: string;
   ended_at: string;
+  metadata?: Record<string, any>;
 }
 
 export interface Activity {
@@ -693,6 +711,7 @@ export type RootStackParamList = {
   ChallengeDetail: { id: string };
   SpiritualCareerScreen: undefined;
   MyJourneyScreen: undefined;
+  JourneyQuizScreen: { phaseId: string };
 };
 
 export interface BibleVersion {

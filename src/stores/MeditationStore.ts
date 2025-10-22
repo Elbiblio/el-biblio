@@ -2,15 +2,25 @@ import { makeAutoObservable, runInAction } from 'mobx';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { apiClient } from '@/api/client';
 import { MeditationSession, Challenge, DailyChallenge, PaginatedResponse } from '@/types';
+import { getRosaryMysteries, getRosaryMystery, RosaryMystery, RosaryMysteryType } from '@/data/meditationPlans';
 
 export type MeditationPhase = 'setup' | 'countdown' | 'active' | 'complete';
+
+export interface RosaryState {
+  currentMystery: RosaryMystery | null;
+  selectedMysteryType: RosaryMysteryType | null;
+  isRosaryMode: boolean;
+  currentBead: number; // 0-59 for full rosary
+  completedBeads: number[];
+  rosaryStartTime: number | null;
+}
 
 export interface MeditationState {
   sessions: MeditationSession[];
   unsyncedSessions: MeditationSession[];
   challenges: Challenge[];
   joinedChallenges: string[];
-  
+
   // UI/session state
   selectedVirtue: string | null;
   selectedTime: number | null;
@@ -19,7 +29,10 @@ export interface MeditationState {
   meditationState: MeditationPhase;
   countdown: number;
   meditationTimer: number;
-  
+
+  // Rosary-specific state
+  rosaryState: RosaryState;
+
   // Pagination
   pagination: {
     currentPage: number;
@@ -42,6 +55,14 @@ const initialState: MeditationState = {
   meditationState: 'setup',
   countdown: 5, // 5-second countdown by default
   meditationTimer: 0,
+  rosaryState: {
+    currentMystery: null,
+    selectedMysteryType: null,
+    isRosaryMode: false,
+    currentBead: 0,
+    completedBeads: [],
+    rosaryStartTime: null,
+  },
   pagination: {
     currentPage: 1,
     lastPage: 1,
@@ -456,8 +477,170 @@ export class MeditationStore {
     this.state.meditationTimer = 0;
   }
 
-  clearErrors() {
-    this.setError(null);
+  // Rosary-specific methods
+  startRosaryMeditation(mysteryType: RosaryMysteryType, mysteryId?: string) {
+    runInAction(() => {
+      this.state.rosaryState.isRosaryMode = true;
+      this.state.rosaryState.selectedMysteryType = mysteryType;
+      this.state.rosaryState.currentBead = 0;
+      this.state.rosaryState.completedBeads = [];
+      this.state.rosaryState.rosaryStartTime = Date.now();
+    });
+
+    // Start with the selected mystery or the first one
+    this.setCurrentMystery(mysteryId);
+    this.startMeditation();
+  }
+
+  setCurrentMystery(mysteryId?: string) {
+    if (!this.state.rosaryState.selectedMysteryType) return;
+
+    const mystery = mysteryId
+      ? this.getRosaryMysteries().find(m => m.id === mysteryId)
+      : this.getRosaryMysteries()[0]; // Start with first mystery
+
+    if (mystery) {
+      runInAction(() => {
+        this.state.rosaryState.currentMystery = mystery;
+      });
+    }
+  }
+
+  nextMystery() {
+    if (!this.state.rosaryState.currentMystery || !this.state.rosaryState.selectedMysteryType) return;
+
+    const mysteries = this.getRosaryMysteries();
+    const currentIndex = mysteries.findIndex(m => m.id === this.state.rosaryState.currentMystery?.id);
+
+    if (currentIndex < mysteries.length - 1) {
+      const nextMystery = mysteries[currentIndex + 1];
+      runInAction(() => {
+        this.state.rosaryState.currentMystery = nextMystery;
+        this.state.rosaryState.currentBead += 1; // Move to next bead
+      });
+    } else {
+      // Completed all mysteries
+      this.endRosarySession();
+    }
+  }
+
+  previousMystery() {
+    if (!this.state.rosaryState.currentMystery || !this.state.rosaryState.selectedMysteryType) return;
+
+    const mysteries = this.getRosaryMysteries();
+    const currentIndex = mysteries.findIndex(m => m.id === this.state.rosaryState.currentMystery?.id);
+
+    if (currentIndex > 0) {
+      const prevMystery = mysteries[currentIndex - 1];
+      runInAction(() => {
+        this.state.rosaryState.currentMystery = prevMystery;
+        this.state.rosaryState.currentBead = Math.max(0, this.state.rosaryState.currentBead - 1);
+      });
+    }
+  }
+
+  completeMysteryBead() {
+    if (!this.state.rosaryState.currentMystery) return;
+
+    runInAction(() => {
+      if (!this.state.rosaryState.completedBeads.includes(this.state.rosaryState.currentBead)) {
+        this.state.rosaryState.completedBeads = [
+          ...this.state.rosaryState.completedBeads,
+          this.state.rosaryState.currentBead
+        ];
+      }
+    });
+  }
+
+  async endRosarySession() {
+    // Stop meditation timer
+    if (this.meditationInterval) {
+      clearInterval(this.meditationInterval);
+      this.meditationInterval = null;
+    }
+
+    if (this.countdownInterval) {
+      clearInterval(this.countdownInterval);
+      this.countdownInterval = null;
+    }
+
+    // Record rosary session
+    if (this.state.rosaryState.isRosaryMode && this.state.rosaryState.rosaryStartTime) {
+      const now = new Date();
+      const startedAt = new Date(this.state.rosaryState.rosaryStartTime).toISOString();
+      const endedAt = now.toISOString();
+
+      const session: MeditationSession = {
+        id: `rosary-${Date.now()}`,
+        virtue_id: this.state.selectedVirtue || 'rosary',
+        duration_minutes: Math.max(1, Math.round((now.getTime() - this.state.rosaryState.rosaryStartTime) / 60000)),
+        started_at: startedAt,
+        ended_at: endedAt,
+        metadata: {
+          type: 'rosary',
+          mysteryType: this.state.rosaryState.selectedMysteryType,
+          completedMysteries: this.state.rosaryState.completedBeads.length,
+        },
+      };
+
+      try {
+        await this.recordSession(session);
+      } catch (error) {
+        console.error('Error saving rosary session:', error);
+      }
+    }
+
+    // Reset rosary state
+    runInAction(() => {
+      this.state.rosaryState = {
+        currentMystery: null,
+        selectedMysteryType: null,
+        isRosaryMode: false,
+        currentBead: 0,
+        completedBeads: [],
+        rosaryStartTime: null,
+      };
+      this.state.meditationState = 'complete';
+    });
+  }
+
+  exitRosaryMode() {
+    runInAction(() => {
+      this.state.rosaryState.isRosaryMode = false;
+      this.state.rosaryState.currentMystery = null;
+      this.state.rosaryState.selectedMysteryType = null;
+      this.state.rosaryState.currentBead = 0;
+      this.state.rosaryState.completedBeads = [];
+      this.state.rosaryState.rosaryStartTime = null;
+    });
+  }
+
+  // Helper method to get rosary mysteries (will be implemented in meditationPlans.ts)
+  private getRosaryMysteries(): RosaryMystery[] {
+    if (!this.state.rosaryState.selectedMysteryType) return [];
+    return getRosaryMysteries(this.state.rosaryState.selectedMysteryType);
+  }
+
+  // Getters for rosary state
+  get currentMystery() {
+    return this.state.rosaryState.currentMystery;
+  }
+
+  get isRosaryMode() {
+    return this.state.rosaryState.isRosaryMode;
+  }
+
+  get rosaryProgress() {
+    return {
+      currentBead: this.state.rosaryState.currentBead,
+      completedBeads: this.state.rosaryState.completedBeads.length,
+      totalBeads: 59, // Full rosary has 59 beads
+    };
+  }
+
+  // Get a specific rosary mystery by ID
+  getRosaryMysteryById(id: string): RosaryMystery | undefined {
+    return getRosaryMystery(id);
   }
   
   // Helper method to save unsynced sessions to localStorage

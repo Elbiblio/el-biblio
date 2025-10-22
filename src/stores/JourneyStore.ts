@@ -2,6 +2,7 @@ import { makeAutoObservable, runInAction } from 'mobx';
 import { Activity } from '@/types';
 import { apiClient, endpoints } from '@/api/client';
 import { AuthStore } from './AuthStore';
+import JourneyQuizLibrary from '@/utils/JourneyQuizLibrary';
 
 type JourneyPhaseStatus = 'locked' | 'available' | 'completed';
 
@@ -73,6 +74,13 @@ export class JourneyStore {
   }
 
   get currentPhase(): JourneyPhaseWithStatus | null {
+    // If there's an active quiz, return the phase that's currently being quizzed
+    if (this.quizState.activePhaseId) {
+      const activePhase = this.journeyPhases.find(phase => phase.id === this.quizState.activePhaseId);
+      if (activePhase) return activePhase;
+    }
+
+    // Otherwise, find the next available phase
     const next = this.journeyPhases.find(phase => phase.status !== 'completed');
     return next ?? (this.journeyPhases.length > 0 ? this.journeyPhases[this.journeyPhases.length - 1] : null);
   }
@@ -97,7 +105,7 @@ export class JourneyStore {
         title: 'Accept Jesus',
         summary: 'Embrace salvation through Jesus Christ.',
         description: 'Explore the foundations of faith and make a personal commitment to Jesus.',
-        quizQuestionCount: 10,
+        quizQuestionCount: 5, // Updated to match actual quiz questions
         order: 1,
       },
       {
@@ -105,7 +113,7 @@ export class JourneyStore {
         title: 'Repentance',
         summary: 'Turn away from sin toward a transformed life.',
         description: 'Recognize areas requiring repentance and establish rhythms of confession.',
-        quizQuestionCount: 10,
+        quizQuestionCount: 5, // Updated to match actual quiz questions
         order: 2,
       },
       {
@@ -113,7 +121,7 @@ export class JourneyStore {
         title: 'Activation of the Holy Spirit',
         summary: 'Invite and respond to the Holy Spirit’s leadership.',
         description: 'Identify spiritual gifts and cultivate sensitivity to the Spirit’s guidance.',
-        quizQuestionCount: 10,
+        quizQuestionCount: 5, // Updated to match actual quiz questions
         order: 3,
       },
       {
@@ -121,7 +129,7 @@ export class JourneyStore {
         title: 'Bearing of Fruits',
         summary: 'Demonstrate growth through spiritual fruit.',
         description: 'Assess personal fruitfulness and pursue practices that nurture growth.',
-        quizQuestionCount: 10,
+        quizQuestionCount: 5, // Updated to match actual quiz questions
         order: 4,
       },
       {
@@ -129,7 +137,7 @@ export class JourneyStore {
         title: 'Storing up Treasures in Heaven',
         summary: 'Invest in eternal impact and kingdom priorities.',
         description: 'Align habits and resources with heavenly values and generosity.',
-        quizQuestionCount: 10,
+        quizQuestionCount: 5, // Updated to match actual quiz questions
         order: 5,
       },
       {
@@ -137,7 +145,7 @@ export class JourneyStore {
         title: 'Giving of Self',
         summary: 'Offer time, talent, and treasure sacrificially.',
         description: 'Practice selfless service and cultivate a posture of continual giving.',
-        quizQuestionCount: 10,
+        quizQuestionCount: 5, // Updated to match actual quiz questions
         order: 6,
       },
       {
@@ -204,6 +212,7 @@ export class JourneyStore {
 
   startPhaseQuiz(phaseId: string) {
     if (!this.phaseStatus[phaseId] || this.phaseStatus[phaseId] === 'locked') return;
+
     const questions = this.buildPlaceholderQuestions(phaseId);
 
     runInAction(() => {
@@ -215,6 +224,13 @@ export class JourneyStore {
         isComplete: false,
         result: null,
       };
+    });
+
+    // Safety check: ensure currentIndex is within bounds
+    runInAction(() => {
+      if (this.quizState.currentIndex >= this.quizState.questions.length) {
+        this.quizState.currentIndex = 0;
+      }
     });
   }
 
@@ -233,7 +249,10 @@ export class JourneyStore {
     const totalQuestions = this.quizState.questions.length;
 
     if (nextIndex >= totalQuestions) {
-      const passed = totalQuestions === 0 ? false : nextCorrectCount / totalQuestions >= PASS_RATIO;
+      const score = Math.round((nextCorrectCount / totalQuestions) * 100);
+      const quiz = JourneyQuizLibrary.getQuiz(this.quizState.activePhaseId);
+      const passed = quiz ? JourneyQuizLibrary.isQuizPassed(quiz, score) : score >= PASS_RATIO * 100;
+
       runInAction(() => {
         this.quizState = {
           ...this.quizState,
@@ -283,14 +302,7 @@ export class JourneyStore {
   }
 
   private buildPlaceholderQuestions(phaseId: string): JourneyQuizQuestion[] {
-    const phase = this.phases.find(item => item.id === phaseId);
-    const total = phase?.quizQuestionCount ?? 10;
-    const title = phase?.title ?? 'Journey';
-    return Array.from({ length: total }).map((_, index) => ({
-      id: `${phaseId}-${index + 1}`,
-      prompt: `Question ${index + 1}: How are you applying ${title.toLowerCase()} in your life?`,
-      options: ['Consistently', 'Sometimes', 'Rarely', 'Not yet'],
-      correctIndex: 0,
-    }));
+    const quiz = JourneyQuizLibrary.getQuiz(phaseId);
+    return quiz ? quiz.questions : [];
   }
 }

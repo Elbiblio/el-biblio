@@ -481,6 +481,7 @@ export const endpoints = {
     toggleBookmark: (verseId: string) => `/bible/verses/${verseId}/bookmark`,
     like: (verseId: string) => `/bible/verses/${verseId}/like`,
     share: (verseId: string) => `/bible/verses/${verseId}/share`,
+    explain: (verseId: string) => `/bible/verses/${verseId}/explain`,
   },
 
   // Challenges
@@ -510,12 +511,25 @@ export const endpoints = {
     update: (id: string) => `/prayer-requests/${id}`,
     delete: (id: string) => `/prayer-requests/${id}`,
     pray: (id: string) => `/prayer-requests/${id}/pray`,
+    amen: (id: string) => `/prayer-requests/${id}/amen`,
     byUser: (userId: string) => `/users/${userId}/prayer-requests`,
   },
-  
+
   // Uploads
   uploads: {
     presign: '/uploads/presign',
+    upload: '/uploads/upload',
+    delete: (id: string) => `/uploads/${id}`,
+  },
+
+  // Prayer Request Comments
+  prayerRequestComments: {
+    list: '/prayer-request-comments',
+    show: (id: string) => `/prayer-request-comments/${id}`,
+    create: '/prayer-request-comments',
+    update: (id: string) => `/prayer-request-comments/${id}`,
+    delete: (id: string) => `/prayer-request-comments/${id}`,
+    amen: (id: string) => `/prayer-request-comments/${id}/amen`,
   },
 
   // Spiritual Career (Kingdom Calling)
