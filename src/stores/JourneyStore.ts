@@ -1,10 +1,10 @@
-import { makeAutoObservable, runInAction } from 'mobx';
+import { makeObservable, runInAction, observable, action, computed } from 'mobx';
 import { Activity } from '@/types';
 import { apiClient, endpoints } from '@/api/client';
 import { AuthStore } from './AuthStore';
 import JourneyQuizLibrary from '@/utils/JourneyQuizLibrary';
 
-type JourneyPhaseStatus = 'locked' | 'available' | 'completed';
+export type JourneyPhaseStatus = 'locked' | 'available' | 'completed';
 
 export interface JourneyPhase {
   id: string;
@@ -22,17 +22,17 @@ export interface JourneyQuizQuestion {
   correctIndex: number;
 }
 
-export interface JourneyPhaseWithStatus extends JourneyPhase {
-  status: JourneyPhaseStatus;
-}
-
-interface QuizState {
+export interface QuizState {
   activePhaseId: string | null;
   questions: JourneyQuizQuestion[];
   currentIndex: number;
   correctCount: number;
   isComplete: boolean;
   result: 'pass' | 'fail' | null;
+}
+
+export interface JourneyPhaseWithStatus extends JourneyPhase {
+  status: JourneyPhaseStatus;
 }
 
 const PASS_RATIO = 0.7;
@@ -46,6 +46,13 @@ const createEmptyQuizState = (): QuizState => ({
   result: null,
 });
 
+export interface JourneyUserProgress {
+  level?: number;
+  phase?: number;
+  bible_plan?: Record<string, unknown> | null;
+  daily_plan?: Record<string, unknown> | null;
+}
+
 export class JourneyStore {
   phases: JourneyPhase[] = [];
   phaseStatus: Record<string, JourneyPhaseStatus> = {};
@@ -53,13 +60,89 @@ export class JourneyStore {
   activities: Activity[] = [];
   isActivitiesLoading = false;
   activityError: string | null = null;
+  justCompletedPhase: string | null = null;
 
   private authStore: AuthStore;
 
   constructor(authStore: AuthStore) {
     this.authStore = authStore;
-    makeAutoObservable(this, {}, { autoBind: true });
+    
+    makeObservable(this, {
+      quizState: observable,
+      activities: observable,
+      isActivitiesLoading: observable,
+      activityError: observable,
+      justCompletedPhase: observable,
+      biblePlan: observable,
+      dailyPlan: observable,
+      
+      // computed
+      level: computed,
+      currentPhaseNumber: computed,
+      userProgressPayload: computed,
+
+      // Actions
+      setJustCompletedPhase: action,
+      clearJustCompletedPhase: action,
+      setBiblePlan: action,
+      setDailyPlan: action,
+      updateUserLevelAndPhase: action,
+      // Add other actions here as needed
+    }, { autoBind: true });
+    
     this.initializePhaseState();
+  }
+
+  biblePlan: Record<string, unknown> | null = null;
+  dailyPlan: Record<string, unknown> | null = null;
+
+  setBiblePlan(plan: Record<string, unknown> | null) {
+    this.biblePlan = plan;
+    void this.syncUserProgress();
+  }
+
+  setDailyPlan(plan: Record<string, unknown> | null) {
+    this.dailyPlan = plan;
+    void this.syncUserProgress();
+  }
+
+  get userProgressPayload(): JourneyUserProgress {
+    return {
+      level: this.level,
+      phase: this.currentPhaseNumber,
+      bible_plan: this.biblePlan,
+      daily_plan: this.dailyPlan,
+    };
+  }
+
+  async updateUserLevelAndPhase(level?: number, phase?: number) {
+    const payload: JourneyUserProgress = {};
+    if (typeof level === 'number') payload.level = level;
+    if (typeof phase === 'number') payload.phase = phase;
+    await this.syncUserProgress(payload);
+  }
+
+  async syncUserProgress(extra?: JourneyUserProgress) {
+    const userId = this.authStore.user?.id;
+    if (!userId) {
+      return;
+    }
+
+    const merged: JourneyUserProgress = {
+      ...this.userProgressPayload,
+      ...extra,
+    };
+
+    try {
+      await apiClient.put(endpoints.users.update(userId), {
+        level: merged.level,
+        phase: merged.phase,
+        bible_plan: merged.bible_plan,
+        daily_plan: merged.daily_plan,
+      });
+    } catch (error) {
+      console.warn('[JourneyStore] Failed to sync user progress', error);
+    }
   }
 
   private get orderedPhases(): JourneyPhase[] {
@@ -71,6 +154,19 @@ export class JourneyStore {
       ...phase,
       status: this.getPhaseStatus(phase.id),
     }));
+  }
+
+  get level(): number {
+    const completedCount = this.journeyPhases.filter(phase => this.phaseStatus[phase.id] === 'completed').length;
+    return Math.min(10, Math.max(1, completedCount + 1));
+  }
+
+  get currentPhaseNumber(): number {
+    const current = this.currentPhase;
+    if (!current) return 1;
+    const ordered = this.orderedPhases;
+    const index = ordered.findIndex(p => p.id === current.id);
+    return index === -1 ? 1 : index + 1;
   }
 
   get currentPhase(): JourneyPhaseWithStatus | null {
@@ -236,9 +332,8 @@ export class JourneyStore {
 
   submitAnswer(optionIndex: number) {
     if (!this.quizState.activePhaseId || this.quizState.isComplete) return;
-    const question = this.quizState.questions[this.quizState.currentIndex];
-    const isCorrect = question ? optionIndex === question.correctIndex : false;
-    this.answerQuestion(isCorrect);
+    // These are affirmations, not tests - any answer advances
+    this.answerQuestion(true);
   }
 
   answerQuestion(isCorrect: boolean) {
@@ -249,19 +344,16 @@ export class JourneyStore {
     const totalQuestions = this.quizState.questions.length;
 
     if (nextIndex >= totalQuestions) {
-      const score = Math.round((nextCorrectCount / totalQuestions) * 100);
-      const quiz = JourneyQuizLibrary.getQuiz(this.quizState.activePhaseId);
-      const passed = quiz ? JourneyQuizLibrary.isQuizPassed(quiz, score) : score >= PASS_RATIO * 100;
-
+      // Affirmation complete - always pass
       runInAction(() => {
         this.quizState = {
           ...this.quizState,
-          correctCount: nextCorrectCount,
+          correctCount: totalQuestions,
           currentIndex: nextIndex,
           isComplete: true,
-          result: passed ? 'pass' : 'fail',
+          result: 'pass',
         };
-        if (passed && this.quizState.activePhaseId) {
+        if (this.quizState.activePhaseId) {
           this.onQuizPassed(this.quizState.activePhaseId);
         }
       });
@@ -283,6 +375,14 @@ export class JourneyStore {
     });
   }
 
+  setJustCompletedPhase(phaseId: string) {
+    this.justCompletedPhase = phaseId;
+  }
+
+  clearJustCompletedPhase() {
+    this.justCompletedPhase = null;
+  }
+
   onQuizPassed(phaseId: string) {
     const ordered = [...this.phases].sort((a, b) => a.order - b.order);
     const index = ordered.findIndex(phase => phase.id === phaseId);
@@ -295,6 +395,8 @@ export class JourneyStore {
         this.phaseStatus[nextPhase.id] = 'available';
       }
     });
+
+    void this.updateUserLevelAndPhase(this.level, this.currentPhaseNumber);
   }
 
   getPhaseStatus(phaseId: string): JourneyPhaseStatus {

@@ -25,6 +25,7 @@ function JourneyQuizScreen({ navigation, route }: JourneyQuizProps) {
 
   const { questions, currentIndex, isComplete, result, correctCount } = journeyStore.quizState;
   const question = currentIndex < questions.length ? questions[currentIndex] : null;
+  const progressPercent = questions.length > 0 ? ((currentIndex + 1) / questions.length) * 100 : 0;
 
   // Subtle fade/scale when question changes
   const appear = useRef(new Animated.Value(0)).current;
@@ -51,16 +52,21 @@ function JourneyQuizScreen({ navigation, route }: JourneyQuizProps) {
         <Text style={styles.headerTitle}>Journey Quiz</Text>
         <View style={styles.headerBtn} />
       </View>
+      {!isComplete && questions.length > 0 && (
+        <View style={styles.progressBarContainer}>
+          <View style={[styles.progressBarFill, { width: `${progressPercent}%` }]} />
+        </View>
+      )}
 
       {isComplete ? (
         <View style={styles.resultWrap}>
-          <Text style={styles.resultTitle}>{result === 'pass' ? 'Great job!' : 'Keep going'}</Text>
+          <Text style={styles.resultTitle}>Phase Complete!</Text>
           <Text style={styles.resultSummary}>
-            You answered {correctCount} of {questions.length} correctly ({questions.length ? Math.round((correctCount / questions.length) * 100) : 0}%).
+            You've affirmed your readiness for this phase of your spiritual journey.
           </Text>
           <View style={styles.resultActions}>
             <TouchableOpacity style={styles.primary} onPress={() => { journeyStore.resetQuiz(); navigation.goBack(); }}>
-              <Text style={styles.primaryText}>Close</Text>
+              <Text style={styles.primaryText}>Continue</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -119,8 +125,18 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     elevation: 2,
   },
+  progressBarContainer: {
+    height: 4,
+    backgroundColor: `${theme.colors.primary}15`,
+    width: '100%',
+  },
+  progressBarFill: {
+    height: '100%',
+    backgroundColor: theme.colors.primary,
+    borderRadius: 2,
+  },
   progressText: { ...theme.typography.caption.secondary, color: theme.colors.text.secondary },
-  prompt: { ...theme.typography.body.sans, color: theme.colors.text.primary },
+  prompt: { ...theme.typography.body.sans, color: theme.colors.text.primary, fontSize: 18, lineHeight: 26 },
   options: { gap: theme.spacing.sm },
   option: {
     padding: theme.spacing.md,

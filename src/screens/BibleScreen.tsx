@@ -12,9 +12,11 @@ import {
   ActivityIndicator,
   RefreshControl,
   ScrollView,
+  Animated,
 } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { MaterialIcons } from '@expo/vector-icons';
+import { useNavigation, NavigationProp, RouteProp } from '@react-navigation/native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { Theme } from '@/theme';
 import BiblePicker from '@/components/BiblePicker';
@@ -23,10 +25,14 @@ import HistoryModal, { HistoryModalEntry } from '@/components/HistoryModal';
 import FontSizeModal from '@/components/FontSizeModal';
 import VerseActionsSheet from '@/components/VerseActionsSheet';
 import VerseComparisonModal from '@/components/VerseComparisonModal';
+import ReadingPlanSetupModal from '@/components/ReadingPlanSetupModal';
 import { Book, BibleVersion, BibleVerse } from '@/types';
 import { bibleBooks } from '@/constants/bibleBooks';
 import { Brush, BrushOutlined } from '@/components/Icons';
 import { useBibleStore, HistoryEntry } from '@/stores/BibleStore';
+import { useJourneyStore, useDailyPathStore } from '@/stores/StoreProvider';
+
+import { RootStackParamList, ScopedVerseParam } from '@/types';
 
 import { useNetworkStatus } from '@/hooks/useNetworkStatus';
 import { parseVPLId } from '@/utils/database';
@@ -34,55 +40,31 @@ import { toast } from 'sonner-native';
 import * as Haptics from 'expo-haptics';
 import EmptyState from '@/components/EmptyState';
 
-const PLAN_PRESETS = [
-  {
-    id: 'gospels',
-    label: 'Journey through the Gospels',
-    books: ['Matthew', 'Mark', 'Luke', 'John'],
-    description: 'Walk with Jesus across the four gospel accounts.',
-  },
-  {
-    id: 'wisdom',
-    label: 'Wisdom & Poetry',
-    books: ['Psalms', 'Proverbs', 'Ecclesiastes'],
-    description: 'Sit with songs, proverbs, and reflections for the heart.',
-  },
-  {
-    id: 'acts-letters',
-    label: 'Acts & Early Letters',
-    books: ['Acts', 'Romans', '1 Corinthians', '2 Corinthians', 'Galatians', 'Ephesians'],
-    description: 'Follow the story of the early church and letters of Paul.',
-  },
-  {
-    id: 'torah',
-    label: 'Foundations (Torah)',
-    books: ['Genesis', 'Exodus', 'Leviticus', 'Numbers', 'Deuteronomy'],
-    description: 'Trace God’s covenant story from creation to the promised land.',
-  },
-  {
-    id: 'letters',
-    label: 'Letters of Hope',
-    books: ['Philippians', 'Colossians', '1 Thessalonians', '2 Thessalonians', 'James', '1 Peter'],
-    description: 'Lean into letters that encourage perseverance and joy.',
-  },
-];
-
-const CHAPTER_OPTIONS = [1, 2, 3, 4, 5];
+type ScopedViewState = {
+  title?: string | null;
+  subtitle?: string | null;
+  verses: ScopedVerseParam[];
+};
 
 interface BibleScreenProps {
-  route?: { params?: { book?: string; chapter?: number; verse?: number } };
+  route?: RouteProp<RootStackParamList, 'BibleScreen'>;
 }
 
 const BibleScreen = ({ route }: BibleScreenProps) => {
+  const navigation = useNavigation<NavigationProp<RootStackParamList>>();
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const verseListRef = useRef<FlatList>(null);
+  const pendingScrollVerseRef = useRef<number | null>(null);
+  const lastAppliedParamsRef = useRef<string | null>(null);
 
   // Network status
   const { isOffline } = useNetworkStatus();
 
   // Bible store
   const bibleStore = useBibleStore();
+  const journeyStore = useJourneyStore();
+  const dailyPathStore = useDailyPathStore();
 
   // Local state for UI
   const [showVersionsModal, setShowVersionsModal] = useState(false);
@@ -91,78 +73,228 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
   const [showFontModal, setShowFontModal] = useState(false);
   const [showVerseActions, setShowVerseActions] = useState(false);
   const [showComparisonModal, setShowComparisonModal] = useState(false);
-  const [showPlanBookModal, setShowPlanBookModal] = useState(false);
   const [showAIInsights, setShowAIInsights] = useState(false);
   const resumeTarget = bibleStore.resumeTarget;
-
-  const [selectedPresetIds, setSelectedPresetIds] = useState<string[]>([]);
-  const [manualPlanBooks, setManualPlanBooks] = useState<string[]>([]);
-  const builderBooks = useMemo(() => {
-    const presetBooks = selectedPresetIds.flatMap(id => {
-      const preset = PLAN_PRESETS.find(p => p.id === id);
-      return preset ? preset.books : [];
-    });
-    const combined = new Set<string>([...presetBooks, ...manualPlanBooks]);
-    return Array.from(combined);
-  }, [selectedPresetIds, manualPlanBooks]);
-  const [chaptersPerDayOption, setChaptersPerDayOption] = useState<number>(1);
+  const [isPlanSetupVisible, setIsPlanSetupVisible] = useState(false);
+  const [showCompactPlan, setShowCompactPlan] = useState(false);
   const [builderReminder, setBuilderReminder] = useState('');
+  const [scopedView, setScopedView] = useState<ScopedViewState | null>(null);
+
+  // Auto-hide header on scroll
+  const scrollY = useRef(new Animated.Value(0)).current;
+  const clampedY = useRef(Animated.diffClamp(scrollY, 0, 56)).current;
+  const headerTranslateY = clampedY.interpolate({
+    inputRange: [0, 56],
+    outputRange: [0, -56],
+  });
+
+  const routeParams = route?.params ?? null;
+
+  useEffect(() => {
+    // Open plan setup if requested by navigation and no plan exists
+    const openPlan = (route as any)?.params?.openPlanSetup;
+    if (openPlan && !bibleStore.readingPlan) {
+      setIsPlanSetupVisible(true);
+      // clear the flag to prevent reopening on re-render
+      try { (navigation as any).setParams?.({ openPlanSetup: undefined }); } catch {}
+    }
+
+    console.log('[BibleScreen] route params changed', routeParams);
+    if (!routeParams || routeParams.mode !== 'scoped' || !routeParams.scopedVerses?.length) {
+      if (scopedView) {
+        console.log('[BibleScreen] clearing scoped view', {
+          hasRouteParams: !!routeParams,
+          mode: routeParams?.mode,
+          scopedCount: routeParams?.scopedVerses?.length ?? 0,
+        });
+        setScopedView(null);
+      }
+      return;
+    }
+
+    console.log('[BibleScreen] received scoped payload', {
+      title: routeParams.scopedTitle,
+      subtitle: routeParams.scopedSubtitle,
+      verseCount: routeParams.scopedVerses.length,
+    });
+
+    const sanitized = routeParams.scopedVerses
+      .map(item => {
+        if (!item || typeof item.text !== 'string') {
+          return null;
+        }
+        const trimmed = item.text.trim();
+        if (!trimmed) {
+          return null;
+        }
+        return {
+          text: trimmed,
+          reference: item.reference ?? null,
+          isPrimary: item.isPrimary ?? false,
+        } as ScopedVerseParam;
+      })
+      .filter((item): item is ScopedVerseParam => !!item);
+
+    console.log('[BibleScreen] sanitized scoped verses', sanitized);
+
+    if (!sanitized.length) {
+      if (scopedView) {
+        console.log('[BibleScreen] sanitized payload empty – clearing scoped view');
+        setScopedView(null);
+      }
+      return;
+    }
+
+    setScopedView(prev => {
+      if (
+        prev &&
+        prev.title === (routeParams.scopedTitle ?? null) &&
+        prev.subtitle === (routeParams.scopedSubtitle ?? null) &&
+        prev.verses.length === sanitized.length &&
+        prev.verses.every((verse, index) => {
+          const candidate = sanitized[index];
+          return (
+            verse.text === candidate.text &&
+            (verse.reference ?? null) === (candidate.reference ?? null) &&
+            (!!verse.isPrimary) === (!!candidate.isPrimary)
+          );
+        })
+      ) {
+        console.log('[BibleScreen] scoped view unchanged');
+        return prev;
+      }
+
+      const nextView = {
+        title: routeParams.scopedTitle ?? null,
+        subtitle: routeParams.scopedSubtitle ?? null,
+        verses: sanitized,
+      };
+
+      console.log('[BibleScreen] updating scoped view', nextView);
+      return {
+        title: routeParams.scopedTitle ?? null,
+        subtitle: routeParams.scopedSubtitle ?? null,
+        verses: sanitized,
+      };
+    });
+  }, [routeParams, scopedView]);
+
+  useEffect(() => {
+    console.log('[BibleScreen] scopedView state changed', scopedView);
+  }, [scopedView]);
 
   useEffect(() => {
     if (!bibleStore.readingPlan) {
+      setBuilderReminder('');
+      journeyStore.setBiblePlan(null);
       return;
     }
     setBuilderReminder(bibleStore.readingPlan.reminderTime ?? bibleStore.readingReminder?.time ?? '');
+    journeyStore.setBiblePlan({
+      id: bibleStore.readingPlan.id,
+      currentIndex: bibleStore.readingPlan.currentIndex,
+      totalSegments: bibleStore.readingPlan.segments.length,
+      reminderTime: bibleStore.readingPlan.reminderTime ?? null,
+    });
   }, [bibleStore.readingPlan, bibleStore.readingReminder?.time]);
 
   // Handle initial params (apply once and only if different)
-  const appliedInitialParamsRef = useRef(false);
-  useEffect(() => {
-    if (appliedInitialParamsRef.current) return;
-    if (!route?.params) return;
+  const scrollToVerse = useCallback((targetVerse?: number | string | null) => {
+    if (targetVerse == null) return;
 
-    const { book, chapter, verse } = route.params;
-    if (!book) return;
+    const parsedTarget = typeof targetVerse === 'string' ? parseInt(targetVerse, 10) : targetVerse;
+    if (!Number.isFinite(parsedTarget) || parsedTarget <= 0) return;
 
-    const foundBook = bibleBooks.find(b => 
-      b.name.toLowerCase() === book.toLowerCase() || 
-      b.abbreviation.toLowerCase() === book.toLowerCase()
-    );
-    if (!foundBook) return;
-
-    const isSameBook = bibleStore.currentBook?.abbreviation === foundBook.abbreviation;
-    const isSameChapter = chapter ? bibleStore.currentChapter === Math.min(chapter, foundBook.chapters) : true;
-    if (isSameBook && isSameChapter) {
-      appliedInitialParamsRef.current = true;
+    if (!bibleStore.verses.length) {
+      pendingScrollVerseRef.current = parsedTarget;
       return;
     }
 
-    bibleStore.setCurrentBook(foundBook);
-    if (chapter) {
-      bibleStore.setCurrentChapter(Math.min(chapter, foundBook.chapters));
+    const verseIndex = bibleStore.verses.findIndex(v => {
+      try {
+        const { verse: verseNum } = parseVPLId(v.id);
+        return verseNum === parsedTarget;
+      } catch {
+        const match = v.reference?.match(/:(\d+)$/);
+        return match ? Number(match[1]) === parsedTarget : false;
+      }
+    });
+
+    if (verseIndex === -1) {
+      pendingScrollVerseRef.current = parsedTarget;
+      return;
+    }
+
+    pendingScrollVerseRef.current = null;
+    requestAnimationFrame(() => {
+      try {
+        verseListRef.current?.scrollToIndex({
+          index: verseIndex,
+          animated: true,
+          viewPosition: 0.3,
+        });
+      } catch {
+        const approximateRowHeight = 64;
+        verseListRef.current?.scrollToOffset({
+          offset: verseIndex * approximateRowHeight,
+          animated: true,
+        });
+      }
+    });
+  }, [bibleStore.verses]);
+
+  useEffect(() => {
+    if (!routeParams || routeParams.mode === 'scoped') {
+      return;
+    }
+
+    const { book, chapter, verse, mode } = routeParams;
+    if (!book && !chapter && !verse) return;
+
+    const paramsKey = `${book ?? ''}:${chapter ?? ''}:${verse ?? ''}:${mode ?? 'default'}`;
+    if (lastAppliedParamsRef.current === paramsKey) {
       if (verse) {
-        setTimeout(() => {
-          const verseIndex = bibleStore.verses.findIndex(v => {
-            try {
-              const { verse: verseNum } = parseVPLId(v.id);
-              return verseNum === verse;
-            } catch {
-              return false;
-            }
-          });
-          if (verseIndex !== -1) {
-            verseListRef.current?.scrollToIndex({
-              index: verseIndex,
-              animated: true,
-              viewPosition: 0.3
-            });
+        scrollToVerse(verse);
+      }
+      return;
+    }
+
+    lastAppliedParamsRef.current = paramsKey;
+
+    if (book) {
+      const foundBook = bibleBooks.find(b =>
+        b.name.toLowerCase() === book.toLowerCase() ||
+        b.abbreviation.toLowerCase() === book.toLowerCase()
+      );
+      if (foundBook) {
+        if (!bibleStore.currentBook || bibleStore.currentBook.abbreviation !== foundBook.abbreviation) {
+          bibleStore.setCurrentBook(foundBook);
+        }
+
+        if (chapter) {
+          const targetChapter = Math.min(chapter, foundBook.chapters);
+          if (bibleStore.currentChapter !== targetChapter) {
+            bibleStore.setCurrentChapter(targetChapter);
           }
-        }, 500);
+        }
+      }
+    } else if (chapter && bibleStore.currentBook) {
+      const targetChapter = Math.min(chapter, bibleStore.currentBook.chapters);
+      if (bibleStore.currentChapter !== targetChapter) {
+        bibleStore.setCurrentChapter(targetChapter);
       }
     }
 
-    appliedInitialParamsRef.current = true;
-  }, [route?.params, bibleStore.currentBook, bibleStore.currentChapter]);
+    if (verse) {
+      scrollToVerse(verse);
+    }
+  }, [routeParams, bibleStore.currentBook, bibleStore.currentChapter, scrollToVerse, bibleStore]);
+
+  useEffect(() => {
+    if (pendingScrollVerseRef.current) {
+      scrollToVerse(pendingScrollVerseRef.current);
+    }
+  }, [bibleStore.verses, scrollToVerse]);
 
   // Update offline status in Bible store
   useEffect(() => {
@@ -323,33 +455,6 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
     return bibleStore.verses.find(v => v.id === bibleStore.selectedVerseId) ?? null;
   }, [bibleStore.selectedVerseId, bibleStore.verses]);
 
-  const handleTogglePreset = useCallback((presetId: string) => {
-    setSelectedPresetIds(prev => {
-      if (prev.includes(presetId)) {
-        return prev.filter(id => id !== presetId);
-      }
-      return [...prev, presetId];
-    });
-  }, []);
-
-  const handleAddManualBook = useCallback((bookName: string) => {
-    setManualPlanBooks(prev => {
-      if (prev.includes(bookName)) {
-        return prev;
-      }
-      return [...prev, bookName];
-    });
-  }, []);
-
-  const handleRemovePlanBook = useCallback((bookName: string) => {
-    setManualPlanBooks(prev => prev.filter(book => book !== bookName));
-    setSelectedPresetIds(prev => prev.filter(id => {
-      const preset = PLAN_PRESETS.find(p => p.id === id);
-      if (!preset) return true;
-      return !preset.books.includes(bookName);
-    }));
-  }, []);
-
   const handleEnterPlanMode = useCallback(() => {
     if (!bibleStore.readingPlan) {
       return;
@@ -392,28 +497,59 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
     bibleStore.clearAIInsights();
   }, [bibleStore]);
 
-  const handleCreatePlan = useCallback(async () => {
+  const handleExitScopedView = useCallback(() => {
+    if (!scopedView) {
+      return;
+    }
+
+    setScopedView(null);
+    navigation.setParams({
+      mode: undefined,
+      scopedTitle: undefined,
+      scopedSubtitle: undefined,
+      scopedVerses: undefined,
+    });
+  }, [navigation, scopedView]);
+
+  const handleCreatePlan = useCallback(async ({ books, chaptersPerDay, reminderTime }: { books: string[]; chaptersPerDay: number; reminderTime?: string }) => {
     try {
       await bibleStore.createReadingPlan({
-        books: builderBooks,
-        chaptersPerDay: chaptersPerDayOption,
-        reminderTime: builderReminder.trim() ? builderReminder.trim() : undefined,
+        books,
+        chaptersPerDay,
+        reminderTime,
       });
       toast.success('Bible Studio plan ready');
-      setSelectedPresetIds([]);
-      setManualPlanBooks([]);
+      setBuilderReminder(reminderTime?.trim?.() ?? reminderTime ?? '');
+      setIsPlanSetupVisible(false);
       bibleStore.enablePlanMode();
       void bibleStore.focusPlanSegment();
+      journeyStore.setBiblePlan({
+        id: bibleStore.readingPlan?.id ?? '',
+        books,
+        chaptersPerDay,
+        reminderTime: reminderTime ?? null,
+      });
+      void journeyStore.syncUserProgress();
+      setShowCompactPlan(true);
+      dailyPathStore.setReadingPlanSetupCompleted(true);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unable to create plan.';
       toast.error(message);
     }
-  }, [bibleStore, builderBooks, chaptersPerDayOption, builderReminder]);
+  }, [bibleStore, dailyPathStore]);
 
   const handleApplyReminder = useCallback(async () => {
     try {
       await bibleStore.setReadingReminder(builderReminder.trim() || null);
       toast.success(builderReminder.trim() ? 'Reminder updated' : 'Reminder cleared');
+      if (bibleStore.readingPlan) {
+        journeyStore.setBiblePlan({
+          id: bibleStore.readingPlan.id,
+          currentIndex: bibleStore.readingPlan.currentIndex,
+          totalSegments: bibleStore.readingPlan.segments.length,
+          reminderTime: builderReminder.trim() || null,
+        });
+      }
     } catch (error) {
       console.error('Failed to update reminder', error);
       toast.error('Unable to update reminder.');
@@ -423,6 +559,7 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
   const handleClearPlan = useCallback(async () => {
     await bibleStore.clearReadingPlan();
     toast.success('Reading plan cleared');
+    journeyStore.setBiblePlan(null);
   }, [bibleStore]);
 
   const handleToggleSegment = useCallback(async (segmentId: string) => {
@@ -435,45 +572,12 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
     }
   }, [bibleStore]);
 
-  const renderPlanBookModal = () => (
-    <Modal
-      visible={showPlanBookModal}
-      animationType="slide"
-      onRequestClose={() => setShowPlanBookModal(false)}
-    >
-      <View style={styles.modalContainer}>
-        <View style={styles.modalHeader}>
-          <Text style={styles.modalTitle}>Add books to your plan</Text>
-          <TouchableOpacity onPress={() => setShowPlanBookModal(false)}>
-            <MaterialIcons name="close" size={24} color={theme.colors.text.secondary} />
-          </TouchableOpacity>
-        </View>
-
-        <FlatList
-          data={bibleBooks}
-          keyExtractor={item => item.abbreviation}
-          renderItem={({ item }) => (
-            <TouchableOpacity
-              style={styles.versionItem}
-              onPress={() => {
-                handleAddManualBook(item.name);
-                setShowPlanBookModal(false);
-              }}
-            >
-              <Text style={styles.versionName}>{item.name}</Text>
-              <MaterialIcons
-                name={manualPlanBooks.includes(item.name) ? 'check-circle' : 'add-circle-outline'}
-                size={22}
-                color={manualPlanBooks.includes(item.name) ? theme.colors.primary : theme.colors.text.secondary}
-              />
-            </TouchableOpacity>
-          )}
-        />
-      </View>
-    </Modal>
-  );
-
   const renderPlanHeader = () => {
+    if (scopedView) {
+      console.log('[BibleScreen] renderPlanHeader suppressed due to scoped view');
+      return null;
+    }
+
     if (!bibleStore.isInitialized) {
       return null;
     }
@@ -483,6 +587,22 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
     const progressPercent = total ? Math.round((completed / total) * 100) : 0;
     const upcoming = bibleStore.upcomingSegments;
     const [currentSegment, ...upcomingSegments] = upcoming;
+
+    if (readingPlan && showCompactPlan) {
+      return (
+        <View style={styles.compactPlanBar}>
+          <TouchableOpacity
+            style={styles.compactPlanButton}
+            onPress={() => setShowCompactPlan(false)}
+          >
+            <MaterialIcons name="auto-stories" size={18} color={theme.colors.text.inverse} />
+            <Text style={styles.compactPlanText}>
+              {completed}/{total} · {progressPercent}%
+            </Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
 
     return (
       <View style={styles.planContainer}>
@@ -500,6 +620,10 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
                   {completed} of {total} sessions complete ({progressPercent}%)
                 </Text>
               </View>
+              <TouchableOpacity style={styles.planCompactToggle} onPress={() => setShowCompactPlan(true)}>
+                <MaterialIcons name="fullscreen-exit" size={18} color={theme.colors.text.secondary} />
+                <Text style={styles.planCompactToggleText}>Minimize</Text>
+              </TouchableOpacity>
               <TouchableOpacity style={styles.planClearButton} onPress={handleClearPlan}>
                 <MaterialIcons name="delete-outline" size={18} color={theme.colors.error} />
                 <Text style={styles.planClearButtonText}>Clear plan</Text>
@@ -567,6 +691,17 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
                 </TouchableOpacity>
               </View>
             </View>
+
+            <View style={styles.planFooterActions}>
+              <TouchableOpacity style={styles.planSecondaryButton} onPress={handleEnterPlanMode}>
+                <MaterialIcons name="play-arrow" size={18} color={theme.colors.primary} />
+                <Text style={styles.planSecondaryButtonText}>Focus plan</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.planSecondaryButton} onPress={() => setIsPlanSetupVisible(true)}>
+                <MaterialIcons name="edit" size={18} color={theme.colors.primary} />
+                <Text style={styles.planSecondaryButtonText}>Adjust plan</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         ) : (
           <View style={styles.planCard}>
@@ -575,83 +710,11 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
               Choose a focus, decide how many chapters per day, and set an optional reminder.
             </Text>
 
-            <View style={styles.planPresetList}>
-              {PLAN_PRESETS.map(preset => {
-                const active = selectedPresetIds.includes(preset.id);
-                return (
-                  <TouchableOpacity
-                    key={preset.id}
-                    style={[styles.planPresetItem, active && styles.planPresetItemActive]}
-                    onPress={() => handleTogglePreset(preset.id)}
-                  >
-                    <View style={styles.planPresetHeader}>
-                      <Text style={styles.planPresetTitle}>{preset.label}</Text>
-                      <MaterialIcons
-                        name={active ? 'check-circle' : 'add-circle-outline'}
-                        size={20}
-                        color={active ? theme.colors.primary : theme.colors.text.secondary}
-                      />
-                    </View>
-                    <Text style={styles.planPresetDescription}>{preset.description}</Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-
-            <View style={styles.planBooksRow}>
-              <Text style={styles.planSectionTitle}>Selected books</Text>
-              <TouchableOpacity onPress={() => setShowPlanBookModal(true)}>
-                <Text style={styles.planActionLink}>Add books</Text>
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.planBookChips}>
-              {builderBooks.length ? (
-                builderBooks.map(book => (
-                  <TouchableOpacity key={book} style={styles.planBookChip} onPress={() => handleRemovePlanBook(book)}>
-                    <Text style={styles.planBookChipText}>{book}</Text>
-                    <MaterialIcons name="close" size={16} color={theme.colors.text.secondary} />
-                  </TouchableOpacity>
-                ))
-              ) : (
-                <Text style={styles.planEmptyText}>No books selected yet.</Text>
-              )}
-            </View>
-
-            <View style={styles.planControlsRow}>
-              <View style={styles.planChaptersGroup}>
-                <Text style={styles.planSectionTitle}>Chapters per day</Text>
-                <View style={styles.planChaptersOptions}>
-                  {CHAPTER_OPTIONS.map(option => (
-                    <TouchableOpacity
-                      key={option}
-                      style={[styles.planChapterOption, chaptersPerDayOption === option && styles.planChapterOptionActive]}
-                      onPress={() => setChaptersPerDayOption(option)}
-                    >
-                      <Text style={styles.planChapterOptionText}>{option}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
-
-              <View style={styles.planReminderInline}>
-                <Text style={styles.planSectionTitle}>Reminder (optional)</Text>
-                <TextInput
-                  value={builderReminder}
-                  onChangeText={setBuilderReminder}
-                  placeholder="HH:MM"
-                  style={styles.planReminderInput}
-                  keyboardType="numbers-and-punctuation"
-                />
-              </View>
-            </View>
-
             <TouchableOpacity
-              style={[styles.planPrimaryButton, (!builderBooks.length) && styles.planPrimaryButtonDisabled]}
-              onPress={handleCreatePlan}
-              disabled={!builderBooks.length}
+              style={styles.planPrimaryButton}
+              onPress={() => setIsPlanSetupVisible(true)}
             >
-              <Text style={styles.planPrimaryButtonText}>Create plan</Text>
+              <Text style={styles.planPrimaryButtonText}>Open plan builder</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -882,12 +945,91 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
     );
   };
 
+  const renderScopedView = () => {
+    if (!scopedView) {
+      return null;
+    }
+
+    console.log('[BibleScreen] rendering scoped view', scopedView);
+
+    return (
+      <View style={styles.scopedContainer}>
+        <View style={styles.scopedHeader}>
+          <View style={styles.scopedHeaderText}>
+            {scopedView.title ? (
+              <Text style={styles.scopedTitle}>{scopedView.title}</Text>
+            ) : null}
+            {scopedView.subtitle ? (
+              <Text style={styles.scopedSubtitle}>{scopedView.subtitle}</Text>
+            ) : null}
+          </View>
+          <TouchableOpacity style={styles.scopedDismissButton} onPress={handleExitScopedView}>
+            <MaterialIcons name="close" size={20} color={theme.colors.text.secondary} />
+            <Text style={styles.scopedDismissText}>Dismiss</Text>
+          </TouchableOpacity>
+        </View>
+
+        <ScrollView
+          style={styles.scopedScroll}
+          contentContainerStyle={styles.scopedScrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          {scopedView.verses.map((verse, index) => (
+            <View
+              key={`${verse.text}-${index}`}
+              style={[styles.scopedVerseCard, verse.isPrimary && styles.scopedVersePrimary]}
+            >
+              {verse.reference ? (
+                <Text style={styles.scopedReference}>{verse.reference}</Text>
+              ) : null}
+              <Text style={styles.scopedVerseText}>{verse.text}</Text>
+            </View>
+          ))}
+        </ScrollView>
+      </View>
+    );
+  };
+
+  const renderVersesList = () => (
+    <FlatList
+      ref={verseListRef}
+      data={bibleStore.verses}
+      renderItem={renderVerse}
+      keyExtractor={item => item.id}
+      contentContainerStyle={styles.contentContainer}
+      ListHeaderComponent={renderPlanHeader}
+      ListHeaderComponentStyle={styles.planHeader}
+      initialNumToRender={20}
+      maxToRenderPerBatch={10}
+      windowSize={5}
+      onEndReached={handleLoadMore}
+      onEndReachedThreshold={0.1}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={handleRefresh}
+          colors={[theme.colors.primary]}
+          tintColor={theme.colors.primary}
+        />
+      }
+      ListFooterComponent={ListFooter}
+      ListEmptyComponent={ListEmpty}
+      onScrollToIndexFailed={info => {
+        setTimeout(() => {
+          verseListRef.current?.scrollToIndex({
+            index: info.index,
+            animated: true
+          });
+        }, 500);
+      }}
+    />
+  );
+
   return (
     <View style={styles.container}>
-      {renderPlanBookModal()}
-      <View style={styles.headerContainer}>
+      <Animated.View style={[styles.headerContainer, { transform: [{ translateY: headerTranslateY }] }]}>
         {renderHeader()}
-      </View>
+      </Animated.View>
 
       {resumeTarget && (
         <View style={styles.resumeBar}>
@@ -909,7 +1051,7 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
       )}
 
       {/* Content Area */}
-      <FlatList
+      <Animated.FlatList
         ref={verseListRef}
         data={bibleStore.verses}
         renderItem={renderVerse}
@@ -922,6 +1064,11 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
         windowSize={5}
         onEndReached={handleLoadMore}
         onEndReachedThreshold={0.1}
+        onScroll={Animated.event(
+          [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+          { useNativeDriver: true }
+        )}
+        scrollEventThrottle={16}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -1182,6 +1329,12 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
           )}
         </View>
       </Modal>
+
+      <ReadingPlanSetupModal
+        visible={isPlanSetupVisible}
+        onClose={() => setIsPlanSetupVisible(false)}
+        onCreatePlan={handleCreatePlan}
+      />
     </View>
   );
 };
@@ -1265,6 +1418,19 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: theme.spacing.md,
+  },
+  planCompactToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.xs,
+    paddingVertical: theme.spacing.xs,
+    paddingHorizontal: theme.spacing.sm,
+    borderRadius: theme.borderRadius.sm,
+    backgroundColor: theme.colors.surface,
+  },
+  planCompactToggleText: {
+    ...theme.typography.caption.primary,
+    color: theme.colors.text.secondary,
   },
   planCardTitle: {
     ...theme.typography.heading.small,
@@ -1468,6 +1634,114 @@ const createStyles = (theme: Theme) => StyleSheet.create({
   planPrimaryButtonText: {
     ...theme.typography.button.primary,
     color: theme.colors.text.inverse,
+  },
+  planFooterActions: {
+    flexDirection: 'row',
+    gap: theme.spacing.sm,
+  },
+  compactPlanBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    backgroundColor: theme.colors.primary,
+    borderRadius: theme.borderRadius.md,
+    paddingVertical: theme.spacing.xs,
+    paddingHorizontal: theme.spacing.sm,
+    marginBottom: theme.spacing.sm,
+  },
+  compactPlanButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.xs,
+  },
+  compactPlanText: {
+    ...theme.typography.caption.primary,
+    color: theme.colors.text.inverse,
+  },
+  planSecondaryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.xs,
+    paddingVertical: theme.spacing.xs,
+    paddingHorizontal: theme.spacing.md,
+    borderRadius: theme.borderRadius.sm,
+    borderWidth: 1,
+    borderColor: theme.colors.primary,
+    backgroundColor: theme.colors.background,
+  },
+  planSecondaryButtonText: {
+    ...theme.typography.caption.primary,
+    color: theme.colors.primary,
+  },
+  scopedContainer: {
+    flex: 1,
+    padding: theme.spacing.lg,
+    gap: theme.spacing.lg,
+  },
+  scopedHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: theme.spacing.md,
+  },
+  scopedHeaderText: {
+    flex: 1,
+    gap: theme.spacing.xs,
+  },
+  scopedTitle: {
+    ...theme.typography.heading.medium,
+    color: theme.colors.text.primary,
+  },
+  scopedSubtitle: {
+    ...theme.typography.body.sans,
+    color: theme.colors.text.secondary,
+  },
+  scopedDismissButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.xs,
+    paddingVertical: theme.spacing.xs,
+    paddingHorizontal: theme.spacing.sm,
+    borderRadius: theme.borderRadius.sm,
+    backgroundColor: theme.colors.surface,
+  },
+  scopedDismissText: {
+    ...theme.typography.caption.primary,
+    color: theme.colors.text.secondary,
+  },
+  scopedScroll: {
+    flex: 1,
+  },
+  scopedScrollContent: {
+    gap: theme.spacing.md,
+    paddingBottom: theme.spacing.xl,
+  },
+  scopedVerseCard: {
+    gap: theme.spacing.xs,
+    padding: theme.spacing.lg,
+    borderRadius: theme.borderRadius.lg,
+    backgroundColor: theme.colors.surface,
+    shadowColor: theme.colors.shadow,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 2,
+  },
+  scopedVersePrimary: {
+    borderWidth: 1,
+    borderColor: `${theme.colors.primary}40`,
+    backgroundColor: `${theme.colors.primary}12`,
+  },
+  scopedReference: {
+    ...theme.typography.caption.primary,
+    color: theme.colors.text.secondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+  },
+  scopedVerseText: {
+    ...theme.typography.verse.regular,
+    color: theme.colors.text.primary,
+    lineHeight: 26,
   },
   resumeBar: {
     flexDirection: 'row',

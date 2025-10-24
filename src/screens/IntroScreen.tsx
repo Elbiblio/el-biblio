@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   StyleSheet,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { useSharedValue } from 'react-native-reanimated';
 import { BlurView } from 'expo-blur';
@@ -260,7 +261,7 @@ const IntroScreen = ({
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       {/* Loading Overlay */}
-      {isLoading && (
+      {isLoading && !showGuestFailure && (
         <View style={styles.loadingOverlay}>
           <BlurView intensity={20} style={StyleSheet.absoluteFill} />
           <View style={styles.loadingContent}>
@@ -309,14 +310,21 @@ const IntroScreen = ({
             )}
             <View style={styles.failureActions}>
               <TouchableOpacity
-                style={[styles.failureButton, styles.retryButton]}
+                style={[styles.failureButton, styles.retryButton, isLoading && styles.disabledButton]}
                 onPress={handleRetryGuest}
                 disabled={isLoading}
               >
-                <Text style={styles.failureButtonText}>Retry</Text>
+                {isLoading ? (
+                  <View style={styles.inlineLoading}>
+                    <ActivityIndicator size="small" color="#fff" />
+                    <Text style={styles.failureButtonText}>Retrying</Text>
+                  </View>
+                ) : (
+                  <Text style={styles.failureButtonText}>Retry</Text>
+                )}
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.failureButton, styles.homeButton]}
+                style={[styles.failureButton, styles.homeButton, isLoading && styles.disabledButton]}
                 onPress={handleGoHomeUnauthenticated}
                 disabled={isLoading}
               >
@@ -465,6 +473,8 @@ const createStyles = (theme: Theme) => StyleSheet.create({
   },
   loadingContent: {
     backgroundColor: theme.colors.surface,
+    borderWidth: 0.3,
+    borderColor: theme.colors.primary,
     padding: theme.spacing.xl,
     borderRadius: theme.borderRadius.lg,
     alignItems: 'center',
@@ -488,6 +498,8 @@ const createStyles = (theme: Theme) => StyleSheet.create({
   failureCard: {
     width: '100%',
     maxWidth: 420,
+    borderWidth: 0.3,
+    borderColor: theme.colors.primaryLight,
     backgroundColor: theme.colors.surface,
     borderRadius: theme.borderRadius.lg,
     padding: theme.spacing.xl,
@@ -505,32 +517,40 @@ const createStyles = (theme: Theme) => StyleSheet.create({
   },
   failureActions: {
     flexDirection: 'row',
-    gap: theme.spacing.md,
-    justifyContent: 'center',
-    marginTop: theme.spacing.sm,
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
   },
   failureButton: {
-    paddingVertical: theme.spacing.md,
-    paddingHorizontal: theme.spacing.lg,
-    borderRadius: theme.borderRadius.full,
-    minWidth: 120,
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 10,
     alignItems: 'center',
+    justifyContent: 'center',
+  },
+  disabledButton: {
+    opacity: 0.7,
   },
   retryButton: {
-    backgroundColor: theme.colors.primary,
+    backgroundColor: '#1E88E5',
   },
   homeButton: {
-    backgroundColor: theme.colors.input.background,
+    backgroundColor: 'transparent',
     borderWidth: 1,
-    borderColor: theme.colors.input.border,
+    borderColor: '#1E88E5',
   },
   failureButtonText: {
-    ...theme.typography.button.primary,
-    color: theme.colors.text.inverse,
+    color: '#fff',
+    fontWeight: '600',
   },
   failureHomeText: {
-    ...theme.typography.button.secondary,
-    color: theme.colors.text.primary,
+    color: '#1E88E5',
+    fontWeight: '600',
+  },
+  inlineLoading: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
 });
 

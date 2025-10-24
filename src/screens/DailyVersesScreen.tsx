@@ -24,7 +24,7 @@ import {
 import { Theme } from '@/theme';
 import { useTheme } from '@/contexts/ThemeContext';
 import * as Haptics from 'expo-haptics';
-import { RootStackParamList, Verse, THEMES, FoundationalVirtue } from '@/types';
+import { RootStackParamList, THEMES, FoundationalVirtue } from '@/types';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useThemeOfDay } from '@/utils/schedule';
 import { getTomorrowsTheme } from '@/utils/schedule';
@@ -33,6 +33,8 @@ import { useVerseStore, useAuthStore } from '@/stores/StoreProvider';
 import { toast } from 'sonner-native';
 import { observer } from 'mobx-react-lite';
 import EmptyState from '@/components/EmptyState';
+import VersePreviewModal from "@/components/VersePreviewModal"
+import type { Verse } from "@/types"
 
 
 const DailyVersesScreen = ({ navigation }: NativeStackScreenProps<RootStackParamList, 'DailyVersesScreen'>) => {
@@ -107,7 +109,8 @@ const DailyVersesScreen = ({ navigation }: NativeStackScreenProps<RootStackParam
 
     try {
       // Optimistic update for better UX
-      const newVotes = verse.votes + 1;
+      const voteCount = verse.votes ?? 0;
+      const newVotes = voteCount + 1;
       const isVoted = true;
       updateVerseVotes(verse.id, newVotes, isVoted);
 
@@ -124,7 +127,7 @@ const DailyVersesScreen = ({ navigation }: NativeStackScreenProps<RootStackParam
 
     } catch (error) {
       // Revert optimistic update on error
-      updateVerseVotes(verse.id, verse.votes, false);
+      updateVerseVotes(verse.id, verse.votes ?? 0, false);
       toast.error('Failed to record vote');
     }
   };
@@ -386,57 +389,21 @@ const DailyVersesScreen = ({ navigation }: NativeStackScreenProps<RootStackParam
           )}
         </ScrollView>
 
-        {selectedVerse && (
-          <Modal
-            visible={true}
-            transparent
-            animationType="fade"
-            onRequestClose={() => setSelectedVerse(null)}
-          >
-            <View style={styles.contextOverlay}>
-              <View style={styles.contextContainer}>
-                <View style={styles.contextHeader}>
-                  <Text style={styles.contextTitle} numberOfLines={2}>
-                    {selectedVerse.context_reference || selectedVerse.reference}
-                  </Text>
-                  <TouchableOpacity onPress={() => setSelectedVerse(null)}>
-                    <X size={20} color={theme.colors.text.secondary} />
-                  </TouchableOpacity>
-                </View>
-                <ScrollView style={styles.contextBody} showsVerticalScrollIndicator={false}>
-                  <Text style={styles.contextText}>
-                    {selectedVerse.context_text || 'Context not available yet.'}
-                  </Text>
-                </ScrollView>
-                <View style={styles.contextFooter}>
-                  {hasBibleContext && (
-                    <TouchableOpacity
-                      style={styles.contextPrimaryButton}
-                      onPress={() => {
-                        navigation.navigate('BibleScreen', {
-                          book: selectedVerse.book || undefined,
-                          chapter: selectedVerse.chapter || undefined,
-                          verse: selectedVerse.verse || undefined,
-                        });
-                        setSelectedVerse(null);
-                      }}
-                    >
-                      <Text style={styles.contextPrimaryText}>Open in Bible</Text>
-                    </TouchableOpacity>
-                  )}
-                  <TouchableOpacity
-                    style={hasBibleContext ? styles.contextSecondaryButton : styles.contextPrimaryButton}
-                    onPress={() => setSelectedVerse(null)}
-                  >
-                    <Text style={hasBibleContext ? styles.contextSecondaryText : styles.contextPrimaryText}>
-                      Close
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </View>
-          </Modal>
-        )}
+        <VersePreviewModal 
+          verse={selectedVerse} 
+          onClose={() => setSelectedVerse(null)}
+          context="daily-verses"
+          onVersePress={(verse: Verse) => {
+            if (verse.book && verse.chapter) {
+              navigation.navigate('BibleScreen', {
+                book: verse.book,
+                chapter: verse.chapter,
+                verse: verse.verse || undefined,
+              });
+            }
+            setSelectedVerse(null);
+          }}
+        />
       </View>
       {/* Theme Info Modal */}
       <ThemeInfo

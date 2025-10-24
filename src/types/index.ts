@@ -148,7 +148,13 @@ export interface SavedItemsFilter {
     end: Date;
   };
   searchQuery?: string;
-}
+};
+
+export type ScopedVerseParam = {
+  text: string;
+  reference?: string | null;
+  isPrimary?: boolean;
+};
 
 export interface Virtue {
   id: string;
@@ -686,20 +692,21 @@ export type RootStackParamList = {
   ThemeSelector: undefined;
   VerseDetail: { verse: Verse };
   ReflectionDetail: { reflection: Reflection };
+  NotesScreen: undefined;
+  CommunityScreen: undefined;
+  PrayerRequestsScreen: undefined;
+  DailyChallengeScreen: undefined | { onboarding?: boolean };
+  MeditationScreen: undefined;
   NoteDetail: { noteId: string | number };
   IntroScreen: undefined;
   RegistrationScreen: undefined;
+  CitizenshipSetupScreen: undefined;
   DailyVersesScreen: undefined;
-  NotesScreen: undefined;
   MatchScreen: undefined;
   WordHubsScreen: undefined;
   WordHubDetailScreen: { hubId: string };
   SavedItemsScreen: undefined;
-  CommunityScreen: undefined;
-  PrayerRequestsScreen: undefined;
   ProfileScreen: undefined;
-  DailyChallengeScreen: undefined;
-  MeditationScreen: undefined;
   VirtueScreen: undefined;
   GameScreen: undefined;
   LeaderboardScreen: undefined;
@@ -707,7 +714,16 @@ export type RootStackParamList = {
   VirtueTriviaScreen: undefined;
   VirtueQuizScreen: { virtueId?: string, level?: number };
   QuizDetail: { id: string };
-  BibleScreen: {book?: string, chapter?: number, verse?: number};
+  BibleScreen: {
+    book?: string;
+    chapter?: number;
+    verse?: number;
+    version?: string;
+    mode?: 'default' | 'scoped';
+    scopedTitle?: string | null;
+    scopedSubtitle?: string | null;
+    scopedVerses?: ScopedVerseParam[] | null;
+  };
   ChallengeDetail: { id: string };
   SpiritualCareerScreen: undefined;
   MyJourneyScreen: undefined;

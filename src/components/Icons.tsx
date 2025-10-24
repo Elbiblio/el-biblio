@@ -545,6 +545,30 @@ export const Check = ({ size = 24, color = theme.colors.text.secondary, style }:
   </View>
 );
 
+export const CheckCircle = ({ size = 24, color = theme.colors.text.secondary, style }: IconProps) => (
+  <View style={style}>
+    <MaterialCommunityIcons name="check-circle-outline" size={size} color={color} />
+  </View>
+);
+
+export const RefreshCw = ({ size = 24, color = theme.colors.text.secondary, style }: IconProps) => (
+  <View style={style}>
+    <Feather name="refresh-cw" size={size} color={color} />
+  </View>
+);
+
+export const Sun = ({ size = 24, color = theme.colors.text.secondary, style }: IconProps) => (
+  <View style={style}>
+    <Feather name="sun" size={size} color={color} />
+  </View>
+);
+
+export const HeartHandshake = ({ size = 24, color = theme.colors.text.secondary, style }: IconProps) => (
+  <View style={style}>
+    <MaterialCommunityIcons name="handshake-outline" size={size} color={color} />
+  </View>
+);
+
 export const Upvote: React.FC<IconProps> = ({ 
   size = 24, 
   color = "currentColor",
@@ -606,6 +630,12 @@ export const Synagogue = ({ size = 24, color = theme.colors.text.secondary, styl
 export const HomeLight = ({ size = 24, color = theme.colors.text.secondary, style }: IconProps) => (
   <View style={style}>
     <MaterialCommunityIcons name="home-lightbulb-outline" size={size} color={color} />
+  </View>
+);
+
+export const BookIcon = ({ size = 24, color = theme.colors.text.secondary, style }: IconProps) => (
+  <View style={style}>
+    <FontAwesome6 name="book" size={size} color={color} />
   </View>
 );
 

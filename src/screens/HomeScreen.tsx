@@ -9,6 +9,7 @@ import {
   Platform,
   Modal,
   RefreshControl,
+  TextInput,
 } from 'react-native';
 import Animated, {
   useSharedValue,
@@ -43,6 +44,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Reflection, RootStackParamList, Verse, User } from '@/types';
 import { Challenge } from '@/types/challenges';
 import AvatarStack from '@/components/AvatarStack';
+import DailyJourneyCard from '@/components/DailyJourneyCard';
 import CircleButton from '@/components/CircleButton';
 import { Theme } from '@/theme';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -50,17 +52,23 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { SCREEN_DIMENSIONS } from '@/constants';
 import { isSoulForgeUnlocked, SOUL_FORGE_UNLOCK_POINTS } from '@/utils/gameUnlocks';
 import { toast } from 'sonner-native';
-import { 
+import {
   useVerseStore,
   useAuthStore,
   useChallengeStore,
   useReflectionStore,
   useLeaderboardStore,
   useMeditationStore,
+  useDailyPathStore,
 } from '@/stores/StoreProvider';
+import { ensureReviveRemindersActive, cancelReviveReminders, scheduleReviveReminders, REVIVE_REMINDER_DEFAULT_TIMES } from '@/tasks/reviveReminderScheduler';
 import { useGameBadgeStore } from '@/stores/GameBadgeStore';
 import { observer } from 'mobx-react-lite';
 import AuthModal from '@/components/AuthModal';
+import type { Verse as VerseType } from "@/types";
+import VersePreviewModal from "@/components/VersePreviewModal";
+import type { Verse as ModalVerse } from "@/types";
+import type { DailyStep, ReviveReminderSchedule } from '@/stores/DailyPathStore';
 
 import { AppState, AppStateStatus } from 'react-native';
 // Removed local PointsEarnedModal usage; global modal in App.tsx handles display via interceptor
@@ -74,6 +82,7 @@ import { useFocusEffect } from '@react-navigation/native';
 const WELCOME_BACK_THRESHOLD = 10 * 60 * 1000; // 10 minutes in milliseconds
 const MAX_ACTIVE_TIME = 30 * 60 * 1000; // 30 minutes in milliseconds
 const SYNC_INTERVAL = 5 * 60 * 1000; // Sync every 5 minutes
+const REVIVE_REMINDER_INTERVAL = 3 * 60 * 60 * 1000; // 3 hours in milliseconds
 
 interface TimeTracking {
   lastActiveTimestamp: number;
@@ -171,12 +180,20 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
   // const [currentVerseIndex, setCurrentVerseIndex] = useState(0);
   const scrollX = useSharedValue(0);
   const [showAuthModal, setShowAuthModal] = useState(false);
-  const [selectedVerse, setSelectedVerse] = useState<Verse | null>(null);
+  const [selectedVerse, setSelectedVerse] = useState<VerseType | null>(null);
   const [isFirstVisitToday, setIsFirstVisitToday] = useState(false);
   const [showGamesModal, setShowGamesModal] = useState(false);
+  const [showReviveModal, setShowReviveModal] = useState(false);
+  const [isDisablingRevive, setIsDisablingRevive] = useState(false);
+  const [editedItems, setEditedItems] = useState<string[]>([]);
+  const [editedSchedules, setEditedSchedules] = useState<ReviveReminderSchedule[]>([]);
+  const [editedTimes, setEditedTimes] = useState<string[]>([]);
+  const [timeErrors, setTimeErrors] = useState<boolean[]>([]);
+  const [isSavingRevive, setIsSavingRevive] = useState(false);
   // Removed: local points modal state; rely on global interceptor-driven modal
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [quickMenuUsage, setQuickMenuUsage] = useState<QuickMenuUsage>({ meditationCount: 0, bibleCount: 0, unlockedItems: [] });
+  const [showSetupPrompt, setShowSetupPrompt] = useState(false);
 
   const meditationComplete = route.params?.meditationComplete || false;
   // const challenge = route.params?.challenge;
@@ -192,12 +209,334 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
   const { isConnected } = useWebSocket();
   const { unreadCount, computeUnreadFromReflections } = useCommunityStore();
   const { shouldShowBadge, updateRank } = useGameBadgeStore();
+  const dailyPathStore = useDailyPathStore();
   const [timeTracking, setTimeTracking] = useState<TimeTracking>({
     lastActiveTimestamp: Date.now(),
     totalActiveTime: user?.total_active_time || 0,
     lastSyncedTime: user?.total_active_time || 0,
     dayStartTimestamp: new Date().setHours(0, 0, 0, 0),
   });
+
+  const handleDailyJourneyAction = useCallback(
+    (step: DailyStep) => {
+      navigation.navigate(step.route as any, step.params as any);
+    },
+    [navigation],
+  );
+
+  const handleDailyJourneyToggle = useCallback(
+    (step: DailyStep) => {
+      if (dailyPathStore.isStepComplete(step.id)) {
+        dailyPathStore.clearStepCompletion(step.id);
+      } else {
+        dailyPathStore.markStepComplete(step.id);
+      }
+    },
+    [dailyPathStore],
+  );
+
+  const handleManageReviveReminders = useCallback(() => {
+    const currentItems = [...dailyPathStore.reviveReminderItems];
+    const currentSchedules = currentItems.map((item, index) => {
+      const schedule = dailyPathStore.reviveReminderSchedules[index];
+      if (schedule) {
+        return { ...schedule };
+      }
+      return {
+        item,
+        hour: REVIVE_REMINDER_DEFAULT_TIMES[Math.min(index, REVIVE_REMINDER_DEFAULT_TIMES.length - 1)].hour,
+        minute: REVIVE_REMINDER_DEFAULT_TIMES[Math.min(index, REVIVE_REMINDER_DEFAULT_TIMES.length - 1)].minute,
+        notificationId: '',
+      };
+    });
+    setEditedItems(currentItems);
+    setEditedSchedules(currentSchedules);
+    setEditedTimes(currentSchedules.map((schedule) => `${String(schedule.hour).padStart(2, '0')}:${String(schedule.minute).padStart(2, '0')}`));
+    setTimeErrors(currentSchedules.map(() => false));
+    setShowReviveModal(true);
+  }, [dailyPathStore.reviveReminderItems, dailyPathStore.reviveReminderSchedules]);
+
+  const handleCloseReviveModal = useCallback(() => {
+    setShowReviveModal(false);
+    setEditedItems([]);
+    setEditedSchedules([]);
+    setEditedTimes([]);
+    setTimeErrors([]);
+    setIsSavingRevive(false);
+  }, []);
+
+  const handleEditItemLabel = useCallback((index: number, text: string) => {
+    setEditedItems((prev) => {
+      const next = [...prev];
+      next[index] = text;
+      return next;
+    });
+    setEditedSchedules((prev) => {
+      const next = [...prev];
+      const existing = next[index] ?? {
+        item: text,
+        hour: REVIVE_REMINDER_DEFAULT_TIMES[Math.min(index, REVIVE_REMINDER_DEFAULT_TIMES.length - 1)].hour,
+        minute: REVIVE_REMINDER_DEFAULT_TIMES[Math.min(index, REVIVE_REMINDER_DEFAULT_TIMES.length - 1)].minute,
+        notificationId: '',
+      };
+      next[index] = { ...existing, item: text };
+      return next;
+    });
+    setEditedTimes((prev) => {
+      const next = [...prev];
+      const schedule = editedSchedules[index] ?? {
+        hour: REVIVE_REMINDER_DEFAULT_TIMES[Math.min(index, REVIVE_REMINDER_DEFAULT_TIMES.length - 1)].hour,
+        minute: REVIVE_REMINDER_DEFAULT_TIMES[Math.min(index, REVIVE_REMINDER_DEFAULT_TIMES.length - 1)].minute,
+      };
+      next[index] = `${String(schedule.hour).padStart(2, '0')}:${String(schedule.minute).padStart(2, '0')}`;
+      return next;
+    });
+  }, [editedSchedules]);
+
+  const handleEditItemTime = useCallback((index: number, time: string) => {
+    setEditedTimes((prev) => {
+      const next = [...prev];
+      next[index] = time;
+      return next;
+    });
+
+    const timeMatch = time.match(/^\s*(\d{1,2})[:](\d{2})\s*$/);
+    const hour = timeMatch ? Number(timeMatch[1]) : NaN;
+    const minute = timeMatch ? Number(timeMatch[2]) : NaN;
+    const isValid = !Number.isNaN(hour) && !Number.isNaN(minute) && hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59;
+
+    setTimeErrors((prev) => {
+      const next = [...prev];
+      next[index] = !isValid;
+      return next;
+    });
+
+    if (!isValid) {
+      return;
+    }
+
+    setEditedSchedules((prev) => {
+      const next = [...prev];
+      const existing = next[index] ?? {
+        item: editedItems[index] ?? '',
+        hour,
+        minute,
+        notificationId: '',
+      };
+      next[index] = {
+        ...existing,
+        hour,
+        minute,
+      };
+      return next;
+    });
+  }, [editedItems]);
+
+  const handleAddReminder = useCallback(() => {
+    if (editedItems.length >= 3) {
+      toast.error('You can only keep three revive reminders.');
+      return;
+    }
+    const nextIndex = editedItems.length;
+    const fallback = REVIVE_REMINDER_DEFAULT_TIMES[Math.min(nextIndex, REVIVE_REMINDER_DEFAULT_TIMES.length - 1)];
+    setEditedItems((prev) => [...prev, '']);
+    setEditedSchedules((prev) => [...prev, {
+      item: '',
+      hour: fallback.hour,
+      minute: fallback.minute,
+      notificationId: '',
+    }]);
+    setEditedTimes((prev) => [...prev, `${String(fallback.hour).padStart(2, '0')}:${String(fallback.minute).padStart(2, '0')}`]);
+    setTimeErrors((prev) => [...prev, false]);
+  }, [editedItems.length]);
+
+  const handleRemoveReminder = useCallback((index: number) => {
+    setEditedItems((prev) => prev.filter((_, idx) => idx !== index));
+    setEditedSchedules((prev) => prev.filter((_, idx) => idx !== index));
+    setEditedTimes((prev) => prev.filter((_, idx) => idx !== index));
+    setTimeErrors((prev) => prev.filter((_, idx) => idx !== index));
+  }, []);
+
+  const handleSaveReviveReminders = useCallback(async () => {
+    if (isSavingRevive) {
+      return;
+    }
+    if (timeErrors.some(Boolean)) {
+      toast.error('Fix invalid reminder times.');
+      return;
+    }
+
+    const entries = editedItems.reduce<Array<{ label: string; schedule: ReviveReminderSchedule | undefined }>>((acc, item, index) => {
+      const label = item.trim();
+      if (!label) {
+        return acc;
+      }
+      acc.push({ label, schedule: editedSchedules[index] });
+      return acc;
+    }, []);
+
+    if (!entries.length) {
+      toast.error('Add at least one reminder.');
+      return;
+    }
+
+    setIsSavingRevive(true);
+    try {
+      const times = entries.map(({ schedule }, index) => {
+        return {
+          hour: schedule?.hour ?? REVIVE_REMINDER_DEFAULT_TIMES[Math.min(index, REVIVE_REMINDER_DEFAULT_TIMES.length - 1)].hour,
+          minute: schedule?.minute ?? REVIVE_REMINDER_DEFAULT_TIMES[Math.min(index, REVIVE_REMINDER_DEFAULT_TIMES.length - 1)].minute,
+        };
+      });
+
+      const labels = entries.map(({ label }) => label);
+      const schedules = await scheduleReviveReminders(labels, { times });
+      dailyPathStore.setReviveReminderItems(labels);
+      dailyPathStore.setReviveReminderSchedules(schedules);
+      dailyPathStore.setReviveRemindersConfigured(true);
+      toast.success('Revive reminders updated');
+      handleCloseReviveModal();
+    } catch (error) {
+      toast.error('Unable to save revive reminders');
+      console.warn('[HomeScreen] save revive reminders failed', error);
+    } finally {
+      setIsSavingRevive(false);
+    }
+  }, [isSavingRevive, editedItems, editedSchedules, dailyPathStore, handleCloseReviveModal]);
+
+  const handleDisableReviveReminders = useCallback(async () => {
+    if (isDisablingRevive) {
+      return;
+    }
+    setIsDisablingRevive(true);
+    try {
+      await cancelReviveReminders();
+      dailyPathStore.setReviveReminderItems([]);
+      dailyPathStore.setReviveReminderSchedules([]);
+      dailyPathStore.setReviveRemindersConfigured(false);
+      toast.success('Revive reminders disabled');
+      setShowReviveModal(false);
+    } catch (error) {
+      toast.error('Could not disable revive reminders');
+      console.warn('[HomeScreen] disable revive reminders failed', error);
+    } finally {
+      setIsDisablingRevive(false);
+    }
+  }, [isDisablingRevive, dailyPathStore]);
+
+  const renderDailyJourneyCard = () => {
+    if (!dailyPathStore.isSetupComplete) {
+      return null;
+    }
+
+    if (!dailyPathStore.isReady) {
+      return null;
+    }
+
+    const steps = dailyPathStore.todaysSteps;
+    if (!steps.length) {
+      return null;
+    }
+
+    return (
+      <DailyJourneyCard
+        steps={steps}
+        nextStep={dailyPathStore.nextStep}
+        completed={dailyPathStore.completedToday}
+        progress={dailyPathStore.progress}
+        onActionPress={handleDailyJourneyAction}
+        onToggleComplete={handleDailyJourneyToggle}
+      />
+    );
+  };
+
+  const renderReviveReminderBanner = () => {
+    if (!dailyPathStore.hasConfiguredReviveReminders || !dailyPathStore.reviveReminderItems.length) {
+      return null;
+    }
+
+    return (
+      <View style={styles.reviveBanner}>
+        <View style={styles.reviveBannerContent}>
+          <Text style={styles.reviveBannerTitle}>Revive reminders are on</Text>
+          <Text style={styles.reviveBannerBody}>
+            We will nudge you to keep your revival habits going. Manage or disable reminders anytime.
+          </Text>
+        </View>
+        <View style={styles.reviveBannerButtons}>
+          <TouchableOpacity
+            style={styles.revivePrimary}
+            onPress={handleManageReviveReminders}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.revivePrimaryText}>Manage reminders</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  };
+
+  useEffect(() => {
+    if (!dailyPathStore.isReady) {
+      return;
+    }
+
+    if (dailyPathStore.isSetupComplete) {
+      setShowSetupPrompt(false);
+      return;
+    }
+
+    const now = new Date();
+    const lastPrompt = dailyPathStore.lastPromptedAt ? new Date(dailyPathStore.lastPromptedAt) : null;
+    const hoursSincePrompt = lastPrompt ? (now.getTime() - lastPrompt.getTime()) / (1000 * 60 * 60) : Infinity;
+
+    if (!lastPrompt || hoursSincePrompt >= 12) {
+      dailyPathStore.recordSetupPrompt(now.toISOString());
+      setShowSetupPrompt(true);
+    }
+  }, [dailyPathStore, dailyPathStore.isReady, dailyPathStore.isSetupComplete, dailyPathStore.lastPromptedAt]);
+
+  const handleOpenCitizenshipSetup = useCallback(() => {
+    setShowSetupPrompt(false);
+    navigation.navigate('CitizenshipSetupScreen');
+  }, [navigation]);
+
+  const handleDismissCitizenshipPrompt = useCallback(() => {
+    setShowSetupPrompt(false);
+  }, []);
+
+  const renderCitizenshipPrompt = () => {
+    if (!showSetupPrompt) {
+      return null;
+    }
+
+    return (
+      <View style={styles.citizenshipCard}>
+        <View style={styles.citizenshipTextGroup}>
+          <Text style={styles.citizenshipTitle}>Begin your daily citizenship path</Text>
+          <Text style={styles.citizenshipBody}>
+            Choose the focuses that fit your season so we can guide today’s next step.
+          </Text>
+        </View>
+        <View style={styles.citizenshipActions}>
+          <TouchableOpacity
+            style={styles.citizenshipPrimary}
+            onPress={handleOpenCitizenshipSetup}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.citizenshipPrimaryText}>Set up daily path</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.citizenshipSecondary}
+            onPress={handleDismissCitizenshipPrompt}
+            activeOpacity={0.75}
+          >
+            <Text style={styles.citizenshipSecondaryText}>Not now</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  };
 
   // Add animation values for more lively UI
   const toolsScale = useSharedValue(1);
@@ -297,6 +636,30 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
       ...prev,
       lastActiveTimestamp: now
     }));
+
+    if (dailyPathStore.hasConfiguredReviveReminders) {
+      void ensureReviveRemindersActive(dailyPathStore.reviveReminderSchedules)
+        .then((schedules) => {
+          if (schedules.length) {
+            dailyPathStore.setReviveReminderSchedules(schedules);
+          }
+        })
+        .catch((error) => {
+          console.warn('[HomeScreen] revive reminder ensure failed', error);
+        });
+    }
+
+    if (
+      dailyPathStore.hasConfiguredReviveReminders &&
+      dailyPathStore.reviveReminderItems.length
+    ) {
+      const lastPrompt = dailyPathStore.lastRevivePromptAt ? new Date(dailyPathStore.lastRevivePromptAt).getTime() : 0;
+      if (!lastPrompt || now - lastPrompt >= REVIVE_REMINDER_INTERVAL) {
+        const reminder = dailyPathStore.reviveReminderItems[0];
+        toast.info(`Remember: ${reminder}`);
+        dailyPathStore.recordRevivePrompt(new Date(now).toISOString());
+      }
+    }
   };
 
   const handleAppInactive = async () => {
@@ -771,7 +1134,29 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
   };
   
   // Render Daily Challenges Section with real API data
+  const challengesUnlockedByPoints = useMemo(() => {
+    if (!user) return false;
+    const totalPoints = leaderboardStore.userStats?.totalPoints ?? user.points ?? 0;
+    return totalPoints >= SOUL_FORGE_UNLOCK_POINTS;
+  }, [leaderboardStore.userStats?.totalPoints, user]);
+
+  const shouldShowChallenges = useMemo(() => {
+    if (!dailyPathStore.isSetupComplete) return false;
+    return dailyPathStore.isChallengesEnabled || challengesUnlockedByPoints;
+  }, [dailyPathStore.isSetupComplete, dailyPathStore.isChallengesEnabled, challengesUnlockedByPoints]);
+
+  useEffect(() => {
+    if (!dailyPathStore.isSetupComplete) return;
+    if (!dailyPathStore.isChallengesEnabled && challengesUnlockedByPoints) {
+      toast.info('Daily challenges unlocked! Join one to stay consistent.');
+    }
+  }, [dailyPathStore.isSetupComplete, dailyPathStore.isChallengesEnabled, challengesUnlockedByPoints]);
+
   const renderDailyChallenges = () => {
+    if (!shouldShowChallenges) {
+      return null;
+    }
+
     const challengeAnimatedStyle = useAnimatedStyle(() => ({
       opacity: challengeOpacity.value,
     }));
@@ -1169,66 +1554,24 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
         }
       >
         {renderHeader()}
+        {renderCitizenshipPrompt()}
+        {renderDailyJourneyCard()}
+        {renderReviveReminderBanner()}
         {renderQuickTools()}
         {renderDailyChallenges()}
         {renderVerseOfTheDay()}
         {renderLearningSpotlight()}
       </ScrollView>
 
-      {selectedVerse && (
-        <Modal
-          visible={true}
-          transparent
-          animationType="fade"
-          onRequestClose={() => setSelectedVerse(null)}
-        >
-          <View style={styles.contextOverlay}>
-            <View style={styles.contextContainer}>
-              <View style={styles.contextHeader}>
-                <Text style={styles.contextTitle} numberOfLines={2}>
-                  {selectedVerse.context_reference || selectedVerse.reference_display || selectedVerse.reference}
-                </Text>
-                <TouchableOpacity onPress={() => setSelectedVerse(null)}>
-                  <X size={20} color={theme?.colors.text.secondary ?? '#666'} />
-                </TouchableOpacity>
-              </View>
-              <ScrollView style={styles.contextBody} showsVerticalScrollIndicator={false}>
-                <Text style={styles.contextText}>
-                  {selectedVerse.context_text || 'Context not available yet.'}
-                </Text>
-              </ScrollView>
-              <View style={styles.contextFooter}>
-                {selectedVerse.book && selectedVerse.chapter && (
-                  <TouchableOpacity
-                    style={styles.contextPrimaryButton}
-                    onPress={() => {
-                      navigation.navigate('BibleScreen', {
-                        book: selectedVerse.book || undefined,
-                        chapter: selectedVerse.chapter || undefined,
-                        verse: selectedVerse.verse || undefined,
-                      });
-                      setSelectedVerse(null);
-                    }}
-                  >
-                    <Text style={styles.contextPrimaryText}>Open in Bible</Text>
-                  </TouchableOpacity>
-                )}
-                <TouchableOpacity
-                  style={selectedVerse.book && selectedVerse.chapter ? styles.contextSecondaryButton : styles.contextPrimaryButton}
-                  onPress={() => {
-                    handleVersePress(selectedVerse);
-                    setSelectedVerse(null);
-                  }}
-                >
-                  <Text style={selectedVerse.book && selectedVerse.chapter ? styles.contextSecondaryText : styles.contextPrimaryText}>
-                    View Details
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
-        </Modal>
-      )}
+      <VersePreviewModal 
+        verse={selectedVerse} 
+        onClose={() => setSelectedVerse(null)}
+        context="home"
+        onVersePress={(verse: ModalVerse) => {
+          navigation.navigate('VerseDetail', { verse });
+          setSelectedVerse(null);
+        }}
+      />
 
       {renderGamesModal()}
       
@@ -1239,6 +1582,84 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
         visible={showAuthModal}
         onClose={() => setShowAuthModal(false)}
       />
+
+      <Modal
+        visible={showReviveModal}
+        transparent
+        animationType="fade"
+        onRequestClose={handleCloseReviveModal}
+      >
+        <View style={styles.reviveModalOverlay}>
+          <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={handleCloseReviveModal} />
+          <View style={styles.reviveModalCard}>
+            <Text style={styles.reviveModalTitle}>Revive reminders</Text>
+            <View style={styles.reviveModalList}>
+              {editedItems.map((item, index) => (
+                <View key={`revive-edit-${index}`} style={styles.reviveModalItem}>
+                  <View style={styles.reviveInputColumns}>
+                    <TextInput
+                      style={styles.reviveModalItemInput}
+                      value={item}
+                      placeholder="Enter reminder"
+                      onChangeText={(text) => handleEditItemLabel(index, text)}
+                    />
+                    <View style={{ minWidth: 100 }}>
+                      <TextInput
+                        style={[
+                          styles.reviveModalTimeInput,
+                          timeErrors[index] ? styles.reviveModalTimeInputError : null,
+                        ]}
+                        value={editedTimes[index] ?? ''}
+                        placeholder="HH:MM"
+                        keyboardType="numeric"
+                        onChangeText={(text) => handleEditItemTime(index, text)}
+                      />
+                      {timeErrors[index] ? (
+                        <Text style={styles.reviveModalErrorText}>Enter 24h time (e.g. 08:30)</Text>
+                      ) : null}
+                    </View>
+                  </View>
+                  <TouchableOpacity
+                    style={styles.reviveModalRemove}
+                    onPress={() => handleRemoveReminder(index)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.reviveModalRemoveText}>Remove</Text>
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </View>
+            <TouchableOpacity style={styles.reviveModalAdd} onPress={handleAddReminder} activeOpacity={0.85}>
+              <Text style={styles.reviveModalAddText}>Add another reminder</Text>
+            </TouchableOpacity>
+            <View style={styles.reviveModalActions}>
+              <TouchableOpacity
+                style={[styles.reviveModalSave, isSavingRevive ? styles.reviveModalSaveDisabled : null]}
+                onPress={handleSaveReviveReminders}
+                activeOpacity={0.85}
+                disabled={isSavingRevive}
+              >
+                <Text style={styles.reviveModalSaveText}>{isSavingRevive ? 'Saving…' : 'Save changes'}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.reviveModalDisable, isDisablingRevive ? styles.reviveModalDisableDisabled : null]}
+                onPress={handleDisableReviveReminders}
+                activeOpacity={0.85}
+                disabled={isDisablingRevive}
+              >
+                <Text style={styles.reviveModalDisableText}>{isDisablingRevive ? 'Disabling…' : 'Disable reminders'}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.reviveModalClose}
+                onPress={handleCloseReviveModal}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.reviveModalCloseText}>Close</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 });
@@ -1395,6 +1816,233 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     ...theme?.typography.caption.primary,
     color: '#FFF',
     fontWeight: '600',
+  },
+  citizenshipCard: {
+    flexDirection: 'column',
+    gap: theme?.spacing.md,
+    marginHorizontal: theme?.spacing.md,
+    marginBottom: theme?.spacing.lg,
+    padding: theme?.spacing.lg,
+    borderRadius: theme?.borderRadius.xl,
+    backgroundColor: `${theme?.colors.primary}12`,
+    borderWidth: 1,
+    borderColor: `${theme?.colors.primary}35`,
+  },
+  citizenshipTextGroup: {
+    gap: theme?.spacing.xs,
+  },
+  citizenshipTitle: {
+    ...theme?.typography.heading.small,
+    color: theme?.colors.text.primary,
+  },
+  citizenshipBody: {
+    ...theme?.typography.caption.secondary,
+    color: theme?.colors.text.secondary,
+    lineHeight: 18,
+  },
+  citizenshipActions: {
+    flexDirection: 'row',
+    gap: theme?.spacing.sm,
+  },
+  citizenshipPrimary: {
+    flex: 1,
+    backgroundColor: theme?.colors.primary,
+    paddingVertical: theme?.spacing.sm,
+    borderRadius: theme?.borderRadius.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  citizenshipPrimaryText: {
+    ...theme?.typography.button,
+    color: theme?.colors.text.inverse,
+  },
+  citizenshipSecondary: {
+    paddingHorizontal: theme?.spacing.md,
+    paddingVertical: theme?.spacing.sm,
+    borderRadius: theme?.borderRadius.lg,
+    borderWidth: 1,
+    borderColor: theme?.colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  citizenshipSecondaryText: {
+    ...theme?.typography.button,
+    color: theme?.colors.text.secondary,
+  },
+  reviveBanner: {
+    marginHorizontal: theme?.spacing.md,
+    marginBottom: theme?.spacing.lg,
+    padding: theme?.spacing.md,
+    borderRadius: theme?.borderRadius.lg,
+    backgroundColor: `${theme?.colors.primary}08`,
+    borderWidth: 1,
+    borderColor: `${theme?.colors.primary}20`,
+    gap: theme?.spacing.sm,
+  },
+  reviveBannerContent: {
+    gap: theme?.spacing.xs,
+  },
+  reviveBannerTitle: {
+    ...theme?.typography.body.sans,
+    color: theme?.colors.primary,
+    fontWeight: '600',
+  },
+  reviveBannerBody: {
+    ...theme?.typography.caption.secondary,
+    color: theme?.colors.text.secondary,
+  },
+  reviveBannerButtons: {
+    flexDirection: 'row',
+    gap: theme?.spacing.sm,
+  },
+  revivePrimary: {
+    paddingVertical: theme?.spacing.sm,
+    paddingHorizontal: theme?.spacing.md,
+    borderRadius: theme?.borderRadius.md,
+    backgroundColor: theme?.colors.primary,
+  },
+  revivePrimaryText: {
+    ...theme?.typography.button,
+    color: theme?.colors.text.inverse,
+  },
+  reviveModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: theme?.spacing.lg,
+  },
+  reviveModalCard: {
+    width: '100%',
+    borderRadius: theme?.borderRadius.xl,
+    backgroundColor: theme?.colors.background,
+    padding: theme?.spacing.lg,
+    gap: theme?.spacing.lg,
+  },
+  reviveModalTitle: {
+    ...theme?.typography.heading.small,
+    color: theme?.colors.text.primary,
+  },
+  reviveModalList: {
+    gap: theme?.spacing.sm,
+  },
+  reviveModalItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: theme?.spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: `${theme?.colors.border}30`,
+    gap: theme?.spacing.sm,
+  },
+  reviveInputColumns: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme?.spacing.sm,
+  },
+  reviveModalItemInput: {
+    flex: 1,
+    paddingVertical: theme?.spacing.xs,
+    paddingHorizontal: theme?.spacing.sm,
+    borderRadius: theme?.borderRadius.md,
+    borderWidth: 1,
+    borderColor: `${theme?.colors.border}70`,
+    backgroundColor: theme?.colors.surface,
+    ...theme?.typography.body.sans,
+    color: theme?.colors.text.primary,
+  },
+  reviveModalTimeInput: {
+    width: 84,
+    paddingVertical: theme?.spacing.xs,
+    paddingHorizontal: theme?.spacing.sm,
+    borderRadius: theme?.borderRadius.md,
+    borderWidth: 1,
+    borderColor: `${theme?.colors.border}70`,
+    backgroundColor: theme?.colors.surface,
+    ...theme?.typography.body.sans,
+    color: theme?.colors.text.primary,
+    textAlign: 'center',
+  },
+  reviveModalTimeInputError: {
+    borderColor: theme?.colors.error,
+  },
+  reviveModalItemText: {
+    ...theme?.typography.body.sans,
+    color: theme?.colors.text.primary,
+  },
+  reviveModalErrorText: {
+    marginTop: theme?.spacing.xs,
+    ...theme?.typography.caption.secondary,
+    color: theme?.colors.error,
+  },
+  reviveModalActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: theme?.spacing.sm,
+  },
+  reviveModalRemove: {
+    paddingVertical: theme?.spacing.xs,
+    paddingHorizontal: theme?.spacing.sm,
+    borderRadius: theme?.borderRadius.md,
+    borderWidth: 1,
+    borderColor: `${theme?.colors.error}50`,
+    backgroundColor: `${theme?.colors.error}10`,
+  },
+  reviveModalRemoveText: {
+    ...theme?.typography.caption.secondary,
+    color: theme?.colors.error,
+    fontWeight: '600',
+  },
+  reviveModalAdd: {
+    alignSelf: 'flex-start',
+    paddingVertical: theme?.spacing.sm,
+    paddingHorizontal: theme?.spacing.md,
+    borderRadius: theme?.borderRadius.md,
+    borderWidth: 1,
+    borderColor: `${theme?.colors.primary}40`,
+    backgroundColor: `${theme?.colors.primary}10`,
+  },
+  reviveModalAddText: {
+    ...theme?.typography.button,
+    color: theme?.colors.primary,
+  },
+  reviveModalDisable: {
+    paddingVertical: theme?.spacing.sm,
+    paddingHorizontal: theme?.spacing.md,
+    borderRadius: theme?.borderRadius.md,
+    backgroundColor: theme?.colors.error,
+  },
+  reviveModalDisableDisabled: {
+    opacity: 0.7,
+  },
+  reviveModalDisableText: {
+    ...theme?.typography.button,
+    color: theme?.colors.text.inverse,
+  },
+  reviveModalSave: {
+    paddingVertical: theme?.spacing.sm,
+    paddingHorizontal: theme?.spacing.md,
+    borderRadius: theme?.borderRadius.md,
+    backgroundColor: theme?.colors.primary,
+  },
+  reviveModalSaveDisabled: {
+    opacity: 0.7,
+  },
+  reviveModalSaveText: {
+    ...theme?.typography.button,
+    color: theme?.colors.text.inverse,
+  },
+  reviveModalClose: {
+    paddingVertical: theme?.spacing.sm,
+    paddingHorizontal: theme?.spacing.md,
+    borderRadius: theme?.borderRadius.md,
+    borderWidth: 1,
+    borderColor: theme?.colors.border,
+    backgroundColor: theme?.colors.surface,
+  },
+  reviveModalCloseText: {
+    ...theme?.typography.button,
+    color: theme?.colors.text.primary,
   },
   scrollContent: {
     paddingBottom: theme?.spacing.xl,
@@ -2006,19 +2654,17 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     color: theme?.colors.text.primary,
   },
   closeButton: {
-    fontSize: 20,
+    ...theme?.typography.caption.primary,
     color: theme?.colors.text.secondary,
-    padding: theme?.spacing.sm,
+    fontSize: 18,
+    paddingHorizontal: theme?.spacing.xs,
   },
   gameOption: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: theme?.spacing.md,
-    backgroundColor: theme?.colors.background,
-    borderRadius: theme?.borderRadius.lg,
-    marginBottom: theme?.spacing.md,
-    borderWidth: 1,
-    borderColor: theme?.colors.border,
+    paddingVertical: theme?.spacing.md,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: `${theme?.colors.border}60`,
   },
   gameIconContainer: {
     width: 48,

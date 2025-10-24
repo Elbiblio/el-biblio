@@ -122,11 +122,27 @@ const buildQueryString = (params: QueryParams): string => {
 
 api.interceptors.request.use(
   async (config) => {
-    const token = await AsyncStorage.getItem('auth_token');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
+    const isAnonymous = config?.headers && (config.headers as any)['X-Anonymous'] === 'true';
+    if (!isAnonymous) {
+      const token = await AsyncStorage.getItem('auth_token');
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+      }
+    } else {
+      // Ensure no Authorization header leaks on anonymous calls
+      if (config.headers && 'Authorization' in config.headers) {
+        delete (config.headers as any).Authorization;
+      }
+
+      if (__DEV__) {
+        console.log('[API] Anonymous request', {
+          method: config.method,
+          url: config.url,
+          data: config.data,
+        });
+      }
     }
-    
+
     // Add request ID for tracking
     config.headers['X-Request-ID'] = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     
@@ -159,6 +175,7 @@ api.interceptors.response.use(
     return transformed;
   },
   async (error: unknown) => {
+    console.log('Response error:', error);
     if (axios.isCancel(error)) {
       return Promise.reject(error);
     }
@@ -173,6 +190,7 @@ api.interceptors.response.use(
     if (axios.isAxiosError(error)) {
       const { response, config } = error;
       const status = response?.status;
+      console.log('Response:', response);
 
       // Implement single-flight reauth with queued retries
       if (status === 401) {

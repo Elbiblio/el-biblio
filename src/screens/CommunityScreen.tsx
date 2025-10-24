@@ -9,7 +9,7 @@ import { type RootStackParamList } from '@/types';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { ArrowLeft, BookOpen, Fire, MessageSquare, NotePencil, Users } from '@/components/Icons';
 import { observer } from 'mobx-react-lite';
-import { useCommunityStore } from '@/stores/StoreProvider';
+import { useCommunityStore, useDailyPathStore } from '@/stores/StoreProvider';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export type CommunityScreenProps = NativeStackScreenProps<RootStackParamList, 'CommunityScreen'>;
@@ -97,6 +97,7 @@ const CommunityScreen = ({ navigation }: CommunityScreenProps) => {
   const insets = useSafeAreaInsets();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const { markOpened } = useCommunityStore();
+  const dailyPathStore = useDailyPathStore();
   const [usageStage, setUsageStage] = useState(0);
 
   const loadUsageStage = useCallback(async () => {
@@ -114,10 +115,12 @@ const CommunityScreen = ({ navigation }: CommunityScreenProps) => {
   }, [loadUsageStage]);
 
   const cards = useMemo(() => COMMUNITY_CARDS(theme.colors), [theme.colors]);
-  const availableCards = useMemo(
-    () => cards.filter(card => card.stage <= usageStage),
-    [cards, usageStage]
-  );
+  const availableCards = useMemo(() => {
+    return cards.filter(card => {
+      if (card.key === 'prayer_requests' && dailyPathStore?.state?.communityUnlocked) return true;
+      return card.stage <= usageStage;
+    });
+  }, [cards, usageStage, dailyPathStore?.state?.communityUnlocked]);
 
   const handleNavigate = useCallback((route: CommunityRoute) => {
     navigation.navigate(route);

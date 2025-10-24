@@ -43,6 +43,7 @@ import CommunityScreen from './src/screens/CommunityScreen';
 import PrayerRequestsScreen from './src/screens/PrayerRequestsScreen';
 import MyJourneyScreen from './src/screens/MyJourneyScreen';
 import JourneyQuizScreen from './src/screens/JourneyQuizScreen';
+import CitizenshipSetupScreen from './src/screens/CitizenshipSetupScreen';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { appStore } from './src/stores/appStore';
 import { StoreProvider } from './src/stores/StoreProvider';
@@ -53,6 +54,7 @@ import { pointsTracker } from './src/utils/pointsTracker';
 import { registerGlobals, AudioSession } from '@livekit/react-native';
 import ChallengeCompletionBanner from './src/components/ChallengeCompletionBanner';
 import { registerChallengeReminderTask } from './src/tasks/challengeReminderTask';
+import { useJourneyStore } from './src/stores/StoreProvider';
 
 registerGlobals();
 
@@ -306,6 +308,7 @@ const AppContent = () => {
           <Stack.Screen name="SpiritualCareerScreen" component={SpiritualCareerScreen} />
           <Stack.Screen name="MyJourneyScreen" component={MyJourneyScreen} />
           <Stack.Screen name="JourneyQuizScreen" component={JourneyQuizScreen} />
+          <Stack.Screen name="CitizenshipSetupScreen" component={CitizenshipSetupScreen} />
         </Stack.Navigator>
         {/* Place overlay components inside NavigationContainer so they have navigation context */}
         {showChallengeBanner && (

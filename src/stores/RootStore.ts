@@ -17,6 +17,7 @@ import { VirtueQuizStore } from './VirtueQuizStore';
 import { RegistrationStore } from './RegistrationStore';
 import { BookmarkStore } from './BookmarkStore';
 import { JourneyStore } from './JourneyStore';
+import { DailyPathStore } from './DailyPathStore';
 
 export class RootStore {
   authStore = authStore;
@@ -38,6 +39,7 @@ export class RootStore {
   registrationStore: RegistrationStore;
   bookmarkStore: BookmarkStore;
   journeyStore: JourneyStore;
+  dailyPathStore: DailyPathStore;
 
   constructor() {
     this.reflectionStore = new ReflectionStore();
@@ -55,5 +57,6 @@ export class RootStore {
     this.registrationStore = new RegistrationStore(this.authStore);
     this.bookmarkStore = new BookmarkStore();
     this.journeyStore = new JourneyStore(this.authStore);
+    this.dailyPathStore = new DailyPathStore();
   }
 }

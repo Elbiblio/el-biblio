@@ -5,14 +5,11 @@ export interface JourneyQuiz {
   title: string;
   description: string;
   questions: JourneyQuizQuestion[];
-  passingScore: number; // percentage (0-100)
+  passingScore: number;
 }
 
-/**
- * Dedicated library for Journey quizzes
- * Contains all quiz data and logic for spiritual journey phases
- */
 export class JourneyQuizLibrary {
+  // 1️⃣ ACCEPTING JESUS — Spiritual Birth
   private static readonly ACCEPT_JESUS_QUESTIONS: JourneyQuizQuestion[] = [
     {
       id: 'accept-jesus-1',
@@ -22,278 +19,339 @@ export class JourneyQuizLibrary {
     },
     {
       id: 'accept-jesus-2',
-      prompt: 'Do you pledge to serve and follow Jesus, his teachings/examples to gain life in abundance?',
+      prompt: "Has your acceptance of Jesus brought you trust in the power of God's love, his ultimate power, his perfect justice, and his infinite mercy?",
       options: ['Yes', 'No'],
       correctIndex: 0,
     },
     {
       id: 'accept-jesus-3',
-      prompt: 'Do you trust in the infinite and ultimate power of God, his divine Justice and his perfect love for all?',
+      prompt: 'Do you reject a life of sin and selfishness and pledge to humbly flee from occasions of sin? (1 John 3:9, 2 Tim 2:22)',
       options: ['Yes', 'No'],
       correctIndex: 0,
     },
     {
       id: 'accept-jesus-4',
-      prompt: 'Do you renounce the devil and all his works and empty promises?',
+      prompt: 'Jesus came that we may have life in abundance. Do you promise to practice the teachings of Jesus in your business and personal life? (Luke 6:46)',
       options: ['Yes', 'No'],
       correctIndex: 0,
     },
     {
       id: 'accept-jesus-5',
-      prompt: 'Do you promise to accept and work with the grace of the Holy Spirit who saves you?',
+      prompt: 'Do you promise to accept and work with the grace of the Holy Spirit in your business and personal life?',
       options: ['Yes', 'No'],
       correctIndex: 0,
     },
   ];
 
+  // 2️⃣ REPENTANCE — Deep Purification
   private static readonly REPENTANCE_QUESTIONS: JourneyQuizQuestion[] = [
     {
       id: 'repentance-1',
-      prompt: 'Do you acknowledge that you have sinned and fallen short of God\'s glory?',
+      prompt: 'Do you experience genuine sorrow for sin because it grieves God, not merely guilt? (2 Corinthians 7:10)',
       options: ['Yes', 'No'],
       correctIndex: 0,
     },
     {
       id: 'repentance-2',
-      prompt: 'Do you commit to turning away from sinful behaviors and toward righteous living?',
+      prompt: 'Has your repentance led to visible transformation in your speech, relationships, and habits? (Matthew 3:8)',
       options: ['Yes', 'No'],
       correctIndex: 0,
     },
     {
       id: 'repentance-3',
-      prompt: 'Do you believe that God\'s forgiveness through Jesus Christ is sufficient for your salvation?',
+      prompt: 'Do you invite the Holy Spirit to expose hidden motives and attitudes that oppose God’s will in your life? (Psalm 139:23–24)',
       options: ['Yes', 'No'],
       correctIndex: 0,
     },
     {
       id: 'repentance-4',
-      prompt: 'Do you commit to regular confession of sins and seeking God\'s forgiveness?',
+      prompt: 'Do you freely forgive others as evidence that you yourself have received God’s mercy? (Matthew 6:14–15)',
       options: ['Yes', 'No'],
       correctIndex: 0,
     },
     {
       id: 'repentance-5',
-      prompt: 'Do you desire to live a life that honors God and reflects His character?',
+      prompt: 'Do you live with a tender conscience, quick to turn back to God when you stumble? (1 John 1:9)',
+      options: ['Yes', 'No'],
+      correctIndex: 0,
+    },
+    {
+      id: 'repentance-6',
+      prompt: 'Do you rejoice in discipline, knowing it produces holiness and endurance? (Hebrews 12:10–11)',
+      options: ['Yes', 'No'],
+      correctIndex: 0,
+    },
+    {
+      id: 'repentance-7',
+      prompt: 'Has your repentance drawn you closer to humility rather than self-righteousness? (Luke 18:13–14)',
+      options: ['Yes', 'No'],
+      correctIndex: 0,
+    },
+    {
+      id: 'repentance-8',
+      prompt: 'Do you view repentance as a daily renewing of your mind, not a one-time act? (Romans 12:2)',
+      options: ['Yes', 'No'],
+      correctIndex: 0,
+    },
+    {
+      id: 'repentance-9',
+      prompt: 'Do you recognize God’s correction as a sign of His love and fatherhood? (Revelation 3:19)',
+      options: ['Yes', 'No'],
+      correctIndex: 0,
+    },
+    {
+      id: 'repentance-10',
+      prompt: 'Do you live in ongoing awareness that apart from grace, no good dwells in you? (Romans 7:18)',
       options: ['Yes', 'No'],
       correctIndex: 0,
     },
   ];
 
+  // 3️⃣ HOLY SPIRIT ACTIVATION — Divine Empowerment
   private static readonly HOLY_SPIRIT_QUESTIONS: JourneyQuizQuestion[] = [
     {
       id: 'holy-spirit-1',
-      prompt: 'Do you believe the Holy Spirit is a person of the Trinity, equal to God the Father and Jesus Christ?',
+      prompt: 'Do you discern the Holy Spirit’s voice more clearly than before, especially in times of decision? (John 16:13)',
       options: ['Yes', 'No'],
       correctIndex: 0,
     },
     {
       id: 'holy-spirit-2',
-      prompt: 'Do you desire to be filled with the Holy Spirit and guided by His wisdom?',
+      prompt: 'Have you experienced moments when divine peace or conviction replaced confusion instantly? (Philippians 4:7)',
       options: ['Yes', 'No'],
       correctIndex: 0,
     },
     {
       id: 'holy-spirit-3',
-      prompt: 'Do you acknowledge that the Holy Spirit gives spiritual gifts for the edification of the church?',
+      prompt: 'Do you see your weaknesses as channels for the Holy Spirit’s strength? (2 Corinthians 12:9)',
       options: ['Yes', 'No'],
       correctIndex: 0,
     },
     {
       id: 'holy-spirit-4',
-      prompt: 'Do you commit to listening to and following the Holy Spirit\'s guidance in your daily life?',
+      prompt: 'Are you aware of spiritual gifts operating through you to bless others? (1 Corinthians 12:7)',
       options: ['Yes', 'No'],
       correctIndex: 0,
     },
     {
       id: 'holy-spirit-5',
-      prompt: 'Do you believe that the Holy Spirit convicts believers of sin and leads them to righteousness?',
+      prompt: 'Do you consciously yield your emotions and impulses to the Spirit’s control daily? (Galatians 5:16)',
+      options: ['Yes', 'No'],
+      correctIndex: 0,
+    },
+    {
+      id: 'holy-spirit-6',
+      prompt: 'Do you sense deeper love and burden for others’ salvation as the Spirit transforms your heart? (Romans 9:2–3)',
+      options: ['Yes', 'No'],
+      correctIndex: 0,
+    },
+    {
+      id: 'holy-spirit-7',
+      prompt: 'Do you test every spirit and inner impulse by the truth of Scripture before acting? (1 John 4:1)',
+      options: ['Yes', 'No'],
+      correctIndex: 0,
+    },
+    {
+      id: 'holy-spirit-8',
+      prompt: 'Do you notice divine timing or providence guiding your circumstances toward kingdom outcomes? (Romans 8:14)',
+      options: ['Yes', 'No'],
+      correctIndex: 0,
+    },
+    {
+      id: 'holy-spirit-9',
+      prompt: 'Have you experienced the Spirit producing joy and endurance even in prolonged trials? (James 1:2–4)',
+      options: ['Yes', 'No'],
+      correctIndex: 0,
+    },
+    {
+      id: 'holy-spirit-10',
+      prompt: 'Do you live in daily awareness that your body and mind are God’s temple? (1 Corinthians 6:19–20)',
       options: ['Yes', 'No'],
       correctIndex: 0,
     },
   ];
 
+  // 4️⃣ BEARING FRUITS — Visible Transformation
   private static readonly FRUIT_BEARING_QUESTIONS: JourneyQuizQuestion[] = [
     {
       id: 'fruit-bearing-1',
-      prompt: 'Do you understand that bearing fruit means demonstrating the character of Christ through your actions?',
+      prompt: 'Do others now recognize the character of Christ in your responses and lifestyle? (Matthew 7:20)',
       options: ['Yes', 'No'],
       correctIndex: 0,
     },
     {
       id: 'fruit-bearing-2',
-      prompt: 'Do you commit to cultivating the fruit of the Spirit: love, joy, peace, patience, kindness, goodness, faithfulness, gentleness, and self-control?',
+      prompt: 'Do you see the fruit of the Spirit forming naturally through grace rather than self-effort? (Galatians 5:22–23)',
       options: ['Yes', 'No'],
       correctIndex: 0,
     },
     {
       id: 'fruit-bearing-3',
-      prompt: 'Do you recognize that spiritual fruit is evidence of a genuine relationship with Jesus Christ?',
+      prompt: 'Do you remain peaceful and forgiving when wronged, reflecting the maturity of Christ? (Luke 23:34)',
       options: ['Yes', 'No'],
       correctIndex: 0,
     },
     {
       id: 'fruit-bearing-4',
-      prompt: 'Do you desire to be used by God to produce lasting fruit that brings glory to His name?',
+      prompt: 'Has your speech become more gracious, truthful, and Spirit-led? (Colossians 4:6)',
       options: ['Yes', 'No'],
       correctIndex: 0,
     },
     {
       id: 'fruit-bearing-5',
-      prompt: 'Do you understand that without Christ, you can do nothing of eternal value?',
+      prompt: 'Do you find joy in serving quietly, unseen by men but known by God? (Matthew 6:4)',
       options: ['Yes', 'No'],
       correctIndex: 0,
     },
   ];
 
+  // 5️⃣ STORING TREASURES IN HEAVEN — Detachment from Earthly Attachments
   private static readonly TREASURES_QUESTIONS: JourneyQuizQuestion[] = [
     {
       id: 'treasures-1',
-      prompt: 'Do you understand that storing up treasures in heaven means investing in eternal things rather than temporary earthly possessions?',
+      prompt: 'Do you view wealth and success as tools for God’s purposes, not personal security? (Matthew 6:19–21)',
       options: ['Yes', 'No'],
       correctIndex: 0,
     },
     {
       id: 'treasures-2',
-      prompt: 'Do you commit to using your resources (time, money, talents) for God\'s kingdom purposes?',
+      prompt: 'Have you learned to give generously and secretly, trusting God to provide your needs? (Matthew 6:3–4)',
       options: ['Yes', 'No'],
       correctIndex: 0,
     },
     {
       id: 'treasures-3',
-      prompt: 'Do you recognize that your heart follows where you invest your treasures?',
+      prompt: 'Do you find joy in giving rather than accumulating possessions? (Acts 20:35)',
       options: ['Yes', 'No'],
       correctIndex: 0,
     },
     {
       id: 'treasures-4',
-      prompt: 'Do you desire to be rich toward God rather than accumulating earthly wealth?',
+      prompt: 'Do you consciously invest time in things of eternal value — love, mercy, souls? (Colossians 3:2)',
       options: ['Yes', 'No'],
       correctIndex: 0,
     },
     {
       id: 'treasures-5',
-      prompt: 'Do you understand that giving to others is like lending to the Lord?',
+      prompt: 'Do you feel liberated from anxiety over material needs, trusting God’s daily provision? (Matthew 6:33–34)',
       options: ['Yes', 'No'],
       correctIndex: 0,
     },
   ];
 
+  // 6️⃣ GIVING OF SELF — Complete Surrender
   private static readonly GIVING_QUESTIONS: JourneyQuizQuestion[] = [
     {
       id: 'giving-1',
-      prompt: 'Do you understand that giving of yourself means offering your time, talents, and resources sacrificially to others?',
+      prompt: 'Do you see your body, time, and possessions as belonging wholly to God? (Romans 12:1)',
       options: ['Yes', 'No'],
       correctIndex: 0,
     },
     {
       id: 'giving-2',
-      prompt: 'Do you commit to practicing generosity as a reflection of God\'s generous nature toward you?',
+      prompt: 'Are you willing to obey even when it costs your comfort, plans, or reputation? (Luke 14:33)',
       options: ['Yes', 'No'],
       correctIndex: 0,
     },
     {
       id: 'giving-3',
-      prompt: 'Do you recognize that cheerful giving brings joy to both the giver and the receiver?',
+      prompt: 'Do you find fulfillment in sacrifice rather than recognition? (Philippians 2:3–4)',
       options: ['Yes', 'No'],
       correctIndex: 0,
     },
     {
       id: 'giving-4',
-      prompt: 'Do you desire to excel in the grace of giving as part of your spiritual growth?',
+      prompt: 'Have you surrendered personal ambition to serve God’s purpose through your life and suffering? (Galatians 2:20)',
       options: ['Yes', 'No'],
       correctIndex: 0,
     },
     {
       id: 'giving-5',
-      prompt: 'Do you understand that God loves a cheerful giver?',
+      prompt: 'Could you release everything you own if Christ asked you, like the rich young ruler was called to? (Matthew 19:21)',
       options: ['Yes', 'No'],
       correctIndex: 0,
     },
   ];
 
+  // 7️⃣ DIVINE VISIONS — Union with God
   private static readonly DIVINE_VISIONS_QUESTIONS: JourneyQuizQuestion[] = [
     {
       id: 'divine-visions-1',
-      prompt: 'Do you believe that God has a specific calling and purpose for your life?',
+      prompt: 'Do you perceive the world, people, and events through the mind and compassion of Christ? (1 Corinthians 2:16)',
       options: ['Yes', 'No'],
       correctIndex: 0,
     },
     {
       id: 'divine-visions-2',
-      prompt: 'Do you commit to seeking God\'s vision for your life through prayer and Scripture?',
+      prompt: 'Have you experienced moments where God revealed His heart, will, or plans beyond yourself — for others or nations? (Amos 3:7)',
       options: ['Yes', 'No'],
       correctIndex: 0,
     },
     {
       id: 'divine-visions-3',
-      prompt: 'Do you desire to steward well the gifts and opportunities God has given you?',
+      prompt: 'Do you live in a state of continual communion where your will aligns naturally with God’s — a shared heart and purpose? (John 17:21–23)',
       options: ['Yes', 'No'],
       correctIndex: 0,
     },
   ];
 
-  /**
-   * Get quiz for a specific journey phase
-   */
+  // --- QUIZ MAP (SEQUENTIAL PROGRESSION) ---
   static getQuiz(phaseId: string): JourneyQuiz | null {
-    const quizMap: Record<string, JourneyQuiz> = {
+    const map: Record<string, JourneyQuiz> = {
       'accept-jesus': {
         id: 'accept-jesus',
         title: 'Accepting Jesus',
-        description: 'Foundation of faith and commitment to Christ',
+        description: 'New birth through faith and the surrender that makes Christ your life.',
         questions: this.ACCEPT_JESUS_QUESTIONS,
-        passingScore: 100, // Must answer all correctly to pass
+        passingScore: 80,
       },
-      'repentance': {
+      repentance: {
         id: 'repentance',
         title: 'Repentance',
-        description: 'Turning from sin toward a transformed life',
+        description: 'Purification and renewal of the heart that leads to lasting transformation.',
         questions: this.REPENTANCE_QUESTIONS,
         passingScore: 80,
       },
       'activation-holy-spirit': {
         id: 'activation-holy-spirit',
         title: 'Holy Spirit Activation',
-        description: 'Inviting and responding to the Holy Spirit\'s leadership',
+        description: 'Walking in divine awareness and empowerment through the indwelling Spirit.',
         questions: this.HOLY_SPIRIT_QUESTIONS,
         passingScore: 80,
       },
       'bearing-fruits': {
         id: 'bearing-fruits',
         title: 'Bearing Fruits',
-        description: 'Demonstrating growth through spiritual fruit',
+        description: 'Living proof of inner renewal through the visible fruit of divine character.',
         questions: this.FRUIT_BEARING_QUESTIONS,
         passingScore: 80,
       },
       'storing-treasures': {
         id: 'storing-treasures',
         title: 'Storing Treasures in Heaven',
-        description: 'Investing in eternal impact and kingdom priorities',
+        description: 'Reorienting values from temporal to eternal through generosity and trust.',
         questions: this.TREASURES_QUESTIONS,
         passingScore: 80,
       },
       'giving-of-self': {
         id: 'giving-of-self',
         title: 'Giving of Self',
-        description: 'Offering time, talent, and treasure sacrificially',
+        description: 'The ultimate surrender — your life, body, and ambitions wholly offered to God.',
         questions: this.GIVING_QUESTIONS,
         passingScore: 80,
       },
       'divine-visions': {
         id: 'divine-visions',
         title: 'Divine Visions',
-        description: 'Pursuing the fullness of God\'s calling and revelation',
+        description: 'Union with God — perceiving and partaking in His eternal counsel and purposes.',
         questions: this.DIVINE_VISIONS_QUESTIONS,
         passingScore: 80,
       },
     };
 
-    return quizMap[phaseId] || null;
+    return map[phaseId] || null;
   }
 
-  /**
-   * Get all available quizzes
-   */
   static getAllQuizzes(): JourneyQuiz[] {
     return [
       this.getQuiz('accept-jesus')!,
@@ -304,33 +362,6 @@ export class JourneyQuizLibrary {
       this.getQuiz('giving-of-self')!,
       this.getQuiz('divine-visions')!,
     ].filter(Boolean);
-  }
-
-  /**
-   * Validate if a quiz answer is correct
-   */
-  static validateAnswer(question: JourneyQuizQuestion, selectedIndex: number): boolean {
-    return selectedIndex === question.correctIndex;
-  }
-
-  /**
-   * Calculate quiz score percentage
-   */
-  static calculateScore(questions: JourneyQuizQuestion[], answers: number[]): number {
-    if (questions.length === 0) return 0;
-
-    const correctAnswers = questions.reduce((count, question, index) => {
-      return count + (this.validateAnswer(question, answers[index]) ? 1 : 0);
-    }, 0);
-
-    return Math.round((correctAnswers / questions.length) * 100);
-  }
-
-  /**
-   * Check if a quiz is passed based on the passing score
-   */
-  static isQuizPassed(quiz: JourneyQuiz, score: number): boolean {
-    return score >= quiz.passingScore;
   }
 }
 

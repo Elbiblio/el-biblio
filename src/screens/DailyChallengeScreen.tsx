@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import { Modal } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useRoute } from '@react-navigation/native';
 import {
   ArrowLeft,
   X,
@@ -38,16 +39,22 @@ import {
   useAuthStore,
   useChallengeStore,
   useVirtueStore,
+  useDailyPathStore,
 } from '@/stores/StoreProvider';
 import { Theme } from '@/theme';
 import { Challenge, ChallengeType } from '@/types/challenges';
 import * as Haptics from 'expo-haptics';
 import EmptyState from '@/components/EmptyState';
 import { observer } from 'mobx-react-lite';
+import { RouteProp } from '@react-navigation/native';
+import type { RootStackParamList } from '@/types';
+import { toast } from 'sonner-native';
 
 type DailyChallengesProps = {
   navigation: any;
 };
+
+type DailyChallengeRoute = RouteProp<RootStackParamList, 'DailyChallengeScreen'>;
 
 const CHALLENGE_CATEGORIES = [
   { id: 'personal', label: 'Joined' },
@@ -62,11 +69,13 @@ const CHALLENGE_TYPES = [
 
 const DailyChallengesScreen = observer(({ navigation }: DailyChallengesProps) => {
   const insets = useSafeAreaInsets();
+  const route = useRoute<DailyChallengeRoute>();
   const theme = useTheme();
   const styles = React.useMemo(() => createStyles(theme), [theme]);
   
   const { currentGoalVirtueId, virtues: allVirtues } = useVirtueStore();
   const { user } = useAuthStore();
+  const dailyPathStore = useDailyPathStore();
   
   const {
     // State
@@ -113,6 +122,15 @@ const DailyChallengesScreen = observer(({ navigation }: DailyChallengesProps) =>
     state,
   } = useChallengeStore();
   
+  const [isOnboarding, setIsOnboarding] = useState<boolean>(() => {
+    if (route?.params?.onboarding) {
+      return true;
+    }
+    return !dailyPathStore.hasCompletedChallengeOnboarding;
+  });
+  const [hasAttemptedAutoJoin, setHasAttemptedAutoJoin] = useState(false);
+  const [autoJoinError, setAutoJoinError] = useState<string | null>(null);
+  
   const [newChallenge, setNewChallenge] = useState({
     title: '',
     type: 'virtue' as ChallengeType,
@@ -141,6 +159,57 @@ const DailyChallengesScreen = observer(({ navigation }: DailyChallengesProps) =>
     // Load challenges
     loadChallenges();
   }, []);
+
+  useEffect(() => {
+    if (!isOnboarding || hasAttemptedAutoJoin) {
+      return;
+    }
+
+    const tryAutoJoin = async () => {
+      setHasAttemptedAutoJoin(true);
+      setAutoJoinError(null);
+      try {
+        // prefer existing joined challenge
+        const joined = (personalChallenges || []).find(challenge => challenge.hasJoined);
+        if (joined) {
+          dailyPathStore.setChallengeOnboardingCompleted(true);
+          setIsOnboarding(false);
+          return;
+        }
+
+        // fallback: take first suggested or community challenge
+        const candidate = (suggestedChallenges && suggestedChallenges[0])
+          || (communityChallenges && communityChallenges[0]);
+        if (!candidate) {
+          setAutoJoinError('No challenges available right now. Pull to refresh and try again.');
+          return;
+        }
+
+        await joinChallenge(candidate.id);
+        toast.success('Challenge joined. Let’s get started!');
+        dailyPathStore.setChallengeOnboardingCompleted(true);
+        setActiveCategory('personal');
+        setIsOnboarding(false);
+      } catch (error) {
+        console.error('[DailyChallengeScreen] auto-join failed', error);
+        setAutoJoinError('Could not join a challenge automatically. Please pick one manually.');
+      }
+    };
+
+    tryAutoJoin();
+  }, [isOnboarding, hasAttemptedAutoJoin, personalChallenges, suggestedChallenges, communityChallenges, joinChallenge, dailyPathStore, setActiveCategory]);
+
+  useEffect(() => {
+    if (!isOnboarding) {
+      return;
+    }
+    const joined = (personalChallenges || []).find(challenge => challenge.hasJoined);
+    if (joined) {
+      dailyPathStore.setChallengeOnboardingCompleted(true);
+      setActiveCategory('personal');
+      setIsOnboarding(false);
+    }
+  }, [isOnboarding, personalChallenges, dailyPathStore, setActiveCategory]);
   
   const loadChallenges = useCallback(async () => {
     setRefreshing(true);
@@ -607,8 +676,60 @@ const DailyChallengesScreen = observer(({ navigation }: DailyChallengesProps) =>
     );
   };
 
+  const renderOnboardingOverlay = () => {
+    if (!isOnboarding) {
+      return null;
+    }
+
+    const hasJoinedChallenge = (personalChallenges || []).some((challenge) => challenge.hasJoined);
+
+    return (
+      <View style={styles.onboardingOverlay} pointerEvents="auto">
+        <View style={styles.onboardingCard}>
+          <Text style={styles.onboardingTitle}>Join a Daily Challenge</Text>
+          <Text style={styles.onboardingBody}>
+            Pick a challenge to stay consistent. We’ll guide you with reminders and track your progress.
+          </Text>
+          {autoJoinError ? (
+            <Text style={styles.onboardingError}>{autoJoinError}</Text>
+          ) : null}
+          {!hasAttemptedAutoJoin && !hasJoinedChallenge ? (
+            <Text style={styles.onboardingSubtle}>Looking for a daily challenge that fits…</Text>
+          ) : null}
+          <TouchableOpacity
+            style={styles.onboardingPrimary}
+            onPress={() => {
+              if (hasJoinedChallenge) {
+                dailyPathStore.setChallengeOnboardingCompleted(true);
+                setActiveCategory('personal');
+                setIsOnboarding(false);
+                return;
+              }
+              setAutoJoinError(null);
+              setHasAttemptedAutoJoin(false);
+              void loadChallenges();
+            }}
+          >
+            <Text style={styles.onboardingPrimaryText}>
+              {hasJoinedChallenge ? 'Go to my challenge' : 'Try again'}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.onboardingSecondary}
+            onPress={() => {
+              dailyPathStore.setChallengeOnboardingCompleted(true);
+              setIsOnboarding(false);
+            }}
+          >
+            <Text style={styles.onboardingSecondaryText}>Skip for now</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  };
+
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
+    <View style={[styles.container, { paddingTop: insets.top }]}> 
       <Animated.View style={[styles.header, headerAnimatedStyle]}>
         <Animated.View style={backAnimatedStyle}>
           <TouchableOpacity 
@@ -772,6 +893,7 @@ const DailyChallengesScreen = observer(({ navigation }: DailyChallengesProps) =>
           </View>
         </View>
       </Modal>
+      {renderOnboardingOverlay()}
     </View>
   );
 });
@@ -854,6 +976,67 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     ...theme?.typography.body.sans,
     color: theme?.colors.primary,
     fontWeight: '600',
+  },
+  onboardingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: theme?.spacing.lg,
+  },
+  onboardingCard: {
+    width: '100%',
+    borderRadius: theme?.borderRadius.xl,
+    backgroundColor: theme?.colors.surface,
+    padding: theme?.spacing.lg,
+    gap: theme?.spacing.md,
+    borderWidth: 1,
+    borderColor: `${theme?.colors.border}80`,
+  },
+  onboardingTitle: {
+    ...theme?.typography.heading.small,
+    color: theme?.colors.text.primary,
+  },
+  onboardingBody: {
+    ...theme?.typography.body.sans,
+    color: theme?.colors.text.secondary,
+  },
+  onboardingError: {
+    ...theme?.typography.caption.secondary,
+    color: theme?.colors.error,
+  },
+  onboardingSubtle: {
+    ...theme?.typography.caption.secondary,
+    color: theme?.colors.text.secondary,
+    opacity: 0.8,
+  },
+  onboardingPrimary: {
+    borderRadius: theme?.borderRadius.lg,
+    paddingVertical: theme?.spacing.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: theme?.colors.primary,
+  },
+  onboardingPrimaryText: {
+    ...theme?.typography.button,
+    color: theme?.colors.text.inverse,
+  },
+  onboardingSecondary: {
+    borderRadius: theme?.borderRadius.lg,
+    paddingVertical: theme?.spacing.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: theme?.colors.border,
+    backgroundColor: theme?.colors.surface,
+  },
+  onboardingSecondaryText: {
+    ...theme?.typography.button,
+    color: theme?.colors.text.primary,
   },
   addChallengeButton: {
     flexDirection: 'row',

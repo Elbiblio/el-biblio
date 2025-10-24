@@ -26,13 +26,21 @@ import {
   Star,
   Flame,
   Heart,
-  Cross,
+  X as CrossIcon,
   Dove,
   Book,
   Lightning,
   Trophy,
+  CheckCircle,
+  RefreshCw,
+  Sun,
+  Award,
+  HeartHandshake,
+  Eye,
+  BookIcon,
 } from "@/components/Icons"
 import JourneyHero from "@/components/JourneyHero"
+import Animated from 'react-native'; // Added missing Animated import
 
 const MyJourneyScreen = observer(() => {
   const insets = useSafeAreaInsets()
@@ -53,28 +61,67 @@ const MyJourneyScreen = observer(() => {
       : null
   const activities = Array.isArray(journeyStore.activities) ? journeyStore.activities : []
 
-  // Journey phase icons mapping
+  // Journey phase icons mapping with more distinct icons
   const getPhaseIcon = (phaseId: string, isCompleted = false) => {
-    const iconProps = { size: 20, color: isCompleted ? theme.colors.success : theme.colors.text.secondary }
+    const iconProps = { 
+      size: 20, 
+      color: isCompleted ? theme.colors.success : theme.colors.text.secondary 
+    }
+    
+    // Enhanced icon set with better visual distinction
     switch (phaseId) {
       case "accept-jesus":
-        return <Cross {...iconProps} />
+        return <CrossIcon {...iconProps} />
       case "repentance":
-        return <Heart {...iconProps} />
+        return <RefreshCw {...iconProps} />  // Changed from Heart to RefreshCw for better distinction
       case "activation-holy-spirit":
-        return <Dove {...iconProps} />
+        return <Lightning {...iconProps} />  // More dynamic than Dove
       case "bearing-fruits":
-        return <Flame {...iconProps} />
+        return <Sun {...iconProps} />  // Changed from Flame to Sun for growth metaphor
       case "storing-treasures":
-        return <Crown {...iconProps} />
+        return <Award {...iconProps} />  // More specific than Crown
       case "giving-of-self":
-        return <Heart {...iconProps} />
+        return <HeartHandshake {...iconProps} />  // More specific than Heart
       case "divine-visions":
-        return <Star {...iconProps} filled={isCompleted} />
+        return <Eye {...iconProps} />  // More specific than Star
       default:
-        return <Book {...iconProps} />
+        return <BookIcon {...iconProps} />
     }
   }
+  
+  // Celebration component for when a phase is completed
+  const PhaseCompleteCelebration = React.memo(() => {
+    if (!journeyStore.justCompletedPhase) return null;
+    
+    return (
+      <Animated.View 
+        style={[
+          styles.celebrationOverlay,
+          { backgroundColor: theme.colors.background + 'E6' } // Slightly transparent
+        ]}
+      >
+        <View style={styles.celebrationContent}>
+          <View style={[styles.celebrationIcon, { backgroundColor: theme.colors.primary + '20' }]}>
+            <CheckCircle size={64} color={theme.colors.success} />
+          </View>
+          <Text style={[theme.typography.heading.medium, styles.celebrationText]}>
+            Phase Complete!
+          </Text>
+          <Text style={[theme.typography.body.sans, styles.celebrationSubtext]}>
+            You're one step closer to your spiritual growth
+          </Text>
+          <TouchableOpacity 
+            style={[styles.celebrationButton, { backgroundColor: theme.colors.primary }]}
+            onPress={() => journeyStore.clearJustCompletedPhase()}
+          >
+            <Text style={[theme.typography.button.primary, { color: theme.colors.text.inverse }]}>
+              Continue Journey
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </Animated.View>
+    );
+  });
 
   // Calculate overall progress
   const completedPhases = journeyStore.journeyPhases.filter((p) => p.status === "completed").length
@@ -109,6 +156,8 @@ const MyJourneyScreen = observer(() => {
               ? "The journey of a thousand miles begins with one step."
               : completedPhases === totalPhases 
               ? "Luke 10:20"
+              : completedPhases > 5 
+              ? "Fight the good fight of the faith"
               : `Forge on and do not look back.`
             }
           </Text>
@@ -149,7 +198,7 @@ const MyJourneyScreen = observer(() => {
 
         {/* Enhanced Phase Details */}
         <View style={styles.phasesSection}>
-          <Text style={styles.sectionTitle}>Miles</Text>
+          <Text style={styles.sectionTitle}>Your Journey Phases</Text>
           <View style={styles.phasesGrid}>
             {journeyStore.journeyPhases.map((phase) => {
               const status = phase.status
@@ -166,7 +215,7 @@ const MyJourneyScreen = observer(() => {
                     isActive && styles.enhancedPhaseCardActive,
                     isLocked && styles.enhancedPhaseCardLocked,
                   ]}
-                  disabled={isLocked || isActive}
+                  disabled={isLocked}
                   onPress={() => navigation.navigate("JourneyQuizScreen", { phaseId: phase.id })}
                 >
                   <View style={styles.enhancedPhaseHeader}>
@@ -219,9 +268,9 @@ const MyJourneyScreen = observer(() => {
                       <TouchableOpacity
                         style={[
                           styles.enhancedPhaseAction,
-                          (isLocked || isActive) && styles.enhancedPhaseActionDisabled,
+                          isLocked && styles.enhancedPhaseActionDisabled,
                         ]}
-                        disabled={isLocked || isActive}
+                        disabled={isLocked}
                         onPress={() => navigation.navigate("JourneyQuizScreen", { phaseId: phase.id })}
                       >
                         <Text
@@ -299,6 +348,52 @@ const formatRelativeDate = (iso: string): string => {
 
 const createStyles = (theme: Theme) =>
   StyleSheet.create({
+    // Celebration styles
+    celebrationOverlay: {
+      ...StyleSheet.absoluteFillObject,
+      justifyContent: 'center',
+      alignItems: 'center',
+      zIndex: 1000,
+      padding: theme.spacing.lg,
+    },
+    celebrationContent: {
+      backgroundColor: theme.colors.surface,
+      borderRadius: theme.borderRadius.xl,
+      padding: theme.spacing.xl,
+      alignItems: 'center',
+      width: '100%',
+      maxWidth: 340,
+      shadowColor: theme.colors.text.primary,
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.1,
+      shadowRadius: 12,
+      elevation: 4,
+    },
+    celebrationIcon: {
+      width: 100,
+      height: 100,
+      borderRadius: 50,
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginBottom: theme.spacing.lg,
+    },
+    celebrationText: {
+      textAlign: 'center',
+      marginBottom: theme.spacing.xs,
+      color: theme.colors.text.primary,
+    },
+    celebrationSubtext: {
+      textAlign: 'center',
+      color: theme.colors.text.secondary,
+      marginBottom: theme.spacing.lg,
+    },
+    celebrationButton: {
+      paddingHorizontal: theme.spacing.xl,
+      paddingVertical: theme.spacing.sm,
+      borderRadius: theme.borderRadius.full,
+      width: '100%',
+      alignItems: 'center',
+    },
     container: {
       flex: 1,
       backgroundColor: theme.colors.background,
@@ -553,28 +648,24 @@ const createStyles = (theme: Theme) =>
       fontWeight: '600',
     },
     enhancedPhaseCard: {
-      borderRadius: theme.borderRadius.lg,
+      borderRadius: theme.borderRadius.xl,
       borderWidth: 1,
       borderColor: theme.colors.border,
       backgroundColor: theme.colors.surface,
-      padding: theme.spacing.md,
+      padding: theme.spacing.lg,
       gap: theme.spacing.sm,
-      shadowColor: theme.colors.text.primary,
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.1,
-      shadowRadius: 4,
-      elevation: 2,
     },
     enhancedPhaseCardCompleted: {
-      borderColor: theme.colors.success,
-      backgroundColor: `${theme.colors.success}08`,
+      borderColor: `${theme.colors.success}40`,
+      backgroundColor: `${theme.colors.success}05`,
     },
     enhancedPhaseCardActive: {
-      borderColor: theme.colors.primary,
-      backgroundColor: `${theme.colors.primary}10`,
+      borderColor: `${theme.colors.primary}60`,
+      backgroundColor: `${theme.colors.primary}08`,
     },
     enhancedPhaseCardLocked: {
-      opacity: 0.7,
+      opacity: 0.5,
+      borderColor: `${theme.colors.border}80`,
     },
     enhancedPhaseHeader: {
       flexDirection: 'row',
@@ -582,10 +673,10 @@ const createStyles = (theme: Theme) =>
       justifyContent: 'space-between',
     },
     enhancedPhaseIcon: {
-      width: 32,
-      height: 32,
-      borderRadius: 16,
-      backgroundColor: `${theme.colors.primary}15`,
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      backgroundColor: `${theme.colors.primary}10`,
       alignItems: 'center',
       justifyContent: 'center',
     },
@@ -597,15 +688,16 @@ const createStyles = (theme: Theme) =>
       flexDirection: 'row',
       alignItems: 'center',
       gap: 4,
-      paddingHorizontal: 8,
-      paddingVertical: 4,
+      paddingHorizontal: 10,
+      paddingVertical: 5,
       borderRadius: theme.borderRadius.full,
-      backgroundColor: `${theme.colors.success}15`,
+      backgroundColor: `${theme.colors.success}12`,
     },
     completedBadgeText: {
       ...theme.typography.caption.primary,
       color: theme.colors.success,
-      fontWeight: '600',
+      fontWeight: '500',
+      fontSize: 11,
     },
     lockedBadge: {
       flexDirection: 'row',
@@ -648,6 +740,7 @@ const createStyles = (theme: Theme) =>
       ...theme.typography.heading.small,
       color: theme.colors.text.primary,
       fontWeight: '600',
+      marginTop: theme.spacing.xs,
     },
     enhancedPhaseTitleCompleted: {
       color: theme.colors.success,
@@ -679,7 +772,7 @@ const createStyles = (theme: Theme) =>
     },
     enhancedPhaseAction: {
       paddingHorizontal: theme.spacing.md,
-      paddingVertical: theme.spacing.sm,
+      paddingVertical: theme.spacing.xs,
       borderRadius: theme.borderRadius.full,
       backgroundColor: theme.colors.primary,
     },
@@ -692,7 +785,7 @@ const createStyles = (theme: Theme) =>
       fontWeight: '600',
     },
     enhancedPhaseActionTextDisabled: {
-      color: theme.colors.text.secondary,
+      color: theme.colors.text.inverse,
     },
 
     // Activity Styles

@@ -285,10 +285,20 @@ export class AuthStore {
           primary_language: 'en',
         };
 
+        console.log('[Auth] Attempting guest signup with payload:', payload);
+
         const response = await apiClient.post<{
           token?: string;
           user?: User;
-        }>(endpoints.auth.signup, payload);
+        }>(endpoints.auth.signup, payload, { headers: { 'X-Anonymous': 'true' } });
+
+        if (!response.success) {
+          console.warn('[Auth] Guest signup failure response:', {
+            message: response.message,
+            errors: response.errors,
+            data: response.data,
+          });
+        }
 
         // Case A: API returns token + user on signup
         if (response.data?.token && response.data?.user) {
@@ -337,12 +347,14 @@ export class AuthStore {
         // Otherwise, remember error and try next attempt
         lastError = response.message || 'Signup failed';
         if (response.errors) {
+          console.log('guest data', payload);
           console.warn('Guest signup validation errors:', response.errors);
         }
       }
 
       throw new Error(lastError || 'Failed to create guest account');
     } catch (error) {
+      console.error('[Auth] Guest signup exception:', error);
       this.handleAuthError(error);
       return false;
     } finally {

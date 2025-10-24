@@ -6,17 +6,11 @@ import {
   RadialGradient,
   Stop,
   Circle,
-  G,
-  Path,
   LinearGradient,
   Polygon,
 } from "react-native-svg"
 import { useTheme } from "@/contexts/ThemeContext"
 import { Animated, Easing } from "react-native"
-
-// A standard 5-point star path, centered in a 24x24 viewbox.
-const STAR_PATH =
-  "M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"
 
 interface JourneyHeroProps {
   progress: number // 0-100
@@ -24,7 +18,6 @@ interface JourneyHeroProps {
 
 const JourneyHero: React.FC<JourneyHeroProps> = ({ progress }) => {
   const theme = useTheme()
-  const starColor = theme.colors.primary || '#4A6FA5' // fallback color
   const sunColor = theme.colors.warning || '#D9A441' // fallback color
 
   
@@ -35,27 +28,47 @@ const JourneyHero: React.FC<JourneyHeroProps> = ({ progress }) => {
   // Phase 1 (progress 0): tiny star, no aura/light
   // Phase 7 (progress 100): biggest star, bright aura/light
 
-  // Eased growth: starts modest, grows more noticeably later
+  // Eased growth: more pronounced scaling with smoother easing
   const t = Math.max(0, Math.min(1, progress / 100))
-  const eased = Math.pow(t, 0.8)
-  // Star Size: 0.5x to 1.6x with easing
-  const starScale = 0.5 + eased * 1.1
+  const eased = Easing.bezier(0.4, 0, 0.2, 1)(t) // Smoother easing curve
+  
+  // Candle core and aura sizing
+  const coreRadius = 20 + eased * 16
+  
+  // Pulsing effect for the star
+  const pulseAnim = useRef(new Animated.Value(1)).current
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 1.04,
+          duration: 2200,
+          useNativeDriver: true,
+          easing: Easing.inOut(Easing.ease)
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 1,
+          duration: 2000,
+          useNativeDriver: true,
+          easing: Easing.inOut(Easing.ease)
+        })
+      ])
+    ).start()
+  }, [pulseAnim])
 
-  // Star Aura: ensure a subtle presence even at phase 1
-  const auraRadius = 12 + t * 50
-  const auraOpacity = 0.12 + t * 0.38
+  // Enhanced star aura with more dynamic glow
+  const haloRadius = coreRadius + 18 + t * 10
+  const haloOpacity = 0.12 + t * 0.22
+  const auraScale = 1 + (eased * 0.15)
 
   // Sun Beam Opacity: 0 (none) to 0.7 (strong light)
-  const beamOpacity = (progress / 100) * 0.7
-
-  // Star Fill: Fills after 50% progress (like your original logic)
-  const isFilled = progress > 50
+  const beamOpacity = (progress / 100) * 0.4
 
   // --- SVG Layout (expanded to accommodate large off-screen sun) ---
   const viewBoxWidth = 420
   const viewBoxHeight = 210
-  const starCx = viewBoxWidth * 0.5 // center the star horizontally
-  const starCy = viewBoxHeight * 0.70
+  const glowCx = viewBoxWidth * 0.5 // center the light horizontally
+  const glowCy = viewBoxHeight * 0.70
   const sunCx = viewBoxWidth * 1.25 // push even further right so less arc shows
   const sunCy = -120 // further up for a thinner visible arc
 
@@ -72,7 +85,8 @@ const JourneyHero: React.FC<JourneyHeroProps> = ({ progress }) => {
     return () => loop.stop()
   }, [glowAnim])
   const animatedGlowOpacity = glowAnim.interpolate({ inputRange: [0, 1], outputRange: [0.12, 0.3] })
-  const AnimatedCircle: any = Animated.createAnimatedComponent(Circle as any)
+  // Create typed animated components
+const AnimatedCircle = Animated.createAnimatedComponent(Circle)
 
   return (
     <Svg width="100%" height="150" viewBox={`0 0 ${viewBoxWidth} ${viewBoxHeight}`}>
@@ -85,14 +99,16 @@ const JourneyHero: React.FC<JourneyHeroProps> = ({ progress }) => {
         </RadialGradient>
         {/* Star aura */}
         <RadialGradient id="starAura" cx="50%" cy="50%" r="50%">
-          <Stop offset="0%" stopColor={starColor} stopOpacity="0.25" />
-          <Stop offset="100%" stopColor={starColor} stopOpacity="0" />
+          <Stop offset="0%" stopColor={sunColor} stopOpacity="0.25" />
+          <Stop offset="100%" stopColor={sunColor} stopOpacity="0" />
         </RadialGradient>
-        {/* Beam from sun to star */}
+        {/* Enhanced beam gradient with multiple stops */}
         <LinearGradient id="beamGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-          <Stop offset="0%" stopColor={sunColor} stopOpacity={beamOpacity} />
+          <Stop offset="0%" stopColor={sunColor} stopOpacity={beamOpacity * 0.8} />
+          <Stop offset="50%" stopColor={sunColor} stopOpacity={beamOpacity * 0.4} />
           <Stop offset="100%" stopColor={sunColor} stopOpacity="0" />
         </LinearGradient>
+        
       </Defs>
 
       {/* Big sun off-screen with animated glow */}
@@ -102,20 +118,47 @@ const JourneyHero: React.FC<JourneyHeroProps> = ({ progress }) => {
       {/* Beam (subtle) */}
       {beamOpacity > 0 && (
         <Polygon
-          points={`${sunCx},${sunCy} ${starCx - 26},${starCy} ${starCx + 26},${starCy}`}
+          points={`${sunCx},${sunCy} ${glowCx - 26},${glowCy} ${glowCx + 26},${glowCy}`}
           fill="url(#beamGradient)"
           opacity={0.45}
         />
       )}
 
-      {/* Star aura so it shines even at phase 1 */}
-      <Circle cx={starCx} cy={starCy} r={Math.max(14, 18 * starScale)} fill="url(#starAura)" />
+      {/* Halo */}
+      <AnimatedCircle
+        cx={glowCx}
+        cy={glowCy}
+        r={Math.max(24, haloRadius)}
+        fill="url(#starAura)"
+        opacity={0.85}
+        scale={auraScale}
+        originX={glowCx}
+        originY={glowCy}
+      />
 
-      {/* Star */}
-      <G transform={`translate(${starCx}, ${starCy}) scale(${starScale}) translate(-12, -12)`}>
-        <Path d={STAR_PATH} fill={isFilled ? starColor : "none"} stroke={starColor} strokeWidth={3} strokeOpacity={0.7} />
-        {!isFilled && <Path d={STAR_PATH} fill={starColor} fillOpacity={0.18} />}
-      </G>
+      {/* Candle core */}
+      <AnimatedCircle
+        cx={glowCx}
+        cy={glowCy}
+        r={coreRadius}
+        fill={sunColor}
+        opacity={0.75}
+        scale={pulseAnim}
+        originX={glowCx}
+        originY={glowCy}
+      />
+
+      {/* Inner ember */}
+      <AnimatedCircle
+        cx={glowCx}
+        cy={glowCy - (6 + eased * 4)}
+        r={Math.max(8, 10 + eased * 6)}
+        fill={theme.colors.background}
+        opacity={0.35}
+        scale={pulseAnim}
+        originX={glowCx}
+        originY={glowCy}
+      />
     </Svg>
   )
 }
