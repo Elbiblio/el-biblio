@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, StatusBar, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, StatusBar, ScrollView, Modal } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect } from '@react-navigation/native';
@@ -11,6 +11,7 @@ import { ArrowLeft, BookOpen, Fire, MessageSquare, NotePencil, Users } from '@/c
 import { observer } from 'mobx-react-lite';
 import { useCommunityStore, useDailyPathStore } from '@/stores/StoreProvider';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { toast } from 'sonner-native';
 
 export type CommunityScreenProps = NativeStackScreenProps<RootStackParamList, 'CommunityScreen'>;
 
@@ -92,6 +93,8 @@ const COMMUNITY_CARDS = (colors: Theme['colors']): CommunityCard[] => ([
   },
 ]);
 
+const COMMUNITY_WELCOME_KEY = 'community_welcome_note_seen';
+
 const CommunityScreen = ({ navigation }: CommunityScreenProps) => {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
@@ -99,6 +102,7 @@ const CommunityScreen = ({ navigation }: CommunityScreenProps) => {
   const { markOpened } = useCommunityStore();
   const dailyPathStore = useDailyPathStore();
   const [usageStage, setUsageStage] = useState(0);
+  const [showWelcomeNote, setShowWelcomeNote] = useState(false);
 
   const loadUsageStage = useCallback(async () => {
     try {
@@ -110,9 +114,31 @@ const CommunityScreen = ({ navigation }: CommunityScreenProps) => {
     }
   }, []);
 
+  const checkWelcomeNote = useCallback(async () => {
+    try {
+      const seen = await AsyncStorage.getItem(COMMUNITY_WELCOME_KEY);
+      if (seen !== 'seen') {
+        setShowWelcomeNote(true);
+      }
+    } catch {
+      setShowWelcomeNote(true);
+    }
+  }, []);
+
+  const dismissWelcomeNote = useCallback(async () => {
+    setShowWelcomeNote(false);
+    toast.success('Welcome! Thank you for choosing to walk in this spirit of oneness.');
+    try {
+      await AsyncStorage.setItem(COMMUNITY_WELCOME_KEY, 'seen');
+    } catch (error) {
+      console.error('Error persisting community welcome note state:', error);
+    }
+  }, []);
+
   useEffect(() => {
     loadUsageStage();
-  }, [loadUsageStage]);
+    void checkWelcomeNote();
+  }, [loadUsageStage, checkWelcomeNote]);
 
   const cards = useMemo(() => COMMUNITY_CARDS(theme.colors), [theme.colors]);
   const availableCards = useMemo(() => {
@@ -136,7 +162,7 @@ const CommunityScreen = ({ navigation }: CommunityScreenProps) => {
   );
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
+    <View style={[styles.container, { paddingTop: insets.top }]}> 
       <StatusBar barStyle="dark-content" />
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()}>
@@ -178,6 +204,45 @@ const CommunityScreen = ({ navigation }: CommunityScreenProps) => {
           </Text>
         )}
       </ScrollView>
+
+      <Modal
+        animationType="fade"
+        transparent
+        visible={showWelcomeNote}
+        onRequestClose={dismissWelcomeNote}
+      >
+        <View style={styles.welcomeBackdrop}>
+          <View style={styles.welcomeCard}>
+            <ScrollView
+              contentContainerStyle={styles.welcomeContent}
+              showsVerticalScrollIndicator={false}
+            >
+              <Text style={styles.welcomeTitle}>“That they may all be one.” — John 17:21</Text>
+              <Text style={styles.welcomeBody}>
+                Jesus prayed that we would be one. This community hopes to live that prayer — to grow together in faith,
+                peace, and love as one body in Christ.
+              </Text>
+              <Text style={styles.welcomeBody}>
+                Every believer expresses faith in different ways: through prayer, worship, service, or cherished
+                traditions. What matters most at the end is fruit — that our actions spring from love and lead others
+                toward goodness and truth. Just as choosing a worldly school or career can shape a child’s character,
+                any custom that nurtures faith, produces virtue, and yields good fruit is pleasing to God. (Mark 3:26)
+              </Text>
+              <Text style={styles.welcomeBody}>
+                By choosing “Enter” you are saying yes to Christ’s call: to honor one another with kindness and
+                respect; to uplift, support, and listen as members of one family; and to work together in harmony,
+                seeking what is good and holy.
+              </Text>
+              <Text style={styles.welcomeBody}>
+                Here, every word shared and every act of love helps fulfill His prayer for unity and for His Kingdom to be established here on earth.
+              </Text>
+            </ScrollView>
+            <TouchableOpacity style={styles.welcomeButton} onPress={dismissWelcomeNote}>
+              <Text style={styles.welcomeButtonText}>Enter in Unity</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -245,6 +310,49 @@ const createStyles = (theme: Theme) => StyleSheet.create({
   cardSubtitle: {
     ...theme.typography.caption.secondary,
     color: theme.colors.text.secondary,
+  },
+  welcomeBackdrop: {
+    flex: 1,
+    backgroundColor: `${theme.colors.background}F2`,
+    justifyContent: 'center',
+    padding: theme.spacing.lg,
+  },
+  welcomeCard: {
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.borderRadius.xl,
+    paddingVertical: theme.spacing.lg,
+    paddingHorizontal: theme.spacing.lg,
+    maxHeight: '80%',
+    borderWidth: 1,
+    borderColor: `${theme.colors.primary}20`,
+    shadowColor: theme.colors.primary,
+    shadowOpacity: 0.2,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+  welcomeContent: {
+    gap: theme.spacing.md,
+  },
+  welcomeTitle: {
+    ...theme.typography.heading.medium,
+    color: theme.colors.text.primary,
+    textAlign: 'center',
+  },
+  welcomeBody: {
+    ...theme.typography.body.sans,
+    color: theme.colors.text.secondary,
+  },
+  welcomeButton: {
+    marginTop: theme.spacing.lg,
+    backgroundColor: theme.colors.primary,
+    borderRadius: theme.borderRadius.lg,
+    paddingVertical: theme.spacing.md,
+    alignItems: 'center',
+  },
+  welcomeButtonText: {
+    ...theme.typography.button.primary,
+    color: theme.colors.text.inverse,
+    fontWeight: '600',
   },
 });
 

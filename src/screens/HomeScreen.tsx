@@ -366,12 +366,12 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
       return;
     }
 
-    const entries = editedItems.reduce<Array<{ label: string; schedule: ReviveReminderSchedule | undefined }>>((acc, item, index) => {
+    const entries = editedItems.reduce<Array<{ label: string; schedule: ReviveReminderSchedule | undefined; index: number }>>((acc, item, index) => {
       const label = item.trim();
       if (!label) {
         return acc;
       }
-      acc.push({ label, schedule: editedSchedules[index] });
+      acc.push({ label, schedule: editedSchedules[index], index });
       return acc;
     }, []);
 
@@ -382,14 +382,18 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
 
     setIsSavingRevive(true);
     try {
-      const times = entries.map(({ schedule }, index) => {
-        return {
-          hour: schedule?.hour ?? REVIVE_REMINDER_DEFAULT_TIMES[Math.min(index, REVIVE_REMINDER_DEFAULT_TIMES.length - 1)].hour,
-          minute: schedule?.minute ?? REVIVE_REMINDER_DEFAULT_TIMES[Math.min(index, REVIVE_REMINDER_DEFAULT_TIMES.length - 1)].minute,
-        };
+      const enriched = entries.map(({ label, schedule, index }) => {
+        const fallback = REVIVE_REMINDER_DEFAULT_TIMES[Math.min(index, REVIVE_REMINDER_DEFAULT_TIMES.length - 1)];
+        const hour = schedule?.hour ?? fallback.hour;
+        const minute = schedule?.minute ?? fallback.minute;
+        return { label, hour, minute };
       });
 
-      const labels = entries.map(({ label }) => label);
+      const sorted = enriched.sort((a, b) => (a.hour * 60 + a.minute) - (b.hour * 60 + b.minute));
+
+      const labels = sorted.map(({ label }) => label);
+      const times = sorted.map(({ hour, minute }) => ({ hour, minute }));
+
       const schedules = await scheduleReviveReminders(labels, { times });
       dailyPathStore.setReviveReminderItems(labels);
       dailyPathStore.setReviveReminderSchedules(schedules);
