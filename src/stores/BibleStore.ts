@@ -163,6 +163,7 @@ const STORAGE_KEYS = {
   READING_PLAN: 'bible_reading_plan',
   READING_REMINDER: 'bible_reading_reminder',
   PLAN_MODE: 'bible_plan_mode',
+  SHOW_APOCRYPHA: 'bible_show_apocrypha',
 } as const;
 
 type LastReadPosition = {
@@ -246,6 +247,7 @@ class BibleStore {
   availableVersions: ExtendedBibleVersion[] = [];
   availableBooks: ExtendedBook[] = [];
   chapterCountByBook: Map<string, number> = new Map();
+  showApocrypha: boolean = true;
 
   private currentSearchRequestId: number = 0;
   private lastSavedSearchAt: number = 0;
@@ -291,6 +293,38 @@ class BibleStore {
     this.currentChapter = Math.max(1, Math.floor(chapter || 1));
   }
 
+  get filteredBooks(): ExtendedBook[] {
+    if (this.showApocrypha) {
+      return this.availableBooks.length ? this.availableBooks : bibleBooks.map(toExtendedBook);
+    }
+
+    const baseBooks = this.availableBooks.length ? this.availableBooks : bibleBooks.map(toExtendedBook);
+    return baseBooks.filter(book => !this.isApocryphaBook(book.abbreviation));
+  }
+
+  setShowApocrypha(show: boolean) {
+    this.showApocrypha = show;
+    void AsyncStorage.setItem(STORAGE_KEYS.SHOW_APOCRYPHA, show ? '1' : '0').catch(error => {
+      console.warn('Failed to persist apocrypha preference', error);
+    });
+
+    if (!show && this.currentBook && this.isApocryphaBook(this.currentBook.abbreviation)) {
+      const fallback = this.filteredBooks[0];
+      if (fallback) {
+        this.setCurrentBook(fallback);
+        this.setCurrentChapter(1);
+      }
+    }
+  }
+
+  private isApocryphaBook(abbreviation: string): boolean {
+    const apocryphaPrefixes = [
+      'TOB', 'JDT', 'WIS', 'SIR', 'BAR', 'LJE', '1MA', '2MA', '3MA', '4MA', '1ES', '2ES', 'MAN', 'PS2', 'BEL', 'SUS'
+    ];
+    const upper = abbreviation.toUpperCase();
+    return apocryphaPrefixes.some(prefix => upper.startsWith(prefix));
+  }
+
   setCurrentVersion(version: BibleVersion): void;
   setCurrentVersion(version: ExtendedBibleVersion): void;
   setCurrentVersion(version: BibleVersion | ExtendedBibleVersion) {
@@ -314,6 +348,19 @@ class BibleStore {
     void AsyncStorage.setItem(STORAGE_KEYS.FONT_SIZE, clamped.toString()).catch(error => {
       console.warn('Failed to persist Bible font size', error);
     });
+  }
+
+  async loadApocryphaPreference() {
+    try {
+      const stored = await AsyncStorage.getItem(STORAGE_KEYS.SHOW_APOCRYPHA);
+      if (stored === '0') {
+        runInAction(() => {
+          this.showApocrypha = false;
+        });
+      }
+    } catch (error) {
+      console.warn('Failed to load apocrypha preference', error);
+    }
   }
 
   setSearchQuery(query: string) {
@@ -858,11 +905,13 @@ class BibleStore {
   private async initialize() {
     try {
       await Promise.all([
+        this.loadAvailableBooks(),
+        this.loadInstalledVersions(),
         this.loadUserPreferences(),
-        this.fetchBibleVersions(),
+        this.loadSavedSearches(),
         this.loadReadingPlan(),
         this.loadReadingReminder(),
-        this.loadPlanModePreference(),
+        this.loadApocryphaPreference(),
       ]);
 
       runInAction(() => {
@@ -1877,10 +1926,13 @@ class BibleStore {
 
   // Helper methods
   async loadAvailableBooks() {
+    const fallbackBooks = bibleBooks.map(toExtendedBook);
     try {
+
       if (!this.currentVersion) {
         runInAction(() => {
-          this.availableBooks = bibleBooks.map(toExtendedBook);
+          this.availableBooks = fallbackBooks;
+          this.chapterCountByBook = new Map(fallbackBooks.map(book => [book.abbreviation, book.chapters]));
         });
         return;
       }
@@ -1889,67 +1941,59 @@ class BibleStore {
       const cacheKeyBooks = `bible_books_${table}`;
       const cacheKeyChapters = `bible_chapters_${table}`;
 
-      // 1) Try cache first for instant UI
       try {
         const [cachedBooks, cachedChapters] = await Promise.all([
           AsyncStorage.getItem(cacheKeyBooks),
           AsyncStorage.getItem(cacheKeyChapters),
         ]);
+
         if (cachedBooks) {
           const parsedBooks: ExtendedBook[] = JSON.parse(cachedBooks);
           runInAction(() => {
             this.availableBooks = parsedBooks;
           });
         }
+
         if (cachedChapters) {
           const parsedChapters: [string, number][] = JSON.parse(cachedChapters);
           runInAction(() => {
             this.chapterCountByBook = new Map(parsedChapters);
           });
         }
-      } catch {}
+      } catch {
+        // Ignore cache hydration failures and continue with fresh load
+      }
 
-      // 2) Fetch fresh data from DB (overwrites cache/UI once ready)
       const codes = await BibleDBService.getAvailableBooks(table);
-
-      // Map DB codes to Book entries; fallback to code label if missing
       const mapped: ExtendedBook[] = [];
+
       for (const code of codes) {
         const found = bibleBooks.find(b => b.abbreviation === code);
-        let book: ExtendedBook;
         if (found) {
-          book = toExtendedBook(found);
+          mapped.push(toExtendedBook(found));
         } else {
-          // Unknown code; fetch chapter count dynamically and create a placeholder
           const maxChapter = await BibleDBService.getMaxChapter(table, code);
-          book = toExtendedBook({ name: code, abbreviation: code, chapters: maxChapter } as any);
+          mapped.push(toExtendedBook({ name: code, abbreviation: code, chapters: maxChapter || 1 } as Book));
         }
-        mapped.push(book);
       }
 
-      // Load chapter counts for known books dynamically for accuracy
-      const chapterCounts = new Map<string, number>();
-      for (const b of mapped) {
-        const maxChapter = await BibleDBService.getMaxChapter(table, b.abbreviation);
-        chapterCounts.set(b.abbreviation, maxChapter || b.chapters);
-      }
+      const effectiveBooks = mapped.length ? mapped : fallbackBooks;
+      const chapterEntries: [string, number][] = effectiveBooks.map(book => [book.abbreviation, book.chapters]);
 
       runInAction(() => {
-        this.availableBooks = mapped;
-        this.chapterCountByBook = chapterCounts;
+        this.availableBooks = effectiveBooks;
+        this.chapterCountByBook = new Map(chapterEntries);
       });
 
-      // 3) Save to cache
-      try {
-        await Promise.all([
-          AsyncStorage.setItem(cacheKeyBooks, JSON.stringify(mapped)),
-          AsyncStorage.setItem(cacheKeyChapters, JSON.stringify(Array.from(chapterCounts.entries()))),
-        ]);
-      } catch {}
+      await AsyncStorage.multiSet([
+        [cacheKeyBooks, JSON.stringify(effectiveBooks)],
+        [cacheKeyChapters, JSON.stringify(chapterEntries)],
+      ]);
     } catch (error) {
-      console.error('Failed to load available books:', error);
+      console.error('Failed to load available books', error);
       runInAction(() => {
-        this.availableBooks = bibleBooks.map(toExtendedBook);
+        this.availableBooks = fallbackBooks;
+        this.chapterCountByBook = new Map(fallbackBooks.map(book => [book.abbreviation, book.chapters]));
       });
     }
   }

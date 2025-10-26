@@ -94,6 +94,7 @@ interface TimeTracking {
 const AnimatedBlurView = Animated.createAnimatedComponent(BlurView);
 const CARD_WIDTH = SCREEN_DIMENSIONS.width * 0.9;
 const QUICK_MENU_STORAGE_KEY = 'home_quick_menu_usage';
+const HOME_WELCOME_KEY = 'home_welcome_note_seen';
 const getUsageStage = (usage: QuickMenuUsage) => {
   if (usage.unlockedItems.includes('coreTools')) return 2;
   if (usage.meditationCount > 0 && usage.bibleCount > 0) return 1;
@@ -190,6 +191,8 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
   const [editedTimes, setEditedTimes] = useState<string[]>([]);
   const [timeErrors, setTimeErrors] = useState<boolean[]>([]);
   const [isSavingRevive, setIsSavingRevive] = useState(false);
+  const [showHomeWelcomeNote, setShowHomeWelcomeNote] = useState(false);
+  const [hasSeenHomeWelcome, setHasSeenHomeWelcome] = useState(true);
   // Removed: local points modal state; rely on global interceptor-driven modal
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [quickMenuUsage, setQuickMenuUsage] = useState<QuickMenuUsage>({ meditationCount: 0, bibleCount: 0, unlockedItems: [] });
@@ -597,6 +600,21 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
     }
   };
 
+  const handleOpenHomeWelcome = useCallback(() => {
+    setShowHomeWelcomeNote(true);
+  }, []);
+
+  const handleDismissHomeWelcome = useCallback(async () => {
+    setShowHomeWelcomeNote(false);
+    setHasSeenHomeWelcome(true);
+    toast.success('Welcome, and thank you for choosing to walk in this spirit of oneness.');
+    try {
+      await AsyncStorage.setItem(HOME_WELCOME_KEY, 'seen');
+    } catch (error) {
+      console.error('Error saving home welcome state:', error);
+    }
+  }, []);
+
   const saveTimeTracking = async (tracking: TimeTracking) => {
     try {
       // Update time tracking through user store instead of AsyncStorage
@@ -920,6 +938,25 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
     loadQuickMenuUsage();
   }, [loadQuickMenuUsage]);
 
+  useEffect(() => {
+    const loadHomeWelcomeState = async () => {
+      try {
+        const stored = await AsyncStorage.getItem(HOME_WELCOME_KEY);
+        const seen = stored === 'seen';
+        setHasSeenHomeWelcome(seen);
+        if (!seen) {
+          setShowHomeWelcomeNote(true);
+        }
+      } catch (error) {
+        console.error('Error loading home welcome state:', error);
+        setHasSeenHomeWelcome(false);
+        setShowHomeWelcomeNote(true);
+      }
+    };
+
+    void loadHomeWelcomeState();
+  }, []);
+
   const handleQuickActionPress = (route: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     if (!user && route !== 'BibleScreen') {
@@ -1001,7 +1038,7 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
               );
             }}
           >
-            <Animated.View style={[styles.points, { transform: [{ scale: pointsScale }] }]}>
+            <Animated.View style={[styles.points, { transform: [{ scale: pointsScale }] }]}> 
               <LinearGradient
                 colors={[theme?.colors.primary, theme?.colors.primaryLight]}
                 start={{ x: 0, y: 0 }}
@@ -1022,6 +1059,18 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
           </TouchableOpacity>
         )}
       </View>
+      <TouchableOpacity
+        style={styles.welcomePrompt}
+        onPress={handleOpenHomeWelcome}
+        activeOpacity={0.85}
+      >
+        <Text style={styles.welcomePromptText}>🤝 Read Welcome Note</Text>
+        {!hasSeenHomeWelcome && (
+          <View style={styles.welcomePromptBadge}>
+            <Text style={styles.welcomePromptBadgeText}>NEW</Text>
+          </View>
+        )}
+      </TouchableOpacity>
     </View>
   );
 
@@ -1588,6 +1637,54 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
       />
 
       <Modal
+        visible={showHomeWelcomeNote}
+        transparent
+        animationType="fade"
+        onRequestClose={handleDismissHomeWelcome}
+      >
+        <View style={styles.homeWelcomeOverlay}>
+          <View style={styles.homeWelcomeCard}>
+            <ScrollView
+              contentContainerStyle={styles.homeWelcomeScrollContent}
+              showsVerticalScrollIndicator={false}
+            >
+              <Text style={styles.homeWelcomeTitle}>Welcome to Elbiblio</Text>
+              <Text style={styles.homeWelcomeBody}>
+                Jesus prayed, “That they may all be one” (John 17:21). This community exists to live that prayer — to grow together in faith, peace, and love as one body in Christ.
+              </Text>
+              <Text style={styles.homeWelcomeBody}>Please take note of these guiding commitments:</Text>
+              <Text style={styles.homeWelcomeItem}>
+                <Text style={styles.homeWelcomeItemNumber}>1.&nbsp;</Text>
+                We are a non-denominational family. Jesus did not come to start a religion, and He foresaw many branches when He prayed for unity. There is no room for casting stones at one another — such division opposes both His prayer and His nature.
+              </Text>
+              <Text style={styles.homeWelcomeItem}>
+                <Text style={styles.homeWelcomeItemNumber}>2.&nbsp;</Text>
+                For the sake of unity, we honor the breadth of Christian perspectives. Jesus fulfilled the Law rather than abolishing it, and the apostles carried forward holy traditions. Differences often emerge around which teachings or practices to retain, yet intention, right judgment, faith, and spiritual maturity (Luke 18:8; Mark 9:29) must lead the way. Just as schooling decisions are judged by fruit, God’s grace cannot be limited (Job 11:7-9).
+              </Text>
+              <Text style={styles.homeWelcomeItem}>
+                <Text style={styles.homeWelcomeItemNumber}>3.&nbsp;</Text>
+                Every church can learn from another. Some focus on the yolk, some keep the whole egg, others add seasoning — but the harvest is judged by its fruit. Any tradition that excuses distortion of God’s design — whether polygamy, sexual immorality, or denying the divinity of Jesus — must give way to the truth. All are welcome here to encounter Christ anew by laying aside bias and listening to the Holy Spirit.
+              </Text>
+              <Text style={styles.homeWelcomeItem}>
+                <Text style={styles.homeWelcomeItemNumber}>4.&nbsp;</Text>
+                We present the full Bible, including the apocrypha, because the Holy Spirit can teach through every faithful witness — just as He may use a passerby on the street to speak life.
+              </Text>
+              <Text style={styles.homeWelcomeItem}>
+                <Text style={styles.homeWelcomeItemNumber}>5.&nbsp;</Text>
+                By signing up you pledge to actualize Jesus’ unitive prayer — growing in grace, nurturing others, and avoiding divisive agendas. Elbiblio is a tool for spiritual maturity (Ephesians 4:13-15), not for proselytizing denominational bias. We stand firm in the supremacy of God, the deity of Jesus, and God’s original design, and we expect every believer to bear the virtues and works Jesus describes in Matthew 5:1-16 and 25:35-40.
+              </Text>
+              <Text style={styles.homeWelcomeBody}>
+                Together, let us abide in love, seek holiness, and help fulfill His prayer for unity.
+              </Text>
+            </ScrollView>
+            <TouchableOpacity style={styles.homeWelcomeButton} onPress={handleDismissHomeWelcome} activeOpacity={0.85}>
+              <Text style={styles.homeWelcomeButtonText}>Continue in Unity</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
         visible={showReviveModal}
         transparent
         animationType="fade"
@@ -1745,6 +1842,36 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     paddingVertical: theme?.spacing.md,
     borderBottomWidth: 1,
     borderBottomColor: theme?.colors.border,
+  },
+  welcomePrompt: {
+    marginTop: theme?.spacing.sm,
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme?.spacing.xs,
+    paddingHorizontal: theme?.spacing.md,
+    paddingVertical: theme?.spacing.xs,
+    borderRadius: theme?.borderRadius.full,
+    backgroundColor: `${theme?.colors.primary}12`,
+    borderWidth: 1,
+    borderColor: `${theme?.colors.primary}25`,
+  },
+  welcomePromptText: {
+    ...theme?.typography.caption.primary,
+    color: theme?.colors.primary,
+    fontWeight: '600',
+  },
+  welcomePromptBadge: {
+    backgroundColor: theme?.colors.success,
+    borderRadius: theme?.borderRadius.full,
+    paddingHorizontal: theme?.spacing.xs,
+    paddingVertical: 2,
+  },
+  welcomePromptBadgeText: {
+    ...theme?.typography.caption.secondary,
+    color: theme?.colors.text.inverse,
+    fontSize: 10,
+    fontWeight: '700',
   },
   headerContent: {
     flexDirection: 'row',
@@ -2047,6 +2174,59 @@ const createStyles = (theme: Theme) => StyleSheet.create({
   reviveModalCloseText: {
     ...theme?.typography.button,
     color: theme?.colors.text.primary,
+  },
+  homeWelcomeOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    padding: theme?.spacing.lg,
+  },
+  homeWelcomeCard: {
+    backgroundColor: theme?.colors.surface,
+    borderRadius: theme?.borderRadius.xl,
+    paddingVertical: theme?.spacing.lg,
+    paddingHorizontal: theme?.spacing.lg,
+    maxHeight: '85%',
+    borderWidth: 1,
+    borderColor: `${theme?.colors.primary}20`,
+    shadowColor: theme?.colors.primary,
+    shadowOpacity: 0.2,
+    shadowRadius: 18,
+    elevation: 10,
+  },
+  homeWelcomeScrollContent: {
+    gap: theme?.spacing.md,
+  },
+  homeWelcomeTitle: {
+    ...theme?.typography.heading.medium,
+    color: theme?.colors.text.primary,
+    textAlign: 'center',
+  },
+  homeWelcomeBody: {
+    ...theme?.typography.body.sans,
+    color: theme?.colors.text.secondary,
+  },
+  homeWelcomeItem: {
+    ...theme?.typography.body.sans,
+    color: theme?.colors.text.secondary,
+    lineHeight: 22,
+  },
+  homeWelcomeItemNumber: {
+    ...theme?.typography.body.sans,
+    color: theme?.colors.primary,
+    fontWeight: '700',
+  },
+  homeWelcomeButton: {
+    marginTop: theme?.spacing.lg,
+    backgroundColor: theme?.colors.primary,
+    borderRadius: theme?.borderRadius.lg,
+    paddingVertical: theme?.spacing.md,
+    alignItems: 'center',
+  },
+  homeWelcomeButtonText: {
+    ...theme?.typography.button.primary,
+    color: theme?.colors.text.inverse,
+    fontWeight: '600',
   },
   scrollContent: {
     paddingBottom: theme?.spacing.xl,

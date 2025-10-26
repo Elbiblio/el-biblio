@@ -13,6 +13,7 @@ import {
   RefreshControl,
   ScrollView,
   Animated,
+  Switch,
 } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -73,6 +74,7 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
   const [showFontModal, setShowFontModal] = useState(false);
   const [showVerseActions, setShowVerseActions] = useState(false);
   const [showComparisonModal, setShowComparisonModal] = useState(false);
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [showAIInsights, setShowAIInsights] = useState(false);
   const resumeTarget = bibleStore.resumeTarget;
   const [isPlanSetupVisible, setIsPlanSetupVisible] = useState(false);
@@ -731,6 +733,42 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
     bibleStore.removeSavedSearch(term);
   }, [bibleStore]);
 
+  const handleOpenSettings = useCallback(() => {
+    setShowSettingsModal(true);
+  }, []);
+
+  const handleCloseSettings = useCallback(() => {
+    setShowSettingsModal(false);
+  }, []);
+
+  const handleSettingsHistoryPress = useCallback(async () => {
+    await bibleStore.loadHistory();
+    setShowSettingsModal(false);
+    setShowHistoryModal(true);
+  }, [bibleStore]);
+
+  const handleSettingsSearchPress = useCallback(() => {
+    setShowSettingsModal(false);
+    bibleStore.setShowSearch(true);
+  }, [bibleStore]);
+
+  const handleSettingsFontPress = useCallback(() => {
+    setShowSettingsModal(false);
+    setShowFontModal(true);
+  }, []);
+
+  const handleInlineBookSelect = useCallback((book: Book) => {
+    bibleStore.setCurrentBook(book as any);
+  }, [bibleStore]);
+
+  const handleInlineChapterSelect = useCallback((chapter: number) => {
+    bibleStore.setCurrentChapter(chapter);
+  }, [bibleStore]);
+
+  const handleSearchPress = useCallback(() => {
+    bibleStore.setShowSearch(true);
+  }, [bibleStore]);
+
   // Enhanced header with activity panel
   const renderHeader = () => (
     <View style={styles.headerContainer}>
@@ -753,17 +791,16 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
             </View>
           )}
 
-          <View style={styles.controlsGroup}>
+          <View style={styles.inlineSelectors}>
             <BookSelector
-              currentBook={bibleStore.currentBook || (bibleStore.availableBooks[0] as any) || bibleBooks[0]}
-              onSelect={bibleStore.setCurrentBook}
-              books={(bibleStore.availableBooks.length ? bibleStore.availableBooks : bibleBooks) as any}
+              currentBook={bibleStore.currentBook || bibleStore.filteredBooks[0] || bibleBooks[0]}
+              onSelect={handleInlineBookSelect}
+              books={bibleStore.filteredBooks as any}
             />
-            
             <BiblePicker
               value={bibleStore.currentChapter}
               items={Array.from({ length: bibleStore.getChapterCount() }, (_, i) => i + 1)}
-              onSelect={bibleStore.setCurrentChapter}
+              onSelect={handleInlineChapterSelect}
             />
           </View>
         </View>
@@ -771,26 +808,16 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
         <View style={styles.headerRight}>
           <TouchableOpacity
             style={styles.iconButton}
-            onPress={async () => {
-              await bibleStore.loadHistory();
-              setShowHistoryModal(true);
-            }}
-          >
-            <MaterialIcons name="history" size={22} color={theme.colors.text.primary} />
-          </TouchableOpacity>
-
-          <TouchableOpacity 
-            style={styles.iconButton}
-            onPress={() => bibleStore.setShowSearch(true)}
+            onPress={handleSearchPress}
           >
             <MaterialIcons name="search" size={24} color={theme.colors.text.primary} />
           </TouchableOpacity>
 
           <TouchableOpacity
             style={styles.iconButton}
-            onPress={() => setShowFontModal(true)}
+            onPress={handleOpenSettings}
           >
-            <MaterialIcons name="text-fields" size={22} color={theme.colors.text.primary} />
+            <MaterialIcons name="settings" size={24} color={theme.colors.text.primary} />
           </TouchableOpacity>
         </View>
       </BlurView>
@@ -1377,10 +1404,119 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     ...theme.typography.body.sans,
     color: theme.colors.text.primary,
   },
+  settingsOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'center',
+    padding: theme.spacing.lg,
+  },
+  settingsCard: {
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.borderRadius.xl,
+    paddingVertical: theme.spacing.lg,
+    paddingHorizontal: theme.spacing.lg,
+    maxHeight: '85%',
+    borderWidth: 1,
+    borderColor: `${theme.colors.primary}12`,
+    shadowColor: theme.colors.shadow,
+    shadowOpacity: 0.18,
+    shadowRadius: 18,
+    elevation: 8,
+  },
+  settingsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: theme.spacing.md,
+  },
+  settingsTitle: {
+    ...theme.typography.heading.medium,
+    color: theme.colors.text.primary,
+  },
+  settingsCloseButton: {
+    padding: theme.spacing.xs,
+  },
+  settingsContent: {
+    gap: theme.spacing.lg,
+    paddingBottom: theme.spacing.md,
+  },
+  settingsSection: {
+    gap: theme.spacing.sm,
+  },
+  settingsSectionLabel: {
+    ...theme.typography.caption.primary,
+    color: theme.colors.text.secondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+  },
+  settingsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
+    flexWrap: 'wrap',
+  },
+  settingsItemText: {
+    flex: 1,
+    gap: theme.spacing.xs,
+  },
+  settingsItemTitle: {
+    ...theme.typography.body.sans,
+    color: theme.colors.text.primary,
+    fontWeight: '600',
+  },
+  settingsItemSubtitle: {
+    ...theme.typography.caption.secondary,
+    color: theme.colors.text.secondary,
+  },
+  settingsDivider: {
+    height: 1,
+    backgroundColor: `${theme.colors.border}60`,
+  },
+  settingsAction: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.md,
+    paddingVertical: theme.spacing.sm,
+  },
+  settingsActionText: {
+    flex: 1,
+    gap: theme.spacing.xs,
+  },
+  settingsActionTitle: {
+    ...theme.typography.body.sans,
+    color: theme.colors.text.primary,
+    fontWeight: '600',
+  },
+  settingsActionSubtitle: {
+    ...theme.typography.caption.secondary,
+    color: theme.colors.text.secondary,
+  },
+  inlineSelectors: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
+    marginLeft: theme.spacing.md,
+  },
   controlsGroup: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: theme.spacing.sm,
+  },
+  apocryphaToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.xs,
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: theme.spacing.xs,
+    borderRadius: theme.borderRadius.full,
+    backgroundColor: `${theme.colors.surface}AA`,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: theme.colors.border,
+  },
+  apocryphaLabel: {
+    ...theme.typography.caption.secondary,
+    color: theme.colors.text.secondary,
+    fontWeight: '600',
   },
   contentContainer: {
     padding: theme.spacing.md,
