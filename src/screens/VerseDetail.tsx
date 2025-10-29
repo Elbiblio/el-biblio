@@ -55,6 +55,7 @@ import { observer } from 'mobx-react-lite';
 import EmptyState from '@/components/EmptyState';
 import ReflectionComposeModal from '@/components/ReflectionComposeModal';
 import { Share as NativeShare } from 'react-native';
+import { formatVerseShareMessage } from '@/utils/share';
 
 type VerseDetailProps = NativeStackScreenProps<RootStackParamList, 'VerseDetail'>;
 
@@ -229,9 +230,18 @@ const VerseDetail = ({ navigation, route }: VerseDetailProps) => {
   const handleShareVerse = async () => {
     if (!currentVerse) return;
     try {
-      const msg = `${currentVerse.text} (${currentVerse.reference_display})`;
-      await NativeShare.share({ message: msg });
-    } catch {}
+      const message = formatVerseShareMessage({
+        text: currentVerse.text,
+        reference: currentVerse.reference,
+        reference_display: (currentVerse as any).reference_display ?? currentVerse.reference,
+        book: (currentVerse as any).book ?? undefined,
+        chapter: (currentVerse as any).chapter ?? undefined,
+        verse: (currentVerse as any).verse ?? undefined,
+      });
+      await NativeShare.share({ message });
+    } catch (error) {
+      toast.error('Failed to share verse');
+    }
   };
 
   const handleSubmitReflection = async () => {

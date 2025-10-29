@@ -7,6 +7,7 @@ import BibleDBService, { generateVPLId, parseVPLId } from '@/utils/database';
 import { toast } from 'sonner-native';
 import { Share } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
+import { formatVerseShareMessage } from '@/utils/share';
 import * as Notifications from 'expo-notifications';
 
 // Extend the BibleVersion type to include id
@@ -1743,7 +1744,10 @@ class BibleStore {
 
       // In a real app, this would use the Share API
       // For now, we'll just copy to clipboard
-      const shareText = `${verse.text}\n- ${verse.reference}`;
+      const shareText = formatVerseShareMessage({
+        text: verse.text,
+        reference: verse.reference,
+      });
 
       try {
         const result = await Share.share({ message: shareText });

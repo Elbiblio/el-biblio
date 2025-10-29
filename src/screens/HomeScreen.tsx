@@ -1643,6 +1643,7 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
         onRequestClose={handleDismissHomeWelcome}
       >
         <View style={styles.homeWelcomeOverlay}>
+          <View style={styles.homeWelcomeBackdrop} />
           <View style={styles.homeWelcomeCard}>
             <ScrollView
               contentContainerStyle={styles.homeWelcomeScrollContent}
@@ -1650,7 +1651,7 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
             >
               <Text style={styles.homeWelcomeTitle}>Welcome to Elbiblio</Text>
               <Text style={styles.homeWelcomeBody}>
-                Jesus prayed, “That they may all be one” (John 17:21). This community exists to live that prayer — to grow together in faith, peace, and love as one body in Christ.
+                Jesus prayed, “That they may all be one” (John 17:21). In a world assailed by evil schemes, this community exists as a place of comfort and solace for Christians to unite in prayer, renew their resolves, and grow together in faith, peace, and love as one body in Christ.
               </Text>
               <Text style={styles.homeWelcomeBody}>Please take note of these guiding commitments:</Text>
               <Text style={styles.homeWelcomeItem}>
@@ -1659,26 +1660,26 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
               </Text>
               <Text style={styles.homeWelcomeItem}>
                 <Text style={styles.homeWelcomeItemNumber}>2.&nbsp;</Text>
-                For the sake of unity, we honor the breadth of Christian perspectives. Jesus fulfilled the Law rather than abolishing it, and the apostles carried forward holy traditions. Differences often emerge around which teachings or practices to retain, yet intention, right judgment, faith, and spiritual maturity (Luke 18:8; Mark 9:29) must lead the way. Just as schooling decisions are judged by fruit, God’s grace cannot be limited (Job 11:7-9).
+                For the sake of unity, we honor the breadth of Christian perspectives that does not directly contradict the teachings of Jesus Christ. Jesus fulfilled the Law rather than abolishing it, and the apostles carried forward holy traditions. Differences often emerge around which teachings or practices to retain, yet intention, right judgment, faith, and spiritual maturity (Luke 18:8; Mark 9:29) must lead the way. God's mercy and grace are infinite and universal, and cannot be limited (For example in Acts 10:2, the Holy Spirit instructed a God-fearing pagan to invite one of the Apostles).
               </Text>
               <Text style={styles.homeWelcomeItem}>
                 <Text style={styles.homeWelcomeItemNumber}>3.&nbsp;</Text>
-                Every church can learn from another. Some focus on the yolk, some keep the whole egg, others add seasoning — but the harvest is judged by its fruit. Any tradition that excuses distortion of God’s design — whether polygamy, sexual immorality, or denying the divinity of Jesus — must give way to the truth. All are welcome here to encounter Christ anew by laying aside bias and listening to the Holy Spirit.
+                Every church can learn from another. Some focus on the yolk, some keep the whole egg including the shell, others add seasoning — but the harvest is judged by its fruit (Matthew 7:16). Any tradition that distorts God’s design — whether promotion of polygamy, sexual immorality, or denying the divinity of Jesus — must give way to the truth and such doctrines (2 John 7-11) will not be tolerated. All are however welcome to learn the truth by laying aside bias and trusting in the grace of God through the Holy Spirit and the community of brethren.
               </Text>
               <Text style={styles.homeWelcomeItem}>
                 <Text style={styles.homeWelcomeItemNumber}>4.&nbsp;</Text>
-                We present the full Bible, including the apocrypha, because the Holy Spirit can teach through every faithful witness — just as He may use a passerby on the street to speak life.
+                 We include the full Bible for the purposes of edification (both Jerome and Martin Luther recognized the apocrypha as good for reading), and it is the Holy Spirit who truly teaches all things. On this note, we also do not discriminate against recognition of saints; just as Peter, Paul, and the apostles walked in Christ, even today there are true disciples who have gone before us, and reflection on their lives can likewise edify and inspire us. The choice of believing that those who walked in Christ are not dead but alive and still working toward the fulfillment of the Kingdom together with us (Romans 8:19-23) is simply a matter of faith. Likewise, arguments about intercession vs. mediation, eucharistic celebration, sainthood of Mary, etc., are inconsequential to the purpose of this community, as they concern understanding rather than blasphemy or rejection of grace; what matters is that we work with the grace of God and that our lives bear witness and fruits according to His grace, bringing about His Kingdom on earth.
               </Text>
               <Text style={styles.homeWelcomeItem}>
                 <Text style={styles.homeWelcomeItemNumber}>5.&nbsp;</Text>
-                By signing up you pledge to actualize Jesus’ unitive prayer — growing in grace, nurturing others, and avoiding divisive agendas. Elbiblio is a tool for spiritual maturity (Ephesians 4:13-15), not for proselytizing denominational bias. We stand firm in the supremacy of God, the deity of Jesus, and God’s original design, and we expect every believer to bear the virtues and works Jesus describes in Matthew 5:1-16 and 25:35-40.
+                By signing up you pledge you are a Christian or willing to become one and to abide by the unitive prayer of Jesus — growing in grace, nurturing others, and avoiding divisive agendas. Elbiblio is a tool for spiritual maturity (Ephesians 4:13-15), not for proselytizing denominational bias. We stand firm in the teachings of Jesus, and God’s original design revealed through the Bible and creation, and we expect every believer to bear the virtues and works Jesus describes in Matthew 5:1-16 and 25:35-40.
               </Text>
               <Text style={styles.homeWelcomeBody}>
-                Together, let us abide in love, seek holiness, and help fulfill His prayer for unity.
+                Together, let us make the community a welcome place for each other.
               </Text>
             </ScrollView>
             <TouchableOpacity style={styles.homeWelcomeButton} onPress={handleDismissHomeWelcome} activeOpacity={0.85}>
-              <Text style={styles.homeWelcomeButtonText}>Continue in Unity</Text>
+              <Text style={styles.homeWelcomeButtonText}>I agree</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -2177,16 +2178,23 @@ const createStyles = (theme: Theme) => StyleSheet.create({
   },
   homeWelcomeOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: 'transparent',
     justifyContent: 'center',
     padding: theme?.spacing.lg,
+  },
+  homeWelcomeBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.5)',
   },
   homeWelcomeCard: {
     backgroundColor: theme?.colors.surface,
     borderRadius: theme?.borderRadius.xl,
     paddingVertical: theme?.spacing.lg,
     paddingHorizontal: theme?.spacing.lg,
-    maxHeight: '85%',
+    maxHeight: '80%',
+    maxWidth: 680,
+    alignSelf: 'center',
+    width: '100%',
     borderWidth: 1,
     borderColor: `${theme?.colors.primary}20`,
     shadowColor: theme?.colors.primary,
@@ -2196,6 +2204,7 @@ const createStyles = (theme: Theme) => StyleSheet.create({
   },
   homeWelcomeScrollContent: {
     gap: theme?.spacing.md,
+    paddingBottom: theme?.spacing.lg,
   },
   homeWelcomeTitle: {
     ...theme?.typography.heading.medium,

@@ -30,6 +30,7 @@ import { Theme } from '@/theme';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useVerseBuilderStore } from '@/stores/StoreProvider';
 import { useBibleStore } from '@/stores/BibleStore';
+import { useAuthStore } from '@/stores/StoreProvider';
 import { Trophy, ArrowCounterClockwise } from '../components/Icons';
 import AnimatedCircularProgress from '@/components/AnimatedCircularProgress';
 import VerseBuilderWordTile from '@/components/VerseBuilderWordTile';
@@ -38,6 +39,8 @@ import * as Haptics from 'expo-haptics';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import SoundSettingsModal from '@/components/SoundSettingsModal';
 import { playCue, playMusic, stopMusic } from '@/services/audio';
+import { formatGameShareMessage, requestGameShareLink } from '@/utils/share';
+import { toast } from 'sonner-native';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const WORD_SIZE = Math.max(56, Math.floor(SCREEN_WIDTH / 7));
@@ -49,6 +52,7 @@ const VerseBuilderScreen = observer(() => {
   const styles = useMemo(() => createStyles(theme), [theme]);
   const verseBuilderStore = useVerseBuilderStore();
   const bibleStore = useBibleStore();
+  const { user } = useAuthStore();
 
   // Store API
   const {
@@ -873,11 +877,29 @@ const VerseBuilderScreen = observer(() => {
                     style={[styles.successButton, styles.successShareButton]}
                     onPress={async () => {
                       try {
-                        await Share.share({
-                          message: `I just arranged ${gameState?.reference} in Verse Builder! Score: ${score}. Try it!`,
+                        const gameReference = gameState?.reference ?? 'Verse Builder';
+                        const userId = user?.id ?? 'guest';
+                        let shortLink: string | null = null;
+
+                        try {
+                          shortLink = await requestGameShareLink(userId, 'verse_builder', score);
+                        } catch (error) {
+                          console.warn('Game share link generation failed', error);
+                        }
+
+                        const message = formatGameShareMessage(gameReference, score, shortLink || undefined, {
+                          extraLine: 'Can you beat my score?'
                         });
-                      } catch { }
+
+                        await Share.share({ message });
+                        toast.success('Score shared');
+                      } catch (error) {
+                        console.error('Error sharing game score', error);
+                        toast.error('Unable to share score right now');
+                      }
                     }}
+                    activeOpacity={0.85}
+                    disabled={!gameState}
                   >
                     <Text style={styles.successButtonText}>Share</Text>
                   </TouchableOpacity>
