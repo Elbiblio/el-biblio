@@ -5,6 +5,7 @@ import { Challenge, ChallengeType, DailyChallenge, BackendChallenge, BackendChal
 import { mapChallenge } from '@/utils/mapChallenge';
 import { PaginatedResponse } from '@/types';
 import { toast } from 'sonner-native';
+import { differenceInMinutes } from 'date-fns';
 
 export type ChallengeCategory = 'personal' | 'community' | 'suggested';
 
@@ -122,6 +123,14 @@ export class ChallengeStore {
     return this.state.suggestedChallenges;
   }
 
+  get allChallenges() {
+    return [
+      ...this.state.personalChallenges,
+      ...this.state.communityChallenges,
+      ...this.state.suggestedChallenges,
+    ];
+  }
+
   get activeCategory() {
     return this.state.activeCategory;
   }
@@ -139,6 +148,64 @@ export class ChallengeStore {
   get isJoiningLoading() { return this.isLoading; }
   get isUpvotingLoading() { return this.isLoading; }
   get createError() { return this.error; }
+
+  getRecommendedChallenge(options?: {
+    preferredTheme?: string | null;
+    excludeIds?: string[];
+    allowJoined?: boolean;
+  }): Challenge | null {
+    const excludeSet = new Set((options?.excludeIds ?? []).map(String));
+    const now = new Date();
+    const themeNeedle = options?.preferredTheme?.trim().toLowerCase();
+
+    let bestMatch: Challenge | null = null;
+    let bestScore = Number.NEGATIVE_INFINITY;
+
+    const candidates = [
+      ...this.state.suggestedChallenges,
+      ...this.state.communityChallenges,
+    ];
+
+    candidates.forEach((challenge) => {
+      if (!challenge) return;
+      if (!options?.allowJoined && challenge.hasJoined) return;
+      if (excludeSet.has(challenge.id)) return;
+
+      const expiresAt = challenge.expiresAt ? new Date(challenge.expiresAt) : null;
+      if (expiresAt && expiresAt <= now) return;
+
+      const minutesRemaining = expiresAt ? differenceInMinutes(expiresAt, now) : null;
+      if (minutesRemaining !== null && minutesRemaining <= 0) return;
+
+      let score = 0;
+
+      if (minutesRemaining !== null) {
+        score += Math.min(minutesRemaining, 360); // prefer nearer-term challenges, cap at 6h weight
+      }
+
+      score += (challenge.upvotes ?? 0) * 5;
+      score += (challenge.points ?? 0) * 0.5;
+      if (challenge.isFeatured) score += 30;
+
+      if (themeNeedle) {
+        const haystack = `${challenge.theme_name ?? ''} ${challenge.title} ${challenge.description ?? ''}`.toLowerCase();
+        if (haystack.includes(themeNeedle)) {
+          score += 40;
+        }
+      }
+
+      if ((challenge.type ?? 'virtue') === 'virtue') {
+        score += 5;
+      }
+
+      if (score > bestScore) {
+        bestScore = score;
+        bestMatch = challenge;
+      }
+    });
+
+    return bestMatch;
+  }
 
   // Initialization
   private async initialize() {

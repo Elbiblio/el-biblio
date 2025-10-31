@@ -69,6 +69,7 @@ import type { Verse as VerseType } from "@/types";
 import VersePreviewModal from "@/components/VersePreviewModal";
 import type { Verse as ModalVerse } from "@/types";
 import type { DailyStep, ReviveReminderSchedule } from '@/stores/DailyPathStore';
+import SmartPickCard from '@/components/SmartPickCard';
 
 import { AppState, AppStateStatus } from 'react-native';
 // Removed local PointsEarnedModal usage; global modal in App.tsx handles display via interceptor
@@ -197,6 +198,7 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [quickMenuUsage, setQuickMenuUsage] = useState<QuickMenuUsage>({ meditationCount: 0, bibleCount: 0, unlockedItems: [] });
   const [showSetupPrompt, setShowSetupPrompt] = useState(false);
+  const [smartPickDismissed, setSmartPickDismissed] = useState(false);
 
   const meditationComplete = route.params?.meditationComplete || false;
   // const challenge = route.params?.challenge;
@@ -1106,7 +1108,7 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
               style={[styles.toolButton, !isUnlocked && { opacity: 0.6 }]}
               onPress={() => {
                 if (!isUnlocked) {
-                  const totalPoints = leaderboardStore.userStats?.totalPoints ?? 0;
+                  const totalPoints = leaderboardStore.userStats?.totalPoints ?? user?.points ?? 0;
                   const remaining = Math.max(0, SOUL_FORGE_UNLOCK_POINTS - totalPoints);
                   toast.info(`Earn ${remaining} more points to unlock SoulForge.`);
                   Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
@@ -1246,6 +1248,25 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
       return true;
     });
     
+    const smartPickChallenge = useMemo(() => {
+      if (smartPickDismissed) return null;
+      if (challengeStore.isLoading) return null;
+      const excludeIds = Array.from(joinedChallengeIds);
+      return challengeStore.getRecommendedChallenge({ excludeIds, allowJoined: false });
+    }, [challengeStore, joinedChallengeIds, smartPickDismissed]);
+
+    const handleSmartPickJoin = useCallback((challenge: Challenge) => {
+      void (async () => {
+        const success = await challengeStore.joinChallenge(challenge.id);
+        if (success) {
+          toast.success('Challenge added to your day');
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          setSmartPickDismissed(true);
+          navigation.navigate('DailyChallengeScreen');
+        }
+      })();
+    }, [challengeStore, navigation]);
+
     // Calculate progress for personal challenge
     const personalProgress = personalChallenge ? calculateChallengeProgress(personalChallenge as any) : 0;
     const isPersonalChallengeComplete = personalChallenge ? personalProgress >= 100 : false;
@@ -1284,7 +1305,18 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
             <ChevronRight size={16} color={theme?.colors.primary} />
           </TouchableOpacity>
         </View>
-        
+
+        {!smartPickDismissed && smartPickChallenge && (
+          <View style={styles.smartPickWrapper}>
+            <SmartPickCard
+              challenge={smartPickChallenge}
+              onPressJoin={handleSmartPickJoin}
+              onPressDismiss={() => setSmartPickDismissed(true)}
+              ctaLabel={smartPickChallenge.hasJoined ? 'View challenge' : 'Join challenge'}
+            />
+          </View>
+        )}
+
         {/* Joined Challenge (Personal) */}
         {personalChallenge ? (
           <View style={styles.challengeCard}>
@@ -1528,7 +1560,7 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
   const renderGamesModal = () => (
     <Modal
       visible={showGamesModal}
-      transparent={true}
+      transparent
       animationType="fade"
       onRequestClose={() => setShowGamesModal(false)}
     >
@@ -1643,11 +1675,11 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
         onRequestClose={handleDismissHomeWelcome}
       >
         <View style={styles.homeWelcomeOverlay}>
-          <View style={styles.homeWelcomeBackdrop} />
           <View style={styles.homeWelcomeCard}>
             <ScrollView
               contentContainerStyle={styles.homeWelcomeScrollContent}
               showsVerticalScrollIndicator={false}
+              style={{ maxHeight: 520 }}
             >
               <Text style={styles.homeWelcomeTitle}>Welcome to Elbiblio</Text>
               <Text style={styles.homeWelcomeBody}>
@@ -1668,19 +1700,21 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
               </Text>
               <Text style={styles.homeWelcomeItem}>
                 <Text style={styles.homeWelcomeItemNumber}>4.&nbsp;</Text>
-                 We include the full Bible for the purposes of edification (both Jerome and Martin Luther recognized the apocrypha as good for reading), and it is the Holy Spirit who truly teaches all things. On this note, we also do not discriminate against recognition of saints; just as Peter, Paul, and the apostles walked in Christ, even today there are true disciples who have gone before us, and reflection on their lives can likewise edify and inspire us. The choice of believing that those who walked in Christ are not dead but alive and still working toward the fulfillment of the Kingdom together with us (Romans 8:19-23) is simply a matter of faith. Likewise, arguments about intercession vs. mediation, eucharistic celebration, sainthood of Mary, etc., are inconsequential to the purpose of this community, as they concern understanding rather than blasphemy or rejection of grace; what matters is that we work with the grace of God and that our lives bear witness and fruits according to His grace, bringing about His Kingdom on earth.
+                 We include the full Bible for the purposes of edification (both Jerome and Martin Luther recognized the apocrypha as good for reading), and it is the Holy Spirit who truly teaches all things. We also do not discriminate against recognition of saints (Romans 8:27); just as Peter, Paul, and the apostles walked in Christ, even today there are true disciples who have gone before us, and reflection on their lives can likewise edify and inspire us. The choice of believing that those who walked in Christ are not dead but alive and still working toward the fulfillment of the Kingdom together with us (Romans 8:19-23) is simply a matter of faith. Likewise, arguments about mediation vs intercession, eucharistic celebration, sainthood of Mary, etc., are inconsequential to the purpose of this community, as they concern understanding rather than blasphemy or rejection of grace; what matters is that we work with the grace of God and that our lives bear witness and fruits according to His grace, bringing about His Kingdom on earth.
               </Text>
               <Text style={styles.homeWelcomeItem}>
                 <Text style={styles.homeWelcomeItemNumber}>5.&nbsp;</Text>
-                By signing up you pledge you are a Christian or willing to become one and to abide by the unitive prayer of Jesus — growing in grace, nurturing others, and avoiding divisive agendas. Elbiblio is a tool for spiritual maturity (Ephesians 4:13-15), not for proselytizing denominational bias. We stand firm in the teachings of Jesus, and God’s original design revealed through the Bible and creation, and we expect every believer to bear the virtues and works Jesus describes in Matthew 5:1-16 and 25:35-40.
+                By signing up you pledge you are a Christian or willing to become one and to abide by the unitive prayer of Jesus — growing in grace, nurturing others, and avoiding divisive agendas. Elbiblio is a tool for spiritual maturity (Ephesians 4:13-15), not for proselytizing denominational bias. We stand firm in the teachings of Jesus, and God’s original design revealed through the Bible and creation, and we expect every believer to bear the virtues and signs Jesus describes in Matthew 5:1-16 and 25:35-40.
               </Text>
               <Text style={styles.homeWelcomeBody}>
                 Together, let us make the community a welcome place for each other.
               </Text>
             </ScrollView>
-            <TouchableOpacity style={styles.homeWelcomeButton} onPress={handleDismissHomeWelcome} activeOpacity={0.85}>
-              <Text style={styles.homeWelcomeButtonText}>I agree</Text>
-            </TouchableOpacity>
+            <View style={styles.homeWelcomeButtonContainer}>
+              <TouchableOpacity style={styles.homeWelcomeButton} onPress={handleDismissHomeWelcome} activeOpacity={0.85}>
+                <Text style={styles.homeWelcomeButtonText}>I agree</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </Modal>
@@ -2027,6 +2061,10 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     flexDirection: 'row',
     gap: theme?.spacing.sm,
   },
+  smartPickWrapper: {
+    marginTop: theme?.spacing.md,
+    marginBottom: theme?.spacing.md,
+  },
   revivePrimary: {
     paddingVertical: theme?.spacing.sm,
     paddingHorizontal: theme?.spacing.md,
@@ -2178,29 +2216,31 @@ const createStyles = (theme: Theme) => StyleSheet.create({
   },
   homeWelcomeOverlay: {
     flex: 1,
-    backgroundColor: 'transparent',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'center',
+    alignItems: 'center',
     padding: theme?.spacing.lg,
   },
   homeWelcomeBackdrop: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
   },
   homeWelcomeCard: {
     backgroundColor: theme?.colors.surface,
     borderRadius: theme?.borderRadius.xl,
     paddingVertical: theme?.spacing.lg,
     paddingHorizontal: theme?.spacing.lg,
-    maxHeight: '80%',
-    maxWidth: 680,
+    width: '94%',
+    maxWidth: 560,
+    maxHeight: '85%',
     alignSelf: 'center',
-    width: '100%',
     borderWidth: 1,
     borderColor: `${theme?.colors.primary}20`,
     shadowColor: theme?.colors.primary,
     shadowOpacity: 0.2,
     shadowRadius: 18,
     elevation: 10,
+    zIndex: 2,
   },
   homeWelcomeScrollContent: {
     gap: theme?.spacing.md,
@@ -2225,8 +2265,12 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     color: theme?.colors.primary,
     fontWeight: '700',
   },
+  homeWelcomeButtonContainer: {
+    paddingTop: theme?.spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: theme?.colors.border,
+  },
   homeWelcomeButton: {
-    marginTop: theme?.spacing.lg,
     backgroundColor: theme?.colors.primary,
     borderRadius: theme?.borderRadius.lg,
     paddingVertical: theme?.spacing.md,
@@ -2257,7 +2301,6 @@ const createStyles = (theme: Theme) => StyleSheet.create({
   seeAllButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: theme?.spacing.xs,
   },
   seeAllText: {
     ...theme?.typography.caption.primary
@@ -2695,7 +2738,6 @@ const createStyles = (theme: Theme) => StyleSheet.create({
   contextPrimaryText: {
     ...theme?.typography.caption.primary,
     color: theme?.colors.text.inverse,
-    fontWeight: '600',
   },
   contextSecondaryButton: {
     paddingVertical: theme?.spacing.xs,

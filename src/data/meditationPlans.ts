@@ -1,18 +1,5 @@
 export type MeditationLevel = 'foundation' | 'growth' | 'deep';
 
-export type RosaryMysteryType = 'joyful' | 'luminous' | 'sorrowful' | 'glorious';
-
-export interface RosaryMystery {
-  id: string;
-  title: string;
-  scripture: string;
-  overview: string;
-  meditationFocus: string[];
-  prayerIntentions: string[];
-  mysteryType: RosaryMysteryType;
-  order: number;
-}
-
 export interface MeditationPlan {
   id: string;
   title: string;
@@ -425,438 +412,177 @@ const deepPlans: PlanCollection = [
   }
 ];
 
-// Rosary Mysteries Collections - Bible-focused meditation
-const joyfulMysteries: RosaryMystery[] = [
+export interface ContemplativePractice {
+  id: string;
+  name: string;
+  description: string;
+  focus: string[];
+  guidance: string[];
+  tags: string[];
+}
+
+export const contemplativePractices: ContemplativePractice[] = [
   {
-    id: 'annunciation',
-    title: 'The Annunciation',
-    scripture: 'Luke 1:26-38',
-    overview: 'The angel Gabriel announces to Mary that she will give birth to Jesus, the Son of God.',
-    meditationFocus: [
-      'God\'s messenger bringing good news',
-      'Mary\'s willing response to God\'s call',
-      'The promise of God\'s presence among us',
-      'Faith responding to divine revelation'
+    id: 'centering-prayer',
+    name: 'Centering Prayer',
+    description: 'Choose a sacred word and rest quietly before God, letting the word return you to His presence whenever thoughts wander.',
+    focus: [
+      'Sacred word anchoring your attention',
+      'Opening to God beyond thoughts and emotions',
+      'Practicing gentle surrender when distractions appear'
     ],
-    prayerIntentions: [
-      'For openness to God\'s messages in our lives',
-      'For courage to say yes to God\'s calling',
-      'For awareness of God working in our world',
-      'For trust in God\'s promises and timing'
+    guidance: [
+      'Set a timer for 5–20 minutes based on your capacity.',
+      'Gently repeat your sacred word whenever you notice your attention drifting.',
+      'Close with gratitude, acknowledging any subtle movements of the heart.'
     ],
-    mysteryType: 'joyful',
-    order: 1,
+    tags: ['sacred-word', 'stilling', 'silent-prayer']
   },
   {
-    id: 'visitation',
-    title: 'The Visitation',
-    scripture: 'Luke 1:39-56',
-    overview: 'Mary visits Elizabeth, and both women recognize God\'s work in their lives through the power of the Holy Spirit.',
-    meditationFocus: [
-      'Sharing joy in God\'s blessings',
-      'The Holy Spirit\'s work in people\'s lives',
-      'Celebrating God\'s goodness together',
-      'Recognizing God\'s hand in everyday moments'
+    id: 'silent-communion',
+    name: 'Silent Communion',
+    description: 'Sit in receptive stillness, imagining yourself with Jesus and allowing quiet communion to deepen trust.',
+    focus: [
+      'Imagining the nearness of Jesus',
+      'Letting silence soften restless thoughts',
+      'Listening for gentle impressions'
     ],
-    prayerIntentions: [
-      'For sharing our faith experiences with others',
-      'For seeing God at work in people around us',
-      'For building supportive faith communities',
-      'For gratitude for God\'s blessings in our lives'
+    guidance: [
+      'Find a posture that lets you remain present yet relaxed.',
+      'Breathe slowly and picture resting beside Jesus.',
+      'Close by noting one feeling or word that surfaced during the silence.'
     ],
-    mysteryType: 'joyful',
-    order: 2,
+    tags: ['stillness', 'presence', 'listening']
   },
   {
-    id: 'nativity',
-    title: 'The Nativity',
-    scripture: 'Luke 2:1-20',
-    overview: 'Jesus is born in Bethlehem, and angels announce this good news to shepherds watching their flocks.',
-    meditationFocus: [
-      'God entering human history in humility',
-      'Heavenly messengers declaring good news',
-      'The wonder of new life and new beginnings',
-      'God meeting us in our ordinary circumstances'
+    id: 'jesus-prayer',
+    name: 'Jesus Prayer',
+    description: 'Pray the ancient phrase “Lord Jesus Christ, Son of God, have mercy on me” in rhythm with your breath.',
+    focus: [
+      'Breathing in the first half of the prayer',
+      'Breathing out the second half of the prayer',
+      'Leaning into mercy and compassion'
     ],
-    prayerIntentions: [
-      'For wonder at God\'s presence in our world',
-      'For openness to hearing God\'s messages',
-      'For gratitude for new beginnings and fresh starts',
-      'For finding God in our everyday lives'
+    guidance: [
+      'Match the words to your inhale and exhale gently.',
+      'If distractions come, return to the rhythm without judgment.',
+      'Consider dedicating the prayer to someone who needs mercy.'
     ],
-    mysteryType: 'joyful',
-    order: 3,
+    tags: ['breath-prayer', 'mercy', 'compassion']
   },
   {
-    id: 'presentation',
-    title: 'The Presentation',
-    scripture: 'Luke 2:22-40',
-    overview: 'Mary and Joseph present Jesus in the Temple, where Simeon and Anna recognize Him as the fulfillment of God\'s promises.',
-    meditationFocus: [
-      'Dedicating our lives and families to God',
-      'Recognizing God\'s fulfillment of promises',
-      'Wisdom that comes with age and experience',
-      'The peace of knowing God\'s purposes'
+    id: 'breath-focus',
+    name: 'Breath & Focus',
+    description: 'Use simple breathing cues to notice God’s steadying presence and release tension in body and mind.',
+    focus: [
+      'Intentional inhale and exhale counts',
+      'Relaxing muscle groups as you breathe',
+      'Inviting God into areas of anxiety'
     ],
-    prayerIntentions: [
-      'For dedication to following God\'s ways',
-      'For eyes to see God\'s faithfulness in our lives',
-      'For wisdom and discernment in daily decisions',
-      'For peace in trusting God\'s timing and purposes'
+    guidance: [
+      'Try a four-count inhale, four-count hold, and six-count exhale.',
+      'Scan your body, relaxing one area with each exhale.',
+      'End by asking God for one word to carry into your next task.'
     ],
-    mysteryType: 'joyful',
-    order: 4,
+    tags: ['breathing', 'calming', 'embodied-prayer']
   },
   {
-    id: 'finding-temple',
-    title: 'Finding Jesus in the Temple',
-    scripture: 'Luke 2:41-52',
-    overview: 'Mary and Joseph find Jesus in the Temple discussing God\'s truth with the religious teachers.',
-    meditationFocus: [
-      'Growing in understanding of God\'s ways',
-      'The importance of learning and wisdom',
-      'Being in the right place to encounter God',
-      'The natural process of spiritual growth'
+    id: 'daily-examen',
+    name: 'Daily Examen',
+    description: 'Review the day with God, celebrating moments of grace and noticing where His presence felt distant.',
+    focus: [
+      'Gratitude for concrete gifts',
+      'Owning your emotions and reactions',
+      'Inviting God into tomorrow’s choices'
     ],
-    prayerIntentions: [
-      'For growth in understanding God\'s truth',
-      'For wisdom in studying and learning',
-      'For finding God in places of worship and study',
-      'For patience in the process of spiritual growth'
+    guidance: [
+      'Start with gratitude for two or three moments.',
+      'Review your day slowly, asking where you sensed God strongly or faintly.',
+      'Ask for help living tomorrow with deeper awareness.'
     ],
-    mysteryType: 'joyful',
-    order: 5,
+    tags: ['reflection', 'gratitude', 'discernment']
+  },
+  {
+    id: 'self-reflection',
+    name: 'Self-Reflection',
+    description: 'Hold a specific question before God, journaling honest thoughts and listening for gentle correction or affirmation.',
+    focus: [
+      'Naming present emotions truthfully',
+      'Seeking God’s perspective on your story',
+      'Responding with one practical shift'
+    ],
+    guidance: [
+      'Frame a single question such as “Where am I resisting grace?”',
+      'Journal freely for a few minutes without editing.',
+      'Summarize one small response you can take today.'
+    ],
+    tags: ['journaling', 'awareness', 'growth']
+  },
+  {
+    id: 'journaling-tracking',
+    name: 'Journaling & Growth Tracking',
+    description: 'Capture insights, emotions, and commitments so you can see patterns of growth over time.',
+    focus: [
+      'Recording what resonated in prayer or Scripture',
+      'Naming habits that help or hinder growth',
+      'Celebrating incremental change'
+    ],
+    guidance: [
+      'Keep a dedicated section for wins, questions, and prayers.',
+      'Review entries weekly to notice recurring themes.',
+      'Identify one area of growth and one area needing attention.'
+    ],
+    tags: ['journaling', 'tracking', 'celebration']
+  },
+  {
+    id: 'taize-chant',
+    name: 'Taizé Chant',
+    description: 'Repeat short chants or scriptures set to simple melodies, letting the repetition settle truth into your heart.',
+    focus: [
+      'Singing or speaking phrases slowly',
+      'Allowing melody to shape your breath',
+      'Letting the refrain move from head to heart'
+    ],
+    guidance: [
+      'Choose one or two chants from a Taizé playlist.',
+      'Sing quietly or hum along for 5–10 minutes.',
+      'Close by resting in silence, letting the refrain linger.'
+    ],
+    tags: ['worship', 'chant', 'music']
+  },
+  {
+    id: 'worship-emotion',
+    name: 'Worship & Emotion',
+    description: 'Pair worship music with honest emotional expression, letting God meet you in joy, lament, or longing.',
+    focus: [
+      'Selecting songs that match your current season',
+      'Naming emotions openly before God',
+      'Inviting God to shape your response'
+    ],
+    guidance: [
+      'Create a short playlist reflecting your present emotions.',
+      'Sing or journal along with the lyrics that stand out.',
+      'Note any shifts in perspective or sense of God’s nearness.'
+    ],
+    tags: ['worship', 'emotion', 'processing']
+  },
+  {
+    id: 'theme-library',
+    name: 'Theme & Chant Library',
+    description: 'Explore curated themes, scriptures, and chants that match the season you are in, building a personal reservoir of hope.',
+    focus: [
+      'Matching themes to current challenges',
+      'Collecting scriptures and phrases that ground you',
+      'Sharing selections with friends or community'
+    ],
+    guidance: [
+      'Select one theme for the week (e.g., hope, trust, courage).',
+      'Gather scriptures, prayers, and music that reinforce the theme.',
+      'Revisit the theme daily, noticing how God reinforces it.'
+    ],
+    tags: ['library', 'resource', 'community']
   }
 ];
-
-const luminousMysteries: RosaryMystery[] = [
-  {
-    id: 'baptism-jordan',
-    title: 'The Baptism in the Jordan',
-    scripture: 'Matthew 3:13-17',
-    overview: 'Jesus is baptized by John in the Jordan River, and God\'s voice affirms Jesus as His beloved Son.',
-    meditationFocus: [
-      'The importance of baptism and new beginnings',
-      'God\'s affirmation and love for His children',
-      'The presence of the Holy Spirit in our lives',
-      'Jesus\' example of humility and obedience'
-    ],
-    prayerIntentions: [
-      'For understanding the meaning of baptism',
-      'For awareness of God\'s love and affirmation',
-      'For openness to the Holy Spirit\'s guidance',
-      'For humility in following Jesus\' example'
-    ],
-    mysteryType: 'luminous',
-    order: 1,
-  },
-  {
-    id: 'wedding-cana',
-    title: 'The Wedding at Cana',
-    scripture: 'John 2:1-11',
-    overview: 'Jesus performs His first miracle at a wedding, turning water into wine when the need arises.',
-    meditationFocus: [
-      'Jesus\' compassion for human needs and celebrations',
-      'The abundance of God\'s grace and provision',
-      'The role of prayer in times of need',
-      'God\'s timing and unexpected provision'
-    ],
-    prayerIntentions: [
-      'For compassion toward others\' needs and celebrations',
-      'For trust in God\'s abundant provision',
-      'For faithful prayer in times of need',
-      'For patience in waiting for God\'s timing'
-    ],
-    mysteryType: 'luminous',
-    order: 2,
-  },
-  {
-    id: 'proclamation-kingdom',
-    title: 'The Proclamation of the Kingdom',
-    scripture: 'Mark 1:14-15',
-    overview: 'Jesus begins His public ministry, announcing that God\'s kingdom is near and calling people to turn to God.',
-    meditationFocus: [
-      'The good news that God\'s kingdom is available to all',
-      'The call to turn toward God and new life',
-      'The nearness of God\'s presence and power',
-      'Jesus\' authority to forgive and heal'
-    ],
-    prayerIntentions: [
-      'For sharing the good news of God\'s kingdom',
-      'For willingness to turn toward God',
-      'For awareness of God\'s presence in our lives',
-      'For trust in Jesus\' authority and power'
-    ],
-    mysteryType: 'luminous',
-    order: 3,
-  },
-  {
-    id: 'transfiguration',
-    title: 'The Transfiguration',
-    scripture: 'Matthew 17:1-9',
-    overview: 'Jesus is revealed in divine glory before Peter, James, and John, showing His true nature as God\'s Son.',
-    meditationFocus: [
-      'The reality of Jesus\' divine nature',
-      'The importance of prayer and sacred moments',
-      'God\'s affirmation of Jesus\' mission',
-      'The glimpse of heavenly reality breaking into earth'
-    ],
-    prayerIntentions: [
-      'For deeper understanding of who Jesus is',
-      'For meaningful times of prayer and reflection',
-      'For confidence in God\'s purposes',
-      'For hope in the reality beyond what we see'
-    ],
-    mysteryType: 'luminous',
-    order: 4,
-  },
-  {
-    id: 'eucharist',
-    title: 'The Last Supper',
-    scripture: 'Matthew 26:26-30',
-    overview: 'Jesus shares a final meal with His disciples and institutes a memorial of His sacrifice.',
-    meditationFocus: [
-      'The importance of remembering Jesus\' sacrifice',
-      'The call to love and serve one another',
-      'The promise of Jesus\' ongoing presence',
-      'The unity found in shared faith and fellowship'
-    ],
-    prayerIntentions: [
-      'For gratitude for Jesus\' sacrifice',
-      'For love and service toward others',
-      'For awareness of Jesus\' presence in our lives',
-      'For unity in faith and fellowship'
-    ],
-    mysteryType: 'luminous',
-    order: 5,
-  }
-];
-
-const sorrowfulMysteries: RosaryMystery[] = [
-  {
-    id: 'agony-garden',
-    title: 'The Agony in the Garden',
-    scripture: 'Matthew 26:36-46',
-    overview: 'Jesus prays in deep distress in the Garden of Gethsemane, accepting God\'s will even in suffering.',
-    meditationFocus: [
-      'The reality of human suffering and prayer',
-      'Trusting God even when facing hardship',
-      'The importance of prayer in difficult times',
-      'Finding strength through surrender to God'
-    ],
-    prayerIntentions: [
-      'For comfort in times of suffering and distress',
-      'For trust in God during difficult circumstances',
-      'For faithfulness in prayer during trials',
-      'For strength to accept God\'s will'
-    ],
-    mysteryType: 'sorrowful',
-    order: 1,
-  },
-  {
-    id: 'scourging',
-    title: 'The Scourging',
-    scripture: 'Matthew 27:26',
-    overview: 'Jesus endures physical suffering and injustice at the hands of those in authority.',
-    meditationFocus: [
-      'The reality of injustice and suffering in our world',
-      'Jesus\' willingness to endure pain for others',
-      'The strength found in trusting God through injustice',
-      'God\'s presence even in the midst of cruelty'
-    ],
-    prayerIntentions: [
-      'For those suffering injustice and persecution',
-      'For strength to endure hardship for what is right',
-      'For trust in God during times of suffering',
-      'For compassion toward those who are hurting'
-    ],
-    mysteryType: 'sorrowful',
-    order: 2,
-  },
-  {
-    id: 'crowning-thorns',
-    title: 'The Crowning with Thorns',
-    scripture: 'Matthew 27:27-31',
-    overview: 'Jesus is mocked and humiliated by soldiers who crown Him with thorns and ridicule His kingship.',
-    meditationFocus: [
-      'The pain of rejection and humiliation',
-      'The contrast between earthly and heavenly power',
-      'Finding dignity in the midst of mockery',
-      'God\'s strength in moments of human weakness'
-    ],
-    prayerIntentions: [
-      'For comfort when facing rejection or ridicule',
-      'For understanding true strength and power',
-      'For dignity in the face of humiliation',
-      'For inner strength during times of weakness'
-    ],
-    mysteryType: 'sorrowful',
-    order: 3,
-  },
-  {
-    id: 'carrying-cross',
-    title: 'The Carrying of the Cross',
-    scripture: 'Matthew 27:32',
-    overview: 'Jesus carries His cross through the streets, showing determination even under the weight of suffering.',
-    meditationFocus: [
-      'The weight of burdens we carry in life',
-      'Finding help and support in times of need',
-      'Perseverance through difficult circumstances',
-      'The journey toward hope despite hardship'
-    ],
-    prayerIntentions: [
-      'For strength to carry life\'s burdens',
-      'For openness to receive help from others',
-      'For perseverance during difficult times',
-      'For hope in the midst of hardship'
-    ],
-    mysteryType: 'sorrowful',
-    order: 4,
-  },
-  {
-    id: 'crucifixion',
-    title: 'The Crucifixion',
-    scripture: 'Matthew 27:33-50',
-    overview: 'Jesus is crucified, offering forgiveness to His persecutors and completing His mission of love.',
-    meditationFocus: [
-      'The depth of love that endures suffering',
-      'The power of forgiveness even toward enemies',
-      'Completing our calling despite opposition',
-      'Finding meaning in sacrifice and surrender'
-    ],
-    prayerIntentions: [
-      'For the ability to love even those who hurt us',
-      'For the grace to forgive our enemies',
-      'For faithfulness to our calling',
-      'For understanding the meaning of sacrifice'
-    ],
-    mysteryType: 'sorrowful',
-    order: 5,
-  }
-];
-
-const gloriousMysteries: RosaryMystery[] = [
-  {
-    id: 'resurrection',
-    title: 'The Resurrection',
-    scripture: 'Matthew 28:1-10',
-    overview: 'Jesus rises from death, conquering the power of sin and death and bringing hope of new life.',
-    meditationFocus: [
-      'The power of God to overcome death',
-      'The hope of new life and new beginnings',
-      'The empty tomb as a sign of victory',
-      'The transformation possible through faith'
-    ],
-    prayerIntentions: [
-      'For faith in God\'s power over death',
-      'For hope in new beginnings and fresh starts',
-      'For victory over sin and brokenness',
-      'For transformation in our lives through faith'
-    ],
-    mysteryType: 'glorious',
-    order: 1,
-  },
-  {
-    id: 'ascension',
-    title: 'The Ascension',
-    scripture: 'Acts 1:6-11',
-    overview: 'Jesus returns to heaven, promising to send the Holy Spirit and prepare a place for His followers.',
-    meditationFocus: [
-      'Jesus\' return to His heavenly home',
-      'The promise of the Holy Spirit\'s presence',
-      'Our eternal destiny and hope',
-      'Jesus\' ongoing work on our behalf'
-    ],
-    prayerIntentions: [
-      'For trust in Jesus\' heavenly work',
-      'For openness to the Holy Spirit\'s guidance',
-      'For hope in our eternal home',
-      'For awareness of Jesus\' ongoing presence'
-    ],
-    mysteryType: 'glorious',
-    order: 2,
-  },
-  {
-    id: 'pentecost',
-    title: 'The Coming of the Holy Spirit',
-    scripture: 'Acts 2:1-13',
-    overview: 'The Holy Spirit descends on Jesus\' followers, empowering them to share God\'s message with people from all nations.',
-    meditationFocus: [
-      'The gift and power of the Holy Spirit',
-      'The call to share faith with others',
-      'Unity despite differences and diversity',
-      'The birth and growth of faith communities'
-    ],
-    prayerIntentions: [
-      'For the Holy Spirit\'s gifts and power in our lives',
-      'For courage to share our faith with others',
-      'For unity and understanding among diverse people',
-      'For the growth of faith communities'
-    ],
-    mysteryType: 'glorious',
-    order: 3,
-  },
-  {
-    id: 'assumption',
-    title: 'Mary, the new ark of the covenant',
-    scripture: 'Luke 1:28, Luke 1:39-56, Rev 11:19-12:1',
-    overview: 'Mary was a living vessel that carried the living God and thus the new ark of the covenant. Such grace preserved her from sin and bodily decay.',
-    meditationFocus: [
-      'The hope of eternal life with God',
-      'The abundant compassion, love and mercy of God',
-      'The peace of knowing God\'s eternal purposes'
-    ],
-    prayerIntentions: [
-      'For faithfulness in our daily living',
-      'For hope in eternal life with God',
-      'For lives that bring honor to God',
-      'For peace in trusting God\'s eternal plans'
-    ],
-    mysteryType: 'glorious',
-    order: 4,
-  },
-  {
-    id: 'coronation',
-    title: 'Mary crowned in Heaven',
-    scripture: 'Based on Revelation 12:1 and Psalm 45:9',
-    overview: 'Mary is honored in heaven for her faithful response to God\'s calling and her role in God\'s plan.',
-    meditationFocus: [
-      'The honor given to faithful servants',
-      'The importance of our response to God\'s call',
-      'The communion of believers across time',
-      'The maternal care God provides through faithful people'
-    ],
-    prayerIntentions: [
-      'For faithfulness in responding to God\'s call',
-      'For honor and recognition of faithful living',
-      'For connection with believers throughout history',
-      'For God\'s caring guidance in our lives'
-    ],
-    mysteryType: 'glorious',
-    order: 5,
-  }
-];
-
-// Helper function to get rosary mysteries by type
-export const getRosaryMysteries = (type: RosaryMysteryType): RosaryMystery[] => {
-  switch (type) {
-    case 'joyful': return joyfulMysteries;
-    case 'luminous': return luminousMysteries;
-    case 'sorrowful': return sorrowfulMysteries;
-    case 'glorious': return gloriousMysteries;
-    default: return [];
-  }
-};
-
-// Helper function to get a specific mystery by ID
-export const getRosaryMystery = (id: string): RosaryMystery | undefined => {
-  return [
-    ...joyfulMysteries,
-    ...luminousMysteries,
-    ...sorrowfulMysteries,
-    ...gloriousMysteries
-  ].find(mystery => mystery.id === id);
-};
 
 const levelMap: Record<MeditationLevel, PlanCollection> = {
   foundation: foundationPlans,

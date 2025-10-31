@@ -29,14 +29,17 @@ import {
   Check,
 } from '@/components/Icons';
 import { Theme } from '@/theme';
-import { useAuthStore, useVirtueStore, useMeditationStore } from '@/stores/StoreProvider';
+import { useAuthStore, useVirtueStore, useMeditationStore, useChallengeStore } from '@/stores/StoreProvider';
 import * as Haptics from 'expo-haptics';
 import { setAudioModeAsync } from 'expo-audio';
 import { playMusic, stopMusic, playCue } from '@/services/audio';
-import { DailyChallenge, Challenge } from '@/types';
+import { DailyChallenge } from '@/types';
+import { Challenge as ChallengeRecommendation } from '@/types/challenges';
 import AnimatedCircularProgress from '@/components/AnimatedCircularProgress';
 import AnimatedParticles from '@/components/AnimatedParticles';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { toast } from 'sonner-native';
+import SmartPickCard from '@/components/SmartPickCard';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -49,7 +52,26 @@ import Animated, {
 } from 'react-native-reanimated';
 import { buildMeditationPlan, MeditationLevel, MeditationPlan } from '@/data/meditationPlans';
 
-const TIME_OPTIONS: number[] = [5, 10, 15, 20, 30, 45, 60];
+const TIME_OPTIONS: number[] = [5, 10, 15, 20];
+const ADVANCED_TIME_OPTIONS: number[] = [30, 45, 60];
+const BREATH_PACE_OPTIONS = [
+  { id: 'slow' as const, label: 'Slow', description: 'Steady and calming' },
+  { id: 'medium' as const, label: 'Medium', description: 'Balanced rhythm' },
+  { id: 'fast' as const, label: 'Fast', description: 'Energising cadence' },
+];
+
+const BREATH_CONFIG = {
+  slow: { in: 5200, hold: 3000, out: 6000 },
+  medium: { in: 4000, hold: 2000, out: 4800 },
+  fast: { in: 2800, hold: 1500, out: 3200 },
+};
+
+const BREATH_LOOP_OPTIONS = [
+  { id: 'loop-1', label: '1 loop', value: 1 },
+  { id: 'loop-3', label: '3 loops', value: 3 },
+  { id: 'loop-5', label: '5 loops', value: 5 },
+  { id: 'loop-inf', label: 'Continuous', value: 'continuous' as const },
+];
 
 type MeditationGuide = {
   title: string;
@@ -128,6 +150,7 @@ const MeditationScreen = () => {
   const { virtues } = virtueStore;
   // Meditation store (MobX)
   const meditationStore = useMeditationStore();
+  const challengeStore = useChallengeStore();
   const {
     selectedVirtue,
     selectedTime,
@@ -152,6 +175,10 @@ const MeditationScreen = () => {
   const [breathePhase, setBreathePhase] = useState<'in' | 'hold' | 'out'>('in');
   const [challengeExpanded, setChallengeExpanded] = useState(false);
   const [showFirstTipModal, setShowFirstTipModal] = useState(false);
+  const [showCustomTimeModal, setShowCustomTimeModal] = useState(false);
+  const [selectedPace, setSelectedPace] = useState<'slow' | 'medium' | 'fast'>('medium');
+  const [selectedBreathLoops, setSelectedBreathLoops] = useState<number | 'continuous'>('continuous');
+  const [smartPickDismissed, setSmartPickDismissed] = useState(false);
   const pendingStartRef = useRef(false);
 
   // Animation values
@@ -178,7 +205,7 @@ const MeditationScreen = () => {
     virtueStore.fetchVirtues();
   }, [virtueStore]);
 
-  // Derived values
+  const goalVirtueId = selectedVirtue;
   const currentVirtue = React.useMemo(
     () => virtues?.find((v: Virtue) => v.id === selectedVirtue),
     [selectedVirtue, virtues]
@@ -211,7 +238,37 @@ const MeditationScreen = () => {
     currentVirtue?.name,
   ]);
   const currentPrompt = meditationGuide.prompts[currentPromptIndex] || meditationGuide.prompts[0];
-  
+  const isReadyToBegin = Boolean(selectedVirtue && selectedTime);
+
+  const smartPickChallenge = React.useMemo(() => {
+    if (smartPickDismissed) return null;
+    if (meditationState !== MeditationState.COMPLETE) return null;
+    const exclude = [selectedChallenge?.id].filter(Boolean) as string[];
+    return challengeStore.getRecommendedChallenge({
+      preferredTheme: currentVirtue?.name,
+      excludeIds: exclude,
+      allowJoined: false,
+    });
+  }, [challengeStore, currentVirtue?.name, selectedChallenge?.id, smartPickDismissed, meditationState]);
+
+  const handleSmartPickJoin = React.useCallback((challenge: ChallengeRecommendation) => {
+    void (async () => {
+      const success = await challengeStore.joinChallenge(challenge.id);
+      if (success) {
+        toast.success('Challenge added to your day');
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        setSmartPickDismissed(true);
+        navigation.navigate('DailyChallengeScreen');
+      }
+    })();
+  }, [challengeStore, navigation]);
+
+  React.useEffect(() => {
+    if (meditationState === MeditationState.SETUP) {
+      setSmartPickDismissed(false);
+    }
+  }, [meditationState]);
+
   const styles = React.useMemo(
     () => createStyles(theme, currentVirtue),
     [theme, currentVirtue]
@@ -258,57 +315,75 @@ const MeditationScreen = () => {
     );
   };
 
-  const animateBreathText = () => {
+  const animateBreathText = React.useCallback((phaseDuration: number) => {
+    const fadeIn = Math.min(500, Math.max(250, phaseDuration * 0.25));
+    const delay = Math.max(0, phaseDuration - fadeIn - 400);
     breatheTextOpacity.value = withSequence(
-      withTiming(1, { duration: 500 }), // Fade in (500ms)
-      withDelay(3000, withTiming(0, { duration: 500 })) // Stay visible (3000ms), fade out (500ms)
+      withTiming(1, { duration: fadeIn, easing: Easing.out(Easing.quad) }),
+      withDelay(delay, withTiming(0, { duration: 400, easing: Easing.inOut(Easing.quad) }))
     );
-  };
+  }, [breatheTextOpacity]);
+
+  const breathTimeoutsRef = useRef<Array<ReturnType<typeof setTimeout>>>([]);
 
   useEffect(() => {
+    breathTimeoutsRef.current.forEach(clearTimeout);
+    breathTimeoutsRef.current = [];
+
     if (meditationState === MeditationState.ACTIVE && introCompleted) {
-      // Start breathing cycle logic
-      let currentPhase: 'in' | 'hold' | 'out' = 'in';
-      setBreathePhase(currentPhase);
-      animateBreathText();
-      
-      const phaseInterval = setInterval(() => {
-        currentPhase = currentPhase === 'in' ? 'hold' : currentPhase === 'hold' ? 'out' : 'in';
-        setBreathePhase(currentPhase);
-        if (currentPhase === 'out' && !firstTwoMinutesCompleted.current) {  
+      const pace = BREATH_CONFIG[selectedPace];
+      const loopsTarget = selectedBreathLoops === 'continuous' ? Infinity : Math.max(1, selectedBreathLoops);
+      const phases: Array<'in' | 'hold' | 'out'> = ['in', 'hold', 'out'];
+      let loopsCompleted = 0;
+      let running = true;
+
+      const schedulePhase = (phaseIndex: number) => {
+        if (!running) return;
+        const phase = phases[phaseIndex];
+        setBreathePhase(phase);
+        const phaseDuration = phase === 'in' ? pace.in : phase === 'hold' ? pace.hold : pace.out;
+        animateBreathText(phaseDuration);
+
+        if (phase === 'out' && !firstTwoMinutesCompleted.current) {
           playBellSound();
         }
-        animateBreathText();
-      }, 4000);
 
-      pulseAnim.value = 0;
+        const timeout = setTimeout(() => {
+          if (!running) return;
+          const nextIndex = (phaseIndex + 1) % phases.length;
+          if (nextIndex === 0) {
+            loopsCompleted += 1;
+            if (loopsTarget !== Infinity && loopsCompleted >= loopsTarget) {
+              running = false;
+              return;
+            }
+          }
+          schedulePhase(nextIndex);
+        }, phaseDuration);
 
-      // Create precise breathing animation sequence - exactly 4 seconds for each phase
+        breathTimeoutsRef.current.push(timeout);
+      };
+
+      schedulePhase(0);
+
+      const repeatCount = loopsTarget === Infinity ? -1 : loopsTarget;
       pulseAnim.value = withRepeat(
         withSequence(
-          // Breathe in - expand precisely over 4 seconds
-          withTiming(1, {
-            duration: 4000,
-            easing: Easing.inOut(Easing.quad)
-          }),
-          // Hold - maintain expanded state for exactly 4 seconds
-          withTiming(1, {
-            duration: 1000,
-            easing: Easing.inOut(Easing.quad)
-          }),
-          // Breathe out - contract precisely over 4 seconds
-          withTiming(0, {
-            duration: 7000,
-            easing: Easing.inOut(Easing.quad)
-          })
+          withTiming(1, { duration: pace.in, easing: Easing.inOut(Easing.quad) }),
+          withTiming(1, { duration: pace.hold, easing: Easing.linear }),
+          withTiming(0, { duration: pace.out, easing: Easing.inOut(Easing.quad) })
         ),
-        -1, // Infinite repeat
+        repeatCount,
         false
       );
-  
-      return () => clearInterval(phaseInterval);
+
+      return () => {
+        running = false;
+        breathTimeoutsRef.current.forEach(clearTimeout);
+        breathTimeoutsRef.current = [];
+      };
     }
-  }, [meditationState, introCompleted]);
+  }, [meditationState, introCompleted, selectedPace, selectedBreathLoops, animateBreathText, pulseAnim, firstTwoMinutesCompleted]);
 
   // Enhanced breathing circle style with better animation match
   const breathingCircleStyle = useAnimatedStyle(() => ({
@@ -622,6 +697,12 @@ const MeditationScreen = () => {
   const playMeditationBellSound = () => { playCue('meditationBell'); };
 
   // Render functions
+  const handleSelectTime = React.useCallback((minutes: number) => {
+    setStoreSelectedTime(minutes);
+    Haptics.selectionAsync();
+    setShowCustomTimeModal(false);
+  }, [setStoreSelectedTime]);
+
   const renderSetupScreen = () => (
     <ScrollView style={styles.scrollContainer} showsVerticalScrollIndicator={false}>
       <Animated.View style={[styles.setupContainer, fadeAnimStyle]}>
@@ -721,10 +802,7 @@ const MeditationScreen = () => {
                   borderColor: currentVirtue?.color_code || theme?.colors.primary,
                 },
               ]}
-              onPress={() => {
-                setStoreSelectedTime(option);
-                Haptics.selectionAsync();
-              }}
+              onPress={() => handleSelectTime(option)}
             >
               <View style={styles.timeButtonContent}>
                 <Clock
@@ -748,15 +826,24 @@ const MeditationScreen = () => {
               </View>
             </TouchableOpacity>
           ))}
+          <TouchableOpacity
+            style={styles.customTimeButton}
+            onPress={() => {
+              Haptics.selectionAsync();
+              setShowCustomTimeModal(true);
+            }}
+          >
+            <Text style={styles.customTimeText}>Custom…</Text>
+          </TouchableOpacity>
         </View>
 
         <Text style={styles.sectionTitle}>BACKGROUND SOUND</Text>
         <View style={styles.soundContainer}>
           {[
-            { id: 'ambient', label: 'Ambient', icon: Bell },
-            { id: 'heartbeat', label: 'Heartbeat', icon: Heart },
-            { id: null, label: 'Silent', icon: Flame },
-          ].map(({ id, label, icon: Icon }) => (
+            { id: 'ambient', label: 'Ambient', icon: Bell, description: 'Nature soundscape' },
+            { id: 'heartbeat', label: 'Heartbeat', icon: Heart, description: 'Rhythmic pulse' },
+            { id: null, label: 'Silent', icon: Flame, description: 'No background audio' },
+          ].map(({ id, label, icon: Icon, description }) => (
             <TouchableOpacity
               key={label}
               style={[
@@ -780,19 +867,88 @@ const MeditationScreen = () => {
                       : theme?.colors.text.secondary
                   }
                 />
+                <View style={styles.soundTextGroup}>
+                  <Text
+                    style={[
+                      styles.soundText,
+                      selectedBackgroundSound === id && {
+                        color: currentVirtue?.color_code || theme?.colors.primary,
+                      },
+                    ]}
+                  >
+                    {label}
+                  </Text>
+                  <Text style={styles.soundDescription}>{description}</Text>
+                </View>
+              </View>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        <Text style={styles.sectionTitle}>BREATHING PACE</Text>
+        <View style={styles.paceContainer}>
+          {BREATH_PACE_OPTIONS.map(({ id, label, description }) => (
+            <TouchableOpacity
+              key={label}
+              style={[
+                styles.paceButton,
+                selectedPace === id && styles.paceButtonActive,
+                selectedPace === id && {
+                  borderColor: currentVirtue?.color_code || theme?.colors.primary,
+                  backgroundColor: `${currentVirtue?.color_code || theme?.colors.primary}08`,
+                },
+              ]}
+              onPress={() => {
+                setSelectedPace(id);
+                Haptics.selectionAsync();
+              }}
+            >
+              <Text
+                style={[
+                  styles.paceButtonText,
+                  selectedPace === id && {
+                    color: currentVirtue?.color_code || theme?.colors.primary,
+                  },
+                ]}
+              >
+                {label}
+              </Text>
+              <Text style={styles.paceDescription}>{description}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        <Text style={styles.sectionTitle}>ROPE LENGTH</Text>
+        <View style={styles.paceContainer}>
+          {BREATH_LOOP_OPTIONS.map(({ id, label, value }) => {
+            const isActive = selectedBreathLoops === value;
+            return (
+              <TouchableOpacity
+                key={id}
+                style={[
+                  styles.paceButton,
+                  isActive && styles.paceButtonActive,
+                  isActive && {
+                    borderColor: currentVirtue?.color_code || theme?.colors.primary,
+                    backgroundColor: `${currentVirtue?.color_code || theme?.colors.primary}08`,
+                  },
+                ]}
+                onPress={() => {
+                  setSelectedBreathLoops(value);
+                  Haptics.selectionAsync();
+                }}
+              >
                 <Text
                   style={[
-                    styles.soundText,
-                    selectedBackgroundSound === id && {
-                      color: currentVirtue?.color_code || theme?.colors.primary,
-                    },
+                    styles.paceButtonText,
+                    isActive && { color: currentVirtue?.color_code || theme?.colors.primary },
                   ]}
                 >
                   {label}
                 </Text>
-              </View>
-            </TouchableOpacity>
-          ))}
+              </TouchableOpacity>
+            );
+          })}
         </View>
 
         <Text style={styles.sectionTitle}>DAILY CHALLENGE</Text>
@@ -838,12 +994,20 @@ const MeditationScreen = () => {
           )}
         </View>
 
+        {!isReadyToBegin && (
+          <Text style={styles.startHelper}>Select a virtue and session length to begin.</Text>
+        )}
         <TouchableOpacity
           style={[
             styles.startButton,
-            { backgroundColor: currentVirtue?.color_code || theme?.colors.primary },
+            {
+              backgroundColor: currentVirtue?.color_code || theme?.colors.primary,
+              opacity: isReadyToBegin ? 1 : 0.6,
+            },
           ]}
           onPress={startMeditation}
+          disabled={!isReadyToBegin}
+          activeOpacity={isReadyToBegin ? 0.85 : 1}
         >
           <Text style={styles.startButtonText}>Begin Meditation</Text>
         </TouchableOpacity>
@@ -874,71 +1038,91 @@ const MeditationScreen = () => {
     </View>
   );
 
-  const renderActiveScreen = () => (
-    <View style={styles.activeContainer}>
-      <AnimatedParticles
-        count={25}
-        color={currentVirtue?.color_code || theme?.colors.primary}
-        speed={0.6}
-        radius={2.5}
-        anim={pulseAnim}
-      />
+  const formatTime = React.useCallback((seconds: number) => {
+    const clamped = Math.max(0, seconds);
+    const mins = Math.floor(clamped / 60);
+    const secs = clamped % 60;
+    return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+  }, []);
 
-      <AnimatedCircularProgress
-        size={250}
-        width={4}
-        fill={progressAnim}
-        tintColor={currentVirtue?.color_code || theme?.colors.primary}
-        backgroundColor={theme.colors.border}
-        innerBackgroundColor="transparent"
-        rotation={0}
-        lineCap="round"
-      >
-        <View style={styles.breathCircleContainer}>
-          {/* Base circle for better contrast */}
-          <View style={[styles.baseCircle, { backgroundColor: theme.colors.background }]} />
+  const renderActiveScreen = () => {
+    const totalSeconds = selectedTime ? selectedTime * 60 : null;
+    const elapsedLabel = formatTime(meditationTimer);
+    const totalLabel = totalSeconds ? formatTime(totalSeconds) : null;
 
-          {/* Improved breathing circle with better visibility */}
-          <Animated.View style={[styles.breathGradient, breathingCircleStyle]}>
-            <LinearGradient
-              colors={[
-                `${currentVirtue?.color_code || theme?.colors.primary}90`,
-                `${currentVirtue?.color_code || theme?.colors.primary}30`
-              ]}
-              style={StyleSheet.absoluteFill}
-            />
-          </Animated.View>
-        </View>
-      </AnimatedCircularProgress>
-      <Animated.View style={[styles.breatheInstructionContainer, breatheTextStyle]}>
-        <View style={styles.breatheInstructionBackground}>
-          <Text style={styles.breatheInstruction}>
-            {breathePhase === 'in' ? 'Breathe In' : breathePhase === 'hold' ? 'Keep still' : 'Breathe Out'}
-          </Text>
-        </View>
-      </Animated.View>
+    return (
+      <View style={styles.activeContainer}>
+        <AnimatedParticles
+          count={25}
+          color={currentVirtue?.color_code || theme?.colors.primary}
+          speed={0.6}
+          radius={2.5}
+          anim={pulseAnim}
+        />
 
-      <Animated.View style={[styles.promptContainer, promptAnimStyle]}>
-        <Text style={styles.promptText}>{currentPrompt}</Text>
-        <View style={styles.promptProgress}>
-          {[1, 2, 3, 4].map((_, i) => (
-            <View
-              key={i}
-              style={[
-                styles.progressDot,
-                i === currentPromptIndex && styles.activeProgressDot,
-                i === currentPromptIndex && { backgroundColor: currentVirtue?.color_code || theme?.colors.primary },
-              ]}
-            />
-          ))}
+        <AnimatedCircularProgress
+          size={250}
+          width={4}
+          fill={progressAnim}
+          tintColor={currentVirtue?.color_code || theme?.colors.primary}
+          backgroundColor={theme.colors.border}
+          innerBackgroundColor="transparent"
+          rotation={0}
+          lineCap="round"
+        >
+          <View style={styles.breathCircleContainer}>
+            {/* Base circle for better contrast */}
+            <View style={[styles.baseCircle, { backgroundColor: theme.colors.background }]} />
+
+            {/* Improved breathing circle with better visibility */}
+            <Animated.View style={[styles.breathGradient, breathingCircleStyle]}>
+              <LinearGradient
+                colors={[
+                  `${currentVirtue?.color_code || theme?.colors.primary}90`,
+                  `${currentVirtue?.color_code || theme?.colors.primary}30`
+                ]}
+                style={StyleSheet.absoluteFill}
+              />
+            </Animated.View>
+
+            <View pointerEvents="none" style={styles.timerLabelContainer}>
+              <Text style={styles.timerElapsed}>{elapsedLabel}</Text>
+              {totalLabel ? (
+                <Text style={styles.timerTotal}>/ {totalLabel}</Text>
+              ) : null}
+            </View>
+          </View>
+        </AnimatedCircularProgress>
+        <Animated.View style={[styles.breatheInstructionContainer, breatheTextStyle]}>
+          <View style={styles.breatheInstructionBackground}>
+            <Text style={styles.breatheInstruction}>
+              {breathePhase === 'in' ? 'Breathe In' : breathePhase === 'hold' ? 'Keep still' : 'Breathe Out'}
+            </Text>
+          </View>
+        </Animated.View>
+
+        <Animated.View style={[styles.promptContainer, promptAnimStyle]}>
+          <Text style={styles.promptText}>{currentPrompt}</Text>
+          <View style={styles.promptProgress}>
+            {[1, 2, 3, 4].map((_, i) => (
+              <View
+                key={i}
+                style={[
+                  styles.progressDot,
+                  i === currentPromptIndex && styles.activeProgressDot,
+                  i === currentPromptIndex && { backgroundColor: currentVirtue?.color_code || theme?.colors.primary },
+                ]}
+              />
+            ))}
+          </View>
+        </Animated.View>
+        <View style={styles.declarationContainer}>
+          <Text style={styles.declarationLabel}>Declaration</Text>
+          <Text style={styles.declarationText}>{meditationGuide.declaration}</Text>
         </View>
-      </Animated.View>
-      <View style={styles.declarationContainer}>
-        <Text style={styles.declarationLabel}>Declaration</Text>
-        <Text style={styles.declarationText}>{meditationGuide.declaration}</Text>
       </View>
-    </View>
-  );
+    );
+  };
 
   const renderCompleteScreen = () => (
     <View style={styles.completeContainer}>
@@ -952,6 +1136,17 @@ const MeditationScreen = () => {
         <Text style={styles.completeSubtitle}>Take a moment to reflect on your experience</Text>
       </View>
 
+      {!smartPickDismissed && smartPickChallenge && (
+        <View style={styles.smartPickWrapper}>
+          <SmartPickCard
+            challenge={smartPickChallenge}
+            onPressJoin={handleSmartPickJoin}
+            onPressDismiss={() => setSmartPickDismissed(true)}
+            ctaLabel={smartPickChallenge.hasJoined ? 'View challenge' : 'Join challenge'}
+          />
+        </View>
+      )}
+
       <TouchableOpacity style={styles.bellButton} onPress={createChallenge}>
         <Animated.View style={[styles.bellIconContainer, bellButtonStyle]}>
           <Bell size={40} color={currentVirtue?.color_code || theme.colors.primary} />
@@ -962,8 +1157,12 @@ const MeditationScreen = () => {
       {selectedChallenge && <TouchableOpacity
         style={styles.challengeSummaryContainer}
         onPress={() => setChallengeExpanded(!challengeExpanded)}
+        activeOpacity={0.85}
       >
-        <Text style={styles.challengeSummaryTitle}>Your Selected Challenge:</Text>
+        <View style={styles.challengeSummaryHeader}>
+          <Text style={styles.challengeSummaryTitle}>Your Selected Challenge</Text>
+          <Text style={styles.challengeToggleLabel}>{challengeExpanded ? 'Hide details ▴' : 'Tap for details ▾'}</Text>
+        </View>
         <View style={styles.challengeSummaryCard}>
           <LinearGradient
             colors={[`${currentVirtue?.color_code}15`, `${currentVirtue?.color_code}05`]}
@@ -982,7 +1181,7 @@ const MeditationScreen = () => {
               {selectedVirtue && (
                 <View style={styles.virtueTagContainer}>
                   <View style={[styles.virtueTag, { backgroundColor: `${currentVirtue?.color_code}20` }]}>
-                    <Text style={[styles.virtueTagText, { color: currentVirtue?.color_code }]}>
+                    <Text style={[styles.virtueTagText, { color: currentVirtue?.color_code }] }>
                       {currentVirtue?.name}
                     </Text>
                   </View>
@@ -1032,6 +1231,30 @@ const MeditationScreen = () => {
                 <Text style={[styles.modalBtnText, { color: '#FFF' }]}>Got it, Begin</Text>
               </TouchableOpacity>
             </View>
+          </View>
+        </View>
+      </Modal>
+      <Modal visible={showCustomTimeModal} animationType="fade" transparent onRequestClose={() => setShowCustomTimeModal(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.customModalCard}>
+            <Text style={styles.modalTitle}>Choose session length</Text>
+            <View style={styles.customOptionsWrap}>
+              {ADVANCED_TIME_OPTIONS.map((option) => (
+                <TouchableOpacity
+                  key={option}
+                  style={styles.customOptionButton}
+                  onPress={() => handleSelectTime(option)}
+                >
+                  <Text style={styles.customOptionText}>{option} min</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <TouchableOpacity
+              style={[styles.modalBtn, styles.customModalClose]}
+              onPress={() => setShowCustomTimeModal(false)}
+            >
+              <Text style={[styles.modalBtnText, { color: theme.colors.text.primary }]}>Cancel</Text>
+            </TouchableOpacity>
           </View>
         </View>
       </Modal>
@@ -1180,6 +1403,22 @@ const createStyles = (theme: Theme, currentVirtue: Virtue | undefined) =>
     selectedTimeButton: { borderWidth: 2, backgroundColor: theme?.colors.background },
     timeButtonContent: { flexDirection: 'row', alignItems: 'center' },
     timeText: { ...theme?.typography.body.sans, fontWeight: '600', color: theme?.colors.text.primary, marginLeft: 6 },
+    customTimeButton: {
+      paddingVertical: theme?.spacing.md,
+      paddingHorizontal: theme?.spacing.md,
+      borderRadius: theme?.borderRadius.md,
+      borderWidth: 1.5,
+      borderColor: theme?.colors.border,
+      backgroundColor: theme?.colors.surface,
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginBottom: theme?.spacing.sm,
+    },
+    customTimeText: {
+      ...theme?.typography.body.sans,
+      color: theme?.colors.text.secondary,
+      fontWeight: '600',
+    },
     soundContainer: { flexDirection: 'row', justifyContent: 'space-between' },
     soundButton: {
       flex: 1,
@@ -1192,8 +1431,43 @@ const createStyles = (theme: Theme, currentVirtue: Virtue | undefined) =>
       marginHorizontal: theme?.spacing.xs,
     },
     selectedSoundButton: { borderWidth: 2, backgroundColor: theme?.colors.background },
-    soundButtonContent: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+    soundButtonContent: { flexDirection: 'row', alignItems: 'center', gap: theme?.spacing.sm },
+    soundTextGroup: { flex: 1 },
     soundText: { ...theme?.typography.body.sans, fontWeight: '600', color: theme?.colors.text.primary },
+    soundDescription: {
+      ...theme?.typography.caption.secondary,
+      color: theme?.colors.text.secondary,
+      marginTop: 2,
+    },
+    paceContainer: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      gap: theme?.spacing.sm,
+      marginTop: theme?.spacing.sm,
+      marginBottom: theme?.spacing.sm,
+    },
+    paceButton: {
+      flex: 1,
+      paddingVertical: theme?.spacing.md,
+      paddingHorizontal: theme?.spacing.md,
+      borderRadius: theme?.borderRadius.md,
+      borderWidth: 1.5,
+      borderColor: theme?.colors.border,
+      alignItems: 'center',
+      backgroundColor: theme?.colors.surface,
+    },
+    paceButtonActive: { borderWidth: 2 },
+    paceButtonText: {
+      ...theme?.typography.body.sans,
+      fontWeight: '600',
+      color: theme?.colors.text.primary,
+    },
+    paceDescription: {
+      ...theme?.typography.caption.secondary,
+      color: theme?.colors.text.secondary,
+      marginTop: 4,
+      textAlign: 'center',
+    },
     challengeContainer: { gap: theme?.spacing.sm },
     challengeButton: {
       padding: theme?.spacing.md,
@@ -1242,6 +1516,11 @@ const createStyles = (theme: Theme, currentVirtue: Virtue | undefined) =>
       color: '#FFFFFF',
       fontSize: 16,
     },
+    startHelper: {
+      ...theme?.typography.caption.secondary,
+      color: theme?.colors.text.secondary,
+      marginBottom: theme?.spacing.sm,
+    },
     countdownContainer: {
       flex: 1,
       alignItems: 'center',
@@ -1281,18 +1560,41 @@ const createStyles = (theme: Theme, currentVirtue: Virtue | undefined) =>
       paddingTop: theme?.spacing.xl * 1.5
     },
     breathCircleContainer: {
+      width: 210,
+      height: 210,
+      borderRadius: 105,
       alignItems: 'center',
       justifyContent: 'center',
-      width: '100%',
-      height: '100%',
       position: 'relative',
     },
     baseCircle: {
+      width: '100%',
+      height: '100%',
+      borderRadius: 105,
+    },
+    timerLabelContainer: {
       position: 'absolute',
-      width: '90%',
-      height: '90%',
-      borderRadius: 1000,
-      opacity: 0.9,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    timerElapsed: {
+      ...theme?.typography.heading.small,
+      color: theme?.colors.text.primary,
+      fontWeight: '700',
+    },
+    dismissText: {
+      ...theme?.typography.caption.secondary,
+      color: theme?.colors.text.secondary,
+      marginTop: 2,
+    },
+    smartPickWrapper: {
+      width: '100%',
+      marginBottom: theme?.spacing.lg,
+    },
+    timerTotal: {
+      ...theme?.typography.caption.secondary,
+      color: theme?.colors.text.secondary,
+      marginTop: 2,
     },
     breathGradient: {
       width: '100%',
@@ -1407,11 +1709,24 @@ const createStyles = (theme: Theme, currentVirtue: Virtue | undefined) =>
       color: theme.colors.text.primary,
       fontWeight: '600',
     },
-    challengeSummaryContainer: { width: '100%', marginBottom: theme.spacing.xl },
+    challengeSummaryContainer: {
+      width: '100%',
+      marginBottom: theme.spacing.xl,
+    },
+    challengeSummaryHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: theme.spacing.sm,
+      marginBottom: theme.spacing.xs,
+    },
     challengeSummaryTitle: {
       ...theme.typography.caption.secondary,
       color: theme.colors.text.secondary,
-      marginBottom: theme.spacing.sm,
+    },
+    challengeToggleLabel: {
+      ...theme.typography.caption.secondary,
+      color: theme.colors.text.secondary,
     },
     challengeSummaryCard: {
       padding: theme.spacing.lg,
@@ -1545,7 +1860,39 @@ const createStyles = (theme: Theme, currentVirtue: Virtue | undefined) =>
     modalActions: {
       flexDirection: 'row',
       justifyContent: 'space-between',
+    },
+    customModalCard: {
+      width: '100%',
+      backgroundColor: theme.colors.surface,
+      borderRadius: theme.borderRadius.xl,
+      padding: theme.spacing.lg,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      gap: theme.spacing.md,
+    },
+    customOptionsWrap: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
       gap: theme.spacing.sm,
+    },
+    customOptionButton: {
+      flex: 1,
+      paddingVertical: theme.spacing.md,
+      borderRadius: theme.borderRadius.md,
+      backgroundColor: `${theme.colors.primary}12`,
+      alignItems: 'center',
+      borderWidth: 1,
+      borderColor: `${theme.colors.primary}30`,
+    },
+    customOptionText: {
+      ...theme.typography.body.sans,
+      color: theme.colors.primary,
+      fontWeight: '600',
+    },
+    customModalClose: {
+      backgroundColor: `${theme.colors.primary}12`,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
     },
     modalBtn: {
       flex: 1,

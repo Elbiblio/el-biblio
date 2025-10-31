@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo } from 'react';
 import { observer } from 'mobx-react-lite';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BookOpen, Trophy, Lightning, Flame, ChevronRight, Brain, Lock } from '@/components/Icons';
@@ -68,14 +68,42 @@ const GameScreen = () => {
     { icon: Brain, title: 'Spiritual Career', subtitle: 'Craft your plan', color: theme?.colors.warning || theme?.colors.primary, route: 'SpiritualCareerScreen', bestKey: 'sp_career' },
   ];
 
+  const isStatsLoading = leaderboardStore.state.isUserStatsLoading || gameStore.state.isLoading;
   const totalPoints = leaderboardStore.userStats?.totalPoints ?? 0;
   const verseBuilderPoints = gameStore.getPersonalBest('verse_builder') || 0;
   const nextUnlock = getNextUnlock(totalPoints, verseBuilderPoints);
+
+  const mostPlayedGame = useMemo(() => {
+    const entries = Object.entries(gameStore.state.personalBests) as Array<[GameId, number]>;
+    if (!entries.length) return null;
+    return entries.sort((a, b) => (b[1] ?? 0) - (a[1] ?? 0))[0][0];
+  }, [gameStore.state.personalBests]);
+
+  const handleQuickPlay = () => {
+    if (!mostPlayedGame) return;
+    const tile = tiles.find(t => t.bestKey === mostPlayedGame);
+    if (tile) {
+      navigation.navigate(tile.route as any);
+    }
+  };
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <Text style={styles.title}>Play & Grow</Text>
       <Text style={styles.subtitle}>Sharpen your knowledge, build memory, and climb the charts.</Text>
+
+      {mostPlayedGame && (
+        <TouchableOpacity style={styles.quickPlay} onPress={handleQuickPlay} activeOpacity={0.9}>
+          <View style={styles.quickPlayIcon}>
+            <Lightning size={18} color={theme?.colors.primary} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.quickPlayLabel}>Quick Play</Text>
+            <Text style={styles.quickPlaySub}>{tiles.find(t => t.bestKey === mostPlayedGame)?.title ?? 'Jump back in'}</Text>
+          </View>
+          <ChevronRight size={16} color={theme?.colors.text.secondary} />
+        </TouchableOpacity>
+      )}
 
       <View style={styles.tiles}>
         {tiles.map((t) => {
@@ -158,15 +186,24 @@ const GameScreen = () => {
       <View style={styles.statsCard}>
         <LinearGradient colors={[`${theme?.colors.primary}12`, `${theme?.colors.primary}04`]} style={styles.statsGradient} />
         <Text style={styles.statsTitle}>Your Momentum</Text>
-        <View style={styles.statsRow}>
-          <Stat label="Total Points" value={`${leaderboardStore.userStats?.totalPoints ?? 0}`} />
-          <Stat label="Active Days" value={`${leaderboardStore.userStats?.totalActiveDays ?? 0}`} />
-          <Stat label="Streak" value={`${leaderboardStore.userStats?.currentStreak ?? 0} 🔥`} />
-        </View>
-        <TouchableOpacity style={styles.cta} onPress={() => navigation.navigate('LeaderboardScreen')}>
-          <Text style={styles.ctaText}>View Full Leaderboard</Text>
-          <ChevronRight size={16} color={'#fff'} />
-        </TouchableOpacity>
+        {isStatsLoading ? (
+          <View style={styles.statsLoading}>
+            <ActivityIndicator size="small" color={theme?.colors.primary} />
+            <Text style={styles.statsLoadingText}>Syncing your progress…</Text>
+          </View>
+        ) : (
+          <>
+            <View style={styles.statsRow}>
+              <Stat label="Total Points" value={`${leaderboardStore.userStats?.totalPoints ?? 0}`} />
+              <Stat label="Active Days" value={`${leaderboardStore.userStats?.totalActiveDays ?? 0}`} />
+              <Stat label="Streak" value={`${leaderboardStore.userStats?.currentStreak ?? 0} 🔥`} />
+            </View>
+            <TouchableOpacity style={styles.cta} onPress={() => navigation.navigate('LeaderboardScreen')}>
+              <Text style={styles.ctaText}>View Full Leaderboard</Text>
+              <ChevronRight size={16} color={'#fff'} />
+            </TouchableOpacity>
+          </>
+        )}
       </View>
     </ScrollView>
   );
@@ -197,10 +234,33 @@ const createStyles = (theme: any) => StyleSheet.create({
   tileSubtitle: { fontSize: 12, color: theme?.colors.text.secondary, marginTop: 2 },
   bestRow: { flexDirection: 'row', alignItems: 'center', marginTop: 6, gap: 6 },
   bestText: { fontSize: 12, color: theme?.colors.text.secondary },
+  quickPlay: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: `${theme?.colors.primary}20`,
+    backgroundColor: `${theme?.colors.primary}08`,
+    marginBottom: theme?.spacing.md,
+    gap: 12,
+  },
+  quickPlayIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: `${theme?.colors.primary}16`,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  quickPlayLabel: { fontSize: 14, fontWeight: '700', color: theme?.colors.text.primary },
+  quickPlaySub: { fontSize: 12, color: theme?.colors.text.secondary, marginTop: 2 },
   statsCard: { marginTop: theme?.spacing.lg, borderRadius: 16, overflow: 'hidden', padding: 16 },
   statsGradient: { ...StyleSheet.absoluteFillObject, borderRadius: 16 },
   statsTitle: { fontSize: 16, fontWeight: '800', color: theme?.colors.text.primary },
   statsRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 12 },
+  statsLoading: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 16, marginBottom: 8 },
+  statsLoadingText: { color: theme?.colors.text.secondary, fontSize: 13 },
   cta: { marginTop: 16, backgroundColor: theme?.colors.primary, paddingVertical: 10, borderRadius: 12, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 6 },
   ctaText: { color: '#fff', fontWeight: '700' },
   unlockCard: { marginTop: theme?.spacing.md, padding: 16, borderRadius: 12, backgroundColor: `${theme?.colors.primary}08`, borderWidth: 1, borderColor: `${theme?.colors.primary}20` },

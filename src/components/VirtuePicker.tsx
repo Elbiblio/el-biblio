@@ -6,11 +6,12 @@ import {
   StyleSheet,
   ScrollView,
   Platform,
+  Dimensions
 } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { useTheme } from '@/contexts/ThemeContext';
-import { AllVirtues, THEMES, VirtueGroups } from '@/types';
-import { IconProps } from '@/components/Icons';
+import { AllVirtues, THEMES, VirtueGroups, FoundationalVirtue } from '@/types';
+import { BookOpen, Heart, Shield, Sparkle, IconProps } from '@/components/Icons';
 
 interface VirtuePickerProps {
   selectedVirtues: AllVirtues[];
@@ -119,6 +120,13 @@ const VirtuePicker: React.FC<VirtuePickerProps> = ({
     },
   });
 
+  const foundationalIcons: Partial<Record<FoundationalVirtue, React.FC<IconProps>>> = {
+    knowledge: BookOpen,
+    humility: Sparkle,
+    faith: Shield,
+    love: Heart,
+  };
+
   const renderVirtueButton = (virtue: AllVirtues, icon?: React.FC<IconProps>) => {
     const isSelected = selectedVirtues.includes(virtue);
     const Icon = icon;
@@ -147,30 +155,32 @@ const VirtuePicker: React.FC<VirtuePickerProps> = ({
     );
   };
 
-
   return (
-      <BlurView intensity={20} style={StyleSheet.absoluteFill}>
+    <BlurView intensity={20} style={StyleSheet.absoluteFill}>
       <View style={styles.content}>
         <View style={styles.header}>
           <Text style={styles.title}>Select Virtues</Text>
         </View>
 
         <ScrollView style={styles.scrollContent} contentContainerStyle={{paddingBottom: 30}}>
-          {Object.entries(VirtueGroups).map(([key, group]) => (
-            <View key={key}>
-              <Text style={styles.groupTitle}>{group.title}</Text>
-              <View style={styles.virtueGrid}>
-                {group.virtues.map(virtue =>
-                  renderVirtueButton(
-                    virtue,
-                    key === 'foundational' ?
-                      VirtueGroups.foundational.icons[virtue as keyof typeof VirtueGroups.foundational.icons] :
-                      undefined
-                  )
-                )}
+          {Object.entries(VirtueGroups).map(([key, group]) => {
+            const typedKey = key as keyof typeof VirtueGroups;
+            return (
+              <View key={typedKey}>
+                <Text style={styles.groupTitle}>{group.name}</Text>
+                <View style={styles.virtueGrid}>
+                  {group.virtues.map((virtue: AllVirtues) =>
+                    renderVirtueButton(
+                      virtue,
+                      typedKey === 'foundational'
+                        ? foundationalIcons[virtue as FoundationalVirtue]
+                        : undefined
+                    )
+                  )}
+                </View>
               </View>
-            </View>
-          ))}
+            );
+          })}
         </ScrollView>
 
         <View style={styles.footer}>

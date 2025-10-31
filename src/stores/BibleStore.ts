@@ -9,6 +9,7 @@ import { Share } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { formatVerseShareMessage } from '@/utils/share';
 import * as Notifications from 'expo-notifications';
+import { estimateChaptersPerDay, DEFAULT_TIME_PER_DAY, DEFAULT_READING_MODE, buildPlanPhases } from '@/constants/readingPlanModes';
 
 // Extend the BibleVersion type to include id
 interface ExtendedBibleVersion extends Omit<BibleVersion, 'id'> {
@@ -118,6 +119,13 @@ type LocalBibleSearchRow = {
   verseText: string;
 };
 
+type ReadingPlanPhase = {
+  id: 'reading' | 'meditation' | 'prayer' | 'contemplation';
+  label: string;
+  minutes: number;
+  hint?: string;
+};
+
 type ReadingPlanSegment = {
   id: string;
   bookAbbreviation: string;
@@ -127,11 +135,15 @@ type ReadingPlanSegment = {
   completedAt?: string | null;
 };
 
+type ReadingPlanMode = 'plain' | 'reading_meditation' | 'lectio_divina';
+
 type BibleReadingPlan = {
   id: string;
   createdAt: string;
   books: string[];
-  chaptersPerDay: number;
+  timePerDay: number;
+  readingMode: ReadingPlanMode;
+  phases: ReadingPlanPhase[];
   segments: ReadingPlanSegment[];
   currentIndex: number;
   reminderTime?: string | null;
@@ -146,7 +158,9 @@ type ReadingReminder = {
 
 type CreateReadingPlanParams = {
   books: string[];
-  chaptersPerDay: number;
+  timePerDay: number;
+  readingMode: ReadingPlanMode;
+  phases: ReadingPlanPhase[];
   reminderTime?: string | null;
 };
 
@@ -1160,7 +1174,12 @@ class BibleStore {
     if (!params.books?.length) {
       throw new Error('Please choose at least one book for your plan.');
     }
-    const chaptersPerDay = Math.max(1, Math.floor(params.chaptersPerDay || 1));
+    if (!params.timePerDay || params.timePerDay <= 0) {
+      throw new Error('Please choose a daily time goal for your plan.');
+    }
+
+    const timePerDay = Math.max(1, Math.floor(params.timePerDay));
+    const chaptersPerDay = Math.max(1, estimateChaptersPerDay(timePerDay));
     const versionTable = this.currentVersion?.tableName ?? DEFAULT_BIBLE_TABLE;
     const versionName = this.currentVersion?.englishName ?? this.currentVersion?.shortName ?? null;
 
@@ -1169,7 +1188,9 @@ class BibleStore {
       id: `plan-${Date.now()}`,
       createdAt: new Date().toISOString(),
       books: params.books,
-      chaptersPerDay,
+      timePerDay,
+      readingMode: params.readingMode,
+      phases: params.phases,
       segments,
       currentIndex: this.resolveCurrentSegmentIndex(segments),
       reminderTime: params.reminderTime ?? null,

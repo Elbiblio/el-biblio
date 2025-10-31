@@ -27,7 +27,9 @@ import FontSizeModal from '@/components/FontSizeModal';
 import VerseActionsSheet from '@/components/VerseActionsSheet';
 import VerseComparisonModal from '@/components/VerseComparisonModal';
 import ReadingPlanSetupModal from '@/components/ReadingPlanSetupModal';
+import ReminderTimePicker from '@/components/ReminderTimePicker';
 import { Book, BibleVersion, BibleVerse } from '@/types';
+import { ReadingPlanMode, ReadingPlanPhase } from '@/constants/readingPlanModes';
 import { bibleBooks } from '@/constants/bibleBooks';
 import { Brush, BrushOutlined } from '@/components/Icons';
 import { useBibleStore, HistoryEntry } from '@/stores/BibleStore';
@@ -513,11 +515,13 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
     });
   }, [navigation, scopedView]);
 
-  const handleCreatePlan = useCallback(async ({ books, chaptersPerDay, reminderTime }: { books: string[]; chaptersPerDay: number; reminderTime?: string }) => {
+  const handleCreatePlan = useCallback(async ({ books, timePerDay, readingMode, phases, reminderTime }: { books: string[]; timePerDay: number; readingMode: ReadingPlanMode; phases: ReadingPlanPhase[]; reminderTime?: string }) => {
     try {
       await bibleStore.createReadingPlan({
         books,
-        chaptersPerDay,
+        timePerDay,
+        readingMode,
+        phases,
         reminderTime,
       });
       toast.success('Bible Studio plan ready');
@@ -528,7 +532,9 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
       journeyStore.setBiblePlan({
         id: bibleStore.readingPlan?.id ?? '',
         books,
-        chaptersPerDay,
+        timePerDay,
+        readingMode,
+        phases,
         reminderTime: reminderTime ?? null,
       });
       void journeyStore.syncUserProgress();
@@ -678,15 +684,14 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
             <View style={styles.planReminderRow}>
               <View style={styles.planReminderInfo}>
                 <Text style={styles.planSectionTitle}>Daily reminder</Text>
-                <Text style={styles.planReminderHint}>Enter time in 24h format, e.g. 07:30</Text>
+                <Text style={styles.planReminderHint}>Pick a time to receive a gentle nudge.</Text>
               </View>
               <View style={styles.planReminderControls}>
-                <TextInput
-                  value={builderReminder}
-                  onChangeText={setBuilderReminder}
-                  placeholder="HH:MM"
-                  style={styles.planReminderInput}
-                  keyboardType="numbers-and-punctuation"
+                <ReminderTimePicker
+                  value={builderReminder || null}
+                  onChange={next => setBuilderReminder(next ?? '')}
+                  placeholder="Set reminder time"
+                  helperText={builderReminder ? `Current: ${builderReminder}` : undefined}
                 />
                 <TouchableOpacity style={styles.planReminderButton} onPress={handleApplyReminder}>
                   <Text style={styles.planReminderButtonText}>Save</Text>
@@ -709,7 +714,7 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
           <View style={styles.planCard}>
             <Text style={styles.planCardTitle}>Start a new reading journey</Text>
             <Text style={styles.planCardSummary}>
-              Choose a focus, decide how many chapters per day, and set an optional reminder.
+              Choose a focus, set your daily time, pick a reading rhythm, and add an optional reminder.
             </Text>
 
             <TouchableOpacity
@@ -779,7 +784,7 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
             onPress={() => setShowVersionsModal(true)}
           >
             <Text style={styles.headerButtonText}>
-              Bible Studio
+              Versions
             </Text>
             <MaterialIcons name="menu-book" size={20} color={theme.colors.text.primary} />
           </TouchableOpacity>
