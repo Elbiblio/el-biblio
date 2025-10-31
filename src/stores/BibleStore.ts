@@ -1235,6 +1235,43 @@ class BibleStore {
     });
   }
 
+  async markSegmentComplete(segmentId: string) {
+    if (!this.readingPlan) {
+      return false;
+    }
+
+    const segments = this.readingPlan.segments.map(segment => {
+      if (segment.id !== segmentId) {
+        return segment;
+      }
+      if (segment.completedAt) {
+        return segment;
+      }
+      return {
+        ...segment,
+        completedAt: new Date().toISOString(),
+      };
+    });
+
+    const currentIndex = this.resolveCurrentSegmentIndex(segments);
+    const nextPlan: BibleReadingPlan = {
+      ...this.readingPlan,
+      segments,
+      currentIndex,
+    };
+
+    await this.saveReadingPlan(nextPlan);
+    runInAction(() => {
+      this.readingPlan = nextPlan;
+    });
+
+    if (currentIndex < segments.length) {
+      void this.focusPlanSegment(segments[currentIndex].id);
+    }
+
+    return true;
+  }
+
   async clearReadingPlan() {
     await this.saveReadingPlan(null);
     runInAction(() => {

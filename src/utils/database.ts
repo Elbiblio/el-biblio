@@ -15,13 +15,15 @@ const bookCodeMap: { [key: string]: string } = {
   'EZK': 'EK', 'DAN': 'DN', 'HOS': 'HS', 'JOL': 'JL', 'AMO': 'AM',
   'OBA': 'OB', 'JON': 'JH', 'MIC': 'MC', 'NAM': 'NM', 'HAB': 'HK',
   'ZEP': 'ZP', 'HAG': 'HG', 'ZEC': 'ZC', 'MAL': 'ML',
-  'MAT': 'MT', 'MAR': 'MK', 'LUK': 'LK', 'JHN': 'JN', 'ACT': 'AC',
+  'MAT': 'MT', 'MRK': 'MK', 'LUK': 'LK', 'JHN': 'JN', 'ACT': 'AC',
   'ROM': 'RM', '1CO': 'C1', '2CO': 'C2', 'GAL': 'GL', 'EPH': 'EP',
+  'PHP': 'PH', 'COL': 'CL', '1TH': 'H1', '2TH': 'H2', '1TI': 'T1',
   '2TI': 'T2', 'TIT': 'TT', 'PHM': 'PM', 'HEB': 'HB', 'JAS': 'JM',
   '1PE': 'P1', '2PE': 'P2', '1JN': 'J1', '2JN': 'J2', '3JN': 'J3',
+  'JUD': 'JD', 'REV': 'RV',
   // Apocrypha
-  'TOB': 'TB', 'JDT': 'JT', 'WIS': 'WS', 'SIR': 'SR', 'BAR': 'BR',
-  '1MA': 'M1', '2MA': 'M2',  '1ES': 'E1', '2ES': 'E2', 'MAN': 'PN', 'PS2': 'PA'
+  'TOB': 'TB', 'JDT': 'JT', 'WIS': 'WS', 'SIR': 'SR', 'BAR': 'BR', 'LJE': 'LJ',
+  '1MA': 'M1', '2MA': 'M2', '1ES': 'E1', '2ES': 'E2', 'MAN': 'PN', 'PS2': 'PA'
 };
 
 const reverseBookMap: Record<string, string> = Object.fromEntries(

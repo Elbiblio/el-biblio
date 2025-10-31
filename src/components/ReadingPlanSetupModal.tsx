@@ -42,20 +42,20 @@ const PLAN_PRESETS: ReadingPlanPreset[] = [
   {
     id: 'grow-in-faith',
     label: 'Grow in Faith',
-    books: ['Psalms', 'Isaiah', 'Hebrews', 'Ephesians', 'Revelation'],
-    description: 'Trust in God’s loving power and majesty through prayerful, faith-filled passages.',
+    books: ['Hebrews', 'Romans', 'Genesis', 'Daniel'],
+    description: 'Deepen trust in God through stories of faith and powerful teaching on belief.',
   },
   {
     id: 'grow-in-love',
     label: 'Grow in Love',
-    books: ['Ruth', '1 Corinthians', '1 John', 'Song of Solomon'],
-    description: 'Abide in Christlike love through narrative, teaching, and poetic devotion.',
+    books: ['1 John', '1 Corinthians', 'John', 'Romans'],
+    description: 'Learn sacrificial, Christlike love through teaching and the life of Jesus.',
   },
   {
     id: 'grow-in-humility',
     label: 'Grow in Humility',
-    books: ['Philippians', 'Micah', 'James', '1 Peter'],
-    description: 'Walk in meekness and servantly obedience before God and others.',
+    books: ['Philippians', 'James', '1 Peter', 'Matthew'],
+    description: 'Embrace servant-hearted living through Christ\'s example and apostolic wisdom.',
   },
 ];
 
