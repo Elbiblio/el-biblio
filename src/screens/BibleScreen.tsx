@@ -9,6 +9,8 @@ import {
   TextInput,
   FlatList,
   Modal,
+  Alert,
+  AppState,
   ActivityIndicator,
   RefreshControl,
   ScrollView,
@@ -29,20 +31,26 @@ import HistoryModal, { HistoryModalEntry } from '@/components/HistoryModal';
 import FontSizeModal from '@/components/FontSizeModal';
 import VerseActionsSheet from '@/components/VerseActionsSheet';
 import VerseComparisonModal from '@/components/VerseComparisonModal';
-import AnimatedCircularProgress from '@/components/AnimatedCircularProgress';
 import ReadingPlanSetupModal from '@/components/ReadingPlanSetupModal';
 import ReminderTimePicker from '@/components/ReminderTimePicker';
-import ReadingTimer, { timerOverlayStyles } from '@/components/ReadingTimer';
+import ReadingTimer from '@/components/ReadingTimer';
+import PlanSegmentChip from '@/components/PlanSegmentChip';
+import OverlayHost from '@/components/OverlayHost';
 import { Book, BibleVersion, BibleVerse } from '@/types';
 import { ReadingPlanMode, ReadingPlanPhase } from '@/constants/readingPlanModes';
 import { bibleBooks } from '@/constants/bibleBooks';
 import { useBibleStore } from '@/stores/BibleStore';
 import { useJourneyStore, useDailyPathStore } from '@/stores/StoreProvider';
 import { useSharedValue, withTiming } from 'react-native-reanimated';
-import { HistoryEntry } from '@/stores/BibleStore';
+import { HistoryEntry, DailyPhaseProgress } from '@/stores/BibleStore';
 
 import { RootStackParamList, ScopedVerseParam } from '@/types';
 
+const getLocalMidnightMs = (date: Date) => {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  return d.getTime();
+};
 import { useNetworkStatus } from '@/hooks/useNetworkStatus';
 import { parseVPLId } from '@/utils/database';
 import { toast } from 'sonner-native';
@@ -68,6 +76,12 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
   const verseListRef = useRef<FlatList<BibleVerse>>(null);
   const pendingScrollVerseRef = useRef<number | null>(null);
   const lastAppliedParamsRef = useRef<string | null>(null);
+  const snapshotTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingSnapshotRef = useRef<{
+    currentPhaseIndex: number;
+    secondsRemainingInPhase: number;
+    phaseSummaries: { id: ReadingPlanPhase['id']; label: string; plannedSeconds: number; elapsedSeconds: number }[];
+  } | null>(null);
 
   // Network status
   const { isOffline } = useNetworkStatus();
@@ -81,6 +95,7 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
   const [showVersionsModal, setShowVersionsModal] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [showAdvancedActions, setShowAdvancedActions] = useState(false);
   const [showFontModal, setShowFontModal] = useState(false);
   const [showVerseActions, setShowVerseActions] = useState(false);
   const [showComparisonModal, setShowComparisonModal] = useState(false);
@@ -90,9 +105,16 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
   const [isPlanSetupVisible, setIsPlanSetupVisible] = useState(false);
   const [showCompactPlan, setShowCompactPlan] = useState(false);
   const [planDetailsExpanded, setPlanDetailsExpanded] = useState(false);
-  const [showReadingTimer, setShowReadingTimer] = useState(false);
-  const [showNextSegmentPrompt, setShowNextSegmentPrompt] = useState(false);
+  type TimerControllerState = {
+    currentPhaseIndex: number;
+    secondsRemainingInPhase: number;
+    phaseSummaries: DailyPhaseProgress[];
+    isActive: boolean;
+    completed: boolean;
+  };
+
   const [showTimerModal, setShowTimerModal] = useState(false);
+  const [timerCtrl, setTimerCtrl] = useState<TimerControllerState | null>(null);
   const [atEnd, setAtEnd] = useState(false);
   const [builderReminder, setBuilderReminder] = useState('');
   const [remainingSeconds, setRemainingSeconds] = useState<number | null>(null);
@@ -130,7 +152,6 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
     () => phasesForToday.reduce((sum, phase) => sum + phase.minutes * 60, 0),
     [phasesForToday]
   );
-  const overlayStyles = useMemo(() => timerOverlayStyles(theme), [theme]);
 
   // Auto-hide header on scroll
   const scrollY = useRef(new Animated.Value(0)).current;
@@ -167,8 +188,6 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
 
   useEffect(() => {
     if (!bibleStore.isPlanMode) {
-      setShowReadingTimer(false);
-      setShowNextSegmentPrompt(false);
       setShowFloatingProgress(false);
       if (idleTimerRef.current) {
         clearTimeout(idleTimerRef.current);
@@ -178,13 +197,35 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
   }, [bibleStore.isPlanMode]);
 
   useEffect(() => {
-    if (bibleStore.isPlanMode && bibleStore.activeReadingSegment?.id) {
-      setShowReadingTimer(true);
+    if (bibleStore.isPlanMode && bibleStore.activeReadingSegment?.id && !bibleStore.dailySession?.completed) {
       setShowCompactPlan(true);
-      setShowNextSegmentPrompt(false);
       resetIdleTimer();
     }
-  }, [bibleStore.isPlanMode, bibleStore.activeReadingSegment?.id, resetIdleTimer]);
+  }, [bibleStore.isPlanMode, bibleStore.activeReadingSegment?.id, bibleStore.dailySession?.completed, resetIdleTimer]);
+
+  useEffect(() => {
+    if (bibleStore.dailySession?.completed) {
+      setShowFloatingProgress(false);
+      setShowCompactPlan(false);
+    }
+  }, [bibleStore.dailySession?.completed]);
+
+  // Prepare daily session state when plan mode is active; auto-open timer on first open of the day if not completed
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      if (!bibleStore.isPlanMode || !bibleStore.readingPlan) return;
+      await bibleStore.ensureDailySessionPrepared();
+      if (!mounted) return;
+      const session = bibleStore.dailySession;
+      if (session && !session.completed) {
+        setShowTimerModal(true);
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, [bibleStore.isPlanMode, bibleStore.readingPlan?.id]);
 
   useEffect(() => {
     if (!totalPlanSeconds || remainingSeconds == null) {
@@ -208,9 +249,174 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
   }, [showTimerModal, bibleStore.isPlanMode, phasesForToday.length, resetIdleTimer]);
 
   useEffect(() => {
-    setShowNextSegmentPrompt(false);
     isAdvancingSegmentRef.current = false;
   }, [bibleStore.activeReadingSegment?.id]);
+
+  // Phase completion handlers (moved up to avoid use-before-declaration)
+  const handlePhaseComplete = useCallback(async (phase: ReadingPlanPhase, elapsed: number) => {
+    console.log('Phase complete:', phase.label, 'elapsed', elapsed);
+    try {
+      const { sound } = await Audio.Sound.createAsync(require('../../assets/sounds/bell.wav'));
+      await sound.playAsync();
+      sound.setOnPlaybackStatusUpdate(status => {
+        if (status.isLoaded && status.didJustFinish) {
+          sound.unloadAsync();
+        }
+      });
+    } catch (error) {
+      console.warn('Could not play phase chime', error);
+    }
+  }, []);
+
+  const handleAllPhasesComplete = useCallback(async () => {
+    toast.success('Daily reading complete! 🎉');
+    try {
+      const { sound } = await Audio.Sound.createAsync(require('../../assets/sounds/cheers.mp3'));
+      await sound.playAsync();
+      sound.setOnPlaybackStatusUpdate(status => {
+        if (status.isLoaded && status.didJustFinish) {
+          sound.unloadAsync();
+        }
+      });
+    } catch (error) {
+      console.warn('Could not play completion chime', error);
+    }
+    const seg = bibleStore.activeReadingSegment;
+    if (seg) {
+      await bibleStore.markSegmentComplete(seg.id);
+      const chapters = Math.max(0, (seg.chapterEnd ?? seg.chapterStart) - seg.chapterStart + 1);
+      if (chapters > 0) {
+        await bibleStore.incrementChaptersCompletedBy(chapters);
+      }
+    }
+    await bibleStore.markTodaySessionCompleted();
+  }, [bibleStore]);
+
+  // Initialize/refresh controlled timer state from daily session or plan phases
+  useEffect(() => {
+    if (!bibleStore.isPlanMode || !phasesForToday.length) return;
+    const s = bibleStore.dailySession;
+    const idx = Math.max(0, Math.min(s?.currentPhaseIndex ?? 0, Math.max(0, phasesForToday.length - 1)));
+    const planned = Math.max(0, (phasesForToday[idx]?.minutes ?? 0) * 60);
+    const remain = Math.max(0, s?.secondsRemainingInPhase ?? planned);
+    const summaries: DailyPhaseProgress[] = (s?.phases || []).map(p => ({ id: p.id, label: p.label, plannedSeconds: p.plannedSeconds, elapsedSeconds: Math.max(0, p.elapsedSeconds) }));
+    setTimerCtrl({ currentPhaseIndex: idx, secondsRemainingInPhase: remain, phaseSummaries: summaries, isActive: false, completed: Boolean(s?.completed) });
+  }, [bibleStore.isPlanMode, bibleStore.dailySession?.date, bibleStore.dailySession?.currentPhaseIndex, bibleStore.dailySession?.secondsRemainingInPhase, phasesForToday.length]);
+
+  const completeCurrentPhase = useCallback(async () => {
+    setTimerCtrl(prev => {
+      if (!prev) return prev;
+      const idx = prev.currentPhaseIndex;
+      const phase = phasesForToday[idx];
+      if (!phase) return prev;
+      const planned = Math.max(0, (phase.minutes ?? 0) * 60);
+      const elapsed = Math.max(0, planned - Math.max(0, prev.secondsRemainingInPhase));
+      const newSummaries = [...prev.phaseSummaries];
+      // Ensure summary for this index is appended
+      newSummaries[idx] = {
+        id: phase.id,
+        label: phase.label,
+        plannedSeconds: planned,
+        elapsedSeconds: elapsed,
+      } as DailyPhaseProgress;
+
+      const isLast = idx >= phasesForToday.length - 1;
+      if (isLast) {
+        // Finalize session
+        setTimeout(() => {
+          void handlePhaseComplete(phase, elapsed);
+          void handleAllPhasesComplete();
+        }, 0);
+        return { ...prev, secondsRemainingInPhase: 0, phaseSummaries: newSummaries, isActive: false, completed: true };
+      } else {
+        // Move to next phase
+        const nextIdx = idx + 1;
+        const nextPlanned = Math.max(0, (phasesForToday[nextIdx]?.minutes ?? 0) * 60);
+        setTimeout(() => {
+          void handlePhaseComplete(phase, elapsed);
+        }, 0);
+        return {
+          currentPhaseIndex: nextIdx,
+          secondsRemainingInPhase: nextPlanned,
+          phaseSummaries: newSummaries,
+          isActive: true,
+          completed: false,
+        };
+      }
+    });
+  }, [phasesForToday, handlePhaseComplete, handleAllPhasesComplete]);
+
+  // Debounced timer snapshot handler (moved up before first use)
+  const handleTimerSnapshot = useCallback((state: {
+    currentPhaseIndex: number;
+    secondsRemainingInPhase: number;
+    phaseSummaries: { id: ReadingPlanPhase['id']; label: string; plannedSeconds: number; elapsedSeconds: number }[];
+    completed: boolean;
+  }) => {
+    pendingSnapshotRef.current = state;
+    if (!snapshotTimerRef.current) {
+      snapshotTimerRef.current = setTimeout(() => {
+        const s = pendingSnapshotRef.current;
+        snapshotTimerRef.current = null;
+        if (s) {
+          void bibleStore.applyTimerState(s);
+        }
+      }, 2000);
+    }
+  }, [bibleStore]);
+
+  // Emit debounced snapshot to store as the timer progresses
+  const emitSnapshot = useCallback((state: { currentPhaseIndex: number; secondsRemainingInPhase: number; phaseSummaries: DailyPhaseProgress[]; completed: boolean; }) => {
+    const live = phasesForToday.map((p, index) => {
+      const planned = Math.max(0, (p.minutes ?? 0) * 60);
+      if (index < state.currentPhaseIndex) {
+        const prev = state.phaseSummaries[index];
+        return { id: prev?.id ?? p.id, label: prev?.label ?? p.label, plannedSeconds: planned, elapsedSeconds: Math.max(planned, prev?.elapsedSeconds ?? planned) };
+      }
+      if (index === state.currentPhaseIndex) {
+        const elapsed = planned - Math.max(0, state.secondsRemainingInPhase);
+        return { id: p.id, label: p.label, plannedSeconds: planned, elapsedSeconds: Math.max(0, elapsed) };
+      }
+      const prev = state.phaseSummaries[index];
+      return { id: prev?.id ?? p.id, label: prev?.label ?? p.label, plannedSeconds: planned, elapsedSeconds: Math.max(0, prev?.elapsedSeconds ?? 0) };
+    });
+    handleTimerSnapshot({
+      currentPhaseIndex: state.currentPhaseIndex,
+      secondsRemainingInPhase: Math.max(0, state.secondsRemainingInPhase),
+      phaseSummaries: live.map(s => ({ id: s.id as ReadingPlanPhase['id'], label: s.label, plannedSeconds: s.plannedSeconds, elapsedSeconds: s.elapsedSeconds })),
+      completed: state.completed,
+    });
+  }, [phasesForToday, handleTimerSnapshot]);
+
+  // Background ticking even when modal is closed
+  useEffect(() => {
+    if (!timerCtrl?.isActive) return;
+    if (!phasesForToday.length) return;
+    const id = setInterval(() => {
+      setTimerCtrl(prev => {
+        if (!prev) return prev;
+        if (prev.secondsRemainingInPhase <= 0) return prev;
+        const nextRemaining = prev.secondsRemainingInPhase - 1;
+        const nextState = { ...prev, secondsRemainingInPhase: nextRemaining };
+        emitSnapshot(nextState);
+        if (nextRemaining <= 0) {
+          setTimeout(() => { void completeCurrentPhase(); }, 0);
+        }
+        return nextState;
+      });
+    }, 1000);
+    return () => clearInterval(id);
+  }, [timerCtrl?.isActive, phasesForToday.length, emitSnapshot, completeCurrentPhase]);
+
+  // Pause timer when app goes to background
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state !== 'active') {
+        setTimerCtrl(prev => prev ? { ...prev, isActive: false } : prev);
+      }
+    });
+    return () => sub.remove();
+  }, []);
 
   const advanceToNextSegment = useCallback(async () => {
     if (!bibleStore.isPlanMode) {
@@ -222,7 +428,6 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
     }
 
     isAdvancingSegmentRef.current = true;
-    setShowNextSegmentPrompt(true);
 
     try {
       const moved = await bibleStore.markSegmentComplete(segment.id);
@@ -241,13 +446,11 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
           console.warn('Could not play next segment chime', error);
         }
 
-        setShowReadingTimer(true);
-        setShowNextSegmentPrompt(false);
+        setShowTimerModal(false);
         setTimeout(() => {
           verseListRef.current?.scrollToOffset({ offset: 0, animated: true });
         }, 250);
       } else {
-        setShowNextSegmentPrompt(false);
         toast.success('You have completed every segment in this plan!');
       }
     } catch (error) {
@@ -256,6 +459,31 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
     } finally {
       isAdvancingSegmentRef.current = false;
     }
+  }, [bibleStore]);
+
+  
+
+  useEffect(() => {
+    return () => {
+      if (snapshotTimerRef.current) {
+        clearTimeout(snapshotTimerRef.current);
+        snapshotTimerRef.current = null;
+      }
+      const s = pendingSnapshotRef.current;
+      if (s) {
+        void bibleStore.applyTimerState(s);
+        pendingSnapshotRef.current = null;
+      }
+    };
+  }, [bibleStore]);
+
+  const goToNextChapterWithinSegment = useCallback(async () => {
+    const seg = bibleStore.activeReadingSegment;
+    if (!bibleStore.currentBook || !bibleStore.currentVersion || !seg) return;
+    const nextChapter = (bibleStore.currentChapter || 1) + 1;
+    const lastChapter = seg.chapterEnd ?? seg.chapterStart;
+    if (nextChapter > lastChapter) return;
+    await bibleStore.fetchVerses(bibleStore.currentBook, nextChapter, bibleStore.currentVersion, 1);
   }, [bibleStore]);
 
   useEffect(() => {
@@ -552,12 +780,7 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
       return;
     }
 
-    if (!showNextSegmentPrompt) {
-      setShowNextSegmentPrompt(true);
-      return;
-    }
-
-    void advanceToNextSegment();
+    return;
   };
 
   // Handle book installation
@@ -644,24 +867,49 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
     if (!bibleStore.readingPlan) {
       return;
     }
+    // Ensure session is ready before deciding what to show
+    await bibleStore.ensureDailySessionPrepared();
     if (bibleStore.isPlanMode) {
       void bibleStore.focusPlanSegment();
       setShowCompactPlan(true);
-      setShowReadingTimer(true);
+      if (bibleStore.dailySession?.completed) {
+        toast.success('All done for today — great job!');
+        return;
+      } else {
+        setShowTimerModal(true);
+        // Play start chime only when actually starting timer UI
+        try {
+          const { sound } = await Audio.Sound.createAsync(
+            require('../../assets/sounds/bell.wav')
+          );
+          await sound.playAsync();
+          sound.setOnPlaybackStatusUpdate(status => {
+            if (status.isLoaded && status.didJustFinish) {
+              sound.unloadAsync();
+            }
+          });
+        } catch (error) {
+          console.warn('Could not play start chime', error);
+        }
+      }
       return;
     }
     bibleStore.enablePlanMode();
     await bibleStore.focusPlanSegment();
     setShowCompactPlan(true);
-    setShowReadingTimer(true);
-    
-    // Play start chime
+    if (bibleStore.dailySession?.completed) {
+      toast.success('All done for today — great job!');
+      return;
+    } else {
+      setShowTimerModal(true);
+    }
+    // Play start chime only when starting timer
     try {
       const { sound } = await Audio.Sound.createAsync(
         require('../../assets/sounds/bell.wav')
       );
       await sound.playAsync();
-      sound.setOnPlaybackStatusUpdate((status) => {
+      sound.setOnPlaybackStatusUpdate(status => {
         if (status.isLoaded && status.didJustFinish) {
           sound.unloadAsync();
         }
@@ -669,11 +917,6 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
     } catch (error) {
       console.warn('Could not play start chime', error);
     }
-    
-    // Show timer for first reading session
-    setTimeout(() => {
-      setShowReadingTimer(true);
-    }, 500);
   }, [bibleStore]);
 
   const handleExitPlanMode = useCallback(() => {
@@ -739,7 +982,7 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
       
       if (navigated) {
         toast.success('Your reading plan has started!');
-        setShowReadingTimer(true);
+        setShowTimerModal(true);
         setShowCompactPlan(true);
         
         // Play start chime
@@ -748,7 +991,7 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
             require('../../assets/sounds/bell.wav')
           );
           await sound.playAsync();
-          sound.setOnPlaybackStatusUpdate((status) => {
+          sound.setOnPlaybackStatusUpdate(status => {
             if (status.isLoaded && status.didJustFinish) {
               sound.unloadAsync();
             }
@@ -770,7 +1013,7 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
         reminderTime: reminderTime ?? null,
       });
       void journeyStore.syncUserProgress();
-      setShowCompactPlan(false);
+      // Keep compact plan minimized while focused
       dailyPathStore.setReadingPlanSetupCompleted(true);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unable to create plan.';
@@ -797,10 +1040,22 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
   }, [bibleStore, builderReminder, journeyStore]);
 
   const handleClearPlan = useCallback(async () => {
+    const ok = await new Promise<boolean>(resolve => {
+      Alert.alert(
+        'Clear plan',
+        'This will remove your current reading plan. Continue?',
+        [
+          { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+          { text: 'OK', style: 'destructive', onPress: () => resolve(true) },
+        ],
+        { cancelable: true }
+      );
+    });
+    if (!ok) return;
     await bibleStore.clearReadingPlan();
     toast.success('Reading plan cleared');
     journeyStore.setBiblePlan(null);
-  }, [bibleStore]);
+  }, [bibleStore, builderReminder, journeyStore]);
 
   const handleToggleSegment = useCallback(async (segmentId: string) => {
     resetIdleTimer();
@@ -906,19 +1161,55 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
               <View>
                 <Text style={styles.planCardTitle}>Your current plan</Text>
                 <Text style={styles.planCardSummary}>
-                  {completed} of {total} sessions complete ({progressPercent}%)
+                  {bibleStore.dailySession?.completed
+                    ? `Today's session completed — ${completed} of ${total} sessions complete (${progressPercent}%)`
+                    : `${completed} of ${total} sessions complete (${progressPercent}%)`}
                 </Text>
+                {readingPlan?.createdAt && total > 0 && (
+                  <Text style={styles.planCardMeta}>
+                    {(() => {
+                      const startMs = getLocalMidnightMs(new Date(readingPlan.createdAt));
+                      const nowMs = getLocalMidnightMs(new Date());
+                      const daysSinceStart = Math.max(1, Math.floor((nowMs - startMs) / (24*60*60*1000)) + 1);
+                      const expectedByToday = Math.min(total, daysSinceStart);
+                      const delta = completed - expectedByToday;
+                      if (delta > 0) return `Ahead by ${delta} ${delta === 1 ? 'session' : 'sessions'} for today`;
+                      if (delta < 0) return `Behind by ${Math.abs(delta)} ${Math.abs(delta) === 1 ? 'session' : 'sessions'} for today`;
+                      return 'On track for today';
+                    })()}
+                  </Text>
+                )}
+                {bibleStore.dailySession && (
+                  <View style={styles.todayContainer}>
+                    <View style={styles.todayRow}>
+                      <Text style={styles.todayLabel}>Chapters</Text>
+                      <Text style={styles.todayValue}>{bibleStore.dailySession.chaptersCompleted}</Text>
+                    </View>
+                    {(bibleStore.dailySession.phases || []).filter(p => p.plannedSeconds > 0).map(p => (
+                      <View style={styles.todayRow} key={p.id}>
+                        <Text style={styles.todayLabel}>{p.label}</Text>
+                        <Text style={styles.todayValue}>{`${Math.floor(Math.max(0,p.elapsedSeconds)/60)}:${String(Math.floor(Math.max(0,p.elapsedSeconds)%60)).padStart(2,'0')}`}</Text>
+                      </View>
+                    ))}
+                  </View>
+                )}
               </View>
-              <TouchableOpacity
-                style={styles.planCompactToggle}
-                onPress={() => {
-                  setPlanDetailsExpanded(false);
-                  setShowCompactPlan(true);
-                }}
-              >
-                <MaterialIcons name="fullscreen-exit" size={18} color={theme.colors.text.secondary} />
-                <Text style={styles.planCompactToggleText}>Minimize</Text>
-              </TouchableOpacity>
+              <View style={{ flexDirection: 'row', gap: theme.spacing.sm }}>
+                <TouchableOpacity
+                  style={styles.planCompactToggle}
+                  onPress={() => {
+                    setPlanDetailsExpanded(false);
+                    setShowCompactPlan(true);
+                  }}
+                >
+                  <MaterialIcons name="fullscreen-exit" size={18} color={theme.colors.text.secondary} />
+                  <Text style={styles.planCompactToggleText}>Minimize</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.planCompactToggle} onPress={() => setShowAdvancedActions(true)}>
+                  <MaterialIcons name="tune" size={18} color={theme.colors.text.secondary} />
+                  <Text style={styles.planCompactToggleText}>Advanced</Text>
+                </TouchableOpacity>
+              </View>
               <TouchableOpacity style={styles.planClearButton} onPress={handleClearPlan}>
                 <MaterialIcons name="delete-outline" size={18} color={theme.colors.error} />
                 <Text style={styles.planClearButtonText}>Clear plan</Text>
@@ -928,41 +1219,57 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
             {currentSegment && (
               <View style={styles.planActiveSegment}>
                 <Text style={styles.planSectionTitle}>Today’s focus</Text>
-                <TouchableOpacity
-                  style={[styles.planSegmentChip, currentSegment.completedAt && styles.planSegmentCompleted]}
-                  onPress={() => handleToggleSegment(currentSegment.id)}
-                >
-                  <MaterialIcons
-                    name={currentSegment.completedAt ? 'check-circle' : 'radio-button-unchecked'}
-                    size={18}
-                    color={currentSegment.completedAt ? theme.colors.primary : theme.colors.text.secondary}
+                {bibleStore.dailySession?.completed ? (
+                  <PlanSegmentChip
+                    label={'All done for today — come back tomorrow'}
+                    completed
+                    disabled
                   />
-                  <Text style={styles.planSegmentText}>
-                    {`${currentSegment.bookName} ${currentSegment.chapterStart}${currentSegment.chapterEnd !== currentSegment.chapterStart ? `-${currentSegment.chapterEnd}` : ''}`}
-                  </Text>
-                </TouchableOpacity>
+                ) : (
+                  <PlanSegmentChip
+                    label={`${currentSegment.bookName} ${currentSegment.chapterStart}${currentSegment.chapterEnd !== currentSegment.chapterStart ? `-${currentSegment.chapterEnd}` : ''}`}
+                    completed={!!currentSegment.completedAt}
+                    onPress={handleEnterPlanMode}
+                    onLongPress={async () => {
+                      const ok = await new Promise<boolean>(resolve => {
+                        Alert.alert(
+                          'Mark segment',
+                          currentSegment.completedAt ? 'Unmark this segment as completed?' : 'Mark this segment as completed?',
+                          [
+                            { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+                            { text: 'OK', style: 'destructive', onPress: () => resolve(true) },
+                          ],
+                          { cancelable: true }
+                        );
+                      });
+                      if (ok) {
+                        await handleToggleSegment(currentSegment.id);
+                      }
+                    }}
+                  />
+                )}
               </View>
             )}
 
-            {planDetailsExpanded && !!upcomingSegments.length && (
+            {planDetailsExpanded && !!upcomingSegments.length && !bibleStore.dailySession?.completed && (
               <View style={styles.planUpcomingSection}>
                 <Text style={styles.planSectionTitle}>Up next</Text>
                 <View style={styles.planSegmentList}>
                   {upcomingSegments.map(segment => (
-                    <TouchableOpacity
+                    <PlanSegmentChip
                       key={segment.id}
-                      style={[styles.planSegmentChip, segment.completedAt && styles.planSegmentCompleted]}
-                      onPress={() => handleToggleSegment(segment.id)}
-                    >
-                      <MaterialIcons
-                        name={segment.completedAt ? 'check-circle' : 'radio-button-unchecked'}
-                        size={18}
-                        color={segment.completedAt ? theme.colors.primary : theme.colors.text.secondary}
-                      />
-                      <Text style={styles.planSegmentText}>
-                        {`${segment.bookName} ${segment.chapterStart}${segment.chapterEnd !== segment.chapterStart ? `-${segment.chapterEnd}` : ''}`}
-                      </Text>
-                    </TouchableOpacity>
+                      label={`${segment.bookName} ${segment.chapterStart}${segment.chapterEnd !== segment.chapterStart ? `-${segment.chapterEnd}` : ''}`}
+                      completed={!!segment.completedAt}
+                      onPress={async () => {
+                        await bibleStore.focusPlanSegment(segment.id);
+                        if (!bibleStore.dailySession?.completed) {
+                          setShowTimerModal(true);
+                        } else {
+                          toast.success('All done for today — previewing next session');
+                        }
+                      }}
+                      onLongPress={() => handleToggleSegment(segment.id)}
+                    />
                   ))}
                 </View>
               </View>
@@ -1313,87 +1620,8 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
     );
   };
 
-  const handlePhaseComplete = useCallback(async (phase: ReadingPlanPhase, elapsed: number) => {
-    console.log('Phase complete:', phase.label, 'elapsed', elapsed);
-    // Play chime for phase transitions
-    try {
-      const { sound } = await Audio.Sound.createAsync(require('../../assets/sounds/bell.wav'));
-      await sound.playAsync();
-      sound.setOnPlaybackStatusUpdate(status => {
-        if (status.isLoaded && status.didJustFinish) {
-          sound.unloadAsync();
-        }
-      });
-    } catch (error) {
-      console.warn('Could not play phase chime', error);
-    }
-  }, []);
 
-  const handleAllPhasesComplete = useCallback(async () => {
-    toast.success('Daily reading complete! 🎉');
-    setShowReadingTimer(false);
-    setShowNextSegmentPrompt(true);
-
-    // Play completion chime
-    try {
-      const { sound } = await Audio.Sound.createAsync(require('../../assets/sounds/cheers.mp3'));
-      await sound.playAsync();
-      sound.setOnPlaybackStatusUpdate(status => {
-        if (status.isLoaded && status.didJustFinish) {
-          sound.unloadAsync();
-        }
-      });
-    } catch (error) {
-      console.warn('Could not play completion chime', error);
-    }
-
-    if (bibleStore.activeReadingSegment) {
-      await bibleStore.markSegmentComplete(bibleStore.activeReadingSegment.id);
-    }
-  }, [bibleStore]);
-
-  const renderVersesList = () => (
-    <FlatList
-      ref={verseListRef}
-      data={bibleStore.verses}
-      renderItem={renderVerse}
-      keyExtractor={item => item.id}
-      contentContainerStyle={styles.contentContainer}
-      ListHeaderComponent={renderPlanHeader}
-      ListHeaderComponentStyle={styles.planHeader}
-      initialNumToRender={20}
-      maxToRenderPerBatch={10}
-      windowSize={5}
-      onEndReached={handleLoadMore}
-      onEndReachedThreshold={0.1}
-      onScroll={Animated.event(
-        [{ nativeEvent: { contentOffset: { y: scrollY } } }],
-        {
-          useNativeDriver: true,
-          listener: handleScrollNearEnd,
-        }
-      )}
-      scrollEventThrottle={16}
-      refreshControl={
-        <RefreshControl
-          refreshing={refreshing}
-          onRefresh={handleRefresh}
-          colors={[theme.colors.primary]}
-          tintColor={theme.colors.primary}
-        />
-      }
-      ListFooterComponent={ListFooter}
-      ListEmptyComponent={ListEmpty}
-      onScrollToIndexFailed={info => {
-        setTimeout(() => {
-          verseListRef.current?.scrollToIndex({
-            index: info.index,
-            animated: true
-          });
-        }, 500);
-      }}
-    />
-  );
+  
 
   const renderTimerModal = () => (
     <Modal visible={showTimerModal} animationType="slide" transparent onRequestClose={() => setShowTimerModal(false)}>
@@ -1413,6 +1641,14 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
               setShowTimerModal(false);
             }}
             onRemainingChange={setRemainingSeconds}
+            controlledState={timerCtrl ? {
+              currentPhaseIndex: timerCtrl.currentPhaseIndex,
+              secondsRemainingInPhase: timerCtrl.secondsRemainingInPhase,
+              phaseSummaries: timerCtrl.phaseSummaries,
+              isActive: timerCtrl.isActive,
+            } : undefined}
+            onToggleActive={(next) => setTimerCtrl(prev => prev ? { ...prev, isActive: next } : prev)}
+            onAdvancePhase={() => void completeCurrentPhase()}
           />
         </View>
       </View>
@@ -1573,7 +1809,145 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
         </View>
       </Modal>
 
-      {renderVersionsModal()}
+      
+
+      <OverlayHost>
+        {bibleStore.isPlanMode && showFloatingProgress && !showTimerModal && remainingSeconds != null && !bibleStore.dailySession?.completed && (timerCtrl?.isActive ?? false) && (
+          <TouchableOpacity style={styles.floatingTimer} onPress={() => setShowTimerModal(true)}>
+            <View style={styles.floatingTimerCircle}>
+              <MaterialIcons name="timer" size={14} color={theme.colors.text.secondary} />
+            </View>
+            <Text style={styles.floatingTimerText}>
+              {`Time remaining: ${Math.floor(remainingSeconds / 60)}:${String(remainingSeconds % 60).padStart(2, '0')}`}
+            </Text>
+          </TouchableOpacity>
+        )}
+
+        {bibleStore.isPlanMode && bibleStore.dailySession?.completed && (
+          <View style={styles.bottomOverlay}>
+            <View style={styles.bottomOverlayButton}>
+              <MaterialIcons name="check-circle" size={18} color={theme.colors.text.inverse} />
+              <Text style={styles.bottomOverlayText}>All done for today — great job!</Text>
+            </View>
+          </View>
+        )}
+
+        {bibleStore.isPlanMode && bibleStore.activeReadingSegment && !bibleStore.dailySession?.completed && !showTimerModal && (
+          (() => {
+            const seg = bibleStore.activeReadingSegment;
+            const lastChapter = seg.chapterEnd ?? seg.chapterStart;
+            const cur = bibleStore.currentChapter || 1;
+            if (cur >= lastChapter) return null;
+            return (
+              <View style={styles.bottomOverlay}>
+                <TouchableOpacity style={styles.bottomOverlayButton} onPress={async () => { await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); await goToNextChapterWithinSegment(); }}>
+                  <MaterialIcons name="arrow-forward" size={18} color={theme.colors.text.inverse} />
+                  <Text style={styles.bottomOverlayText}>Next</Text>
+                </TouchableOpacity>
+              </View>
+            );
+          })()
+        )}
+      </OverlayHost>
+
+      <Modal visible={showAdvancedActions} transparent animationType="fade" onRequestClose={() => setShowAdvancedActions(false)}>
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalCard}>
+            <TouchableOpacity
+              style={styles.dangerRow}
+              onPress={async () => {
+                const confirm = await new Promise<boolean>(resolve => {
+                  Alert.alert(
+                    'Start over',
+                    'This will reset your plan progress and set today as the new start date. Continue?',
+                    [
+                      { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+                      { text: 'OK', style: 'destructive', onPress: () => resolve(true) },
+                    ],
+                    { cancelable: true }
+                  );
+                });
+                if (!confirm) return;
+                setShowAdvancedActions(false);
+                const ok = await bibleStore.startOverPlan();
+                if (ok) {
+                  await bibleStore.focusPlanSegment();
+                  await bibleStore.ensureDailySessionPrepared();
+                  if (!bibleStore.dailySession?.completed) setShowTimerModal(true);
+                  toast.success('Plan started over from today');
+                } else {
+                  toast.error('Unable to start over');
+                }
+              }}
+            >
+              <MaterialIcons name="restart-alt" size={18} color={theme.colors.error} />
+              <Text style={styles.dangerText}>Start over</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.modalRow}
+              onPress={async () => {
+                const confirm = await new Promise<boolean>(resolve => {
+                  Alert.alert(
+                    'Reset start date',
+                    'This will set your plan start date to today. Your completions remain unchanged. Continue?',
+                    [
+                      { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+                      { text: 'OK', onPress: () => resolve(true) },
+                    ],
+                    { cancelable: true }
+                  );
+                });
+                if (!confirm) return;
+                setShowAdvancedActions(false);
+                const ok = await bibleStore.resetPlanStartDateToToday();
+                if (ok) {
+                  await bibleStore.focusPlanSegment();
+                  await bibleStore.ensureDailySessionPrepared();
+                  toast.success('Plan start date set to today');
+                } else {
+                  toast.error('Unable to reset start date');
+                }
+              }}
+            >
+              <Text style={styles.modalText}>Reset start date to today</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.modalRow}
+              onPress={async () => {
+                const confirm = await new Promise<boolean>(resolve => {
+                  Alert.alert(
+                    'Repair plan to today',
+                    'This will mark segments as completed up to today’s expected pace. Continue?',
+                    [
+                      { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+                      { text: 'OK', onPress: () => resolve(true) },
+                    ],
+                    { cancelable: true }
+                  );
+                });
+                if (!confirm) return;
+                setShowAdvancedActions(false);
+                const ok = await bibleStore.repairPlanToExpectedByToday();
+                if (ok) {
+                  await bibleStore.focusPlanSegment();
+                  await bibleStore.ensureDailySessionPrepared();
+                  toast.success('Plan repaired to expected by today');
+                } else {
+                  toast.error('Unable to repair plan');
+                }
+              }}
+            >
+              <Text style={styles.modalText}>Repair plan to expected by today</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.modalRow} onPress={() => setShowAdvancedActions(false)}>
+              <Text style={styles.modalText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
       <HistoryModal
         visible={showHistoryModal}
@@ -1726,6 +2100,8 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
           )}
         </View>
       </Modal>
+
+      {renderTimerModal()}
 
       <ReadingPlanSetupModal
         visible={isPlanSetupVisible}
@@ -1890,6 +2266,7 @@ const createStyles = (theme: Theme) => StyleSheet.create({
   },
   contentContainer: {
     padding: theme.spacing.md,
+    paddingBottom: theme.spacing.xxl,
   },
   planHeader: {
     paddingBottom: theme.spacing.lg,
@@ -1946,6 +2323,65 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     ...theme.typography.caption.secondary,
     color: theme.colors.text.secondary,
     marginTop: theme.spacing.xs,
+  },
+  planCardMeta: {
+    ...theme.typography.caption.secondary,
+    color: theme.colors.text.tertiary,
+    marginTop: theme.spacing.xs,
+  },
+  todayContainer: {
+    marginTop: theme.spacing.sm,
+    paddingTop: theme.spacing.xs,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.border,
+    gap: theme.spacing.xs,
+  },
+  todayRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 2,
+  },
+  todayLabel: {
+    ...theme.typography.caption.secondary,
+    color: theme.colors.text.secondary,
+  },
+  todayValue: {
+    ...theme.typography.caption.primary,
+    color: theme.colors.text.primary,
+    fontWeight: '600',
+    fontVariant: ['tabular-nums'],
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: '#00000066',
+    justifyContent: 'flex-end',
+  },
+  modalCard: {
+    backgroundColor: theme.colors.surface,
+    padding: theme.spacing.md,
+    borderTopLeftRadius: theme.borderRadius.lg,
+    borderTopRightRadius: theme.borderRadius.lg,
+  },
+  modalRow: {
+    paddingVertical: theme.spacing.md,
+    alignItems: 'center',
+  },
+  modalText: {
+    ...theme.typography.body.sans,
+    color: theme.colors.text.primary,
+  },
+  dangerRow: {
+    paddingVertical: theme.spacing.md,
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: theme.spacing.xs,
+  },
+  dangerText: {
+    ...theme.typography.body.sans,
+    color: theme.colors.error,
+    fontWeight: '600',
   },
   planClearButton: {
     flexDirection: 'row',
@@ -2297,7 +2733,7 @@ const createStyles = (theme: Theme) => StyleSheet.create({
   floatingTimer: {
     position: 'absolute',
     right: theme.spacing.md,
-    top: theme.spacing.md,
+    top: 56 + theme.spacing.md,
     flexDirection: 'row',
     alignItems: 'center',
     gap: theme.spacing.xs,
@@ -2320,6 +2756,15 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     ...theme.typography.caption.secondary,
     color: theme.colors.text.secondary,
   },
+  overlayHost: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    zIndex: 35,
+    elevation: 5,
+  },
   // Bottom overlay next chapter CTA
   bottomOverlay: {
     position: 'absolute',
@@ -2327,6 +2772,8 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     right: 0,
     bottom: theme.spacing.lg,
     alignItems: 'center',
+    zIndex: 40,
+    elevation: 6,
   },
   bottomOverlayButton: {
     flexDirection: 'row',

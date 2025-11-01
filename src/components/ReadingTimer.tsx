@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { ReadingPlanPhase } from '@/constants/readingPlanModes';
+import * as Haptics from 'expo-haptics';
 
 export type PhaseProgress = {
   id: ReadingPlanPhase['id'];
@@ -17,25 +18,58 @@ type ReadingTimerProps = {
   autoStart?: boolean;
   onRemainingChange?: (totalRemainingSeconds: number) => void;
   passive?: boolean;
+  initialPhaseIndex?: number;
+  initialSecondsRemaining?: number;
+  initialSummaries?: PhaseProgress[];
+  onStateSnapshot?: (state: {
+    currentPhaseIndex: number;
+    secondsRemainingInPhase: number;
+    phaseSummaries: PhaseProgress[];
+    completed: boolean;
+  }) => void;
+  controlledState?: {
+    currentPhaseIndex: number;
+    secondsRemainingInPhase: number;
+    phaseSummaries: PhaseProgress[];
+    isActive: boolean;
+    completed?: boolean;
+  };
+  onToggleActive?: (nextActive: boolean) => void;
+  onAdvancePhase?: () => void;
 };
 
-const ReadingTimer: React.FC<ReadingTimerProps> = ({ phases, onPhaseComplete, onAllPhasesComplete, autoStart = true, onRemainingChange, passive = false }) => {
+const ReadingTimer: React.FC<ReadingTimerProps> = ({ phases, onPhaseComplete, onAllPhasesComplete, autoStart = true, onRemainingChange, passive = false, initialPhaseIndex, initialSecondsRemaining, initialSummaries, onStateSnapshot, controlledState, onToggleActive, onAdvancePhase }) => {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
 
-  const [currentPhaseIndex, setCurrentPhaseIndex] = useState(0);
-  const [secondsRemaining, setSecondsRemaining] = useState(() => (phases[0]?.minutes ?? 0) * 60);
-  const [phaseSummaries, setPhaseSummaries] = useState<PhaseProgress[]>([]);
+  const [currentPhaseIndex, setCurrentPhaseIndex] = useState(() => Math.max(0, Math.min(initialPhaseIndex ?? 0, Math.max(0, phases.length - 1))))
+  const [secondsRemaining, setSecondsRemaining] = useState(() => {
+    const fallback = (phases[0]?.minutes ?? 0) * 60;
+    const initial = initialSecondsRemaining;
+    return typeof initial === 'number' ? Math.max(0, initial) : fallback;
+  });
+  const [phaseSummaries, setPhaseSummaries] = useState<PhaseProgress[]>(() => initialSummaries ?? []);
   const [isActive, setIsActive] = useState(autoStart);
 
-  const currentPhase = phases[currentPhaseIndex];
+  const isControlled = Boolean(controlledState);
+  const view = {
+    currentPhaseIndex: isControlled ? (controlledState!.currentPhaseIndex) : currentPhaseIndex,
+    secondsRemaining: isControlled ? (controlledState!.secondsRemainingInPhase) : secondsRemaining,
+    phaseSummaries: isControlled ? (controlledState!.phaseSummaries) : phaseSummaries,
+    isActive: isControlled ? (controlledState!.isActive) : isActive,
+    completed: isControlled ? (controlledState!.completed ?? false) : false,
+  };
+  const currentPhase = phases[view.currentPhaseIndex];
 
   useEffect(() => {
-    setCurrentPhaseIndex(0);
-    setPhaseSummaries([]);
-    setIsActive(autoStart);
-    setSecondsRemaining((phases[0]?.minutes ?? 0) * 60);
-  }, [phases, autoStart]);
+    setCurrentPhaseIndex(Math.max(0, Math.min(initialPhaseIndex ?? 0, Math.max(0, phases.length - 1))));
+    setPhaseSummaries(initialSummaries ?? []);
+    setSecondsRemaining(() => {
+      const fallback = (phases[0]?.minutes ?? 0) * 60;
+      const initial = initialSecondsRemaining;
+      return typeof initial === 'number' ? Math.max(0, initial) : fallback;
+    });
+  }, [phases, initialPhaseIndex]);
 
   // Notify total remaining seconds (current remaining + full remaining of subsequent phases)
   useEffect(() => {
@@ -43,10 +77,10 @@ const ReadingTimer: React.FC<ReadingTimerProps> = ({ phases, onPhaseComplete, on
       onRemainingChange?.(0);
       return;
     }
-    const subsequent = phases.slice(currentPhaseIndex + 1).reduce((sum, p) => sum + (p.minutes * 60), 0);
-    const totalRemaining = Math.max(0, secondsRemaining) + subsequent;
+    const subsequent = phases.slice(view.currentPhaseIndex + 1).reduce((sum, p) => sum + (p.minutes * 60), 0);
+    const totalRemaining = Math.max(0, view.secondsRemaining) + subsequent;
     onRemainingChange?.(totalRemaining);
-  }, [secondsRemaining, currentPhaseIndex, phases, currentPhase, onRemainingChange]);
+  }, [view.secondsRemaining, view.currentPhaseIndex, phases, currentPhase, onRemainingChange]);
 
   const formatTime = useCallback((seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -57,8 +91,8 @@ const ReadingTimer: React.FC<ReadingTimerProps> = ({ phases, onPhaseComplete, on
   const totalMinutesPlanned = useMemo(() => phases.reduce((sum, phase) => sum + phase.minutes, 0), [phases]);
 
   const totalElapsedSeconds = useMemo(
-    () => phaseSummaries.reduce((sum, item) => sum + item.elapsedSeconds, 0),
-    [phaseSummaries]
+    () => view.phaseSummaries.reduce((sum, item) => sum + item.elapsedSeconds, 0),
+    [view.phaseSummaries]
   );
 
   const completePhase = useCallback(
@@ -99,38 +133,83 @@ const ReadingTimer: React.FC<ReadingTimerProps> = ({ phases, onPhaseComplete, on
     [currentPhase, currentPhaseIndex, autoStart, onPhaseComplete, onAllPhasesComplete, phaseSummaries, phases]
   );
 
+  // Internal ticking only when uncontrolled
   useEffect(() => {
+    if (isControlled) return;
     if (!currentPhase || !isActive) {
       return;
     }
-
     if (secondsRemaining <= 0) {
       completePhase(0);
       return;
     }
-
     const timerId = setTimeout(() => {
       setSecondsRemaining(prev => prev - 1);
     }, 1000);
-
     return () => clearTimeout(timerId);
-  }, [currentPhase, isActive, secondsRemaining, completePhase]);
+  }, [isControlled, currentPhase, isActive, secondsRemaining, completePhase]);
+
+  const isPhaseSummaryComplete = useCallback((summary: PhaseProgress) => {
+    return summary.plannedSeconds <= 0 || summary.elapsedSeconds >= summary.plannedSeconds;
+  }, []);
+
+  // Only emit snapshots when uncontrolled; BibleScreen drives state when controlled
+  useEffect(() => {
+    if (isControlled) return;
+    if (!currentPhase) {
+      const completedSnapshot = phaseSummaries.length > 0 && phaseSummaries.every(isPhaseSummaryComplete);
+      onStateSnapshot?.({ currentPhaseIndex, secondsRemainingInPhase: 0, phaseSummaries, completed: completedSnapshot });
+      return;
+    }
+    const live: PhaseProgress[] = phases.map((p, index) => {
+      const planned = Math.max(0, p.minutes * 60);
+      if (index < currentPhaseIndex) {
+        const prev = phaseSummaries[index];
+        return { id: prev?.id ?? p.id, label: prev?.label ?? p.label, plannedSeconds: planned, elapsedSeconds: Math.max(planned, prev?.elapsedSeconds ?? planned) };
+      }
+      if (index === currentPhaseIndex) {
+        const elapsed = planned - Math.max(0, secondsRemaining);
+        return { id: p.id, label: p.label, plannedSeconds: planned, elapsedSeconds: Math.max(0, elapsed) };
+      }
+      const prev = phaseSummaries[index];
+      return { id: prev?.id ?? p.id, label: prev?.label ?? p.label, plannedSeconds: planned, elapsedSeconds: Math.max(0, prev?.elapsedSeconds ?? 0) };
+    });
+    const completedSnapshot = live.length > 0 && live.every(isPhaseSummaryComplete);
+    onStateSnapshot?.({ currentPhaseIndex, secondsRemainingInPhase: Math.max(0, secondsRemaining), phaseSummaries: live, completed: completedSnapshot });
+  }, [isControlled, currentPhaseIndex, secondsRemaining, phaseSummaries, phases, currentPhase, onStateSnapshot, isPhaseSummaryComplete]);
 
   if (!currentPhase) {
     return null;
   }
 
   const plannedSeconds = Math.max(0, currentPhase.minutes * 60);
-  const elapsedSeconds = plannedSeconds - Math.max(0, secondsRemaining);
+  const elapsedSeconds = plannedSeconds - Math.max(0, view.secondsRemaining);
   const progressPercent = plannedSeconds === 0 ? 0 : (elapsedSeconds / plannedSeconds) * 100;
 
-  const handleAdvancePhase = () => {
-    completePhase(secondsRemaining);
+  const handleAdvancePhase = async () => {
+    try { await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+    if (isControlled) {
+      onAdvancePhase?.();
+    } else {
+      completePhase(secondsRemaining);
+    }
   };
 
   if (passive) {
     return null;
   }
+
+  const isMultiPhase = phases.length > 1;
+  const hasAnyProgress = useMemo(() => {
+    if (view.phaseSummaries.some(p => p.elapsedSeconds > 0)) return true;
+    if (view.currentPhaseIndex > 0) return true;
+    const firstPlanned = (phases[0]?.minutes ?? 0) * 60;
+    return firstPlanned > 0 && view.secondsRemaining < firstPlanned;
+  }, [view.phaseSummaries, view.currentPhaseIndex, phases, view.secondsRemaining]);
+
+  const showSingleStart = !hasAnyProgress;
+
+  
 
   return (
     <View style={styles.container}>
@@ -158,19 +237,27 @@ const ReadingTimer: React.FC<ReadingTimerProps> = ({ phases, onPhaseComplete, on
 
       {currentPhase.hint ? <Text style={styles.hintText}>{currentPhase.hint}</Text> : null}
 
-      <View style={styles.controlsRow}>
-        <TouchableOpacity
-          style={[styles.controlButton, !isActive && styles.controlButtonSecondary]}
-          onPress={() => setIsActive(prev => !prev)}
-        >
-          <Text style={styles.controlButtonText}>{isActive ? 'Pause' : 'Resume'}</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.controlButtonPrimary} onPress={handleAdvancePhase}>
-          <Text style={styles.primaryButtonText}>
-            {currentPhaseIndex >= phases.length - 1 ? 'Finish Session' : 'Next Phase'}
-          </Text>
-        </TouchableOpacity>
-      </View>
+      {showSingleStart ? (
+        <View style={styles.controlsRow}>
+          <TouchableOpacity style={styles.controlButtonPrimary} onPress={async () => { try { await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}; isControlled ? onToggleActive?.(true) : setIsActive(true); }}>
+            <Text style={styles.primaryButtonText}>Start</Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <View style={styles.controlsRow}>
+          <TouchableOpacity
+            style={[styles.controlButton, !view.isActive && styles.controlButtonSecondary]}
+            onPress={async () => { try { await Haptics.selectionAsync(); } catch {}; isControlled ? onToggleActive?.(!view.isActive) : setIsActive(prev => !prev); }}
+          >
+            <Text style={styles.controlButtonText}>{view.isActive ? 'Pause' : 'Resume'}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.controlButtonPrimary} onPress={handleAdvancePhase}>
+            <Text style={styles.primaryButtonText}>
+              {currentPhaseIndex >= phases.length - 1 ? 'Finish Session' : (isMultiPhase ? 'Next Phase' : 'Finish Session')}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       {phaseSummaries.length > 0 && (
         <View style={styles.summaryRow}>

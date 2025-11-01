@@ -150,6 +150,26 @@ type BibleReadingPlan = {
   versionTable: string;
   versionName?: string | null;
 };
+export type DailyPhaseProgress = {
+  id: ReadingPlanPhase['id'];
+  label: string;
+  plannedSeconds: number;
+  elapsedSeconds: number;
+};
+
+export type DailyReadingSession = {
+  date: string; // YYYY-MM-DD
+  planId: string;
+  segmentId: string | null;
+  bookAbbr?: string | null;
+  chapterStart?: number | null;
+  chapterEnd?: number | null;
+  phases: DailyPhaseProgress[];
+  currentPhaseIndex: number;
+  secondsRemainingInPhase: number;
+  chaptersCompleted: number;
+  completed: boolean;
+};
 
 type ReadingReminder = {
   time: string;
@@ -179,6 +199,7 @@ const STORAGE_KEYS = {
   READING_REMINDER: 'bible_reading_reminder',
   PLAN_MODE: 'bible_plan_mode',
   SHOW_APOCRYPHA: 'bible_show_apocrypha',
+  DAILY_SESSION_PREFIX: 'bible_daily_session_',
 } as const;
 
 type LastReadPosition = {
@@ -281,6 +302,7 @@ class BibleStore {
   hasAppliedLastPosition: boolean = false;
   browsePositionBeforePlan: LastReadPosition | null = null;
   isPlanMode = false;
+  dailySession: DailyReadingSession | null = null;
 
   // Pagination (for compatibility with BibleScreen)
   pagination = {
@@ -295,6 +317,200 @@ class BibleStore {
     makeAutoObservable(this, {}, { autoBind: true });
 
     this.initialize();
+  }
+
+  private getTodayDate(): string {
+    try {
+      return new Date().toISOString().slice(0, 10);
+    } catch {
+      const d = new Date();
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${y}-${m}-${day}`;
+    }
+  }
+
+  private getDailySessionKey(planId: string): string {
+    const today = this.getTodayDate();
+    return `${STORAGE_KEYS.DAILY_SESSION_PREFIX}${planId}:${today}`;
+  }
+
+  async ensureDailySessionPrepared() {
+    if (!this.readingPlan || !this.isPlanMode) {
+      runInAction(() => {
+        this.dailySession = null;
+      });
+      return;
+    }
+
+    const key = this.getDailySessionKey(this.readingPlan.id);
+
+    try {
+      const stored = await AsyncStorage.getItem(key);
+      if (stored) {
+        const parsed = JSON.parse(stored) as DailyReadingSession;
+        // Validate phases align with current plan
+        const plannedPhases = this.readingPlan.phases;
+        const sameShape = parsed.phases.length === plannedPhases.length && parsed.phases.every((p, i) => p.id === plannedPhases[i].id && p.plannedSeconds === plannedPhases[i].minutes * 60);
+        runInAction(() => {
+          this.dailySession = sameShape ? parsed : null;
+        });
+      }
+    } catch (error) {
+      console.warn('Failed to load daily session', error);
+    }
+
+    if (!this.dailySession) {
+      const phases: DailyPhaseProgress[] = (this.readingPlan.phases || []).map(p => ({
+        id: p.id,
+        label: p.label,
+        plannedSeconds: Math.max(0, (p.minutes || 0) * 60),
+        elapsedSeconds: 0,
+      }));
+      const firstPlanned = phases[0]?.plannedSeconds ?? 0;
+      const segment = this.activeReadingSegment;
+      const session: DailyReadingSession = {
+        date: this.getTodayDate(),
+        planId: this.readingPlan.id,
+        segmentId: segment?.id ?? null,
+        bookAbbr: segment?.bookAbbreviation ?? null,
+        chapterStart: segment?.chapterStart ?? null,
+        chapterEnd: segment?.chapterEnd ?? null,
+        phases,
+        currentPhaseIndex: 0,
+        secondsRemainingInPhase: firstPlanned,
+        chaptersCompleted: 0,
+        completed: false,
+      };
+      await this.saveDailySession(session);
+      runInAction(() => {
+        this.dailySession = session;
+      });
+    }
+  }
+
+  private async saveDailySession(session: DailyReadingSession | null) {
+    if (!this.readingPlan) return;
+    const key = this.getDailySessionKey(this.readingPlan.id);
+    try {
+      if (!session) {
+        await AsyncStorage.removeItem(key);
+      } else {
+        await AsyncStorage.setItem(key, JSON.stringify(session));
+      }
+    } catch (error) {
+      console.warn('Failed to persist daily session', error);
+    }
+  }
+
+  async applyTimerState(state: { currentPhaseIndex: number; secondsRemainingInPhase: number; phaseSummaries: Array<{ id: DailyPhaseProgress['id']; label: string; plannedSeconds: number; elapsedSeconds: number; }>; }) {
+    if (!this.readingPlan) return;
+    const segment = this.activeReadingSegment;
+    const session: DailyReadingSession = {
+      date: this.getTodayDate(),
+      planId: this.readingPlan.id,
+      segmentId: segment?.id ?? this.dailySession?.segmentId ?? null,
+      bookAbbr: segment?.bookAbbreviation ?? this.dailySession?.bookAbbr ?? null,
+      chapterStart: segment?.chapterStart ?? this.dailySession?.chapterStart ?? null,
+      chapterEnd: segment?.chapterEnd ?? this.dailySession?.chapterEnd ?? null,
+      phases: state.phaseSummaries.map(s => ({ id: s.id, label: s.label, plannedSeconds: s.plannedSeconds, elapsedSeconds: Math.max(0, s.elapsedSeconds) })),
+      currentPhaseIndex: Math.max(0, Math.min(state.currentPhaseIndex, (this.readingPlan?.phases.length ?? 1) - 1)),
+      secondsRemainingInPhase: Math.max(0, state.secondsRemainingInPhase),
+      chaptersCompleted: this.dailySession?.chaptersCompleted ?? 0,
+      completed: state.phaseSummaries.length > 0 && state.phaseSummaries.every(p => p.elapsedSeconds >= p.plannedSeconds),
+    };
+    await this.saveDailySession(session);
+    runInAction(() => {
+      this.dailySession = session;
+    });
+  }
+
+  async markTodaySessionCompleted() {
+    if (!this.dailySession || !this.readingPlan) return;
+    const session = { ...this.dailySession, completed: true, secondsRemainingInPhase: 0 };
+    await this.saveDailySession(session);
+    runInAction(() => {
+      this.dailySession = session;
+    });
+  }
+
+  async incrementChaptersCompletedBy(count: number) {
+    if (!this.dailySession || !this.readingPlan) return;
+    const next = { ...this.dailySession, chaptersCompleted: Math.max(0, (this.dailySession.chaptersCompleted || 0) + Math.max(0, count)) };
+    await this.saveDailySession(next);
+    runInAction(() => {
+      this.dailySession = next;
+    });
+  }
+
+  async startOverPlan() {
+    if (!this.readingPlan) return false;
+
+    const segments = this.readingPlan.segments.map(segment => ({
+      ...segment,
+      completedAt: null,
+    }));
+
+    const nextPlan: BibleReadingPlan = {
+      ...this.readingPlan,
+      segments,
+      currentIndex: 0,
+      createdAt: new Date().toISOString(),
+    };
+
+    await this.saveReadingPlan(nextPlan);
+    await this.saveDailySession(null);
+
+    runInAction(() => {
+      this.readingPlan = nextPlan;
+      this.dailySession = null;
+    });
+
+    await this.ensureDailySessionPrepared();
+    return true;
+  }
+
+  async resetPlanStartDateToToday() {
+    if (!this.readingPlan) return false;
+    const nextPlan: BibleReadingPlan = {
+      ...this.readingPlan,
+      createdAt: new Date().toISOString(),
+    };
+    await this.saveReadingPlan(nextPlan);
+    await this.saveDailySession(null);
+    runInAction(() => {
+      this.readingPlan = nextPlan;
+      this.dailySession = null;
+    });
+    await this.ensureDailySessionPrepared();
+    return true;
+  }
+
+  async repairPlanToExpectedByToday() {
+    if (!this.readingPlan) return false;
+    const total = this.readingPlan.segments.length;
+    const start = new Date(this.readingPlan.createdAt);
+    start.setHours(0,0,0,0);
+    const now = new Date();
+    now.setHours(0,0,0,0);
+    const daysSinceStart = Math.max(1, Math.floor((now.getTime() - start.getTime()) / (24*60*60*1000)) + 1);
+    const expectedByToday = Math.min(total, daysSinceStart);
+    const nowIso = new Date().toISOString();
+    const segments = this.readingPlan.segments.map((segment, index) => ({
+      ...segment,
+      completedAt: index < expectedByToday ? (segment.completedAt || nowIso) : null,
+    }));
+    const currentIndex = this.resolveCurrentSegmentIndex(segments);
+    const nextPlan: BibleReadingPlan = { ...this.readingPlan, segments, currentIndex };
+    await this.saveReadingPlan(nextPlan);
+    await this.saveDailySession(null);
+    runInAction(() => {
+      this.readingPlan = nextPlan;
+      this.dailySession = null;
+    });
+    await this.ensureDailySessionPrepared();
+    return true;
   }
 
   setCurrentBook(book: Book): void;
