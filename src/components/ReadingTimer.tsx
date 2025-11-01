@@ -36,9 +36,10 @@ type ReadingTimerProps = {
   };
   onToggleActive?: (nextActive: boolean) => void;
   onAdvancePhase?: () => void;
+  passages?: string[];
 };
 
-const ReadingTimer: React.FC<ReadingTimerProps> = ({ phases, onPhaseComplete, onAllPhasesComplete, autoStart = true, onRemainingChange, passive = false, initialPhaseIndex, initialSecondsRemaining, initialSummaries, onStateSnapshot, controlledState, onToggleActive, onAdvancePhase }) => {
+const ReadingTimer: React.FC<ReadingTimerProps> = ({ phases, onPhaseComplete, onAllPhasesComplete, autoStart = true, onRemainingChange, passive = false, initialPhaseIndex, initialSecondsRemaining, initialSummaries, onStateSnapshot, controlledState, onToggleActive, onAdvancePhase, passages }) => {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
 
@@ -237,6 +238,16 @@ const ReadingTimer: React.FC<ReadingTimerProps> = ({ phases, onPhaseComplete, on
 
       {currentPhase.hint ? <Text style={styles.hintText}>{currentPhase.hint}</Text> : null}
 
+      {!!passages?.length && (
+        <View style={styles.passagesContainer}>
+          {passages.map((p, i) => (
+            <Text key={`${p}-${i}`} style={styles.passageItem} numberOfLines={1}>
+              {p}
+            </Text>
+          ))}
+        </View>
+      )}
+
       {showSingleStart ? (
         <View style={styles.controlsRow}>
           <TouchableOpacity style={styles.controlButtonPrimary} onPress={async () => { try { await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}; isControlled ? onToggleActive?.(true) : setIsActive(true); }}>
@@ -328,6 +339,15 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       color: theme.colors.text.secondary,
       fontStyle: 'italic',
       textAlign: 'center',
+    },
+    passagesContainer: {
+      marginTop: theme.spacing.xs,
+      gap: 4,
+      alignItems: 'center',
+    },
+    passageItem: {
+      ...theme.typography.caption,
+      color: theme.colors.text.primary,
     },
     controlsRow: {
       flexDirection: 'row',

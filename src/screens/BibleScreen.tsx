@@ -19,6 +19,8 @@ import {
   NativeScrollEvent,
   NativeSyntheticEvent,
   TouchableWithoutFeedback,
+  LayoutChangeEvent,
+  ViewToken,
 } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -45,18 +47,48 @@ import { useSharedValue, withTiming } from 'react-native-reanimated';
 import { HistoryEntry, DailyPhaseProgress } from '@/stores/BibleStore';
 
 import { RootStackParamList, ScopedVerseParam } from '@/types';
-
-const getLocalMidnightMs = (date: Date) => {
-  const d = new Date(date);
-  d.setHours(0, 0, 0, 0);
-  return d.getTime();
-};
 import { useNetworkStatus } from '@/hooks/useNetworkStatus';
 import { parseVPLId } from '@/utils/database';
 import { toast } from 'sonner-native';
 import * as Haptics from 'expo-haptics';
 import { Audio } from 'expo-av';
 import EmptyState from '@/components/EmptyState';
+
+const getLocalMidnightMs = (date: Date) => {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  return d.getTime();
+};
+
+const makeVerseKey = (chapter: number | string | null | undefined, verse: number | string | null | undefined) =>
+  `${chapter ?? ''}:${verse ?? ''}`;
+
+const parseVerseAddress = (verse: BibleVerse, fallbackChapter?: number) => {
+  try {
+    const { chapter, verse: verseNumber } = parseVPLId(verse.id);
+    return { chapter, verse: verseNumber };
+  } catch {
+    const ref = verse.reference ?? '';
+    const refMatch = ref.match(/(\d+):(\d+)/);
+    const chapter = refMatch ? Number(refMatch[1]) : fallbackChapter ?? NaN;
+    const verseNumber = refMatch ? Number(refMatch[2]) : NaN;
+    return { chapter, verse: verseNumber };
+  }
+};
+
+const makeSegmentRangeToken = (segment?: { chapterStart?: number | null; chapterEnd?: number | null; verseStart?: number | null; verseEnd?: number | null } | null) => {
+  if (!segment) return '';
+  const startChapter = segment.chapterStart ?? '';
+  const endChapter = segment.chapterEnd ?? segment.chapterStart ?? '';
+  const startVerse = segment.verseStart ?? '';
+  const endVerse = segment.verseEnd ?? '';
+  return `${startChapter}:${startVerse}-${endChapter}:${endVerse}`;
+};
+
+type SegmentAnchor = {
+  chapter: number;
+  verse: number | null;
+};
 
 type ScopedViewState = {
   title?: string | null;
@@ -75,12 +107,18 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
   const isAdvancingSegmentRef = useRef(false);
   const verseListRef = useRef<FlatList<BibleVerse>>(null);
   const pendingScrollVerseRef = useRef<number | null>(null);
+  const verseLayoutMapRef = useRef(new Map<string, { offset: number; height: number }>());
+  const lastAutoScrollKeyRef = useRef<string | null>(null);
+  const currentVisibleVerseRef = useRef<{ id: string; verse: number; chapter: number } | null>(null);
+  const viewabilityConfigRef = useRef({ itemVisiblePercentThreshold: 25 });
+  const listDimensionsRef = useRef({ height: 0 });
   const lastAppliedParamsRef = useRef<string | null>(null);
   const snapshotTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingSnapshotRef = useRef<{
     currentPhaseIndex: number;
     secondsRemainingInPhase: number;
     phaseSummaries: { id: ReadingPlanPhase['id']; label: string; plannedSeconds: number; elapsedSeconds: number }[];
+    completed: boolean;
   } | null>(null);
 
   // Network status
@@ -147,6 +185,24 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
     }
     return [] as ReadingPlanPhase[];
   }, [bibleStore.readingPlan]);
+
+  const formatSegmentLabel = useCallback((seg: any) => {
+    if (!seg) return 'Next segment';
+    const vs = seg.verseStart ?? seg.startVerse ?? seg.start_verse ?? null;
+    const ve = seg.verseEnd ?? seg.endVerse ?? seg.end_verse ?? null;
+    const sameChapter = (seg.chapterEnd ?? seg.chapterStart) === seg.chapterStart;
+    if (vs || ve) {
+      if (sameChapter) {
+        const right = ve ? `-${ve}` : '';
+        const left = vs ? `:${vs}` : '';
+        return `${seg.bookName} ${seg.chapterStart}${left}${right}`;
+      }
+      const left = vs ? `:${vs}` : '';
+      const right = ve ? `:${ve}` : '';
+      return `${seg.bookName} ${seg.chapterStart}${left}-${seg.chapterEnd}${right}`;
+    }
+    return `${seg.bookName} ${seg.chapterStart}${(seg.chapterEnd ?? seg.chapterStart) !== seg.chapterStart ? `-${seg.chapterEnd}` : ''}`;
+  }, []);
 
   const totalPlanSeconds = useMemo(
     () => phasesForToday.reduce((sum, phase) => sum + phase.minutes * 60, 0),
@@ -290,6 +346,9 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
       }
     }
     await bibleStore.markTodaySessionCompleted();
+    // Immediately collapse compact UI for the day
+    setShowFloatingProgress(false);
+    setShowCompactPlan(false);
   }, [bibleStore]);
 
   // Initialize/refresh controlled timer state from daily session or plan phases
@@ -327,7 +386,14 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
           void handlePhaseComplete(phase, elapsed);
           void handleAllPhasesComplete();
         }, 0);
-        return { ...prev, secondsRemainingInPhase: 0, phaseSummaries: newSummaries, isActive: false, completed: true };
+        const nextState: TimerControllerState = {
+          ...prev,
+          secondsRemainingInPhase: 0,
+          phaseSummaries: newSummaries,
+          isActive: false,
+          completed: true,
+        };
+        return nextState;
       } else {
         // Move to next phase
         const nextIdx = idx + 1;
@@ -335,13 +401,14 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
         setTimeout(() => {
           void handlePhaseComplete(phase, elapsed);
         }, 0);
-        return {
+        const nextState: TimerControllerState = {
           currentPhaseIndex: nextIdx,
           secondsRemainingInPhase: nextPlanned,
           phaseSummaries: newSummaries,
           isActive: true,
           completed: false,
         };
+        return nextState;
       }
     });
   }, [phasesForToday, handlePhaseComplete, handleAllPhasesComplete]);
@@ -380,11 +447,12 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
       const prev = state.phaseSummaries[index];
       return { id: prev?.id ?? p.id, label: prev?.label ?? p.label, plannedSeconds: planned, elapsedSeconds: Math.max(0, prev?.elapsedSeconds ?? 0) };
     });
+    const completed = state.completed || live.every(item => item.plannedSeconds <= 0 || item.elapsedSeconds >= item.plannedSeconds);
     handleTimerSnapshot({
       currentPhaseIndex: state.currentPhaseIndex,
       secondsRemainingInPhase: Math.max(0, state.secondsRemainingInPhase),
       phaseSummaries: live.map(s => ({ id: s.id as ReadingPlanPhase['id'], label: s.label, plannedSeconds: s.plannedSeconds, elapsedSeconds: s.elapsedSeconds })),
-      completed: state.completed,
+      completed,
     });
   }, [phasesForToday, handleTimerSnapshot]);
 
@@ -397,7 +465,7 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
         if (!prev) return prev;
         if (prev.secondsRemainingInPhase <= 0) return prev;
         const nextRemaining = prev.secondsRemainingInPhase - 1;
-        const nextState = { ...prev, secondsRemainingInPhase: nextRemaining };
+        const nextState: TimerControllerState = { ...prev, secondsRemainingInPhase: nextRemaining };
         emitSnapshot(nextState);
         if (nextRemaining <= 0) {
           setTimeout(() => { void completeCurrentPhase(); }, 0);
@@ -579,6 +647,8 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
     console.log('[BibleScreen] scopedView state changed', scopedView);
   }, [scopedView]);
 
+  const routeVerseParam = routeParams?.verse;
+
   useEffect(() => {
     if (!bibleStore.readingPlan) {
       setBuilderReminder('');
@@ -595,49 +665,99 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
   }, [bibleStore.readingPlan, bibleStore.readingReminder?.time]);
 
   // Handle initial params (apply once and only if different)
-  const scrollToVerse = useCallback((targetVerse?: number | string | null) => {
+  const scrollToVerse = useCallback((targetVerse?: number | string | null, opts?: { immediate?: boolean }) => {
     if (targetVerse == null) return;
 
     const parsedTarget = typeof targetVerse === 'string' ? parseInt(targetVerse, 10) : targetVerse;
     if (!Number.isFinite(parsedTarget) || parsedTarget <= 0) return;
+
+    const immediate = opts?.immediate ?? false;
 
     if (!bibleStore.verses.length) {
       pendingScrollVerseRef.current = parsedTarget;
       return;
     }
 
-    const verseIndex = bibleStore.verses.findIndex(v => {
-      try {
-        const { verse: verseNum } = parseVPLId(v.id);
-        return verseNum === parsedTarget;
-      } catch {
-        const match = v.reference?.match(/:(\d+)$/);
-        return match ? Number(match[1]) === parsedTarget : false;
+    let targetIndex = -1;
+    bibleStore.verses.some((v, idx) => {
+      const { verse } = parseVerseAddress(v, bibleStore.currentChapter ?? undefined);
+      if (verse === parsedTarget) {
+        targetIndex = idx;
+        return true;
       }
+      return false;
     });
 
-    if (verseIndex === -1) {
+    if (targetIndex === -1) {
       pendingScrollVerseRef.current = parsedTarget;
       return;
     }
 
-    pendingScrollVerseRef.current = null;
-    requestAnimationFrame(() => {
-      try {
-        verseListRef.current?.scrollToIndex({
-          index: verseIndex,
-          animated: true,
-          viewPosition: 0.3,
-        });
-      } catch {
-        const approximateRowHeight = 64;
+    const key = makeVerseKey(bibleStore.currentChapter, parsedTarget);
+    const layout = verseLayoutMapRef.current.get(key);
+    const scrollAction = () => {
+      if (layout && listDimensionsRef.current.height > 0) {
+        const desiredOffset = layout.offset - Math.max(0, listDimensionsRef.current.height * 0.2);
         verseListRef.current?.scrollToOffset({
-          offset: verseIndex * approximateRowHeight,
-          animated: true,
+          offset: Math.max(0, desiredOffset),
+          animated: !immediate,
         });
+      } else {
+        try {
+          verseListRef.current?.scrollToIndex({
+            index: targetIndex,
+            animated: !immediate,
+            viewPosition: 0.3,
+          });
+        } catch {
+          const approximateRowHeight = 64;
+          verseListRef.current?.scrollToOffset({
+            offset: targetIndex * approximateRowHeight,
+            animated: !immediate,
+          });
+        }
       }
-    });
-  }, [bibleStore.verses]);
+    };
+
+    pendingScrollVerseRef.current = null;
+    if (immediate) {
+      scrollAction();
+    } else {
+      requestAnimationFrame(scrollAction);
+    }
+  }, [bibleStore.verses, bibleStore.currentChapter]);
+
+  useEffect(() => {
+    if (!bibleStore.isPlanMode) {
+      lastAutoScrollKeyRef.current = null;
+      return;
+    }
+
+    if (routeVerseParam) {
+      // Respect explicit navigation requests when a verse param is provided
+      return;
+    }
+
+    const segment = bibleStore.activeReadingSegment;
+    const verseStart = segment?.verseStart ?? null;
+    const verseEnd = segment?.verseEnd ?? null;
+    if (!segment || typeof verseStart !== 'number' || Number.isNaN(verseStart)) {
+      return;
+    }
+
+    const key = `${segment.id}:${makeSegmentRangeToken(segment)}:${routeParams?.mode ?? 'default'}`;
+
+    if (key === lastAutoScrollKeyRef.current && pendingScrollVerseRef.current == null) {
+      return;
+    }
+
+    if ((bibleStore.currentChapter ?? 0) !== (segment.chapterStart ?? 0)) {
+      return;
+    }
+
+    lastAutoScrollKeyRef.current = key;
+    scrollToVerse(verseStart, { immediate: true });
+  }, [bibleStore.isPlanMode, bibleStore.activeReadingSegment, bibleStore.currentChapter, routeVerseParam, bibleStore.verses, scrollToVerse, routeParams?.mode]);
 
   useEffect(() => {
     if (!routeParams || routeParams.mode === 'scoped') {
@@ -1084,7 +1204,7 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
     const upcoming = bibleStore.upcomingSegments;
     const [currentSegment, ...upcomingSegments] = upcoming;
 
-    if (readingPlan && showCompactPlan) {
+    if (readingPlan && showCompactPlan && !bibleStore.dailySession?.completed) {
       return (
         <View style={styles.planContainer}>
           <TouchableWithoutFeedback
@@ -1098,10 +1218,8 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
               <View style={styles.planCompactRow}>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.planSectionTitle}>Today’s focus</Text>
-                  <Text style={styles.planCardSummary}>
-                    {currentSegment
-                      ? `${currentSegment.bookName} ${currentSegment.chapterStart}${currentSegment.chapterEnd !== currentSegment.chapterStart ? `-${currentSegment.chapterEnd}` : ''}`
-                      : 'Next segment'}
+                  <Text style={styles.planCardSummary} numberOfLines={1}>
+                    {currentSegment ? formatSegmentLabel(currentSegment) : 'Next segment'}
                   </Text>
                   {bibleStore.isPlanMode && (
                     <Text style={styles.planReminderHint}>
@@ -1227,7 +1345,7 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
                   />
                 ) : (
                   <PlanSegmentChip
-                    label={`${currentSegment.bookName} ${currentSegment.chapterStart}${currentSegment.chapterEnd !== currentSegment.chapterStart ? `-${currentSegment.chapterEnd}` : ''}`}
+                    label={formatSegmentLabel(currentSegment)}
                     completed={!!currentSegment.completedAt}
                     onPress={handleEnterPlanMode}
                     onLongPress={async () => {
@@ -1258,7 +1376,7 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
                   {upcomingSegments.map(segment => (
                     <PlanSegmentChip
                       key={segment.id}
-                      label={`${segment.bookName} ${segment.chapterStart}${segment.chapterEnd !== segment.chapterStart ? `-${segment.chapterEnd}` : ''}`}
+                      label={formatSegmentLabel(segment)}
                       completed={!!segment.completedAt}
                       onPress={async () => {
                         await bibleStore.focusPlanSegment(segment.id);
@@ -1646,9 +1764,21 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
               secondsRemainingInPhase: timerCtrl.secondsRemainingInPhase,
               phaseSummaries: timerCtrl.phaseSummaries,
               isActive: timerCtrl.isActive,
+              completed: timerCtrl.completed,
             } : undefined}
-            onToggleActive={(next) => setTimerCtrl(prev => prev ? { ...prev, isActive: next } : prev)}
+            onToggleActive={(next) => {
+              setTimerCtrl(prev => prev ? { ...prev, isActive: next } : prev);
+              if (next) {
+                // Auto-hide the modal when starting/resuming; timer keeps running in background
+                setShowTimerModal(false);
+              }
+            }}
             onAdvancePhase={() => void completeCurrentPhase()}
+            passages={(() => {
+              const seg = bibleStore.activeReadingSegment;
+              if (!seg) return undefined;
+              return [formatSegmentLabel(seg)];
+            })()}
           />
         </View>
       </View>
@@ -1837,13 +1967,19 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
             const seg = bibleStore.activeReadingSegment;
             const lastChapter = seg.chapterEnd ?? seg.chapterStart;
             const cur = bibleStore.currentChapter || 1;
-            if (cur >= lastChapter) return null;
             return (
               <View style={styles.bottomOverlay}>
-                <TouchableOpacity style={styles.bottomOverlayButton} onPress={async () => { await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); await goToNextChapterWithinSegment(); }}>
-                  <MaterialIcons name="arrow-forward" size={18} color={theme.colors.text.inverse} />
-                  <Text style={styles.bottomOverlayText}>Next</Text>
-                </TouchableOpacity>
+                {cur < lastChapter ? (
+                  <TouchableOpacity style={styles.bottomOverlayButton} onPress={async () => { await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); await goToNextChapterWithinSegment(); }}>
+                    <MaterialIcons name="arrow-forward" size={18} color={theme.colors.text.inverse} />
+                    <Text style={styles.bottomOverlayText}>Next</Text>
+                  </TouchableOpacity>
+                ) : (
+                  <TouchableOpacity style={styles.bottomOverlayButton} onPress={async () => { await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); await advanceToNextSegment(); }}>
+                    <MaterialIcons name="check" size={18} color={theme.colors.text.inverse} />
+                    <Text style={styles.bottomOverlayText}>Complete segment</Text>
+                  </TouchableOpacity>
+                )}
               </View>
             );
           })()

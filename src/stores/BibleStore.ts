@@ -132,6 +132,8 @@ type ReadingPlanSegment = {
   bookName: string;
   chapterStart: number;
   chapterEnd: number;
+  verseStart?: number | null;
+  verseEnd?: number | null;
   completedAt?: string | null;
 };
 
@@ -164,6 +166,8 @@ export type DailyReadingSession = {
   bookAbbr?: string | null;
   chapterStart?: number | null;
   chapterEnd?: number | null;
+  verseStart?: number | null;
+  verseEnd?: number | null;
   phases: DailyPhaseProgress[];
   currentPhaseIndex: number;
   secondsRemainingInPhase: number;
@@ -377,6 +381,8 @@ class BibleStore {
         bookAbbr: segment?.bookAbbreviation ?? null,
         chapterStart: segment?.chapterStart ?? null,
         chapterEnd: segment?.chapterEnd ?? null,
+        verseStart: segment?.verseStart ?? null,
+        verseEnd: segment?.verseEnd ?? null,
         phases,
         currentPhaseIndex: 0,
         secondsRemainingInPhase: firstPlanned,
@@ -414,6 +420,8 @@ class BibleStore {
       bookAbbr: segment?.bookAbbreviation ?? this.dailySession?.bookAbbr ?? null,
       chapterStart: segment?.chapterStart ?? this.dailySession?.chapterStart ?? null,
       chapterEnd: segment?.chapterEnd ?? this.dailySession?.chapterEnd ?? null,
+      verseStart: segment?.verseStart ?? this.dailySession?.verseStart ?? null,
+      verseEnd: segment?.verseEnd ?? this.dailySession?.verseEnd ?? null,
       phases: state.phaseSummaries.map(s => ({ id: s.id, label: s.label, plannedSeconds: s.plannedSeconds, elapsedSeconds: Math.max(0, s.elapsedSeconds) })),
       currentPhaseIndex: Math.max(0, Math.min(state.currentPhaseIndex, (this.readingPlan?.phases.length ?? 1) - 1)),
       secondsRemainingInPhase: Math.max(0, state.secondsRemainingInPhase),

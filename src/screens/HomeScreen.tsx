@@ -1683,31 +1683,39 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
             >
               <Text style={styles.homeWelcomeTitle}>Welcome to Elbiblio</Text>
               <Text style={styles.homeWelcomeBody}>
-                Jesus prayed, “That they may all be one” (John 17:21). In a world assailed by evil schemes, this community exists as a place of comfort and solace for Christians to unite in prayer, renew their resolves, and grow together in faith, peace, and love as one body in Christ.
+                "That they may all be one, just as you, Father, are in me, and I in you, that they also may be in us, so that the world may believe that you have sent me." (John 17:21). This was Jesus' final prayer before His sacrifice. It was not a suggestion, but the core of His mission for His Church.
               </Text>
-              <Text style={styles.homeWelcomeBody}>Please take note of these guiding commitments:</Text>
+
+              <Text style={styles.homeWelcomeBody}>This community exists to answer that prayer. We are a refuge for the weary, a hospital for the broken, and a family for all who call upon the name of the Lord. Our foundation is the unchanging truth of Scripture, and our bond is the radical love and grace of God.</Text>
+
+              <Text style={styles.homeWelcomeBody}>To achieve this, we commit to the following truths:</Text>
+
               <Text style={styles.homeWelcomeItem}>
                 <Text style={styles.homeWelcomeItemNumber}>1.&nbsp;</Text>
-                We are a non-denominational family. Jesus did not come to start a religion, and He foresaw many branches when He prayed for unity. There is no room for casting stones at one another — such division opposes both His prayer and His nature.
+                <Text style={{fontWeight: 'bold'}}>Our Unity is in Christ, Not in Uniformity.</Text> Jesus foresaw many branches (John 15:5) but prayed for one vine. The apostles dealt with disputes (Acts 15:1-29) but maintained fellowship. We are a non-denominational family that embraces all who confess Jesus as Lord (Romans 10:9), recognizing that our unity is a testament to the world of God's love (John 13:35). Divisive agendas and "casting stones" at other believers have no place here, for they directly oppose the heart of Christ.
               </Text>
+
               <Text style={styles.homeWelcomeItem}>
                 <Text style={styles.homeWelcomeItemNumber}>2.&nbsp;</Text>
-                For the sake of unity, we honor the breadth of Christian perspectives that does not directly contradict the teachings of Jesus Christ. Jesus fulfilled the Law rather than abolishing it, and the apostles carried forward holy traditions. Differences often emerge around which teachings or practices to retain, yet intention, right judgment, faith, and spiritual maturity (Luke 18:8; Mark 9:29) must lead the way. God's mercy and grace are infinite and universal, and cannot be limited (For example in Acts 10:2, the Holy Spirit instructed a God-fearing pagan to invite one of the Apostles).
+                <Text style={{fontWeight: 'bold'}}>The Supreme Doctrine is God's Nature: Love and Grace.</Text> "God is love" (1 John 4:8). The ultimate evidence of knowing Him is not perfect doctrine, but a life transformed by His love (1 John 4:20-21). Jesus declared that the entire Law and Prophets hang on two commandments: to love God and to love our neighbor (Matthew 22:37-40). Any teaching that does not produce in us the fruit of the Spirit—"love, joy, peace, patience, kindness, goodness, faithfulness, gentleness, self-control" (Galatians 5:22-23)—has missed the point of the Gospel.
               </Text>
+
               <Text style={styles.homeWelcomeItem}>
                 <Text style={styles.homeWelcomeItemNumber}>3.&nbsp;</Text>
-                Every church can learn from another. Some focus on the yolk, some keep the whole egg including the shell, others add seasoning — but the harvest is judged by its fruit (Matthew 7:16). Any tradition that distorts God’s design — whether promotion of polygamy, sexual immorality, or denying the divinity of Jesus — must give way to the truth and such doctrines (2 John 7-11) will not be tolerated. All are however welcome to learn the truth by laying aside bias and trusting in the grace of God through the Holy Spirit and the community of brethren.
+                <Text style={{fontWeight: 'bold'}}>We Judge by Christ's Standard: Fruit, Not Faction.</Text> Jesus was explicit: "You will recognize them by their fruits" (Matthew 7:16-20). His depiction of the final judgment in Matthew 25:31-46 focuses entirely on acts of mercy—feeding the hungry, clothing the naked, visiting the prisoner—not on liturgical precision. Therefore, we extend grace on matters where sincere Christians have historically disagreed, such as:
+                {"\n\n"}• <Text style={{fontStyle: 'italic'}}>Intercessory Prayer:</Text> We affirm Christ as the one mediator between God and man (1 Timothy 2:5). We also recognize that asking a fellow believer for prayer is biblical (James 5:16) and that some Christians extend this practice to include those who have died in Christ, believing they are alive in Him (Luke 20:38) and part of the same spiritual family. We view this as a matter of personal faith and conscience, not a cause for division.
+                {"\n\n"}• <Text style={{fontStyle: 'italic'}}>Scripture:</Text> We include the Apocrypha for edification and historical context, as did Jerome and Luther. We trust the Holy Spirit to guide all believers into truth, and our focus is not to judge how people worship but to ensure our worship bears the fruits expected of true Christians.
+                {"\n\n"}However, we draw a clear line against any teaching that denies the divinity of Jesus (1 John 4:2-3), distorts God's design for humanity (1 Corinthians 6:9-11), or promotes sexual immorality, greed, or slander (1 Corinthians 5:11). Such doctrines are not a matter of perspective but of truth, and they will not be tolerated.
               </Text>
+
               <Text style={styles.homeWelcomeItem}>
                 <Text style={styles.homeWelcomeItemNumber}>4.&nbsp;</Text>
-                 We include the full Bible for the purposes of edification (both Jerome and Martin Luther recognized the apocrypha as good for reading), and it is the Holy Spirit who truly teaches all things. We also do not discriminate against recognition of saints (Romans 8:27); just as Peter, Paul, and the apostles walked in Christ, even today there are true disciples who have gone before us, and reflection on their lives can likewise edify and inspire us. The choice of believing that those who walked in Christ are not dead but alive and still working toward the fulfillment of the Kingdom together with us (Romans 8:19-23) is simply a matter of faith. Likewise, arguments about mediation vs intercession, eucharistic celebration, sainthood of Mary, etc., are inconsequential to the purpose of this community, as they concern understanding rather than blasphemy or rejection of grace; what matters is that we work with the grace of God and that our lives bear witness and fruits according to His grace, bringing about His Kingdom on earth.
+                <Text style={{fontWeight: 'bold'}}>We Focus on the Weightier Matters of the Law.</Text> Jesus condemned the Pharisees for neglecting "the weightier matters of the law: justice and mercy and faithfulness" (Matthew 23:23). We humbly acknowledge that the Church has often done the same, majoring in minors and minoring in majors and as such often have something to learn from one another. Our call is to pursue the character of Christ as outlined in the Beatitudes (Matthew 5:1-12)—to be poor in spirit, meek, pure in heart, and peacemakers. This is the identity we are called to above all else as Christians, especially as it becomes increasingly difficult to be true citizens of God's Kingdom in today's world.
               </Text>
+
               <Text style={styles.homeWelcomeItem}>
                 <Text style={styles.homeWelcomeItemNumber}>5.&nbsp;</Text>
-                By signing up you pledge you are a Christian or willing to become one and to abide by the unitive prayer of Jesus — growing in grace, nurturing others, and avoiding divisive agendas. Elbiblio is a tool for spiritual maturity (Ephesians 4:13-15), not for proselytizing denominational bias. We stand firm in the teachings of Jesus, and God’s original design revealed through the Bible and creation, and we expect every believer to bear the virtues and signs Jesus describes in Matthew 5:1-16 and 25:35-40.
-              </Text>
-              <Text style={styles.homeWelcomeBody}>
-                Together, let us make the community a welcome place for each other.
+                <Text style={{fontWeight: 'bold'}}>Our Mission is Your Restoration and Growth.</Text> By joining, you pledge to walk in this spirit of grace and truth. You affirm that you are a follower of Christ, or are sincerely seeking Him. Elbiblio is a tool for your spiritual maturity (Ephesians 4:13-15), a place for rest and renewal in the spirit of truth and the love of God. We commit to nurturing one another, speaking the truth in love, and together building a community that pleases Jesus our Savior.
               </Text>
             </ScrollView>
             <View style={styles.homeWelcomeButtonContainer}>
