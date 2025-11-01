@@ -137,7 +137,6 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
   const [showFontModal, setShowFontModal] = useState(false);
   const [showVerseActions, setShowVerseActions] = useState(false);
   const [showComparisonModal, setShowComparisonModal] = useState(false);
-  const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [showAIInsights, setShowAIInsights] = useState(false);
   const resumeTarget = bibleStore.resumeTarget;
   const [isPlanSetupVisible, setIsPlanSetupVisible] = useState(false);
@@ -740,7 +739,6 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
 
     const segment = bibleStore.activeReadingSegment;
     const verseStart = segment?.verseStart ?? null;
-    const verseEnd = segment?.verseEnd ?? null;
     if (!segment || typeof verseStart !== 'number' || Number.isNaN(verseStart)) {
       return;
     }
@@ -1454,30 +1452,6 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
     bibleStore.removeSavedSearch(term);
   }, [bibleStore]);
 
-  const handleOpenSettings = useCallback(() => {
-    setShowSettingsModal(true);
-  }, []);
-
-  const handleCloseSettings = useCallback(() => {
-    setShowSettingsModal(false);
-  }, []);
-
-  const handleSettingsHistoryPress = useCallback(async () => {
-    await bibleStore.loadHistory();
-    setShowSettingsModal(false);
-    setShowHistoryModal(true);
-  }, [bibleStore]);
-
-  const handleSettingsSearchPress = useCallback(() => {
-    setShowSettingsModal(false);
-    bibleStore.setShowSearch(true);
-  }, [bibleStore]);
-
-  const handleSettingsFontPress = useCallback(() => {
-    setShowSettingsModal(false);
-    setShowFontModal(true);
-  }, []);
-
   const handleInlineBookSelect = useCallback((book: Book) => {
     bibleStore.setCurrentBook(book as any);
   }, [bibleStore]);
@@ -1491,6 +1465,13 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
   }, [bibleStore]);
 
   // Enhanced header with activity panel
+  const currentVersionLabel = useMemo(() => {
+    const version = bibleStore.currentVersion;
+    if (!version) return 'Versions';
+    const candidate = (version as any).shortName ?? (version as any).code ?? version.englishName;
+    return typeof candidate === 'string' && candidate.trim().length > 0 ? candidate : 'Versions';
+  }, [bibleStore.currentVersion]);
+
   const renderHeader = () => (
     <View style={styles.headerContainer}>
       <BlurView intensity={20} style={styles.header}>
@@ -1500,7 +1481,7 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
             onPress={() => setShowVersionsModal(true)}
           >
             <Text style={styles.headerButtonText}>
-              Versions
+              {currentVersionLabel}
             </Text>
             <MaterialIcons name="menu-book" size={20} color={theme.colors.text.primary} />
           </TouchableOpacity>
@@ -1536,75 +1517,17 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
 
           <TouchableOpacity
             style={styles.iconButton}
-            onPress={handleOpenSettings}
+            onPress={() => setShowHistoryModal(true)}
+            accessibilityLabel="Open history"
+            accessibilityRole="button"
           >
-            <MaterialIcons name="settings" size={24} color={theme.colors.text.primary} />
+            <MaterialIcons name="history" size={24} color={theme.colors.text.primary} />
           </TouchableOpacity>
         </View>
       </BlurView>
     </View>
   );
 
-  // Update version selection modal to use unique keys
-  const renderVersionsModal = () => (
-    <Modal visible={showVersionsModal} animationType="slide">
-      <View style={styles.modalContainer}>
-        <View style={styles.modalHeader}>
-          <Text style={styles.modalTitle}>Bible Versions</Text>
-          <TouchableOpacity onPress={() => setShowVersionsModal(false)}>
-            <MaterialIcons name="close" size={24} color={theme.colors.text.secondary} />
-          </TouchableOpacity>
-        </View>
-        
-        {bibleStore.isVersionsLoading ? (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color={theme.colors.primary} />
-          </View>
-        ) : (
-          <FlatList
-            data={bibleStore.availableVersions}
-            keyExtractor={(item) => item.shortName}
-            renderItem={({ item }) => (
-              <TouchableOpacity
-                style={styles.versionItem}
-                onPress={() => {
-                  bibleStore.setCurrentVersion(item);
-                  setShowVersionsModal(false);
-                }}
-              >
-                <View style={styles.versionInfo}>
-                  <Text style={styles.versionName}>
-                    {item.englishName} ({item.shortName})
-                  </Text>
-                  {item.preinstalled && (
-                    <Text style={styles.versionSubtext}>Pre-installed</Text>
-                  )}
-                </View>
-
-                {bibleStore.installedVersions.includes(item.shortName) ? (
-                  <MaterialIcons name="check-circle" size={24} color={theme.colors.primary} />
-                ) : (
-                  <TouchableOpacity 
-                    onPress={(e) => {
-                      e.stopPropagation();
-                      handleInstallVersion(item);
-                    }}
-                    disabled={bibleStore.isInstallingVersion}
-                  >
-                    <MaterialIcons 
-                      name="download" 
-                      size={24} 
-                      color={bibleStore.isInstallingVersion ? theme.colors.text.secondary : theme.colors.primary} 
-                    />
-                  </TouchableOpacity>
-                )}
-              </TouchableOpacity>
-            )}
-          />
-        )}
-      </View>
-    </Modal>
-  );
 
   // Update verse text style to use fontSize state
   const renderVerse = ({ item }: { item: BibleVerse }) => {
@@ -1939,8 +1862,6 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
         </View>
       </Modal>
 
-      
-
       <OverlayHost>
         {bibleStore.isPlanMode && showFloatingProgress && !showTimerModal && remainingSeconds != null && !bibleStore.dailySession?.completed && (timerCtrl?.isActive ?? false) && (
           <TouchableOpacity style={styles.floatingTimer} onPress={() => setShowTimerModal(true)}>
@@ -2149,6 +2070,64 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
         }}
         onClose={() => setShowFontModal(false)}
       />
+
+      <Modal visible={showVersionsModal} animationType="slide">
+      <View style={styles.modalContainer}>
+        <View style={styles.modalHeader}>
+          <Text style={styles.modalTitle}>Bible Versions</Text>
+          <TouchableOpacity onPress={() => setShowVersionsModal(false)}>
+            <MaterialIcons name="close" size={24} color={theme.colors.text.secondary} />
+          </TouchableOpacity>
+        </View>
+        
+        {bibleStore.isVersionsLoading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={theme.colors.primary} />
+          </View>
+        ) : (
+          <FlatList
+            data={bibleStore.availableVersions}
+            keyExtractor={(item) => item.shortName}
+            renderItem={({ item }) => (
+              <TouchableOpacity
+                style={styles.versionItem}
+                onPress={() => {
+                  bibleStore.setCurrentVersion(item);
+                  setShowVersionsModal(false);
+                }}
+              >
+                <View style={styles.versionInfo}>
+                  <Text style={styles.versionName}>
+                    {item.englishName} ({item.shortName})
+                  </Text>
+                  {item.preinstalled && (
+                    <Text style={styles.versionSubtext}>Pre-installed</Text>
+                  )}
+                </View>
+
+                {bibleStore.installedVersions.includes(item.shortName) ? (
+                  <MaterialIcons name="check-circle" size={24} color={theme.colors.primary} />
+                ) : (
+                  <TouchableOpacity 
+                    onPress={(e) => {
+                      e.stopPropagation();
+                      handleInstallVersion(item);
+                    }}
+                    disabled={bibleStore.isInstallingVersion}
+                  >
+                    <MaterialIcons 
+                      name="download" 
+                      size={24} 
+                      color={bibleStore.isInstallingVersion ? theme.colors.text.secondary : theme.colors.primary} 
+                    />
+                  </TouchableOpacity>
+                )}
+              </TouchableOpacity>
+            )}
+          />
+        )}
+      </View>
+    </Modal>
 
       <VerseActionsSheet
         visible={showVerseActions && !!selectedVerse}
