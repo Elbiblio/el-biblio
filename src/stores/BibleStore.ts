@@ -180,6 +180,11 @@ type ReadingReminder = {
   notificationId: string;
 };
 
+type ExplainVerseOptions = {
+  prompt?: string;
+  versionOverride?: string;
+};
+
 type CreateReadingPlanParams = {
   books: string[];
   timePerDay: number;
@@ -831,7 +836,7 @@ class BibleStore {
     return true;
   }
 
-  async explainVerse(verse: BibleVerse | null) {
+  async explainVerse(verse: BibleVerse | null, options?: ExplainVerseOptions) {
     if (!verse) {
       return;
     }
@@ -853,10 +858,18 @@ class BibleStore {
     try {
       const verseId = verse.id;
       const reference = verse.reference ?? verseId;
-      const payload = {
+      const verseVersion = (verse as any)?.versionId ?? (verse as any)?.version ?? null;
+      const version = options?.versionOverride ?? verseVersion ?? this.currentVersion?.tableName ?? this.readingPlan?.versionTable ?? DEFAULT_BIBLE_TABLE;
+      const payload: Record<string, any> = {
         reference,
-        text: verse.text,
+        text: verse.text?.trim?.() ?? verse.text,
+        version,
       };
+
+      const prompt = options?.prompt?.trim();
+      if (prompt) {
+        payload.prompt = prompt;
+      }
 
       const { success, data, message } = await apiClient.post(endpoints.bible.explain(verseId), payload);
       if (!success || !data) {
@@ -864,8 +877,10 @@ class BibleStore {
       }
 
       const sections = this.normalizeInsightPayload(data);
+      const normalizedReference = (data as any)?.verse?.reference ?? reference;
 
       runInAction(() => {
+        this.aiInsightReference = normalizedReference ?? reference;
         this.aiInsightSections = sections.length ? sections : [{ title: 'Insight', content: typeof data === 'string' ? data : JSON.stringify(data, null, 2) }];
         this.aiInsightError = null;
       });
@@ -912,12 +927,34 @@ class BibleStore {
     if (typeof data === 'object') {
       const entries: { title: string; content: string }[] = [];
       const candidates: Record<string, any> = data;
-      const orderedKeys = ['summary', 'historical_context', 'cultural_background', 'application', 'practical_application', 'reflection', 'prayer', 'keywords'];
+      const orderedKeys = [
+        'summary',
+        'quick_insight',
+        'deeper_exploration',
+        'living_this_out',
+        'reflection_questions',
+        'universal_human_experience',
+        'theological_notes',
+        'historical_context',
+        'cultural_background',
+        'application',
+        'practical_application',
+        'reflection',
+        'prayer',
+        'keywords',
+      ];
 
       const keys = new Set([...orderedKeys, ...Object.keys(candidates)]);
       keys.forEach(key => {
         const value = candidates[key];
         if (value === undefined || value === null) return;
+        if (key === 'verse') {
+          const verseSection = this.normalizeInsightVerseSection(value);
+          if (verseSection) {
+            entries.push(verseSection);
+          }
+          return;
+        }
         const content = this.serializeInsightContent(value);
         if (!content) return;
         const title = this.humanizeKey(key);
@@ -947,16 +984,66 @@ class BibleStore {
     }
     if (Array.isArray(value)) {
       return value
-        .map(item => (typeof item === 'string' ? item : JSON.stringify(item, null, 2)))
+        .map(item => {
+          if (item === null || item === undefined) {
+            return '';
+          }
+          if (typeof item === 'string') {
+            const trimmed = item.trim();
+            if (!trimmed) {
+              return '';
+            }
+            return trimmed.startsWith('- ') ? trimmed : `- ${trimmed}`;
+          }
+          return this.serializeInsightContent(item);
+        })
+        .filter(Boolean)
         .join('\n\n');
     }
     if (typeof value === 'object') {
       const lines = Object.entries(value)
-        .map(([k, v]) => `${this.humanizeKey(k)}: ${this.serializeInsightContent(v)}`)
+        .map(([k, v]) => {
+          const serialized = this.serializeInsightContent(v);
+          const trimmed = serialized.trim();
+          if (!trimmed) {
+            return '';
+          }
+          return `${this.humanizeKey(k)}: ${trimmed}`;
+        })
         .filter(Boolean);
       return lines.join('\n\n');
     }
     return String(value);
+  }
+
+  private normalizeInsightVerseSection(value: any): { title: string; content: string } | null {
+    if (!value || typeof value !== 'object') {
+      return null;
+    }
+
+    const text = typeof value.text === 'string' ? value.text.trim() : '';
+    const intention = typeof value.primary_intention === 'string' ? value.primary_intention.trim() : '';
+    const discernment = typeof value.discernment_note === 'string' ? value.discernment_note.trim() : '';
+
+    const lines: string[] = [];
+    if (text) {
+      lines.push(text);
+    }
+    if (intention) {
+      lines.push(`Primary Intention: ${this.humanizeKey(intention)}`);
+    }
+    if (discernment) {
+      lines.push(`Discernment Note: ${discernment}`);
+    }
+
+    if (!lines.length) {
+      return null;
+    }
+
+    return {
+      title: 'Verse Insight',
+      content: lines.join('\n\n'),
+    };
   }
 
   private resolveRemoteReference(item: RemoteBibleSearchResult, referenceText: string) {

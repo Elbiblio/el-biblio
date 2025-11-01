@@ -53,6 +53,7 @@ import { toast } from 'sonner-native';
 import * as Haptics from 'expo-haptics';
 import { Audio } from 'expo-av';
 import EmptyState from '@/components/EmptyState';
+import MeditationVerse from '@/components/MeditationVerse';
 
 const getLocalMidnightMs = (date: Date) => {
   const d = new Date(date);
@@ -151,6 +152,7 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
   };
 
   const [showTimerModal, setShowTimerModal] = useState(false);
+  const [showMeditationMode, setShowMeditationMode] = useState(false);
   const [timerCtrl, setTimerCtrl] = useState<TimerControllerState | null>(null);
   const [atEnd, setAtEnd] = useState(false);
   const [builderReminder, setBuilderReminder] = useState('');
@@ -265,7 +267,7 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
     }
   }, [bibleStore.dailySession?.completed]);
 
-  // Prepare daily session state when plan mode is active; auto-open timer on first open of the day if not completed
+  // Prepare daily session state when plan mode is active; restore timer state accurately on return
   useEffect(() => {
     let mounted = true;
     (async () => {
@@ -273,8 +275,12 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
       await bibleStore.ensureDailySessionPrepared();
       if (!mounted) return;
       const session = bibleStore.dailySession;
+      // Only auto-open timer if session exists and has progress or active phases
       if (session && !session.completed) {
-        setShowTimerModal(true);
+        const hasProgress = session.phases.some(p => p.elapsedSeconds > 0) || 
+                           (session.secondsRemainingInPhase < ((phasesForToday[session.currentPhaseIndex]?.minutes ?? 0) * 60));
+        // Don't auto-open if user was in meditation/contemplation and minimized
+        setShowTimerModal(hasProgress && session.currentPhaseIndex === 0);
       }
     })();
     return () => {
@@ -353,13 +359,27 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
   // Initialize/refresh controlled timer state from daily session or plan phases
   useEffect(() => {
     if (!bibleStore.isPlanMode || !phasesForToday.length) return;
-    const s = bibleStore.dailySession;
-    const idx = Math.max(0, Math.min(s?.currentPhaseIndex ?? 0, Math.max(0, phasesForToday.length - 1)));
+    const session = bibleStore.dailySession;
+    const idx = Math.max(0, Math.min(session?.currentPhaseIndex ?? 0, Math.max(0, phasesForToday.length - 1)));
     const planned = Math.max(0, (phasesForToday[idx]?.minutes ?? 0) * 60);
-    const remain = Math.max(0, s?.secondsRemainingInPhase ?? planned);
-    const summaries: DailyPhaseProgress[] = (s?.phases || []).map(p => ({ id: p.id, label: p.label, plannedSeconds: p.plannedSeconds, elapsedSeconds: Math.max(0, p.elapsedSeconds) }));
-    setTimerCtrl({ currentPhaseIndex: idx, secondsRemainingInPhase: remain, phaseSummaries: summaries, isActive: false, completed: Boolean(s?.completed) });
-  }, [bibleStore.isPlanMode, bibleStore.dailySession?.date, bibleStore.dailySession?.currentPhaseIndex, bibleStore.dailySession?.secondsRemainingInPhase, phasesForToday.length]);
+    const remain = Math.max(0, session?.secondsRemainingInPhase ?? planned);
+    const summaries: DailyPhaseProgress[] = (session?.phases || []).map(p => ({ id: p.id, label: p.label, plannedSeconds: p.plannedSeconds, elapsedSeconds: Math.max(0, p.elapsedSeconds) }));
+    const hasProgress = session ? (session.phases.some(p => p.elapsedSeconds > 0) || (planned > 0 && remain < planned)) : false;
+    const hasTimedPhase = phasesForToday.some(p => (p.minutes ?? 0) > 0);
+    // Restore timer activity from session or default to active for timed phases
+    const sessionWasActive = session ? (session.secondsRemainingInPhase > 0 && !session.completed) : false;
+    setTimerCtrl(prev => {
+      const nextCompleted = Boolean(session?.completed);
+      const nextActive = nextCompleted ? false : (prev?.isActive ?? sessionWasActive ?? (hasProgress || hasTimedPhase));
+      return {
+        currentPhaseIndex: idx,
+        secondsRemainingInPhase: remain,
+        phaseSummaries: summaries,
+        isActive: nextActive,
+        completed: nextCompleted,
+      };
+    });
+  }, [bibleStore.isPlanMode, bibleStore.dailySession, phasesForToday]);
 
   const completeCurrentPhase = useCallback(async () => {
     setTimerCtrl(prev => {
@@ -499,6 +519,8 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
     try {
       const moved = await bibleStore.markSegmentComplete(segment.id);
       if (moved) {
+        await bibleStore.markTodaySessionCompleted();
+        setTimerCtrl(prev => prev ? { ...prev, isActive: false, completed: true, secondsRemainingInPhase: 0 } : prev);
         try {
           const { sound } = await Audio.Sound.createAsync(
             require('../../assets/sounds/bell.wav')
@@ -527,6 +549,20 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
       isAdvancingSegmentRef.current = false;
     }
   }, [bibleStore]);
+
+  const handleCompleteSegment = useCallback(async () => {
+    try {
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    } catch {}
+
+    if (phasesForToday.length > 0 && timerCtrl && !timerCtrl.completed) {
+      setShowTimerModal(true);
+      void completeCurrentPhase();
+      return;
+    }
+
+    await advanceToNextSegment();
+  }, [phasesForToday.length, timerCtrl, completeCurrentPhase, advanceToNextSegment]);
 
   
 
@@ -1229,7 +1265,7 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
                 </View>
                 <View style={styles.planCompactActions}>
                   <TouchableOpacity
-                    style={styles.planSecondaryButton}
+                    style={[styles.planSecondaryButton, styles.planCompactActionButton]}
                     onPress={() => {
                       if (bibleStore.isPlanMode) {
                         setPlanDetailsExpanded(true);
@@ -1246,15 +1282,16 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
                     </Text>
                   </TouchableOpacity>
                   <TouchableOpacity
-                    style={styles.planSecondaryButton}
+                    style={styles.planCompactIconButton}
                     onPress={() => {
                       setPlanDetailsExpanded(true);
                       setShowCompactPlan(false);
                       resetIdleTimer();
                     }}
+                    accessibilityLabel="Reading plan options"
+                    accessibilityRole="button"
                   >
                     <MaterialIcons name="tune" size={18} color={theme.colors.primary} />
-                    <Text style={styles.planSecondaryButtonLabel}>Options</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -1692,7 +1729,11 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
             onToggleActive={(next) => {
               setTimerCtrl(prev => prev ? { ...prev, isActive: next } : prev);
               if (next) {
-                // Auto-hide the modal when starting/resuming; timer keeps running in background
+                // Show meditation mode for non-reading phases
+                const currentPhase = phasesForToday[timerCtrl?.currentPhaseIndex ?? 0];
+                if (currentPhase && currentPhase.id !== 'reading') {
+                  setShowMeditationMode(true);
+                }
                 setShowTimerModal(false);
               }
             }}
@@ -1707,6 +1748,33 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
       </View>
     </Modal>
   );
+
+  const renderMeditationModal = () => {
+    const currentPhase = phasesForToday[timerCtrl?.currentPhaseIndex ?? 0];
+    if (!currentPhase || currentPhase.id === 'reading') {
+      return null;
+    }
+
+    // Sample verses for meditation - in real app, these would be curated
+    const meditationVerses = [
+      { text: "Be still, and know that I am God.", reference: "Psalm 46:10" },
+      { text: "The Lord is my shepherd; I shall not want.", reference: "Psalm 23:1" },
+      { text: "Trust in the Lord with all your heart.", reference: "Proverbs 3:5" },
+      { text: "I can do all things through Christ who strengthens me.", reference: "Philippians 4:13" },
+      { text: "The peace of God, which transcends all understanding.", reference: "Philippians 4:7" },
+    ];
+
+    return (
+      <Modal visible={showMeditationMode} animationType="fade" transparent onRequestClose={() => setShowMeditationMode(false)}>
+        <MeditationVerse
+          verses={meditationVerses}
+          phase={currentPhase}
+          isActive={timerCtrl?.isActive ?? false}
+          onReturn={() => setShowMeditationMode(false)}
+        />
+      </Modal>
+    );
+  };
 
   return (
     <View style={styles.container}>
@@ -1896,7 +1964,7 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
                     <Text style={styles.bottomOverlayText}>Next</Text>
                   </TouchableOpacity>
                 ) : (
-                  <TouchableOpacity style={styles.bottomOverlayButton} onPress={async () => { await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); await advanceToNextSegment(); }}>
+                  <TouchableOpacity style={styles.bottomOverlayButton} onPress={handleCompleteSegment}>
                     <MaterialIcons name="check" size={18} color={theme.colors.text.inverse} />
                     <Text style={styles.bottomOverlayText}>Complete segment</Text>
                   </TouchableOpacity>
@@ -2217,6 +2285,7 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
       </Modal>
 
       {renderTimerModal()}
+      {renderMeditationModal()}
 
       <ReadingPlanSetupModal
         visible={isPlanSetupVisible}
@@ -2706,6 +2775,18 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: theme.spacing.xs,
+    flexShrink: 0,
+  },
+  planCompactActionButton: {
+    paddingHorizontal: theme.spacing.sm,
+  },
+  planCompactIconButton: {
+    height: 32,
+    width: 32,
+    borderRadius: theme.borderRadius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: `${theme.colors.primary}10`,
   },
   compactPlanBar: {
     flexDirection: 'row',

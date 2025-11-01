@@ -264,7 +264,7 @@ const ReadingTimer: React.FC<ReadingTimerProps> = ({ phases, onPhaseComplete, on
           </TouchableOpacity>
           <TouchableOpacity style={styles.controlButtonPrimary} onPress={handleAdvancePhase}>
             <Text style={styles.primaryButtonText}>
-              {currentPhaseIndex >= phases.length - 1 ? 'Finish Session' : (isMultiPhase ? 'Next Phase' : 'Finish Session')}
+              {currentPhaseIndex >= phases.length - 1 ? 'Complete' : (isMultiPhase ? 'Next Phase' : 'Complete')}
             </Text>
           </TouchableOpacity>
         </View>
