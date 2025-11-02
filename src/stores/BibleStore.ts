@@ -420,8 +420,6 @@ async ensureDailySessionPrepared() {
   // Initialize or sync with AppTimerStore
   const timerId = this.getTodayTimerId();
   if (timerId && this.dailySession) {
-    const { appTimerStore } = await import('@/stores/AppTimerStore');
-    
     // Load any persisted state
     await appTimerStore.load(timerId);
     
@@ -464,8 +462,6 @@ async saveDailySession(session: DailyReadingSession | null) {
       // Sync with AppTimerStore
       const timerId = this.getTodayTimerId();
       if (timerId) {
-        const { appTimerStore } = await import('@/stores/AppTimerStore');
-        
         appTimerStore.setFromSnapshot(
           timerId,
           (this.readingPlan.phases || []).map(p => ({ 
@@ -497,7 +493,6 @@ async syncFromTimer() {
   const timerId = this.getTodayTimerId();
   if (!timerId) return;
   
-  const { appTimerStore } = await import('@/stores/AppTimerStore');
   const timer = appTimerStore.get(timerId);
   if (!timer) return;
   
@@ -548,7 +543,6 @@ async markTodaySessionCompleted() {
   
   const timerId = this.getTodayTimerId();
   if (timerId) {
-    const { appTimerStore } = await import('@/stores/AppTimerStore');
     appTimerStore.completeAll(timerId);
   }
   

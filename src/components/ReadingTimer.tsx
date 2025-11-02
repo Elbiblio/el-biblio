@@ -3,6 +3,8 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { ReadingPlanPhase } from '@/constants/readingPlanModes';
 import * as Haptics from 'expo-haptics';
+import { observer } from 'mobx-react-lite';
+import { appTimerStore } from '@/stores/AppTimerStore';
 
 export type PhaseProgress = {
   id: ReadingPlanPhase['id'];
@@ -12,6 +14,7 @@ export type PhaseProgress = {
 };
 
 type ReadingTimerProps = {
+  timerId?: string; // When provided, component becomes controlled via AppTimerStore
   phases: ReadingPlanPhase[];
   onPhaseComplete?: (phase: ReadingPlanPhase, elapsedSeconds: number) => void;
   onAllPhasesComplete?: (totalElapsedSeconds: number, summaries: PhaseProgress[]) => void;
@@ -38,38 +41,104 @@ type ReadingTimerProps = {
   passages?: string[];
 };
 
-const ReadingTimer: React.FC<ReadingTimerProps> = ({ phases, onPhaseComplete, onAllPhasesComplete, autoStart = true, passive = false, initialPhaseIndex, initialSecondsRemaining, initialSummaries, onStateSnapshot, controlledState, onToggleActive, onAdvancePhase, passages }) => {
+const ReadingTimer: React.FC<ReadingTimerProps> = ({
+  timerId,
+  phases,
+  onPhaseComplete,
+  onAllPhasesComplete,
+  autoStart,
+  passive,
+  initialPhaseIndex,
+  initialSecondsRemaining,
+  initialSummaries,
+  onStateSnapshot,
+  controlledState,
+  onToggleActive,
+  onAdvancePhase,
+  passages,
+}) => {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
 
-  const [currentPhaseIndex, setCurrentPhaseIndex] = useState(() => Math.max(0, Math.min(initialPhaseIndex ?? 0, Math.max(0, phases.length - 1))))
-  const [secondsRemaining, setSecondsRemaining] = useState(() => {
-    const fallback = (phases[0]?.minutes ?? 0) * 60;
-    const initial = initialSecondsRemaining;
-    return typeof initial === 'number' ? Math.max(0, initial) : fallback;
-  });
-  const [phaseSummaries, setPhaseSummaries] = useState<PhaseProgress[]>(() => initialSummaries ?? []);
-  const [isActive, setIsActive] = useState(autoStart);
+  const [isActive, setIsActive] = useState(false);
+  const [currentPhaseIndex, setCurrentPhaseIndex] = useState(initialPhaseIndex ?? 0);
+  const [secondsRemaining, setSecondsRemaining] = useState(initialSecondsRemaining ?? phases[0].minutes * 60);
+  const [phaseSummaries, setPhaseSummaries] = useState(initialSummaries ?? []);
 
-  const isControlled = Boolean(controlledState);
-  const view = {
-    currentPhaseIndex: isControlled ? (controlledState!.currentPhaseIndex) : currentPhaseIndex,
-    secondsRemaining: isControlled ? (controlledState!.secondsRemainingInPhase) : secondsRemaining,
-    phaseSummaries: isControlled ? (controlledState!.phaseSummaries) : phaseSummaries,
-    isActive: isControlled ? (controlledState!.isActive) : isActive,
-    completed: isControlled ? (controlledState!.completed ?? false) : false,
-  };
-  const currentPhase = phases[view.currentPhaseIndex];
+  // Ensure timer exists and phases are synced
+  useEffect(() => {
+    if (timerId) {
+      const phaseDefs = phases.map(p => ({
+        id: p.id,
+        label: p.label,
+        plannedSeconds: Math.max(0, p.minutes * 60),
+      }));
+      appTimerStore.ensure(timerId, phaseDefs);
+    }
+  }, [timerId, phases]);
+
+  // Watch for phase/completion changes
+  const prevPhaseIndexRef = React.useRef<number | null>(null);
+  const prevCompletedRef = React.useRef<boolean>(false);
+
+  // Derive controlled view from AppTimerStore when timerId is provided
+  const timer = timerId ? appTimerStore.get(timerId) : null;
+  const derivedControlledState = useMemo(() => {
+    if (!timerId || !timer) return undefined;
+    const remaining = appTimerStore.remainingInPhase(timerId);
+    return {
+      currentPhaseIndex: timer.currentPhaseIndex,
+      secondsRemainingInPhase: Math.max(0, remaining),
+      phaseSummaries: timer.summaries.map(s => ({
+        id: s.id as PhaseProgress['id'],
+        label: s.label,
+        plannedSeconds: Math.max(0, s.plannedSeconds),
+        elapsedSeconds: Math.max(0, s.elapsedSeconds),
+      })),
+      isActive: timer.isActive,
+      completed: timer.completed,
+    } as const;
+  }, [timerId, timer, appTimerStore.now]);
+
+  const effectiveControlled = controlledState ?? derivedControlledState;
+  const isControlled = Boolean(effectiveControlled);
 
   useEffect(() => {
-    setCurrentPhaseIndex(Math.max(0, Math.min(initialPhaseIndex ?? 0, Math.max(0, phases.length - 1))));
-    setPhaseSummaries(initialSummaries ?? []);
-    setSecondsRemaining(() => {
-      const fallback = (phases[0]?.minutes ?? 0) * 60;
-      const initial = initialSecondsRemaining;
-      return typeof initial === 'number' ? Math.max(0, initial) : fallback;
-    });
-  }, [phases, initialPhaseIndex]);
+    if (!isControlled) return;
+    if (!effectiveControlled) return;
+    setCurrentPhaseIndex(effectiveControlled.currentPhaseIndex);
+    setSecondsRemaining(effectiveControlled.secondsRemainingInPhase);
+    setPhaseSummaries(effectiveControlled.phaseSummaries);
+    setIsActive(effectiveControlled.isActive);
+  }, [isControlled, effectiveControlled?.currentPhaseIndex, effectiveControlled?.secondsRemainingInPhase, effectiveControlled?.phaseSummaries, effectiveControlled?.isActive]);
+
+  useEffect(() => {
+    if (!timerId) return;
+
+    if (prevPhaseIndexRef.current !== null && currentPhaseIndex > prevPhaseIndexRef.current) {
+      const prevIndex = prevPhaseIndexRef.current;
+      const phase = phases[prevIndex];
+      const summary = phaseSummaries[prevIndex];
+      if (phase && summary) {
+        onPhaseComplete?.(phase, summary.elapsedSeconds);
+      }
+    }
+
+    const justCompleted = Boolean(effectiveControlled?.completed);
+    if (!prevCompletedRef.current && justCompleted) {
+      const totalElapsed = phaseSummaries.reduce((sum, s) => sum + s.elapsedSeconds, 0);
+      const phaseSummariesCopy = phaseSummaries.map(s => ({
+        id: s.id as PhaseProgress['id'],
+        label: s.label,
+        plannedSeconds: Math.max(0, s.plannedSeconds),
+        elapsedSeconds: Math.max(0, s.elapsedSeconds),
+      }));
+      onAllPhasesComplete?.(totalElapsed, phaseSummariesCopy);
+    }
+
+    prevPhaseIndexRef.current = currentPhaseIndex;
+    prevCompletedRef.current = justCompleted;
+  }, [timerId, currentPhaseIndex, phaseSummaries, phases, onPhaseComplete, onAllPhasesComplete, effectiveControlled?.completed]);
 
   const formatTime = useCallback((seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -77,133 +146,75 @@ const ReadingTimer: React.FC<ReadingTimerProps> = ({ phases, onPhaseComplete, on
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   }, []);
 
-  const totalMinutesPlanned = useMemo(() => phases.reduce((sum, phase) => sum + phase.minutes, 0), [phases]);
+  const handleToggle = useCallback(async () => {
+    try {
+      await Haptics.selectionAsync();
+    } catch {}
 
-  const totalElapsedSeconds = useMemo(
-    () => view.phaseSummaries.reduce((sum, item) => sum + item.elapsedSeconds, 0),
-    [view.phaseSummaries]
-  );
-
-  const completePhase = useCallback(
-    (remaining: number) => {
-      if (!currentPhase) {
-        return;
-      }
-
-      const plannedSeconds = Math.max(0, currentPhase.minutes * 60);
-      const elapsedSeconds = plannedSeconds - Math.max(0, remaining);
-      const summary: PhaseProgress = {
-        id: currentPhase.id,
-        label: currentPhase.label,
-        plannedSeconds,
-        elapsedSeconds,
-      };
-
-      const newSummaries = [...phaseSummaries, summary];
-      setPhaseSummaries(newSummaries);
-      setIsActive(false);
-
-      onPhaseComplete?.(currentPhase, elapsedSeconds);
-
-      const isLastPhase = currentPhaseIndex >= phases.length - 1;
-
-      if (isLastPhase) {
-        setSecondsRemaining(0);
-        const finalTotal = newSummaries.reduce((sum, item) => sum + item.elapsedSeconds, 0);
-        onAllPhasesComplete?.(finalTotal, newSummaries);
+    if (timerId) {
+      if (isActive) {
+        appTimerStore.pause(timerId);
       } else {
-        const nextIndex = currentPhaseIndex + 1;
-        setCurrentPhaseIndex(nextIndex);
-        setSecondsRemaining((phases[nextIndex]?.minutes ?? 0) * 60);
-        setIsActive(autoStart);
+        appTimerStore.resume(timerId);
       }
-    },
-    [currentPhase, currentPhaseIndex, autoStart, onPhaseComplete, onAllPhasesComplete, phaseSummaries, phases]
-  );
-
-  // Internal ticking only when uncontrolled
-  useEffect(() => {
-    if (isControlled) return;
-    if (!currentPhase || !isActive) {
-      return;
+    } else {
+      setIsActive(prev => !prev);
     }
-    if (secondsRemaining <= 0) {
-      completePhase(0);
-      return;
+  }, [timerId, isActive]);
+
+  const handleAdvancePhase = useCallback(async () => {
+    try {
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    } catch {}
+
+    if (timerId) {
+      appTimerStore.advancePhase(timerId);
+    } else {
+      setCurrentPhaseIndex(prev => prev + 1);
     }
-    const timerId = setTimeout(() => {
-      setSecondsRemaining(prev => prev - 1);
-    }, 1000);
-    return () => clearTimeout(timerId);
-  }, [isControlled, currentPhase, isActive, secondsRemaining, completePhase]);
+  }, [timerId]);
 
-  const isPhaseSummaryComplete = useCallback((summary: PhaseProgress) => {
-    return summary.plannedSeconds <= 0 || summary.elapsedSeconds >= summary.plannedSeconds;
-  }, []);
+  const handleStart = useCallback(async () => {
+    try {
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    } catch {}
 
-  // Only emit snapshots when uncontrolled; BibleScreen drives state when controlled
-  useEffect(() => {
-    if (isControlled) return;
-    if (!currentPhase) {
-      const completedSnapshot = phaseSummaries.length > 0 && phaseSummaries.every(isPhaseSummaryComplete);
-      onStateSnapshot?.({ currentPhaseIndex, secondsRemainingInPhase: 0, phaseSummaries, completed: completedSnapshot });
-      return;
+    if (timerId) {
+      appTimerStore.start(timerId, phases.map(p => ({
+        id: p.id,
+        label: p.label,
+        plannedSeconds: Math.max(0, p.minutes * 60),
+      })));
+    } else {
+      setIsActive(true);
     }
-    const live: PhaseProgress[] = phases.map((p, index) => {
-      const planned = Math.max(0, p.minutes * 60);
-      if (index < currentPhaseIndex) {
-        const prev = phaseSummaries[index];
-        return { id: prev?.id ?? p.id, label: prev?.label ?? p.label, plannedSeconds: planned, elapsedSeconds: Math.max(planned, prev?.elapsedSeconds ?? planned) };
-      }
-      if (index === currentPhaseIndex) {
-        const elapsed = planned - Math.max(0, secondsRemaining);
-        return { id: p.id, label: p.label, plannedSeconds: planned, elapsedSeconds: Math.max(0, elapsed) };
-      }
-      const prev = phaseSummaries[index];
-      return { id: prev?.id ?? p.id, label: prev?.label ?? p.label, plannedSeconds: planned, elapsedSeconds: Math.max(0, prev?.elapsedSeconds ?? 0) };
-    });
-    const completedSnapshot = live.length > 0 && live.every(isPhaseSummaryComplete);
-    onStateSnapshot?.({ currentPhaseIndex, secondsRemainingInPhase: Math.max(0, secondsRemaining), phaseSummaries: live, completed: completedSnapshot });
-  }, [isControlled, currentPhaseIndex, secondsRemaining, phaseSummaries, phases, currentPhase, onStateSnapshot, isPhaseSummaryComplete]);
+  }, [timerId, phases]);
 
-  if (!currentPhase) {
-    return null;
-  }
-
-  const plannedSeconds = Math.max(0, currentPhase.minutes * 60);
-  const elapsedSeconds = plannedSeconds - Math.max(0, view.secondsRemaining);
+  const totalMinutesPlanned = phases.reduce((sum, phase) => sum + phase.minutes, 0);
+  const remainingSeconds = timerId ? appTimerStore.remainingInPhase(timerId) : secondsRemaining;
+  const plannedSeconds = Math.max(0, phases[currentPhaseIndex].minutes * 60);
+  const elapsedSeconds = plannedSeconds - Math.max(0, remainingSeconds);
   const progressPercent = plannedSeconds === 0 ? 0 : (elapsedSeconds / plannedSeconds) * 100;
 
-  const handleAdvancePhase = async () => {
-    try { await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
-    if (isControlled) {
-      onAdvancePhase?.();
-    } else {
-      completePhase(secondsRemaining);
-    }
-  };
-
-  if (passive) {
-    return null;
-  }
+  const totalElapsedSeconds = phaseSummaries.reduce((sum, s) => sum + s.elapsedSeconds, 0) + elapsedSeconds;
 
   const isMultiPhase = phases.length > 1;
   const hasAnyProgress = useMemo(() => {
-    if (view.phaseSummaries.some(p => p.elapsedSeconds > 0)) return true;
-    if (view.currentPhaseIndex > 0) return true;
+    if (phaseSummaries.some(p => p.elapsedSeconds > 0)) return true;
+    if (currentPhaseIndex > 0) return true;
     const firstPlanned = (phases[0]?.minutes ?? 0) * 60;
-    return firstPlanned > 0 && view.secondsRemaining < firstPlanned;
-  }, [view.phaseSummaries, view.currentPhaseIndex, phases, view.secondsRemaining]);
+    return firstPlanned > 0 && remainingSeconds < firstPlanned;
+  }, [phaseSummaries, currentPhaseIndex, phases, remainingSeconds]);
 
   const showSingleStart = !hasAnyProgress;
 
-  
+  if (passive) return null;
 
   return (
     <View style={styles.container}>
       <View style={styles.phaseInfo}>
         <View>
-          <Text style={styles.phaseLabel}>{currentPhase.label}</Text>
+          <Text style={styles.phaseLabel}>{phases[currentPhaseIndex].label}</Text>
           <Text style={styles.phaseStep}>
             Step {currentPhaseIndex + 1} of {phases.length}
           </Text>
@@ -212,7 +223,7 @@ const ReadingTimer: React.FC<ReadingTimerProps> = ({ phases, onPhaseComplete, on
       </View>
 
       <View style={styles.timerContainer}>
-        <Text style={styles.timerText}>{formatTime(Math.max(0, view.secondsRemaining))}</Text>
+        <Text style={styles.timerText}>{formatTime(Math.max(0, remainingSeconds))}</Text>
         <Text style={styles.elapsedText}>
           Spent: {formatTime(elapsedSeconds)}
           {plannedSeconds ? ` • Planned: ${formatTime(plannedSeconds)}` : ''}
@@ -223,7 +234,7 @@ const ReadingTimer: React.FC<ReadingTimerProps> = ({ phases, onPhaseComplete, on
         <View style={[styles.progressBar, { width: `${progressPercent}%` }]} />
       </View>
 
-      {currentPhase.hint ? <Text style={styles.hintText}>{currentPhase.hint}</Text> : null}
+      {phases[currentPhaseIndex].hint ? <Text style={styles.hintText}>{phases[currentPhaseIndex].hint}</Text> : null}
 
       {!!passages?.length && (
         <View style={styles.passagesContainer}>
@@ -237,17 +248,17 @@ const ReadingTimer: React.FC<ReadingTimerProps> = ({ phases, onPhaseComplete, on
 
       {showSingleStart ? (
         <View style={styles.controlsRow}>
-          <TouchableOpacity style={styles.controlButtonPrimary} onPress={async () => { try { await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}; isControlled ? onToggleActive?.(true) : setIsActive(true); }}>
+          <TouchableOpacity style={styles.controlButtonPrimary} onPress={handleStart}>
             <Text style={styles.primaryButtonText}>Start</Text>
           </TouchableOpacity>
         </View>
       ) : (
         <View style={styles.controlsRow}>
           <TouchableOpacity
-            style={[styles.controlButton, !view.isActive && styles.controlButtonSecondary]}
-            onPress={async () => { try { await Haptics.selectionAsync(); } catch {}; isControlled ? onToggleActive?.(!view.isActive) : setIsActive(prev => !prev); }}
+            style={[styles.controlButton, !isActive && styles.controlButtonSecondary]}
+            onPress={handleToggle}
           >
-            <Text style={styles.controlButtonText}>{view.isActive ? 'Pause' : 'Resume'}</Text>
+            <Text style={styles.controlButtonText}>{isActive ? 'Pause' : 'Resume'}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.controlButtonPrimary} onPress={handleAdvancePhase}>
             <Text style={styles.primaryButtonText}>
@@ -388,15 +399,4 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
     },
   });
 
-export const timerOverlayStyles = (theme: ReturnType<typeof useTheme>) =>
-  StyleSheet.create({
-    container: {
-      position: 'absolute',
-      top: theme.spacing.md,
-      right: theme.spacing.md,
-      zIndex: 40,
-      elevation: 6,
-    },
-  });
-
-export default ReadingTimer;
+export default observer(ReadingTimer);

@@ -949,7 +949,7 @@ const handleEnterPlanMode = useCallback(async () => {
     const phase = phasesForToday[timer.currentPhaseIndex];
     
     if (phase && phase.id !== 'reading') {
-      appTimerStore.resume(timerId);
+      appTimerStore.resume(timer.id);
       setShowMeditationMode(true);
     } else {
       setShowTimerModal(true);
@@ -992,7 +992,7 @@ const handleEnterPlanMode = useCallback(async () => {
   const phase = phasesForToday[timer.currentPhaseIndex];
   
   if (phase && phase.id !== 'reading') {
-    appTimerStore.resume(timerId);
+    appTimerStore.resume(timer.id);
     setShowMeditationMode(true);
   } else {
     setShowTimerModal(true);
@@ -1220,7 +1220,7 @@ const handleEnterPlanMode = useCallback(async () => {
     if (timer) {
       const curPhase = phasesForToday[timer.currentPhaseIndex];
       if (curPhase && curPhase.id !== 'reading') {
-        appTimerStore.resume(timerId);
+        appTimerStore.resume(timer.id);
         setShowMeditationMode(true);
         setShowCompactPlan(false);
       } else {
@@ -1739,7 +1739,7 @@ const renderMeditationModal = () => {
     }
   }
 
-  const remainingSeconds = appTimerStore.remainingInPhase(timerId);
+  const remainingSeconds = appTimerStore.remainingInPhase(timer.id);
 
   return (
     <Modal visible={showMeditationMode} animationType="fade" transparent onRequestClose={() => setShowMeditationMode(false)}>
