@@ -93,8 +93,6 @@ const COMMUNITY_CARDS = (colors: Theme['colors']): CommunityCard[] => ([
   },
 ]);
 
-const COMMUNITY_WELCOME_KEY = 'community_welcome_note_seen';
-
 const CommunityScreen = ({ navigation }: CommunityScreenProps) => {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
@@ -102,7 +100,6 @@ const CommunityScreen = ({ navigation }: CommunityScreenProps) => {
   const { markOpened } = useCommunityStore();
   const dailyPathStore = useDailyPathStore();
   const [usageStage, setUsageStage] = useState(0);
-  const [showWelcomeNote, setShowWelcomeNote] = useState(false);
 
   const loadUsageStage = useCallback(async () => {
     try {
@@ -113,32 +110,6 @@ const CommunityScreen = ({ navigation }: CommunityScreenProps) => {
       setUsageStage(0);
     }
   }, []);
-
-  const checkWelcomeNote = useCallback(async () => {
-    try {
-      const seen = await AsyncStorage.getItem(COMMUNITY_WELCOME_KEY);
-      if (seen !== 'seen') {
-        setShowWelcomeNote(true);
-      }
-    } catch {
-      setShowWelcomeNote(true);
-    }
-  }, []);
-
-  const dismissWelcomeNote = useCallback(async () => {
-    setShowWelcomeNote(false);
-    toast.success('Welcome! Thank you for choosing to walk in this spirit of oneness.');
-    try {
-      await AsyncStorage.setItem(COMMUNITY_WELCOME_KEY, 'seen');
-    } catch (error) {
-      console.error('Error persisting community welcome note state:', error);
-    }
-  }, []);
-
-  useEffect(() => {
-    loadUsageStage();
-    void checkWelcomeNote();
-  }, [loadUsageStage, checkWelcomeNote]);
 
   const cards = useMemo(() => COMMUNITY_CARDS(theme.colors), [theme.colors]);
   const availableCards = useMemo(() => {
@@ -205,44 +176,6 @@ const CommunityScreen = ({ navigation }: CommunityScreenProps) => {
         )}
       </ScrollView>
 
-      <Modal
-        animationType="fade"
-        transparent
-        visible={showWelcomeNote}
-        onRequestClose={dismissWelcomeNote}
-      >
-        <View style={styles.welcomeBackdrop}>
-          <View style={styles.welcomeCard}>
-            <ScrollView
-              contentContainerStyle={styles.welcomeContent}
-              showsVerticalScrollIndicator={false}
-            >
-              <Text style={styles.welcomeTitle}>“That they may all be one.” — John 17:21</Text>
-              <Text style={styles.welcomeBody}>
-                Jesus prayed that we would be one. This community hopes to live that prayer — to grow together in faith,
-                peace, and love as one body in Christ.
-              </Text>
-              <Text style={styles.welcomeBody}>
-                Every believer expresses faith in different ways: through prayer, worship, service, or cherished
-                traditions. What matters most at the end is fruit — that our actions spring from love and lead others
-                toward goodness and truth. Just as choosing a worldly school or career can shape a child’s character,
-                any custom that nurtures faith, produces virtue, and yields good fruit is pleasing to God. (Mark 3:26)
-              </Text>
-              <Text style={styles.welcomeBody}>
-                By choosing “Enter” you are saying yes to Christ’s call: to honor one another with kindness and
-                respect; to uplift, support, and listen as members of one family; and to work together in harmony,
-                seeking what is good and holy.
-              </Text>
-              <Text style={styles.welcomeBody}>
-                Here, every word shared and every act of love helps fulfill His prayer for unity and for His Kingdom to be established here on earth.
-              </Text>
-            </ScrollView>
-            <TouchableOpacity style={styles.welcomeButton} onPress={dismissWelcomeNote}>
-              <Text style={styles.welcomeButtonText}>Enter in Unity</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
     </View>
   );
 };

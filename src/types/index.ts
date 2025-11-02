@@ -728,6 +728,8 @@ export type RootStackParamList = {
   SpiritualCareerScreen: undefined;
   MyJourneyScreen: undefined;
   JourneyQuizScreen: { phaseId: string };
+  HabitConquestSetupScreen: undefined;
+  HabitConquestSessionScreen: undefined;
 };
 
 export interface BibleVersion {

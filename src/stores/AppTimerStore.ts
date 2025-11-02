@@ -194,16 +194,18 @@ class AppTimerStore {
     const timer = this.ensure(id, phases);
     const idx = Math.max(0, Math.min(currentPhaseIndex, phases.length - 1));
     const phase = phases[idx];
-    const plannedSeconds = phase ? Math.max(0, phase.plannedSeconds) : 0;
-    const elapsed = Math.max(0, plannedSeconds - Math.max(0, secondsRemainingInPhase));
+    const plannedSeconds = phase ? Math.max(0, Number(phase.plannedSeconds) || 0) : 0;
+    const remainingSafe = Math.max(0, Number(secondsRemainingInPhase) || 0);
+    const elapsed = Math.max(0, plannedSeconds - remainingSafe);
     
     runInAction(() => {
       timer.currentPhaseIndex = idx;
       timer.elapsedInCurrentPhase = elapsed;
       timer.summaries = summaries.map(s => ({ 
-        ...s, 
-        plannedSeconds: Math.max(0, s.plannedSeconds), 
-        elapsedSeconds: Math.max(0, s.elapsedSeconds) 
+        id: s.id,
+        label: s.label,
+        plannedSeconds: Math.max(0, Number(s.plannedSeconds) || 0), 
+        elapsedSeconds: Math.max(0, Number(s.elapsedSeconds) || 0),
       }));
       timer.completed = Boolean(completed);
       timer.isActive = Boolean(isActive) && !timer.completed;

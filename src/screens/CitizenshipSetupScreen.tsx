@@ -132,7 +132,7 @@ const CitizenshipSetupScreen = observer(() => {
       if (includesKnowledge) {
         navigation.navigate('BibleScreen', { openPlanSetup: true } as any);
       } else if (includesHabitConquest) {
-        navigation.navigate('BibleScreen', HABIT_CONQUEST_SCOPE_PARAMS);
+        navigation.navigate('HabitConquestSetupScreen');
       } else if (includesDiscipleship) {
         navigation.navigate('DailyChallengeScreen', { onboarding: true });
       } else if (includesRevive) {

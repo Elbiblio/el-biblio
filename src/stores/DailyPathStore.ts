@@ -79,6 +79,17 @@ interface DailyPathState {
   reviveReminderItems: string[];
   lastRevivePromptAt: string | null;
   reviveReminderSchedules: ReviveReminderSchedule[];
+  habitConquest?: {
+    vice: string | null;
+    dailyMinutes: number; // 4 - 40
+    split: 'once' | 'twice' | 'thrice';
+    // minutes distribution across phases inside a session
+    phases: Array<{
+      id: 'affirmation' | 'meditation' | 'mercy' | 'forgiveness' | 'thanksgiving';
+      label: string;
+      minutes: number;
+    }>;
+  };
 }
 
 const DEFAULT_STATE: DailyPathState = {
@@ -97,6 +108,18 @@ const DEFAULT_STATE: DailyPathState = {
   reviveReminderItems: [],
   lastRevivePromptAt: null,
   reviveReminderSchedules: [],
+  habitConquest: {
+    vice: null,
+    dailyMinutes: 10,
+    split: 'once',
+    phases: [
+      { id: 'affirmation', label: 'Affirmation', minutes: 2 },
+      { id: 'meditation', label: 'Meditation', minutes: 3 },
+      { id: 'mercy', label: 'Prayer for Mercy', minutes: 2 },
+      { id: 'forgiveness', label: 'Prayer for Forgiveness', minutes: 2 },
+      { id: 'thanksgiving', label: 'Prayer for Thanksgiving', minutes: 1 },
+    ],
+  },
 };
 
 const LEGACY_FOCUS_MAP: Record<string, DailyFocusKey> = {
@@ -378,6 +401,9 @@ export class DailyPathStore {
             if (typeof (parsed as any).hasCompletedChallengeOnboarding === 'boolean') {
               this.state.hasCompletedChallengeOnboarding = (parsed as any).hasCompletedChallengeOnboarding;
             }
+            if ((parsed as any).habitConquest) {
+              this.state.habitConquest = (parsed as any).habitConquest;
+            }
             if (Array.isArray((parsed as any).reviveReminderItems)) {
               this.state.reviveReminderItems = ((parsed as any).reviveReminderItems as string[]).filter(Boolean);
             }
@@ -413,7 +439,6 @@ export class DailyPathStore {
       ...this.state,
       isReady: true,
     };
-
     try {
       await AsyncStorage.setItem(
         STORAGE_KEY,
@@ -434,11 +459,51 @@ export class DailyPathStore {
           reviveReminderItems: payload.reviveReminderItems,
           lastRevivePromptAt: payload.lastRevivePromptAt,
           reviveReminderSchedules: payload.reviveReminderSchedules,
+          habitConquest: payload.habitConquest,
         }),
       );
     } catch (error) {
       console.warn('[DailyPathStore] Failed to save state', error);
     }
+  }
+
+  // Habit Conquest config helpers
+  setHabitConquestVice(vice: string) {
+    runInAction(() => {
+      if (!this.state.habitConquest) this.state.habitConquest = { ...DEFAULT_STATE.habitConquest! };
+      this.state.habitConquest!.vice = vice;
+    });
+    void this.saveToStorage();
+  }
+
+  setHabitConquestMinutes(minutes: number) {
+    const clamped = Math.max(4, Math.min(40, Math.round(minutes)));
+    runInAction(() => {
+      if (!this.state.habitConquest) this.state.habitConquest = { ...DEFAULT_STATE.habitConquest! };
+      this.state.habitConquest!.dailyMinutes = clamped;
+    });
+    void this.saveToStorage();
+  }
+
+  setHabitConquestSplit(split: 'once' | 'twice' | 'thrice') {
+    runInAction(() => {
+      if (!this.state.habitConquest) this.state.habitConquest = { ...DEFAULT_STATE.habitConquest! };
+      this.state.habitConquest!.split = split;
+    });
+    void this.saveToStorage();
+  }
+
+  setHabitConquestPhaseMinutes(update: Partial<Record<'affirmation'|'meditation'|'mercy'|'forgiveness'|'thanksgiving', number>>) {
+    runInAction(() => {
+      if (!this.state.habitConquest) this.state.habitConquest = { ...DEFAULT_STATE.habitConquest! };
+      const phases = this.state.habitConquest!.phases.map(p => ({ ...p }));
+      for (const key of Object.keys(update) as Array<keyof typeof update>) {
+        const idx = phases.findIndex(p => p.id === key);
+        if (idx >= 0) phases[idx].minutes = Math.max(0, Math.round(update[key]!));
+      }
+      this.state.habitConquest!.phases = phases;
+    });
+    void this.saveToStorage();
   }
 
   private getFocusSequence(): DailyFocusKey[] {

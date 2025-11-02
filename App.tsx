@@ -44,6 +44,8 @@ import PrayerRequestsScreen from './src/screens/PrayerRequestsScreen';
 import MyJourneyScreen from './src/screens/MyJourneyScreen';
 import JourneyQuizScreen from './src/screens/JourneyQuizScreen';
 import CitizenshipSetupScreen from './src/screens/CitizenshipSetupScreen';
+import HabitConquestSetupScreen from './src/screens/HabitConquestSetupScreen';
+import HabitConquestSessionScreen from './src/screens/HabitConquestSessionScreen';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { appStore } from './src/stores/appStore';
 import { StoreProvider } from './src/stores/StoreProvider';
@@ -309,6 +311,8 @@ const AppContent = () => {
           <Stack.Screen name="MyJourneyScreen" component={MyJourneyScreen} />
           <Stack.Screen name="JourneyQuizScreen" component={JourneyQuizScreen} />
           <Stack.Screen name="CitizenshipSetupScreen" component={CitizenshipSetupScreen} />
+          <Stack.Screen name="HabitConquestSetupScreen" component={HabitConquestSetupScreen} />
+          <Stack.Screen name="HabitConquestSessionScreen" component={HabitConquestSessionScreen} />
         </Stack.Navigator>
         {/* Place overlay components inside NavigationContainer so they have navigation context */}
         {showChallengeBanner && (

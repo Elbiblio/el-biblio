@@ -61,8 +61,15 @@ const ReadingTimer: React.FC<ReadingTimerProps> = ({
   const styles = useMemo(() => createStyles(theme), [theme]);
 
   const [isActive, setIsActive] = useState(false);
-  const [currentPhaseIndex, setCurrentPhaseIndex] = useState(initialPhaseIndex ?? 0);
-  const [secondsRemaining, setSecondsRemaining] = useState(initialSecondsRemaining ?? phases[0].minutes * 60);
+  const [currentPhaseIndex, setCurrentPhaseIndex] = useState(() => {
+    const idx = typeof initialPhaseIndex === 'number' ? initialPhaseIndex : 0;
+    return Math.max(0, Math.min(idx, Math.max(0, phases.length - 1)));
+  });
+  const [secondsRemaining, setSecondsRemaining] = useState(() => {
+    const m = Number(phases[0]?.minutes) || 0;
+    const init = typeof initialSecondsRemaining === 'number' ? initialSecondsRemaining : m * 60;
+    return Math.max(0, Number(init) || 0);
+  });
   const [phaseSummaries, setPhaseSummaries] = useState(initialSummaries ?? []);
 
   // Ensure timer exists and phases are synced
@@ -71,7 +78,7 @@ const ReadingTimer: React.FC<ReadingTimerProps> = ({
       const phaseDefs = phases.map(p => ({
         id: p.id,
         label: p.label,
-        plannedSeconds: Math.max(0, p.minutes * 60),
+        plannedSeconds: Math.max(0, (Number(p.minutes) || 0) * 60),
       }));
       appTimerStore.ensure(timerId, phaseDefs);
     }
@@ -87,18 +94,18 @@ const ReadingTimer: React.FC<ReadingTimerProps> = ({
     if (!timerId || !timer) return undefined;
     const remaining = appTimerStore.remainingInPhase(timerId);
     return {
-      currentPhaseIndex: timer.currentPhaseIndex,
-      secondsRemainingInPhase: Math.max(0, remaining),
+      currentPhaseIndex: Math.max(0, Math.min(timer.currentPhaseIndex, Math.max(0, phases.length - 1))),
+      secondsRemainingInPhase: Math.max(0, Number(remaining) || 0),
       phaseSummaries: timer.summaries.map(s => ({
         id: s.id as PhaseProgress['id'],
         label: s.label,
-        plannedSeconds: Math.max(0, s.plannedSeconds),
-        elapsedSeconds: Math.max(0, s.elapsedSeconds),
+        plannedSeconds: Math.max(0, Number(s.plannedSeconds) || 0), 
+        elapsedSeconds: Math.max(0, Number(s.elapsedSeconds) || 0),
       })),
       isActive: timer.isActive,
       completed: timer.completed,
     } as const;
-  }, [timerId, timer, appTimerStore.now]);
+  }, [timerId, timer, appTimerStore.now, phases.length]);
 
   const effectiveControlled = controlledState ?? derivedControlledState;
   const isControlled = Boolean(effectiveControlled);
@@ -190,10 +197,12 @@ const ReadingTimer: React.FC<ReadingTimerProps> = ({
     }
   }, [timerId, phases]);
 
-  const totalMinutesPlanned = phases.reduce((sum, phase) => sum + phase.minutes, 0);
-  const remainingSeconds = timerId ? appTimerStore.remainingInPhase(timerId) : secondsRemaining;
-  const plannedSeconds = Math.max(0, phases[currentPhaseIndex].minutes * 60);
-  const elapsedSeconds = plannedSeconds - Math.max(0, remainingSeconds);
+  const totalMinutesPlanned = phases.reduce((sum, phase) => sum + (Number(phase.minutes) || 0), 0);
+  const remainingSecondsRaw = timerId ? appTimerStore.remainingInPhase(timerId) : secondsRemaining;
+  const remainingSeconds = Math.max(0, Number(remainingSecondsRaw) || 0);
+  const safeIdx = Math.max(0, Math.min(currentPhaseIndex, Math.max(0, phases.length - 1)));
+  const plannedSeconds = Math.max(0, (Number(phases[safeIdx]?.minutes) || 0) * 60);
+  const elapsedSeconds = Math.max(0, plannedSeconds - remainingSeconds);
   const progressPercent = plannedSeconds === 0 ? 0 : (elapsedSeconds / plannedSeconds) * 100;
 
   const totalElapsedSeconds = phaseSummaries.reduce((sum, s) => sum + s.elapsedSeconds, 0) + elapsedSeconds;

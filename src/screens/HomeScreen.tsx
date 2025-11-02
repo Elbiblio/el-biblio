@@ -70,10 +70,10 @@ import VersePreviewModal from "@/components/VersePreviewModal";
 import type { Verse as ModalVerse } from "@/types";
 import type { DailyStep, ReviveReminderSchedule } from '@/stores/DailyPathStore';
 import SmartPickCard from '@/components/SmartPickCard';
+import { getCapsuleForVice } from '@/modules/habitConquestCapsules';
+import { ensureHabitConquestRemindersActive } from '@/tasks/habitConquestReminderScheduler';
 
 import { AppState, AppStateStatus } from 'react-native';
-// Removed local PointsEarnedModal usage; global modal in App.tsx handles display via interceptor
-import { useNavigation } from '@react-navigation/native';
 import { useWebSocket } from '@/services/websocket';
 import * as Haptics from 'expo-haptics';
 import { useCommunityStore } from '@/stores/CommunityStore';
@@ -269,6 +269,66 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
     setTimeErrors([]);
     setIsSavingRevive(false);
   }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      const hc = dailyPathStore.state.habitConquest;
+      const hasHC = dailyPathStore.primaryFocus === 'habit_conquest' || dailyPathStore.secondaryFocus.includes('habit_conquest');
+      if (hasHC && hc?.split) {
+        ensureHabitConquestRemindersActive(hc.split as any, hc.vice ?? null, hc.dailyMinutes ?? null, 30)
+          .catch((e) => console.warn('[HomeScreen] ensure HC reminders failed', e));
+      }
+      return () => {};
+    }, [dailyPathStore.primaryFocus, dailyPathStore.secondaryFocus, dailyPathStore.state.habitConquest])
+  );
+
+  const renderHabitConquestCapsule = () => {
+    const hc = dailyPathStore.state.habitConquest;
+    const hasHC = dailyPathStore.primaryFocus === 'habit_conquest' || dailyPathStore.secondaryFocus.includes('habit_conquest');
+    if (!hasHC || !hc?.vice) return null;
+    const capsule = getCapsuleForVice(hc.vice as any);
+    const now = new Date();
+    const hour = now.getHours();
+    const dayKey = Math.floor(now.getTime() / (24 * 60 * 60 * 1000));
+    const isMorning = hour >= 5 && hour < 12;
+    const isAfternoon = hour >= 12 && hour < 18;
+    const kindsOrder = isMorning
+      ? ['affirmation','precept']
+      : isAfternoon
+        ? ['reflection','precept']
+        : ['prayer','reflection'];
+    const rotated = kindsOrder.map((k, idx) => {
+      const options = capsule.filter(it => it.kind === (k as any));
+      if (!options.length) return null;
+      const pick = options[dayKey % options.length];
+      return pick;
+    }).filter(Boolean) as typeof capsule;
+    return (
+      <View style={styles.hcCard}>
+        <View style={styles.hcHeader}>
+          <Text style={styles.hcTitle}>Daily Spiritual Capsule</Text>
+          <Text style={styles.hcSubtitle}>{hc.vice}</Text>
+        </View>
+        <View style={styles.hcBody}>
+          {rotated.map(item => (
+            <View key={item.id} style={styles.hcItem}>
+              <Text style={styles.hcItemKind}>{item.kind.toUpperCase()}</Text>
+              <Text style={styles.hcItemText}>{item.text}{item.scripture ? ` — ${item.scripture}` : ''}</Text>
+            </View>
+          ))}
+        </View>
+        <View style={styles.hcActions}>
+          <TouchableOpacity
+            style={styles.hcPrimary}
+            onPress={() => navigation.navigate('HabitConquestSessionScreen' as any)}
+            activeOpacity={0.9}
+          >
+            <Text style={styles.hcPrimaryText}>Begin Habit Conquest</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  };
 
   const handleEditItemLabel = useCallback((index: number, text: string) => {
     setEditedItems((prev) => {
@@ -534,6 +594,16 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
             activeOpacity={0.85}
           >
             <Text style={styles.citizenshipPrimaryText}>Set up daily path</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.citizenshipSecondary}
+            onPress={() => {
+              setShowSetupPrompt(false);
+              navigation.navigate('HabitConquestSetupScreen' as any);
+            }}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.citizenshipSecondaryText}>Habit Conquest</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.citizenshipSecondary}
@@ -1641,6 +1711,7 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
         {renderHeader()}
         {renderCitizenshipPrompt()}
         {renderDailyJourneyCard()}
+        {renderHabitConquestCapsule()}
         {renderReviveReminderBanner()}
         {renderQuickTools()}
         {renderDailyChallenges()}
@@ -1808,73 +1879,6 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
   );
 });
 
-
-const createActionStyles = (theme: Theme) => StyleSheet.create({
-  quickActionsContainer: {
-    marginTop: theme?.spacing.md,
-    paddingHorizontal: theme?.spacing.md,
-    marginBottom: theme?.spacing.xl,
-  },
-  quickActionsHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: theme?.spacing.md,
-  },
-  quickActionsTitle: {
-    ...theme?.typography.heading.small,
-    color: theme?.colors.text.primary,
-  },
-  actionGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: theme?.spacing.sm,
-  },
-  actionCard: {
-    flex: 1,
-    minWidth: '47%', // Slightly less than 50% to account for gap
-    aspectRatio: 2.5,
-    borderRadius: theme?.borderRadius.lg,
-    backgroundColor: theme?.colors.background,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: theme?.colors.border,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.05,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 2,
-      },
-    }),
-  },
-  actionGradient: {
-    ...StyleSheet.absoluteFillObject,
-  },
-  actionContent: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: theme?.spacing.md,
-    gap: theme?.spacing.sm,
-  },
-  iconContainer: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  actionText: {
-    ...theme?.typography.caption.primary,
-    fontSize: 13,
-    fontWeight: '600',
-  },
-});
-
 const createStyles = (theme: Theme) => StyleSheet.create({
   container: {
     flex: 1,
@@ -1990,6 +1994,58 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     ...theme?.typography.caption.primary,
     color: '#FFF',
     fontWeight: '600',
+  },
+  hcCard: {
+    marginHorizontal: theme?.spacing.md,
+    marginBottom: theme?.spacing.lg,
+    padding: theme?.spacing.lg,
+    borderRadius: theme?.borderRadius.xl,
+    backgroundColor: theme?.colors.surface,
+    borderWidth: 1,
+    borderColor: theme?.colors.border,
+    gap: theme?.spacing.sm,
+  },
+  hcHeader: {
+    gap: theme?.spacing.xs,
+  },
+  hcTitle: {
+    ...theme?.typography.body.sans,
+    color: theme?.colors.text.primary,
+    fontWeight: '700',
+  },
+  hcSubtitle: {
+    ...theme?.typography.caption.secondary,
+    color: theme?.colors.text.secondary,
+  },
+  hcBody: {
+    gap: theme?.spacing.xs,
+  },
+  hcItem: {
+    gap: 2,
+  },
+  hcItemKind: {
+    ...theme?.typography.caption.secondary,
+    color: theme?.colors.info,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+  },
+  hcItemText: {
+    ...theme?.typography.caption.primary,
+    color: theme?.colors.text.primary,
+    lineHeight: 18,
+  },
+  hcActions: {
+    marginTop: theme?.spacing.sm,
+  },
+  hcPrimary: {
+    backgroundColor: theme?.colors.primary,
+    paddingVertical: theme?.spacing.sm,
+    borderRadius: theme?.borderRadius.lg,
+    alignItems: 'center',
+  },
+  hcPrimaryText: {
+    ...theme?.typography.button,
+    color: theme?.colors.text.inverse,
   },
   citizenshipCard: {
     flexDirection: 'column',

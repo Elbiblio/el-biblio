@@ -240,6 +240,7 @@ export type VerseComparisonItem = {
 };
 
 class BibleStore {
+  private lastFocusedSegmentId: string | null = null;
   // Current state
   currentBook: ExtendedBook | null = null;
   currentChapter: number = 1;
@@ -544,6 +545,8 @@ async markTodaySessionCompleted() {
   const timerId = this.getTodayTimerId();
   if (timerId) {
     appTimerStore.completeAll(timerId);
+    // Pull the latest summaries/elapsed into dailySession
+    await this.syncFromTimer();
   }
   
   const session = { ...this.dailySession, completed: true, secondsRemainingInPhase: 0 };
@@ -1460,6 +1463,10 @@ async markTodaySessionCompleted() {
 
     if (!segment) {
       return false;
+    }
+
+    if (this.lastFocusedSegmentId === segment.id && this.currentBook && this.currentChapter === segment.chapterStart) {
+      return true;
     }
 
     if (!this.currentVersion || this.currentVersion.tableName !== this.readingPlan.versionTable) {
