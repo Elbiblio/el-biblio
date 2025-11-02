@@ -16,7 +16,6 @@ type ReadingTimerProps = {
   onPhaseComplete?: (phase: ReadingPlanPhase, elapsedSeconds: number) => void;
   onAllPhasesComplete?: (totalElapsedSeconds: number, summaries: PhaseProgress[]) => void;
   autoStart?: boolean;
-  onRemainingChange?: (totalRemainingSeconds: number) => void;
   passive?: boolean;
   initialPhaseIndex?: number;
   initialSecondsRemaining?: number;
@@ -39,7 +38,7 @@ type ReadingTimerProps = {
   passages?: string[];
 };
 
-const ReadingTimer: React.FC<ReadingTimerProps> = ({ phases, onPhaseComplete, onAllPhasesComplete, autoStart = true, onRemainingChange, passive = false, initialPhaseIndex, initialSecondsRemaining, initialSummaries, onStateSnapshot, controlledState, onToggleActive, onAdvancePhase, passages }) => {
+const ReadingTimer: React.FC<ReadingTimerProps> = ({ phases, onPhaseComplete, onAllPhasesComplete, autoStart = true, passive = false, initialPhaseIndex, initialSecondsRemaining, initialSummaries, onStateSnapshot, controlledState, onToggleActive, onAdvancePhase, passages }) => {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
 
@@ -71,17 +70,6 @@ const ReadingTimer: React.FC<ReadingTimerProps> = ({ phases, onPhaseComplete, on
       return typeof initial === 'number' ? Math.max(0, initial) : fallback;
     });
   }, [phases, initialPhaseIndex]);
-
-  // Notify total remaining seconds (current remaining + full remaining of subsequent phases)
-  useEffect(() => {
-    if (!currentPhase) {
-      onRemainingChange?.(0);
-      return;
-    }
-    const subsequent = phases.slice(view.currentPhaseIndex + 1).reduce((sum, p) => sum + (p.minutes * 60), 0);
-    const totalRemaining = Math.max(0, view.secondsRemaining) + subsequent;
-    onRemainingChange?.(totalRemaining);
-  }, [view.secondsRemaining, view.currentPhaseIndex, phases, currentPhase, onRemainingChange]);
 
   const formatTime = useCallback((seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -123,7 +111,6 @@ const ReadingTimer: React.FC<ReadingTimerProps> = ({ phases, onPhaseComplete, on
         setSecondsRemaining(0);
         const finalTotal = newSummaries.reduce((sum, item) => sum + item.elapsedSeconds, 0);
         onAllPhasesComplete?.(finalTotal, newSummaries);
-        onRemainingChange?.(0);
       } else {
         const nextIndex = currentPhaseIndex + 1;
         setCurrentPhaseIndex(nextIndex);
@@ -225,7 +212,7 @@ const ReadingTimer: React.FC<ReadingTimerProps> = ({ phases, onPhaseComplete, on
       </View>
 
       <View style={styles.timerContainer}>
-        <Text style={styles.timerText}>{formatTime(secondsRemaining)}</Text>
+        <Text style={styles.timerText}>{formatTime(Math.max(0, view.secondsRemaining))}</Text>
         <Text style={styles.elapsedText}>
           Spent: {formatTime(elapsedSeconds)}
           {plannedSeconds ? ` • Planned: ${formatTime(plannedSeconds)}` : ''}

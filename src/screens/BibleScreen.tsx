@@ -32,6 +32,7 @@ import BookSelector from '@/components/BookSelector';
 import HistoryModal, { HistoryModalEntry } from '@/components/HistoryModal';
 import FontSizeModal from '@/components/FontSizeModal';
 import VerseActionsSheet from '@/components/VerseActionsSheet';
+import BibleDBService from '@/utils/database';
 import VerseComparisonModal from '@/components/VerseComparisonModal';
 import ReadingPlanSetupModal from '@/components/ReadingPlanSetupModal';
 import ReminderTimePicker from '@/components/ReminderTimePicker';
@@ -54,6 +55,7 @@ import * as Haptics from 'expo-haptics';
 import { Audio } from 'expo-av';
 import EmptyState from '@/components/EmptyState';
 import MeditationVerse from '@/components/MeditationVerse';
+import { appTimerStore } from '@/stores/AppTimerStore';
 
 const getLocalMidnightMs = (date: Date) => {
   const d = new Date(date);
@@ -86,11 +88,6 @@ const makeSegmentRangeToken = (segment?: { chapterStart?: number | null; chapter
   return `${startChapter}:${startVerse}-${endChapter}:${endVerse}`;
 };
 
-type SegmentAnchor = {
-  chapter: number;
-  verse: number | null;
-};
-
 type ScopedViewState = {
   title?: string | null;
   subtitle?: string | null;
@@ -114,13 +111,6 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
   const viewabilityConfigRef = useRef({ itemVisiblePercentThreshold: 25 });
   const listDimensionsRef = useRef({ height: 0 });
   const lastAppliedParamsRef = useRef<string | null>(null);
-  const snapshotTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pendingSnapshotRef = useRef<{
-    currentPhaseIndex: number;
-    secondsRemainingInPhase: number;
-    phaseSummaries: { id: ReadingPlanPhase['id']; label: string; plannedSeconds: number; elapsedSeconds: number }[];
-    completed: boolean;
-  } | null>(null);
 
   // Network status
   const { isOffline } = useNetworkStatus();
@@ -143,20 +133,19 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
   const [isPlanSetupVisible, setIsPlanSetupVisible] = useState(false);
   const [showCompactPlan, setShowCompactPlan] = useState(false);
   const [planDetailsExpanded, setPlanDetailsExpanded] = useState(false);
-  type TimerControllerState = {
-    currentPhaseIndex: number;
-    secondsRemainingInPhase: number;
-    phaseSummaries: DailyPhaseProgress[];
-    isActive: boolean;
-    completed: boolean;
-  };
+  // Local controller type removed; timer is globally managed via AppTimerStore
 
   const [showTimerModal, setShowTimerModal] = useState(false);
   const [showMeditationMode, setShowMeditationMode] = useState(false);
-  const [timerCtrl, setTimerCtrl] = useState<TimerControllerState | null>(null);
+  const [meditationVerses, setMeditationVerses] = useState<Array<{ text: string; reference: string }>>([]);
+
+
+  // Timer view derived from AppTimerStore via BibleStore
+  const timerId = bibleStore.getTodayTimerIdPublic();
+  const tv = timerId ? appTimerStore.get(timerId) : null;
+
   const [atEnd, setAtEnd] = useState(false);
   const [builderReminder, setBuilderReminder] = useState('');
-  const [remainingSeconds, setRemainingSeconds] = useState<number | null>(null);
   const [showFloatingProgress, setShowFloatingProgress] = useState(false);
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [scopedView, setScopedView] = useState<ScopedViewState | null>(null);
@@ -209,6 +198,11 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
     () => phasesForToday.reduce((sum, phase) => sum + phase.minutes * 60, 0),
     [phasesForToday]
   );
+
+const planRemainingSeconds = useMemo(() => {
+  const timerId = bibleStore.getTodayTimerIdPublic();
+  return timerId ? appTimerStore.totalRemaining(timerId) : null;
+}, [bibleStore]);
 
   // Auto-hide header on scroll
   const scrollY = useRef(new Animated.Value(0)).current;
@@ -288,14 +282,47 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
     };
   }, [bibleStore.isPlanMode, bibleStore.readingPlan?.id]);
 
+  // Build meditation verses list from the current segment (can span multiple chapters)
   useEffect(() => {
-    if (!totalPlanSeconds || remainingSeconds == null) {
+    const buildMeditationList = async () => {
+      if (!showMeditationMode) return;
+      const seg = bibleStore.activeReadingSegment;
+      const planTable = bibleStore.readingPlan?.versionTable ?? bibleStore.currentVersion?.tableName;
+      if (!seg || !planTable) {
+        setMeditationVerses([]);
+        return;
+      }
+      try {
+        await BibleDBService.initialize?.();
+      } catch {}
+      const verses: Array<{ text: string; reference: string }> = [];
+      const start = Math.max(1, seg.chapterStart);
+      const end = Math.max(start, seg.chapterEnd ?? seg.chapterStart);
+      for (let ch = start; ch <= end; ch++) {
+        try {
+          const rows: any[] = await (BibleDBService as any).getChapter(planTable, seg.bookAbbreviation, ch);
+          for (const v of rows) {
+            verses.push({ text: v.text, reference: `${seg.bookName} ${ch}:${v.verse}` });
+            if (verses.length >= 200) break;
+          }
+          if (verses.length >= 200) break;
+        } catch (e) {
+          // ignore chapter errors and continue
+        }
+      }
+      setMeditationVerses(verses);
+    };
+    void buildMeditationList();
+  }, [showMeditationMode, bibleStore.activeReadingSegment?.id, bibleStore.readingPlan?.versionTable]);
+
+  useEffect(() => {
+    if (!totalPlanSeconds || planRemainingSeconds == null) {
       progressShared.value = withTiming(0, { duration: 250 });
       return;
     }
-    const ratio = Math.max(0, Math.min(1, 1 - remainingSeconds / totalPlanSeconds));
+    const ratio = Math.max(0, Math.min(1, 1 - planRemainingSeconds / totalPlanSeconds));
     progressShared.value = withTiming(ratio, { duration: 250 });
-  }, [remainingSeconds, totalPlanSeconds, progressShared]);
+  }, [planRemainingSeconds, totalPlanSeconds, progressShared]);
 
   useEffect(() => {
     if (showTimerModal) {
@@ -356,154 +383,47 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
     setShowCompactPlan(false);
   }, [bibleStore]);
 
-  // Initialize/refresh controlled timer state from daily session or plan phases
+  // React to timer completion from AppTimerStore
   useEffect(() => {
-    if (!bibleStore.isPlanMode || !phasesForToday.length) return;
-    const session = bibleStore.dailySession;
-    const idx = Math.max(0, Math.min(session?.currentPhaseIndex ?? 0, Math.max(0, phasesForToday.length - 1)));
-    const planned = Math.max(0, (phasesForToday[idx]?.minutes ?? 0) * 60);
-    const remain = Math.max(0, session?.secondsRemainingInPhase ?? planned);
-    const summaries: DailyPhaseProgress[] = (session?.phases || []).map(p => ({ id: p.id, label: p.label, plannedSeconds: p.plannedSeconds, elapsedSeconds: Math.max(0, p.elapsedSeconds) }));
-    const hasProgress = session ? (session.phases.some(p => p.elapsedSeconds > 0) || (planned > 0 && remain < planned)) : false;
-    const hasTimedPhase = phasesForToday.some(p => (p.minutes ?? 0) > 0);
-    // Restore timer activity from session or default to active for timed phases
-    const sessionWasActive = session ? (session.secondsRemainingInPhase > 0 && !session.completed) : false;
-    setTimerCtrl(prev => {
-      const nextCompleted = Boolean(session?.completed);
-      const nextActive = nextCompleted ? false : (prev?.isActive ?? sessionWasActive ?? (hasProgress || hasTimedPhase));
-      return {
-        currentPhaseIndex: idx,
-        secondsRemainingInPhase: remain,
-        phaseSummaries: summaries,
-        isActive: nextActive,
-        completed: nextCompleted,
-      };
-    });
-  }, [bibleStore.isPlanMode, bibleStore.dailySession, phasesForToday]);
+    if (!bibleStore.isPlanMode || !tv) return;
+    if (tv.completed && !bibleStore.dailySession?.completed) {
+      void handleAllPhasesComplete();
+      setShowTimerModal(false);
+    }
+  }, [tv?.completed, bibleStore.isPlanMode, bibleStore.dailySession?.completed, handleAllPhasesComplete]);
 
   const completeCurrentPhase = useCallback(async () => {
-    setTimerCtrl(prev => {
-      if (!prev) return prev;
-      const idx = prev.currentPhaseIndex;
-      const phase = phasesForToday[idx];
-      if (!phase) return prev;
-      const planned = Math.max(0, (phase.minutes ?? 0) * 60);
-      const elapsed = Math.max(0, planned - Math.max(0, prev.secondsRemainingInPhase));
-      const newSummaries = [...prev.phaseSummaries];
-      // Ensure summary for this index is appended
-      newSummaries[idx] = {
-        id: phase.id,
-        label: phase.label,
-        plannedSeconds: planned,
-        elapsedSeconds: elapsed,
-      } as DailyPhaseProgress;
-
-      const isLast = idx >= phasesForToday.length - 1;
-      if (isLast) {
-        // Finalize session
-        setTimeout(() => {
-          void handlePhaseComplete(phase, elapsed);
-          void handleAllPhasesComplete();
-        }, 0);
-        const nextState: TimerControllerState = {
-          ...prev,
-          secondsRemainingInPhase: 0,
-          phaseSummaries: newSummaries,
-          isActive: false,
-          completed: true,
-        };
-        return nextState;
-      } else {
-        // Move to next phase
-        const nextIdx = idx + 1;
-        const nextPlanned = Math.max(0, (phasesForToday[nextIdx]?.minutes ?? 0) * 60);
-        setTimeout(() => {
-          void handlePhaseComplete(phase, elapsed);
-        }, 0);
-        const nextState: TimerControllerState = {
-          currentPhaseIndex: nextIdx,
-          secondsRemainingInPhase: nextPlanned,
-          phaseSummaries: newSummaries,
-          isActive: true,
-          completed: false,
-        };
-        return nextState;
-      }
-    });
-  }, [phasesForToday, handlePhaseComplete, handleAllPhasesComplete]);
-
-  // Debounced timer snapshot handler (moved up before first use)
-  const handleTimerSnapshot = useCallback((state: {
-    currentPhaseIndex: number;
-    secondsRemainingInPhase: number;
-    phaseSummaries: { id: ReadingPlanPhase['id']; label: string; plannedSeconds: number; elapsedSeconds: number }[];
-    completed: boolean;
-  }) => {
-    pendingSnapshotRef.current = state;
-    if (!snapshotTimerRef.current) {
-      snapshotTimerRef.current = setTimeout(() => {
-        const s = pendingSnapshotRef.current;
-        snapshotTimerRef.current = null;
-        if (s) {
-          void bibleStore.applyTimerState(s);
-        }
-      }, 2000);
-    }
-  }, [bibleStore]);
-
-  // Emit debounced snapshot to store as the timer progresses
-  const emitSnapshot = useCallback((state: { currentPhaseIndex: number; secondsRemainingInPhase: number; phaseSummaries: DailyPhaseProgress[]; completed: boolean; }) => {
-    const live = phasesForToday.map((p, index) => {
-      const planned = Math.max(0, (p.minutes ?? 0) * 60);
-      if (index < state.currentPhaseIndex) {
-        const prev = state.phaseSummaries[index];
-        return { id: prev?.id ?? p.id, label: prev?.label ?? p.label, plannedSeconds: planned, elapsedSeconds: Math.max(planned, prev?.elapsedSeconds ?? planned) };
-      }
-      if (index === state.currentPhaseIndex) {
-        const elapsed = planned - Math.max(0, state.secondsRemainingInPhase);
-        return { id: p.id, label: p.label, plannedSeconds: planned, elapsedSeconds: Math.max(0, elapsed) };
-      }
-      const prev = state.phaseSummaries[index];
-      return { id: prev?.id ?? p.id, label: prev?.label ?? p.label, plannedSeconds: planned, elapsedSeconds: Math.max(0, prev?.elapsedSeconds ?? 0) };
-    });
-    const completed = state.completed || live.every(item => item.plannedSeconds <= 0 || item.elapsedSeconds >= item.plannedSeconds);
-    handleTimerSnapshot({
-      currentPhaseIndex: state.currentPhaseIndex,
-      secondsRemainingInPhase: Math.max(0, state.secondsRemainingInPhase),
-      phaseSummaries: live.map(s => ({ id: s.id as ReadingPlanPhase['id'], label: s.label, plannedSeconds: s.plannedSeconds, elapsedSeconds: s.elapsedSeconds })),
-      completed,
-    });
-  }, [phasesForToday, handleTimerSnapshot]);
-
-  // Background ticking even when modal is closed
-  useEffect(() => {
-    if (!timerCtrl?.isActive) return;
-    if (!phasesForToday.length) return;
-    const id = setInterval(() => {
-      setTimerCtrl(prev => {
-        if (!prev) return prev;
-        if (prev.secondsRemainingInPhase <= 0) return prev;
-        const nextRemaining = prev.secondsRemainingInPhase - 1;
-        const nextState: TimerControllerState = { ...prev, secondsRemainingInPhase: nextRemaining };
-        emitSnapshot(nextState);
-        if (nextRemaining <= 0) {
-          setTimeout(() => { void completeCurrentPhase(); }, 0);
-        }
-        return nextState;
-      });
-    }, 1000);
-    return () => clearInterval(id);
-  }, [timerCtrl?.isActive, phasesForToday.length, emitSnapshot, completeCurrentPhase]);
+  const timerId = bibleStore.getTodayTimerIdPublic();
+  if (!timerId) return;
+  
+  const timer = appTimerStore.get(timerId);
+  if (!timer) return;
+  
+  const phase = phasesForToday[timer.currentPhaseIndex];
+  if (phase) {
+    try {
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    } catch {}
+    
+    // Fire-and-forget chime
+    void handlePhaseComplete(phase, timer.elapsedInCurrentPhase);
+  }
+  
+  appTimerStore.advancePhase(timerId);
+}, [phasesForToday, handlePhaseComplete, bibleStore]);
 
   // Pause timer when app goes to background
   useEffect(() => {
     const sub = AppState.addEventListener('change', (state) => {
       if (state !== 'active') {
-        setTimerCtrl(prev => prev ? { ...prev, isActive: false } : prev);
+        const timerId = bibleStore.getTodayTimerIdPublic();
+        if (timerId) {
+          appTimerStore.pause(timerId);
+        }
       }
     });
     return () => sub.remove();
-  }, []);
+  }, [bibleStore]);
 
   const advanceToNextSegment = useCallback(async () => {
     if (!bibleStore.isPlanMode) {
@@ -520,7 +440,6 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
       const moved = await bibleStore.markSegmentComplete(segment.id);
       if (moved) {
         await bibleStore.markTodaySessionCompleted();
-        setTimerCtrl(prev => prev ? { ...prev, isActive: false, completed: true, secondsRemainingInPhase: 0 } : prev);
         try {
           const { sound } = await Audio.Sound.createAsync(
             require('../../assets/sounds/bell.wav')
@@ -550,35 +469,23 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
     }
   }, [bibleStore]);
 
-  const handleCompleteSegment = useCallback(async () => {
-    try {
-      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    } catch {}
+const handleCompleteSegment = useCallback(async () => {
+  try {
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  } catch {}
 
-    if (phasesForToday.length > 0 && timerCtrl && !timerCtrl.completed) {
-      setShowTimerModal(true);
-      void completeCurrentPhase();
-      return;
-    }
-
-    await advanceToNextSegment();
-  }, [phasesForToday.length, timerCtrl, completeCurrentPhase, advanceToNextSegment]);
-
+  const timerId = bibleStore.getTodayTimerIdPublic();
+  const timer = timerId ? appTimerStore.get(timerId) : null;
   
+  if (phasesForToday.length > 0 && timer && !timer.completed) {
+    setShowTimerModal(true);
+    void completeCurrentPhase();
+    return;
+  }
 
-  useEffect(() => {
-    return () => {
-      if (snapshotTimerRef.current) {
-        clearTimeout(snapshotTimerRef.current);
-        snapshotTimerRef.current = null;
-      }
-      const s = pendingSnapshotRef.current;
-      if (s) {
-        void bibleStore.applyTimerState(s);
-        pendingSnapshotRef.current = null;
-      }
-    };
-  }, [bibleStore]);
+  await advanceToNextSegment();
+}, [phasesForToday.length, completeCurrentPhase, advanceToNextSegment, bibleStore]);
+
 
   const goToNextChapterWithinSegment = useCallback(async () => {
     const seg = bibleStore.activeReadingSegment;
@@ -1017,61 +924,95 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
     return bibleStore.verses.find(v => v.id === bibleStore.selectedVerseId) ?? null;
   }, [bibleStore.selectedVerseId, bibleStore.verses]);
 
-  const handleEnterPlanMode = useCallback(async () => {
-    if (!bibleStore.readingPlan) {
-      return;
-    }
-    // Ensure session is ready before deciding what to show
-    await bibleStore.ensureDailySessionPrepared();
-    if (bibleStore.isPlanMode) {
-      void bibleStore.focusPlanSegment();
-      setShowCompactPlan(true);
-      if (bibleStore.dailySession?.completed) {
-        toast.success('All done for today — great job!');
-        return;
-      } else {
-        setShowTimerModal(true);
-        // Play start chime only when actually starting timer UI
-        try {
-          const { sound } = await Audio.Sound.createAsync(
-            require('../../assets/sounds/bell.wav')
-          );
-          await sound.playAsync();
-          sound.setOnPlaybackStatusUpdate(status => {
-            if (status.isLoaded && status.didJustFinish) {
-              sound.unloadAsync();
-            }
-          });
-        } catch (error) {
-          console.warn('Could not play start chime', error);
-        }
-      }
-      return;
-    }
-    bibleStore.enablePlanMode();
-    await bibleStore.focusPlanSegment();
+const handleEnterPlanMode = useCallback(async () => {
+  if (!bibleStore.readingPlan) {
+    return;
+  }
+  
+  await bibleStore.ensureDailySessionPrepared();
+  
+  if (bibleStore.isPlanMode) {
+    void bibleStore.focusPlanSegment();
     setShowCompactPlan(true);
+    
     if (bibleStore.dailySession?.completed) {
       toast.success('All done for today — great job!');
       return;
+    }
+    
+    const timerId = bibleStore.getTodayTimerIdPublic();
+    if (!timerId) return;
+    
+    const timer = appTimerStore.get(timerId);
+    if (!timer) return;
+    
+    const phase = phasesForToday[timer.currentPhaseIndex];
+    
+    if (phase && phase.id !== 'reading') {
+      appTimerStore.resume(timerId);
+      setShowMeditationMode(true);
     } else {
       setShowTimerModal(true);
+      
+      // Play start chime
+      try {
+        const { sound } = await Audio.Sound.createAsync(
+          require('../../assets/sounds/bell.wav')
+        );
+        await sound.playAsync();
+        sound.setOnPlaybackStatusUpdate(status => {
+          if (status.isLoaded && status.didJustFinish) {
+            sound.unloadAsync();
+          }
+        });
+      } catch (error) {
+        console.warn('Could not play start chime', error);
+      }
     }
-    // Play start chime only when starting timer
-    try {
-      const { sound } = await Audio.Sound.createAsync(
-        require('../../assets/sounds/bell.wav')
-      );
-      await sound.playAsync();
-      sound.setOnPlaybackStatusUpdate(status => {
-        if (status.isLoaded && status.didJustFinish) {
-          sound.unloadAsync();
-        }
-      });
-    } catch (error) {
-      console.warn('Could not play start chime', error);
-    }
-  }, [bibleStore]);
+    return;
+  }
+  
+  bibleStore.enablePlanMode();
+  await bibleStore.focusPlanSegment();
+  setShowCompactPlan(true);
+  
+  if (bibleStore.dailySession?.completed) {
+    toast.success('All done for today — great job!');
+    return;
+  }
+  
+  await bibleStore.ensureDailySessionPrepared();
+  
+  const timerId = bibleStore.getTodayTimerIdPublic();
+  if (!timerId) return;
+  
+  const timer = appTimerStore.get(timerId);
+  if (!timer) return;
+  
+  const phase = phasesForToday[timer.currentPhaseIndex];
+  
+  if (phase && phase.id !== 'reading') {
+    appTimerStore.resume(timerId);
+    setShowMeditationMode(true);
+  } else {
+    setShowTimerModal(true);
+  }
+  
+  // Play start chime
+  try {
+    const { sound } = await Audio.Sound.createAsync(
+      require('../../assets/sounds/bell.wav')
+    );
+    await sound.playAsync();
+    sound.setOnPlaybackStatusUpdate(status => {
+      if (status.isLoaded && status.didJustFinish) {
+        sound.unloadAsync();
+      }
+    });
+  } catch (error) {
+    console.warn('Could not play start chime', error);
+  }
+}, [bibleStore, phasesForToday]);
 
   const handleExitPlanMode = useCallback(() => {
     if (!bibleStore.isPlanMode) {
@@ -1255,26 +1196,43 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
                   <Text style={styles.planCardSummary} numberOfLines={1}>
                     {currentSegment ? formatSegmentLabel(currentSegment) : 'Next segment'}
                   </Text>
-                  {bibleStore.isPlanMode && (
-                    <Text style={styles.planReminderHint}>
-                      {remainingSeconds != null
-                        ? `Time remaining: ${Math.floor(remainingSeconds / 60)}:${String(remainingSeconds % 60).padStart(2, '0')}`
-                        : `Planned: ${phasesForToday.reduce((m, p) => m + p.minutes, 0)} min`}
-                    </Text>
-                  )}
+                  {bibleStore.isPlanMode && (() => {
+  const timerId = bibleStore.getTodayTimerIdPublic();
+  const remaining = timerId ? appTimerStore.totalRemaining(timerId) : null;
+  return (
+    <Text style={styles.planReminderHint}>
+      {remaining != null
+        ? `Time remaining: ${Math.floor(Math.max(0, remaining) / 60)}:${String(Math.max(0, remaining) % 60).padStart(2, '0')}`
+        : `Planned: ${phasesForToday.reduce((m, p) => m + p.minutes, 0)} min`}
+    </Text>
+  );
+})()}
+
                 </View>
                 <View style={styles.planCompactActions}>
                   <TouchableOpacity
                     style={[styles.planSecondaryButton, styles.planCompactActionButton]}
                     onPress={() => {
-                      if (bibleStore.isPlanMode) {
-                        setPlanDetailsExpanded(true);
-                        setShowCompactPlan(false);
-                      } else {
-                        handleEnterPlanMode();
-                      }
-                      resetIdleTimer();
-                    }}
+  if (bibleStore.isPlanMode) {
+    const timerId = bibleStore.getTodayTimerIdPublic();
+    const timer = timerId ? appTimerStore.get(timerId) : null;
+    
+    if (timer) {
+      const curPhase = phasesForToday[timer.currentPhaseIndex];
+      if (curPhase && curPhase.id !== 'reading') {
+        appTimerStore.resume(timerId);
+        setShowMeditationMode(true);
+        setShowCompactPlan(false);
+      } else {
+        setPlanDetailsExpanded(true);
+        setShowCompactPlan(false);
+      }
+    }
+  } else {
+    handleEnterPlanMode();
+  }
+  resetIdleTimer();
+}}
                   >
                     <MaterialIcons name="play-arrow" size={18} color={theme.colors.primary} />
                     <Text style={styles.planSecondaryButtonLabel}>
@@ -1293,6 +1251,32 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
                   >
                     <MaterialIcons name="tune" size={18} color={theme.colors.primary} />
                   </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+          </TouchableWithoutFeedback>
+        </View>
+      );
+    }
+
+    // Minimal compact summary when completed
+    if (readingPlan && showCompactPlan && bibleStore.dailySession?.completed) {
+      return (
+        <View style={styles.planContainer}>
+          <TouchableWithoutFeedback
+            onPress={() => {
+              setPlanDetailsExpanded(true);
+              setShowCompactPlan(false);
+              resetIdleTimer();
+            }}
+          >
+            <View style={styles.planCard}>
+              <View style={styles.planCompactRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.planSectionTitle}>Today’s focus</Text>
+                  <Text style={styles.planCardSummary} numberOfLines={1}>
+                    All done for today — come back tomorrow
+                  </Text>
                 </View>
               </View>
             </View>
@@ -1698,83 +1682,85 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
     );
   };
 
-
-  
-
-  const renderTimerModal = () => (
-    <Modal visible={showTimerModal} animationType="slide" transparent onRequestClose={() => setShowTimerModal(false)}>
-      <View style={styles.timerModalBackdrop}>
-        <View style={styles.timerModalCard}>
-          <View style={styles.timerModalHeader}>
-            <Text style={styles.timerModalTitle}>Today’s Focus</Text>
-            <TouchableOpacity onPress={() => setShowTimerModal(false)}>
-              <MaterialIcons name="close" size={22} color={theme.colors.text.secondary} />
-            </TouchableOpacity>
-          </View>
-          <ReadingTimer
-            phases={phasesForToday}
-            onPhaseComplete={handlePhaseComplete}
-            onAllPhasesComplete={() => {
-              handleAllPhasesComplete();
-              setShowTimerModal(false);
-            }}
-            onRemainingChange={setRemainingSeconds}
-            controlledState={timerCtrl ? {
-              currentPhaseIndex: timerCtrl.currentPhaseIndex,
-              secondsRemainingInPhase: timerCtrl.secondsRemainingInPhase,
-              phaseSummaries: timerCtrl.phaseSummaries,
-              isActive: timerCtrl.isActive,
-              completed: timerCtrl.completed,
-            } : undefined}
-            onToggleActive={(next) => {
-              setTimerCtrl(prev => prev ? { ...prev, isActive: next } : prev);
-              if (next) {
-                // Show meditation mode for non-reading phases
-                const currentPhase = phasesForToday[timerCtrl?.currentPhaseIndex ?? 0];
-                if (currentPhase && currentPhase.id !== 'reading') {
-                  setShowMeditationMode(true);
-                }
-                setShowTimerModal(false);
-              }
-            }}
-            onAdvancePhase={() => void completeCurrentPhase()}
-            passages={(() => {
-              const seg = bibleStore.activeReadingSegment;
-              if (!seg) return undefined;
-              return [formatSegmentLabel(seg)];
-            })()}
-          />
-        </View>
-      </View>
-    </Modal>
-  );
-
-  const renderMeditationModal = () => {
-    const currentPhase = phasesForToday[timerCtrl?.currentPhaseIndex ?? 0];
-    if (!currentPhase || currentPhase.id === 'reading') {
-      return null;
-    }
-
-    // Sample verses for meditation - in real app, these would be curated
-    const meditationVerses = [
-      { text: "Be still, and know that I am God.", reference: "Psalm 46:10" },
-      { text: "The Lord is my shepherd; I shall not want.", reference: "Psalm 23:1" },
-      { text: "Trust in the Lord with all your heart.", reference: "Proverbs 3:5" },
-      { text: "I can do all things through Christ who strengthens me.", reference: "Philippians 4:13" },
-      { text: "The peace of God, which transcends all understanding.", reference: "Philippians 4:7" },
-    ];
+  const renderTimerModal = () => {
+    const timerId = bibleStore.getTodayTimerIdPublic();
+    if (!timerId) return null;
 
     return (
-      <Modal visible={showMeditationMode} animationType="fade" transparent onRequestClose={() => setShowMeditationMode(false)}>
-        <MeditationVerse
-          verses={meditationVerses}
-          phase={currentPhase}
-          isActive={timerCtrl?.isActive ?? false}
-          onReturn={() => setShowMeditationMode(false)}
-        />
+      <Modal visible={showTimerModal} animationType="slide" transparent>
+        <View style={styles.timerModalBackdrop}>
+          <View style={styles.timerModalCard}>
+            <View style={styles.timerModalHeader}>
+              <Text style={styles.timerModalTitle}>Today's Focus</Text>
+              <TouchableOpacity onPress={() => setShowTimerModal(false)}>
+                <MaterialIcons name="close" size={22} color={theme.colors.text.secondary} />
+              </TouchableOpacity>
+            </View>
+            
+            <ReadingTimer
+              timerId={timerId}
+              phases={phasesForToday}
+              onPhaseComplete={handlePhaseComplete}
+              onAllPhasesComplete={handleAllPhasesComplete}
+              passages={(() => {
+                const seg = bibleStore.activeReadingSegment;
+                if (!seg) return undefined;
+                return [formatSegmentLabel(seg)];
+              })()}
+            />
+          </View>
+        </View>
       </Modal>
     );
   };
+
+const renderMeditationModal = () => {
+  const timerId = bibleStore.getTodayTimerIdPublic();
+  const timer = timerId ? appTimerStore.get(timerId) : null;
+  
+  if (!timer) return null;
+  
+  const currentPhase = phasesForToday[timer.currentPhaseIndex];
+  if (!currentPhase || currentPhase.id === 'reading') {
+    return null;
+  }
+
+  let versesForMeditation = meditationVerses.length
+    ? meditationVerses
+    : (bibleStore.verses || []).map(v => ({ text: v.text, reference: v.reference ?? v.id })).slice(0, 40);
+    
+  if (!versesForMeditation.length) {
+    const seg = bibleStore.activeReadingSegment;
+    if (seg) {
+      versesForMeditation.push({ 
+        text: formatSegmentLabel(seg), 
+        reference: `${seg.bookName} ${seg.chapterStart}${seg.chapterEnd && seg.chapterEnd !== seg.chapterStart ? '-' + seg.chapterEnd : ''}` 
+      });
+    }
+  }
+
+  const remainingSeconds = appTimerStore.remainingInPhase(timerId);
+
+  return (
+    <Modal visible={showMeditationMode} animationType="fade" transparent onRequestClose={() => setShowMeditationMode(false)}>
+      <MeditationVerse
+        verses={versesForMeditation}
+        phase={currentPhase}
+        isActive={timer.isActive}
+        remainingSeconds={Math.max(0, remainingSeconds)}
+        onReturn={() => {
+          setShowMeditationMode(false);
+          setPlanDetailsExpanded(true);
+          setShowCompactPlan(false);
+        }}
+        onCompletePhase={() => {
+          void completeCurrentPhase();
+          setShowMeditationMode(false);
+        }}
+      />
+    </Modal>
+  );
+};
 
   return (
     <View style={styles.container}>
@@ -1931,16 +1917,24 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
       </Modal>
 
       <OverlayHost>
-        {bibleStore.isPlanMode && showFloatingProgress && !showTimerModal && remainingSeconds != null && !bibleStore.dailySession?.completed && (timerCtrl?.isActive ?? false) && (
-          <TouchableOpacity style={styles.floatingTimer} onPress={() => setShowTimerModal(true)}>
-            <View style={styles.floatingTimerCircle}>
-              <MaterialIcons name="timer" size={14} color={theme.colors.text.secondary} />
-            </View>
-            <Text style={styles.floatingTimerText}>
-              {`Time remaining: ${Math.floor(remainingSeconds / 60)}:${String(remainingSeconds % 60).padStart(2, '0')}`}
-            </Text>
-          </TouchableOpacity>
-        )}
+        {bibleStore.isPlanMode && showFloatingProgress && !showTimerModal && !bibleStore.dailySession?.completed && (() => {
+  const timerId = bibleStore.getTodayTimerIdPublic();
+  const timer = timerId ? appTimerStore.get(timerId) : null;
+  const remaining = timerId ? appTimerStore.totalRemaining(timerId) : null;
+  
+  if (!timer || !timer.isActive || remaining == null) return null;
+  
+  return (
+    <TouchableOpacity style={styles.floatingTimer} onPress={() => setShowTimerModal(true)}>
+      <View style={styles.floatingTimerCircle}>
+        <MaterialIcons name="timer" size={14} color={theme.colors.text.secondary} />
+      </View>
+      <Text style={styles.floatingTimerText}>
+        {`Time remaining: ${Math.floor(Math.max(0, remaining) / 60)}:${String(Math.max(0, remaining) % 60).padStart(2, '0')}`}
+      </Text>
+    </TouchableOpacity>
+  );
+})()}
 
         {bibleStore.isPlanMode && bibleStore.dailySession?.completed && (
           <View style={styles.bottomOverlay}>
@@ -2175,6 +2169,8 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
 
                 {bibleStore.installedVersions.includes(item.shortName) ? (
                   <MaterialIcons name="check-circle" size={24} color={theme.colors.primary} />
+                ) : bibleStore.isInstallingVersion && bibleStore.installingVersionId === item.shortName ? (
+                  <ActivityIndicator size="small" color={theme.colors.primary} />
                 ) : (
                   <TouchableOpacity 
                     onPress={(e) => {

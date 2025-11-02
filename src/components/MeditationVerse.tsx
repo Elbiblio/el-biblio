@@ -8,10 +8,12 @@ type MeditationVerseProps = {
   verses: Array<{ text: string; reference: string }>;
   phase: ReadingPlanPhase;
   isActive: boolean;
+  remainingSeconds: number;
   onReturn: () => void;
+  onCompletePhase: () => void;
 };
 
-const MeditationVerse: React.FC<MeditationVerseProps> = ({ verses, phase, isActive, onReturn }) => {
+const MeditationVerse: React.FC<MeditationVerseProps> = ({ verses, phase, isActive, remainingSeconds, onReturn, onCompletePhase }) => {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   
@@ -76,6 +78,12 @@ const MeditationVerse: React.FC<MeditationVerseProps> = ({ verses, phase, isActi
     }
   }, [phase.id]);
 
+  const formatTime = useCallback((s: number) => {
+    const mins = Math.floor(s / 60);
+    const secs = Math.max(0, s % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  }, []);
+
   if (!currentVerse) {
     return null;
   }
@@ -84,15 +92,20 @@ const MeditationVerse: React.FC<MeditationVerseProps> = ({ verses, phase, isActi
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.phaseLabel}>{phase.label}</Text>
-        <TouchableOpacity 
-          style={styles.returnButton} 
-          onPress={() => {
-            try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {};
-            onReturn();
-          }}
-        >
-          <Text style={styles.returnButtonText}>Back to Plan</Text>
-        </TouchableOpacity>
+        <View style={styles.headerRight}>
+          <View style={styles.timerPill}>
+            <Text style={styles.timerPillText}>{formatTime(Math.max(0, remainingSeconds))}</Text>
+          </View>
+          <TouchableOpacity 
+            style={styles.returnButton} 
+            onPress={() => {
+              try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {};
+              onReturn();
+            }}
+          >
+            <Text style={styles.returnButtonText}>Back to Plan</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       <View style={styles.content}>
@@ -104,15 +117,26 @@ const MeditationVerse: React.FC<MeditationVerseProps> = ({ verses, phase, isActi
       </View>
 
       <View style={styles.footer}>
-        <TouchableOpacity 
-          style={styles.nextButton} 
-          onPress={() => {
-            try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {};
-            showNextVerse();
-          }}
-        >
-          <Text style={styles.nextButtonText}>Next Verse</Text>
-        </TouchableOpacity>
+        <View style={styles.footerRow}>
+          <TouchableOpacity 
+            style={styles.secondaryButton} 
+            onPress={() => {
+              try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {};
+              showNextVerse();
+            }}
+          >
+            <Text style={styles.secondaryButtonText}>Next Verse</Text>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={styles.primaryButton} 
+            onPress={() => {
+              try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {};
+              onCompletePhase();
+            }}
+          >
+            <Text style={styles.primaryButtonText}>Complete</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     </View>
   );
@@ -131,9 +155,26 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       padding: theme.spacing.lg,
       paddingTop: theme.spacing.xl,
     },
+    headerRight: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: theme.spacing.sm,
+    },
     phaseLabel: {
       ...theme.typography.heading.small,
       color: theme.colors.text.primary,
+      fontWeight: '600',
+    },
+    timerPill: {
+      paddingHorizontal: theme.spacing.sm,
+      paddingVertical: 6,
+      borderRadius: theme.borderRadius.full,
+      backgroundColor: `${theme.colors.text.secondary}15`,
+    },
+    timerPillText: {
+      ...theme.typography.caption.primary,
+      color: theme.colors.text.secondary,
+      fontVariant: ['tabular-nums'],
       fontWeight: '600',
     },
     returnButton: {
@@ -180,14 +221,33 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       padding: theme.spacing.lg,
       paddingBottom: theme.spacing.xl,
     },
-    nextButton: {
-      alignSelf: 'center',
-      paddingHorizontal: theme.spacing.lg,
+    footerRow: {
+      flexDirection: 'row',
+      gap: theme.spacing.sm,
+      justifyContent: 'space-between',
+    },
+    secondaryButton: {
+      flex: 1,
+      paddingHorizontal: theme.spacing.md,
+      paddingVertical: theme.spacing.md,
+      borderRadius: theme.borderRadius.full,
+      backgroundColor: `${theme.colors.primary}12`,
+      alignItems: 'center',
+    },
+    secondaryButtonText: {
+      ...theme.typography.button.primary,
+      color: theme.colors.primary,
+      fontWeight: '600',
+    },
+    primaryButton: {
+      flex: 1,
+      paddingHorizontal: theme.spacing.md,
       paddingVertical: theme.spacing.md,
       borderRadius: theme.borderRadius.full,
       backgroundColor: theme.colors.primary,
+      alignItems: 'center',
     },
-    nextButtonText: {
+    primaryButtonText: {
       ...theme.typography.button.primary,
       color: theme.colors.text.inverse,
       fontWeight: '600',

@@ -5,20 +5,12 @@ import { observer } from 'mobx-react-lite';
 import { useTheme } from '@/contexts/ThemeContext';
 import { Theme } from '@/theme';
 import { useDailyPathStore } from '@/stores/StoreProvider';
+import { HABIT_CONQUEST_SCOPE_PARAMS } from '@/stores/DailyPathStore';
 import type { DailyFocusKey } from '@/stores/DailyPathStore';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '@/types';
-import {
-  ArrowLeft,
-  BookOpen,
-  NotePencil,
-  Users,
-  Flame,
-  Heart,
-  Trophy,
-  Check,
-} from '@/components/Icons';
+import { ArrowLeft, BookOpen, NotePencil, Shield, Flame, Heart, Trophy, Check } from '@/components/Icons';
 import { toast } from 'sonner-native';
 import { scheduleReviveReminders } from '@/tasks/reviveReminderScheduler';
 
@@ -55,20 +47,21 @@ const focusOptions: {
     accent: theme => theme.colors.info,
   },
   {
-    key: 'community',
-    title: 'Build & Support',
-    short: 'I want to join in & help others',
-    description: 'Discover prompts to pray for others, share encouragement, and grow together.',
-    icon: Users,
-    accent: theme => theme.colors.success,
-  },
-  {
     key: 'habits',
     title: 'Discipleship',
     short: 'Daily challenges',
     description: 'Set daily challenges to help others, grow your faith and gain spiritual wealth.',
     icon: NotePencil,
     accent: theme => theme.colors.secondary,
+  },
+  {
+    key: 'habit_conquest',
+    title: 'Conquer Harmful Habits',
+    short: 'Break the patterns stealing your devotion',
+    description:
+      'Engage daily precepts that expose the world’s distortions, rebuild holy discipline, and align with God’s design.',
+    icon: Shield,
+    accent: theme => theme.colors.success,
   },
 ];
 
@@ -120,11 +113,11 @@ const CitizenshipSetupScreen = observer(() => {
 
       const includesKnowledge = selectedFocuses.includes('knowledge');
       const includesDiscipleship = selectedFocuses.includes('habits');
-      const includesCommunity = selectedFocuses.includes('community');
+      const includesHabitConquest = selectedFocuses.includes('habit_conquest');
       const includesRevive = selectedFocuses.includes('revive');
 
       // Unlocks and flags
-      if (selectedFocuses.includes('habits') || selectedFocuses.includes('community')) {
+      if (selectedFocuses.includes('habits')) {
         dailyPathStore.setChallengesEnabled(true);
         dailyPathStore.setViewedChallengeSelection(true);
         dailyPathStore.setChallengeOnboardingCompleted(false);
@@ -132,16 +125,15 @@ const CitizenshipSetupScreen = observer(() => {
       } else {
         dailyPathStore.setChallengesEnabled(enableChallenges);
       }
-      if (includesCommunity) {
-        dailyPathStore.setCommunityUnlocked(true);
-      }
 
       dailyPathStore.markSetupComplete();
 
       // Post-setup flows: prioritize Reading Plan > Challenges > Revive checklist
       if (includesKnowledge) {
         navigation.navigate('BibleScreen', { openPlanSetup: true } as any);
-      } else if (includesDiscipleship || includesCommunity) {
+      } else if (includesHabitConquest) {
+        navigation.navigate('BibleScreen', HABIT_CONQUEST_SCOPE_PARAMS);
+      } else if (includesDiscipleship) {
         navigation.navigate('DailyChallengeScreen', { onboarding: true });
       } else if (includesRevive) {
         setShowReviveChecklist(true);

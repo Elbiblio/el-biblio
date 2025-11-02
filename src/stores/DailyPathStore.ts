@@ -8,8 +8,8 @@ export type DailyFocusKey =
   | 'revive'
   | 'meditation'
   | 'knowledge'
-  | 'community'
   | 'habits'
+  | 'habit_conquest'
   | 'challenge';
 
 export interface DailyStep {
@@ -34,10 +34,34 @@ export interface ReviveReminderSchedule {
 export type DailyFocusIconKey =
   | 'BookOpen'
   | 'NotePencil'
-  | 'Users'
+  | 'Shield'
   | 'Flame'
   | 'Heart'
   | 'Trophy';
+
+export const HABIT_CONQUEST_SCOPE_PARAMS: RootStackParamList['BibleScreen'] = {
+  mode: 'scoped',
+  scopedTitle: 'Conquer harmful habits',
+  scopedSubtitle: 'Trade false comforts for Kingdom strength.',
+  scopedVerses: [
+    {
+      text: 'Your body is a temple of the Holy Spirit; honor God with your body.',
+      reference: '1 Corinthians 6:19-20',
+    },
+    {
+      text: 'No temptation has overtaken you except what is common to mankind. God is faithful and will provide a way out.',
+      reference: '1 Corinthians 10:13',
+    },
+    {
+      text: 'Offer your body as a living sacrifice and be transformed by the renewing of your mind.',
+      reference: 'Romans 12:1-2',
+    },
+    {
+      text: 'God\'s seed remains in you, empowering you to break the pattern of sin.',
+      reference: '1 John 3:9',
+    },
+  ],
+};
 
 interface DailyPathState {
   isReady: boolean;
@@ -59,7 +83,7 @@ interface DailyPathState {
 
 const DEFAULT_STATE: DailyPathState = {
   isReady: false,
-  focusOrder: ['revive', 'knowledge'],
+  focusOrder: ['revive', 'habit_conquest', 'knowledge'],
   enableChallenges: false,
   completedToday: [],
   lastCompletedDate: null,
@@ -78,14 +102,15 @@ const DEFAULT_STATE: DailyPathState = {
 const LEGACY_FOCUS_MAP: Record<string, DailyFocusKey> = {
   scripture: 'knowledge',
   reflection: 'habits',
-  community: 'community',
+  community: 'habits',
   meditation: 'meditation',
-  service: 'community',
+  service: 'habits',
+  habit_recovery: 'habit_conquest',
 };
 
 const normalizeFocusKey = (key?: string | null): DailyFocusKey | null => {
   if (!key) return null;
-  if (['revive', 'meditation', 'knowledge', 'community', 'habits', 'challenge'].includes(key)) {
+  if (['revive', 'meditation', 'knowledge', 'habits', 'habit_conquest', 'challenge'].includes(key)) {
     return key as DailyFocusKey;
   }
   return LEGACY_FOCUS_MAP[key] ?? null;
@@ -454,15 +479,6 @@ export class DailyPathStore {
       route: 'BibleScreen',
       icon: 'BookOpen',
     },
-    community: {
-      id: 'community',
-      focus: 'community',
-      title: 'Show up for others',
-      summary: 'Check in on the community or lift someone up in prayer.',
-      actionLabel: 'Visit community space',
-      route: 'CommunityScreen',
-      icon: 'Users',
-    },
     habits: {
       id: 'habits',
       focus: 'habits',
@@ -471,6 +487,16 @@ export class DailyPathStore {
       actionLabel: 'Open daily habit',
       route: 'NotesScreen',
       icon: 'NotePencil',
+    },
+    habit_conquest: {
+      id: 'habit_conquest',
+      focus: 'habit_conquest',
+      title: 'Conquer harmful habits',
+      summary: 'Name the false trades stealing your devotion and replace them with Kingdom purpose.',
+      actionLabel: 'Open habit conquest plan',
+      route: 'BibleScreen',
+      params: HABIT_CONQUEST_SCOPE_PARAMS,
+      icon: 'Shield',
     },
     challenge: {
       id: 'challenge',

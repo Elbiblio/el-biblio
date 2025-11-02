@@ -3,12 +3,12 @@ import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { Theme } from '@/theme';
 import { DailyStep, DailyFocusIconKey } from '@/stores/DailyPathStore';
-import { BookOpen, NotePencil, Users, Flame, Heart, Trophy, Check, ChevronRight } from '@/components/Icons';
+import { BookOpen, NotePencil, Shield, Flame, Heart, Trophy, Check, ChevronRight } from '@/components/Icons';
 
 const ICON_MAP: Record<DailyFocusIconKey, React.ComponentType<{ size?: number; color?: string }>> = {
   BookOpen,
   NotePencil,
-  Users,
+  Shield,
   Flame,
   Heart,
   Trophy,
@@ -41,7 +41,7 @@ const DailyJourneyCard: React.FC<DailyJourneyCardProps> = ({
       <View style={styles.header}>
         <Text style={styles.title}>Today&apos;s Path</Text>
         <Text style={styles.subtitle}>
-          {nextStep ? nextStep.summary : 'Stay faithful to what you have learned and encourage another citizen today.'}
+          {nextStep ? nextStep.summary : 'Stay faithful to what you have learned and encourage another today.'}
         </Text>
         <View style={styles.progressTrack}>
           <View style={[styles.progressFill, { width: `${progressPercent}%` }]} />
@@ -59,7 +59,7 @@ const DailyJourneyCard: React.FC<DailyJourneyCardProps> = ({
         ) : (
           <View style={styles.successPill}>
             <Check size={18} color={theme.colors.success} />
-            <Text style={styles.successText}>Path complete. Pour into someone else.</Text>
+            <Text style={styles.successText}>Path complete. Keep it up</Text>
           </View>
         )}
       </View>

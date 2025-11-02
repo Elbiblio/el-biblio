@@ -1,4 +1,5 @@
-import { makeAutoObservable, runInAction, action } from 'mobx';
+import { makeAutoObservable, runInAction } from 'mobx';
+import { appTimerStore } from './AppTimerStore';
 import { apiClient, endpoints } from '@/api/client';
 import { BibleVerse, Book, BibleVersion, VerseActivityMap } from '@/types';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -254,6 +255,7 @@ class BibleStore {
   isInstallingVersion: boolean = false;
   isVersionsLoading: boolean = false;
   isHistoryLoading: boolean = false;
+  installingVersionId: string | null = null;
   
   // Error states
   versesError: string | null = null;
@@ -313,6 +315,7 @@ class BibleStore {
   isPlanMode = false;
   dailySession: DailyReadingSession | null = null;
 
+
   // Pagination (for compatibility with BibleScreen)
   pagination = {
     currentPage: 1,
@@ -345,108 +348,217 @@ class BibleStore {
     return `${STORAGE_KEYS.DAILY_SESSION_PREFIX}${planId}:${today}`;
   }
 
-  async ensureDailySessionPrepared() {
-    if (!this.readingPlan || !this.isPlanMode) {
-      runInAction(() => {
-        this.dailySession = null;
-      });
-      return;
+  private getTodayTimerId(): string | null {
+    if (!this.readingPlan) return null;
+    const today = this.getTodayDate();
+    return `${this.readingPlan.id}:${today}`;
     }
 
-    const key = this.getDailySessionKey(this.readingPlan.id);
-
-    try {
-      const stored = await AsyncStorage.getItem(key);
-      if (stored) {
-        const parsed = JSON.parse(stored) as DailyReadingSession;
-        // Validate phases align with current plan
-        const plannedPhases = this.readingPlan.phases;
-        const sameShape = parsed.phases.length === plannedPhases.length && parsed.phases.every((p, i) => p.id === plannedPhases[i].id && p.plannedSeconds === plannedPhases[i].minutes * 60);
-        runInAction(() => {
-          this.dailySession = sameShape ? parsed : null;
-        });
-      }
-    } catch (error) {
-      console.warn('Failed to load daily session', error);
-    }
-
-    if (!this.dailySession) {
-      const phases: DailyPhaseProgress[] = (this.readingPlan.phases || []).map(p => ({
-        id: p.id,
-        label: p.label,
-        plannedSeconds: Math.max(0, (p.minutes || 0) * 60),
-        elapsedSeconds: 0,
-      }));
-      const firstPlanned = phases[0]?.plannedSeconds ?? 0;
-      const segment = this.activeReadingSegment;
-      const session: DailyReadingSession = {
-        date: this.getTodayDate(),
-        planId: this.readingPlan.id,
-        segmentId: segment?.id ?? null,
-        bookAbbr: segment?.bookAbbreviation ?? null,
-        chapterStart: segment?.chapterStart ?? null,
-        chapterEnd: segment?.chapterEnd ?? null,
-        verseStart: segment?.verseStart ?? null,
-        verseEnd: segment?.verseEnd ?? null,
-        phases,
-        currentPhaseIndex: 0,
-        secondsRemainingInPhase: firstPlanned,
-        chaptersCompleted: 0,
-        completed: false,
-      };
-      await this.saveDailySession(session);
-      runInAction(() => {
-        this.dailySession = session;
-      });
-    }
+  getTodayTimerIdPublic(): string | null {
+    return this.getTodayTimerId();
+  }
+async ensureDailySessionPrepared() {
+  if (!this.readingPlan || !this.isPlanMode) {
+    runInAction(() => {
+      this.dailySession = null;
+    });
+    return;
   }
 
-  private async saveDailySession(session: DailyReadingSession | null) {
-    if (!this.readingPlan) return;
-    const key = this.getDailySessionKey(this.readingPlan.id);
-    try {
-      if (!session) {
-        await AsyncStorage.removeItem(key);
-      } else {
-        await AsyncStorage.setItem(key, JSON.stringify(session));
-      }
-    } catch (error) {
-      console.warn('Failed to persist daily session', error);
+  const key = this.getDailySessionKey(this.readingPlan.id);
+
+  try {
+    const stored = await AsyncStorage.getItem(key);
+    if (stored) {
+      const parsed = JSON.parse(stored) as DailyReadingSession;
+      const plannedPhases = this.readingPlan.phases;
+      const sameShape = parsed.phases.length === plannedPhases.length && 
+        parsed.phases.every((p, i) => p.id === plannedPhases[i].id && p.plannedSeconds === plannedPhases[i].minutes * 60);
+      
+      runInAction(() => {
+        this.dailySession = sameShape ? parsed : null;
+      });
     }
+  } catch (error) {
+    console.warn('Failed to load daily session', error);
   }
 
-  async applyTimerState(state: { currentPhaseIndex: number; secondsRemainingInPhase: number; phaseSummaries: Array<{ id: DailyPhaseProgress['id']; label: string; plannedSeconds: number; elapsedSeconds: number; }>; }) {
-    if (!this.readingPlan) return;
+  if (!this.dailySession) {
+    const phases: DailyPhaseProgress[] = (this.readingPlan.phases || []).map(p => ({
+      id: p.id,
+      label: p.label,
+      plannedSeconds: Math.max(0, (p.minutes || 0) * 60),
+      elapsedSeconds: 0,
+    }));
+    
+    const firstPlanned = phases[0]?.plannedSeconds ?? 0;
     const segment = this.activeReadingSegment;
+    
     const session: DailyReadingSession = {
       date: this.getTodayDate(),
       planId: this.readingPlan.id,
-      segmentId: segment?.id ?? this.dailySession?.segmentId ?? null,
-      bookAbbr: segment?.bookAbbreviation ?? this.dailySession?.bookAbbr ?? null,
-      chapterStart: segment?.chapterStart ?? this.dailySession?.chapterStart ?? null,
-      chapterEnd: segment?.chapterEnd ?? this.dailySession?.chapterEnd ?? null,
-      verseStart: segment?.verseStart ?? this.dailySession?.verseStart ?? null,
-      verseEnd: segment?.verseEnd ?? this.dailySession?.verseEnd ?? null,
-      phases: state.phaseSummaries.map(s => ({ id: s.id, label: s.label, plannedSeconds: s.plannedSeconds, elapsedSeconds: Math.max(0, s.elapsedSeconds) })),
-      currentPhaseIndex: Math.max(0, Math.min(state.currentPhaseIndex, (this.readingPlan?.phases.length ?? 1) - 1)),
-      secondsRemainingInPhase: Math.max(0, state.secondsRemainingInPhase),
-      chaptersCompleted: this.dailySession?.chaptersCompleted ?? 0,
-      completed: state.phaseSummaries.length > 0 && state.phaseSummaries.every(p => p.elapsedSeconds >= p.plannedSeconds),
+      segmentId: segment?.id ?? null,
+      bookAbbr: segment?.bookAbbreviation ?? null,
+      chapterStart: segment?.chapterStart ?? null,
+      chapterEnd: segment?.chapterEnd ?? null,
+      verseStart: segment?.verseStart ?? null,
+      verseEnd: segment?.verseEnd ?? null,
+      phases,
+      currentPhaseIndex: 0,
+      secondsRemainingInPhase: firstPlanned,
+      chaptersCompleted: 0,
+      completed: false,
     };
+    
     await this.saveDailySession(session);
+    
     runInAction(() => {
       this.dailySession = session;
     });
   }
+  
+  // Initialize or sync with AppTimerStore
+  const timerId = this.getTodayTimerId();
+  if (timerId && this.dailySession) {
+    const { appTimerStore } = await import('@/stores/AppTimerStore');
+    
+    // Load any persisted state
+    await appTimerStore.load(timerId);
+    
+    // If no persisted state, initialize from session
+    const timer = appTimerStore.get(timerId);
+    if (!timer) {
+      appTimerStore.setFromSnapshot(
+        timerId,
+        (this.readingPlan.phases || []).map(p => ({ 
+          id: p.id, 
+          label: p.label, 
+          plannedSeconds: Math.max(0, p.minutes * 60) 
+        })),
+        this.dailySession.currentPhaseIndex,
+        Math.max(0, this.dailySession.secondsRemainingInPhase),
+        this.dailySession.phases.map(p => ({ 
+          id: p.id, 
+          label: p.label, 
+          plannedSeconds: p.plannedSeconds, 
+          elapsedSeconds: Math.max(0, p.elapsedSeconds) 
+        })),
+        false, // Don't auto-start
+        this.dailySession.completed
+      );
+    }
+  }
+}
 
-  async markTodaySessionCompleted() {
-    if (!this.dailySession || !this.readingPlan) return;
-    const session = { ...this.dailySession, completed: true, secondsRemainingInPhase: 0 };
-    await this.saveDailySession(session);
-    runInAction(() => {
-      this.dailySession = session;
-    });
+async saveDailySession(session: DailyReadingSession | null) {
+  if (!this.readingPlan) return;
+  
+  const key = this.getDailySessionKey(this.readingPlan.id);
+  
+  try {
+    if (!session) {
+      await AsyncStorage.removeItem(key);
+    } else {
+      await AsyncStorage.setItem(key, JSON.stringify(session));
+      
+      // Sync with AppTimerStore
+      const timerId = this.getTodayTimerId();
+      if (timerId) {
+        const { appTimerStore } = await import('@/stores/AppTimerStore');
+        
+        appTimerStore.setFromSnapshot(
+          timerId,
+          (this.readingPlan.phases || []).map(p => ({ 
+            id: p.id, 
+            label: p.label, 
+            plannedSeconds: Math.max(0, p.minutes * 60) 
+          })),
+          session.currentPhaseIndex,
+          Math.max(0, session.secondsRemainingInPhase),
+          session.phases.map(p => ({ 
+            id: p.id, 
+            label: p.label, 
+            plannedSeconds: p.plannedSeconds, 
+            elapsedSeconds: Math.max(0, p.elapsedSeconds) 
+          })),
+          false, // Preserve active state from timer
+          session.completed
+        );
+      }
+    }
+  } catch (error) {
+    console.warn('Failed to persist daily session', error);
   }
+}
+
+async syncFromTimer() {
+  if (!this.dailySession || !this.readingPlan) return;
+  
+  const timerId = this.getTodayTimerId();
+  if (!timerId) return;
+  
+  const { appTimerStore } = await import('@/stores/AppTimerStore');
+  const timer = appTimerStore.get(timerId);
+  if (!timer) return;
+  
+  const segment = this.activeReadingSegment;
+  const remaining = appTimerStore.remainingInPhase(timerId);
+  
+  const updatedSession: DailyReadingSession = {
+    date: this.getTodayDate(),
+    planId: this.readingPlan.id,
+    segmentId: segment?.id ?? this.dailySession.segmentId,
+    bookAbbr: segment?.bookAbbreviation ?? this.dailySession.bookAbbr,
+    chapterStart: segment?.chapterStart ?? this.dailySession.chapterStart,
+    chapterEnd: segment?.chapterEnd ?? this.dailySession.chapterEnd,
+    verseStart: segment?.verseStart ?? this.dailySession.verseStart,
+    verseEnd: segment?.verseEnd ?? this.dailySession.verseEnd,
+    phases: timer.summaries.map((s, i) => {
+      const phase = this.readingPlan!.phases[i];
+      const plannedSeconds = Math.max(0, s.plannedSeconds);
+      let elapsedSeconds = Math.max(0, s.elapsedSeconds);
+      
+      // Add current phase elapsed if it's the active phase
+      if (i === timer.currentPhaseIndex) {
+        elapsedSeconds = timer.elapsedInCurrentPhase;
+      }
+      
+      return {
+        id: phase?.id ?? s.id as DailyPhaseProgress['id'],
+        label: phase?.label ?? s.label,
+        plannedSeconds,
+        elapsedSeconds,
+      };
+    }),
+    currentPhaseIndex: timer.currentPhaseIndex,
+    secondsRemainingInPhase: Math.max(0, remaining),
+    chaptersCompleted: this.dailySession.chaptersCompleted,
+    completed: timer.completed,
+  };
+  
+  await this.saveDailySession(updatedSession);
+  
+  runInAction(() => {
+    this.dailySession = updatedSession;
+  });
+}
+
+async markTodaySessionCompleted() {
+  if (!this.dailySession || !this.readingPlan) return;
+  
+  const timerId = this.getTodayTimerId();
+  if (timerId) {
+    const { appTimerStore } = await import('@/stores/AppTimerStore');
+    appTimerStore.completeAll(timerId);
+  }
+  
+  const session = { ...this.dailySession, completed: true, secondsRemainingInPhase: 0 };
+  await this.saveDailySession(session);
+  
+  runInAction(() => {
+    this.dailySession = session;
+  });
+}
 
   async incrementChaptersCompletedBy(count: number) {
     if (!this.dailySession || !this.readingPlan) return;
@@ -574,6 +686,7 @@ class BibleStore {
   setCurrentVersion(version: BibleVersion | ExtendedBibleVersion) {
     const extended = 'id' in version ? version : toExtendedVersion(version);
     this.currentVersion = extended;
+    this.saveUserPreferences();
   }
 
   setCurrentBookByCode(abbreviation: string) {
@@ -928,7 +1041,7 @@ class BibleStore {
       const entries: { title: string; content: string }[] = [];
       const candidates: Record<string, any> = data;
       const orderedKeys = [
-        'summary',
+        'verse',
         'quick_insight',
         'deeper_exploration',
         'living_this_out',
@@ -1963,24 +2076,46 @@ class BibleStore {
 
   // Version Management
   async installVersion(version: BibleVersion) {
-    if (!version) return;
+    if (!version) {
+      return false;
+    }
 
-    this.isInstallingVersion = true;
-    this.installError = null;
+    const shortName = version.shortName || version.tableName;
+    const tableName = version.tableName;
+
+    if (!shortName) {
+      console.warn('Attempted to install a Bible version without a shortName or tableName');
+      return false;
+    }
+
+    if (this.isInstallingVersion) {
+      return false;
+    }
+
+    if (this.installedVersions.includes(shortName)) {
+      return true;
+    }
+
+    runInAction(() => {
+      this.isInstallingVersion = true;
+      this.installError = null;
+      this.installingVersionId = shortName;
+    });
 
     try {
-      // In a real app, this would download and install the Bible version
-      // For now, we'll just simulate the installation
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      const ext = toExtendedVersion(version);
+      await BibleDBService.installVersion(version);
+
       runInAction(() => {
-        if (!this.installedVersions.includes(ext.id)) {
-          this.installedVersions = [...this.installedVersions, ext.id];
+        if (!this.installedVersions.includes(shortName)) {
+          this.installedVersions = [...this.installedVersions, shortName];
           this.saveInstalledVersions();
         }
+
+        if (!this.installedVersionTables.includes(tableName)) {
+          this.installedVersionTables = [...this.installedVersionTables, tableName];
+        }
       });
-      
+
       return true;
     } catch (error) {
       console.error('Error installing version:', error);
@@ -1991,6 +2126,7 @@ class BibleStore {
     } finally {
       runInAction(() => {
         this.isInstallingVersion = false;
+        this.installingVersionId = null;
       });
     }
   }
