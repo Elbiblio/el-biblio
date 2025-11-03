@@ -55,6 +55,7 @@ import PointsEarnedModal from './src/components/PointsEarnedModal';
 import { pointsTracker } from './src/utils/pointsTracker';
 import { registerGlobals, AudioSession } from '@livekit/react-native';
 import ChallengeCompletionBanner from './src/components/ChallengeCompletionBanner';
+import type { Challenge } from './src/types/challenges';
 import { registerChallengeReminderTask } from './src/tasks/challengeReminderTask';
 import { useJourneyStore } from './src/stores/StoreProvider';
 
@@ -103,6 +104,69 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { err
     return this.props.children as any;
   }
 }
+
+// Extracted out of AppContent to stabilize hook identity/order across renders
+const NavigationContent: React.FC = () => {
+  // Bind WebSocket verse handlers to provider-based verse store
+  useWebSocketVerseSync();
+  const { isInitialized: authInitialized, user, token } = useAuthStore();
+  const { hasCompletedWelcome } = appStore;
+
+  const getInitialRoute = () => {
+    if (user && token && hasCompletedWelcome) return 'Home';
+    if (user && token && !hasCompletedWelcome) return 'IntroScreen';
+    return 'IntroScreen';
+  };
+  const initialRoute = getInitialRoute();
+  console.log('[App] Navigation initial route', {
+    initialRoute,
+    hasCompletedWelcome,
+    hasUser: !!user,
+    hasToken: !!token,
+  });
+  const navigatorKey = `${user?.id || 'no-user'}-${hasCompletedWelcome ? 'welcome-completed' : 'welcome-pending'}`;
+
+  return (
+    <NavigationContainer onReady={() => console.log('[App] NavigationContainer onReady')}>
+      <Stack.Navigator
+        key={navigatorKey}
+        screenOptions={{ headerShown: false }}
+        initialRouteName={initialRoute}
+      >
+        <Stack.Screen name="IntroScreen" component={IntroScreen} />
+        <Stack.Screen name="RegistrationScreen" component={RegistrationScreen} />
+        <Stack.Screen name="Home" component={HomeScreen} />
+        <Stack.Screen name="VerseDetail" component={VerseDetail} />
+        <Stack.Screen name="ReflectionDetail" component={ReflectionDetail} />
+        <Stack.Screen name="DailyVersesScreen" component={DailyVersesScreen} />
+        <Stack.Screen name="DailyChallengeScreen" component={DailyChallengeScreen} />
+        <Stack.Screen name="ChallengeDetail" component={ChallengeDetailScreen} />
+        <Stack.Screen name="WordHubsScreen" component={WordHubsScreen} />
+        <Stack.Screen name="WordHubDetailScreen" component={WordHubDetailScreen} />
+        <Stack.Screen name="MatchScreen" component={MatchScreen} />
+        <Stack.Screen name="SavedItemsScreen" component={SavedItemsScreen} />
+        <Stack.Screen name="NotesScreen" component={NotesScreen} />
+        {/* @ts-ignore */}
+        <Stack.Screen name="NoteDetail" component={NoteDetailScreen} />
+        <Stack.Screen name="MeditationScreen" component={MeditationScreen} />
+        <Stack.Screen name="VirtueScreen" component={VirtueScreen} />
+        <Stack.Screen name="VirtueTriviaScreen" component={VirtueTriviaScreen} />
+        <Stack.Screen name="VirtueQuizScreen" component={VirtueQuizScreen} />
+        <Stack.Screen name="VerseBuilderScreen" component={VerseBuilderScreen} />
+        <Stack.Screen name="BibleScreen" component={BibleScreen} />
+        <Stack.Screen name="ProfileScreen" component={ProfileScreen} />
+        <Stack.Screen name="LeaderboardScreen" component={LeaderboardScreen} />
+        <Stack.Screen name="GameScreen" component={GameScreen} />
+        <Stack.Screen name="SpiritualCareerScreen" component={SpiritualCareerScreen} />
+        <Stack.Screen name="MyJourneyScreen" component={MyJourneyScreen} />
+        <Stack.Screen name="JourneyQuizScreen" component={JourneyQuizScreen} />
+        <Stack.Screen name="CitizenshipSetupScreen" component={CitizenshipSetupScreen} />
+        <Stack.Screen name="HabitConquestSetupScreen" component={HabitConquestSetupScreen} />
+        <Stack.Screen name="HabitConquestSessionScreen" component={HabitConquestSessionScreen} />
+      </Stack.Navigator>
+    </NavigationContainer>
+  );
+};
 
 const AppContent = () => {
   const [isLoading, setIsLoading] = useState(true);
@@ -186,7 +250,7 @@ const AppContent = () => {
     const { challengeStore } = require('./src/stores/ChallengeStore');
     
     const uncompletedChallenges = challengeStore.personalChallenges.filter(
-      challenge => !challenge.isCompleted && challenge.hasJoined
+      (challenge: Challenge) => !challenge.isCompleted && (challenge as any).hasJoined
     );
     
     if (uncompletedChallenges.length > 0) {
@@ -246,82 +310,6 @@ const AppContent = () => {
     );
   }
 
-  const NavigationContent = () => {
-    // Bind WebSocket verse handlers to provider-based verse store
-    useWebSocketVerseSync();
-    // Determine the initial route based on authentication and welcome state
-    const getInitialRoute = () => {
-      // If user is authenticated and has completed welcome, go to Home
-      if (user && token && hasCompletedWelcome) {
-        return 'Home';
-      }
-      // If user is authenticated but hasn't completed welcome, go to Intro
-      if (user && token && !hasCompletedWelcome) {
-        return 'IntroScreen';
-      }
-      // If no user or token, go to Intro
-      return 'IntroScreen';
-    };
-
-    const initialRoute = getInitialRoute();
-    // Debug: log routing decision
-    console.log('[App] Navigation initial route', {
-      initialRoute,
-      hasCompletedWelcome,
-      hasUser: !!user,
-      hasToken: !!token,
-    });
-    // Create a key that changes when the route should change to force re-render
-    const navigatorKey = `${user?.id || 'no-user'}-${hasCompletedWelcome ? 'welcome-completed' : 'welcome-pending'}`;
-
-    return (
-      <NavigationContainer onReady={() => console.log('[App] NavigationContainer onReady')}>
-        <Stack.Navigator 
-          key={navigatorKey}
-          screenOptions={{ headerShown: false }}
-          initialRouteName={initialRoute}
-        >
-          <Stack.Screen name="IntroScreen" component={IntroScreen} />
-          <Stack.Screen name="RegistrationScreen" component={RegistrationScreen} />
-          <Stack.Screen name="Home" component={HomeScreen} />
-          <Stack.Screen name="VerseDetail" component={VerseDetail} />
-          <Stack.Screen name="ReflectionDetail" component={ReflectionDetail} />
-          <Stack.Screen name="DailyVersesScreen" component={DailyVersesScreen} />
-          <Stack.Screen name="DailyChallengeScreen" component={DailyChallengeScreen} />
-          <Stack.Screen name="ChallengeDetail" component={ChallengeDetailScreen} />
-          <Stack.Screen name="WordHubsScreen" component={WordHubsScreen} />
-          <Stack.Screen name="WordHubDetailScreen" component={WordHubDetailScreen} />
-          <Stack.Screen name="MatchScreen" component={MatchScreen} />
-          <Stack.Screen name="SavedItemsScreen" component={SavedItemsScreen} />
-          <Stack.Screen name="NotesScreen" component={NotesScreen} />
-          <Stack.Screen name="CommunityScreen" component={CommunityScreen} />
-          <Stack.Screen name="PrayerRequestsScreen" component={PrayerRequestsScreen} />
-          {/* @ts-ignore */}
-          <Stack.Screen name="NoteDetail" component={NoteDetailScreen} />
-          <Stack.Screen name="MeditationScreen" component={MeditationScreen} />
-          <Stack.Screen name="VirtueScreen" component={VirtueScreen} />
-          <Stack.Screen name="VirtueTriviaScreen" component={VirtueTriviaScreen} />
-          <Stack.Screen name="VirtueQuizScreen" component={VirtueQuizScreen} />
-          <Stack.Screen name="VerseBuilderScreen" component={VerseBuilderScreen} />
-          <Stack.Screen name="BibleScreen" component={BibleScreen} />
-          <Stack.Screen name="ProfileScreen" component={ProfileScreen} />
-          <Stack.Screen name="LeaderboardScreen" component={LeaderboardScreen} />
-          <Stack.Screen name="GameScreen" component={GameScreen} />
-          <Stack.Screen name="SpiritualCareerScreen" component={SpiritualCareerScreen} />
-          <Stack.Screen name="MyJourneyScreen" component={MyJourneyScreen} />
-          <Stack.Screen name="JourneyQuizScreen" component={JourneyQuizScreen} />
-          <Stack.Screen name="CitizenshipSetupScreen" component={CitizenshipSetupScreen} />
-          <Stack.Screen name="HabitConquestSetupScreen" component={HabitConquestSetupScreen} />
-          <Stack.Screen name="HabitConquestSessionScreen" component={HabitConquestSessionScreen} />
-        </Stack.Navigator>
-        {/* Place overlay components inside NavigationContainer so they have navigation context */}
-        {showChallengeBanner && (
-          <ChallengeCompletionBanner onDismiss={() => setShowChallengeBanner(false)} />
-        )}
-      </NavigationContainer>
-    );
-  };
-
   return (
     <ThemeProvider
       initialTheme={initialTheme}
@@ -332,7 +320,13 @@ const AppContent = () => {
           {showThemeSelector ? (
             <ThemeSelector onSelect={handleThemeSelect} closeAfterSelection />
           ) : (
-            <NavigationContent />
+            <>
+              <NavigationContent />
+              {/* Place overlay components within App tree instead of nested inside NavigationContent */}
+              {showChallengeBanner && (
+                <ChallengeCompletionBanner onDismiss={() => setShowChallengeBanner(false)} />
+              )}
+            </>
           )}
         </ErrorBoundary>
         <Toaster />

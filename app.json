@@ -58,9 +58,9 @@
       [
         "@livekit/react-native-expo-plugin",
         {
-          "iosMicrophonePermission": "Allow El-Biblio to use the microphone so you can speak in live sessions.",
-          "iosBluetoothPermission": "Allow El-Biblio to use Bluetooth for improved audio during live sessions.",
-          "androidMicrophonePermission": "Allow El-Biblio to record audio during live sessions."
+          "iosMicrophonePermission": "Allow El-Biblio to use the microphone so you can speak in Wordhubs.",
+          "iosBluetoothPermission": "Allow El-Biblio to use Bluetooth for improved audio during Wordhubs.",
+          "androidMicrophonePermission": "Allow El-Biblio to record audio for reflections or Wordhubs."
         }
       ],
       "expo-font",

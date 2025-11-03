@@ -1,7 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { Modal, View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
 import { useTheme } from '@/contexts/ThemeContext';
-import { observer } from 'mobx-react-lite';
 import { MaterialIcons } from '@expo/vector-icons';
 import { AUDIO_KEYS, playByKey, stopByKey } from '@/services/audio';
 
@@ -53,7 +52,7 @@ const CHANTS: Array<{
   },
 ];
 
-const ChantLibraryModal: React.FC<ChantLibraryModalProps> = observer(({ visible, selectedId, onClose, onSelect }) => {
+const ChantLibraryModal: React.FC<ChantLibraryModalProps> = ({ visible, selectedId, onClose, onSelect }) => {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const [previewingKey, setPreviewingKey] = useState<string | null>(null);
@@ -137,7 +136,7 @@ const ChantLibraryModal: React.FC<ChantLibraryModalProps> = observer(({ visible,
       </View>
     </Modal>
   );
-});
+};
 
 const createStyles = (theme: any) => StyleSheet.create({
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 20 },

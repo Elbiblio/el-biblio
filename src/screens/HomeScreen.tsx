@@ -613,6 +613,21 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
   const challengeOpacity = useSharedValue(0);
   const verseTranslateY = useSharedValue(20);
   const spotlightTranslateX = useSharedValue(20);
+  // Animated styles must be declared at component top-level (not inside render helpers)
+  const challengeAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: challengeOpacity.value,
+  }));
+  const verseAnimatedStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: verseTranslateY.value }],
+    opacity: interpolate(verseTranslateY.value, [20, 0], [0, 1]),
+  }));
+  const spotlightAnimatedStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: spotlightTranslateX.value }],
+    opacity: interpolate(spotlightTranslateX.value, [20, 0], [0, 1]),
+  }));
+  const toolsAnimatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: toolsScale.value }],
+  }));
   useEffect(() => {
     loadTimeTracking();
     const subscription = AppState.addEventListener('change', handleAppStateChange);
@@ -1139,9 +1154,7 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
 
   // Quick Tools Grid Section with animations
   const renderQuickTools = () => {
-    const toolAnimatedStyle = useAnimatedStyle(() => ({
-      transform: [{ scale: toolsScale.value }]
-    }));
+    const toolAnimatedStyle = toolsAnimatedStyle;
 
     return (
       <Animated.View style={[styles.section, toolAnimatedStyle]}>
@@ -1272,15 +1285,12 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
     if (!shouldShowChallenges) {
       return null;
     }
-
-    const challengeAnimatedStyle = useAnimatedStyle(() => ({
-      opacity: challengeOpacity.value,
-    }));
+    const challengeStyle = challengeAnimatedStyle;
 
     // Show loading state
     if (challengeStore.isLoading) {
       return (
-        <Animated.View style={[styles.section, challengeAnimatedStyle]}>
+        <Animated.View style={[styles.section, challengeStyle]}>
           <View style={styles.sectionHeaderWithAction}>
             <Text style={styles.sectionTitle}>DAILY CHALLENGES</Text>
             <TouchableOpacity 
@@ -1492,14 +1502,11 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
 
   // Verse of the Day Section with animations
   const renderVerseOfTheDay = () => {
-    const verseAnimatedStyle = useAnimatedStyle(() => ({
-      transform: [{ translateY: verseTranslateY.value }],
-      opacity: interpolate(verseTranslateY.value, [20, 0], [0, 1]),
-    }));
+    const verseStyle = verseAnimatedStyle;
 
     if (!dailyVerses || dailyVerses.length === 0) {
       return (
-        <Animated.View style={[styles.section, verseAnimatedStyle]}>
+        <Animated.View style={[styles.section, verseStyle]}>
           <Text style={styles.sectionTitle}>VERSE OF THE DAY</Text>
           <View style={styles.verseCard}>
             <Text style={styles.loadingText}>No verse of the day yet. Please check back later.</Text>
@@ -1582,17 +1589,14 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
 
   // Learning Spotlight Section with animations
   const renderLearningSpotlight = () => {
-    const spotlightAnimatedStyle = useAnimatedStyle(() => ({
-      transform: [{ translateX: spotlightTranslateX.value }],
-      opacity: interpolate(spotlightTranslateX.value, [20, 0], [0, 1]),
-    }));
+    const spotlightStyle = spotlightAnimatedStyle;
 
     // Use real content if available: take top reflection as spotlight
     const spotlight = (reflections && (reflections as any[]).length > 0) ? (reflections as any[])[0] : null;
     if (!spotlight) return null;
 
     return (
-      <Animated.View style={[styles.section, spotlightAnimatedStyle]}>
+      <Animated.View style={[styles.section, spotlightStyle]}>
         <Text style={styles.sectionTitle}>LEARNING SPOTLIGHT</Text>
         <TouchableOpacity 
           style={styles.spotlightCard}
