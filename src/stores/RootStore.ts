@@ -1,5 +1,5 @@
 import { authStore } from './AuthStore';
-import { meditationStore } from './MeditationStore';
+import { MeditationStore } from './MeditationStore';
 import { matchStore } from './MatchStore';
 import { preferencesStore } from './PreferencesStore';
 import { ReflectionStore } from './ReflectionStore';
@@ -21,7 +21,7 @@ import { DailyPathStore } from './DailyPathStore';
 
 export class RootStore {
   authStore = authStore;
-  meditationStore = meditationStore;
+  meditationStore: MeditationStore;
   matchStore = matchStore;
   preferencesStore = preferencesStore;
   reflectionStore: ReflectionStore;
@@ -58,5 +58,6 @@ export class RootStore {
     this.bookmarkStore = new BookmarkStore();
     this.journeyStore = new JourneyStore(this.authStore);
     this.dailyPathStore = new DailyPathStore();
+    this.meditationStore = new MeditationStore(this.authStore);
   }
 }

@@ -12,6 +12,7 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { LinearGradient } from 'expo-linear-gradient';
+import MeditationCompleteView from '@/components/MeditationCompleteView';
 import { observer } from 'mobx-react-lite';
 import * as Speech from 'expo-speech';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -1294,76 +1295,27 @@ const MeditationScreen = () => {
   };
 
   const renderCompleteScreen = () => (
-    <View style={styles.completeContainer}>
-      <View style={styles.completeBanner}>
-        <Text style={styles.completeTitle}>Meditation Complete</Text>
-        <View style={styles.checkmarkContainer}>
-          <View style={styles.checkCircle}>
-            <Check size={36} color="#FFFFFF" />
-          </View>
-        </View>
-        <Text style={styles.completeSubtitle}>Take a moment to reflect on your experience</Text>
-      </View>
-
-      {selectedStyle === 'virtue' && !smartPickDismissed && smartPickChallenge && (
-        <View style={styles.smartPickWrapper}>
-          <SmartPickCard
-            challenge={smartPickChallenge}
-            onPressJoin={handleSmartPickJoin}
-            onPressDismiss={() => setSmartPickDismissed(true)}
-            ctaLabel={smartPickChallenge.hasJoined ? 'View challenge' : 'Join challenge'}
-          />
-        </View>
-      )}
-
-      {selectedStyle === 'virtue' && (
-        <TouchableOpacity style={styles.bellButton} onPress={createChallenge}>
-          <Animated.View style={[styles.bellIconContainer, bellButtonStyle]}>
-            <Bell size={40} color={currentVirtue?.color_code || theme.colors.primary} />
-          </Animated.View>
-          <Text style={styles.bellText}>Activate Daily Challenge</Text>
-        </TouchableOpacity>
-      )}
-
-      {selectedStyle === 'virtue' && selectedChallenge && <TouchableOpacity
-        style={styles.challengeSummaryContainer}
-        onPress={() => setChallengeExpanded(!challengeExpanded)}
-        activeOpacity={0.85}
-      >
-        <View style={styles.challengeSummaryHeader}>
-          <Text style={styles.challengeSummaryTitle}>Your Selected Challenge</Text>
-          <Text style={styles.challengeToggleLabel}>{challengeExpanded ? 'Hide details ▴' : 'Tap for details ▾'}</Text>
-        </View>
-        <View style={styles.challengeSummaryCard}>
-          <LinearGradient
-            colors={[`${currentVirtue?.color_code}15`, `${currentVirtue?.color_code}05`]}
-            style={StyleSheet.absoluteFill}
-          />
-          <Text style={styles.challengeSummaryText}>{selectedChallenge?.title}</Text>
-          <Text style={styles.challengeDuration}>
-            For the next {selectedTime} {selectedTime === 1 ? 'hour' : 'hours'}
-          </Text>
-
-          {challengeExpanded && (
-            <View style={styles.expandedChallengeInfo}>
-              <Text style={styles.expandedChallengeDescription}>
-                {selectedChallenge?.description}
-              </Text>
-              {selectedVirtue && (
-                <View style={styles.virtueTagContainer}>
-                  <View style={[styles.virtueTag, { backgroundColor: `${currentVirtue?.color_code}20` }]}>
-                    <Text style={[styles.virtueTagText, { color: currentVirtue?.color_code }] }>
-                      {currentVirtue?.name}
-                    </Text>
-                  </View>
-                </View>
-              )}
-            </View>
-          )}
-        </View>
-      </TouchableOpacity>
-      }
-    </View>
+    <MeditationCompleteView
+      theme={theme}
+      styles={styles}
+      selectedStyle={selectedStyle}
+      smartPickChallenge={smartPickChallenge as any}
+      smartPickDismissed={smartPickDismissed}
+      onDismissSmartPick={() => setSmartPickDismissed(true)}
+      onJoinSmartPick={handleSmartPickJoin as any}
+      onActivateChallenge={createChallenge}
+      selectedChallenge={selectedChallenge as any}
+      challengeExpanded={challengeExpanded}
+      onToggleChallengeExpand={() => setChallengeExpanded(!challengeExpanded)}
+      selectedTime={selectedTime}
+      currentVirtue={currentVirtue as any}
+      bellButtonStyle={bellButtonStyle}
+      onFinish={() => {
+        if (isSpeaking.current) Speech.stop();
+        meditationStore.resetMeditationSession();
+        navigation.navigate('Home', { meditationComplete: true });
+      }}
+    />
   );
 
   return (
@@ -1941,6 +1893,24 @@ const createStyles = (theme: Theme, currentVirtue: Virtue | undefined) =>
       ...theme.typography.caption.primary,
       color: theme.colors.text.primary,
       fontWeight: '600',
+    },
+    finishButton: {
+      marginTop: theme.spacing.xl,
+      paddingVertical: theme.spacing.md,
+      paddingHorizontal: theme.spacing.xl,
+      borderRadius: theme.borderRadius.full,
+      backgroundColor: theme.colors.primary,
+      alignSelf: 'center',
+      ...Platform.select({
+        ios: { shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 8 },
+        android: { elevation: 4 },
+      }),
+    },
+    finishButtonText: {
+      ...theme.typography.body.sans,
+      color: '#FFFFFF',
+      fontWeight: '700',
+      fontSize: 16,
     },
     challengeSummaryContainer: {
       width: '100%',

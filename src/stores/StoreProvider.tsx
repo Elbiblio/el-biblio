@@ -1,20 +1,5 @@
 import React, { createContext, useContext } from 'react';
 import { RootStore } from './RootStore';
-import { authStore } from './AuthStore';
-import { meditationStore } from './MeditationStore';
-import { matchStore } from './MatchStore';
-import { preferencesStore } from './PreferencesStore';
-import { ReflectionStore } from './ReflectionStore';
-import { LeaderboardStore } from './LeaderboardStore';
-import { VirtueStore } from './VirtueStore';
-import { VerseStore } from './VerseStore';
-import { VerseBuilderStore } from './VerseBuilderStore';
-import { NotesStore } from './NotesStore';
-import { ChallengeStore } from './ChallengeStore';
-import { PrayerRequestsStore } from './PrayerRequestsStore';
-import { WordHubsStore } from './WordHubsStore';
-import { GameStore } from './GameStore';
-import { VirtueQuizStore } from './VirtueQuizStore';
 
 const StoreContext = createContext<RootStore | null>(null);
 

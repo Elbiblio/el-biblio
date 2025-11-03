@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState, useMemo } from 'react';
+import React, { useCallback, useEffect, useState, useMemo, useRef } from 'react';
 import {
   View,
   ScrollView,
@@ -1274,10 +1274,15 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
     return dailyPathStore.isChallengesEnabled || challengesUnlockedByPoints;
   }, [dailyPathStore.isSetupComplete, dailyPathStore.isChallengesEnabled, challengesUnlockedByPoints]);
 
+  const hasShownChallengeUnlock = useRef(false);
   useEffect(() => {
     if (!dailyPathStore.isSetupComplete) return;
-    if (!dailyPathStore.isChallengesEnabled && challengesUnlockedByPoints) {
+    if (!dailyPathStore.isChallengesEnabled && challengesUnlockedByPoints && !hasShownChallengeUnlock.current) {
+      hasShownChallengeUnlock.current = true;
       toast.info('Daily challenges unlocked! Join one to stay consistent.');
+    }
+    if (dailyPathStore.isChallengesEnabled) {
+      hasShownChallengeUnlock.current = false;
     }
   }, [dailyPathStore.isSetupComplete, dailyPathStore.isChallengesEnabled, challengesUnlockedByPoints]);
 
@@ -1752,18 +1757,18 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
                 "That they may all be one, just as you, Father, are in me, and I in you, that they also may be in us, so that the world may believe that you have sent me." (John 17:21). This was Jesus' final prayer before His sacrifice. It was not a suggestion, but the core of His mission for His Church.
               </Text>
 
-              <Text style={styles.homeWelcomeBody}>This community exists to answer that prayer. We are a refuge for the weary, a hospital for the broken, and a family for all who call upon the name of the Lord. Our foundation is the unchanging truth of Scripture, and our bond is the radical love and grace of God.</Text>
+              <Text style={styles.homeWelcomeBody}>This community exists to answer that prayer. We provide a place of solace and rejuvenation from the troubles of the world, a hospital for the broken, and a family for all who truly desire to be God's children. Our foundation is the word of God, and our bond is the wholesome love and grace of God.</Text>
 
               <Text style={styles.homeWelcomeBody}>To achieve this, we commit to the following truths:</Text>
 
               <Text style={styles.homeWelcomeItem}>
                 <Text style={styles.homeWelcomeItemNumber}>1.&nbsp;</Text>
-                <Text style={{fontWeight: 'bold'}}>Our Unity is in Christ, Not in Uniformity.</Text> Jesus foresaw many branches (John 15:5) but prayed for one vine. The apostles dealt with disputes (Acts 15:1-29) but maintained fellowship. We are a non-denominational family that embraces all who confess Jesus as Lord (Romans 10:9), recognizing that our unity is a testament to the world of God's love (John 13:35). Divisive agendas and "casting stones" at other believers have no place here, for they directly oppose the heart of Christ.
+                <Text style={{fontWeight: 'bold'}}>Our Unity is in Christ, Not in Uniformity.</Text> Jesus foresaw many branches (John 15:5) but prayed for one vine. The apostles dealt with disputes (Acts 15:1-29) but maintained fellowship. We are a non-denominational family that embraces all who confess Jesus as the sovereign Lord (Romans 10:9), recognizing that our unity is a testament to the world of God's love (John 13:35). Divisive agendas and "casting stones" at other believers have no place here, for they directly oppose the heart of Christ.
               </Text>
 
               <Text style={styles.homeWelcomeItem}>
                 <Text style={styles.homeWelcomeItemNumber}>2.&nbsp;</Text>
-                <Text style={{fontWeight: 'bold'}}>The Supreme Doctrine is God's Nature: Love and Grace.</Text> "God is love" (1 John 4:8). The ultimate evidence of knowing Him is not perfect doctrine, but a life transformed by His love (1 John 4:20-21). Jesus declared that the entire Law and Prophets hang on two commandments: to love God and to love our neighbor (Matthew 22:37-40). Any teaching that does not produce in us the fruit of the Spirit—"love, joy, peace, patience, kindness, goodness, faithfulness, gentleness, self-control" (Galatians 5:22-23)—has missed the point of the Gospel.
+                <Text style={{fontWeight: 'bold'}}>The Supreme Doctrine is God's Nature: Love and Grace.</Text> "God is love" (1 John 4:8). The ultimate evidence of knowing Him is not perfect doctrine, but a life transformed by His love (1 John 4:20-21). Jesus declared that the entire Law and Prophets hang on two commandments: to love God and to love our neighbor (Matthew 22:37-40). Any teaching that does not produce in us the fruits of the Spirit—"love, joy, peace, patience, kindness, goodness, faithfulness, gentleness, self-control" (Galatians 5:22-23)—has missed the point of the Gospel.
               </Text>
 
               <Text style={styles.homeWelcomeItem}>

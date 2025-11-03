@@ -1,6 +1,5 @@
 import React, { useMemo, useState, useCallback } from 'react';
 import { Modal, View, Text, TouchableOpacity, StyleSheet, ScrollView, TextInput } from 'react-native';
-import { observer } from 'mobx-react-lite';
 import { useTheme } from '@/contexts/ThemeContext';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Check, X, Heart, Bell, Flame } from '@/components/Icons';
@@ -43,7 +42,7 @@ interface MeditationSetupModalProps {
   virtues?: Array<{ id: string; name: string; color_code?: string | null }>;
 }
 
-const MeditationSetupModal: React.FC<MeditationSetupModalProps> = observer(({ visible, onClose, onStart, initialValues, virtues = [] }) => {
+const MeditationSetupModal: React.FC<MeditationSetupModalProps> = ({ visible, onClose, onStart, initialValues, virtues = [] }) => {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
 
@@ -144,7 +143,7 @@ const MeditationSetupModal: React.FC<MeditationSetupModalProps> = observer(({ vi
                     { id: 'virtue' as MeditationStyle, label: 'Grow a Virtue', description: 'Focus on a single virtue such as Love or Humility.' },
                     { id: 'centering' as MeditationStyle, label: 'Centering Prayer', description: 'Choose a sacred word and rest in silence.' },
                     { id: 'jesus_prayer' as MeditationStyle, label: 'Jesus Prayer', description: 'Pray “Lord Jesus Christ… have mercy on me” with your breath.' },
-                    { id: 'chant' as MeditationStyle, label: 'Chant', description: 'Repeat a simple chant that settles truth into your heart.' },
+                    { id: 'chant' as MeditationStyle, label: 'Chant', description: 'Meditate to a song for the purposes of Worship and drawing closer to God.' },
                   ].map(option => {
                     const isActive = option.id === styleChoice;
                     return (
@@ -389,7 +388,7 @@ const MeditationSetupModal: React.FC<MeditationSetupModalProps> = observer(({ vi
       </View>
     </Modal>
   );
-});
+};
 
 const createStyles = (theme: any) => StyleSheet.create({
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 20 },

@@ -1,6 +1,7 @@
-import { makeAutoObservable, runInAction } from 'mobx';
+import { makeAutoObservable, runInAction, reaction } from 'mobx';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { apiClient } from '@/api/client';
+import { AuthStore } from './AuthStore';
 import { MeditationSession, Challenge, DailyChallenge, PaginatedResponse } from '@/types';
 
 export type MeditationPhase = 'setup' | 'countdown' | 'active' | 'complete';
@@ -76,6 +77,8 @@ export class MeditationStore {
   error: string | null = null;
   private storageKey = 'meditation_store';
   private hasInitialized = false;
+  private disposeAuthReaction?: () => void;
+  private authStore: AuthStore;
 
   private setLoading = (value: boolean) => {
     this.isLoading = value;
@@ -96,12 +99,24 @@ export class MeditationStore {
   private countdownInterval: number | null = null;
   private meditationInterval: number | null = null;
   
-  constructor() {
+  constructor(authStore: AuthStore) {
     // Auto-bind ensures methods keep the correct `this` when passed around/destructured
     makeAutoObservable(this, {}, { autoBind: true });
-    
-    // Initialize the store
-    this.initialize();
+    this.authStore = authStore;
+
+    // Wait for auth to be ready before initializing network calls
+    this.disposeAuthReaction = reaction(
+      () => ({ initialized: this.authStore.isInitialized, token: this.authStore.token }),
+      ({ initialized, token }) => {
+        if (initialized && token) {
+          this.initialize();
+        }
+      },
+      {
+        fireImmediately: true,
+        equals: (a, b) => a.initialized === b.initialized && a.token === b.token,
+      }
+    );
   }
 
   // Getters for computed values
@@ -167,6 +182,10 @@ export class MeditationStore {
     } finally {
       this.setLoading(false);
       this.hasInitialized = true;
+      if (this.disposeAuthReaction) {
+        this.disposeAuthReaction();
+        this.disposeAuthReaction = undefined;
+      }
     }
   }
 
@@ -540,10 +559,5 @@ export class MeditationStore {
   }
 }
 
-// Create a singleton instance
-export const meditationStore = new MeditationStore();
-
-// For backward compatibility
-export const useMeditationStore = () => meditationStore;
-
-export default meditationStore;
+// For backward compatibility (legacy imports may still reference default export)
+export default MeditationStore;
