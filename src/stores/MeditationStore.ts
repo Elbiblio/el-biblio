@@ -4,6 +4,7 @@ import { apiClient } from '@/api/client';
 import { MeditationSession, Challenge, DailyChallenge, PaginatedResponse } from '@/types';
 
 export type MeditationPhase = 'setup' | 'countdown' | 'active' | 'complete';
+export type MeditationStyle = 'parable' | 'virtue' | 'centering' | 'jesus_prayer' | 'chant';
 
 export interface MeditationState {
   sessions: MeditationSession[];
@@ -16,6 +17,14 @@ export interface MeditationState {
   selectedTime: number | null;
   selectedChallenge: DailyChallenge | null;
   selectedBackgroundSound: string | null;
+  selectedStyle: MeditationStyle;
+  centeringWord: string | null;
+  chosenChantId: string | null;
+  jesusPrayerPace: 'slow' | 'medium' | 'fast';
+  parableReadMode: 'silent' | 'aloud';
+  centeringReadMode: 'silent' | 'aloud';
+  centeringRepeatIntervalSec: number;
+  chantReflectionPauseSec: number;
   meditationState: MeditationPhase;
   countdown: number;
   meditationTimer: number;
@@ -39,6 +48,14 @@ const initialState: MeditationState = {
   selectedTime: null,
   selectedChallenge: null,
   selectedBackgroundSound: 'ambient',
+  selectedStyle: 'virtue',
+  centeringWord: null,
+  chosenChantId: null,
+  jesusPrayerPace: 'medium',
+  parableReadMode: 'silent',
+  centeringReadMode: 'silent',
+  centeringRepeatIntervalSec: 15,
+  chantReflectionPauseSec: 20,
   meditationState: 'setup',
   countdown: 5, // 5-second countdown by default
   meditationTimer: 0,
@@ -347,10 +364,12 @@ export class MeditationStore {
   // UI/session actions
   setSelectedVirtue(id: string | null) {
     this.state.selectedVirtue = id;
+    this.saveToStorage();
   }
 
   setSelectedTime(minutes: number | null) {
     this.state.selectedTime = minutes;
+    this.saveToStorage();
   }
 
   setSelectedChallenge(challenge: DailyChallenge | null) {
@@ -360,6 +379,48 @@ export class MeditationStore {
   setSelectedBackgroundSound(id: string | null) {
     this.state.selectedBackgroundSound = id;
     // Persist immediately so user's choice sticks
+    this.saveToStorage();
+  }
+
+  setSelectedStyle(style: MeditationStyle) {
+    this.state.selectedStyle = style;
+    this.saveToStorage();
+  }
+
+  setCenteringWord(word: string | null) {
+    this.state.centeringWord = word;
+    this.saveToStorage();
+  }
+
+  setChosenChantId(id: string | null) {
+    this.state.chosenChantId = id;
+    this.saveToStorage();
+  }
+
+  setJesusPrayerPace(pace: 'slow' | 'medium' | 'fast') {
+    this.state.jesusPrayerPace = pace;
+    this.saveToStorage();
+  }
+
+  setParableReadMode(mode: 'silent' | 'aloud') {
+    this.state.parableReadMode = mode;
+    this.saveToStorage();
+  }
+
+  setCenteringReadMode(mode: 'silent' | 'aloud') {
+    this.state.centeringReadMode = mode;
+    this.saveToStorage();
+  }
+
+  setCenteringRepeatIntervalSec(seconds: number) {
+    const clamped = Math.max(10, Math.min(30, Math.floor(seconds || 10)));
+    this.state.centeringRepeatIntervalSec = clamped;
+    this.saveToStorage();
+  }
+
+  setChantReflectionPauseSec(seconds: number) {
+    const clamped = Math.max(15, Math.min(60, Math.floor(seconds || 20)));
+    this.state.chantReflectionPauseSec = clamped;
     this.saveToStorage();
   }
 

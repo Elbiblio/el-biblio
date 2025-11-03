@@ -23,11 +23,65 @@ const SOUNDS = {
   'verseplay.mp3': require('../../assets/sounds/verseplay.mp3'),
   'wordhub_new.mp3': require('../../assets/sounds/wordhub_new.mp3'),
   'wrong.mp3': require('../../assets/sounds/wrong.mp3'),
+  'db/10000_reasons.mp3': require('../../assets/sounds/db/10000_reasons.mp3'),
+  'db/10000_reasons_african.mp3': require('../../assets/sounds/db/10000_reasons_african.mp3'),
+  'db/10000_reasons_instrumental.mp3': require('../../assets/sounds/db/10000_reasons_instrumental.mp3'),
+  'db/be_still_my_soul.mp3': require('../../assets/sounds/db/be_still_my_soul.mp3'),
+  'db/be_still_my_soul_instrumental.mp3': require('../../assets/sounds/db/be_still_my_soul_instrumental.mp3'),
+  'db/anima_christi.mp3': require('../../assets/sounds/db/anima_christi.mp3'),
+  'db/anima_christi_instrumental.mp3': require('../../assets/sounds/db/anima_christi_instrumental.mp3'),
+  'db/oceans_voice.mp3': require('../../assets/sounds/db/oceans_voice.mp3'),
+  'db/oceans_instrumental.mp3': require('../../assets/sounds/db/oceans_instrumental.mp3'),
 } as const;
 
 export type SoundKey = keyof typeof SOUNDS;
 // Cooldown tracker per sound key
 const __lastPlayed: Partial<Record<SoundKey, number>> = {};
+
+export const playOneShotByKey = async (key: SoundKey, volumeMultiplier = 1.0): Promise<void> => {
+  await initAudio();
+  if (!SoundManager.isEnabled()) return;
+  const s = await getSound(key);
+  return new Promise(async (resolve) => {
+    try {
+      await s.setIsLoopingAsync(false);
+      const vol = SoundManager.getVolume();
+      await s.setVolumeAsync(Math.max(0, Math.min(1, vol * volumeMultiplier)));
+      await s.setPositionAsync(0);
+      s.setOnPlaybackStatusUpdate((status) => {
+        if ('didJustFinish' in status && status.didJustFinish) {
+          s.setOnPlaybackStatusUpdate(null);
+          resolve();
+        }
+      });
+      await s.playAsync();
+    } catch {
+      resolve();
+    }
+  });
+};
+
+export const stopByKey = async (key: SoundKey) => {
+  try {
+    const s = cache.get(key);
+    await s?.stopAsync();
+  } catch {}
+};
+
+export const playLoopByKey = async (key: SoundKey, volumeMultiplier = 0.15) => {
+  try {
+    await initAudio();
+    if (!SoundManager.isEnabled()) return;
+    const s = await getSound(key);
+    await s.setIsLoopingAsync(true);
+    const vol = SoundManager.getVolume();
+    await s.setVolumeAsync(Math.max(0, Math.min(1, vol * volumeMultiplier)));
+    const status = await s.getStatusAsync();
+    if ('isPlaying' in status && !status.isPlaying) {
+      await s.playAsync();
+    }
+  } catch {}
+};
 
 // Human-friendly cue aliases used across the app
 const CUE_ALIASES: Record<string, SoundKey> = {

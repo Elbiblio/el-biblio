@@ -595,16 +595,7 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
           >
             <Text style={styles.citizenshipPrimaryText}>Set up daily path</Text>
           </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.citizenshipSecondary}
-            onPress={() => {
-              setShowSetupPrompt(false);
-              navigation.navigate('HabitConquestSetupScreen' as any);
-            }}
-            activeOpacity={0.85}
-          >
-            <Text style={styles.citizenshipSecondaryText}>Habit Conquest</Text>
-          </TouchableOpacity>
+          
           <TouchableOpacity
             style={styles.citizenshipSecondary}
             onPress={handleDismissCitizenshipPrompt}

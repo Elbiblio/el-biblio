@@ -29,10 +29,12 @@ import {
   Check,
 } from '@/components/Icons';
 import { Theme } from '@/theme';
-import { useAuthStore, useVirtueStore, useMeditationStore, useChallengeStore } from '@/stores/StoreProvider';
+import { useAuthStore, useVirtueStore, useMeditationStore, useChallengeStore, useLeaderboardStore } from '@/stores/StoreProvider';
 import * as Haptics from 'expo-haptics';
 import { setAudioModeAsync } from 'expo-audio';
-import { playMusic, stopMusic, playCue } from '@/services/audio';
+import { playMusic, stopMusic, playCue, playLoopByKey, stopByKey, SoundKey, playOneShotByKey } from '@/services/audio';
+import BibleDBService from '@/utils/database';
+import { bibleBooks } from '@/constants/bibleBooks';
 import { DailyChallenge } from '@/types';
 import { Challenge as ChallengeRecommendation } from '@/types/challenges';
 import AnimatedCircularProgress from '@/components/AnimatedCircularProgress';
@@ -50,7 +52,8 @@ import Animated, {
   Easing,
   interpolate,
 } from 'react-native-reanimated';
-import { buildMeditationPlan, MeditationLevel, MeditationPlan } from '@/data/meditationPlans';
+import { buildMeditationPlan, MeditationLevel, MeditationPlan, contemplativePractices } from '@/data/meditationPlans';
+import MeditationSetupModal from '@/components/MeditationSetupModal';
 
 const TIME_OPTIONS: number[] = [5, 10, 15, 20];
 const ADVANCED_TIME_OPTIONS: number[] = [30, 45, 60];
@@ -72,6 +75,30 @@ const BREATH_LOOP_OPTIONS = [
   { id: 'loop-5', label: '5 loops', value: 5 },
   { id: 'loop-inf', label: 'Continuous', value: 'continuous' as const },
 ];
+
+const CHANT_INSTRUMENTAL_MAP: Record<string, SoundKey | undefined> = {
+  '10000-reasons': 'db/10000_reasons_instrumental.mp3',
+  '10000-reasons-african': 'db/10000_reasons_instrumental.mp3',
+  'be-still-my-soul': 'db/be_still_my_soul_instrumental.mp3',
+  'soul-of-jesus-sanctify-me': 'db/anima_christi_instrumental.mp3',
+  'oceans': 'db/oceans_instrumental.mp3',
+};
+
+const CHANT_LABEL_MAP: Record<string, string> = {
+  '10000-reasons': '10,000 Reasons',
+  '10000-reasons-african': '10,000 Reasons (African)',
+  'be-still-my-soul': 'Be Still My Soul',
+  'soul-of-jesus-sanctify-me': 'Soul of Jesus, Sanctify Me',
+  'oceans': 'Oceans (Spirit Lead Me)',
+};
+
+const CHANT_VOICE_MAP: Record<string, SoundKey | undefined> = {
+  '10000-reasons': 'db/10000_reasons.mp3',
+  '10000-reasons-african': 'db/10000_reasons_african.mp3',
+  'be-still-my-soul': 'db/be_still_my_soul.mp3',
+  'soul-of-jesus-sanctify-me': 'db/anima_christi.mp3',
+  'oceans': 'db/oceans_voice.mp3',
+};
 
 type MeditationGuide = {
   title: string;
@@ -151,6 +178,7 @@ const MeditationScreen = () => {
   // Meditation store (MobX)
   const meditationStore = useMeditationStore();
   const challengeStore = useChallengeStore();
+  const leaderboardStore = useLeaderboardStore();
   const {
     selectedVirtue,
     selectedTime,
@@ -159,12 +187,30 @@ const MeditationScreen = () => {
     countdown,
     meditationTimer,
     selectedBackgroundSound,
+    selectedStyle,
+    centeringWord,
+    chosenChantId,
+    jesusPrayerPace,
   } = meditationStore.state;
+  const {
+    parableReadMode,
+    centeringReadMode,
+    centeringRepeatIntervalSec,
+    chantReflectionPauseSec,
+  } = meditationStore.state as any;
   const {
     setSelectedVirtue: setStoreSelectedVirtue,
     setSelectedTime: setStoreSelectedTime,
     setSelectedChallenge: setStoreSelectedChallenge,
     setSelectedBackgroundSound: setStoreSelectedBackgroundSound,
+    setSelectedStyle: setStoreSelectedStyle,
+    setCenteringWord: setStoreCenteringWord,
+    setChosenChantId: setStoreChosenChantId,
+    setJesusPrayerPace: setStoreJesusPrayerPace,
+    setParableReadMode: setStoreParableReadMode,
+    setCenteringReadMode: setStoreCenteringReadMode,
+    setCenteringRepeatIntervalSec: setStoreCenteringRepeatIntervalSec,
+    setChantReflectionPauseSec: setStoreChantReflectionPauseSec,
     startMeditation: startMeditationStore,
     decrementCountdown,
     incrementMeditationTimer,
@@ -193,6 +239,8 @@ const MeditationScreen = () => {
 
   // Centralized audio service
   const isSpeaking = useRef(false);
+  const preSessionPointsRef = useRef<number | null>(null);
+  const congratulatedRef = useRef(false);
 
   // Refs for flow control
   const isEndingPhase = useRef(false);
@@ -206,6 +254,7 @@ const MeditationScreen = () => {
   }, [virtueStore]);
 
   const goalVirtueId = selectedVirtue;
+  const [showSetupModal, setShowSetupModal] = useState(false);
   const currentVirtue = React.useMemo(
     () => virtues?.find((v: Virtue) => v.id === selectedVirtue),
     [selectedVirtue, virtues]
@@ -223,26 +272,114 @@ const MeditationScreen = () => {
   const meditationGuide = React.useMemo(() => {
     const level = determineMeditationLevel(completedSessions, selectedTime);
     const challengeText = selectedChallenge?.title || selectedChallenge?.description || null;
+
+    if (selectedStyle === 'centering') {
+      const practice = contemplativePractices.find(p => p.id === 'centering-prayer');
+      const word = centeringWord?.trim() || 'Jesus';
+      const prompts = (practice?.focus ?? []).slice(0, 3);
+      return {
+        title: practice?.name || 'Centering Prayer',
+        imagery: practice?.description || 'Choose a sacred word and rest quietly before God.',
+        scripture: '',
+        prompts,
+        declaration: 'Return gently to your word whenever you are distracted.',
+        leadIn: 'Settle your body. Allow your breath to find a natural rhythm.',
+        focus: `Sacred word: ${word}`,
+        breathInvitation: 'Breathe slowly and let your word bring you back to God\'s presence.',
+        closingReminder: 'Close with gratitude for any subtle movements of the heart.',
+        openReflection: practice?.guidance?.[0],
+        guidanceTips: practice?.guidance,
+        stageNote: undefined,
+      } as MeditationGuide;
+    }
+
+    if (selectedStyle === 'jesus_prayer') {
+      const practice = contemplativePractices.find(p => p.id === 'jesus-prayer');
+      const prompts = (practice?.focus ?? []).slice(0, 3);
+      return {
+        title: practice?.name || 'Jesus Prayer',
+        imagery: practice?.description || 'Pray the ancient phrase in rhythm with your breath.',
+        scripture: '',
+        prompts,
+        declaration: 'Have mercy on me, a sinner.',
+        leadIn: 'Match the prayer with your inhale and exhale gently.',
+        focus: '“Lord Jesus Christ, Son of God, have mercy on me.”',
+        breathInvitation: 'Inhale the first half, exhale the second half of the prayer.',
+        closingReminder: 'Carry mercy with you into your next steps.',
+        openReflection: practice?.guidance?.[0],
+        guidanceTips: practice?.guidance,
+        stageNote: undefined,
+      } as MeditationGuide;
+    }
+
+    if (selectedStyle === 'chant') {
+      const practice = contemplativePractices.find(p => p.id === 'taize-chant');
+      const chantLabel = (() => {
+        if (!chosenChantId) return 'your chosen chant';
+        if (chosenChantId === '10000-reasons') return '10,000 Reasons';
+        if (chosenChantId === 'be-still-my-soul') return 'Be Still My Soul';
+        if (chosenChantId === 'soul-of-jesus-sanctify-me') return 'Soul of Jesus, Sanctify Me';
+        return 'your chosen chant';
+      })();
+      const prompts = [
+        'Repeat the refrain slowly and allow it to settle in your heart.',
+        'Let the melody shape your breath and soften your thoughts.',
+        'Rest in silence for a moment between repetitions.',
+      ];
+      return {
+        title: practice?.name || 'Chant',
+        imagery: practice?.description || 'Repeat short chants or scriptures set to simple melodies.',
+        scripture: '',
+        prompts,
+        declaration: 'Let the refrain linger as you return to your day.',
+        leadIn: 'Choose a comfortable posture and begin softly.',
+        focus: `Chant: ${chantLabel}`,
+        breathInvitation: 'Breathe with the flow of the chant.',
+        closingReminder: 'Carry the refrain as a quiet prayer.',
+        openReflection: practice?.guidance?.[0],
+        guidanceTips: practice?.guidance,
+        stageNote: undefined,
+      } as MeditationGuide;
+    }
+
     const plan = buildMeditationPlan({
       level,
       dateSeed: Date.now(),
       challengeText,
       sessionCount: completedSessions,
     });
-    return composeMeditationGuide(plan, currentVirtue?.name);
+    const virtueName = selectedStyle === 'virtue' ? currentVirtue?.name : undefined;
+    const base = composeMeditationGuide(plan, virtueName);
+    if (selectedStyle === 'virtue') {
+      const v = currentVirtue?.name || 'this virtue';
+      base.prompts = [
+        `Where in my life am I lacking the most in ${v}?`,
+        `What can I do today to grow and improve in ${v}?`,
+        `Thank you Jesus for helping me acknowledge my deficiencies in ${v}, may the grace and strength of your Spirit renew me today to imitate you in ${v}. Amen.`,
+      ];
+    }
+    return base;
   }, [
     completedSessions,
     selectedTime,
     selectedChallenge?.title,
     selectedChallenge?.description,
     currentVirtue?.name,
+    selectedStyle,
+    centeringWord,
+    chosenChantId,
   ]);
   const currentPrompt = meditationGuide.prompts[currentPromptIndex] || meditationGuide.prompts[0];
-  const isReadyToBegin = Boolean(selectedVirtue && selectedTime);
+  const isReadyToBegin = React.useMemo(() => {
+    if (!selectedTime) return false;
+    if (selectedStyle === 'virtue') return Boolean(selectedVirtue);
+    return true;
+  }, [selectedTime, selectedStyle, selectedVirtue]);
 
   const smartPickChallenge = React.useMemo(() => {
     if (smartPickDismissed) return null;
     if (meditationState !== MeditationState.COMPLETE) return null;
+    if (selectedStyle !== 'virtue') return null;
     const exclude = [selectedChallenge?.id].filter(Boolean) as string[];
     return challengeStore.getRecommendedChallenge({
       preferredTheme: currentVirtue?.name,
@@ -269,6 +406,25 @@ const MeditationScreen = () => {
     }
   }, [meditationState]);
 
+  useEffect(() => {
+    if (selectedTime == null) {
+      setStoreSelectedTime(10);
+    }
+  }, []);
+
+  const nudgeShownRef = useRef(false);
+  useEffect(() => {
+    if (
+      meditationState === MeditationState.SETUP &&
+      selectedStyle === 'virtue' &&
+      !selectedVirtue &&
+      !nudgeShownRef.current
+    ) {
+      nudgeShownRef.current = true;
+      setShowSetupModal(true);
+    }
+  }, [meditationState, selectedStyle, selectedVirtue]);
+
   const styles = React.useMemo(
     () => createStyles(theme, currentVirtue),
     [theme, currentVirtue]
@@ -282,26 +438,151 @@ const MeditationScreen = () => {
     return () => {
       stopMusic('meditation');
       stopMusic('heartbeat');
+      try {
+        Object.values(CHANT_INSTRUMENTAL_MAP).forEach((key) => {
+          if (key) stopByKey(key as any);
+        });
+      } catch {}
     };
   }, []);
 
   // Background sound preview and playback controller via audio service
   useEffect(() => {
-    // stop both before switching
     stopMusic('meditation');
     stopMusic('heartbeat');
     if (meditationState === MeditationState.SETUP || meditationState === MeditationState.ACTIVE) {
-      if (selectedBackgroundSound === 'ambient') playMusic('meditation', 0.6);
-      if (selectedBackgroundSound === 'heartbeat') playMusic('heartbeat', 0.6);
+      if (!(selectedStyle === 'chant' && meditationState === MeditationState.ACTIVE)) {
+        if (selectedBackgroundSound === 'ambient') playMusic('meditation', 0.6);
+        if (selectedBackgroundSound === 'heartbeat') playMusic('heartbeat', 0.6);
+      }
     }
     if (meditationState === MeditationState.COUNTDOWN || meditationState === MeditationState.COMPLETE) {
       stopMusic('meditation');
       stopMusic('heartbeat');
     }
-  }, [selectedBackgroundSound, meditationState]);
+  }, [selectedBackgroundSound, meditationState, selectedStyle]);
 
   // Play tick sound
   const playTickSound = () => { playCue('tickTock'); };
+
+  // Speak prompt helper (moved above first use)
+  const showAndSpeakPrompt = (index: number) => {
+    setCurrentPromptIndex(index);
+    setShowPrompt(true);
+    promptOpacity.value = withTiming(1, { duration: 1000 });
+    const introWord = index === 0 ? 'Begin' : 'Now';
+    const prompt = meditationGuide.prompts[index] || meditationGuide.prompts[0];
+    const declaration = meditationGuide.declaration;
+    isSpeaking.current = true;
+    Speech.speak(`${introWord}...`, {
+      rate: 0.85,
+      onDone: () => {
+        setTimeout(() => {
+          Speech.speak(prompt, {
+            rate: 0.85,
+            onDone: () => {
+              isSpeaking.current = false;
+              if (index === meditationGuide.prompts.length - 1 && !isEndingPhase.current) {
+                setTimeout(() => {
+                  Speech.speak(declaration, { rate: 0.85 });
+                }, 1200);
+              }
+            },
+          });
+        }, 1000);
+      },
+    });
+  };
+
+  // Countdown speech helper (moved above first use)
+  const speakCountdownNumber = (number: number) => {
+    Speech.stop();
+    if (number <= 3 && number > 0) {
+      setTimeout(() => Speech.speak(`${number}`, { rate: 0.8 }), 100);
+    } else if (number === 0) {
+      setTimeout(() => Speech.speak('Close your eyes if you are able to do so...', {
+        rate: 0.8,
+        onDone: () => {
+          setTimeout(() => {
+            Speech.speak(meditationGuide.leadIn, {
+              rate: 0.8,
+              onDone: () => {
+                setTimeout(() => {
+                  Speech.speak(meditationGuide.focus, {
+                    rate: 0.8,
+                    onDone: () => {
+                      const continueAfterParable = () => {
+                        setTimeout(() => {
+                          const breathIntro = meditationGuide.breathInvitation || 'Breathe in...';
+                          const stageNote = meditationGuide.stageNote?.trim();
+                          const openReflection = meditationGuide.openReflection?.trim();
+                          // play bell
+                          playCue('meditationBell');
+                          setTimeout(() => {
+                            Speech.speak(breathIntro, {
+                              rate: 0.8,
+                              onDone: () => {
+                                const speakHoldPhase = () => {
+                                  setTimeout(() => {
+                                    Speech.speak('Keep still...', {
+                                      rate: 0.8,
+                                      onDone: () => {
+                                        setTimeout(() => {
+                                          Speech.speak('Breathe out...', {
+                                            rate: 0.8,
+                                            onDone: () => {
+                                              setIntroCompleted(true);
+                                              setBreathePhase('in');
+                                            },
+                                          });
+                                        }, 4000);
+                                      },
+                                    });
+                                  }, 4000);
+                                };
+
+                                if (stageNote || openReflection) {
+                                  const insights = [stageNote, openReflection].filter((text): text is string => Boolean(text));
+                                  const speakInsight = (i: number) => {
+                                    if (i >= insights.length) {
+                                      speakHoldPhase();
+                                      return;
+                                    }
+                                    const delay = i === 0 ? 400 : 600;
+                                    setTimeout(() => {
+                                      Speech.speak(insights[i]!, {
+                                        rate: 0.8,
+                                        onDone: () => {
+                                          speakInsight(i + 1);
+                                        },
+                                      });
+                                    }, delay);
+                                  };
+                                  speakInsight(0);
+                                } else {
+                                  speakHoldPhase();
+                                }
+                              },
+                            });
+                          }, 500);
+                        }, 1000);
+                      };
+
+                      if (selectedStyle === 'parable' && parableReadMode === 'aloud') {
+                        readScriptureSlowly(meditationGuide.scripture).then(() => continueAfterParable());
+                      } else {
+                        continueAfterParable();
+                      }
+                    },
+                  });
+                }, 1000);
+              },
+            });
+          }, 1000);
+        },
+      }), 2000);
+    }
+  };
 
   // Countdown animation
   const animateCountdownNumber = () => {
@@ -325,6 +606,30 @@ const MeditationScreen = () => {
   }, [breatheTextOpacity]);
 
   const breathTimeoutsRef = useRef<Array<ReturnType<typeof setTimeout>>>([]);
+  const virtueStagesRef = useRef<{ s1: boolean; s2: boolean }>({ s1: false, s2: false });
+  const centeringIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const chantFlowStartedRef = useRef(false);
+  const chantLoopTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (selectedStyle === 'jesus_prayer' && jesusPrayerPace) {
+      setSelectedPace(jesusPrayerPace);
+    }
+  }, [selectedStyle, jesusPrayerPace]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const run = async () => {
+      if (!(selectedStyle === 'chant' && meditationState === MeditationState.ACTIVE)) {
+        const key = CHANT_INSTRUMENTAL_MAP[chosenChantId || ''];
+        if (key) {
+          try { await stopByKey(key); } catch {}
+        }
+      }
+    };
+    run();
+    return () => { cancelled = true; };
+  }, [selectedStyle, chosenChantId, meditationState]);
 
   useEffect(() => {
     breathTimeoutsRef.current.forEach(clearTimeout);
@@ -417,7 +722,7 @@ const MeditationScreen = () => {
     return () => clearInterval(interval);
   }, [meditationState, countdown]);
 
-  // Meditation timer and progress with end-session enhancements (uses store increment)
+  // Meditation timer and progress with end-session enhancements (rely on store timer)
   useEffect(() => {
     let interval: number;
     if (meditationState === MeditationState.ACTIVE && selectedTime) {
@@ -426,26 +731,34 @@ const MeditationScreen = () => {
       hasReadChallenge.current = false;
       hasStartedFinalCountdown.current = false;
       isEndingPhase.current = false;
+      virtueStagesRef.current = { s1: false, s2: false };
       
-      let t = meditationTimer; // local mirror
       interval = setInterval(() => {
-        t = t + 1;
-        incrementMeditationTimer();
-        const newValue = t;
+        const newValue = meditationStore.state.meditationTimer;
         progressAnim.value = newValue / totalMeditationSeconds;
         
-        // Mark first 2 minutes as complete
         if (newValue >= 120 && !firstTwoMinutesCompleted.current) {
           firstTwoMinutesCompleted.current = true;
         }
         
-        // Regular prompts during the session
-        if (promptInterval > 0 && newValue % promptInterval === 0 && newValue < totalMeditationSeconds - 30) {
-          const nextPromptIndex = Math.floor(newValue / promptInterval);
-          if (nextPromptIndex < 4) showAndSpeakPrompt(nextPromptIndex);
+        if (selectedStyle === 'virtue') {
+          const s1 = Math.floor(totalMeditationSeconds * 2 / 5);
+          const s2 = Math.floor(totalMeditationSeconds * 4 / 5);
+          if (!virtueStagesRef.current.s1 && newValue >= s1) {
+            virtueStagesRef.current.s1 = true;
+            showAndSpeakPrompt(1);
+          }
+          if (!virtueStagesRef.current.s2 && newValue >= s2) {
+            virtueStagesRef.current.s2 = true;
+            showAndSpeakPrompt(2);
+          }
+        } else {
+          if (promptInterval > 0 && newValue % promptInterval === 0 && newValue < totalMeditationSeconds - 30) {
+            const nextPromptIndex = Math.floor(newValue / promptInterval);
+            if (nextPromptIndex < 4) showAndSpeakPrompt(nextPromptIndex);
+          }
         }
         
-        // Read challenge 30 seconds before the end
         if (totalMeditationSeconds - newValue <= 30 && !hasReadChallenge.current) {
           hasReadChallenge.current = true;
           isEndingPhase.current = true;
@@ -466,7 +779,6 @@ const MeditationScreen = () => {
           }, 500);
         }
         
-        // Start final countdown 10 seconds before the end
         if (totalMeditationSeconds - newValue <= 10 && !hasStartedFinalCountdown.current) {
           hasStartedFinalCountdown.current = true;
           if (isSpeaking.current) Speech.stop();
@@ -474,7 +786,6 @@ const MeditationScreen = () => {
           const closingLine = meditationGuide.closingReminder || 'You resolve to do better today.';
           Speech.speak(closingLine, {
             rate: 0.85, onDone: () => {
-              // Start the bell-based countdown
               let countdownNumber = 10;
               playMeditationBellSound();
               const countdownInterval = setInterval(() => {
@@ -489,19 +800,82 @@ const MeditationScreen = () => {
             }
           });
         }
-        
-        if (newValue >= totalMeditationSeconds) {
-          endMeditation();
-          clearInterval(interval);
-        }
-      }, 1000);
+      }, 500);
     }
     return () => clearInterval(interval);
-  }, [meditationState, selectedTime]);
+  }, [meditationState, selectedTime, promptInterval, totalMeditationSeconds, selectedChallenge, meditationGuide]);
 
-  // Bell animation on complete
+  useEffect(() => {
+    if (centeringIntervalRef.current) {
+      clearInterval(centeringIntervalRef.current as any);
+      centeringIntervalRef.current = null;
+    }
+    if (meditationState === MeditationState.ACTIVE && selectedStyle === 'centering' && introCompleted) {
+      const intervalMs = Math.max(10, Math.min(30, centeringRepeatIntervalSec)) * 1000;
+      centeringIntervalRef.current = setInterval(() => {
+        const word = (centeringWord || 'Jesus').trim();
+        if (centeringReadMode === 'aloud') {
+          Speech.speak(word, {
+            rate: 0.85,
+            onDone: () => {
+              playCue('meditationBell');
+            },
+          });
+        } else {
+          playCue('meditationBell');
+        }
+      }, intervalMs) as any;
+    }
+    return () => {
+      if (centeringIntervalRef.current) {
+        clearInterval(centeringIntervalRef.current as any);
+        centeringIntervalRef.current = null;
+      }
+    };
+  }, [meditationState, selectedStyle, introCompleted, centeringReadMode, centeringRepeatIntervalSec, centeringWord]);
+
+  useEffect(() => {
+    if (!(meditationState === MeditationState.ACTIVE && selectedStyle === 'chant' && introCompleted)) return;
+    if (chantFlowStartedRef.current) return;
+    chantFlowStartedRef.current = true;
+    const voice = CHANT_VOICE_MAP[chosenChantId || ''];
+    const instrumental = CHANT_INSTRUMENTAL_MAP[chosenChantId || ''];
+    const startInstrumentalOrLoop = async () => {
+      if (instrumental) {
+        await playLoopByKey(instrumental, 0.6);
+      } else if (voice) {
+        const loop = async () => {
+          await playOneShotByKey(voice);
+          chantLoopTimeoutRef.current = setTimeout(() => {
+            if (meditationState === MeditationState.ACTIVE && selectedStyle === 'chant') loop();
+          }, Math.max(15, Math.min(60, chantReflectionPauseSec)) * 1000) as any;
+        };
+        loop();
+      }
+    };
+    Speech.speak('Take a moment to reflect on how this hymn connects to your life.', {
+      rate: 0.85,
+      onDone: () => {
+        if (voice) {
+          playOneShotByKey(voice).then(() => startInstrumentalOrLoop());
+        } else {
+          startInstrumentalOrLoop();
+        }
+      },
+    });
+    return () => {
+      chantFlowStartedRef.current = false;
+      if (chantLoopTimeoutRef.current) {
+        clearTimeout(chantLoopTimeoutRef.current);
+        chantLoopTimeoutRef.current = null;
+      }
+    };
+  }, [meditationState, selectedStyle, introCompleted, chosenChantId, chantReflectionPauseSec]);
+
+  // Refresh points and bell animation on complete
   useEffect(() => {
     if (meditationState === MeditationState.COMPLETE) {
+      playCue('successBell');
       bellScale.value = withRepeat(
         withSequence(
           withTiming(1.05, { duration: 1000 }),
@@ -509,120 +883,53 @@ const MeditationScreen = () => {
         ),
         -1
       );
+      if (!congratulatedRef.current && user?.id) {
+        congratulatedRef.current = true;
+        (async () => {
+          const before = preSessionPointsRef.current;
+          const stats = await leaderboardStore.fetchUserStats(user.id);
+          const after = stats?.totalPoints ?? null;
+          if (before != null && after != null && after > before) {
+            const delta = after - before;
+            toast.success(`Great job! +${delta} points earned today`);
+          } else {
+            toast.success('Meditation complete. Points updated.');
+          }
+        })();
+      }
+    } else if (meditationState === MeditationState.SETUP) {
+      // reset congratulation guard when returning to setup
+      congratulatedRef.current = false;
     }
   }, [meditationState]);
 
   // Handlers
-  const speakCountdownNumber = (number: number) => {
-    Speech.stop();
-    if (number <= 3 && number > 0) {
-      setTimeout(() => Speech.speak(`${number}`, { rate: 0.8 }), 100);
-    } else if (number === 0) {
-      setTimeout(() => Speech.speak('Close your eyes if you are able to do so...', {
-        rate: 0.8, onDone: () => {
-          setTimeout(() => {
-            Speech.speak(meditationGuide.leadIn, {
-            rate: 0.8, onDone: () => {
-              setTimeout(() => {
-                Speech.speak(meditationGuide.focus, {
-                    rate: 0.8, onDone: () => {
-                      setTimeout(() => {
-                        const breathIntro = meditationGuide.breathInvitation || 'Breathe in...';
-                        const stageNote = meditationGuide.stageNote?.trim();
-                        const openReflection = meditationGuide.openReflection?.trim();
-                        playMeditationBellSound();
-                        setTimeout(() => {
-                          Speech.speak(breathIntro, {
-                            rate: 0.8, onDone: () => {
-                              const speakHoldPhase = () => {
-                                setTimeout(() => {
-                                  Speech.speak('Keep still...', {
-                                    rate: 0.8,
-                                    onDone: () => {
-                                      setTimeout(() => {
-                                        Speech.speak('Breathe out...', {
-                                          rate: 0.8,
-                                          onDone: () => {
-                                            setIntroCompleted(true);
-                                            setBreathePhase('in');
-                                          },
-                                        });
-                                      }, 4000);
-                                    },
-                                  });
-                                }, 4000);
-                              };
-
-                              if (stageNote || openReflection) {
-                                const insights = [stageNote, openReflection].filter((text): text is string => Boolean(text));
-                                const speakInsight = (index: number) => {
-                                  if (index >= insights.length) {
-                                    speakHoldPhase();
-                                    return;
-                                  }
-                                  const delay = index === 0 ? 400 : 600;
-                                  setTimeout(() => {
-                                    Speech.speak(insights[index], {
-                                      rate: 0.8,
-                                      onDone: () => {
-                                        speakInsight(index + 1);
-                                      },
-                                    });
-                                  }, delay);
-                                };
-                                speakInsight(0);
-                              } else {
-                                speakHoldPhase();
-                              }
-                            }
-                          });
-                        }, 500);
-                      }, 1000);
-                    }
-                  });
-                }, 1000);
-              }
-            });
-          }, 1000);
-        }
-      }), 2000);
-    }
-  };
-
-  const showAndSpeakPrompt = (index: number) => {
-    setCurrentPromptIndex(index);
-    setShowPrompt(false);
-    const introWord = index === 0 ? "Begin" : "Now";
-
-    promptOpacity.value = withTiming(0, { duration: 500 });
-    setTimeout(() => {
-      setShowPrompt(true);
-      promptOpacity.value = withTiming(1, { duration: 1000 });
-      const prompt = meditationGuide.prompts[index] || meditationGuide.prompts[0];
-      const declaration = meditationGuide.declaration;
-      isSpeaking.current = true;
-      Speech.speak(`${introWord}...`, {
-        rate: 0.85, onDone: () => {
-          setTimeout(() => {
-            Speech.speak(prompt, {
-              rate: 0.85,
-              onDone: () => {
-                isSpeaking.current = false;
-                if (index === meditationGuide.prompts.length - 1 && !isEndingPhase.current) {
-                  setTimeout(() => {
-                    Speech.speak(declaration, { rate: 0.85 });
-                  }, 1200);
-                }
-              },
-            });
-          }, 1000);
-        }
-      })
-    }, 500);
-  };
+  const readScriptureSlowly = React.useCallback(async (reference?: string) => {
+    if (!reference) return;
+    const m = reference.trim().match(/^([0-9I]{0,3}\s*[A-Za-z\. ]+?)\s+(\d+):(\d+)(?:-(\d+))?/);
+    if (!m) return;
+    const bookName = m[1].replace(/\.$/, '').trim();
+    const chapter = parseInt(m[2], 10);
+    const vStart = parseInt(m[3], 10);
+    const vEnd = m[4] ? parseInt(m[4], 10) : vStart;
+    const meta = bibleBooks.find(b => b.name.toLowerCase() === bookName.toLowerCase());
+    if (!meta) return;
+    try {
+      const rows = await BibleDBService.getChapter('eng_rv_vpl', meta.abbreviation, chapter);
+      const verses = rows.filter(r => r.verse >= vStart && r.verse <= vEnd).map(r => r.text).join(' ');
+      const sentences = verses.split(/(?<=[\.!?])\s+/).filter(Boolean);
+      for (const s of sentences) {
+        await new Promise<void>((resolve) => {
+          Speech.speak(s.trim(), { rate: 0.75, onDone: () => resolve() });
+        });
+        await new Promise(r => setTimeout(r, 1200));
+      }
+    } catch {}
+  }, []);
 
   const startMeditation = async () => {
-    if (!selectedVirtue || !selectedTime) {
+    const missingVirtue = selectedStyle === 'virtue' && !selectedVirtue;
+    if (missingVirtue || !selectedTime) {
       fadeAnim.value = withSequence(withTiming(0.3, { duration: 200 }), withTiming(1, { duration: 200 }));
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       return;
@@ -636,6 +943,8 @@ const MeditationScreen = () => {
         return;
       }
     } catch {}
+    // capture points snapshot before session begins
+    preSessionPointsRef.current = leaderboardStore.userStats?.totalPoints ?? null;
     progressAnim.value = 0;
     startMeditationStore();
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -647,14 +956,6 @@ const MeditationScreen = () => {
     endMeditationSession();
     if (isSpeaking.current) Speech.stop();
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  
-    const session: MeditationSession = {
-      virtue_id: selectedVirtue!,
-      duration_minutes: selectedTime!,
-      started_at: new Date(Date.now() - selectedTime! * 60 * 1000).toISOString(),
-      ended_at: new Date().toISOString(),
-    };
-    meditationStore.recordSession(session);
   };
 
   const createChallenge = async () => {
@@ -709,7 +1010,7 @@ const MeditationScreen = () => {
         <View style={styles.guideCard}>
           <Text style={styles.guideTitle}>{meditationGuide.title}</Text>
           <Text style={styles.guideImagery}>{meditationGuide.imagery}</Text>
-          <Text style={styles.guideScripture}>{meditationGuide.scripture}</Text>
+          {!!meditationGuide.scripture && <Text style={styles.guideScripture}>{meditationGuide.scripture}</Text>}
           <Text style={styles.guideFocus}>{meditationGuide.focus}</Text>
           {meditationGuide.stageNote && (
             <Text style={styles.guideStageNote}>{meditationGuide.stageNote}</Text>
@@ -717,78 +1018,28 @@ const MeditationScreen = () => {
           {meditationGuide.openReflection && (
             <Text style={styles.guideReflection}>{meditationGuide.openReflection}</Text>
           )}
-          {!!meditationGuide.guidanceTips?.length && (
-            <View style={styles.guideTipsContainer}>
-              {meditationGuide.guidanceTips.map((tip, index) => (
-                <Text key={index} style={styles.guideTipText}>• {tip}</Text>
-              ))}
-            </View>
-          )}
         </View>
-        <Text style={styles.sectionTitle}>CHOOSE A VIRTUE</Text>
-        {selectedVirtue ? (
-          <View style={styles.selectedVirtueCollapsed}>
-            <View style={styles.selectedVirtueContent}>
-              {currentVirtue && (
-                <>
-                  <View
-                    style={[
-                      styles.virtueIconContainer,
-                      { backgroundColor: `${currentVirtue.color_code || theme?.colors.primary}15` },
-                    ]}
-                  >
-                    <Text style={[styles.virtueText, { color: currentVirtue.color_code || theme?.colors.primary }]}>
-                      {currentVirtue.name}
-                    </Text>
-                  </View>
-                  <Text style={[styles.virtueText, { color: currentVirtue.color_code || theme?.colors.primary }]}>
-                    {currentVirtue.name}
-                  </Text>
-                </>
-              )}
-            </View>
-            <TouchableOpacity
-              style={styles.changeVirtueButton}
-              onPress={() => {
-                setStoreSelectedVirtue(null);
-                Haptics.selectionAsync();
-              }}
-            >
-              <Text style={styles.changeVirtueText}>Change</Text>
-            </TouchableOpacity>
+
+        <Text style={styles.sectionTitle}>YOUR MEDITATION</Text>
+        <View style={styles.selectedVirtueCollapsed}>
+          <View style={styles.selectedVirtueContent}>
+            <Text style={[styles.virtueText, { color: currentVirtue?.color_code || theme?.colors.primary }]}>
+              {selectedStyle === 'virtue' ? (currentVirtue?.name || 'Choose a virtue') :
+                selectedStyle === 'centering' ? `Centering: ${centeringWord || 'Jesus'}` :
+                selectedStyle === 'jesus_prayer' ? 'Jesus Prayer' :
+                selectedStyle === 'chant' ? 'Chant' : 'Parable Meditation'}
+            </Text>
           </View>
-        ) : (
-          <View style={styles.virtuesContainer}>
-            {virtues.map((virtue: Virtue) => (
-                              <TouchableOpacity
-                  key={virtue.id}
-                  style={[
-                    styles.virtueButton,
-                    selectedVirtue === virtue.id && styles.selectedVirtueButton,
-                    selectedVirtue === virtue.id && { borderColor: virtue.color_code || theme?.colors.primary },
-                  ]}
-                  onPress={() => {
-                    setStoreSelectedVirtue(virtue.id);
-                    Haptics.selectionAsync();
-                  }}
-                >
-                  <View style={[styles.virtueIconContainer, { backgroundColor: `${virtue.color_code || theme?.colors.primary}15` }]}>
-                    <Text style={[styles.virtueText, { color: virtue.color_code || theme?.colors.primary }]}>
-                      {virtue.name.charAt(0).toUpperCase()}
-                    </Text>
-                  </View>
-                  <Text
-                    style={[
-                      styles.virtueText,
-                      selectedVirtue === virtue.id && { color: virtue.color_code || theme?.colors.primary },
-                    ]}
-                  >
-                    {virtue.name}
-                  </Text>
-                </TouchableOpacity>
-            ))}
-          </View>
-        )}
+          <TouchableOpacity
+            style={styles.changeVirtueButton}
+            onPress={() => {
+              setShowSetupModal(true);
+              Haptics.selectionAsync();
+            }}
+          >
+            <Text style={styles.changeVirtueText}>Customize</Text>
+          </TouchableOpacity>
+        </View>
 
         <Text style={styles.sectionTitle}>SESSION LENGTH</Text>
         <View style={styles.timeContainer}>
@@ -837,165 +1088,57 @@ const MeditationScreen = () => {
           </TouchableOpacity>
         </View>
 
-        <Text style={styles.sectionTitle}>BACKGROUND SOUND</Text>
-        <View style={styles.soundContainer}>
-          {[
-            { id: 'ambient', label: 'Ambient', icon: Bell, description: 'Nature soundscape' },
-            { id: 'heartbeat', label: 'Heartbeat', icon: Heart, description: 'Rhythmic pulse' },
-            { id: null, label: 'Silent', icon: Flame, description: 'No background audio' },
-          ].map(({ id, label, icon: Icon, description }) => (
-            <TouchableOpacity
-              key={label}
-              style={[
-                styles.soundButton,
-                selectedBackgroundSound === id && styles.selectedSoundButton,
-                selectedBackgroundSound === id && {
-                  borderColor: currentVirtue?.color_code || theme?.colors.primary,
-                },
-              ]}
-              onPress={() => {
-                setStoreSelectedBackgroundSound(id);
-                Haptics.selectionAsync();
-              }}
-            >
-                              <View style={styles.soundButtonContent}>
-                <Icon
-                  size={16}
-                  color={
-                    selectedBackgroundSound === id
-                      ? currentVirtue?.color_code || theme?.colors.primary
-                      : theme?.colors.text.secondary
-                  }
-                />
-                <View style={styles.soundTextGroup}>
-                  <Text
-                    style={[
-                      styles.soundText,
-                      selectedBackgroundSound === id && {
-                        color: currentVirtue?.color_code || theme?.colors.primary,
-                      },
-                    ]}
-                  >
-                    {label}
-                  </Text>
-                  <Text style={styles.soundDescription}>{description}</Text>
-                </View>
-              </View>
-            </TouchableOpacity>
-          ))}
-        </View>
-
-        <Text style={styles.sectionTitle}>BREATHING PACE</Text>
-        <View style={styles.paceContainer}>
-          {BREATH_PACE_OPTIONS.map(({ id, label, description }) => (
-            <TouchableOpacity
-              key={label}
-              style={[
-                styles.paceButton,
-                selectedPace === id && styles.paceButtonActive,
-                selectedPace === id && {
-                  borderColor: currentVirtue?.color_code || theme?.colors.primary,
-                  backgroundColor: `${currentVirtue?.color_code || theme?.colors.primary}08`,
-                },
-              ]}
-              onPress={() => {
-                setSelectedPace(id);
-                Haptics.selectionAsync();
-              }}
-            >
-              <Text
-                style={[
-                  styles.paceButtonText,
-                  selectedPace === id && {
-                    color: currentVirtue?.color_code || theme?.colors.primary,
-                  },
-                ]}
-              >
-                {label}
-              </Text>
-              <Text style={styles.paceDescription}>{description}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-
-        <Text style={styles.sectionTitle}>ROPE LENGTH</Text>
-        <View style={styles.paceContainer}>
-          {BREATH_LOOP_OPTIONS.map(({ id, label, value }) => {
-            const isActive = selectedBreathLoops === value;
-            return (
-              <TouchableOpacity
-                key={id}
-                style={[
-                  styles.paceButton,
-                  isActive && styles.paceButtonActive,
-                  isActive && {
-                    borderColor: currentVirtue?.color_code || theme?.colors.primary,
-                    backgroundColor: `${currentVirtue?.color_code || theme?.colors.primary}08`,
-                  },
-                ]}
-                onPress={() => {
-                  setSelectedBreathLoops(value);
-                  Haptics.selectionAsync();
-                }}
-              >
-                <Text
-                  style={[
-                    styles.paceButtonText,
-                    isActive && { color: currentVirtue?.color_code || theme?.colors.primary },
-                  ]}
-                >
-                  {label}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-
-        <Text style={styles.sectionTitle}>DAILY CHALLENGE</Text>
-        <View style={styles.challengeContainer}>
-          {selectedVirtue ? (
-            selectedChallenge ? (
-              <View style={[
-                styles.selectedChallengeCollapsed,
-                { borderColor: currentVirtue?.color_code || theme?.colors.border }
-              ]}>
-                <View style={styles.selectedChallengeContent}>
-                  <Text style={[
-                    styles.challengeTitle,
-                    { color: currentVirtue?.color_code || theme?.colors.primary }
+        {selectedStyle === 'virtue' && (
+          <>
+            <Text style={styles.sectionTitle}>DAILY CHALLENGE</Text>
+            <View style={styles.challengeContainer}>
+              {selectedVirtue ? (
+                selectedChallenge ? (
+                  <View style={[
+                    styles.selectedChallengeCollapsed,
+                    { borderColor: currentVirtue?.color_code || theme?.colors.border }
                   ]}>
-                    {selectedChallenge.title}
+                    <View style={styles.selectedChallengeContent}>
+                      <Text style={[
+                        styles.challengeTitle,
+                        { color: currentVirtue?.color_code || theme?.colors.primary }
+                      ]}>
+                        {selectedChallenge.title}
+                      </Text>
+                      <Text style={styles.challengeDescriptionCollapsed}>
+                        {selectedChallenge.description.length > 80
+                          ? selectedChallenge.description.substring(0, 80) + '...'
+                          : selectedChallenge.description}
+                      </Text>
+                    </View>
+                    <TouchableOpacity
+                      style={styles.changeChallengeButton}
+                      onPress={() => {
+                        setStoreSelectedChallenge(null);
+                        Haptics.selectionAsync();
+                      }}
+                    >
+                      <Text style={styles.changeChallengeText}>Change</Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <Text style={styles.placeholderText}>
+                    Optional: Select a challenge
                   </Text>
-                  <Text style={styles.challengeDescriptionCollapsed}>
-                    {selectedChallenge.description.length > 80
-                      ? selectedChallenge.description.substring(0, 80) + '...'
-                      : selectedChallenge.description}
-                  </Text>
-                </View>
-                <TouchableOpacity
-                  style={styles.changeChallengeButton}
-                  onPress={() => {
-                    setStoreSelectedChallenge(null);
-                    Haptics.selectionAsync();
-                  }}
-                >
-                  <Text style={styles.changeChallengeText}>Change</Text>
-                </TouchableOpacity>
-              </View>
-            ) : (
-              <Text style={styles.placeholderText}>
-                Optional: Select a challenge
-              </Text>
-            )
-          ) : (
-            <Text style={styles.placeholderText}>
-              Select a virtue to see challenge options
-            </Text>
-          )}
-        </View>
+                )
+              ) : (
+                <Text style={styles.placeholderText}>
+                  Choose a virtue to see challenge options
+                </Text>
+              )}
+            </View>
+          </>
+        )}
 
         {!isReadyToBegin && (
-          <Text style={styles.startHelper}>Select a virtue and session length to begin.</Text>
+          <Text style={styles.startHelper}>
+            {selectedStyle === 'virtue' ? 'Select a virtue and session length to begin.' : 'Select a session length to begin.'}
+          </Text>
         )}
         <TouchableOpacity
           style={[
@@ -1049,6 +1192,10 @@ const MeditationScreen = () => {
     const totalSeconds = selectedTime ? selectedTime * 60 : null;
     const elapsedLabel = formatTime(meditationTimer);
     const totalLabel = totalSeconds ? formatTime(totalSeconds) : null;
+    const isChant = selectedStyle === 'chant';
+    const isCentering = selectedStyle === 'centering';
+    const isJP = selectedStyle === 'jesus_prayer';
+    const chantNow = chosenChantId ? (CHANT_LABEL_MAP[chosenChantId] || 'Chant') : 'Chant';
 
     return (
       <View style={styles.activeContainer}>
@@ -1093,33 +1240,55 @@ const MeditationScreen = () => {
             </View>
           </View>
         </AnimatedCircularProgress>
-        <Animated.View style={[styles.breatheInstructionContainer, breatheTextStyle]}>
-          <View style={styles.breatheInstructionBackground}>
-            <Text style={styles.breatheInstruction}>
-              {breathePhase === 'in' ? 'Breathe In' : breathePhase === 'hold' ? 'Keep still' : 'Breathe Out'}
-            </Text>
-          </View>
-        </Animated.View>
+        {!isChant && (
+          <Animated.View style={[styles.breatheInstructionContainer, breatheTextStyle]}>
+            <View style={styles.breatheInstructionBackground}>
+              <Text style={styles.breatheInstruction}>
+                {isCentering
+                  ? `Return to: ${centeringWord || 'Jesus'}`
+                  : breathePhase === 'in' ? 'Breathe In' : breathePhase === 'hold' ? 'Keep still' : 'Breathe Out'}
+              </Text>
+            </View>
+          </Animated.View>
+        )}
 
-        <Animated.View style={[styles.promptContainer, promptAnimStyle]}>
-          <Text style={styles.promptText}>{currentPrompt}</Text>
-          <View style={styles.promptProgress}>
-            {[1, 2, 3, 4].map((_, i) => (
-              <View
-                key={i}
-                style={[
-                  styles.progressDot,
-                  i === currentPromptIndex && styles.activeProgressDot,
-                  i === currentPromptIndex && { backgroundColor: currentVirtue?.color_code || theme?.colors.primary },
-                ]}
-              />
-            ))}
+        {!isChant && (
+          <Animated.View style={[styles.promptContainer, promptAnimStyle]}>
+            <Text style={styles.promptText}>{currentPrompt}</Text>
+            <View style={styles.promptProgress}>
+              {[1, 2, 3, 4].map((_, i) => (
+                <View
+                  key={i}
+                  style={[
+                    styles.progressDot,
+                    i === currentPromptIndex && styles.activeProgressDot,
+                    i === currentPromptIndex && { backgroundColor: currentVirtue?.color_code || theme?.colors.primary },
+                  ]}
+                />
+              ))}
+            </View>
+          </Animated.View>
+        )}
+
+        {isJP && (
+          <View style={styles.jpGuideContainer}>
+            <Text style={[styles.jpPhrase, breathePhase === 'in' && styles.jpPhraseActive]}>Lord Jesus Christ</Text>
+            <Text style={[styles.jpPhrase, breathePhase === 'hold' && styles.jpPhraseActive]}>Son of God</Text>
+            <Text style={[styles.jpPhrase, breathePhase === 'out' && styles.jpPhraseActive]}>have mercy on me</Text>
           </View>
-        </Animated.View>
+        )}
+
         <View style={styles.declarationContainer}>
           <Text style={styles.declarationLabel}>Declaration</Text>
           <Text style={styles.declarationText}>{meditationGuide.declaration}</Text>
         </View>
+
+        {isChant && (
+          <View style={styles.nowPlayingCard}>
+            <Text style={styles.nowPlayingTitle}>Now Playing</Text>
+            <Text style={styles.nowPlayingText}>{chantNow}</Text>
+          </View>
+        )}
       </View>
     );
   };
@@ -1136,7 +1305,7 @@ const MeditationScreen = () => {
         <Text style={styles.completeSubtitle}>Take a moment to reflect on your experience</Text>
       </View>
 
-      {!smartPickDismissed && smartPickChallenge && (
+      {selectedStyle === 'virtue' && !smartPickDismissed && smartPickChallenge && (
         <View style={styles.smartPickWrapper}>
           <SmartPickCard
             challenge={smartPickChallenge}
@@ -1147,14 +1316,16 @@ const MeditationScreen = () => {
         </View>
       )}
 
-      <TouchableOpacity style={styles.bellButton} onPress={createChallenge}>
-        <Animated.View style={[styles.bellIconContainer, bellButtonStyle]}>
-          <Bell size={40} color={currentVirtue?.color_code || theme.colors.primary} />
-        </Animated.View>
-        <Text style={styles.bellText}>Activate Daily Challenge</Text>
-      </TouchableOpacity>
+      {selectedStyle === 'virtue' && (
+        <TouchableOpacity style={styles.bellButton} onPress={createChallenge}>
+          <Animated.View style={[styles.bellIconContainer, bellButtonStyle]}>
+            <Bell size={40} color={currentVirtue?.color_code || theme.colors.primary} />
+          </Animated.View>
+          <Text style={styles.bellText}>Activate Daily Challenge</Text>
+        </TouchableOpacity>
+      )}
 
-      {selectedChallenge && <TouchableOpacity
+      {selectedStyle === 'virtue' && selectedChallenge && <TouchableOpacity
         style={styles.challengeSummaryContainer}
         onPress={() => setChallengeExpanded(!challengeExpanded)}
         activeOpacity={0.85}
@@ -1197,6 +1368,36 @@ const MeditationScreen = () => {
 
   return (
     <View style={styles.container}>
+      <MeditationSetupModal
+        visible={showSetupModal}
+        onClose={() => setShowSetupModal(false)}
+        virtues={virtues}
+        initialValues={{
+          style: selectedStyle,
+          sound: selectedBackgroundSound,
+          virtueId: selectedVirtue,
+          centeringWord: centeringWord ?? undefined,
+          jesusPrayerPace: jesusPrayerPace,
+          chantId: chosenChantId ?? undefined,
+          parableReadMode: (meditationStore.state as any).parableReadMode,
+          centeringReadMode: (meditationStore.state as any).centeringReadMode,
+          centeringRepeatIntervalSec: (meditationStore.state as any).centeringRepeatIntervalSec,
+          chantReflectionPauseSec: (meditationStore.state as any).chantReflectionPauseSec,
+        }}
+        onStart={(values) => {
+          setStoreSelectedStyle(values.style);
+          setStoreSelectedBackgroundSound(values.sound ?? null);
+          setStoreSelectedVirtue(values.virtueId ?? null);
+          setStoreCenteringWord(values.centeringWord ?? null);
+          setStoreJesusPrayerPace(values.jesusPrayerPace ?? 'medium');
+          setStoreChosenChantId(values.chantId ?? null);
+          setStoreParableReadMode(values.parableReadMode ?? 'silent');
+          setStoreCenteringReadMode(values.centeringReadMode ?? 'silent');
+          setStoreCenteringRepeatIntervalSec(values.centeringRepeatIntervalSec ?? 15);
+          setStoreChantReflectionPauseSec(values.chantReflectionPauseSec ?? 20);
+          Haptics.selectionAsync();
+        }}
+      />
       {/* First-time meditation tips modal */}
       <Modal visible={showFirstTipModal} animationType="fade" transparent onRequestClose={() => setShowFirstTipModal(false)}>
         <View style={styles.modalOverlay}>
@@ -1682,6 +1883,38 @@ const createStyles = (theme: Theme, currentVirtue: Virtue | undefined) =>
       ...theme?.typography.body.sans,
       color: theme?.colors.text.primary,
       lineHeight: 22,
+    },
+    jpGuideContainer: {
+      alignItems: 'center',
+      gap: theme?.spacing.xs,
+      marginTop: theme?.spacing.sm,
+    },
+    jpPhrase: {
+      ...theme?.typography.caption.secondary,
+      color: theme?.colors.text.secondary,
+    },
+    jpPhraseActive: {
+      color: currentVirtue?.color_code || theme?.colors.primary,
+      fontWeight: '700',
+    },
+    nowPlayingCard: {
+      marginTop: theme?.spacing.md,
+      padding: theme?.spacing.md,
+      borderRadius: theme?.borderRadius.md,
+      borderWidth: 1,
+      borderColor: theme?.colors.border,
+      backgroundColor: theme?.colors.surface,
+      alignItems: 'center',
+    },
+    nowPlayingTitle: {
+      ...theme?.typography.caption.secondary,
+      color: theme?.colors.text.secondary,
+      marginBottom: 4,
+    },
+    nowPlayingText: {
+      ...theme?.typography.body.sans,
+      color: theme?.colors.text.primary,
+      fontWeight: '700',
     },
     completeContainer: { flex: 1, alignItems: 'center', justifyContent: 'space-between', padding: theme.spacing.lg },
     completeBanner: { width: '100%', alignItems: 'center', marginTop: theme.spacing.xl },
