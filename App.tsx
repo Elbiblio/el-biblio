@@ -58,7 +58,8 @@ import { registerGlobals, AudioSession } from '@livekit/react-native';
 import ChallengeCompletionBanner from './src/components/ChallengeCompletionBanner';
 import type { Challenge } from './src/types/challenges';
 import { registerChallengeReminderTask } from './src/tasks/challengeReminderTask';
-import { useJourneyStore } from './src/stores/StoreProvider';
+import { useJourneyStore, usePreferencesStore } from './src/stores/StoreProvider';
+import { syncDailyNuggets } from './src/tasks/dailyNuggetOrchestrator';
 
 registerGlobals();
 
@@ -182,6 +183,7 @@ const AppContent = () => {
   const { setInitialized } = useAppInitialization();
   const fontsLoaded = useAppFonts();
   const { isInitialized: authInitialized, user, token } = useAuthStore();
+  const preferencesStore = usePreferencesStore();
   const { hasCompletedWelcome, initializeWelcomeState } = appStore;
   
   // Debug: log gate values to diagnose splash/blank screen issues
@@ -241,11 +243,27 @@ const AppContent = () => {
         
         // Check for uncompleted challenges after initialization
         checkForUncompletedChallenges();
+
+        // Kick off daily nugget sync once everything is ready
+        if (preferencesStore.showDailyNuggets) {
+          void syncDailyNuggets({ triggerInSeconds: 10 * 60 });
+        }
       }, 500);
       
       return () => clearTimeout(timer);
     }
-  }, [fontsLoaded, isLoading, isSplashComplete, authInitialized, setInitialized]);
+  }, [fontsLoaded, isLoading, isSplashComplete, authInitialized, setInitialized, preferencesStore.showDailyNuggets]);
+
+  // Reschedule nuggets when preference toggles while app is mounted
+  useEffect(() => {
+    if (!authInitialized || !preferencesStore.showDailyNuggets) {
+      return;
+    }
+    const timer = setTimeout(() => {
+      void syncDailyNuggets({ triggerInSeconds: 5 * 60 });
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [authInitialized, preferencesStore.showDailyNuggets]);
 
   const checkForUncompletedChallenges = () => {
     // Import the store here to avoid circular dependencies
