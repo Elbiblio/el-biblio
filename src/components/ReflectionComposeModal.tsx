@@ -10,6 +10,7 @@ export interface ReflectionComposeModalProps {
   visible: boolean;
   onClose: () => void;
   reflectionText: string;
+  verseText?: string;
   onChangeText: (text: string) => void;
   reflectionType: 1 | 2;
   onChangeType: (t: 1 | 2) => void;
@@ -25,6 +26,7 @@ const ReflectionComposeModal: React.FC<ReflectionComposeModalProps> = ({
   visible,
   onClose,
   reflectionText,
+  verseText,
   onChangeText,
   reflectionType,
   onChangeType,
@@ -60,7 +62,7 @@ const ReflectionComposeModal: React.FC<ReflectionComposeModalProps> = ({
             if (prev <= 1) {
               if (guideTimerRef.current) clearInterval(guideTimerRef.current);
               guideTimerRef.current = null;
-              AsyncStorage.setItem('vd_reflection_guide_seen', '1').catch(() => {});
+              AsyncStorage.setItem('vd_reflection_guide_seen', '1').catch(() => { });
               setShowGuide(false);
               return 0;
             }
@@ -102,7 +104,7 @@ const ReflectionComposeModal: React.FC<ReflectionComposeModalProps> = ({
               <View style={styles.guideCard}>
                 <Text style={styles.guideTitle}>Prepare your heart</Text>
                 <Text style={styles.guidePrayer}>
-{`“Open my eyes, that I may behold wondrous things out of your law.” (Psalm 119:18)
+                  {`“Open my eyes, that I may behold wondrous things out of your law.” (Psalm 119:18)
 “Then He opened their minds to understand the Scriptures.” (Luke 24:45)
 
 Lord, open my eyes and mind to understand Your Word. Help me see what You are saying and respond with faith, love, and obedience. Amen.`}
@@ -110,12 +112,17 @@ Lord, open my eyes and mind to understand Your Word. Help me see what You are sa
                 <Text style={styles.guideCountdown}>Starting in {guideCountdown}s…</Text>
                 <TouchableOpacity
                   style={styles.guideSkip}
-                  onPress={() => { AsyncStorage.setItem('vd_reflection_guide_seen', '1').catch(()=>{}); setShowGuide(false); }}
+                  onPress={() => { AsyncStorage.setItem('vd_reflection_guide_seen', '1').catch(() => { }); setShowGuide(false); }}
                 >
                   <Text style={styles.guideSkipText}>Skip</Text>
                 </TouchableOpacity>
               </View>
             )}
+            {!showGuide && verseText &&
+              (<View style={styles.guideCard}>
+                <Text style={styles.guidePrayer}>{verseText}</Text>
+              </View>
+              )}
 
             <View style={styles.typeSelector}>
               <TouchableOpacity

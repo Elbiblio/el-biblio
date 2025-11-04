@@ -2,10 +2,12 @@
 import React from 'react';
 import { StyleSheet, View, Text, TouchableOpacity, ScrollView, Modal, ViewStyle, TextStyle } from 'react-native';
 import { useTheme } from '@/contexts/ThemeContext';
-import { X } from '@/components/Icons';
+import { X, BookmarkSimple } from '@/components/Icons';
 import { useNavigation, NavigationProp } from '@react-navigation/native';
 import { RootStackParamList, ScopedVerseParam } from '@/types';
 import type { Verse as AppVerse } from '@/types';
+import { useVerseStore, useAuthStore } from '@/stores/StoreProvider';
+import { toast } from 'sonner-native';
 
 type Verse = AppVerse;
 
@@ -95,6 +97,8 @@ interface VersePreviewModalProps {
 const VersePreviewModal: React.FC<VersePreviewModalProps> = ({ verse, onClose, onVersePress, context = 'default', contextData }) => {
   const theme = useTheme();
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
+  const { createBookmark, removeBookmark } = useVerseStore();
+  const { user } = useAuthStore();
 
   if (!verse) return null;
 
@@ -105,6 +109,30 @@ const VersePreviewModal: React.FC<VersePreviewModalProps> = ({ verse, onClose, o
   };
 
   const styles = createStyles(theme);
+
+  const isBookmarked = Boolean((verse as any).isBookmarked);
+
+  const handleToggleBookmark = async () => {
+    if (!user) {
+      toast.info('Please log in to bookmark verses');
+      return;
+    }
+    try {
+      if (isBookmarked) {
+        const ok = await removeBookmark(verse.id, 'App\\Models\\Verse');
+        if (ok) toast.success('Bookmark removed'); else toast.error('Failed to remove bookmark');
+      } else {
+        const ok = await createBookmark({
+          user_id: user.id,
+          bookmarkable_type: 'App\\Models\\Verse',
+          bookmarkable_id: verse.id,
+        });
+        if (ok) toast.success('Verse bookmarked'); else toast.error('Failed to bookmark verse');
+      }
+    } catch {
+      toast.error('Failed to update bookmark');
+    }
+  };
 
   return (
     <Modal
@@ -126,9 +154,18 @@ const VersePreviewModal: React.FC<VersePreviewModalProps> = ({ verse, onClose, o
                 <Text style={styles.translation}>{verse.translation}</Text>
               ) : null}
             </View>
-            <TouchableOpacity onPress={onClose}>
-              <X size={20} color={theme.colors.text.secondary} />
-            </TouchableOpacity>
+            <View style={styles.rightActions}>
+              <TouchableOpacity onPress={handleToggleBookmark} style={{ marginRight: 8 }}>
+                <BookmarkSimple
+                  size={20}
+                  color={isBookmarked ? theme.colors.primary : theme.colors.text.secondary}
+                  filled={isBookmarked}
+                />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={onClose}>
+                <X size={20} color={theme.colors.text.secondary} />
+              </TouchableOpacity>
+            </View>
           </View>
 
           <ScrollView
@@ -233,6 +270,10 @@ const createStyles = (theme: any) => StyleSheet.create({
   headerTextContainer: {
     flex: 1,
     marginRight: 12,
+  } as ViewStyle,
+  rightActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
   } as ViewStyle,
   reference: {
     ...theme.typography.heading.small,

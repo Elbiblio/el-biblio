@@ -690,7 +690,7 @@ export interface PaginatedResponse<T> {
 export type RootStackParamList = {
   Home: undefined | { meditationComplete?: boolean, challenge?: DailyChallenge, pointsEarned?: number };
   ThemeSelector: undefined;
-  VerseDetail: { verse: Verse };
+  VerseDetail: { verse: Verse; learnContext?: { scopedTitle?: string | null; scopedSubtitle?: string | null; scopedVerses?: ScopedVerseParam[] | null } };
   ReflectionDetail: { reflection: Reflection };
   NotesScreen: undefined;
   CommunityScreen: undefined;
@@ -707,6 +707,7 @@ export type RootStackParamList = {
   WordHubDetailScreen: { hubId: string };
   SavedItemsScreen: undefined;
   ProfileScreen: undefined;
+  DonateScreen: undefined;
   VirtueScreen: undefined;
   GameScreen: undefined;
   LeaderboardScreen: undefined;

@@ -350,6 +350,28 @@ const planRemainingSeconds = useMemo(() => {
     }
   }, [showTimerModal, bibleStore.isPlanMode, phasesForToday.length, resetIdleTimer]);
 
+  // React to phase changes: when entering a non-reading phase, show meditation view; otherwise show timer modal
+  useEffect(() => {
+    if (!bibleStore.isPlanMode) return;
+    const tid = bibleStore.getTodayTimerIdPublic();
+    if (!tid) return;
+    const t = appTimerStore.get(tid);
+    if (!t) return;
+    const curPhase = phasesForToday[t.currentPhaseIndex];
+    if (!curPhase) return;
+    const isReading = curPhase.id === 'reading';
+    if (isReading) {
+      if (t.isActive && !showTimerModal) setShowTimerModal(true);
+      if (showMeditationMode) setShowMeditationMode(false);
+    } else {
+      // Ensure timer is running during non-reading phases
+      if (!t.isActive) appTimerStore.resume(tid);
+      if (!showMeditationMode) setShowMeditationMode(true);
+      if (showTimerModal) setShowTimerModal(false);
+    }
+    // Depend on appTimerStore.now to track ticking/phase changes
+  }, [bibleStore.isPlanMode, phasesForToday, appTimerStore.now, showTimerModal, showMeditationMode]);
+
   useEffect(() => {
     isAdvancingSegmentRef.current = false;
   }, [bibleStore.activeReadingSegment?.id]);

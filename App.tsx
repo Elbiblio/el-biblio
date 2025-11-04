@@ -11,6 +11,7 @@ import { AppInitializationProvider, useAppInitialization } from './src/utils/app
 import { WebSocketProvider } from './src/components/WebSocketProvider';
 import CustomSplash from './src/components/CustomSplash';
 import ThemeSelector from './src/components/ThemeSelector';
+import DonateScreen from './src/screens/DonateScreen';
 import HomeScreen from './src/screens/HomeScreen';
 import VerseDetail from './src/screens/VerseDetail';
 import ReflectionDetail from './src/screens/ReflectionDetail';
@@ -155,6 +156,7 @@ const NavigationContent: React.FC = () => {
         <Stack.Screen name="VerseBuilderScreen" component={VerseBuilderScreen} />
         <Stack.Screen name="BibleScreen" component={BibleScreen} />
         <Stack.Screen name="ProfileScreen" component={ProfileScreen} />
+        <Stack.Screen name="DonateScreen" component={DonateScreen} />
         <Stack.Screen name="LeaderboardScreen" component={LeaderboardScreen} />
         <Stack.Screen name="GameScreen" component={GameScreen} />
         <Stack.Screen name="SpiritualCareerScreen" component={SpiritualCareerScreen} />

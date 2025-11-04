@@ -1,4 +1,7 @@
+Imagine your father is a rich man, the value of being loved by Him becomes enormously high instantly, a lot of us are short sighted towards the riches of the Kingdom. And thus we consider the little riches of the world sometimes more highly
+yet they are only meant to reflect  the true riches of the Kingdom (Luke 16:11)
 
+The establishment of good habits and the conquering of bad habits is a discipline and purification of Character that must come with a great resolve to work with the Holy Spirit. One of the little miracles we freely get as God's children is what is possible when we invite and say yes to the Holy Spirit.
 
 Simple Spiritual Disorders Framework
 1. DISORDERED DESIRES

@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { Modal, View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -77,6 +77,14 @@ const ChantLibraryModal: React.FC<ChantLibraryModalProps> = ({ visible, selected
     setPreviewingKey(null);
   };
 
+  useEffect(() => {
+    if (!visible && previewingKey) {
+      // Ensure any playing preview is stopped when modal hides
+      stopByKey(previewingKey as any).catch(() => {});
+      setPreviewingKey(null);
+    }
+  }, [visible, previewingKey]);
+
   if (!visible) return null;
 
   const handleClose = () => { stopPreview(); onClose(); };
@@ -92,7 +100,7 @@ const ChantLibraryModal: React.FC<ChantLibraryModalProps> = ({ visible, selected
             </TouchableOpacity>
           </View>
 
-          <ScrollView style={styles.content}>
+          <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
             {CHANTS.map((c) => {
               const isSelected = c.id === selectedId;
               const canPreview = !!c.voiceKey && AUDIO_KEYS.includes(c.voiceKey as any);
@@ -115,7 +123,13 @@ const ChantLibraryModal: React.FC<ChantLibraryModalProps> = ({ visible, selected
                     </TouchableOpacity>
                     <TouchableOpacity
                       style={styles.btn}
-                      onPress={() => onSelect(c.id)}
+                      onPress={async () => {
+                        if (previewingKey) {
+                          try { await stopByKey(previewingKey as any); } catch {}
+                          setPreviewingKey(null);
+                        }
+                        onSelect(c.id);
+                      }}
                     >
                       <MaterialIcons name="library-add" size={18} color={theme.colors.primary} />
                       <Text style={[styles.btnText, styles.btnTextPrimary]}>Select</Text>
@@ -145,6 +159,7 @@ const createStyles = (theme: any) => StyleSheet.create({
   title: { ...theme.typography.h6, color: theme.colors.text.primary },
   closeButton: { padding: 4 },
   content: { padding: 16 },
+  contentContainer: { paddingBottom: 16 },
   card: { borderWidth: 1, borderColor: theme.colors.border, borderRadius: 12, padding: 16, backgroundColor: theme.colors.surface, marginBottom: 12 },
   cardActive: { borderColor: theme.colors.primary, backgroundColor: `${theme.colors.primary}10`, borderWidth: 2 },
   cardHeader: { marginBottom: 8 },

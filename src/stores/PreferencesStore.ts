@@ -5,6 +5,7 @@ import { ThemeVariant } from '@/theme';
 export const STORAGE_KEYS = {
   THEME: '@app_theme',
   COLOR_MODE: 'user_color_mode',
+  DAILY_NUGGETS: 'daily_nuggets_enabled',
 } as const;
 
 export type ColorMode = 'light' | 'dark';
@@ -13,6 +14,7 @@ interface PreferencesState {
   preferredTheme: ThemeVariant;
   colorMode: ColorMode;
   isInitialized: boolean;
+  showDailyNuggets: boolean;
 }
 
 class PreferencesStore {
@@ -21,6 +23,7 @@ class PreferencesStore {
     preferredTheme: 'sage',
     colorMode: 'light',
     isInitialized: false,
+    showDailyNuggets: true,
   };
   
   // Common store properties
@@ -60,9 +63,10 @@ class PreferencesStore {
     try {
       this.setLoading(true);
       
-      const [savedTheme, savedColorMode] = await Promise.all([
+      const [savedTheme, savedColorMode, savedDailyNuggets] = await Promise.all([
         AsyncStorage.getItem(STORAGE_KEYS.THEME),
         AsyncStorage.getItem(STORAGE_KEYS.COLOR_MODE),
+        AsyncStorage.getItem(STORAGE_KEYS.DAILY_NUGGETS),
       ]);
 
       runInAction(() => {
@@ -71,6 +75,9 @@ class PreferencesStore {
         }
         if (savedColorMode) {
           this.state.colorMode = savedColorMode as ColorMode;
+        }
+        if (savedDailyNuggets !== null) {
+          this.state.showDailyNuggets = savedDailyNuggets === '1';
         }
         this.state.isInitialized = true;
       });
@@ -122,6 +129,25 @@ class PreferencesStore {
     }
   };
 
+  setShowDailyNuggets = async (enabled: boolean) => {
+    try {
+      this.setLoading(true);
+      await AsyncStorage.setItem(STORAGE_KEYS.DAILY_NUGGETS, enabled ? '1' : '0');
+
+      runInAction(() => {
+        this.state.showDailyNuggets = enabled;
+      });
+
+      await this.saveToStorage();
+    } catch (error) {
+      console.error('Failed to save nugget preference:', error);
+      this.setError('Failed to save nugget preference');
+      throw error;
+    } finally {
+      this.setLoading(false);
+    }
+  };
+
   // Getters for computed values
   get preferredTheme(): ThemeVariant {
     return this.state.preferredTheme;
@@ -133,6 +159,10 @@ class PreferencesStore {
 
   get isInitialized(): boolean {
     return this.state.isInitialized;
+  }
+
+  get showDailyNuggets(): boolean {
+    return this.state.showDailyNuggets;
   }
 }
 

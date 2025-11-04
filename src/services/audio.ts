@@ -240,3 +240,18 @@ export const stopAllSounds = async () => {
 };
 
 export const AUDIO_KEYS = Object.keys(SOUNDS) as SoundKey[];
+
+// Adjust volume of looping music cues without stopping playback
+export const setMusicVolume = async (
+  cue: 'meditation' | 'heartbeat',
+  volumeMultiplier: number
+) => {
+  const key = CUE_ALIASES[cue];
+  if (!key) return;
+  try {
+    await initAudio();
+    const s = cache.get(key) || await getSound(key);
+    const vol = SoundManager.getVolume();
+    await s.setVolumeAsync(Math.max(0, Math.min(1, vol * volumeMultiplier)));
+  } catch {}
+};

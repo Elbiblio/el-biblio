@@ -4,7 +4,7 @@ import { apiClient } from '@/api/client';
 import { AuthStore } from './AuthStore';
 import { MeditationSession, Challenge, DailyChallenge, PaginatedResponse } from '@/types';
 
-export type MeditationPhase = 'setup' | 'countdown' | 'active' | 'complete';
+export type MeditationPhase = 'setup' | 'countdown' | 'active' | 'complete' | 'idle';
 export type MeditationStyle = 'parable' | 'virtue' | 'centering' | 'jesus_prayer' | 'chant';
 
 export interface MeditationState {
@@ -29,6 +29,8 @@ export interface MeditationState {
   meditationState: MeditationPhase;
   countdown: number;
   meditationTimer: number;
+  isPreviewingSound: boolean;
+  lastNonChantSound: string | null;
 
   // Pagination
   pagination: {
@@ -60,6 +62,8 @@ const initialState: MeditationState = {
   meditationState: 'setup',
   countdown: 5, // 5-second countdown by default
   meditationTimer: 0,
+  isPreviewingSound: false,
+  lastNonChantSound: null,
   pagination: {
     currentPage: 1,
     lastPage: 1,
@@ -397,8 +401,18 @@ export class MeditationStore {
 
   setSelectedBackgroundSound(id: string | null) {
     this.state.selectedBackgroundSound = id;
+    if (id) this.state.lastNonChantSound = id;
     // Persist immediately so user's choice sticks
     this.saveToStorage();
+  }
+
+  setLastNonChantSound(id: string | null) {
+    this.state.lastNonChantSound = id;
+    this.saveToStorage();
+  }
+
+  setIsPreviewingSound(value: boolean) {
+    this.state.isPreviewingSound = value;
   }
 
   setSelectedStyle(style: MeditationStyle) {
@@ -536,6 +550,17 @@ export class MeditationStore {
     this.state.meditationState = 'setup';
     this.state.countdown = 5;
     this.state.meditationTimer = 0;
+  }
+  goIdle() {
+    if (this.meditationInterval) {
+      clearInterval(this.meditationInterval);
+      this.meditationInterval = null;
+    }
+    if (this.countdownInterval) {
+      clearInterval(this.countdownInterval);
+      this.countdownInterval = null;
+    }
+    this.state.meditationState = 'idle';
   }
   // Helper method to save unsynced sessions to localStorage
   private async saveUnsyncedSessions() {

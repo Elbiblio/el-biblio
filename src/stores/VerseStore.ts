@@ -64,11 +64,34 @@ export class VerseStore {
     
     // Load from storage asynchronously
     AsyncStorage.getItem(this.storageKey).then(stored => {
-      if (stored) {
-        runInAction(() => {
-          this.state = { ...this.state, ...JSON.parse(stored) };
-        });
-      }
+      if (!stored) return;
+      const parsed = JSON.parse(stored);
+
+      // Revive Maps from persisted arrays/objects and merge safely
+      const revivedUserInteractions = (() => {
+        const raw = (parsed && parsed.userInteractions) as any;
+        if (!raw) return new Map<string, UserInteraction>();
+        if (Array.isArray(raw)) return new Map<string, UserInteraction>(raw);
+        if (typeof raw === 'object') return new Map<string, UserInteraction>(Object.entries(raw));
+        return new Map<string, UserInteraction>();
+      })();
+
+      const revivedBookmarks = (() => {
+        const raw = (parsed && parsed.bookmarks) as any;
+        if (!raw) return new Map<string, Bookmark>();
+        if (Array.isArray(raw)) return new Map<string, Bookmark>(raw);
+        if (typeof raw === 'object') return new Map<string, Bookmark>(Object.entries(raw));
+        return new Map<string, Bookmark>();
+      })();
+
+      runInAction(() => {
+        this.state = {
+          ...this.state,
+          ...parsed,
+          userInteractions: revivedUserInteractions,
+          bookmarks: revivedBookmarks,
+        };
+      });
     }).catch(error => {
       console.error('Error loading verse store from storage:', error);
     });
@@ -84,7 +107,13 @@ export class VerseStore {
 
   private async saveToStorage() {
     try {
-      await AsyncStorage.setItem(this.storageKey, JSON.stringify(this.state));
+      // Serialize Maps into arrays of entries to avoid losing data
+      const payload = {
+        ...this.state,
+        userInteractions: Array.from(this.state.userInteractions.entries()),
+        bookmarks: Array.from(this.state.bookmarks.entries()),
+      };
+      await AsyncStorage.setItem(this.storageKey, JSON.stringify(payload));
     } catch (error) {
       console.error(`Error saving ${this.storageKey} to storage:`, error);
       this.error = 'Failed to save data';
@@ -348,6 +377,16 @@ export class VerseStore {
           `${bookmark.bookmarkable_type}_${bookmark.bookmarkable_id}`,
           bookmark
         );
+        if (
+          this.state.currentVerse &&
+          bookmark.bookmarkable_type === 'App\\Models\\Verse' &&
+          String(this.state.currentVerse.id) === String(bookmark.bookmarkable_id)
+        ) {
+          this.state.currentVerse = {
+            ...this.state.currentVerse,
+            isBookmarked: true,
+          } as any;
+        }
       });
       
       await this.saveToStorage();
@@ -373,6 +412,16 @@ export class VerseStore {
       // Update local state
       runInAction(() => {
         this.state.bookmarks.delete(bookmarkKey);
+        if (
+          this.state.currentVerse &&
+          bookmark.bookmarkable_type === 'App\\Models\\Verse' &&
+          String(this.state.currentVerse.id) === String(bookmark.bookmarkable_id)
+        ) {
+          this.state.currentVerse = {
+            ...this.state.currentVerse,
+            isBookmarked: false,
+          } as any;
+        }
       });
       
       await this.saveToStorage();

@@ -33,7 +33,7 @@ import { Theme } from '@/theme';
 import { useAuthStore, useVirtueStore, useMeditationStore, useChallengeStore, useLeaderboardStore } from '@/stores/StoreProvider';
 import * as Haptics from 'expo-haptics';
 import { setAudioModeAsync } from 'expo-audio';
-import { playMusic, stopMusic, playCue, playLoopByKey, stopByKey, SoundKey, playOneShotByKey } from '@/services/audio';
+import { playCue, playMusic, stopByKey, stopMusic, stopAllSounds, setMusicVolume, playLoopByKey, playOneShotByKey, SoundKey } from '@/services/audio';
 import BibleDBService from '@/utils/database';
 import { bibleBooks } from '@/constants/bibleBooks';
 import { DailyChallenge } from '@/types';
@@ -165,6 +165,7 @@ enum MeditationState {
   COUNTDOWN = 'countdown',
   ACTIVE = 'active',
   COMPLETE = 'complete',
+  IDLE = 'idle',
 }
 
 const MeditationScreen = () => {
@@ -192,6 +193,7 @@ const MeditationScreen = () => {
     centeringWord,
     chosenChantId,
     jesusPrayerPace,
+    isPreviewingSound,
   } = meditationStore.state;
   const {
     parableReadMode,
@@ -435,7 +437,7 @@ const MeditationScreen = () => {
 
   // Configure audio mode (allow playback in silent mode)
   useEffect(() => {
-    setAudioModeAsync({ playsInSilentMode: true }).catch(() => {});
+    setAudioModeAsync({ playsInSilentMode: true }).catch(() => { });
     return () => {
       stopMusic('meditation');
       stopMusic('heartbeat');
@@ -443,7 +445,7 @@ const MeditationScreen = () => {
         Object.values(CHANT_INSTRUMENTAL_MAP).forEach((key) => {
           if (key) stopByKey(key as any);
         });
-      } catch {}
+      } catch { }
     };
   }, []);
 
@@ -451,17 +453,82 @@ const MeditationScreen = () => {
   useEffect(() => {
     stopMusic('meditation');
     stopMusic('heartbeat');
-    if (meditationState === MeditationState.SETUP || meditationState === MeditationState.ACTIVE) {
-      if (!(selectedStyle === 'chant' && meditationState === MeditationState.ACTIVE)) {
+    if (selectedStyle !== 'chant') {
+      if (
+        (meditationState === MeditationState.SETUP && isPreviewingSound) ||
+        meditationState === MeditationState.ACTIVE
+      ) {
         if (selectedBackgroundSound === 'ambient') playMusic('meditation', 0.6);
         if (selectedBackgroundSound === 'heartbeat') playMusic('heartbeat', 0.6);
       }
     }
-    if (meditationState === MeditationState.COUNTDOWN || meditationState === MeditationState.COMPLETE) {
+    if (
+      meditationState === MeditationState.COUNTDOWN ||
+      meditationState === MeditationState.COMPLETE ||
+      meditationState === MeditationState.IDLE
+    ) {
       stopMusic('meditation');
       stopMusic('heartbeat');
     }
-  }, [selectedBackgroundSound, meditationState, selectedStyle]);
+  }, [selectedBackgroundSound, meditationState, selectedStyle, isPreviewingSound]);
+
+  useEffect(() => {
+    if (meditationState === MeditationState.COMPLETE) {
+      try { Speech.stop(); } catch { }
+      try { stopAllSounds(); } catch { }
+      try {
+        const voice = CHANT_VOICE_MAP[chosenChantId || ''];
+        const instrumental = CHANT_INSTRUMENTAL_MAP[chosenChantId || ''];
+        if (instrumental) { void stopByKey(instrumental); }
+        if (voice) { void stopByKey(voice); }
+      } catch { }
+      try {
+        breathTimeoutsRef.current.forEach(clearTimeout);
+        breathTimeoutsRef.current = [];
+      } catch { }
+      try {
+        if (centeringIntervalRef.current) {
+          clearInterval(centeringIntervalRef.current as any);
+          centeringIntervalRef.current = null;
+        }
+      } catch { }
+      try {
+        if (chantLoopTimeoutRef.current) {
+          clearTimeout(chantLoopTimeoutRef.current);
+          chantLoopTimeoutRef.current = null;
+        }
+        chantFlowStartedRef.current = false;
+      } catch { }
+    }
+  }, [meditationState, chosenChantId]);
+
+  const duckForSpeech = async () => {
+    try {
+      if (selectedStyle !== 'chant') {
+        if (selectedBackgroundSound === 'ambient') await setMusicVolume('meditation', 0.2);
+        if (selectedBackgroundSound === 'heartbeat') await setMusicVolume('heartbeat', 0.2);
+      }
+    } catch {}
+  };
+  const restoreAfterSpeech = async () => {
+    try {
+      if (selectedStyle !== 'chant') {
+        if (selectedBackgroundSound === 'ambient') await setMusicVolume('meditation', 0.6);
+        if (selectedBackgroundSound === 'heartbeat') await setMusicVolume('heartbeat', 0.6);
+      }
+    } catch {}
+  };
+
+  const speakWithDuck = (text: string, opts: Parameters<typeof Speech.speak>[1] = {}) => {
+    try { duckForSpeech(); } catch {}
+    Speech.speak(text, {
+      ...opts,
+      onDone: () => {
+        try { opts?.onDone?.(); } catch {}
+        try { restoreAfterSpeech(); } catch {}
+      },
+    } as any);
+  };
 
   // Play tick sound
   const playTickSound = () => { playCue('tickTock'); };
@@ -475,41 +542,70 @@ const MeditationScreen = () => {
     const prompt = meditationGuide.prompts[index] || meditationGuide.prompts[0];
     const declaration = meditationGuide.declaration;
     isSpeaking.current = true;
-    Speech.speak(`${introWord}...`, {
+    speakWithDuck(`${introWord}...`, {
       rate: 0.85,
       onDone: () => {
         setTimeout(() => {
-          Speech.speak(prompt, {
+          speakWithDuck(prompt, {
             rate: 0.85,
             onDone: () => {
               isSpeaking.current = false;
               if (index === meditationGuide.prompts.length - 1 && !isEndingPhase.current) {
                 setTimeout(() => {
-                  Speech.speak(declaration, { rate: 0.85 });
+                  speakWithDuck(declaration, { rate: 0.85 });
                 }, 1200);
               }
             },
           });
-        }, 1000);
+        }, 800);
       },
     });
+  };
+
+  const renderIdleScreen = () => {
+    const last = sessions && sessions.length > 0 ? sessions[0] : null;
+    const lastDuration = last?.duration_minutes ? `${last.duration_minutes} min` : null;
+    return (
+      <ScrollView style={styles.scrollContainer} showsVerticalScrollIndicator={false}>
+        <View style={styles.idleContainer}>
+          <View style={styles.idleCard}>
+            <Text style={styles.idleTitle}>Ready for a new session</Text>
+            {lastDuration ? (
+              <Text style={styles.idleSubtitle}>Last session: {lastDuration}</Text>
+            ) : null}
+          </View>
+          <View style={styles.idleRow}>
+            <TouchableOpacity style={[styles.idleBtn, styles.idleBtnPrimary]} onPress={() => {
+              progressAnim.value = 0;
+              startMeditationStore();
+              Haptics.selectionAsync();
+            }}>
+              <Text style={[styles.idleBtnText, styles.idleBtnTextPrimary]}>Start Again</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.idleBtn} onPress={() => setShowSetupModal(true)}>
+              <Text style={styles.idleBtnText}>Setup Options</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </ScrollView>
+    );
   };
 
   // Countdown speech helper (moved above first use)
   const speakCountdownNumber = (number: number) => {
     Speech.stop();
     if (number <= 3 && number > 0) {
-      setTimeout(() => Speech.speak(`${number}`, { rate: 0.8 }), 100);
+      setTimeout(() => speakWithDuck(`${number}`, { rate: 0.8 }), 100);
     } else if (number === 0) {
-      setTimeout(() => Speech.speak('Close your eyes if you are able to do so...', {
+      setTimeout(() => speakWithDuck('Close your eyes if you are able to do so...', {
         rate: 0.8,
         onDone: () => {
           setTimeout(() => {
-            Speech.speak(meditationGuide.leadIn, {
+            speakWithDuck(meditationGuide.leadIn, {
               rate: 0.8,
               onDone: () => {
                 setTimeout(() => {
-                  Speech.speak(meditationGuide.focus, {
+                  speakWithDuck(meditationGuide.focus, {
                     rate: 0.8,
                     onDone: () => {
                       const continueAfterParable = () => {
@@ -520,16 +616,16 @@ const MeditationScreen = () => {
                           // play bell
                           playCue('meditationBell');
                           setTimeout(() => {
-                            Speech.speak(breathIntro, {
+                            speakWithDuck(breathIntro, {
                               rate: 0.8,
                               onDone: () => {
                                 const speakHoldPhase = () => {
                                   setTimeout(() => {
-                                    Speech.speak('Keep still...', {
+                                    speakWithDuck('Keep still...', {
                                       rate: 0.8,
                                       onDone: () => {
                                         setTimeout(() => {
-                                          Speech.speak('Breathe out...', {
+                                          speakWithDuck('Breathe out...', {
                                             rate: 0.8,
                                             onDone: () => {
                                               setIntroCompleted(true);
@@ -551,7 +647,7 @@ const MeditationScreen = () => {
                                     }
                                     const delay = i === 0 ? 400 : 600;
                                     setTimeout(() => {
-                                      Speech.speak(insights[i]!, {
+                                      speakWithDuck(insights[i]!, {
                                         rate: 0.8,
                                         onDone: () => {
                                           speakInsight(i + 1);
@@ -624,7 +720,7 @@ const MeditationScreen = () => {
       if (!(selectedStyle === 'chant' && meditationState === MeditationState.ACTIVE)) {
         const key = CHANT_INSTRUMENTAL_MAP[chosenChantId || ''];
         if (key) {
-          try { await stopByKey(key); } catch {}
+          try { await stopByKey(key); } catch { }
         }
       }
     };
@@ -733,15 +829,15 @@ const MeditationScreen = () => {
       hasStartedFinalCountdown.current = false;
       isEndingPhase.current = false;
       virtueStagesRef.current = { s1: false, s2: false };
-      
+
       interval = setInterval(() => {
         const newValue = meditationStore.state.meditationTimer;
         progressAnim.value = newValue / totalMeditationSeconds;
-        
+
         if (newValue >= 120 && !firstTwoMinutesCompleted.current) {
           firstTwoMinutesCompleted.current = true;
         }
-        
+
         if (selectedStyle === 'virtue') {
           const s1 = Math.floor(totalMeditationSeconds * 2 / 5);
           const s2 = Math.floor(totalMeditationSeconds * 4 / 5);
@@ -759,19 +855,19 @@ const MeditationScreen = () => {
             if (nextPromptIndex < 4) showAndSpeakPrompt(nextPromptIndex);
           }
         }
-        
+
         if (totalMeditationSeconds - newValue <= 30 && !hasReadChallenge.current) {
           hasReadChallenge.current = true;
           isEndingPhase.current = true;
-          
+
           if (isSpeaking.current) Speech.stop();
           setTimeout(() => {
-            Speech.speak("Your challenge is:", {
+            speakWithDuck("Your challenge is:", {
               rate: 0.85, onDone: () => {
                 if (selectedChallenge) {
-                  Speech.speak(selectedChallenge.title, {
+                  speakWithDuck(selectedChallenge.title, {
                     rate: 0.85, onDone: () => {
-                      Speech.speak(selectedChallenge.description, { rate: 0.85 });
+                      speakWithDuck(selectedChallenge.description, { rate: 0.85 });
                     }
                   });
                 }
@@ -779,22 +875,22 @@ const MeditationScreen = () => {
             });
           }, 500);
         }
-        
+
         if (totalMeditationSeconds - newValue <= 10 && !hasStartedFinalCountdown.current) {
           hasStartedFinalCountdown.current = true;
           if (isSpeaking.current) Speech.stop();
-          
+
           const closingLine = meditationGuide.closingReminder || 'You resolve to do better today.';
-          Speech.speak(closingLine, {
+          speakWithDuck(closingLine, {
             rate: 0.85, onDone: () => {
               let countdownNumber = 10;
               playMeditationBellSound();
               const countdownInterval = setInterval(() => {
                 countdownNumber--;
                 if (countdownNumber <= 3 && countdownNumber > 0) {
-                  setTimeout(() => Speech.speak(`${countdownNumber}`, { rate: 0.8 }), 500);
+                  setTimeout(() => speakWithDuck(`${countdownNumber}`, { rate: 0.8 }), 500);
                 } else if (countdownNumber === 0) {
-                  setTimeout(() => Speech.speak("Open your eyes", { rate: 0.8 }), 500);
+                  setTimeout(() => speakWithDuck("Open your eyes", { rate: 0.8 }), 500);
                   clearInterval(countdownInterval);
                 }
               }, 1000);
@@ -816,7 +912,7 @@ const MeditationScreen = () => {
       centeringIntervalRef.current = setInterval(() => {
         const word = (centeringWord || 'Jesus').trim();
         if (centeringReadMode === 'aloud') {
-          Speech.speak(word, {
+          speakWithDuck(word, {
             rate: 0.85,
             onDone: () => {
               playCue('meditationBell');
@@ -854,7 +950,7 @@ const MeditationScreen = () => {
         loop();
       }
     };
-    Speech.speak('Take a moment to reflect on how this hymn connects to your life.', {
+    speakWithDuck('Take a moment to reflect on how this hymn connects to your life.', {
       rate: 0.85,
       onDone: () => {
         if (voice) {
@@ -894,7 +990,7 @@ const MeditationScreen = () => {
             const delta = after - before;
             toast.success(`Great job! +${delta} points earned today`);
           } else {
-            toast.success('Meditation complete. Points updated.');
+            toast.success('Meditation complete. Keep it up!');
           }
         })();
       }
@@ -921,11 +1017,11 @@ const MeditationScreen = () => {
       const sentences = verses.split(/(?<=[\.!?])\s+/).filter(Boolean);
       for (const s of sentences) {
         await new Promise<void>((resolve) => {
-          Speech.speak(s.trim(), { rate: 0.75, onDone: () => resolve() });
+          speakWithDuck(s.trim(), { rate: 0.75, onDone: () => resolve() });
         });
         await new Promise(r => setTimeout(r, 1200));
       }
-    } catch {}
+    } catch { }
   }, []);
 
   const startMeditation = async () => {
@@ -943,7 +1039,7 @@ const MeditationScreen = () => {
         setShowFirstTipModal(true);
         return;
       }
-    } catch {}
+    } catch { }
     // capture points snapshot before session begins
     preSessionPointsRef.current = leaderboardStore.userStats?.totalPoints ?? null;
     progressAnim.value = 0;
@@ -994,9 +1090,11 @@ const MeditationScreen = () => {
 
   // Play bell sound
   const playBellSound = () => { playCue('bell'); };
-  
+
   // Play meditation bell sound
   const playMeditationBellSound = () => { playCue('meditationBell'); };
+
+  
 
   // Render functions
   const handleSelectTime = React.useCallback((minutes: number) => {
@@ -1027,8 +1125,8 @@ const MeditationScreen = () => {
             <Text style={[styles.virtueText, { color: currentVirtue?.color_code || theme?.colors.primary }]}>
               {selectedStyle === 'virtue' ? (currentVirtue?.name || 'Choose a virtue') :
                 selectedStyle === 'centering' ? `Centering: ${centeringWord || 'Jesus'}` :
-                selectedStyle === 'jesus_prayer' ? 'Jesus Prayer' :
-                selectedStyle === 'chant' ? 'Chant' : 'Parable Meditation'}
+                  selectedStyle === 'jesus_prayer' ? 'Jesus Prayer' :
+                    selectedStyle === 'chant' ? 'Chant' : 'Parable Meditation'}
             </Text>
           </View>
           <TouchableOpacity
@@ -1311,9 +1409,45 @@ const MeditationScreen = () => {
       currentVirtue={currentVirtue as any}
       bellButtonStyle={bellButtonStyle}
       onFinish={() => {
-        if (isSpeaking.current) Speech.stop();
-        meditationStore.resetMeditationSession();
-        navigation.navigate('Home', { meditationComplete: true });
+        try {
+          // Stop any ongoing speech
+          if (isSpeaking.current) Speech.stop();
+          Speech.stop();
+
+          // Stop background music
+          stopMusic('meditation');
+          stopMusic('heartbeat');
+
+          // Stop chant audio if any
+          const voice = CHANT_VOICE_MAP[chosenChantId || ''];
+          const instrumental = CHANT_INSTRUMENTAL_MAP[chosenChantId || ''];
+          if (instrumental) { void stopByKey(instrumental); }
+          if (voice) { void stopByKey(voice); }
+
+          // Clear local timers/intervals
+          breathTimeoutsRef.current.forEach(clearTimeout);
+          breathTimeoutsRef.current = [];
+          if (centeringIntervalRef.current) {
+            clearInterval(centeringIntervalRef.current as any);
+            centeringIntervalRef.current = null;
+          }
+          if (chantLoopTimeoutRef.current) {
+            clearTimeout(chantLoopTimeoutRef.current);
+            chantLoopTimeoutRef.current = null;
+          }
+          chantFlowStartedRef.current = false;
+
+          // Reset local animations
+          try { bellScale.value = 1; } catch { }
+          try { pulseAnim.value = 0; } catch { }
+
+          // As a safety, stop all sounds
+          void stopAllSounds();
+        } finally {
+          meditationStore.resetMeditationSession();
+          // Use replace to force navigation change
+          navigation.replace('Home', { meditationComplete: true });
+        }
       }}
     />
   );
@@ -1356,8 +1490,8 @@ const MeditationScreen = () => {
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>Quick Tips</Text>
             <Text style={styles.modalText}>• Switch on Do Not Disturb to avoid distractions
-            {'\n'}• If it’s safe, gently close your eyes
-            {'\n'}• Listen to the voice guide and breathe calmly</Text>
+              {'\n'}• If it’s safe, gently close your eyes
+              {'\n'}• Listen to the voice guide and breathe calmly</Text>
             <View style={styles.modalActions}>
               <TouchableOpacity
                 style={[styles.modalBtn, { backgroundColor: theme.colors.surface, borderWidth: 1, borderColor: theme.colors.border }]}
@@ -1371,7 +1505,7 @@ const MeditationScreen = () => {
               <TouchableOpacity
                 style={[styles.modalBtn, { backgroundColor: theme.colors.primary }]}
                 onPress={async () => {
-                  try { await AsyncStorage.setItem('med_first_tip_shown', '1'); } catch {}
+                  try { await AsyncStorage.setItem('med_first_tip_shown', '1'); } catch { }
                   setShowFirstTipModal(false);
                   if (pendingStartRef.current) {
                     pendingStartRef.current = false;
@@ -1422,6 +1556,7 @@ const MeditationScreen = () => {
       )}
 
       {meditationState === MeditationState.SETUP && renderSetupScreen()}
+      {meditationState === MeditationState.IDLE && renderIdleScreen()}
       {meditationState === MeditationState.COUNTDOWN && renderCountdownScreen()}
       {meditationState === MeditationState.ACTIVE && renderActiveScreen()}
       {meditationState === MeditationState.COMPLETE && renderCompleteScreen()}
@@ -1867,7 +2002,41 @@ const createStyles = (theme: Theme, currentVirtue: Virtue | undefined) =>
       ...theme?.typography.body.sans,
       color: theme?.colors.text.primary,
       fontWeight: '700',
+      fontSize: 16,
     },
+    idleContainer: { padding: theme.spacing.lg },
+    idleCard: {
+      padding: theme.spacing.lg,
+      borderRadius: theme.borderRadius.lg,
+      backgroundColor: theme.colors.surface,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      marginBottom: theme.spacing.lg,
+      alignItems: 'center',
+    },
+    idleTitle: {
+      ...theme.typography.heading.small,
+      color: theme.colors.text.primary,
+      fontWeight: '700',
+    },
+    idleSubtitle: {
+      ...theme.typography.caption.secondary,
+      color: theme.colors.text.secondary,
+      marginTop: 4,
+    },
+    idleRow: { flexDirection: 'row', gap: theme.spacing.sm },
+    idleBtn: {
+      flex: 1,
+      paddingVertical: theme.spacing.md,
+      borderRadius: theme.borderRadius.md,
+      borderWidth: 1.5,
+      borderColor: theme.colors.border,
+      alignItems: 'center',
+      backgroundColor: theme.colors.surface,
+    },
+    idleBtnPrimary: { backgroundColor: theme.colors.primary, borderColor: theme.colors.primary },
+    idleBtnText: { ...theme.typography.body.sans, color: theme.colors.text.primary, fontWeight: '600' },
+    idleBtnTextPrimary: { color: '#FFF' },
     completeContainer: { flex: 1, alignItems: 'center', justifyContent: 'space-between', padding: theme.spacing.lg },
     completeBanner: { width: '100%', alignItems: 'center', marginTop: theme.spacing.xl },
     completeTitle: {

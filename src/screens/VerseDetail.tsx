@@ -48,6 +48,7 @@ import CommentsOverlay from '@/components/CommentsOverlay';
 import { Theme } from '@/theme';
 import { SCREEN_DIMENSIONS } from '@/constants';
 import { useVerseStore, useAuthStore } from '@/stores/StoreProvider';
+import { useBibleStore } from '@/stores/BibleStore';
 import { apiClient, endpoints } from '@/api/client';
 import * as Clipboard from 'expo-clipboard';
 import { toast } from 'sonner-native';
@@ -64,6 +65,27 @@ const VerseDetail = ({ navigation, route }: VerseDetailProps) => {
   const insets = useSafeAreaInsets();
   const { user } = useAuthStore();
   const styles = React.useMemo(() => createStyles(theme, insets.bottom), [theme, insets.bottom]);
+  const learnContext = route.params?.learnContext;
+
+  const openInBibleScoped = () => {
+    if (!currentVerse) return;
+    if (learnContext?.scopedVerses?.length) {
+      navigation.navigate('BibleScreen', {
+        mode: 'scoped',
+        scopedTitle: learnContext.scopedTitle ?? currentVerse.context_reference ?? currentVerse.reference_display,
+        scopedSubtitle: learnContext.scopedSubtitle ?? currentVerse.translation,
+        scopedVerses: learnContext.scopedVerses || null,
+      });
+      setShowLearnMore(false);
+      return;
+    }
+    navigation.navigate('BibleScreen', {
+      book: (currentVerse as any).book || undefined,
+      chapter: (currentVerse as any).chapter || undefined,
+      verse: (currentVerse as any).verse || undefined,
+    });
+    setShowLearnMore(false);
+  };
   
   // Store state and actions
   const {
@@ -73,7 +95,8 @@ const VerseDetail = ({ navigation, route }: VerseDetailProps) => {
     fetchVerseById,
     createInteraction,
     createReflection,
-    createBookmark
+    createBookmark,
+    removeBookmark
   } = useVerseStore();
 
   // Local state
@@ -87,6 +110,10 @@ const VerseDetail = ({ navigation, route }: VerseDetailProps) => {
   const [reflectionText, setReflectionText] = useState('');
   const [reflectionType, setReflectionType] = useState<1 | 2>(1); // 1: story, 2: insight
   const [activeCommentReflectionId, setActiveCommentReflectionId] = useState<string | null>(null);
+  const [pendingReflections, setPendingReflections] = useState<Reflection[]>([]);
+  const [pendingPayloads, setPendingPayloads] = useState<Record<string, { content: string; type: number; user_id: string; verse_id: string }>>({});
+  const [failedPendingIds, setFailedPendingIds] = useState<Set<string>>(new Set());
+  const [retryingId, setRetryingId] = useState<string | null>(null);
   // Face2Face capture state
   const [showFace2Face, setShowFace2Face] = useState(false);
   const [hasCameraPermission, setHasCameraPermission] = useState<boolean>(false);
@@ -98,6 +125,19 @@ const VerseDetail = ({ navigation, route }: VerseDetailProps) => {
   const [isUploading, setIsUploading] = useState(false);
   const [showFaceTips, setShowFaceTips] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<number>(0);
+
+  // Learn more (Explain) bottom sheet state
+  const [showLearnMore, setShowLearnMore] = useState(false);
+  const [learnTab, setLearnTab] = useState<'context' | 'compare'>('context');
+  const [explainLoading, setExplainLoading] = useState(false);
+  const [explainError, setExplainError] = useState<string | null>(null);
+  const [explainText, setExplainText] = useState<string>('');
+  const learnMoreTranslateY = useSharedValue(SCREEN_DIMENSIONS.height);
+  const bibleStore = useBibleStore();
+  const [compareLoading, setCompareLoading] = useState(false);
+  const [compareError, setCompareError] = useState<string | null>(null);
+  const [compareResults, setCompareResults] = useState<Array<{ versionId: string; shortName: string; englishName: string; text: string }>>([]);
+  const [compareReference, setCompareReference] = useState<string | null>(null);
 
   // Animated values
   const scrollY = useSharedValue(0);
@@ -133,6 +173,113 @@ const VerseDetail = ({ navigation, route }: VerseDetailProps) => {
       } catch {}
     })();
   }, []);
+
+  // Animate Learn more open/close
+  useEffect(() => {
+    learnMoreTranslateY.value = withSpring(showLearnMore ? 0 : SCREEN_DIMENSIONS.height, {
+      damping: 15,
+      stiffness: 90,
+    });
+  }, [showLearnMore]);
+
+  // Fetch Context (Explain) when sheet opens (fallback when no learnContext is provided)
+  useEffect(() => {
+    const loadExplain = async () => {
+      if (!showLearnMore || learnTab !== 'context' || !currentVerse?.id) return;
+      if (learnContext?.scopedVerses?.length) return;
+      try {
+        setExplainLoading(true);
+        setExplainError(null);
+        const res = await apiClient.get<any>(endpoints.bible.explain(currentVerse.id));
+        if (res.success) {
+          const d: any = res.data;
+          const text = typeof d === 'string' ? d : (d?.explanation || d?.text || '');
+          setExplainText(text || '');
+        } else {
+          setExplainError(res.message || 'Failed to load explanation');
+        }
+      } catch (e: any) {
+        setExplainError(e?.message || 'Failed to load explanation');
+      } finally {
+        setExplainLoading(false);
+      }
+    };
+    loadExplain();
+  }, [showLearnMore, learnTab, currentVerse?.id]);
+
+  // Fetch Compare tab content using same API pattern as BibleScreen (via endpoints.bible.compare)
+  useEffect(() => {
+    const getVersionSlug = (version?: { shortName?: string; tableName?: string; englishName?: string } | null): string | null => {
+      if (!version) return null;
+      if (version.tableName) {
+        const normalized = version.tableName
+          .replace(/^eng[_-]?/i, '')
+          .replace(/_vpl$/i, '')
+          .replace(/[^a-z0-9]+/gi, '')
+          .toLowerCase();
+        if (normalized) return normalized;
+      }
+      if (version.shortName) {
+        const short = version.shortName.trim().toLowerCase();
+        if (short.length >= 3) return short;
+      }
+      if (version.englishName) {
+        return version.englishName.trim().toLowerCase().replace(/[^a-z0-9]+/g, '');
+      }
+      return null;
+    };
+
+    const loadCompare = async () => {
+      if (!showLearnMore || learnTab !== 'compare' || !currentVerse) return;
+      try {
+        setCompareLoading(true);
+        setCompareError(null);
+        if (!bibleStore.availableVersions.length) {
+          await bibleStore.fetchBibleVersions?.();
+        }
+        const baseVersionSlug = getVersionSlug(bibleStore.currentVersion);
+        const baseVersionTable = bibleStore.currentVersion?.tableName;
+        const additionalVersionSlugs = (bibleStore.availableVersions || [])
+          .filter(v => v.tableName !== baseVersionTable)
+          .map(v => getVersionSlug(v))
+          .filter((s): s is string => !!s);
+        const versionsParam = additionalVersionSlugs.length ? `${additionalVersionSlugs.join(',')},` : undefined;
+        const reference = currentVerse.reference_display || `${currentVerse.book ?? ''} ${currentVerse.chapter ?? ''}:${currentVerse.verse ?? ''}`.trim();
+        if (!baseVersionSlug || !reference) {
+          throw new Error('Missing version or reference');
+        }
+        const resp = await apiClient.get<any>(
+          endpoints.bible.compare(baseVersionSlug, reference),
+          versionsParam ? { versions: versionsParam } : undefined
+        );
+        if (!resp.success || !resp.data?.comparisons) {
+          throw new Error(resp.message || 'Failed to load comparison');
+        }
+        const payload = resp.data;
+        const mapped = (payload.comparisons as any[]).map((entry: any) => {
+          const v = entry?.version || {};
+          const text = (entry?.text && String(entry.text).trim())
+            || (Array.isArray(entry?.verses) ? entry.verses.map((x: any) => x?.text).filter(Boolean).join(' ') : '')
+            || (entry?.message || 'Not available');
+          const versionId = (v?.tableName || v?.shortName || v?.englishName || 'version').toString().toLowerCase().replace(/[^a-z0-9]+/g, '');
+          return {
+            versionId,
+            shortName: v?.shortName || versionId.toUpperCase(),
+            englishName: v?.englishName || v?.shortName || versionId,
+            text: text,
+          };
+        });
+        setCompareResults(mapped);
+        setCompareReference(payload?.reference?.formatted || reference);
+      } catch (e: any) {
+        setCompareError(e?.message || 'Failed to load verse comparison.');
+        setCompareResults([]);
+      } finally {
+        setCompareLoading(false);
+      }
+    };
+    loadCompare();
+  }, [showLearnMore, learnTab, currentVerse?.id, bibleStore.currentVersion?.tableName, bibleStore.availableVersions.length]);
 
   // When opening composer, decide whether to show first-time guide
   useEffect(() => {
@@ -204,13 +351,18 @@ const VerseDetail = ({ navigation, route }: VerseDetailProps) => {
     }
     
     try {
-      await createBookmark({
-        user_id: user.id,
-        bookmarkable_type: 'App\\Models\\Verse',
-        bookmarkable_id: currentVerse.id,
-        clip_text: clipText
-      });
-      toast.success(currentVerse.isBookmarked ? 'Bookmark removed' : 'Verse bookmarked');
+      if (currentVerse.isBookmarked) {
+        const ok = await removeBookmark(currentVerse.id, 'App\\Models\\Verse');
+        if (ok) toast.success('Bookmark removed'); else toast.error('Failed to remove bookmark');
+      } else {
+        const ok = await createBookmark({
+          user_id: user.id,
+          bookmarkable_type: 'App\\Models\\Verse',
+          bookmarkable_id: currentVerse.id,
+          clip_text: clipText
+        });
+        if (ok) toast.success('Verse bookmarked'); else toast.error('Failed to bookmark verse');
+      }
     } catch (error) {      
       toast.error('Failed to bookmark verse');
     }
@@ -252,20 +404,79 @@ const VerseDetail = ({ navigation, route }: VerseDetailProps) => {
       return;
     }
     
-    try {
-      await createReflection({
-        content: reflectionText.trim(),
-        type: reflectionType,
-        user_id: user.id,
-        verse_id: currentVerse.id
+    // Fire-and-forget for a smoother, non-blocking UX when posting text reflections
+    const text = reflectionText.trim();
+
+    // Create local pending placeholder
+    const temp: Reflection = {
+      id: `temp-${Date.now()}` as any,
+      content: text,
+      type: reflectionType,
+      user: user as any,
+      comments: [],
+      likes: 0,
+      shares: 0,
+      isLiked: false,
+      created_at: new Date().toISOString() as any,
+      media_url: null as any,
+    } as unknown as Reflection;
+    setPendingReflections((prev) => [temp, ...prev]);
+    setPendingPayloads((prev) => ({ ...prev, [temp.id]: { content: text, type: reflectionType, user_id: user.id, verse_id: currentVerse.id } }));
+    setFailedPendingIds((prev) => {
+      const next = new Set(prev);
+      next.delete(temp.id as any);
+      return next;
+    });
+
+    setShowReflectionInput(false);
+    setReflectionText('');
+    toast.info('Sharing in background…');
+
+    // Post in background; the store will enrich and insert the new reflection on success
+    createReflection({ content: text, type: reflectionType, user_id: user.id, verse_id: currentVerse.id })
+      .then((res) => {
+        if (res) {
+          // Success: remove pending placeholder and payload
+          setPendingReflections((prev) => prev.filter((r) => r.id !== temp.id));
+          setPendingPayloads((prev) => { const { [temp.id]: _, ...rest } = prev; return rest; });
+          setFailedPendingIds((prev) => { const next = new Set(prev); next.delete(temp.id as any); return next; });
+          toast.success('Reflection shared');
+        } else {
+          setFailedPendingIds((prev) => new Set(prev).add(temp.id as any));
+          toast.error('Failed to share reflection');
+        }
+      })
+      .catch(() => {
+        setFailedPendingIds((prev) => new Set(prev).add(temp.id as any));
+        toast.error('Failed to share reflection');
       });
-      
-      setReflectionText('');
-      setShowReflectionInput(false);
-      toast.success('Reflection shared successfully');
-    } catch (error) {
+  };
+
+  const retryPending = async (tempId: string) => {
+    const payload = pendingPayloads[tempId];
+    if (!payload) return;
+    setRetryingId(tempId);
+    try {
+      const res = await createReflection(payload);
+      if (res) {
+        setPendingReflections((prev) => prev.filter((r) => r.id !== tempId));
+        setPendingPayloads((prev) => { const { [tempId]: _, ...rest } = prev; return rest; });
+        setFailedPendingIds((prev) => { const next = new Set(prev); next.delete(tempId); return next; });
+        toast.success('Reflection shared');
+      } else {
+        toast.error('Failed to share reflection');
+      }
+    } catch {
       toast.error('Failed to share reflection');
+    } finally {
+      setRetryingId(null);
     }
+  };
+
+  const cancelPending = (tempId: string) => {
+    setPendingReflections((prev) => prev.filter((r) => r.id !== tempId));
+    setPendingPayloads((prev) => { const { [tempId]: _, ...rest } = prev; return rest; });
+    setFailedPendingIds((prev) => { const next = new Set(prev); next.delete(tempId); return next; });
   };
 
   // Face2Face helpers
@@ -338,7 +549,10 @@ const VerseDetail = ({ navigation, route }: VerseDetailProps) => {
     if (!currentVerse || !user || !videoUri) return;
     try {
       setIsUploading(true);
-      // 1) Presign upload (S3 PUT)
+      
+      setShowFace2Face(false);
+
+      
       const fileName = videoUri.split('/').pop() || `face2face_${Date.now()}.mp4`;
       const contentType = 'video/mp4';
       const directory = `videos/user_${user.id}`;
@@ -406,7 +620,6 @@ const VerseDetail = ({ navigation, route }: VerseDetailProps) => {
         media_provider: 's3',
         // duration_seconds: could be extracted with a probe; omitted for now
       });
-      setShowFace2Face(false);
       setVideoUri(null);
       setReflectionText('');
       setShowReflectionInput(false);
@@ -430,6 +643,11 @@ const VerseDetail = ({ navigation, route }: VerseDetailProps) => {
         Extrapolation.CLAMP
       )
     }],
+  }));
+
+  // Learn more bottom sheet animation
+  const learnMoreStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: learnMoreTranslateY.value }],
   }));
 
   const navigationStyle = useAnimatedStyle(() => ({
@@ -464,12 +682,21 @@ const VerseDetail = ({ navigation, route }: VerseDetailProps) => {
       damping: 20,
       stiffness: 90,
     });
+
+    // Reveal reflections controls when section is near/in view
+    const y = nativeEvent.contentOffset.y || 0;
+    if (reflectionsY !== null) {
+      const threshold = reflectionsY - 120; // start showing a bit before
+      const inView = y >= threshold;
+      if (inView !== showReflectionsControls) setShowReflectionsControls(inView);
+    }
   }, []);
 
   // Anchor: measure Reflections section to support precise scrolling
   const reflectionsAnchorRef = useRef<View>(null);
   const scrollViewRef = useRef<ScrollView>(null);
   const [reflectionsY, setReflectionsY] = useState<number | null>(null);
+  const [showReflectionsControls, setShowReflectionsControls] = useState<boolean>(false);
   const scrollToReflections = useCallback(() => {
     if (scrollViewRef.current && reflectionsY !== null) {
       const y = Math.max(0, reflectionsY - 8);
@@ -505,16 +732,49 @@ const VerseDetail = ({ navigation, route }: VerseDetailProps) => {
   }, [currentVerse?.reflections]);
 
   // Reflection rendering
-  const renderReflection = useCallback(({ item, index }: { item: Reflection; index: number }) => (
-    <ReflectionCard
-      reflection={item}
-      scrollX={scrollX}
-      index={index}
-      onCommentPress={() => setActiveCommentReflectionId(item.id)}
-      expanded={false}
-      onPress={() => navigation.navigate('ReflectionDetail', { reflection: item })}
-    />
-  ), [navigation]);
+  const renderReflection = useCallback(({ item, index }: { item: Reflection; index: number }) => {
+    const isPending = typeof item.id === 'string' && item.id.startsWith('temp-');
+    const failed = isPending && failedPendingIds.has(item.id as any);
+    return (
+      <View style={{ position: 'relative' }}>
+        <ReflectionCard
+          reflection={item}
+          scrollX={scrollX}
+          index={index}
+          onCommentPress={() => !isPending && setActiveCommentReflectionId(item.id)}
+          expanded={false}
+          onPress={!isPending ? () => navigation.navigate('ReflectionDetail', { reflection: item }) : undefined}
+          style={isPending ? { opacity: 0.6 } as any : undefined}
+        />
+        {isPending && (
+          <View style={styles.pendingOverlay}>
+            {!failed ? (
+              <View style={styles.pendingBadge}>
+                <Text style={styles.pendingBadgeText}>Sending…</Text>
+              </View>
+            ) : (
+              <View style={styles.pendingRow}>
+                <Text style={styles.pendingErrorText}>Failed</Text>
+                <TouchableOpacity
+                  style={[styles.pendingActionBtn, retryingId === item.id && { opacity: 0.6 } as any]}
+                  onPress={() => retryPending(item.id as any)}
+                  disabled={retryingId === item.id}
+                >
+                  <Text style={styles.pendingActionText}>{retryingId === item.id ? 'Retrying…' : 'Retry'}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.pendingActionBtn}
+                  onPress={() => cancelPending(item.id as any)}
+                >
+                  <Text style={styles.pendingActionText}>Cancel</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+        )}
+      </View>
+    );
+  }, [navigation, failedPendingIds, retryingId]);
 
   const keyExtractor = useCallback((item: Reflection) => item.id, []);
 
@@ -522,8 +782,9 @@ const VerseDetail = ({ navigation, route }: VerseDetailProps) => {
     const cardWidth = SCREEN_DIMENSIONS.width - theme.spacing.md * 2;
     const offsetX = e.nativeEvent.contentOffset.x || 0;
     const idx = Math.round(offsetX / cardWidth);
-    setCurrentReflectionIndex(Math.max(0, Math.min(idx, filteredReflections.length - 1)));
-  }, [filteredReflections.length, theme.spacing.md]);
+    const total = pendingReflections.length + filteredReflections.length;
+    setCurrentReflectionIndex(Math.max(0, Math.min(idx, total - 1)));
+  }, [filteredReflections.length, pendingReflections.length, theme.spacing.md]);
 
   const trimmedReflection = reflectionText.trim();
   const wordCount = trimmedReflection ? trimmedReflection.split(/\s+/).filter(Boolean).length : 0;
@@ -641,20 +902,13 @@ const VerseDetail = ({ navigation, route }: VerseDetailProps) => {
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={styles.copyButton}
-                  onPress={() => {
-                    if (!currentVerse) return;
-                    navigation.navigate('BibleScreen', {
-                      book: currentVerse.book || undefined,
-                      chapter: currentVerse.chapter || undefined,
-                      verse: currentVerse.verse || undefined,
-                    } as any);
-                  }}
+                  onPress={() => setShowLearnMore(true)}
                 >
                   <Book size={16} color={theme.colors.text.secondary} />
-                  <Text style={styles.copyText}>View Context</Text>
+                  <Text style={styles.copyText}>Learn more</Text>
                 </TouchableOpacity>
               </View>
-            </Animated.View>
+          </Animated.View>
 
             {/* Reflections Section */}
             <View
@@ -665,52 +919,56 @@ const VerseDetail = ({ navigation, route }: VerseDetailProps) => {
               ]}
               onLayout={(e) => setReflectionsY(e.nativeEvent.layout.y)}
             >
-              <View style={styles.reflectionsHeaderRow}>
-                <Text style={styles.sectionTitle}>Reflections</Text>
-                <View style={styles.sortToggleGroup}>
-                  <TouchableOpacity
-                    style={[styles.sortToggle, reflectionSort === 'new' && styles.sortToggleActive]}
-                    onPress={() => setReflectionSort('new')}
-                  >
-                    <Text style={[styles.sortToggleText, reflectionSort === 'new' && styles.sortToggleTextActive]}>Newest</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.sortToggle, reflectionSort === 'top' && styles.sortToggleActive]}
-                    onPress={() => setReflectionSort('top')}
-                  >
-                    <Text style={[styles.sortToggleText, reflectionSort === 'top' && styles.sortToggleTextActive]}>Top</Text>
-                  </TouchableOpacity>
+              {showReflectionsControls && (
+                <View style={styles.reflectionsHeaderRow}>
+                  <Text style={styles.sectionTitle}>Reflections</Text>
+                  <View style={styles.sortToggleGroup}>
+                    <TouchableOpacity
+                      style={[styles.sortToggle, reflectionSort === 'new' && styles.sortToggleActive]}
+                      onPress={() => setReflectionSort('new')}
+                    >
+                      <Text style={[styles.sortToggleText, reflectionSort === 'new' && styles.sortToggleTextActive]}>Newest</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.sortToggle, reflectionSort === 'top' && styles.sortToggleActive]}
+                      onPress={() => setReflectionSort('top')}
+                    >
+                      <Text style={[styles.sortToggleText, reflectionSort === 'top' && styles.sortToggleTextActive]}>Top</Text>
+                    </TouchableOpacity>
+                  </View>
                 </View>
-              </View>
+              )}
 
               {/* Filter chips */}
-              <View style={styles.filterChipsRow}>
-                <TouchableOpacity
-                  style={[styles.chip, reflectionFilter === 'all' && styles.chipActive]}
-                  onPress={() => setReflectionFilter('all')}
-                >
-                  <Text style={[styles.chipText, reflectionFilter === 'all' && styles.chipTextActive]}>All ({chipCounts.all})</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.chip, reflectionFilter === 'word' && styles.chipActive]}
-                  onPress={() => setReflectionFilter('word')}
-                >
-                  <Text style={[styles.chipText, reflectionFilter === 'word' && styles.chipTextActive]}>Word Bites ({chipCounts.word})</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.chip, reflectionFilter === 'face' && styles.chipActive]}
-                  onPress={() => setReflectionFilter('face')}
-                >
-                  <Text style={[styles.chipText, reflectionFilter === 'face' && styles.chipTextActive]}>Face2Face ({chipCounts.face})</Text>
-                </TouchableOpacity>
-              </View>
+              {showReflectionsControls && (
+                <View style={styles.filterChipsRow}>
+                  <TouchableOpacity
+                    style={[styles.chip, reflectionFilter === 'all' && styles.chipActive]}
+                    onPress={() => setReflectionFilter('all')}
+                  >
+                    <Text style={[styles.chipText, reflectionFilter === 'all' && styles.chipTextActive]}>All ({chipCounts.all})</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.chip, reflectionFilter === 'word' && styles.chipActive]}
+                    onPress={() => setReflectionFilter('word')}
+                  >
+                    <Text style={[styles.chipText, reflectionFilter === 'word' && styles.chipTextActive]}>Word Bites ({chipCounts.word})</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.chip, reflectionFilter === 'face' && styles.chipActive]}
+                    onPress={() => setReflectionFilter('face')}
+                  >
+                    <Text style={[styles.chipText, reflectionFilter === 'face' && styles.chipTextActive]}>Face2Face ({chipCounts.face})</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
               
               {isReflectionsLoading ? (
                 <ActivityIndicator color={theme.colors.primary} />
-              ) : filteredReflections.length ? (
+              ) : (pendingReflections.length + filteredReflections.length) ? (
                 <>
                   <FlatList
-                    data={filteredReflections}
+                    data={[...pendingReflections, ...filteredReflections]}
                     renderItem={renderReflection}
                     keyExtractor={keyExtractor}
                     horizontal
@@ -726,7 +984,7 @@ const VerseDetail = ({ navigation, route }: VerseDetailProps) => {
                   />
                   {/* Page dots */}
                   <View style={styles.pageDotsRow}>
-                    {filteredReflections.map((_: Reflection, i: number) => (
+                    {[...pendingReflections, ...filteredReflections].map((_: Reflection, i: number) => (
                       <View
                         key={`dot-${i}`}
                         style={[styles.pageDot, i === currentReflectionIndex && styles.pageDotActive]}
@@ -758,7 +1016,7 @@ const VerseDetail = ({ navigation, route }: VerseDetailProps) => {
             }}
           >
             <MessageCircle size={20} color={theme.colors.text.inverse} />
-            <Text style={styles.composerFabText}>Share a reflection</Text>
+            <Text style={styles.composerFabText}>Reflect</Text>
           </TouchableOpacity>
         </Animated.View>
       )}
@@ -768,6 +1026,7 @@ const VerseDetail = ({ navigation, route }: VerseDetailProps) => {
         visible={showReflectionInput}
         onClose={() => !isUploading && setShowReflectionInput(false)}
         reflectionText={reflectionText}
+        verseText={currentVerse?.text}
         onChangeText={setReflectionText}
         reflectionType={reflectionType}
         onChangeType={(t) => setReflectionType(t)}
@@ -851,6 +1110,116 @@ const VerseDetail = ({ navigation, route }: VerseDetailProps) => {
               </>
             )}
           </View>
+        </View>
+      )}
+
+      {/* Background upload status */}
+      {isUploading && !showFace2Face && (
+        <View style={styles.uploadBanner}>
+          <Text style={styles.uploadBannerText}>{`Uploading Face2Face… ${Math.round((uploadProgress || 0) * 100)}%`}</Text>
+          <View style={styles.progressBarWrap}>
+            <View style={[styles.progressBarFill, { width: `${Math.round((uploadProgress || 0) * 100)}%`, backgroundColor: theme.colors.primary }]} />
+          </View>
+        </View>
+      )}
+
+      {/* Learn more bottom sheet */}
+      {showLearnMore && (
+        <View style={styles.learnOverlay}>
+          <BlurView intensity={20} style={StyleSheet.absoluteFill}>
+            <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={() => setShowLearnMore(false)} />
+          </BlurView>
+          <Animated.View style={[styles.learnContainer, learnMoreStyle]}>
+            <View style={styles.learnHeader}>
+              <Text style={styles.learnTitle}>Learn more</Text>
+              <TouchableOpacity onPress={() => setShowLearnMore(false)} style={styles.closeButton}>
+                <X size={20} color={theme.colors.text.secondary} />
+              </TouchableOpacity>
+            </View>
+            <View style={styles.learnTabs}>
+              <TouchableOpacity
+                style={[styles.learnTab, learnTab === 'context' && styles.learnTabActive]}
+                onPress={() => setLearnTab('context')}
+              >
+                <Text style={[styles.learnTabText, learnTab === 'context' && styles.learnTabTextActive]}>Context</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.learnTab, learnTab === 'compare' && styles.learnTabActive]}
+                onPress={() => setLearnTab('compare')}
+              >
+                <Text style={[styles.learnTabText, learnTab === 'compare' && styles.learnTabTextActive]}>Compare</Text>
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={styles.learnContent} contentContainerStyle={styles.learnContentInner}>
+              {learnTab === 'context' && (
+                learnContext?.scopedVerses?.length ? (
+                  <View>
+                    {learnContext.scopedTitle ? (
+                      <Text style={styles.learnTitle}>{learnContext.scopedTitle}</Text>
+                    ) : null}
+                    {learnContext.scopedSubtitle ? (
+                      <Text style={[styles.copyText, { marginBottom: 8 }]}>{learnContext.scopedSubtitle}</Text>
+                    ) : null}
+                    {learnContext.scopedVerses!.map((v, idx) => (
+                      <View key={`${v.reference ?? 'line'}-${idx}`} style={{ marginBottom: 10 }}>
+                        {v.reference ? (
+                          <Text style={[styles.copyText, { fontWeight: '600', marginBottom: 4 }]}>{v.reference}</Text>
+                        ) : null}
+                        <Text style={styles.explainText}>{v.text}</Text>
+                      </View>
+                    ))}
+                  </View>
+                ) : (
+                  explainLoading ? (
+                    <View style={styles.loadingContainer}>
+                      <ActivityIndicator color={theme.colors.primary} size="large" />
+                    </View>
+                  ) : explainError ? (
+                    <Text style={styles.errorText}>{explainError}</Text>
+                  ) : explainText ? (
+                    <Text style={styles.explainText}>{explainText}</Text>
+                  ) : (
+                    <Text style={styles.copyText}>No explanation available.</Text>
+                  )
+                )
+              )}
+              {learnTab === 'compare' && (
+                compareLoading ? (
+                  <View style={styles.loadingContainer}>
+                    <ActivityIndicator color={theme.colors.primary} size="large" />
+                  </View>
+                ) : compareError ? (
+                  <Text style={styles.errorText}>{compareError}</Text>
+                ) : (
+                  <View>
+                    {compareReference ? (
+                      <Text style={[styles.copyText, { marginBottom: 8 }]}>{compareReference}</Text>
+                    ) : null}
+                    {compareResults.map((item) => (
+                      <View key={item.versionId} style={{ marginBottom: theme.spacing.md }}>
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                          <Text style={[styles.copyText, { fontWeight: '600' }]}>{item.englishName}</Text>
+                          <Text style={styles.copyText}>{item.shortName}</Text>
+                        </View>
+                        <Text style={styles.explainText}>{item.text || 'Not available'}</Text>
+                      </View>
+                    ))}
+                    {!compareResults.length ? (
+                      <Text style={styles.copyText}>No versions available for comparison.</Text>
+                    ) : null}
+                  </View>
+                )
+              )}
+              {learnTab === 'compare' && (
+                <View />
+              )}
+            </ScrollView>
+            <View style={{ paddingHorizontal: theme.spacing.lg, paddingTop: theme.spacing.sm }}>
+              <TouchableOpacity style={styles.learnPrimaryButton} onPress={openInBibleScoped}>
+                <Text style={styles.learnPrimaryButtonText}>Open in Bible</Text>
+              </TouchableOpacity>
+            </View>
+          </Animated.View>
         </View>
       )}
 
@@ -1057,6 +1426,154 @@ const createStyles = (theme: Theme, safeAreaBottom: number = 0) => {
   },
   reflectionsList: {
     paddingHorizontal: theme.spacing.md,
+  },
+  // Pending overlay
+  pendingOverlay: {
+    position: 'absolute',
+    left: theme.spacing.md,
+    right: theme.spacing.md,
+    bottom: theme.spacing.md,
+    alignItems: 'flex-start',
+  },
+  pendingBadge: {
+    backgroundColor: `${theme.colors.background}CC`,
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: theme.spacing.xs,
+    borderRadius: theme.borderRadius.full,
+  },
+  pendingBadgeText: {
+    ...theme.typography.caption.primary,
+    color: theme.colors.text.secondary,
+  },
+  pendingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
+    backgroundColor: `${theme.colors.background}CC`,
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: theme.spacing.xs,
+    borderRadius: theme.borderRadius.full,
+  },
+  pendingErrorText: {
+    ...theme.typography.caption.primary,
+    color: theme.colors.error,
+    fontWeight: '600',
+  },
+  pendingActionBtn: {
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: theme.borderRadius.full,
+    backgroundColor: theme.colors.surface,
+  },
+  pendingActionText: {
+    ...theme.typography.caption.primary,
+    color: theme.colors.primary,
+    fontWeight: '600',
+  },
+  // Learn more bottom sheet styles
+  learnOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+  learnContainer: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: theme.colors.background,
+    borderTopLeftRadius: theme.borderRadius.xl,
+    borderTopRightRadius: theme.borderRadius.xl,
+    paddingBottom: safeAreaBottom + theme.spacing.lg,
+    paddingTop: theme.spacing.md,
+  },
+  learnHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: theme.spacing.lg,
+    marginBottom: theme.spacing.sm,
+  },
+  learnTitle: {
+    ...theme.typography.heading.small,
+    color: theme.colors.text.primary,
+    fontWeight: '700',
+  },
+  learnTabs: {
+    flexDirection: 'row',
+    gap: theme.spacing.xs,
+    paddingHorizontal: theme.spacing.lg,
+    marginBottom: theme.spacing.sm,
+  },
+  learnTab: {
+    paddingVertical: theme.spacing.xs,
+    paddingHorizontal: theme.spacing.md,
+    borderRadius: theme.borderRadius.full,
+    backgroundColor: theme.colors.surface,
+  },
+  learnTabActive: {
+    backgroundColor: theme.colors.primary,
+  },
+  learnTabText: {
+    ...theme.typography.caption.primary,
+    color: theme.colors.text.secondary,
+  },
+  learnTabTextActive: {
+    color: theme.colors.text.inverse,
+    fontWeight: '600',
+  },
+  learnContent: {
+    maxHeight: SCREEN_DIMENSIONS.height * 0.6,
+  },
+  learnContentInner: {
+    paddingHorizontal: theme.spacing.lg,
+    paddingBottom: theme.spacing.lg,
+  },
+  learnPrimaryButton: {
+    backgroundColor: theme.colors.primary,
+    paddingVertical: theme.spacing.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: theme.borderRadius.full,
+    marginTop: theme.spacing.sm,
+  },
+  learnPrimaryButtonText: {
+    ...theme.typography.button.secondary,
+    color: theme.colors.text.inverse,
+    fontWeight: '600',
+  },
+  closeButton: {
+    padding: theme.spacing.xs,
+  },
+  backdrop: {
+    flex: 1,
+  },
+  explainText: {
+    ...theme.typography.body.sans,
+    color: theme.colors.text.primary,
+    lineHeight: 20,
+  },
+  errorText: {
+    ...theme.typography.caption.primary,
+    color: theme.colors.error,
+  },
+  // Upload banner
+  uploadBanner: {
+    position: 'absolute',
+    left: theme.spacing.md,
+    right: theme.spacing.md,
+    bottom: safeAreaBottom + theme.spacing.xl + 8,
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.borderRadius.lg,
+    padding: theme.spacing.md,
+    ...theme.shadows.md,
+  },
+  uploadBannerText: {
+    ...theme.typography.caption.primary,
+    color: theme.colors.text.secondary,
+    marginBottom: theme.spacing.xs,
   },
   stickyComposer: {
     position: 'absolute',

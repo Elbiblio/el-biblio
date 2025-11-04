@@ -7,7 +7,8 @@ import {
   TouchableOpacity,
   Image,
   ActivityIndicator,
-  Platform
+  Platform,
+  Switch
 } from 'react-native';
 import { useTheme, useThemeVariant } from '@/contexts/ThemeContext';
 import { Theme, ThemeVariant, themeColors } from '@/theme';
@@ -19,6 +20,7 @@ import {
   useLeaderboardStore,
   useVirtueStore,
   useMeditationStore,
+  usePreferencesStore,
 } from '@/stores/StoreProvider';
 import AvatarSelectionModal from '@/components/AvatarSelectionModal';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -29,6 +31,7 @@ import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '@/types';
 import { toast } from 'sonner-native';
+import { syncDailyNuggets, disableDailyNuggets } from '@/tasks/dailyNuggetOrchestrator';
 import { RefreshControl } from 'react-native';
 import { apiClient, endpoints } from '@/api/client';
 
@@ -67,6 +70,9 @@ const ProfileScreen = () => {
 
   const meditationStore = useMeditationStore();
   const { sessions } = meditationStore.state;
+
+  const preferencesStore = usePreferencesStore();
+  const { showDailyNuggets } = preferencesStore.state;
 
   // State for user stats and activity
   const [userStats, setUserStats] = useState<UserStats | null>(null);
@@ -190,6 +196,28 @@ const ProfileScreen = () => {
   const handleThemeChange = (themeVariant: ThemeVariant) => {
     setThemeVariant(themeVariant);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  };
+
+  const handleToggleDailyNuggets = async (enabled: boolean) => {
+    try {
+      await preferencesStore.setShowDailyNuggets(enabled);
+      Haptics.selectionAsync();
+
+      if (enabled) {
+        const result = await syncDailyNuggets({ triggerInSeconds: 5 * 60 });
+        if (result.scheduled) {
+          toast.success('Daily nuggets will show up during your day');
+        } else if (result.reason === 'cooldown') {
+          toast('Daily nuggets are already queued — watch for today\'s reminder');
+        }
+      } else {
+        await disableDailyNuggets();
+        toast.success('Daily nuggets are paused');
+      }
+    } catch (error) {
+      console.error('Failed to toggle daily nuggets preference', error);
+      toast.error('Unable to update daily nuggets preference');
+    }
   };
 
   // Load user data on component mount
@@ -324,21 +352,33 @@ const ProfileScreen = () => {
             <Award size={20} color={theme.colors.primary} />
             <Text style={styles.pointsText}>{user.points || 0} points</Text>
           </View>
-          
-          {/* User Ranking */}
-          {(globalLeaderboard?.length ?? 0) > 0 && (
-            <View style={styles.rankingContainer}>
-              <Text style={styles.rankingText}>
-                {(() => {
-                  const idx = (globalLeaderboard ?? []).findIndex(entry => entry.user.id === user.id);
-                  return `Rank #${idx >= 0 ? idx + 1 : 'N/A'}`;
-                })()}
-              </Text>
-              <Text style={styles.rankingSubtext}>Global Ranking</Text>
-            </View>
+
+          {userStatsData.totalPoints >= 200 && (
+            <TouchableOpacity
+              style={styles.donateButton}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                navigation.navigate('DonateScreen');
+              }}
+            >
+              <Text style={styles.donateButtonText}>Support ElBiblio</Text>
+              <ArrowRight size={16} color={theme.colors.text.inverse} />
+            </TouchableOpacity>
           )}
         </View>
 
+        {/* User Ranking */}
+        {(globalLeaderboard?.length ?? 0) > 0 && (
+          <View style={styles.rankingContainer}>
+            <Text style={styles.rankingText}>
+              {(() => {
+                const idx = (globalLeaderboard ?? []).findIndex(entry => entry.user.id === user.id);
+                return `Rank #${idx >= 0 ? idx + 1 : 'N/A'}`;
+              })()}
+            </Text>
+            <Text style={styles.rankingSubtext}>Global Ranking</Text>
+          </View>
+        )}
         {/* Top Virtues */}
         <View style={styles.sectionContainer}>
           <View style={styles.sectionHeader}>
@@ -448,6 +488,24 @@ const ProfileScreen = () => {
               <Text style={styles.statValue}>{userStatsData.longestStreak}</Text>
               <Text style={styles.statLabel}>Longest Streak</Text>
             </View>
+          </View>
+        </View>
+
+        {/* Daily Nuggets */}
+        <View style={styles.sectionContainer}>
+          <View style={styles.switchRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.sectionTitle}>Daily Nuggets</Text>
+              <Text style={styles.sectionSubtitle}>
+                Receive timely kingdom reminders tailored to your activity.
+              </Text>
+            </View>
+            <Switch
+              value={showDailyNuggets}
+              onValueChange={handleToggleDailyNuggets}
+              trackColor={{ false: theme.colors.surfaceVariant, true: theme.colors.primary }}
+              thumbColor={showDailyNuggets ? theme.colors.text.inverse : theme.colors.text.secondary}
+            />
           </View>
         </View>
 
@@ -601,6 +659,21 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     color: theme.colors.text.primary,
     marginLeft: theme.spacing.xs,
   },
+  donateButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.xs,
+    marginTop: theme.spacing.md,
+    backgroundColor: theme.colors.primary,
+    paddingHorizontal: theme.spacing.lg,
+    paddingVertical: theme.spacing.sm,
+    borderRadius: theme.borderRadius.full,
+  },
+  donateButtonText: {
+    ...theme.typography.caption.primary,
+    color: theme.colors.text.inverse,
+    fontWeight: '600',
+  },
   rankingContainer: {
     alignItems: 'center',
     marginTop: theme.spacing.sm,
@@ -628,6 +701,11 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: theme.spacing.md,
+  },
+  switchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.md,
   },
   sectionTitle: {
     ...theme.typography.heading.small,

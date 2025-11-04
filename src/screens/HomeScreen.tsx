@@ -1724,7 +1724,43 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
         onClose={() => setSelectedVerse(null)}
         context="home"
         onVersePress={(verse: ModalVerse) => {
-          navigation.navigate('VerseDetail', { verse });
+          // Build learnContext similar to VersePreviewModal scoped params
+          const primaryText = verse.text?.trim();
+          const baseReference = verse.reference?.replace(/:\d+.*$/, '') ?? null;
+          const primaryReference = (verse as any).reference_display || verse.reference || undefined;
+          const scopedVerses: { text: string; reference?: string | null; isPrimary?: boolean }[] = [];
+          const addVerse = (entry: { text: string; reference?: string | null; isPrimary?: boolean }) => {
+            const key = `${entry.reference ?? ''}|${entry.text}`;
+            if (scopedVerses.some(existing => `${existing.reference ?? ''}|${existing.text}` === key)) return;
+            scopedVerses.push(entry);
+          };
+          const mainVerseNumber = typeof (verse as any).verse === 'number' ? (verse as any).verse : null;
+          const contextLines = (verse.context_text ?? '')
+            .split(/\n+/)
+            .map(line => line.trim())
+            .filter(Boolean);
+          contextLines.forEach(line => {
+            const match = line.match(/^(\d+)[\s.:\-]*\s*(.*)$/);
+            const candidateNumber = match ? Number(match[1]) : null;
+            const text = (match ? match[2] : line).trim();
+            if (!text) return;
+            const isPrimary = candidateNumber != null && mainVerseNumber != null
+              ? candidateNumber === mainVerseNumber
+              : (!!primaryText && text === primaryText);
+            const reference = candidateNumber != null
+              ? (baseReference ? `${baseReference}:${candidateNumber}` : `${(verse as any).book ?? ''} ${(verse as any).chapter ?? ''}:${candidateNumber}`.trim())
+              : (verse as any).context_reference ?? primaryReference;
+            addVerse({ text, reference, isPrimary });
+          });
+          if (!scopedVerses.some(item => item.isPrimary) && primaryText) {
+            addVerse({ text: primaryText, reference: primaryReference, isPrimary: true });
+          }
+          const learnContext = {
+            scopedTitle: (verse as any).context_reference ?? primaryReference ?? null,
+            scopedSubtitle: (verse as any).translation ?? null,
+            scopedVerses: scopedVerses.length ? scopedVerses : null,
+          } as const;
+          navigation.navigate('VerseDetail', { verse, learnContext });
           setSelectedVerse(null);
         }}
       />

@@ -1,9 +1,11 @@
-import React, { useMemo, useState, useCallback } from 'react';
+import React, { useMemo, useState, useCallback, useEffect } from 'react';
 import { Modal, View, Text, TouchableOpacity, StyleSheet, ScrollView, TextInput } from 'react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Check, X, Heart, Bell, Flame } from '@/components/Icons';
 import ChantLibraryModal from './ChantLibraryModal';
+import { stopAllSounds } from '@/services/audio';
+import { useMeditationStore } from '@/stores/StoreProvider';
 
 export type MeditationStyle = 'parable' | 'virtue' | 'centering' | 'jesus_prayer' | 'chant';
 
@@ -45,6 +47,7 @@ interface MeditationSetupModalProps {
 const MeditationSetupModal: React.FC<MeditationSetupModalProps> = ({ visible, onClose, onStart, initialValues, virtues = [] }) => {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
+  const meditationStore = useMeditationStore();
 
   const [currentStep, setCurrentStep] = useState<'style' | 'details' | 'sound' | 'summary'>('style');
   const [styleChoice, setStyleChoice] = useState<MeditationStyle>(initialValues?.style ?? 'virtue');
@@ -78,7 +81,6 @@ const MeditationSetupModal: React.FC<MeditationSetupModalProps> = ({ visible, on
   const headerTitle = useMemo(() => {
     if (currentStep === 'style') return 'Meditation Style';
     if (currentStep === 'details') return styleChoice === 'virtue' ? 'Choose a Virtue' : styleChoice === 'centering' ? 'Centering Options' : styleChoice === 'jesus_prayer' ? 'Prayer Pace' : styleChoice === 'chant' ? 'Choose a Chant' : 'Parable Options';
-    
     if (currentStep === 'sound') return 'Background Sound';
     return 'Summary';
   }, [currentStep, styleChoice]);
@@ -87,22 +89,30 @@ const MeditationSetupModal: React.FC<MeditationSetupModalProps> = ({ visible, on
     if (currentStep === 'style') {
       setCurrentStep('details');
     } else if (currentStep === 'details') {
-      setCurrentStep('sound');
+      if (styleChoice === 'chant') {
+        setCurrentStep('summary');
+      } else {
+        setCurrentStep('sound');
+      }
     } else if (currentStep === 'sound') {
+      try { meditationStore.setIsPreviewingSound(false); } catch {}
+      try { stopAllSounds(); } catch {}
       setCurrentStep('summary');
     }
-  }, [currentStep, styleChoice]);
+  }, [currentStep, styleChoice, meditationStore]);
 
   const handleBack = useCallback(() => {
-    if (currentStep === 'summary') setCurrentStep('sound');
+    if (currentStep === 'summary') setCurrentStep(styleChoice === 'chant' ? 'details' : 'sound');
     else if (currentStep === 'sound') setCurrentStep(styleChoice === 'parable' ? 'style' : 'details');
     else if (currentStep === 'details') setCurrentStep('style');
   }, [currentStep, styleChoice]);
 
   const handleStart = useCallback(() => {
+    try { meditationStore.setIsPreviewingSound(false); } catch {}
+    try { stopAllSounds(); } catch {}
     onStart({
       style: styleChoice,
-      sound,
+      sound: styleChoice === 'chant' ? null : sound,
       virtueId,
       centeringWord: centeringWord.trim() || null,
       jesusPrayerPace,
@@ -114,12 +124,40 @@ const MeditationSetupModal: React.FC<MeditationSetupModalProps> = ({ visible, on
     });
     onClose();
     setCurrentStep('style');
-  }, [onStart, onClose, styleChoice, sound, virtueId, centeringWord, jesusPrayerPace, chantId, parableReadMode, centeringReadMode, centeringRepeatIntervalSec, chantReflectionPauseSec]);
+  }, [onStart, onClose, styleChoice, sound, virtueId, centeringWord, jesusPrayerPace, chantId, parableReadMode, centeringReadMode, centeringRepeatIntervalSec, chantReflectionPauseSec, meditationStore]);
+
+  useEffect(() => {
+    if (styleChoice === 'chant') {
+      if (sound !== null) setSound(null);
+      if (currentStep === 'sound') setCurrentStep('summary');
+      try { meditationStore.setIsPreviewingSound(false); } catch {}
+    } else {
+      // Restore last non-chant sound if we are leaving chant and currently silent
+      try {
+        const last = (meditationStore.state as any).lastNonChantSound as string | null;
+        if (sound === null && last) {
+          setSound(last);
+          meditationStore.setSelectedBackgroundSound(last as any);
+        }
+      } catch {}
+    }
+  }, [styleChoice, currentStep, sound, meditationStore]);
+
+  useEffect(() => {
+    try { meditationStore.setIsPreviewingSound(currentStep === 'sound' && styleChoice !== 'chant'); } catch {}
+    return () => { try { meditationStore.setIsPreviewingSound(false); } catch {} };
+  }, [currentStep, styleChoice, meditationStore]);
+
+  const handleCloseModal = useCallback(() => {
+    try { meditationStore.setIsPreviewingSound(false); } catch {}
+    try { stopAllSounds(); } catch {}
+    onClose();
+  }, [meditationStore, onClose]);
 
   if (!visible) return null;
 
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+    <Modal visible={visible} animationType="slide" transparent onRequestClose={handleCloseModal}>
       <View style={styles.overlay}>
         <View style={styles.container}>
           <View style={styles.header}>
@@ -129,7 +167,7 @@ const MeditationSetupModal: React.FC<MeditationSetupModalProps> = ({ visible, on
               </TouchableOpacity>
             )}
             <Text style={styles.title}>{headerTitle}</Text>
-            <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+            <TouchableOpacity onPress={handleCloseModal} style={styles.closeButton}>
               <X size={24} color={theme.colors.text.primary} />
             </TouchableOpacity>
           </View>
@@ -288,7 +326,7 @@ const MeditationSetupModal: React.FC<MeditationSetupModalProps> = ({ visible, on
 
             
 
-            {currentStep === 'sound' && (
+            {currentStep === 'sound' && styleChoice !== 'chant' && (
               <View style={styles.section}>
                 <View style={styles.soundRow}>
                   {[
@@ -298,7 +336,14 @@ const MeditationSetupModal: React.FC<MeditationSetupModalProps> = ({ visible, on
                   ].map(({ id, label, icon: Icon }) => {
                     const isActive = sound === id;
                     return (
-                      <TouchableOpacity key={label} style={[styles.soundOption, isActive && styles.soundOptionActive]} onPress={() => setSound(id as any)}>
+                      <TouchableOpacity
+                        key={label}
+                        style={[styles.soundOption, isActive && styles.soundOptionActive]}
+                        onPress={() => {
+                          setSound(id as any);
+                          try { meditationStore.setSelectedBackgroundSound(id as any); } catch {}
+                        }}
+                      >
                         <Icon size={18} color={isActive ? theme.colors.primary : theme.colors.text.secondary} />
                         <Text style={[styles.soundOptionText, isActive && styles.soundOptionTextActive]}>{label}</Text>
                       </TouchableOpacity>
