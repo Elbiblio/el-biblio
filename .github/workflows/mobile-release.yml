@@ -89,7 +89,7 @@ jobs:
           echo "Version code: ${{ steps.versioning.outputs.version_code }}" >> "$GITHUB_STEP_SUMMARY"
 
   build-android:
-    needs: prepare-build
+    needs: build-ios
     runs-on: ubuntu-latest
     env:
       VERSION_NAME: ${{ needs.prepare-build.outputs.version_name }}
@@ -395,6 +395,13 @@ jobs:
               tail -50 ios/build/xcodebuild.log
               exit $BUILD_EXIT_CODE
             fi
+            xcodebuild -showBuildSettings \
+              -workspace "$WORKSPACE" \
+              -scheme "$SCHEME" \
+              -configuration Release \
+              -sdk iphonesimulator \
+              -destination "generic/platform=iOS Simulator" \
+              > ios/build/build-settings.txt 2>/dev/null || true
           elif [ -n "$PROJECT" ]; then
             echo "Using project: $PROJECT"
             echo "Available schemes:"
@@ -437,6 +444,8 @@ jobs:
           ls -la ios/build/Build/Products/ 2>/dev/null || echo "Products directory not found"
           echo "Checking for any Products directories:"
           find ios/build -type d -name "Products" 2>/dev/null || true
+          echo "Key build settings (if available):"
+          awk -F" = " '/^(TARGET_BUILD_DIR|WRAPPER_NAME|FULL_PRODUCT_NAME) \=/ {print $1": "$2}' ios/build/build-settings.txt 2>/dev/null || true
 
       - name: Upload build log
         if: always()
@@ -450,7 +459,22 @@ jobs:
       - name: Package iOS build
         id: package-ios
         run: |
-          APP=$(find ios/build -type d -name "*.app" -print -quit 2>/dev/null || true)
+          APP=""
+          if [ -f ios/build/build-settings.txt ]; then
+            TARGET_BUILD_DIR=$(awk -F" = " '/^\s*TARGET_BUILD_DIR\s*=/{print $2; exit}' ios/build/build-settings.txt)
+            WRAPPER_NAME=$(awk -F" = " '/^\s*WRAPPER_NAME\s*=/{print $2; exit}' ios/build/build-settings.txt)
+            FULL_PRODUCT_NAME=$(awk -F" = " '/^\s*FULL_PRODUCT_NAME\s*=/{print $2; exit}' ios/build/build-settings.txt)
+            if [ -n "$TARGET_BUILD_DIR" ] && [ -n "$WRAPPER_NAME" ]; then
+              CANDIDATE="$TARGET_BUILD_DIR/$WRAPPER_NAME"
+              if [ -d "$CANDIDATE" ]; then APP="$CANDIDATE"; fi
+            elif [ -n "$TARGET_BUILD_DIR" ] && [ -n "$FULL_PRODUCT_NAME" ]; then
+              CANDIDATE="$TARGET_BUILD_DIR/$FULL_PRODUCT_NAME"
+              if [ -d "$CANDIDATE" ]; then APP="$CANDIDATE"; fi
+            fi
+          fi
+          if [ -z "$APP" ]; then
+            APP=$(find ios/build -type d -name "*.app" -print -quit 2>/dev/null || true)
+          fi
           if [ -z "$APP" ]; then
             echo "No .app bundle produced" >&2
             echo "Searching entire ios/build directory structure:"
