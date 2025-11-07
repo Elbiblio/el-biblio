@@ -29,6 +29,7 @@ import { Theme } from '@/theme';
 import { useAuthStore, useVirtueStore, useMeditationStore, useChallengeStore, useLeaderboardStore } from '@/stores/StoreProvider';
 import * as Haptics from 'expo-haptics';
 import { setAudioModeAsync } from 'expo-audio';
+import { activateKeepAwake, deactivateKeepAwake } from 'expo-keep-awake';
 import { playCue, playMusic, stopByKey, stopMusic, stopAllSounds, setMusicVolume, playLoopByKey, playOneShotByKey, SoundKey } from '@/services/audio';
 import { AudioCoordinator } from '@/services/AudioCoordinator';
 import BibleDBService from '@/utils/database';
@@ -239,6 +240,9 @@ const MeditationScreen = () => {
   const firstTwoMinutesCompleted = useRef(false);
   const hasTriggeredEndBell = useRef(false);
   const hasMarkedComplete = useRef(false);
+  const spokenPromptsRef = useRef<Set<number>>(new Set());
+  const sessionInitRef = useRef(false);
+  const promptsStartedRef = useRef(false);
 
   const pauseAllAudio = React.useCallback(() => {
     try { Speech.stop(); } catch {}
@@ -263,6 +267,17 @@ const MeditationScreen = () => {
 
   const goalVirtueId = selectedVirtue;
   const [showSetupModal, setShowSetupModal] = useState(false);
+  
+  // Keep the screen awake while meditation is active
+  useEffect(() => {
+    if (meditationState === MeditationState.ACTIVE) {
+      try { activateKeepAwake('meditation'); } catch {}
+    } else {
+      try { deactivateKeepAwake('meditation'); } catch {}
+    }
+    return () => { try { deactivateKeepAwake('meditation'); } catch {} };
+  }, [meditationState]);
+
   const currentVirtue = React.useMemo(
     () => virtues?.find((v: Virtue) => v.id === selectedVirtue),
     [selectedVirtue, virtues]
@@ -551,31 +566,39 @@ const MeditationScreen = () => {
 
   // Speak prompt helper (moved above first use)
   const showAndSpeakPrompt = (index: number) => {
+    if (spokenPromptsRef.current.has(index)) return;
+    spokenPromptsRef.current.add(index);
     setCurrentPromptIndex(index);
     setShowPrompt(true);
     promptOpacity.value = withTiming(1, { duration: 1000 });
-    const introWord = index === 0 ? 'Begin' : 'Now';
     const prompt = meditationGuide.prompts[index] || meditationGuide.prompts[0];
     const declaration = meditationGuide.declaration;
     isSpeaking.current = true;
-    speakWithDuck(`${introWord}...`, {
-      rate: 0.85,
-      onDone: () => {
-        setTimeout(() => {
-          speakWithDuck(prompt, {
-            rate: 0.85,
-            onDone: () => {
-              isSpeaking.current = false;
-              if (index === meditationGuide.prompts.length - 1 && !isEndingPhase.current) {
-                setTimeout(() => {
-                  speakWithDuck(declaration, { rate: 0.85 });
-                }, 1200);
-              }
-            },
-          });
-        }, 800);
-      },
-    });
+    const speakBody = () => {
+      speakWithDuck(prompt, {
+        rate: 0.85,
+        onDone: () => {
+          isSpeaking.current = false;
+          if (index === meditationGuide.prompts.length - 1 && !isEndingPhase.current && declaration) {
+            setTimeout(() => {
+              speakWithDuck(declaration, { rate: 0.85 });
+            }, 1200);
+          }
+        },
+      });
+    };
+    if (index === 0) {
+      speakBody();
+    } else {
+      speakWithDuck('Now...', {
+        rate: 0.85,
+        onDone: () => {
+          setTimeout(() => {
+            speakBody();
+          }, 800);
+        },
+      });
+    }
   };
 
   const renderIdleScreen = () => {
@@ -867,15 +890,20 @@ const MeditationScreen = () => {
   // Meditation timer and progress with end-session enhancements (rely on store timer)
   useEffect(() => {
     let interval: number;
-    if (meditationState === MeditationState.ACTIVE && selectedTime) {
-      showAndSpeakPrompt(0);
-      firstTwoMinutesCompleted.current = false;
-      hasReadChallenge.current = false;
-      hasStartedFinalCountdown.current = false;
-      isEndingPhase.current = false;
-      hasTriggeredEndBell.current = false;
-      hasMarkedComplete.current = false;
-      virtueStagesRef.current = { s1: false, s2: false };
+    if (meditationState === MeditationState.ACTIVE && selectedTime && introCompleted) {
+      if (!sessionInitRef.current) {
+        sessionInitRef.current = true;
+        promptsStartedRef.current = true;
+        spokenPromptsRef.current.clear();
+        firstTwoMinutesCompleted.current = false;
+        hasReadChallenge.current = false;
+        hasStartedFinalCountdown.current = false;
+        isEndingPhase.current = false;
+        hasTriggeredEndBell.current = false;
+        hasMarkedComplete.current = false;
+        virtueStagesRef.current = { s1: false, s2: false };
+        showAndSpeakPrompt(0);
+      }
 
       interval = setInterval(() => {
         const newValue = meditationStore.state.meditationTimer;
@@ -897,9 +925,17 @@ const MeditationScreen = () => {
             showAndSpeakPrompt(2);
           }
         } else {
-          if (promptInterval > 0 && newValue % promptInterval === 0 && newValue < totalMeditationSeconds - 30) {
+          if (
+            selectedStyle !== 'chant' &&
+            promptInterval > 0 &&
+            newValue > 0 &&
+            newValue % promptInterval === 0 &&
+            newValue < totalMeditationSeconds - 30
+          ) {
             const nextPromptIndex = Math.floor(newValue / promptInterval);
-            if (nextPromptIndex < 4) showAndSpeakPrompt(nextPromptIndex);
+            if (nextPromptIndex < 4 && !spokenPromptsRef.current.has(nextPromptIndex)) {
+              showAndSpeakPrompt(nextPromptIndex);
+            }
           }
         }
 
@@ -955,7 +991,15 @@ const MeditationScreen = () => {
       }, 500);
     }
     return () => clearInterval(interval);
-  }, [meditationState, selectedTime, promptInterval, totalMeditationSeconds, selectedChallenge]);
+  }, [meditationState, selectedTime, promptInterval, totalMeditationSeconds, selectedChallenge, introCompleted]);
+
+  useEffect(() => {
+    if (meditationState !== MeditationState.ACTIVE) {
+      sessionInitRef.current = false;
+      promptsStartedRef.current = false;
+      try { spokenPromptsRef.current.clear(); } catch {}
+    }
+  }, [meditationState]);
 
   useEffect(() => {
     if (centeringIntervalRef.current) {
