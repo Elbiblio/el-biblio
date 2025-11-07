@@ -292,7 +292,7 @@ jobs:
 
       - name: Apply iOS versioning
         run: |
-          PLIST=$(find ios -name Info.plist -path '*/*' -depth 3 | head -n 1)
+          PLIST=$(find ios -type f -name Info.plist \( -not -path "*/Pods/*" -and -not -path "*Tests/*" \) | head -n 1)
           if [ -z "$PLIST" ]; then
             echo "Unable to locate Info.plist" >&2
             exit 1
