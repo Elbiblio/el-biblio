@@ -55,12 +55,19 @@ jobs:
       - name: Compute version name/code
         id: versioning
         run: |
+          set -euo pipefail
           TAG="${{ steps.resolve-ref.outputs.tag }}"
           if [ -n "$TAG" ]; then
+            if [[ "$TAG" != mobile-v* ]]; then
+              echo "Tag '$TAG' does not match expected prefix 'mobile-v'" >&2
+              exit 1
+            fi
             VER="${TAG#mobile-v}"
+            echo "Using tag version: $VER"
             echo "version_name=$VER" >> "$GITHUB_OUTPUT"
             IFS='.' read -r MAJOR MINOR PATCH <<< "$VER"
             CODE=$((10#$MAJOR * 10000 + 10#$MINOR * 100 + 10#$PATCH))
+            echo "Computed version_code from semver (MMmmpp): $CODE"
             echo "version_code=$CODE" >> "$GITHUB_OUTPUT"
           else
             if [ -f package.json ]; then
@@ -68,9 +75,18 @@ jobs:
             else
               VER="0.0.0"
             fi
+            echo "Using fallback version_name from package.json (or default): $VER"
             echo "version_name=$VER" >> "$GITHUB_OUTPUT"
+            echo "Using GitHub run number for version_code: ${GITHUB_RUN_NUMBER}"
             echo "version_code=${GITHUB_RUN_NUMBER}" >> "$GITHUB_OUTPUT"
           fi
+
+      - name: Versioning summary
+        run: |
+          echo "Ref: ${{ steps.resolve-ref.outputs.ref }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "Tag: ${{ steps.resolve-ref.outputs.tag }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "Version name: ${{ steps.versioning.outputs.version_name }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "Version code: ${{ steps.versioning.outputs.version_code }}" >> "$GITHUB_STEP_SUMMARY"
 
   build-android:
     needs: prepare-build
@@ -304,20 +320,44 @@ jobs:
 
       - name: Build iOS (simulator)
         run: |
-          cd ios
-          SCHEME=$(xcodebuild -list | awk '/Schemes:/ {getline; print $1; exit}')
-          WORKSPACE=$(ls *.xcworkspace | head -n 1)
-          if [ -z "$WORKSPACE" ] || [ -z "$SCHEME" ]; then
-            echo "Unable to determine workspace or scheme" >&2
+          set -euo pipefail
+          WORKSPACE=$(ls -1 ios/*.xcworkspace 2>/dev/null | head -n 1 || true)
+          PROJECT=$(ls -1 ios/*.xcodeproj 2>/dev/null | head -n 1 || true)
+          if [ -n "$WORKSPACE" ]; then
+            echo "Using workspace: $WORKSPACE"
+            SCHEME=$(xcodebuild -list -json -workspace "$WORKSPACE" | node -e "let s='';process.stdin.on('data',d=>s+=d);process.stdin.on('end',()=>{try{const j=JSON.parse(s);const arr=(j.workspace&&j.workspace.schemes)||[];if(arr.length){console.log(arr[0])}else{process.exit(1)}}catch(e){process.exit(1)}})")
+            if [ -z "$SCHEME" ]; then
+              echo "Failed to detect scheme from workspace" >&2
+              exit 1
+            fi
+            xcodebuild \
+              -workspace "$WORKSPACE" \
+              -scheme "$SCHEME" \
+              -configuration Release \
+              -sdk iphonesimulator \
+              -derivedDataPath ios/build \
+              CODE_SIGNING_ALLOWED=NO \
+              build
+          elif [ -n "$PROJECT" ]; then
+            echo "Using project: $PROJECT"
+            SCHEME=$(xcodebuild -list -json -project "$PROJECT" | node -e "let s='';process.stdin.on('data',d=>s+=d);process.stdin.on('end',()=>{try{const j=JSON.parse(s);const arr=(j.project&&j.project.schemes)||[];if(arr.length){console.log(arr[0])}else{process.exit(1)}}catch(e){process.exit(1)}})")
+            if [ -z "$SCHEME" ]; then
+              echo "Failed to detect scheme from project" >&2
+              exit 1
+            fi
+            xcodebuild \
+              -project "$PROJECT" \
+              -scheme "$SCHEME" \
+              -configuration Release \
+              -sdk iphonesimulator \
+              -derivedDataPath ios/build \
+              CODE_SIGNING_ALLOWED=NO \
+              build
+          else
+            echo "No Xcode workspace or project found under ios/" >&2
+            find ios -maxdepth 2 \( -name '*.xcworkspace' -o -name '*.xcodeproj' \) || true
             exit 1
           fi
-          xcodebuild \
-            -workspace "$WORKSPACE" \
-            -scheme "$SCHEME" \
-            -configuration Release \
-            -sdk iphonesimulator \
-            -derivedDataPath build \
-            build
 
       - name: Package iOS build
         run: |
