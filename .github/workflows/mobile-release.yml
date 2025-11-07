@@ -365,6 +365,8 @@ jobs:
           PROJECT=$(ls -1d ios/*.xcodeproj 2>/dev/null | head -n 1 || true)
           if [ -n "$WORKSPACE" ]; then
             echo "Using workspace: $WORKSPACE"
+            echo "Available schemes:"
+            xcodebuild -list -workspace "$WORKSPACE" 2>/dev/null | grep -A 100 "Schemes:" || true
             SCHEME=$(xcodebuild -list -json -workspace "$WORKSPACE" 2>/dev/null | node -e "let s='';process.stdin.on('data',d=>s+=d);process.stdin.on('end',()=>{try{const j=JSON.parse(s);const arr=(j.workspace&&j.workspace.schemes)||[];const pick=arr.find(n=>!/^Pods(\\b|\\-)/.test(n)&&!/Tests$/.test(n))||arr[0]||'';process.stdout.write(pick)}catch(e){} })" || true)
             if [ -z "$SCHEME" ]; then
               SCHEME=$(xcodebuild -list -workspace "$WORKSPACE" 2>/dev/null | awk '/Schemes:/ {getline; print $1; exit}')
@@ -374,6 +376,7 @@ jobs:
               exit 1
             fi
             echo "Building scheme: $SCHEME"
+            set +e
             xcodebuild \
               -workspace "$WORKSPACE" \
               -scheme "$SCHEME" \
@@ -382,9 +385,20 @@ jobs:
               -destination "generic/platform=iOS Simulator" \
               -derivedDataPath ios/build \
               CODE_SIGNING_ALLOWED=NO \
-              build
+              CODE_SIGN_IDENTITY="" \
+              build 2>&1 | tee ios/build/xcodebuild.log
+            BUILD_EXIT_CODE=${PIPESTATUS[0]}
+            set -e
+            if [ $BUILD_EXIT_CODE -ne 0 ]; then
+              echo "xcodebuild failed with exit code $BUILD_EXIT_CODE" >&2
+              echo "Last 50 lines of build log:"
+              tail -50 ios/build/xcodebuild.log
+              exit $BUILD_EXIT_CODE
+            fi
           elif [ -n "$PROJECT" ]; then
             echo "Using project: $PROJECT"
+            echo "Available schemes:"
+            xcodebuild -list -project "$PROJECT" 2>/dev/null | grep -A 100 "Schemes:" || true
             SCHEME=$(xcodebuild -list -json -project "$PROJECT" 2>/dev/null | node -e "let s='';process.stdin.on('data',d=>s+=d);process.stdin.on('end',()=>{try{const j=JSON.parse(s);const arr=(j.project&&j.project.schemes)||[];const pick=arr.find(n=>!/^Pods(\\b|\\-)/.test(n)&&!/Tests$/.test(n))||arr[0]||'';process.stdout.write(pick)}catch(e){} })" || true)
             if [ -z "$SCHEME" ]; then
               SCHEME=$(xcodebuild -list -project "$PROJECT" 2>/dev/null | awk '/Schemes:/ {getline; print $1; exit}')
@@ -394,6 +408,7 @@ jobs:
               exit 1
             fi
             echo "Building scheme: $SCHEME"
+            set +e
             xcodebuild \
               -project "$PROJECT" \
               -scheme "$SCHEME" \
@@ -402,7 +417,16 @@ jobs:
               -destination "generic/platform=iOS Simulator" \
               -derivedDataPath ios/build \
               CODE_SIGNING_ALLOWED=NO \
-              build
+              CODE_SIGN_IDENTITY="" \
+              build 2>&1 | tee ios/build/xcodebuild.log
+            BUILD_EXIT_CODE=${PIPESTATUS[0]}
+            set -e
+            if [ $BUILD_EXIT_CODE -ne 0 ]; then
+              echo "xcodebuild failed with exit code $BUILD_EXIT_CODE" >&2
+              echo "Last 50 lines of build log:"
+              tail -50 ios/build/xcodebuild.log
+              exit $BUILD_EXIT_CODE
+            fi
           else
             echo "No Xcode workspace or project found under ios/" >&2
             ls -1d ios/*.xcworkspace ios/*.xcodeproj 2>/dev/null || true
@@ -411,6 +435,17 @@ jobs:
           echo "Build completed. Checking outputs..."
           find ios/build -type d -name "*.app" 2>/dev/null || echo "No .app bundles found in ios/build"
           ls -la ios/build/Build/Products/ 2>/dev/null || echo "Products directory not found"
+          echo "Checking for any Products directories:"
+          find ios/build -type d -name "Products" 2>/dev/null || true
+
+      - name: Upload build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-build-log-${{ needs.prepare-build.outputs.build_id }}
+          path: ios/build/xcodebuild.log
+          retention-days: 7
+          if-no-files-found: ignore
 
       - name: Package iOS build
         id: package-ios
