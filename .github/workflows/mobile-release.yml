@@ -1,0 +1,358 @@
+name: Mobile App Release
+
+on:
+  push:
+    branches:
+      - mobile
+    tags:
+      - 'mobile-v*'
+  pull_request:
+    branches:
+      - mobile
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Optional release tag (e.g., mobile-v1.2.0)'
+        required: false
+
+concurrency:
+  group: mobile-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  prepare-build:
+    runs-on: ubuntu-latest
+    outputs:
+      build_id: ${{ steps.build_id.outputs.id }}
+      ref: ${{ steps.resolve-ref.outputs.ref }}
+      tag: ${{ steps.resolve-ref.outputs.tag }}
+      version_name: ${{ steps.versioning.outputs.version_name }}
+      version_code: ${{ steps.versioning.outputs.version_code }}
+    steps:
+      - name: Checkout repository (shallow)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Resolve ref
+        id: resolve-ref
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "${{ github.event.inputs.tag }}" ]; then
+            echo "ref=refs/tags/${{ github.event.inputs.tag }}" >> "$GITHUB_OUTPUT"
+            echo "tag=${{ github.event.inputs.tag }}" >> "$GITHUB_OUTPUT"
+          elif [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            echo "ref=${GITHUB_REF}" >> "$GITHUB_OUTPUT"
+            echo "tag=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
+          else
+            echo "ref=${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+            echo "tag=" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Generate build ID
+        id: build_id
+        run: echo "id=$(date +'%Y%m%d%H%M%S')" >> "$GITHUB_OUTPUT"
+
+      - name: Compute version name/code
+        id: versioning
+        run: |
+          TAG="${{ steps.resolve-ref.outputs.tag }}"
+          if [ -n "$TAG" ]; then
+            VER="${TAG#mobile-v}"
+            echo "version_name=$VER" >> "$GITHUB_OUTPUT"
+            IFS='.' read -r MAJOR MINOR PATCH <<< "$VER"
+            CODE=$((10#$MAJOR * 10000 + 10#$MINOR * 100 + 10#$PATCH))
+            echo "version_code=$CODE" >> "$GITHUB_OUTPUT"
+          else
+            if [ -f package.json ]; then
+              VER=$(node -p "require('./package.json').version" 2>/dev/null || echo "0.0.0")
+            else
+              VER="0.0.0"
+            fi
+            echo "version_name=$VER" >> "$GITHUB_OUTPUT"
+            echo "version_code=${GITHUB_RUN_NUMBER}" >> "$GITHUB_OUTPUT"
+          fi
+
+  build-android:
+    needs: prepare-build
+    runs-on: ubuntu-latest
+    env:
+      VERSION_NAME: ${{ needs.prepare-build.outputs.version_name }}
+      VERSION_CODE: ${{ needs.prepare-build.outputs.version_code }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare-build.outputs.ref }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+          cache: 'gradle'
+
+      - name: Cache Gradle files
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('android/**/*.gradle*', 'android/**/*.properties') }}
+          restore-keys: |
+            gradle-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Apply Android versioning
+        run: |
+          node <<'EOF'
+          const fs = require('fs');
+          const path = 'android/app/build.gradle';
+          const code = process.env.VERSION_CODE;
+          const name = process.env.VERSION_NAME;
+          let contents = fs.readFileSync(path, 'utf8');
+          contents = contents.replace(/versionCode\s+\d+/g, `versionCode ${code}`);
+          contents = contents.replace(/versionName\s+"[^"]+"/g, `versionName "${name}"`);
+          fs.writeFileSync(path, contents);
+          EOF
+
+      - name: Prepare Android keystore from R2
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_BUCKET: ${{ secrets.R2_KEYSTORE_BUCKET }}
+          R2_KEYSTORE_OBJECT_KEY: ${{ secrets.R2_KEYSTORE_OBJECT_KEY }}
+          ANDROID_KEY_DNAME: ${{ secrets.ANDROID_KEY_DNAME }}
+        run: |
+          set -euo pipefail
+          mkdir -p android/key
+          KEYSTORE_PATH="android/key/app-release.jks"
+          R2_ENDPOINT="https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
+          OBJECT_KEY="${R2_KEYSTORE_OBJECT_KEY:-keystore/app-release.jks}"
+          S3_URI="s3://${R2_BUCKET}/${OBJECT_KEY}"
+          echo "Ensuring signing keystore exists at ${S3_URI}"
+          if aws s3 ls "$S3_URI" --endpoint-url "$R2_ENDPOINT" >/dev/null 2>&1; then
+            echo "Keystore found in R2, downloading..."
+            aws s3 cp "$S3_URI" "$KEYSTORE_PATH" --endpoint-url "$R2_ENDPOINT"
+          else
+            echo "Keystore not found; generating new keystore"
+            keytool -genkeypair -v \
+              -keystore "$KEYSTORE_PATH" \
+              -alias "$ANDROID_KEY_ALIAS" \
+              -keyalg RSA \
+              -keysize 2048 \
+              -validity 10000 \
+              -storepass "$ANDROID_KEYSTORE_PASSWORD" \
+              -keypass "$ANDROID_KEY_PASSWORD" \
+              -dname "${ANDROID_KEY_DNAME:-CN=El-Biblio, OU=Mobile, O=El-Biblio, L=Unknown, ST=Unknown, C=US}"
+            echo "Uploading newly generated keystore to R2..."
+            aws s3 cp "$KEYSTORE_PATH" "$S3_URI" --endpoint-url "$R2_ENDPOINT"
+          fi
+          echo "Verifying keystore integrity..."
+          keytool -list -keystore "$KEYSTORE_PATH" -storepass "$ANDROID_KEYSTORE_PASSWORD" >/dev/null
+
+      - name: Generate PEM certificate
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_BUCKET: ${{ secrets.R2_KEYSTORE_BUCKET }}
+          R2_PEM_OBJECT_KEY: ${{ secrets.R2_PEM_OBJECT_KEY }}
+        run: |
+          set -euo pipefail
+          KEYSTORE_PATH="android/key/app-release.jks"
+          PEM_PATH="android/key/app-release.pem"
+          DER_PATH="android/key/app-release.der"
+          R2_ENDPOINT="https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
+          PEM_OBJECT_KEY="${R2_PEM_OBJECT_KEY:-keystore/app-release.pem}"
+          keytool -exportcert \
+            -keystore "$KEYSTORE_PATH" \
+            -alias "$ANDROID_KEY_ALIAS" \
+            -storepass "$ANDROID_KEYSTORE_PASSWORD" \
+            -file "$DER_PATH"
+          openssl x509 -inform DER -in "$DER_PATH" -out "$PEM_PATH" -outform PEM
+          rm -f "$DER_PATH"
+          openssl x509 -in "$PEM_PATH" -text -noout > android/key/certificate-info.txt
+          echo "Uploading PEM certificate to R2..."
+          aws s3 cp "$PEM_PATH" "s3://${R2_BUCKET}/${PEM_OBJECT_KEY}" --endpoint-url "$R2_ENDPOINT"
+
+      - name: Create keystore properties
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: |
+          cat <<EOF > android/keystore.properties
+          storeFile=../key/app-release.jks
+          storePassword=${ANDROID_KEYSTORE_PASSWORD}
+          keyAlias=${ANDROID_KEY_ALIAS}
+          keyPassword=${ANDROID_KEY_PASSWORD}
+          EOF
+
+      - name: Build Android artifacts
+        working-directory: android
+        run: |
+          chmod +x ./gradlew
+          ./gradlew assembleRelease bundleRelease -x lint --parallel --no-daemon
+
+      - name: Locate Android outputs
+        id: locate-android
+        run: |
+          APK=$(find android/app/build/outputs/apk/release -name '*.apk' -print -quit)
+          AAB=$(find android/app/build/outputs/bundle/release -name '*.aab' -print -quit)
+          if [ -z "$APK" ]; then
+            echo "No APK output produced" >&2
+            exit 1
+          fi
+          echo "apk=$APK" >> "$GITHUB_OUTPUT"
+          if [ -n "$AAB" ]; then
+            echo "aab=$AAB" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-apk-${{ needs.prepare-build.outputs.build_id }}
+          path: ${{ steps.locate-android.outputs.apk }}
+          retention-days: 21
+
+      - name: Upload AAB
+        if: steps.locate-android.outputs.aab != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-aab-${{ needs.prepare-build.outputs.build_id }}
+          path: ${{ steps.locate-android.outputs.aab }}
+          retention-days: 21
+
+      - name: Clean keystore material
+        if: always()
+        run: |
+          rm -f android/key/app-release.jks
+          rm -f android/key/app-release.pem
+          rm -f android/key/app-release.der
+          rm -f android/key/certificate-info.txt
+          rm -f android/keystore.properties
+
+  build-ios:
+    needs: prepare-build
+    runs-on: macos-latest
+    env:
+      VERSION_NAME: ${{ needs.prepare-build.outputs.version_name }}
+      VERSION_CODE: ${{ needs.prepare-build.outputs.version_code }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare-build.outputs.ref }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Expo prebuild (ios)
+        run: npx expo prebuild --non-interactive --platform ios
+        env:
+          EXPO_NO_DOCTOR: 1
+
+      - name: Cache CocoaPods
+        uses: actions/cache@v4
+        with:
+          path: ios/Pods
+          key: pods-${{ runner.os }}-${{ hashFiles('ios/Podfile.lock') }}
+          restore-keys: |
+            pods-${{ runner.os }}-
+
+      - name: Install CocoaPods
+        run: |
+          cd ios
+          pod install
+
+      - name: Apply iOS versioning
+        run: |
+          PLIST=$(find ios -name Info.plist -path '*/*' -depth 3 | head -n 1)
+          if [ -z "$PLIST" ]; then
+            echo "Unable to locate Info.plist" >&2
+            exit 1
+          fi
+          /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION_NAME" "$PLIST" || \
+          /usr/libexec/PlistBuddy -c "Add :CFBundleShortVersionString string $VERSION_NAME" "$PLIST"
+          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $VERSION_CODE" "$PLIST" || \
+          /usr/libexec/PlistBuddy -c "Add :CFBundleVersion string $VERSION_CODE" "$PLIST"
+
+      - name: Build iOS (simulator)
+        run: |
+          cd ios
+          SCHEME=$(xcodebuild -list | awk '/Schemes:/ {getline; print $1; exit}')
+          WORKSPACE=$(ls *.xcworkspace | head -n 1)
+          if [ -z "$WORKSPACE" ] || [ -z "$SCHEME" ]; then
+            echo "Unable to determine workspace or scheme" >&2
+            exit 1
+          fi
+          xcodebuild \
+            -workspace "$WORKSPACE" \
+            -scheme "$SCHEME" \
+            -configuration Release \
+            -sdk iphonesimulator \
+            -derivedDataPath build \
+            build
+
+      - name: Package iOS build
+        run: |
+          cd ios/build/Build/Products/Release-iphonesimulator
+          mkdir -p Payload
+          APP=$(ls -d *.app | head -n 1)
+          if [ -z "$APP" ]; then
+            echo "No .app bundle produced" >&2
+            exit 1
+          fi
+          cp -R "$APP" Payload/
+          zip -qry ElBiblio-simulator.ipa Payload
+
+      - name: Upload iOS artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-simulator-${{ needs.prepare-build.outputs.build_id }}
+          path: ios/build/Build/Products/Release-iphonesimulator/ElBiblio-simulator.ipa
+          retention-days: 21
+
+  release:
+    needs:
+      - prepare-build
+      - build-android
+      - build-ios
+    if: needs.prepare-build.outputs.tag != ''
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ needs.prepare-build.outputs.tag }}
+          name: Mobile Release ${{ needs.prepare-build.outputs.tag }}
+          generate_release_notes: true
+          files: dist/**

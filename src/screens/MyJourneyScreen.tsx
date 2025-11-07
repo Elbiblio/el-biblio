@@ -40,7 +40,7 @@ import {
   BookIcon,
 } from "@/components/Icons"
 import JourneyHero from "@/components/JourneyHero"
-import Animated from 'react-native'; // Added missing Animated import
+import { Animated } from 'react-native';
 
 const MyJourneyScreen = observer(() => {
   const insets = useSafeAreaInsets()
