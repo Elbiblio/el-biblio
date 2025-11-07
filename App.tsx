@@ -1,11 +1,11 @@
 import 'react-native-gesture-handler';
 import React, { useEffect, useState } from 'react';
-import { Text, View, StyleSheet, Button } from 'react-native';
+import { Text, View, StyleSheet } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { ThemeProvider, useTheme } from './src/contexts/ThemeContext';
+import { ThemeProvider } from './src/contexts/ThemeContext';
 import { STORAGE_KEYS } from './src/stores/PreferencesStore';
 import { AppInitializationProvider, useAppInitialization } from './src/utils/appInitialization';
 import { WebSocketProvider } from './src/components/WebSocketProvider';
@@ -58,7 +58,7 @@ import { registerGlobals, AudioSession } from '@livekit/react-native';
 import ChallengeCompletionBanner from './src/components/ChallengeCompletionBanner';
 import type { Challenge } from './src/types/challenges';
 import { registerChallengeReminderTask } from './src/tasks/challengeReminderTask';
-import { useJourneyStore, usePreferencesStore } from './src/stores/StoreProvider';
+import { usePreferencesStore, useChallengeStore } from './src/stores/StoreProvider';
 import { syncDailyNuggets } from './src/tasks/dailyNuggetOrchestrator';
 
 registerGlobals();
@@ -120,16 +120,18 @@ const NavigationContent: React.FC = () => {
     return 'IntroScreen';
   };
   const initialRoute = getInitialRoute();
-  console.log('[App] Navigation initial route', {
-    initialRoute,
-    hasCompletedWelcome,
-    hasUser: !!user,
-    hasToken: !!token,
-  });
+  if (__DEV__) {
+    console.log('[App] Navigation initial route', {
+      initialRoute,
+      hasCompletedWelcome,
+      hasUser: !!user,
+      hasToken: !!token,
+    });
+  }
   const navigatorKey = `${user?.id || 'no-user'}-${hasCompletedWelcome ? 'welcome-completed' : 'welcome-pending'}`;
 
   return (
-    <NavigationContainer onReady={() => console.log('[App] NavigationContainer onReady')}>
+    <NavigationContainer onReady={() => { if (__DEV__) console.log('[App] NavigationContainer onReady'); }}>
       <Stack.Navigator
         key={navigatorKey}
         screenOptions={{ headerShown: false }}
@@ -148,7 +150,6 @@ const NavigationContent: React.FC = () => {
         <Stack.Screen name="MatchScreen" component={MatchScreen} />
         <Stack.Screen name="SavedItemsScreen" component={SavedItemsScreen} />
         <Stack.Screen name="NotesScreen" component={NotesScreen} />
-        {/* @ts-ignore */}
         <Stack.Screen name="NoteDetail" component={NoteDetailScreen} />
         <Stack.Screen name="MeditationScreen" component={MeditationScreen} />
         <Stack.Screen name="VirtueScreen" component={VirtueScreen} />
@@ -184,16 +185,19 @@ const AppContent = () => {
   const fontsLoaded = useAppFonts();
   const { isInitialized: authInitialized, user, token } = useAuthStore();
   const preferencesStore = usePreferencesStore();
+  const challengeStore = useChallengeStore();
   const { hasCompletedWelcome, initializeWelcomeState } = appStore;
   
   // Debug: log gate values to diagnose splash/blank screen issues
   React.useEffect(() => {
-    console.log('[App] gates', {
-      fontsLoaded,
-      isLoading,
-      isSplashComplete,
-      authInitialized,
-    });
+    if (__DEV__) {
+      console.log('[App] gates', {
+        fontsLoaded,
+        isLoading,
+        isSplashComplete,
+        authInitialized,
+      });
+    }
   }, [fontsLoaded, isLoading, isSplashComplete, authInitialized]);
 
   useEffect(() => {
@@ -209,7 +213,7 @@ const AppContent = () => {
         await initializeWelcomeState();
         await registerChallengeReminderTask();
       } catch (error) {
-        console.warn('Error loading theme:', error);
+        if (__DEV__) console.warn('Error loading theme:', error);
         setShowThemeSelector(true);
       } finally {
         setIsLoading(false);
@@ -266,16 +270,13 @@ const AppContent = () => {
   }, [authInitialized, preferencesStore.showDailyNuggets]);
 
   const checkForUncompletedChallenges = () => {
-    // Import the store here to avoid circular dependencies
-    const { challengeStore } = require('./src/stores/ChallengeStore');
-    
-    const uncompletedChallenges = challengeStore.personalChallenges.filter(
-      (challenge: Challenge) => !challenge.isCompleted && (challenge as any).hasJoined
-    );
-    
-    if (uncompletedChallenges.length > 0) {
-      setShowChallengeBanner(true);
-    }
+    try {
+      const list = (challengeStore?.personalChallenges || []) as any[];
+      const uncompleted = list.filter((c: any) => !c?.isCompleted && c?.hasJoined);
+      if (uncompleted.length > 0) {
+        setShowChallengeBanner(true);
+      }
+    } catch {}
   };
 
   // Subscribe to global points earned events emitted by the API interceptor

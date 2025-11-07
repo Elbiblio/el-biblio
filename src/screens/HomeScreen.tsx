@@ -92,7 +92,6 @@ interface TimeTracking {
   dayStartTimestamp: number;
 }
 
-const AnimatedBlurView = Animated.createAnimatedComponent(BlurView);
 const CARD_WIDTH = SCREEN_DIMENSIONS.width * 0.9;
 const QUICK_MENU_STORAGE_KEY = 'home_quick_menu_usage';
 const HOME_WELCOME_KEY = 'home_welcome_note_seen';
@@ -209,6 +208,14 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
   // const themeText = { color: theme?.colors.primary };
 
   const [appState, setAppState] = useState(AppState.currentState);
+  const appStateRef = useRef(AppState.currentState);
+  const syncingRef = useRef(false);
+  const timeTrackingRef = useRef<TimeTracking>({
+    lastActiveTimestamp: Date.now(),
+    totalActiveTime: 0,
+    lastSyncedTime: 0,
+    dayStartTimestamp: new Date().setHours(0, 0, 0, 0),
+  });
   const { user, updateUserTime, authRequired, logout } = useAuthStore();
   const { completeChallenge } = useMeditationStore();
   const { isConnected } = useWebSocket();
@@ -628,12 +635,24 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
   const toolsAnimatedStyle = useAnimatedStyle(() => ({
     transform: [{ scale: toolsScale.value }],
   }));
+  const pointsAnimatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: pointsScale.value }],
+  }));
   useEffect(() => {
     loadTimeTracking();
-    const subscription = AppState.addEventListener('change', handleAppStateChange);
+    const subscription = AppState.addEventListener('change', (nextAppState) => {
+      const prev = appStateRef.current;
+      appStateRef.current = nextAppState;
+      if (prev === 'active' && nextAppState.match(/inactive|background/)) {
+        handleAppInactive();
+      } else if (prev.match(/inactive|background/) && nextAppState === 'active') {
+        handleAppActive();
+      }
+      setAppState(nextAppState);
+    });
 
     const syncInterval = setInterval(() => {
-      if (appState === 'active') {
+      if (appStateRef.current === 'active') {
         handleTimeSync();
       }
     }, SYNC_INTERVAL);
@@ -673,6 +692,7 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
       };
       
       setTimeTracking(savedTracking);
+      timeTrackingRef.current = savedTracking;
     } catch (error) {
       console.error('Failed to load time tracking:', error);
     }
@@ -706,29 +726,29 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
   };
 
   const handleTimeSync = async () => {
-    if (!user || timeTracking.totalActiveTime <= timeTracking.lastSyncedTime) {
+    const tt = timeTrackingRef.current;
+    if (!user || !tt || tt.totalActiveTime <= tt.lastSyncedTime) {
       return;
     }
-
+    if (syncingRef.current) {
+      return;
+    }
+    syncingRef.current = true;
     try {
-      await updateUserTime(timeTracking.totalActiveTime);
-      setTimeTracking(prev => ({
-        ...prev,
-        lastSyncedTime: prev.totalActiveTime
-      }));
+      await updateUserTime(tt.totalActiveTime);
+      setTimeTracking(prev => {
+        const next = { ...prev, lastSyncedTime: prev.totalActiveTime };
+        timeTrackingRef.current = next;
+        return next;
+      });
     } catch (error) {
       console.error('Error syncing time:', error);
+    } finally {
+      syncingRef.current = false;
     }
   };
 
-  const handleAppStateChange = (nextAppState: AppStateStatus) => {
-    if (appState === 'active' && nextAppState.match(/inactive|background/)) {
-      handleAppInactive();
-    } else if (appState.match(/inactive|background/) && nextAppState === 'active') {
-      handleAppActive();
-    }
-    setAppState(nextAppState);
-  };
+  
 
   const handleAppActive = () => {
     const now = Date.now();
@@ -764,15 +784,17 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
 
   const handleAppInactive = async () => {
     const now = Date.now();
-    const sessionDuration = now - timeTracking.lastActiveTimestamp;
+    const prev = timeTrackingRef.current;
+    const sessionDuration = now - prev.lastActiveTimestamp;
 
     const newTracking = {
-      ...timeTracking,
-      totalActiveTime: timeTracking.totalActiveTime + sessionDuration,
+      ...prev,
+      totalActiveTime: prev.totalActiveTime + sessionDuration,
       lastActiveTimestamp: now,
     };
 
     setTimeTracking(newTracking);
+    timeTrackingRef.current = newTracking;
     await saveTimeTracking(newTracking);
     await handleTimeSync();
   };
@@ -1113,10 +1135,11 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
               navigation.navigate('MyJourneyScreen');
               pointsScale.value = withSequence(
                 withSpring(1.1),
+                withSpring(1)
               );
             }}
           >
-            <Animated.View style={[styles.points, { transform: [{ scale: pointsScale }] }]}> 
+            <Animated.View style={[styles.points, pointsAnimatedStyle]}> 
               <LinearGradient
                 colors={[theme?.colors.primary, theme?.colors.primaryLight]}
                 start={{ x: 0, y: 0 }}
@@ -1286,6 +1309,25 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
     }
   }, [dailyPathStore.isSetupComplete, dailyPathStore.isChallengesEnabled, challengesUnlockedByPoints]);
 
+  const joinedChallengeIds = useMemo(() => new Set((personalChallenges || []).map((challenge: any) => challenge.id)), [personalChallenges]);
+  const smartPickChallenge = useMemo(() => {
+    if (smartPickDismissed) return null;
+    if (challengeStore.isLoading) return null;
+    const excludeIds = Array.from(joinedChallengeIds);
+    return challengeStore.getRecommendedChallenge({ excludeIds, allowJoined: false });
+  }, [challengeStore, joinedChallengeIds, smartPickDismissed]);
+  const handleSmartPickJoin = useCallback((challenge: Challenge) => {
+    void (async () => {
+      const success = await challengeStore.joinChallenge(challenge.id);
+      if (success) {
+        toast.success('Challenge added to your day');
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        setSmartPickDismissed(true);
+        navigation.navigate('DailyChallengeScreen');
+      }
+    })();
+  }, [challengeStore, navigation]);
+
   const renderDailyChallenges = () => {
     if (!shouldShowChallenges) {
       return null;
@@ -1317,31 +1359,12 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
     const personalChallenge = personalChallenges && personalChallenges.length > 0
       ? personalChallenges[0]
       : undefined;
-    const joinedChallengeIds = new Set((personalChallenges || []).map(challenge => challenge.id));
     const communityChallenge = (communityChallenges || []).find(challenge => {
       if (joinedChallengeIds.has(challenge.id)) return false;
       if (challenge.hasJoined) return false;
       return true;
     });
     
-    const smartPickChallenge = useMemo(() => {
-      if (smartPickDismissed) return null;
-      if (challengeStore.isLoading) return null;
-      const excludeIds = Array.from(joinedChallengeIds);
-      return challengeStore.getRecommendedChallenge({ excludeIds, allowJoined: false });
-    }, [challengeStore, joinedChallengeIds, smartPickDismissed]);
-
-    const handleSmartPickJoin = useCallback((challenge: Challenge) => {
-      void (async () => {
-        const success = await challengeStore.joinChallenge(challenge.id);
-        if (success) {
-          toast.success('Challenge added to your day');
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-          setSmartPickDismissed(true);
-          navigation.navigate('DailyChallengeScreen');
-        }
-      })();
-    }, [challengeStore, navigation]);
 
     // Calculate progress for personal challenge
     const personalProgress = personalChallenge ? calculateChallengeProgress(personalChallenge as any) : 0;
