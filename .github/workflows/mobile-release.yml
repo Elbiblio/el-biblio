@@ -308,8 +308,48 @@ jobs:
 
       - name: Apply iOS versioning
         run: |
-          PLIST=$(find ios -type f -name Info.plist \( -not -path "*/Pods/*" -and -not -path "*Tests/*" \) | head -n 1)
-          if [ -z "$PLIST" ]; then
+          set -euo pipefail
+          WORKSPACE=$(ls -1d ios/*.xcworkspace 2>/dev/null | head -n 1 || true)
+          PROJECT=$(ls -1d ios/*.xcodeproj 2>/dev/null | head -n 1 || true)
+          SCHEME=""
+          if [ -n "$WORKSPACE" ]; then
+            SCHEME=$(xcodebuild -list -json -workspace "$WORKSPACE" 2>/dev/null | node -e "let s='';process.stdin.on('data',d=>s+=d);process.stdin.on('end',()=>{try{const j=JSON.parse(s);const arr=(j.workspace&&j.workspace.schemes)||[];if(arr.length){console.log(arr[0])}}catch(e){} })" || true)
+            if [ -z "$SCHEME" ]; then
+              SCHEME=$(xcodebuild -list -workspace "$WORKSPACE" 2>/dev/null | awk '/Schemes:/ {getline; print $1; exit}')
+            fi
+            SETTINGS=$(xcodebuild -showBuildSettings -workspace "$WORKSPACE" -scheme "$SCHEME" -configuration Release 2>/dev/null)
+          elif [ -n "$PROJECT" ]; then
+            SCHEME=$(xcodebuild -list -json -project "$PROJECT" 2>/dev/null | node -e "let s='';process.stdin.on('data',d=>s+=d);process.stdin.on('end',()=>{try{const j=JSON.parse(s);const arr=(j.project&&j.project.schemes)||[];if(arr.length){console.log(arr[0])}}catch(e){} })" || true)
+            if [ -z "$SCHEME" ]; then
+              SCHEME=$(xcodebuild -list -project "$PROJECT" 2>/dev/null | awk '/Schemes:/ {getline; print $1; exit}')
+            fi
+            SETTINGS=$(xcodebuild -showBuildSettings -project "$PROJECT" -scheme "$SCHEME" -configuration Release 2>/dev/null)
+          else
+            SETTINGS=""
+          fi
+          SRCROOT=$(echo "$SETTINGS" | awk -F" = " '/\bSRCROOT\b/ {print $2; exit}')
+          INFOPLIST_FILE=$(echo "$SETTINGS" | awk -F" = " '/\bINFOPLIST_FILE\b/ {print $2; exit}')
+          if [ -n "${INFOPLIST_FILE:-}" ]; then
+            if [[ "$INFOPLIST_FILE" = /* ]]; then
+              PLIST="$INFOPLIST_FILE"
+            else
+              INFOPATH="$INFOPLIST_FILE"
+              INFOPATH="${INFOPATH//\$\(SRCROOT\)/$SRCROOT}"
+              INFOPATH="${INFOPATH//\${SRCROOT}/$SRCROOT}"
+              INFOPATH="${INFOPATH//\$\(PROJECT_DIR\)/$SRCROOT}"
+              INFOPATH="${INFOPATH//\${PROJECT_DIR}/$SRCROOT}"
+              if [[ "$INFOPATH" != /* ]]; then
+                BASE_DIR="${SRCROOT:-ios}"
+                PLIST="$BASE_DIR/$INFOPATH"
+              else
+                PLIST="$INFOPATH"
+              fi
+            fi
+          fi
+          if [ -z "${PLIST:-}" ] || [ ! -f "$PLIST" ]; then
+            PLIST=$(find ios -type f -name Info.plist \( -not -path "*/Pods/*" -and -not -path "*Tests/*" \) | head -n 1 || true)
+          fi
+          if [ -z "${PLIST:-}" ] || [ ! -f "$PLIST" ]; then
             echo "Unable to locate Info.plist" >&2
             exit 1
           fi
@@ -321,11 +361,14 @@ jobs:
       - name: Build iOS (simulator)
         run: |
           set -euo pipefail
-          WORKSPACE=$(ls -1 ios/*.xcworkspace 2>/dev/null | head -n 1 || true)
-          PROJECT=$(ls -1 ios/*.xcodeproj 2>/dev/null | head -n 1 || true)
+          WORKSPACE=$(ls -1d ios/*.xcworkspace 2>/dev/null | head -n 1 || true)
+          PROJECT=$(ls -1d ios/*.xcodeproj 2>/dev/null | head -n 1 || true)
           if [ -n "$WORKSPACE" ]; then
             echo "Using workspace: $WORKSPACE"
-            SCHEME=$(xcodebuild -list -json -workspace "$WORKSPACE" | node -e "let s='';process.stdin.on('data',d=>s+=d);process.stdin.on('end',()=>{try{const j=JSON.parse(s);const arr=(j.workspace&&j.workspace.schemes)||[];if(arr.length){console.log(arr[0])}else{process.exit(1)}}catch(e){process.exit(1)}})")
+            SCHEME=$(xcodebuild -list -json -workspace "$WORKSPACE" 2>/dev/null | node -e "let s='';process.stdin.on('data',d=>s+=d);process.stdin.on('end',()=>{try{const j=JSON.parse(s);const arr=(j.workspace&&j.workspace.schemes)||[];const pick=arr.find(n=>!/^Pods(\\b|\\-)/.test(n)&&!/Tests$/.test(n))||arr[0]||'';process.stdout.write(pick)}catch(e){} })" || true)
+            if [ -z "$SCHEME" ]; then
+              SCHEME=$(xcodebuild -list -workspace "$WORKSPACE" 2>/dev/null | awk '/Schemes:/ {getline; print $1; exit}')
+            fi
             if [ -z "$SCHEME" ]; then
               echo "Failed to detect scheme from workspace" >&2
               exit 1
@@ -335,12 +378,16 @@ jobs:
               -scheme "$SCHEME" \
               -configuration Release \
               -sdk iphonesimulator \
+              -destination "generic/platform=iOS Simulator" \
               -derivedDataPath ios/build \
               CODE_SIGNING_ALLOWED=NO \
               build
           elif [ -n "$PROJECT" ]; then
             echo "Using project: $PROJECT"
-            SCHEME=$(xcodebuild -list -json -project "$PROJECT" | node -e "let s='';process.stdin.on('data',d=>s+=d);process.stdin.on('end',()=>{try{const j=JSON.parse(s);const arr=(j.project&&j.project.schemes)||[];if(arr.length){console.log(arr[0])}else{process.exit(1)}}catch(e){process.exit(1)}})")
+            SCHEME=$(xcodebuild -list -json -project "$PROJECT" 2>/dev/null | node -e "let s='';process.stdin.on('data',d=>s+=d);process.stdin.on('end',()=>{try{const j=JSON.parse(s);const arr=(j.project&&j.project.schemes)||[];const pick=arr.find(n=>!/^Pods(\\b|\\-)/.test(n)&&!/Tests$/.test(n))||arr[0]||'';process.stdout.write(pick)}catch(e){} })" || true)
+            if [ -z "$SCHEME" ]; then
+              SCHEME=$(xcodebuild -list -project "$PROJECT" 2>/dev/null | awk '/Schemes:/ {getline; print $1; exit}')
+            fi
             if [ -z "$SCHEME" ]; then
               echo "Failed to detect scheme from project" >&2
               exit 1
@@ -350,32 +397,38 @@ jobs:
               -scheme "$SCHEME" \
               -configuration Release \
               -sdk iphonesimulator \
+              -destination "generic/platform=iOS Simulator" \
               -derivedDataPath ios/build \
               CODE_SIGNING_ALLOWED=NO \
               build
           else
             echo "No Xcode workspace or project found under ios/" >&2
-            find ios -maxdepth 2 \( -name '*.xcworkspace' -o -name '*.xcodeproj' \) || true
+            ls -1d ios/*.xcworkspace ios/*.xcodeproj 2>/dev/null || true
             exit 1
           fi
 
       - name: Package iOS build
+        id: package-ios
         run: |
-          cd ios/build/Build/Products/Release-iphonesimulator
-          mkdir -p Payload
-          APP=$(ls -d *.app | head -n 1)
+          APP=$(find ios/build/Build/Products -type d -name "*.app" -print -quit)
           if [ -z "$APP" ]; then
             echo "No .app bundle produced" >&2
+            find ios/build -type d -name "*.app" 2>/dev/null || true
             exit 1
           fi
-          cp -R "$APP" Payload/
+          OUTDIR=$(dirname "$APP")
+          BASENAME=$(basename "$APP")
+          cd "$OUTDIR"
+          mkdir -p Payload
+          cp -R "$BASENAME" Payload/
           zip -qry ElBiblio-simulator.ipa Payload
+          echo "ipa_path=$OUTDIR/ElBiblio-simulator.ipa" >> "$GITHUB_OUTPUT"
 
       - name: Upload iOS artifact
         uses: actions/upload-artifact@v4
         with:
           name: ios-simulator-${{ needs.prepare-build.outputs.build_id }}
-          path: ios/build/Build/Products/Release-iphonesimulator/ElBiblio-simulator.ipa
+          path: ${{ steps.package-ios.outputs.ipa_path }}
           retention-days: 21
 
   release:
