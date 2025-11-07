@@ -110,9 +110,29 @@ const CUE_ALIASES: Record<string, SoundKey> = {
 const cache = new Map<SoundKey, Audio.Sound>();
 let initialized = false;
 
+// Export cache for AudioCoordinator
+export const getSoundCache = () => cache;
+
 export const initAudio = async () => {
   if (initialized) return;
+  
+  // Configure audio session for optimal mixing
+  try {
+    await Audio.setAudioModeAsync({
+      playsInSilentModeIOS: true,
+      allowsRecordingIOS: false,
+      staysActiveInBackground: true,
+      shouldDuckAndroid: true,
+      playThroughEarpieceAndroid: false,
+      interruptionModeIOS: 1, // DO_NOT_MIX
+      interruptionModeAndroid: 1, // DO_NOT_MIX
+    });
+  } catch (error) {
+    console.warn('[audio] Failed to set audio mode:', error);
+  }
+  
   await SoundManager.init();
+  
   // Optionally pre-load common SFX for snappier UX
   const preload: SoundKey[] = [
     'chime.wav', 'ding.wav', 'correct.mp3', 'wrong.mp3', 'cheers.mp3', 'streak.wav', 'timeout.mp3'
@@ -130,6 +150,12 @@ const getSound = async (key: SoundKey): Promise<Audio.Sound> => {
   await sound.loadAsync(SOUNDS[key]);
   cache.set(key, sound);
   return sound;
+};
+
+// Export for external use (e.g., AudioCoordinator)
+export const getCachedSound = async (key: SoundKey): Promise<Audio.Sound> => {
+  await initAudio();
+  return getSound(key);
 };
 
 export const playSound = async (soundName: string, format?: 'mp3' | 'wav') => {

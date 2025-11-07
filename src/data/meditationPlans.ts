@@ -165,9 +165,9 @@ export const contemplativePractices: ContemplativePractice[] = [
       'Letting the refrain move from head to heart'
     ],
     guidance: [
-      'Choose one or two chants from a Taizé playlist.',
-      'Sing quietly or hum along for 5–10 minutes.',
-      'Close by resting in silence, letting the refrain linger.'
+      'Sing quietly or hum along in prayer.',
+      'Let the refrain linger.',
+      'Close by resting in silence.'
     ],
     tags: ['worship', 'chant', 'music']
   },
@@ -199,7 +199,7 @@ export const contemplativePractices: ContemplativePractice[] = [
     guidance: [
       'Select one theme for the week (e.g., hope, trust, courage).',
       'Gather scriptures, prayers, and music that reinforce the theme.',
-      'Revisit the theme daily, noticing how God reinforces it.'
+      'Revisit the theme daily; listen for God\'s guidance.'
     ],
     tags: ['library', 'resource', 'community']
   }

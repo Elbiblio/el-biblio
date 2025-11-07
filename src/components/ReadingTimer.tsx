@@ -18,6 +18,7 @@ type ReadingTimerProps = {
   phases: ReadingPlanPhase[];
   onPhaseComplete?: (phase: ReadingPlanPhase, elapsedSeconds: number) => void;
   onAllPhasesComplete?: (totalElapsedSeconds: number, summaries: PhaseProgress[]) => void;
+  onStart?: () => void;
   autoStart?: boolean;
   passive?: boolean;
   initialPhaseIndex?: number;
@@ -46,6 +47,7 @@ const ReadingTimer: React.FC<ReadingTimerProps> = ({
   phases,
   onPhaseComplete,
   onAllPhasesComplete,
+  onStart,
   autoStart,
   passive,
   initialPhaseIndex,
@@ -195,7 +197,10 @@ const ReadingTimer: React.FC<ReadingTimerProps> = ({
     } else {
       setIsActive(true);
     }
-  }, [timerId, phases]);
+    
+    // Notify parent that timer has started
+    onStart?.();
+  }, [timerId, phases, onStart]);
 
   const totalMinutesPlanned = phases.reduce((sum, phase) => sum + (Number(phase.minutes) || 0), 0);
   const remainingSecondsRaw = timerId ? appTimerStore.remainingInPhase(timerId) : secondsRemaining;

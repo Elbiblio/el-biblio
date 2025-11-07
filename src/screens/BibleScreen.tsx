@@ -21,6 +21,7 @@ import {
   TouchableWithoutFeedback,
   LayoutChangeEvent,
   ViewToken,
+  SafeAreaView,
 } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -1790,40 +1791,47 @@ const handleEnterPlanMode = useCallback(async () => {
     console.log('[BibleScreen] rendering scoped view', scopedView);
 
     return (
-      <View style={styles.scopedContainer}>
-        <View style={styles.scopedHeader}>
-          <View style={styles.scopedHeaderText}>
-            {scopedView.title ? (
-              <Text style={styles.scopedTitle}>{scopedView.title}</Text>
-            ) : null}
-            {scopedView.subtitle ? (
-              <Text style={styles.scopedSubtitle}>{scopedView.subtitle}</Text>
-            ) : null}
-          </View>
-          <TouchableOpacity style={styles.scopedDismissButton} onPress={handleExitScopedView}>
-            <MaterialIcons name="close" size={20} color={theme.colors.text.secondary} />
-            <Text style={styles.scopedDismissText}>Dismiss</Text>
-          </TouchableOpacity>
-        </View>
-
-        <ScrollView
-          style={styles.scopedScroll}
-          contentContainerStyle={styles.scopedScrollContent}
-          showsVerticalScrollIndicator={false}
-        >
-          {scopedView.verses.map((verse, index) => (
-            <View
-              key={`${verse.text}-${index}`}
-              style={[styles.scopedVerseCard, verse.isPrimary && styles.scopedVersePrimary]}
-            >
-              {verse.reference ? (
-                <Text style={styles.scopedReference}>{verse.reference}</Text>
+      <Modal 
+        visible={!!scopedView} 
+        animationType="slide" 
+        presentationStyle="fullScreen"
+        onRequestClose={handleExitScopedView}
+      >
+        <SafeAreaView style={styles.scopedContainer}>
+          <View style={styles.scopedHeader}>
+            <View style={styles.scopedHeaderText}>
+              {scopedView.title ? (
+                <Text style={styles.scopedTitle}>{scopedView.title}</Text>
               ) : null}
-              <Text style={styles.scopedVerseText}>{verse.text}</Text>
+              {scopedView.subtitle ? (
+                <Text style={styles.scopedSubtitle}>{scopedView.subtitle}</Text>
+              ) : null}
             </View>
-          ))}
-        </ScrollView>
-      </View>
+            <TouchableOpacity style={styles.scopedDismissButton} onPress={handleExitScopedView}>
+              <MaterialIcons name="close" size={20} color={theme.colors.text.secondary} />
+              <Text style={styles.scopedDismissText}>Dismiss</Text>
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView
+            style={styles.scopedScroll}
+            contentContainerStyle={styles.scopedScrollContent}
+            showsVerticalScrollIndicator={false}
+          >
+            {scopedView.verses.map((verse, index) => (
+              <View
+                key={`${verse.text}-${index}`}
+                style={[styles.scopedVerseCard, verse.isPrimary && styles.scopedVersePrimary]}
+              >
+                {verse.reference ? (
+                  <Text style={styles.scopedReference}>{verse.reference}</Text>
+                ) : null}
+                <Text style={styles.scopedVerseText}>{verse.text}</Text>
+              </View>
+            ))}
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
     );
   };
 
@@ -1836,7 +1844,7 @@ const handleEnterPlanMode = useCallback(async () => {
         <View style={styles.timerModalBackdrop}>
           <View style={styles.timerModalCard}>
             <View style={styles.timerModalHeader}>
-              <Text style={styles.timerModalTitle}>Today's Focus</Text>
+              <Text style={styles.timerModalTitle}>Todays' Focus</Text>
               <TouchableOpacity onPress={() => setShowTimerModal(false)}>
                 <MaterialIcons name="close" size={22} color={theme.colors.text.secondary} />
               </TouchableOpacity>
@@ -1847,6 +1855,7 @@ const handleEnterPlanMode = useCallback(async () => {
               phases={phasesForToday}
               onPhaseComplete={handlePhaseComplete}
               onAllPhasesComplete={handleAllPhasesComplete}
+              onStart={() => setShowTimerModal(false)}
               passages={(() => {
                 const seg = bibleStore.activeReadingSegment;
                 if (!seg) return undefined;
@@ -2444,6 +2453,8 @@ const renderMeditationModal = () => {
         </View>
       </Modal>
 
+
+      {renderScopedView()}
       {renderTimerModal()}
       {renderMeditationModal()}
 
@@ -3035,6 +3046,7 @@ const createStyles = (theme: Theme) => StyleSheet.create({
   },
   scopedContainer: {
     flex: 1,
+    backgroundColor: theme.colors.background,
     padding: theme.spacing.lg,
     gap: theme.spacing.lg,
   },

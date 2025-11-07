@@ -148,7 +148,7 @@ export const growthParablePlans: MeditationPlan[] = [
     scripture: 'Matthew 20:1-16',
     overview: 'Grace levels.',
     breathInvitation: 'Breathe gratitude. Release envy.',
-    reflectionPrompts: shortPrompts(['Identify a comparison trigger.', 'Thank God for your portion.', 'Celebrate another’s win.', 'Choose cooperation today.']),
+    reflectionPrompts: shortPrompts(['Identify an envy trigger.', 'Thank God for your portion; celebrate others.', 'Envy steals from your future.']),
     focusOptions: ['Thank', 'Celebrate', 'Cooperate'],
     challengePrompt: 'Send one “congrats” message.',
     closingReminder: 'Grace is enough.',

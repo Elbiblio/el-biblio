@@ -4,7 +4,7 @@ import { apiClient } from '@/api/client';
 import { AuthStore } from './AuthStore';
 import { MeditationSession, Challenge, DailyChallenge, PaginatedResponse } from '@/types';
 
-export type MeditationPhase = 'setup' | 'countdown' | 'active' | 'complete' | 'idle';
+export type MeditationPhase = 'setup' | 'countdown' | 'active' | 'paused' | 'complete' | 'idle';
 export type MeditationStyle = 'parable' | 'virtue' | 'centering' | 'jesus_prayer' | 'chant';
 
 export interface MeditationState {
@@ -31,6 +31,7 @@ export interface MeditationState {
   meditationTimer: number;
   isPreviewingSound: boolean;
   lastNonChantSound: string | null;
+  pausedFrom?: 'countdown' | 'active' | null;
 
   // Pagination
   pagination: {
@@ -64,6 +65,7 @@ const initialState: MeditationState = {
   meditationTimer: 0,
   isPreviewingSound: false,
   lastNonChantSound: null,
+  pausedFrom: null,
   pagination: {
     currentPage: 1,
     lastPage: 1,
@@ -496,7 +498,11 @@ export class MeditationStore {
     
     // Auto-end session if time is up (if a time was set)
     if (this.state.selectedTime && this.state.meditationTimer >= this.state.selectedTime * 60) {
-      this.endMeditationSession();
+      this.state.meditationTimer = this.state.selectedTime * 60;
+      if (this.meditationInterval) {
+        clearInterval(this.meditationInterval);
+        this.meditationInterval = null;
+      }
     }
   }
 
@@ -550,6 +556,7 @@ export class MeditationStore {
     this.state.meditationState = 'setup';
     this.state.countdown = 5;
     this.state.meditationTimer = 0;
+    this.state.pausedFrom = null;
   }
   goIdle() {
     if (this.meditationInterval) {
@@ -561,6 +568,7 @@ export class MeditationStore {
       this.countdownInterval = null;
     }
     this.state.meditationState = 'idle';
+    this.state.pausedFrom = null;
   }
   // Helper method to save unsynced sessions to localStorage
   private async saveUnsyncedSessions() {
@@ -580,6 +588,39 @@ export class MeditationStore {
     
     if (this.countdownInterval) {
       clearInterval(this.countdownInterval);
+    }
+  }
+
+  // Pause/resume support
+  pause() {
+    if (this.state.meditationState === 'active' || this.state.meditationState === 'countdown') {
+      if (this.meditationInterval) {
+        clearInterval(this.meditationInterval);
+        this.meditationInterval = null;
+      }
+      if (this.countdownInterval) {
+        clearInterval(this.countdownInterval);
+        this.countdownInterval = null;
+      }
+      this.state.pausedFrom = this.state.meditationState as any;
+      this.state.meditationState = 'paused';
+    }
+  }
+
+  resume() {
+    if (this.state.meditationState !== 'paused') return;
+    const from = this.state.pausedFrom;
+    this.state.pausedFrom = null;
+    if (from === 'countdown') {
+      this.state.meditationState = 'countdown';
+      this.countdownInterval = setInterval(() => {
+        this.decrementCountdown();
+      }, 1000);
+    } else {
+      this.state.meditationState = 'active';
+      this.meditationInterval = setInterval(() => {
+        this.incrementMeditationTimer();
+      }, 1000);
     }
   }
 }
