@@ -144,6 +144,12 @@ const CommentSection: React.FC<CommentSectionProps> = ({
             renderItem={renderComment}
             keyExtractor={item => item.id}
             contentContainerStyle={styles.commentsList}
+            initialNumToRender={10}
+            maxToRenderPerBatch={10}
+            windowSize={11}
+            removeClippedSubviews
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
             ListEmptyComponent={
               <Text style={styles.emptyText}>Be the first to comment</Text>
             }

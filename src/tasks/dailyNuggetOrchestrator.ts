@@ -28,6 +28,17 @@ export interface DailyNuggetSyncResult {
 
 const SAFE_PER_PAGE = 15;
 
+type InjectedAuth = { user: any };
+type InjectedPrefs = { state: { showDailyNuggets: boolean } };
+
+let injectedAuth: InjectedAuth | null = null;
+let injectedPrefs: InjectedPrefs | null = null;
+
+export const setDailyNuggetStores = (deps: { authStore: InjectedAuth; preferencesStore: InjectedPrefs }) => {
+  injectedAuth = deps.authStore;
+  injectedPrefs = deps.preferencesStore;
+};
+
 const extractItems = <T>(payload: any): T[] => {
   if (!payload) return [];
   if (Array.isArray(payload)) return payload as T[];
@@ -104,13 +115,14 @@ export const syncDailyNuggets = async (
   options: DailyNuggetSyncOptions = {},
 ): Promise<DailyNuggetSyncResult> => {
   try {
-    const { user } = authStore;
+    const { user } = (injectedAuth || authStore);
     if (!user?.id) {
       await cancelDailyNuggetSchedule();
       return { scheduled: false, reason: 'no_user' };
     }
 
-    if (!preferencesStore.state.showDailyNuggets) {
+    const prefs = (injectedPrefs || preferencesStore);
+    if (!prefs.state.showDailyNuggets) {
       await cancelDailyNuggetSchedule();
       return { scheduled: false, reason: 'disabled' };
     }

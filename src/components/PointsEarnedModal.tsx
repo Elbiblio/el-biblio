@@ -52,6 +52,12 @@ const PointsEarnedModal: React.FC<PointsEarnedModalProps> = ({
   const pulseValue = useSharedValue(1);
   const raysOpacity = useSharedValue(0);
   const challengeOpacity = useSharedValue(0);
+  const confettiCount = React.useMemo(() => {
+    if (pointsEarned < 5) return 0;
+    const base = Platform.OS === 'android' ? 60 : 100;
+    const scale = Math.min(1, Math.max(0.5, pointsEarned / 20));
+    return Math.round(base * scale);
+  }, [pointsEarned]);
 
   useEffect(() => {
     if (visible) {
@@ -66,7 +72,7 @@ const PointsEarnedModal: React.FC<PointsEarnedModalProps> = ({
 
       // Start animations
       setTimeout(() => {
-        if (confettiRef.current) {
+        if (confettiRef.current && confettiCount > 0) {
           confettiRef.current.restart({
             cannonsPositions: [{ x: -10, y: 0 }],
           });
@@ -140,10 +146,10 @@ const PointsEarnedModal: React.FC<PointsEarnedModalProps> = ({
           entering={SlideInDown.springify().damping(15)}
           style={styles.modalContent}
         >
-          {visible && (
+          {visible && confettiCount > 0 && (
             <Confetti
               ref={confettiRef}
-              count={100}
+              count={confettiCount}
               autoplay={false}
               fadeOutOnEnd
               colors={['#FFD700', '#FF6347', '#4169E1', '#32CD32', '#FF69B4', '#BA55D3']}

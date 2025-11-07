@@ -56,7 +56,7 @@ const HistoryModal: React.FC<HistoryModalProps> = ({ visible, entries, isLoading
             <FlatList
               data={entries}
               keyExtractor={(item) => item.id}
-              renderItem={({ item }) => (
+              renderItem={React.useCallback(({ item }: { item: HistoryModalEntry }) => (
                 <TouchableOpacity
                   style={styles.entry}
                   onPress={() => onSelect(item)}
@@ -79,7 +79,12 @@ const HistoryModal: React.FC<HistoryModalProps> = ({ visible, entries, isLoading
                   </View>
                   <MaterialIcons name="chevron-right" size={20} color={theme.colors.text.secondary} />
                 </TouchableOpacity>
-              )}
+              ), [onSelect, theme.colors.primary, theme.colors.text.secondary])}
+              initialNumToRender={12}
+              maxToRenderPerBatch={12}
+              windowSize={11}
+              removeClippedSubviews
+              showsVerticalScrollIndicator={false}
               ListEmptyComponent={() => (
                 <View style={styles.emptyState}>
                   <MaterialIcons name="history" size={32} color={theme.colors.text.secondary} />

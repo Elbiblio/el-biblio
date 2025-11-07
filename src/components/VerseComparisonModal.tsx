@@ -63,22 +63,28 @@ const VerseComparisonModal: React.FC<VerseComparisonModalProps> = ({
       );
     }
 
+    const renderItem = React.useCallback(({ item }: { item: VerseComparisonItem }) => (
+      <View style={styles.versionCard}>
+        <View style={styles.versionHeader}>
+          <Text style={styles.versionTitle}>{item.englishName}</Text>
+          <Text style={styles.versionSubtitle}>{item.shortName}</Text>
+        </View>
+        <Text style={styles.verseText}>{item.text || 'Not available'}</Text>
+      </View>
+    ), []);
+
     return (
       <View style={styles.listWrapper}>
         <FlatList
           data={results}
           keyExtractor={(item) => item.versionId}
-          renderItem={({ item }) => (
-            <View style={styles.versionCard}>
-              <View style={styles.versionHeader}>
-                <Text style={styles.versionTitle}>{item.englishName}</Text>
-                <Text style={styles.versionSubtitle}>{item.shortName}</Text>
-              </View>
-              <Text style={styles.verseText}>{item.text || 'Not available'}</Text>
-            </View>
-          )}
+          renderItem={renderItem}
           style={styles.list}
           contentContainerStyle={styles.listContent}
+          initialNumToRender={10}
+          maxToRenderPerBatch={10}
+          windowSize={11}
+          removeClippedSubviews
           showsVerticalScrollIndicator
         />
       </View>

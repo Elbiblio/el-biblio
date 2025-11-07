@@ -556,6 +556,8 @@ const DailyChallengesScreen = observer(({ navigation }: DailyChallengesProps) =>
     );
   }, [theme?.colors, activeCategory, navigation]);
 
+  const renderItem = useCallback(({ item }: { item: Challenge }) => renderChallengeCard(item), [renderChallengeCard]);
+
   // No form for now (and hidden on Joined tab anyway)
   const renderNewChallengeForm = () => null;
   
@@ -723,9 +725,13 @@ const DailyChallengesScreen = observer(({ navigation }: DailyChallengesProps) =>
       <FlatList
         data={challenges}
         keyExtractor={(item) => item.id}
-        renderItem={({ item }) => renderChallengeCard(item)}
+        renderItem={renderItem}
         onEndReached={loadMore}
         onEndReachedThreshold={0.4}
+        initialNumToRender={8}
+        maxToRenderPerBatch={8}
+        windowSize={9}
+        removeClippedSubviews
         ListFooterComponent={activeCategory === 'suggested' && canSuggestCommunity ? (
           <View style={styles.listFooter}>
             <TouchableOpacity
@@ -740,10 +746,9 @@ const DailyChallengesScreen = observer(({ navigation }: DailyChallengesProps) =>
             </TouchableOpacity>
           </View>
         ) : null}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        }
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
       />
     );
   };

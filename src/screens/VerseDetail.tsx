@@ -42,6 +42,7 @@ import {
 } from '@/components/Icons';
 import ReflectionCard from '@/components/ReflectionCard';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { useFocusEffect } from '@react-navigation/native';
 import type { Reflection, RootStackParamList } from '@/types';
 import { useTheme } from '@/contexts/ThemeContext';
 import CommentsOverlay from '@/components/CommentsOverlay';
@@ -148,6 +149,7 @@ const VerseDetail = ({ navigation, route }: VerseDetailProps) => {
 
   // Refs
   const flatListRef = useRef<FlatList>(null);
+  const videoRef = useRef<Video>(null);
 
   // Load verse data
   useEffect(() => {
@@ -159,6 +161,15 @@ const VerseDetail = ({ navigation, route }: VerseDetailProps) => {
     };
     loadVerse();
   }, [route.params.verse.id]);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      return () => {
+        try { videoRef.current?.pauseAsync?.(); } catch {}
+        try { videoRef.current?.unloadAsync?.(); } catch {}
+      };
+    }, [])
+  );
 
   // Load persisted reflection UI prefs
   useEffect(() => {
@@ -535,6 +546,12 @@ const VerseDetail = ({ navigation, route }: VerseDetailProps) => {
     } catch {}
     setIsRecording(false);
   };
+
+  useEffect(() => {
+    if (!showFace2Face && isRecording) {
+      stopRecording();
+    }
+  }, [showFace2Face, isRecording]);
 
   const flipCamera = () => {
     setCameraType((prev: CameraType) => (prev === 'front' ? 'back' : 'front'));
@@ -1085,6 +1102,7 @@ const VerseDetail = ({ navigation, route }: VerseDetailProps) => {
                 <View style={[styles.camera]}>
                   {!!videoUri && (
                     <Video
+                      ref={videoRef}
                       style={[StyleSheet.absoluteFill, { width: '100%', height: '100%' }]}
                       source={{ uri: videoUri }}
                       useNativeControls

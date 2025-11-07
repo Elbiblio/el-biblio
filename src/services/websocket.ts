@@ -39,6 +39,8 @@ class WebSocketService {
     updateHubInRealTime: (hubId: string, updates: any) => void;
     setConnectionStatus: (isConnected: boolean) => void;
   };
+  private reconnectAttempts = 0;
+  private reconnectTimer: any = null;
   
   // Configuration sourced from app.json extra to avoid process.env on SDK 52
   private config = (() => {
@@ -69,6 +71,8 @@ class WebSocketService {
   // Method to set auth information
   public setAuthInfo(authInfo: WebSocketAuthInfo): void {
     this.authInfo = authInfo;
+    if (this.reconnectTimer) { clearTimeout(this.reconnectTimer); this.reconnectTimer = null; }
+    this.reconnectAttempts = 0;
     
     // If we have a token and user, try to connect
     if (authInfo.token && authInfo.userId) {
@@ -90,7 +94,7 @@ class WebSocketService {
 
     // Check if we have auth info
     if (!this.authInfo.token) {
-      console.log('No auth token available for WebSocket connection');
+      if (__DEV__) console.log('No auth token available for WebSocket connection');
       return false;
     }
 
@@ -117,36 +121,40 @@ class WebSocketService {
 
       // Set up connection state handlers
       this.pusher.connection.bind('connected', () => {
-        console.log('Pusher connected');
+        if (__DEV__) console.log('Pusher connected');
         this.setState({ 
           isConnected: true, 
           isConnecting: false, 
           error: null,
           lastMessage: new Date()
         });
+        if (this.reconnectTimer) { clearTimeout(this.reconnectTimer); this.reconnectTimer = null; }
+        this.reconnectAttempts = 0;
         this.wordHubHandlers?.setConnectionStatus(true);
         this.subscribeToChannels();
       });
 
       this.pusher.connection.bind('disconnected', () => {
-        console.log('Pusher disconnected');
+        if (__DEV__) console.log('Pusher disconnected');
         this.setState({ 
           isConnected: false, 
           isConnecting: false
         });
         this.wordHubHandlers?.setConnectionStatus(false);
+        this.scheduleReconnect();
       });
 
       this.pusher.connection.bind('error', (error: any) => {
-        console.error('Pusher connection error:', error);
+        if (__DEV__) console.error('Pusher connection error:', error);
         this.setState({ 
           isConnecting: false,
           error: error.message || 'Connection failed'
         });
+        this.scheduleReconnect();
       });
 
       this.pusher.connection.bind('state_change', (states: any) => {
-        console.log('Pusher state changed:', states.previous, '->', states.current);
+        if (__DEV__) console.log('Pusher state changed:', states.previous, '->', states.current);
       });
 
       return true;
@@ -180,6 +188,22 @@ class WebSocketService {
       error: null
     });
     this.wordHubHandlers?.setConnectionStatus(false);
+    if (this.reconnectTimer) { clearTimeout(this.reconnectTimer); this.reconnectTimer = null; }
+    this.reconnectAttempts = 0;
+  }
+
+  private scheduleReconnect(): void {
+    if (!this.authInfo.token) return;
+    if (this.pusher?.connection.state === 'connected') return;
+    if (this.reconnectTimer) return;
+    const base = Math.min(30000, Math.pow(2, this.reconnectAttempts) * 1000);
+    const jitter = Math.floor(Math.random() * 500);
+    const delay = Math.max(1000, base + jitter);
+    this.reconnectAttempts = Math.min(this.reconnectAttempts + 1, 10);
+    this.reconnectTimer = setTimeout(async () => {
+      this.reconnectTimer = null;
+      await this.connect();
+    }, delay);
   }
 
   private subscribeToChannels(): void {
@@ -198,7 +222,7 @@ class WebSocketService {
   // Public method to subscribe to a specific channel (e.g., WordHub presence channels)
   public subscribeToChannel(channelName: string): Channel | PresenceChannel | null {
     if (!this.pusher) {
-      console.warn('Cannot subscribe: Pusher not initialized');
+      if (__DEV__) console.warn('Cannot subscribe: Pusher not initialized');
       return null;
     }
 
@@ -214,10 +238,10 @@ class WebSocketService {
       // Set up event listeners based on channel type
       this.setupChannelListeners(channelName, channel);
       
-      console.log(`Subscribed to channel: ${channelName}`);
+      if (__DEV__) console.log(`Subscribed to channel: ${channelName}`);
       return channel;
     } catch (error) {
-      console.error(`Failed to subscribe to channel ${channelName}:`, error);
+      if (__DEV__) console.error(`Failed to subscribe to channel ${channelName}:`, error);
       return null;
     }
   }
@@ -229,7 +253,7 @@ class WebSocketService {
       channel.unbind_all();
       this.pusher.unsubscribe(channelName);
       this.channels.delete(channelName);
-      console.log(`Unsubscribed from channel: ${channelName}`);
+      if (__DEV__) console.log(`Unsubscribed from channel: ${channelName}`);
     }
   }
 
@@ -271,15 +295,15 @@ class WebSocketService {
       // Presence channel specific events
       if ((channel as PresenceChannel).members) {
         (channel as PresenceChannel).bind('pusher:subscription_succeeded', (members: any) => {
-          console.log(`WordHub ${hubId} members:`, members.count);
+          if (__DEV__) console.log(`WordHub ${hubId} members:`, members.count);
         });
 
         (channel as PresenceChannel).bind('pusher:member_added', (member: any) => {
-          console.log(`Member joined WordHub ${hubId}:`, member.id);
+          if (__DEV__) console.log(`Member joined WordHub ${hubId}:`, member.id);
         });
 
         (channel as PresenceChannel).bind('pusher:member_removed', (member: any) => {
-          console.log(`Member left WordHub ${hubId}:`, member.id);
+          if (__DEV__) console.log(`Member left WordHub ${hubId}:`, member.id);
         });
       }
     }
@@ -305,7 +329,7 @@ class WebSocketService {
 
   // WordHub event handlers
   private handleWordHubMessage(hubId: string, data: any): void {
-    console.log('WordHub message received:', hubId, data);
+    if (__DEV__) console.log('WordHub message received:', hubId, data);
     this.setState({ lastMessage: new Date() });
     
     // Delegate to WordHubsStore if handler is set
@@ -317,7 +341,7 @@ class WebSocketService {
   }
 
   private handleWordHubUpdated(hubId: string, data: any): void {
-    console.log('WordHub updated:', hubId, data);
+    if (__DEV__) console.log('WordHub updated:', hubId, data);
     this.setState({ lastMessage: new Date() });
     
     // Delegate to WordHubsStore if handler is set
@@ -342,23 +366,23 @@ class WebSocketService {
   // Challenge event handlers
   private handleChallengeJoined(data: any): void {
     // Update challenge participants count
-    console.log('User joined challenge:', data);
+    if (__DEV__) console.log('User joined challenge:', data);
   }
 
   private handleChallengeLeft(data: any): void {
     // Update challenge participants count
-    console.log('User left challenge:', data);
+    if (__DEV__) console.log('User left challenge:', data);
   }
 
   private handleChallengeCompleted(data: any): void {
     // Update challenge completion status
-    console.log('Challenge completed:', data);
+    if (__DEV__) console.log('Challenge completed:', data);
   }
 
   // Notification handler
   private handleNotification(data: any): void {
     // Handle real-time notifications
-    console.log('New notification:', data);
+    if (__DEV__) console.log('New notification:', data);
     // You could integrate with a notification service here
   }
 
@@ -378,6 +402,12 @@ class WebSocketService {
       return true;
     }
     return false;
+  }
+
+  public async reconnect(): Promise<boolean> {
+    if (this.state.isConnecting) return false;
+    this.disconnect();
+    return this.connect();
   }
 
   // State management
@@ -450,6 +480,7 @@ export const useWebSocket = () => {
     ...state,
     connect: () => webSocketService.connect(),
     disconnect: () => webSocketService.disconnect(),
+    reconnect: () => webSocketService.reconnect(),
     sendMessage: (channelName: string, event: string, data: any) => 
       webSocketService.sendMessage(channelName, event, data),
     subscribeToChannel: (channelName: string) => webSocketService.subscribeToChannel(channelName),

@@ -1,6 +1,6 @@
 import 'react-native-gesture-handler';
 import React, { useEffect, useState } from 'react';
-import { Text, View, StyleSheet } from 'react-native';
+import { Text, View, StyleSheet, TouchableOpacity } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -59,7 +59,7 @@ import ChallengeCompletionBanner from './src/components/ChallengeCompletionBanne
 import type { Challenge } from './src/types/challenges';
 import { registerChallengeReminderTask } from './src/tasks/challengeReminderTask';
 import { usePreferencesStore, useChallengeStore } from './src/stores/StoreProvider';
-import { syncDailyNuggets } from './src/tasks/dailyNuggetOrchestrator';
+import { syncDailyNuggets, setDailyNuggetStores } from './src/tasks/dailyNuggetOrchestrator';
 
 registerGlobals();
 
@@ -98,6 +98,9 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { err
               <Text style={{ color: 'red', padding: 16, textAlign: 'center' }}>
                 Navigation error: {String(this.state.error?.message || this.state.error)}
               </Text>
+              <TouchableOpacity onPress={() => this.setState({ error: null })} style={{ paddingHorizontal: 16, paddingVertical: 10, backgroundColor: '#222', borderRadius: 8, marginTop: 12 }}>
+                <Text style={{ color: '#fff' }}>Restart app</Text>
+              </TouchableOpacity>
             </ThemeProvider>
           </GestureHandlerRootView>
         </SafeAreaProvider>
@@ -184,6 +187,7 @@ const AppContent = () => {
   const { setInitialized } = useAppInitialization();
   const fontsLoaded = useAppFonts();
   const { isInitialized: authInitialized, user, token } = useAuthStore();
+  const authStoreObj = useAuthStore();
   const preferencesStore = usePreferencesStore();
   const challengeStore = useChallengeStore();
   const { hasCompletedWelcome, initializeWelcomeState } = appStore;
@@ -222,6 +226,10 @@ const AppContent = () => {
 
     initialize();
   }, []);
+
+  useEffect(() => {
+    setDailyNuggetStores({ authStore: authStoreObj as any, preferencesStore: preferencesStore as any });
+  }, [authStoreObj, preferencesStore]);
 
   useEffect(() => {
     const startAudioSession = async () => {

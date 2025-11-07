@@ -136,6 +136,11 @@ const BiblePicker: React.FC<BiblePickerProps> = ({
                   </TouchableOpacity>
                 );
               }}
+              initialNumToRender={12}
+              maxToRenderPerBatch={12}
+              windowSize={11}
+              removeClippedSubviews
+              showsVerticalScrollIndicator={false}
             />
           </View>
         </View>

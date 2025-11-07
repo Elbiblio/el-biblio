@@ -58,6 +58,11 @@ export const setUnauthorizedHandler = (handler: (() => Promise<void> | void) | n
 // Single-flight reauthentication promise to avoid duplicate reauth attempts
 let reauthPromise: Promise<boolean> | null = null;
 
+let cachedToken: string | null = null;
+export const setTokenCache = (token: string | null) => {
+  cachedToken = token;
+};
+
 const reauthenticateOnce = async (): Promise<boolean> => {
   if (reauthPromise) return reauthPromise;
 
@@ -124,7 +129,11 @@ api.interceptors.request.use(
   async (config) => {
     const isAnonymous = config?.headers && (config.headers as any)['X-Anonymous'] === 'true';
     if (!isAnonymous) {
-      const token = await AsyncStorage.getItem('auth_token');
+      let token = cachedToken;
+      if (token == null) {
+        token = await AsyncStorage.getItem('auth_token');
+        cachedToken = token;
+      }
       if (token) {
         config.headers.Authorization = `Bearer ${token}`;
       }
@@ -149,7 +158,7 @@ api.interceptors.request.use(
     return config;
   },
   (error: AxiosError) => {
-    console.error('Request error:', error);
+    if (__DEV__) console.error('Request error:', error);
     return Promise.reject(error);
   }
 );
@@ -175,7 +184,7 @@ api.interceptors.response.use(
     return transformed;
   },
   async (error: unknown) => {
-    console.log('Response error:', error);
+    if (__DEV__) console.log('Response error:', error);
     if (axios.isCancel(error)) {
       return Promise.reject(error);
     }
@@ -190,7 +199,7 @@ api.interceptors.response.use(
     if (axios.isAxiosError(error)) {
       const { response, config } = error;
       const status = response?.status;
-      console.log('Response:', response);
+      if (__DEV__) console.log('Response:', response);
 
       // Implement single-flight reauth with queued retries
       if (status === 401) {
@@ -251,7 +260,7 @@ api.interceptors.response.use(
       }
 
       if (status && status >= 500) {
-        console.error('Server error:', response?.data);
+        if (__DEV__) console.error('Server error:', response?.data);
         errorResponse.message = 'Server error. Please try again later.';
         return Promise.reject(errorResponse);
       }

@@ -102,6 +102,17 @@ const CommentsOverlay: React.FC<CommentsOverlayProps> = ({
     onClose();
   }, [onClose]);
 
+  const renderItem = React.useCallback(({ item }: { item: Comment }) => (
+    <CommentThread
+      comment={item}
+      onReply={handleReply}
+      onLike={async () => {
+        if (!user) return;
+        await likeComment(item.id);
+      }}
+    />
+  ), [handleReply, likeComment, user]);
+
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -130,18 +141,15 @@ const CommentsOverlay: React.FC<CommentsOverlayProps> = ({
 
         <FlatList
           data={reflection?.comments || []}
-          renderItem={({ item }) => (
-            <CommentThread
-              comment={item}
-              onReply={handleReply}
-              onLike={async () => {
-                if (!user) return;
-                await likeComment(item.id);
-              }}
-            />
-          )}
+          renderItem={renderItem}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.commentsList}
+          initialNumToRender={10}
+          maxToRenderPerBatch={10}
+          windowSize={11}
+          removeClippedSubviews
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
         />
 
         <View style={styles.inputContainer}>

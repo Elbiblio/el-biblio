@@ -9,6 +9,7 @@ import {
   TouchableWithoutFeedback,
   Platform,
   ViewStyle,
+  FlatList,
 } from 'react-native';
 import Animated, {
   useSharedValue,
@@ -25,7 +26,7 @@ import { Share as RNShare } from 'react-native';
 import { Heart, MessageCircle, Share, BookmarkSimple, ChevronRight, ArrowRightPlay, Clock } from './Icons';
 import CommentThread from './CommentThread';
 import { useTheme } from '@/contexts/ThemeContext';
-import { ReflectionType, type Reflection } from '@/types';
+import { ReflectionType, type Reflection, type Comment } from '@/types';
 import { extractUniqueCommenters } from '@/utils/comments';
 import { SCREEN_DIMENSIONS, wp } from '@/constants';
 import CircleButton from './CircleButton';
@@ -212,6 +213,13 @@ const ReflectionCard: React.FC<ReflectionCardProps> = ({
       AsyncStorage.setItem(`reflection_progress_${reflection.id}`, String(seconds)).catch(() => {});
     }
   }, [reflection.id]);
+
+  React.useEffect(() => {
+    return () => {
+      try { videoRef.current?.pauseAsync?.(); } catch {}
+      try { videoRef.current?.unloadAsync?.(); } catch {}
+    };
+  }, []);
 
   const renderContent = () => (
     <View style={styles.contentContainer}>
@@ -407,14 +415,23 @@ const ReflectionCard: React.FC<ReflectionCardProps> = ({
           {renderContent()}
           {expanded && showComments && (
             <View style={styles.commentSection}>
-              {(reflection.comments ?? []).map((comment) => (
-                <CommentThread
-                  key={comment.id}
-                  comment={comment}
-                  onReply={() => {}}
-                  onLike={() => {}}
-                />
-              ))}
+              <FlatList
+                data={reflection.comments ?? []}
+                keyExtractor={(item) => item.id}
+                renderItem={React.useCallback(({ item }: { item: Comment }) => (
+                  <CommentThread
+                    comment={item}
+                    onReply={() => {}}
+                    onLike={() => {}}
+                  />
+                ), [])}
+                initialNumToRender={10}
+                maxToRenderPerBatch={10}
+                windowSize={11}
+                removeClippedSubviews
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={{ paddingBottom: 8 }}
+              />
             </View>
           )}
           {renderActions()}

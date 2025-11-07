@@ -1,7 +1,7 @@
 import { makeAutoObservable, runInAction } from 'mobx';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
-import { apiClient, endpoints, setUnauthorizedHandler } from '@/api/client';
+import { apiClient, endpoints, setUnauthorizedHandler, setTokenCache } from '@/api/client';
 import { User, UserRole, SignUpData } from '@/types';
 
 export class AuthStore {
@@ -136,6 +136,7 @@ export class AuthStore {
 
   private setToken = (token: string | null) => {
     this.token = token;
+    setTokenCache(token);
     if (token) {
       AsyncStorage.setItem(this.TOKEN_KEY, token);
     } else {

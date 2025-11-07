@@ -28,7 +28,7 @@ const AudioRoomContent = () => {
   const participants = useParticipants();
   const tracks = useTracks([Track.Source.Microphone]);
 
-  const renderParticipant = ({ item }: { item: any }) => {
+  const renderParticipant = React.useCallback(({ item }: { item: any }) => {
     const participant = item.participant;
     if (!participant) return null;
 
@@ -62,7 +62,7 @@ const AudioRoomContent = () => {
         )}
       </View>
     );
-  };
+  }, [theme.colors.text.inverse, theme.colors.text.primary, theme.colors.text.secondary, theme.colors.error, theme.colors.success]);
 
   return (
     <FlatList
@@ -77,6 +77,11 @@ const AudioRoomContent = () => {
         </View>
       )}
       contentContainerStyle={participants.length === 0 ? styles.emptyContent : undefined}
+      initialNumToRender={10}
+      maxToRenderPerBatch={10}
+      windowSize={11}
+      removeClippedSubviews
+      showsVerticalScrollIndicator={false}
     />
   );
 };

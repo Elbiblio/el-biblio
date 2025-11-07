@@ -120,6 +120,13 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
     setFormattedContent(parseMarkdown(initialContent));
   }, [initialTitle, initialContent]);
 
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setFormattedContent(parseMarkdown(content));
+    }, 120);
+    return () => clearTimeout(t);
+  }, [content]);
+
   // Handle closing animation
   const handleClose = useCallback(() => {
     Keyboard.dismiss();
@@ -466,7 +473,6 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                   value={content}
                   onChangeText={(text) => {
                     setContent(text);
-                    setFormattedContent(parseMarkdown(text));
                   }}
                   onFocus={handleContentFocus}
                   onBlur={handleContentBlur}

@@ -73,7 +73,7 @@ export function parseVPLId(vplId: string): { bookAbbr: string, chapter: number, 
   // Capture either 3 letters OR 2 alnum, then chapter:verse
   const match = vplId.match(/^((?:[A-Za-z]{3})|(?:[A-Za-z0-9]{2}))\s*(\d+)[_:]([0-9]+)([A-Za-z]?)(?:[-–][0-9]+[A-Za-z]?)?$/);
   if (!match) {
-    try { console.warn('[parseVPLId] Unrecognized verseID format:', vplId); } catch {}
+    try { if (__DEV__) console.warn('[parseVPLId] Unrecognized verseID format:', vplId); } catch {}
     throw new Error('Invalid VPL ID format');
   }
 
@@ -124,7 +124,7 @@ export function parseVPLId(vplId: string): { bookAbbr: string, chapter: number, 
   }
 
   if (!bookAbbr) {
-    try { console.warn('[parseVPLId] Unknown book code:', codeOrAbbr, 'from', vplId); } catch {}
+    try { if (__DEV__) console.warn('[parseVPLId] Unknown book code:', codeOrAbbr, 'from', vplId); } catch {}
     throw new Error(`Unknown book code: ${codeOrAbbr}`);
   }
 
@@ -213,12 +213,12 @@ class BibleDBService {
 
     this.isInitializing = true;
     try {
-      console.log("Initializing Bible database service...");
+      if (__DEV__) console.log("Initializing Bible database service...");
       const sqliteDir = `${FileSystem.documentDirectory}SQLite`;
       const dirInfo = await FileSystem.getInfoAsync(sqliteDir);
 
       if (!dirInfo.exists) {
-        console.log(`Creating SQLite directory at: ${sqliteDir}`);
+        if (__DEV__) console.log(`Creating SQLite directory at: ${sqliteDir}`);
         await FileSystem.makeDirectoryAsync(sqliteDir, { intermediates: true });
       }
 
@@ -226,7 +226,7 @@ class BibleDBService {
       const dbExists = await FileSystem.getInfoAsync(defaultDbPath);
 
       if (!dbExists.exists) {
-        console.log(`Default Bible database not found. Copying from assets to: ${defaultDbPath}`);
+        if (__DEV__) console.log(`Default Bible database not found. Copying from assets to: ${defaultDbPath}`);
         try {
           const assets = await Asset.Asset.loadAsync(require('../../assets/bibles/rv.db'));
           const defaultBibleAsset = assets[0];
@@ -235,7 +235,7 @@ class BibleDBService {
             throw new Error('Failed to load default Bible asset');
           }
 
-          console.log(`Copying from: ${defaultBibleAsset.localUri} to: ${defaultDbPath}`);
+          if (__DEV__) console.log(`Copying from: ${defaultBibleAsset.localUri} to: ${defaultDbPath}`);
           await FileSystem.copyAsync({
             from: defaultBibleAsset.localUri,
             to: defaultDbPath
@@ -246,13 +246,13 @@ class BibleDBService {
           if (!verifyDbExists.exists) {
             throw new Error(`Failed to copy Bible database to: ${defaultDbPath}`);
           }
-          console.log("Default Bible database copied successfully");
+          if (__DEV__) console.log("Default Bible database copied successfully");
         } catch (error) {
-          console.error('Failed to copy default Bible:', error);
+          if (__DEV__) console.error('Failed to copy default Bible:', error);
           throw new Error(`Failed to copy default Bible database: ${(error as Error).message}`);
         }
       } else {
-        console.log("Default Bible database already exists");
+        if (__DEV__) console.log("Default Bible database already exists");
       }
 
       // Load versions information from bundled JSON (avoid Asset for JSON)
@@ -260,7 +260,7 @@ class BibleDBService {
         const versions: BibleVersion[] = (versionsList as unknown as BibleVersion[]);
         await AsyncStorage.setItem('bibleVersions', JSON.stringify(versions));
       } catch (error) {
-        console.error('Failed to load versions:', error);
+        if (__DEV__) console.error('Failed to load versions:', error);
         // Load fallback versions from constant if available
         const fallbackVersions = [
           {
@@ -277,10 +277,10 @@ class BibleDBService {
       this.setupAppStateMonitoring();
 
       this.isInitialized = true;
-      console.log("Bible database service initialized successfully");
+      if (__DEV__) console.log("Bible database service initialized successfully");
     } catch (error) {
       this.isInitialized = false;
-      console.error('Failed to initialize Bible database:', error);
+      if (__DEV__) console.error('Failed to initialize Bible database:', error);
       throw new Error(`Bible database initialization failed: ${(error as Error).message}`);
     } finally {
       this.isInitializing = false;
@@ -301,18 +301,18 @@ class BibleDBService {
       // Monitor app state changes
       this.appStateSubscription = AppState.addEventListener('change', (nextAppState: string) => {
         if (nextAppState === 'active') {
-          console.log('App has come to the foreground, validating database connections');
+          if (__DEV__) console.log('App has come to the foreground, validating database connections');
           // Validate all connections when app comes to foreground
           this.validateAllConnections();
         } else if (nextAppState === 'background' || nextAppState === 'inactive') {
-          console.log('App going to background, clearing database cache');
+          if (__DEV__) console.log('App going to background, clearing database cache');
           // When app goes to background, clear our cached instances
           // We'll reestablish them when needed
           this.instances.clear();
         }
       });
     } catch (error) {
-      console.log('AppState monitoring not available in this environment');
+      if (__DEV__) console.log('AppState monitoring not available in this environment');
     }
   }
 
@@ -322,9 +322,9 @@ class BibleDBService {
       try {
         // Check if connection is valid with a simple query
         await db.execAsync('SELECT 1');
-        console.log(`Database connection for ${version} is valid`);
+        if (__DEV__) console.log(`Database connection for ${version} is valid`);
       } catch (error) {
-        console.log(`Database connection for ${version} is invalid, removing from cache`);
+        if (__DEV__) console.log(`Database connection for ${version} is invalid, removing from cache`);
         this.instances.delete(version);
       }
     }
@@ -336,7 +336,7 @@ class BibleDBService {
       await db.execAsync('SELECT 1');
       return true;
     } catch (error) {
-      console.log(`Database connection for ${version} is invalid`);
+      if (__DEV__) console.log(`Database connection for ${version} is invalid`);
       this.instances.delete(version);
       return false;
     }
@@ -363,7 +363,7 @@ class BibleDBService {
         }
         // If invalid, it was removed from instances, and we'll continue to create a new one
       } catch (error) {
-        console.log(`Error validating connection for ${normalizedVersion}, creating new connection`);
+        if (__DEV__) console.log(`Error validating connection for ${normalizedVersion}, creating new connection`);
         this.instances.delete(normalizedVersion);
         // Continue to create a new connection
       }
@@ -382,7 +382,7 @@ class BibleDBService {
           // Try to initialize the default version if it's the one being requested
           if (normalizedVersion === this.DEFAULT_VERSION) {
             try {
-              console.log(`Attempting to initialize default Bible database at: ${dbPath}`);
+              if (__DEV__) console.log(`Attempting to initialize default Bible database at: ${dbPath}`);
               await this.initialize();
 
               // Check again after initialization attempt
@@ -391,7 +391,7 @@ class BibleDBService {
                 throw new Error(`Default Bible database could not be initialized at: ${dbPath}`);
               }
             } catch (error) {
-              console.error('Error during database initialization:', error);
+              if (__DEV__) console.error('Error during database initialization:', error);
               throw new Error('Default Bible database initialization failed');
             }
           } else {
@@ -399,14 +399,14 @@ class BibleDBService {
           }
         }
 
-        console.log(`Opening database: ${dbName}`);
+        if (__DEV__) console.log(`Opening database: ${dbName}`);
         const db = await openDatabaseAsync(dbName);
 
         // Verify database integrity with better error handling
         try {
           await db.execAsync('SELECT count(*) FROM sqlite_master');
         } catch (integrityError) {
-          console.error(`Database integrity check failed for ${normalizedVersion}:`, integrityError);
+          if (__DEV__) console.error(`Database integrity check failed for ${normalizedVersion}:`, integrityError);
 
           // Attempt to recover by deleting and reinstalling
           if (normalizedVersion === this.DEFAULT_VERSION) {
@@ -425,12 +425,12 @@ class BibleDBService {
         return db;
       } catch (error) {
         retries++;
-        console.error(`Attempt ${retries} failed to open database ${normalizedVersion}:`, error);
+        if (__DEV__) console.error(`Attempt ${retries} failed to open database ${normalizedVersion}:`, error);
         
         if (retries > maxRetries) {
           // If we've exhausted retries, try the default version as a last resort
           if (normalizedVersion !== this.DEFAULT_VERSION) {
-            console.log(`All attempts failed, trying default version instead`);
+            if (__DEV__) console.log(`All attempts failed, trying default version instead`);
             return this.getDatabase(this.DEFAULT_VERSION);
           } else {
             throw new Error(`Failed to open Bible version ${normalizedVersion} after multiple attempts`);
@@ -464,7 +464,7 @@ class BibleDBService {
         
         // If it's a "closed resource" error, clear the instance and retry
         if (errorMessage.includes('closed resource') && retries <= maxRetries) {
-          console.log(`Database closed, retrying operation (attempt ${retries}/${maxRetries})`);
+          if (__DEV__) console.log(`Database closed, retrying operation (attempt ${retries}/${maxRetries})`);
           this.instances.delete(version.replace('.db', ''));
           await new Promise(resolve => setTimeout(resolve, 200 * retries));
           continue;

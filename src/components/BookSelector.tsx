@@ -42,6 +42,11 @@ const BookSelector: React.FC<BookSelectorProps> = ({ currentBook, onSelect, book
                   <Text style={styles.pickerItemText}>{item.name}</Text>
                 </TouchableOpacity>
               )}
+              initialNumToRender={20}
+              maxToRenderPerBatch={20}
+              windowSize={11}
+              removeClippedSubviews
+              showsVerticalScrollIndicator={false}
             />
           </View>
         </View>

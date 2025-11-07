@@ -95,7 +95,6 @@ jobs:
         with:
           distribution: 'temurin'
           java-version: '17'
-          cache: 'gradle'
 
       - name: Cache Gradle files
         uses: actions/cache@v4
@@ -109,6 +108,11 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Expo prebuild (android)
+        run: npx expo prebuild --non-interactive --platform android
+        env:
+          EXPO_NO_DOCTOR: 1
 
       - name: Apply Android versioning
         run: |
