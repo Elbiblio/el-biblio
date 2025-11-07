@@ -373,6 +373,7 @@ jobs:
               echo "Failed to detect scheme from workspace" >&2
               exit 1
             fi
+            echo "Building scheme: $SCHEME"
             xcodebuild \
               -workspace "$WORKSPACE" \
               -scheme "$SCHEME" \
@@ -392,6 +393,7 @@ jobs:
               echo "Failed to detect scheme from project" >&2
               exit 1
             fi
+            echo "Building scheme: $SCHEME"
             xcodebuild \
               -project "$PROJECT" \
               -scheme "$SCHEME" \
@@ -406,16 +408,23 @@ jobs:
             ls -1d ios/*.xcworkspace ios/*.xcodeproj 2>/dev/null || true
             exit 1
           fi
+          echo "Build completed. Checking outputs..."
+          find ios/build -type d -name "*.app" 2>/dev/null || echo "No .app bundles found in ios/build"
+          ls -la ios/build/Build/Products/ 2>/dev/null || echo "Products directory not found"
 
       - name: Package iOS build
         id: package-ios
         run: |
-          APP=$(find ios/build/Build/Products -type d -name "*.app" -print -quit)
+          APP=$(find ios/build -type d -name "*.app" -print -quit 2>/dev/null || true)
           if [ -z "$APP" ]; then
             echo "No .app bundle produced" >&2
-            find ios/build -type d -name "*.app" 2>/dev/null || true
+            echo "Searching entire ios/build directory structure:"
+            find ios/build -type d 2>/dev/null | head -20 || true
+            echo "Searching for any .app bundles:"
+            find ios -type d -name "*.app" 2>/dev/null || echo "No .app found anywhere in ios/"
             exit 1
           fi
+          echo "Found .app at: $APP"
           OUTDIR=$(dirname "$APP")
           BASENAME=$(basename "$APP")
           cd "$OUTDIR"
