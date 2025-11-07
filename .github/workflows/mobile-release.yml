@@ -367,7 +367,7 @@ jobs:
             echo "Using workspace: $WORKSPACE"
             echo "Available schemes:"
             xcodebuild -list -workspace "$WORKSPACE" 2>/dev/null | grep -A 100 "Schemes:" || true
-            SCHEME=$(xcodebuild -list -json -workspace "$WORKSPACE" 2>/dev/null | node -e "let s='';process.stdin.on('data',d=>s+=d);process.stdin.on('end',()=>{try{const j=JSON.parse(s);const arr=(j.workspace&&j.workspace.schemes)||[];const pick=arr.find(n=>!/^Pods(\\b|\\-)/.test(n)&&!/Tests$/.test(n))||arr[0]||'';process.stdout.write(pick)}catch(e){} })" || true)
+            SCHEME=$(xcodebuild -list -json -workspace "$WORKSPACE" 2>/dev/null | node -e "let s='';process.stdin.on('data',d=>s+=d);process.stdin.on('end',()=>{try{const j=JSON.parse(s);const arr=(j.workspace&&j.workspace.schemes)||[];const pick=arr.find(n=>/^(ElBiblio|El-Biblio|Elbiblio)/.test(n))||arr.find(n=>!/^Pods(\\b|\\-)/.test(n)&&!/Tests$/.test(n))||arr[0]||'';process.stdout.write(pick)}catch(e){} })" || true)
             if [ -z "$SCHEME" ]; then
               SCHEME=$(xcodebuild -list -workspace "$WORKSPACE" 2>/dev/null | awk '/Schemes:/ {getline; print $1; exit}')
             fi
@@ -406,7 +406,7 @@ jobs:
             echo "Using project: $PROJECT"
             echo "Available schemes:"
             xcodebuild -list -project "$PROJECT" 2>/dev/null | grep -A 100 "Schemes:" || true
-            SCHEME=$(xcodebuild -list -json -project "$PROJECT" 2>/dev/null | node -e "let s='';process.stdin.on('data',d=>s+=d);process.stdin.on('end',()=>{try{const j=JSON.parse(s);const arr=(j.project&&j.project.schemes)||[];const pick=arr.find(n=>!/^Pods(\\b|\\-)/.test(n)&&!/Tests$/.test(n))||arr[0]||'';process.stdout.write(pick)}catch(e){} })" || true)
+            SCHEME=$(xcodebuild -list -json -project "$PROJECT" 2>/dev/null | node -e "let s='';process.stdin.on('data',d=>s+=d);process.stdin.on('end',()=>{try{const j=JSON.parse(s);const arr=(j.project&&j.project.schemes)||[];const pick=arr.find(n=>/^(ElBiblio|El-Biblio|Elbiblio)/.test(n))||arr.find(n=>!/^Pods(\\b|\\-)/.test(n)&&!/Tests$/.test(n))||arr[0]||'';process.stdout.write(pick)}catch(e){} })" || true)
             if [ -z "$SCHEME" ]; then
               SCHEME=$(xcodebuild -list -project "$PROJECT" 2>/dev/null | awk '/Schemes:/ {getline; print $1; exit}')
             fi
