@@ -32,6 +32,7 @@ import { setAudioModeAsync } from 'expo-audio';
 import { activateKeepAwake, deactivateKeepAwake } from 'expo-keep-awake';
 import { playCue, playMusic, stopByKey, stopMusic, stopAllSounds, setMusicVolume, playLoopByKey, playOneShotByKey, SoundKey } from '@/services/audio';
 import { AudioCoordinator } from '@/services/AudioCoordinator';
+import { MeditationOrchestrator } from '@/services/MeditationOrchestrator';
 import BibleDBService from '@/utils/database';
 import { bibleBooks } from '@/constants/bibleBooks';
 import { DailyChallenge } from '@/types';
@@ -234,15 +235,9 @@ const MeditationScreen = () => {
   const congratulatedRef = useRef(false);
 
   // Refs for flow control
-  const isEndingPhase = useRef(false);
-  const hasReadChallenge = useRef(false);
-  const hasStartedFinalCountdown = useRef(false);
-  const firstTwoMinutesCompleted = useRef(false);
-  const hasTriggeredEndBell = useRef(false);
   const hasMarkedComplete = useRef(false);
   const spokenPromptsRef = useRef<Set<number>>(new Set());
-  const sessionInitRef = useRef(false);
-  const promptsStartedRef = useRef(false);
+  const orchestratorRef = useRef<MeditationOrchestrator | null>(null);
 
   const pauseAllAudio = React.useCallback(() => {
     try { Speech.stop(); } catch {}
@@ -257,6 +252,10 @@ const MeditationScreen = () => {
     // Pause audio coordinator if in chant mode
     if (selectedStyle === 'chant' && audioCoordinatorRef.current) {
       audioCoordinatorRef.current.pause();
+    }
+    // Pause orchestrator
+    if (orchestratorRef.current) {
+      orchestratorRef.current.pause();
     }
   }, [chosenChantId, selectedStyle]);
 
@@ -287,6 +286,36 @@ const MeditationScreen = () => {
     [selectedTime]
   );
   const promptInterval = totalMeditationSeconds > 0 ? Math.floor(totalMeditationSeconds / 4) : 0;
+  const orchestratorConfigRef = useRef({
+    selectedStyle,
+    promptInterval,
+    totalMeditationSeconds,
+    selectedChallenge,
+    centeringWord,
+    centeringReadMode,
+    centeringRepeatIntervalSec,
+  });
+
+  useEffect(() => {
+    orchestratorConfigRef.current = {
+      selectedStyle,
+      promptInterval,
+      totalMeditationSeconds,
+      selectedChallenge,
+      centeringWord,
+      centeringReadMode,
+      centeringRepeatIntervalSec,
+    };
+  }, [
+    selectedStyle,
+    promptInterval,
+    totalMeditationSeconds,
+    selectedChallenge,
+    centeringWord,
+    centeringReadMode,
+    centeringRepeatIntervalSec,
+  ]);
+
   const sessions = meditationStore.state.sessions;
   const completedSessions = React.useMemo(() => {
     if (!selectedVirtue) return sessions.length;
@@ -519,12 +548,6 @@ const MeditationScreen = () => {
         breathTimeoutsRef.current = [];
       } catch { }
       try {
-        if (centeringIntervalRef.current) {
-          clearInterval(centeringIntervalRef.current as any);
-          centeringIntervalRef.current = null;
-        }
-      } catch { }
-      try {
         if (audioCoordinatorRef.current) {
           audioCoordinatorRef.current.stop();
           audioCoordinatorRef.current = null;
@@ -579,7 +602,7 @@ const MeditationScreen = () => {
         rate: 0.85,
         onDone: () => {
           isSpeaking.current = false;
-          if (index === meditationGuide.prompts.length - 1 && !isEndingPhase.current && declaration) {
+          if (index === meditationGuide.prompts.length - 1 && declaration) {
             setTimeout(() => {
               speakWithDuck(declaration, { rate: 0.85 });
             }, 1200);
@@ -648,10 +671,8 @@ const MeditationScreen = () => {
                     setTimeout(() => {
                       // Skip all intro speech in chant mode - go straight to music
                       if (selectedStyle === 'chant') {
-                        console.log('[MeditationScreen] Chant mode: playing bell and starting music');
                         playCue('meditationBell');
                         setTimeout(() => {
-                          console.log('[MeditationScreen] Chant mode: setting introCompleted=true');
                           setIntroCompleted(true);
                           setBreathePhase('in');
                         }, 500);
@@ -772,9 +793,8 @@ const MeditationScreen = () => {
   }, [breatheTextOpacity]);
 
   const breathTimeoutsRef = useRef<Array<ReturnType<typeof setTimeout>>>([]);
-  const virtueStagesRef = useRef<{ s1: boolean; s2: boolean }>({ s1: false, s2: false });
-  const centeringIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const audioCoordinatorRef = useRef<AudioCoordinator | null>(null);
+  const breathCycleCount = useRef(0);
 
   useEffect(() => {
     if (selectedStyle === 'jesus_prayer' && jesusPrayerPace) {
@@ -783,22 +803,9 @@ const MeditationScreen = () => {
   }, [selectedStyle, jesusPrayerPace]);
 
   useEffect(() => {
-    let cancelled = false;
-    const run = async () => {
-      if (!(selectedStyle === 'chant' && meditationState === MeditationState.ACTIVE)) {
-        const key = CHANT_INSTRUMENTAL_MAP[chosenChantId || ''];
-        if (key) {
-          try { await stopByKey(key); } catch { }
-        }
-      }
-    };
-    run();
-    return () => { cancelled = true; };
-  }, [selectedStyle, chosenChantId, meditationState]);
-
-  useEffect(() => {
     breathTimeoutsRef.current.forEach(clearTimeout);
     breathTimeoutsRef.current = [];
+    breathCycleCount.current = 0;
 
     if (meditationState === MeditationState.ACTIVE && introCompleted) {
       const pace = BREATH_CONFIG[selectedPace];
@@ -814,7 +821,8 @@ const MeditationScreen = () => {
         const phaseDuration = phase === 'in' ? pace.in : phase === 'hold' ? pace.hold : pace.out;
         animateBreathText(phaseDuration);
 
-        if (phase === 'out' && !firstTwoMinutesCompleted.current) {
+        // Only play bell on first 3 breath cycles (intro phase)
+        if (phase === 'out' && breathCycleCount.current < 3) {
           playBellSound();
         }
 
@@ -823,6 +831,7 @@ const MeditationScreen = () => {
           const nextIndex = (phaseIndex + 1) % phases.length;
           if (nextIndex === 0) {
             loopsCompleted += 1;
+            breathCycleCount.current += 1;
             if (loopsTarget !== Infinity && loopsCompleted >= loopsTarget) {
               running = false;
               return;
@@ -853,7 +862,7 @@ const MeditationScreen = () => {
         breathTimeoutsRef.current = [];
       };
     }
-  }, [meditationState, introCompleted, selectedPace, selectedBreathLoops, animateBreathText, pulseAnim, firstTwoMinutesCompleted]);
+  }, [meditationState, introCompleted, selectedPace, selectedBreathLoops, animateBreathText, pulseAnim]);
 
   // Enhanced breathing circle style with better animation match
   const breathingCircleStyle = useAnimatedStyle(() => ({
@@ -887,148 +896,61 @@ const MeditationScreen = () => {
     return () => clearInterval(interval);
   }, [meditationState, countdown]);
 
-  // Meditation timer and progress with end-session enhancements (rely on store timer)
+  // Meditation Orchestrator - centralizes prompt/sound scheduling
   useEffect(() => {
-    let interval: number;
     if (meditationState === MeditationState.ACTIVE && selectedTime && introCompleted) {
-      if (!sessionInitRef.current) {
-        sessionInitRef.current = true;
-        promptsStartedRef.current = true;
-        spokenPromptsRef.current.clear();
-        firstTwoMinutesCompleted.current = false;
-        hasReadChallenge.current = false;
-        hasStartedFinalCountdown.current = false;
-        isEndingPhase.current = false;
-        hasTriggeredEndBell.current = false;
-        hasMarkedComplete.current = false;
-        virtueStagesRef.current = { s1: false, s2: false };
-        showAndSpeakPrompt(0);
-      }
-
-      interval = setInterval(() => {
-        const newValue = meditationStore.state.meditationTimer;
-        progressAnim.value = newValue / totalMeditationSeconds;
-
-        if (newValue >= 120 && !firstTwoMinutesCompleted.current) {
-          firstTwoMinutesCompleted.current = true;
-        }
-
-        if (selectedStyle === 'virtue') {
-          const s1 = Math.floor(totalMeditationSeconds * 2 / 5);
-          const s2 = Math.floor(totalMeditationSeconds * 4 / 5);
-          if (!virtueStagesRef.current.s1 && newValue >= s1) {
-            virtueStagesRef.current.s1 = true;
-            showAndSpeakPrompt(1);
-          }
-          if (!virtueStagesRef.current.s2 && newValue >= s2) {
-            virtueStagesRef.current.s2 = true;
-            showAndSpeakPrompt(2);
-          }
-        } else {
-          if (
-            selectedStyle !== 'chant' &&
-            promptInterval > 0 &&
-            newValue > 0 &&
-            newValue % promptInterval === 0 &&
-            newValue < totalMeditationSeconds - 30
-          ) {
-            const nextPromptIndex = Math.floor(newValue / promptInterval);
-            if (nextPromptIndex < 4 && !spokenPromptsRef.current.has(nextPromptIndex)) {
-              showAndSpeakPrompt(nextPromptIndex);
-            }
-          }
-        }
-
-        if (totalMeditationSeconds - newValue <= 30 && !hasReadChallenge.current) {
-          hasReadChallenge.current = true;
-          isEndingPhase.current = true;
-          // Skip challenge announcement in chant mode
-          if (selectedStyle !== 'chant') {
-            setTimeout(() => {
-              speakWithDuck("Your challenge is:", {
-                rate: 0.85, onDone: () => {
-                  if (selectedChallenge) {
-                    speakWithDuck(selectedChallenge.title, {
-                      rate: 0.85, onDone: () => {
-                        speakWithDuck(selectedChallenge.description, { rate: 0.85 });
-                      }
-                    });
-                  }
-                }
-              });
-            }, 500);
-          }
-        }
-
-        const timeLeft = totalMeditationSeconds - newValue;
-        if (timeLeft === 3 && !hasStartedFinalCountdown.current) {
-          hasStartedFinalCountdown.current = true;
-          try { Speech.stop(); } catch {}
-          let n = 3;
-          const finalInterval = setInterval(() => {
-            if (n > 0) {
-              speakWithDuck(`${n}`, { rate: 0.9 });
-              n -= 1;
-            } else {
-              clearInterval(finalInterval);
-            }
-          }, 1000);
-        }
-
-        if (timeLeft === 0 && !hasTriggeredEndBell.current) {
-          hasTriggeredEndBell.current = true;
-          playMeditationBellSound();
-          speakWithDuck('Open your eyes', {
-            rate: 0.85,
-            onDone: () => {
+      if (!orchestratorRef.current) {
+        orchestratorRef.current = new MeditationOrchestrator({
+          getTimer: () => meditationStore.state.meditationTimer,
+          getConfig: () => orchestratorConfigRef.current,
+          callbacks: {
+            speak: (text: string, opts?: any) => speakWithDuck(text, opts),
+            showAndSpeakPrompt: (i: number) => showAndSpeakPrompt(i),
+            playCue: (cue: string) => playCue(cue as any),
+            playBell: () => playMeditationBellSound(),
+            onComplete: () => {
               if (!hasMarkedComplete.current) {
                 hasMarkedComplete.current = true;
                 endMeditationSession();
               }
-            }
-          });
-        }
+            },
+          },
+        });
+        orchestratorRef.current.start();
+      }
+    } else {
+      if (orchestratorRef.current) {
+        orchestratorRef.current.stop();
+        orchestratorRef.current = null;
+      }
+    }
+    return () => {
+      if (orchestratorRef.current && (meditationState !== MeditationState.ACTIVE || !introCompleted)) {
+        orchestratorRef.current.stop();
+        orchestratorRef.current = null;
+      }
+    };
+  }, [meditationState, selectedTime, introCompleted]);
+
+  // Simplified progress animation - orchestrator handles all prompts/sounds
+  useEffect(() => {
+    let interval: number;
+    if (meditationState === MeditationState.ACTIVE && selectedTime) {
+      interval = setInterval(() => {
+        const newValue = meditationStore.state.meditationTimer;
+        progressAnim.value = newValue / totalMeditationSeconds;
       }, 500);
     }
     return () => clearInterval(interval);
-  }, [meditationState, selectedTime, promptInterval, totalMeditationSeconds, selectedChallenge, introCompleted]);
+  }, [meditationState, selectedTime, totalMeditationSeconds]);
 
+  // Reset session state when meditation ends
   useEffect(() => {
     if (meditationState !== MeditationState.ACTIVE) {
-      sessionInitRef.current = false;
-      promptsStartedRef.current = false;
+      hasMarkedComplete.current = false;
       try { spokenPromptsRef.current.clear(); } catch {}
     }
   }, [meditationState]);
-
-  useEffect(() => {
-    if (centeringIntervalRef.current) {
-      clearInterval(centeringIntervalRef.current as any);
-      centeringIntervalRef.current = null;
-    }
-    if (meditationState === MeditationState.ACTIVE && selectedStyle === 'centering' && introCompleted) {
-      const intervalMs = Math.max(10, Math.min(30, centeringRepeatIntervalSec)) * 1000;
-      centeringIntervalRef.current = setInterval(() => {
-        const word = (centeringWord || 'Jesus').trim();
-        if (centeringReadMode === 'aloud') {
-          speakWithDuck(word, {
-            rate: 0.85,
-            onDone: () => {
-              playCue('meditationBell');
-            },
-          });
-        } else {
-          playCue('meditationBell');
-        }
-      }, intervalMs) as any;
-    }
-    return () => {
-      if (centeringIntervalRef.current) {
-        clearInterval(centeringIntervalRef.current as any);
-        centeringIntervalRef.current = null;
-      }
-    };
-  }, [meditationState, selectedStyle, introCompleted, centeringReadMode, centeringRepeatIntervalSec, centeringWord]);
 
   // Chant mode audio coordination with AudioCoordinator
   useEffect(() => {
@@ -1046,35 +968,22 @@ const MeditationScreen = () => {
     const instrumental = CHANT_INSTRUMENTAL_MAP[chosenChantId || ''];
     const pauseMs = Math.max(15, Math.min(60, chantReflectionPauseSec)) * 1000;
 
-    console.log('[MeditationScreen] Initializing AudioCoordinator', {
-      chosenChantId,
-      voice,
-      instrumental,
-      pauseMs,
-    });
-
     const coordinator = new AudioCoordinator({
       voiceKey: voice as SoundKey,
       instrumentalKey: instrumental as SoundKey,
       cues: ['Be still', 'Rest', 'Listen'],
       pauseDurationMs: pauseMs,
-      onPhaseChange: (phase) => {
-        console.log('[MeditationScreen] Chant phase:', phase);
-      },
+      onPhaseChange: () => {},
     });
 
     audioCoordinatorRef.current = coordinator;
 
     // Preload and start
-    console.log('[MeditationScreen] Preloading chant audio...');
     coordinator.preload().then(() => {
-      console.log('[MeditationScreen] Preload complete, starting coordinator');
       if (audioCoordinatorRef.current === coordinator) {
         coordinator.start();
       }
-    }).catch((error) => {
-      console.error('[MeditationScreen] Preload failed:', error);
-    });
+    }).catch(() => {});
 
     return () => {
       coordinator.stop();
@@ -1180,6 +1089,10 @@ const MeditationScreen = () => {
     // Resume audio coordinator if in chant mode
     if (selectedStyle === 'chant' && audioCoordinatorRef.current) {
       audioCoordinatorRef.current.resume();
+    }
+    // Resume orchestrator
+    if (orchestratorRef.current) {
+      orchestratorRef.current.resume();
     }
   }, [meditationStore, selectedStyle]);
 
@@ -1589,10 +1502,6 @@ const MeditationScreen = () => {
           // Clear local timers/intervals
           breathTimeoutsRef.current.forEach(clearTimeout);
           breathTimeoutsRef.current = [];
-          if (centeringIntervalRef.current) {
-            clearInterval(centeringIntervalRef.current as any);
-            centeringIntervalRef.current = null;
-          }
           if (audioCoordinatorRef.current) {
             audioCoordinatorRef.current.stop();
             audioCoordinatorRef.current = null;
