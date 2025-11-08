@@ -104,6 +104,7 @@ export class MeditationStore {
   }
   private countdownInterval: number | null = null;
   private meditationInterval: number | null = null;
+  private externalDriver: boolean = false;
   
   constructor(authStore: AuthStore) {
     // Auto-bind ensures methods keep the correct `this` when passed around/destructured
@@ -466,10 +467,11 @@ export class MeditationStore {
     
     this.state.meditationState = 'countdown';
     this.state.countdown = 5; // 5-second countdown
-    
-    this.countdownInterval = setInterval(() => {
-      this.decrementCountdown();
-    }, 1000);
+    if (!this.externalDriver) {
+      this.countdownInterval = setInterval(() => {
+        this.decrementCountdown();
+      }, 1000);
+    }
   }
 
   decrementCountdown() {
@@ -484,13 +486,34 @@ export class MeditationStore {
     }
   }
 
+  setCountdown(n: number) {
+    const value = Math.max(0, Math.floor(n || 0));
+    this.state.countdown = value;
+  }
+
   private startMeditationTimer() {
     this.state.meditationState = 'active';
     this.state.meditationTimer = 0;
-    
-    this.meditationInterval = setInterval(() => {
-      this.incrementMeditationTimer();
-    }, 1000);
+    if (!this.externalDriver) {
+      this.meditationInterval = setInterval(() => {
+        this.incrementMeditationTimer();
+      }, 1000);
+    }
+  }
+
+  beginActivePhase() {
+    // For external driver to force transition to ACTIVE
+    if (this.countdownInterval) {
+      clearInterval(this.countdownInterval);
+      this.countdownInterval = null;
+    }
+    this.state.meditationState = 'active';
+    this.state.meditationTimer = 0;
+    if (!this.externalDriver) {
+      this.meditationInterval = setInterval(() => {
+        this.incrementMeditationTimer();
+      }, 1000);
+    }
   }
 
   incrementMeditationTimer() {
@@ -504,6 +527,11 @@ export class MeditationStore {
         this.meditationInterval = null;
       }
     }
+  }
+
+  // Allow an external driver (e.g., MeditationOrchestrator) to set the elapsed timer exactly
+  setMeditationTimer(seconds: number) {
+    this.state.meditationTimer = Math.max(0, Math.floor(seconds || 0));
   }
 
   async endMeditationSession() {
@@ -613,14 +641,32 @@ export class MeditationStore {
     this.state.pausedFrom = null;
     if (from === 'countdown') {
       this.state.meditationState = 'countdown';
-      this.countdownInterval = setInterval(() => {
-        this.decrementCountdown();
-      }, 1000);
+      if (!this.externalDriver) {
+        this.countdownInterval = setInterval(() => {
+          this.decrementCountdown();
+        }, 1000);
+      }
     } else {
       this.state.meditationState = 'active';
-      this.meditationInterval = setInterval(() => {
-        this.incrementMeditationTimer();
-      }, 1000);
+      if (!this.externalDriver) {
+        this.meditationInterval = setInterval(() => {
+          this.incrementMeditationTimer();
+        }, 1000);
+      }
+    }
+  }
+
+  setExternalDriver(enabled: boolean) {
+    this.externalDriver = enabled;
+    if (enabled) {
+      if (this.meditationInterval) {
+        clearInterval(this.meditationInterval);
+        this.meditationInterval = null;
+      }
+      if (this.countdownInterval) {
+        clearInterval(this.countdownInterval);
+        this.countdownInterval = null;
+      }
     }
   }
 }

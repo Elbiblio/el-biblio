@@ -1,6 +1,8 @@
 import { Audio } from 'expo-av';
 import * as Speech from 'expo-speech';
 import { playOneShotByKey, playLoopByKey, stopByKey, getCachedSound, SoundKey } from './audio';
+import BibleDBService from '@/utils/database';
+import { bibleBooks } from '@/constants/bibleBooks';
 
 type ChantPhase = 'idle' | 'playing' | 'speaking' | 'paused';
 
@@ -11,6 +13,108 @@ interface AudioCoordinatorConfig {
   pauseDurationMs: number;
   onPhaseChange?: (phase: ChantPhase) => void;
 }
+
+// ---------- Generic TTS helpers for orchestrated flows ----------
+
+export type DuckChannel = 'meditation' | 'heartbeat';
+
+/**
+ * Speak a single text with optional rate and completion callback
+ */
+export const speak = async (text: string, opts?: { rate?: number; onDone?: () => void }): Promise<void> => {
+  return new Promise<void>((resolve) => {
+    try {
+      Speech.speak(text, {
+        rate: opts?.rate ?? 0.85,
+        onDone: () => {
+          try { opts?.onDone?.(); } catch {}
+          resolve();
+        },
+        onError: () => resolve(),
+      } as any);
+    } catch {
+      resolve();
+    }
+  });
+};
+
+// Simple speech queue to avoid overlapping TTS
+class SpeechQueue {
+  private queue: Array<{ text: string; rate?: number }>; 
+  private processing: boolean;
+  constructor() {
+    this.queue = [];
+    this.processing = false;
+  }
+  enqueue(text: string, rate?: number): Promise<void> {
+    return new Promise<void>((resolve) => {
+      this.queue.push({ text, rate });
+      if (!this.processing) {
+        this.processing = true;
+        this.process().then(resolve).catch(resolve);
+      } else {
+        // Chain resolve when this item is spoken
+        const originalLen = this.queue.length;
+        const check = () => {
+          if (this.queue.length < originalLen) resolve();
+          else setTimeout(check, 10);
+        };
+        check();
+      }
+    });
+  }
+  private async process(): Promise<void> {
+    while (this.queue.length) {
+      const item = this.queue.shift()!;
+      await speak(item.text, { rate: item.rate ?? 0.85 });
+    }
+    this.processing = false;
+  }
+  clear() {
+    try { Speech.stop(); } catch {}
+    this.queue = [];
+    this.processing = false;
+  }
+}
+
+const globalSpeechQueue = new SpeechQueue();
+export const queueSpeak = (text: string, rate?: number) => globalSpeechQueue.enqueue(text, rate);
+export const clearSpeechQueue = () => globalSpeechQueue.clear();
+
+/**
+ * Speak a sequence of texts with a pause in between
+ */
+export const speakSequence = async (
+  items: string[],
+  options?: { rate?: number; pauseMs?: number }
+): Promise<void> => {
+  const pause = Math.max(0, options?.pauseMs ?? 800);
+  for (const t of items) {
+    await speak(t, { rate: options?.rate ?? 0.85 });
+    await new Promise(r => setTimeout(r, pause));
+  }
+};
+
+/**
+ * Read scripture verses slowly by splitting into sentences
+ */
+export const readScriptureSlowly = async (reference?: string, options?: { rate?: number; pauseMs?: number }): Promise<void> => {
+  if (!reference) return;
+  const m = reference.trim().match(/^([0-9I]{0,3}\s*[A-Za-z\. ]+?)\s+(\d+):(\d+)(?:-(\d+))?/);
+  if (!m) return;
+  const bookName = m[1].replace(/\.$/, '').trim();
+  const chapter = parseInt(m[2], 10);
+  const vStart = parseInt(m[3], 10);
+  const vEnd = m[4] ? parseInt(m[4], 10) : vStart;
+  const meta = bibleBooks.find(b => b.name.toLowerCase() === bookName.toLowerCase());
+  if (!meta) return;
+  try {
+    const rows = await BibleDBService.getChapter('eng_rv_vpl', meta.abbreviation, chapter);
+    const verses = rows.filter(r => r.verse >= vStart && r.verse <= vEnd).map(r => r.text).join(' ');
+    const sentences = verses.split(/(?<=[\.!?])\s+/).filter(Boolean);
+    await speakSequence(sentences, { rate: options?.rate ?? 0.75, pauseMs: options?.pauseMs ?? 1200 });
+  } catch {}
+};
 
 /**
  * AudioCoordinator manages the complex interaction between chant audio playback
@@ -275,12 +379,12 @@ export class AudioCoordinator {
     } catch {}
 
     // Stop audio
-    if (this.config.voiceKey) {
-      await stopByKey(this.config.voiceKey);
-    }
-    if (this.config.instrumentalKey) {
-      await stopByKey(this.config.instrumentalKey);
-    }
+    try {
+      if (this.config.voiceKey) await stopByKey(this.config.voiceKey);
+    } catch {}
+    try {
+      if (this.config.instrumentalKey) await stopByKey(this.config.instrumentalKey);
+    } catch {}
   }
 
   /**
@@ -307,8 +411,8 @@ export class AudioCoordinator {
     this.setPhase('idle');
     this.cueIndex = 0;
 
-    // Unload cached sounds
-    for (const [key, sound] of this.audioCache.entries()) {
+    // Unload cached sounds to free memory
+    for (const sound of this.audioCache.values()) {
       try {
         await sound.unloadAsync();
       } catch {}

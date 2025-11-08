@@ -23,6 +23,7 @@ import {
   usePreferencesStore,
 } from '@/stores/StoreProvider';
 import AvatarSelectionModal from '@/components/AvatarSelectionModal';
+import GuestUpgradeModal from '@/components/GuestUpgradeModal';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { AllVirtues, Virtue, VirtueProgress, Reflection, MeditationSession, UserStats, Activity, BackendUserStats } from '@/types';
 import * as Haptics from 'expo-haptics';
@@ -38,10 +39,13 @@ import { apiClient, endpoints } from '@/api/client';
 const ProfileScreen = () => {
   const theme = useTheme();
   const setThemeVariant = useThemeVariant();
-  const { user, updateAvatar } = useAuthStore();
+  const { user, updateAvatar, isGuest, upgradeGuestAccount, error, isLoading } = useAuthStore();
   const [avatarModalVisible, setAvatarModalVisible] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [isUpgradeSubmitting, setIsUpgradeSubmitting] = useState(false);
+  const [upgradeError, setUpgradeError] = useState<string | null>(null);
 
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   
@@ -193,6 +197,15 @@ const ProfileScreen = () => {
     }
   };
 
+  const handleOpenAvatarModal = () => {
+    if (isGuest) {
+      setUpgradeError(null);
+      setShowUpgradeModal(true);
+      return;
+    }
+    setAvatarModalVisible(true);
+  };
+
   const handleThemeChange = (themeVariant: ThemeVariant) => {
     setThemeVariant(themeVariant);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -252,6 +265,46 @@ const ProfileScreen = () => {
     } finally {
       setIsRefreshing(false);
     }
+  };
+
+  const handleStartUpgrade = () => {
+    setUpgradeError(null);
+    setShowUpgradeModal(true);
+  };
+
+  const handleUpgradeSubmit = async ({
+    firstName,
+    lastName,
+    email,
+    password,
+    avatar,
+  }: {
+    firstName: string;
+    lastName: string;
+    email: string;
+    password: string;
+    avatar?: string;
+  }) => {
+    setUpgradeError(null);
+    setIsUpgradeSubmitting(true);
+    const success = await upgradeGuestAccount({
+      first_name: firstName,
+      last_name: lastName,
+      email,
+      password,
+      avatar,
+    });
+
+    if (success) {
+      toast.success('Welcome to the full El-biblio experience!');
+      setShowUpgradeModal(false);
+      await handleRefresh();
+    } else {
+      setUpgradeError(error || 'We could not upgrade your account. Please try again.');
+    }
+
+    setIsUpgradeSubmitting(false);
+    return success;
   };
 
   if (!user) {
@@ -321,7 +374,7 @@ const ProfileScreen = () => {
           {/* Avatar */}
           <TouchableOpacity 
             style={styles.avatarContainer}
-            onPress={() => setAvatarModalVisible(true)}
+            onPress={handleOpenAvatarModal}
             disabled={isUpdating}
           >
             {isUpdating ? (
@@ -352,6 +405,23 @@ const ProfileScreen = () => {
             <Award size={20} color={theme.colors.primary} />
             <Text style={styles.pointsText}>{user.points || 0} points</Text>
           </View>
+
+          {isGuest && (
+            <View style={styles.guestUpgradeCard}>
+              <Text style={styles.guestUpgradeTitle}>Complete your profile</Text>
+              <Text style={styles.guestUpgradeSubtitle}>
+                Add your details to join community features, share reflections, and track your journey across devices.
+              </Text>
+              <TouchableOpacity
+                style={styles.guestUpgradeButton}
+                onPress={handleStartUpgrade}
+                disabled={isUpgradeSubmitting || isLoading}
+              >
+                <Text style={styles.guestUpgradeButtonText}>Upgrade account</Text>
+                <ArrowRight size={16} color={theme.colors.text.inverse} />
+              </TouchableOpacity>
+            </View>
+          )}
 
           {userStatsData.totalPoints >= 200 && (
             <TouchableOpacity
@@ -558,6 +628,21 @@ const ProfileScreen = () => {
         onClose={() => setAvatarModalVisible(false)}
         onSelect={handleAvatarChange}
       />
+
+      <GuestUpgradeModal
+        visible={showUpgradeModal}
+        onClose={() => setShowUpgradeModal(false)}
+        onSubmit={handleUpgradeSubmit}
+        onSuccess={() => toast.success('Profile updated successfully!')}
+        isSubmitting={isUpgradeSubmitting}
+        errorMessage={upgradeError}
+        initialValues={{
+          firstName: user.first_name,
+          lastName: user.last_name,
+          email: user.email ?? '',
+          avatar: user.avatar,
+        }}
+      />
     </SafeAreaView>
   );
 };
@@ -673,6 +758,37 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     ...theme.typography.caption.primary,
     color: theme.colors.text.inverse,
     fontWeight: '600',
+  },
+  guestUpgradeCard: {
+    width: '100%',
+    marginTop: theme.spacing.lg,
+    padding: theme.spacing.lg,
+    borderRadius: theme.borderRadius.lg,
+    backgroundColor: theme.colors.surfaceVariant,
+    alignItems: 'center',
+    gap: theme.spacing.sm,
+  },
+  guestUpgradeTitle: {
+    ...theme.typography.heading.small,
+    color: theme.colors.text.primary,
+  },
+  guestUpgradeSubtitle: {
+    ...theme.typography.caption.primary,
+    color: theme.colors.text.secondary,
+    textAlign: 'center',
+  },
+  guestUpgradeButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.xs,
+    paddingHorizontal: theme.spacing.lg,
+    paddingVertical: theme.spacing.sm,
+    borderRadius: theme.borderRadius.full,
+    backgroundColor: theme.colors.primary,
+  },
+  guestUpgradeButtonText: {
+    ...theme.typography.button.primary,
+    color: theme.colors.text.inverse,
   },
   rankingContainer: {
     alignItems: 'center',

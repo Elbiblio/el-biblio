@@ -362,15 +362,17 @@ const planRemainingSeconds = useMemo(() => {
     if (!curPhase) return;
     const isReading = curPhase.id === 'reading';
     if (isReading) {
-      if (t.isActive && !showTimerModal) setShowTimerModal(true);
+      if (t.isActive) {
+        if (showTimerModal) setShowTimerModal(false);
+      } else {
+        if (!showTimerModal) setShowTimerModal(true);
+      }
       if (showMeditationMode) setShowMeditationMode(false);
     } else {
-      // Ensure timer is running during non-reading phases
       if (!t.isActive) appTimerStore.resume(tid);
       if (!showMeditationMode) setShowMeditationMode(true);
       if (showTimerModal) setShowTimerModal(false);
     }
-    // Depend on appTimerStore.now to track ticking/phase changes
   }, [bibleStore.isPlanMode, phasesForToday, appTimerStore.now, showTimerModal, showMeditationMode]);
 
   useEffect(() => {

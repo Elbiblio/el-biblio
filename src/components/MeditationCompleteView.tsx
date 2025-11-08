@@ -25,6 +25,7 @@ interface Props {
   currentVirtue?: Virtue;
   bellButtonStyle: any;
   onFinish: () => void;
+  guideChallengePrompt?: string | null;
 }
 
 const MeditationCompleteView: React.FC<Props> = ({
@@ -43,6 +44,7 @@ const MeditationCompleteView: React.FC<Props> = ({
   currentVirtue,
   bellButtonStyle,
   onFinish,
+  guideChallengePrompt,
 }) => {
   return (
     <View style={styles.completeContainer}>
@@ -116,6 +118,24 @@ const MeditationCompleteView: React.FC<Props> = ({
             ) : null}
           </View>
         </TouchableOpacity>
+      ) : null}
+
+      {guideChallengePrompt && (selectedStyle === 'parable' || (selectedStyle === 'virtue' && !selectedChallenge)) ? (
+        <View style={styles.challengeSummaryContainer}>
+          <View style={styles.challengeSummaryHeader}>
+            <Text style={styles.challengeSummaryTitle}>Today&apos;s Invitation</Text>
+          </View>
+          <View style={styles.challengeSummaryCard}>
+            <LinearGradient
+              colors={[
+                `${(currentVirtue?.color_code || theme.colors.primary)}15`,
+                `${(currentVirtue?.color_code || theme.colors.primary)}05`,
+              ]}
+              style={StyleSheet.absoluteFillObject}
+            />
+            <Text style={styles.challengeSummaryText}>{guideChallengePrompt}</Text>
+          </View>
+        </View>
       ) : null}
 
       <TouchableOpacity style={styles.finishButton} onPress={onFinish} activeOpacity={0.85}>

@@ -34,10 +34,44 @@ export interface QueryParams {
   [key: string]: any;
 }
 
-// Narrow unknown errors coming from axios interceptor rejections that package
-// our own APIResponse<T> shape
 const isAPIResponse = (err: any): err is APIResponse<any> => {
   return !!err && typeof err === 'object' && 'success' in err && 'message' in err;
+};
+
+const buildQueryString = (params: QueryParams): string => {
+  const queryParams = new URLSearchParams();
+
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== null) {
+      if (Array.isArray(value)) {
+        queryParams.append(key, value.join(','));
+      } else {
+        queryParams.append(key, String(value));
+      }
+    }
+  });
+
+  return queryParams.toString();
+};
+
+const transformResponse = <T>(response: AxiosResponse): AxiosResponse<APIResponse<T>> => {
+  const responseData = response.data;
+
+  if (responseData && typeof responseData === 'object' && 'success' in responseData) {
+    return {
+      ...response,
+      data: responseData as APIResponse<T>,
+    };
+  }
+
+  return {
+    ...response,
+    data: {
+      success: response.status >= 200 && response.status < 300,
+      data: responseData as T,
+      message: response.statusText || 'Success',
+    },
+  };
 };
 
 const api = axios.create({
@@ -45,17 +79,15 @@ const api = axios.create({
   timeout: 15000,
   headers: {
     'Content-Type': 'application/json',
-    'Accept': 'application/json'
-  }
+    Accept: 'application/json',
+  },
 });
 
-// Optional: allow consumers (e.g., AuthStore) to register a handler for 401s
 let unauthorizedHandler: null | (() => Promise<void> | void) = null;
 export const setUnauthorizedHandler = (handler: (() => Promise<void> | void) | null) => {
   unauthorizedHandler = handler;
 };
 
-// Single-flight reauthentication promise to avoid duplicate reauth attempts
 let reauthPromise: Promise<boolean> | null = null;
 
 let cachedToken: string | null = null;
@@ -70,7 +102,6 @@ const reauthenticateOnce = async (): Promise<boolean> => {
     try {
       if (unauthorizedHandler) {
         await unauthorizedHandler();
-        // If handler succeeded, a fresh token should be stored
         const token = await AsyncStorage.getItem('auth_token');
         return !!token;
       }
@@ -78,7 +109,6 @@ const reauthenticateOnce = async (): Promise<boolean> => {
     } catch (e) {
       return false;
     } finally {
-      // Allow future reauth attempts
       reauthPromise = null;
     }
   })();
@@ -86,44 +116,7 @@ const reauthenticateOnce = async (): Promise<boolean> => {
   return reauthPromise;
 };
 
-// Backward-compatible alias used by interceptor code above
 const enqueueAndReauthenticate = () => reauthenticateOnce();
-
-const transformResponse = <T>(response: AxiosResponse): AxiosResponse<APIResponse<T>> => {
-  const responseData = response.data;
-  
-  if (responseData && typeof responseData === 'object' && 'success' in responseData) {
-    return {
-      ...response,
-      data: responseData as APIResponse<T>
-    };
-  }
-
-  return {
-    ...response,
-    data: {
-      success: response.status >= 200 && response.status < 300,
-      data: responseData as T,
-      message: response.statusText || 'Success'
-    }
-  };
-};
-
-const buildQueryString = (params: QueryParams): string => {
-  const queryParams = new URLSearchParams();
-  
-  Object.entries(params).forEach(([key, value]) => {
-    if (value !== undefined && value !== null) {
-      if (Array.isArray(value)) {
-        queryParams.append(key, value.join(','));
-      } else {
-        queryParams.append(key, String(value));
-      }
-    }
-  });
-  
-  return queryParams.toString();
-};
 
 api.interceptors.request.use(
   async (config) => {
@@ -138,7 +131,6 @@ api.interceptors.request.use(
         config.headers.Authorization = `Bearer ${token}`;
       }
     } else {
-      // Ensure no Authorization header leaks on anonymous calls
       if (config.headers && 'Authorization' in config.headers) {
         delete (config.headers as any).Authorization;
       }
@@ -152,31 +144,26 @@ api.interceptors.request.use(
       }
     }
 
-    // Add request ID for tracking
     config.headers['X-Request-ID'] = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    
+
     return config;
   },
   (error: AxiosError) => {
     if (__DEV__) console.error('Request error:', error);
     return Promise.reject(error);
-  }
+  },
 );
 
 api.interceptors.response.use(
   (response) => {
-    // Normalize response first
     const transformed = transformResponse(response);
     try {
-      // Attempt to read points from multiple potential locations
       const headerPoints = Number(response.headers?.['x-points-earned'] || response.headers?.['X-Points-Earned']);
-      // Our API normalizes body into APIResponse<T>
       const body: any = transformed.data;
       const directPoints = Number((body?.data as any)?.points_earned ?? body?.points_earned);
       const metaPoints = Number((body?.data as any)?.meta?.points_earned);
-      const points = [headerPoints, directPoints, metaPoints].find(v => typeof v === 'number' && !isNaN(v) && v > 0);
+      const points = [headerPoints, directPoints, metaPoints].find((v) => typeof v === 'number' && !isNaN(v) && v > 0);
       if (typeof points === 'number' && points > 0) {
-        // Optional title/context if backend includes it
         const title = (body?.data as any)?.challenge?.title || (body?.data as any)?.title;
         pointsTracker.emit(points, title);
       }
@@ -193,7 +180,7 @@ api.interceptors.response.use(
       success: false,
       data: null,
       message: 'An error occurred',
-      errors: {}
+      errors: {},
     };
 
     if (axios.isAxiosError(error)) {
@@ -201,26 +188,20 @@ api.interceptors.response.use(
       const status = response?.status;
       if (__DEV__) console.log('Response:', response);
 
-      // Implement single-flight reauth with queued retries
       if (status === 401) {
         const originalRequest: any = config || {};
         if (originalRequest && originalRequest._retry) {
-          // Already retried once, prevent loops
           errorResponse.message = 'Unauthorized';
           return Promise.reject(errorResponse);
         }
 
-        // Queue the request and attempt reauth once
         try {
           const success = await enqueueAndReauthenticate();
           if (success) {
             originalRequest._retry = true;
-            // Authorization header will be set by request interceptor using latest token
             return api(originalRequest);
           }
-        } catch (e) {
-          // fallthrough to final rejection and toast below
-        }
+        } catch (e) {}
 
         errorResponse.message = 'Session expired. Please login again.';
         if (appState.isInitialized) {
@@ -230,7 +211,7 @@ api.interceptors.response.use(
       }
 
       if (status && status === 403) {
-        errorResponse.message = 'Access denied. You don\'t have permission to perform this action.';
+        errorResponse.message = "Access denied. You don't have permission to perform this action.";
         return Promise.reject(errorResponse);
       }
 
@@ -242,15 +223,15 @@ api.interceptors.response.use(
       if (status === 422 && response?.data) {
         errorResponse.errors = response.data.errors || {};
         errorResponse.message = response.data.message || 'Validation failed';
-        
+
         if (appState.isInitialized && errorResponse.errors) {
-          Object.values(errorResponse.errors).forEach(messages => {
+          Object.values(errorResponse.errors).forEach((messages) => {
             if (Array.isArray(messages)) {
-              messages.forEach(message => toast.error(message));
+              messages.forEach((message) => toast.error(message));
             }
           });
         }
-        
+
         return Promise.reject(errorResponse);
       }
 
@@ -276,13 +257,12 @@ api.interceptors.response.use(
     if (appState.isInitialized) {
       toast.error(errorResponse.message);
     }
-    
+
     return Promise.reject(errorResponse);
-  }
+  },
 );
 
 export const endpoints = {
-  // Authentication
   auth: {
     login: '/auth/login',
     logout: '/auth/logout',
@@ -294,7 +274,6 @@ export const endpoints = {
     verifyEmail: '/auth/verify-email',
   },
 
-  // Users
   users: {
     list: '/users',
     show: (id: string) => `/users/${id}`,
@@ -307,7 +286,6 @@ export const endpoints = {
     stats: (id: string) => `/users/${id}/stats`,
   },
 
-  // Verses
   verses: {
     list: '/verses',
     daily: '/verses/daily',
@@ -323,7 +301,6 @@ export const endpoints = {
     byTheme: (themeId: string) => `/verses/theme/${themeId}`,
   },
 
-  // Notes
   notes: {
     list: '/notes',
     show: (id: string) => `/notes/${id}`,
@@ -339,7 +316,6 @@ export const endpoints = {
     byUser: (userId: string) => `/users/${userId}/notes`,
   },
 
-  // Reflections
   reflections: {
     list: '/reflections',
     show: (id: string) => `/reflections/${id}`,
@@ -353,7 +329,6 @@ export const endpoints = {
     featured: '/reflections/featured',
   },
 
-  // Comments
   comments: {
     list: '/comments',
     show: (id: string) => `/comments/${id}`,
@@ -365,7 +340,6 @@ export const endpoints = {
     replies: (id: string) => `/comments/${id}/replies`,
   },
 
-  // Bookmarks
   bookmarks: {
     list: '/bookmarks',
     show: (id: string) => `/bookmarks/${id}`,
@@ -376,7 +350,6 @@ export const endpoints = {
     byType: (type: string) => `/bookmarks/type/${type}`,
   },
 
-  // User Interactions
   interactions: {
     list: '/user-interactions',
     create: '/user-interactions',
@@ -386,7 +359,6 @@ export const endpoints = {
     byType: (type: string) => `/user-interactions/type/${type}`,
   },
 
-  // Activities
   activities: {
     list: '/activities',
     show: (id: string) => `/activities/${id}`,
@@ -398,7 +370,6 @@ export const endpoints = {
     recent: '/activities/recent',
   },
 
-  // Notifications
   notifications: {
     list: '/notifications',
     show: (id: string) => `/notifications/${id}`,
@@ -409,7 +380,6 @@ export const endpoints = {
     unreadCount: '/notifications/unread-count',
   },
 
-  // Themes
   themes: {
     list: '/themes',
     show: (id: string) => `/themes/${id}`,
@@ -420,7 +390,6 @@ export const endpoints = {
     byUser: (userId: string) => `/users/${userId}/themes`,
   },
 
-  // Word Hubs
   wordHubs: {
     list: '/word-hubs',
     show: (id: string) => `/word-hubs/${id}`,
@@ -435,7 +404,6 @@ export const endpoints = {
     byUser: (userId: string) => `/users/${userId}/word-hubs`,
   },
 
-  // Matches
   matches: {
     list: '/matches',
     show: (id: string) => `/matches/${id}`,
@@ -449,14 +417,12 @@ export const endpoints = {
     history: '/matches/history',
   },
 
-  // Languages
   languages: {
     list: '/languages',
     show: (id: string) => `/languages/${id}`,
     active: '/languages/active',
   },
 
-  // Cache
   cache: {
     get: (key: string) => `/cache/${key}`,
     set: '/cache',
@@ -464,7 +430,6 @@ export const endpoints = {
     clear: '/cache/clear',
   },
 
-  // Jobs
   jobs: {
     list: '/jobs',
     show: (id: string) => `/jobs/${id}`,
@@ -473,7 +438,6 @@ export const endpoints = {
     cancel: (id: string) => `/jobs/${id}/cancel`,
   },
 
-  // Leaderboards
   leaderboards: {
     global: '/leaderboards/global',
     byTheme: (themeId: string) => `/leaderboards/theme/${themeId}`,
@@ -481,14 +445,12 @@ export const endpoints = {
     userRank: (userId: string) => `/leaderboards/user/${userId}/rank`,
   },
 
-  // Statistics
   stats: {
     user: (userId: string) => `/stats/user/${userId}`,
     global: '/stats/global',
     theme: (themeId: string) => `/stats/theme/${themeId}`,
   },
 
-  // Search
   search: {
     global: '/search',
     verses: '/search/verses',
@@ -497,13 +459,12 @@ export const endpoints = {
     users: '/search/users',
   },
 
-  // Bible
   bible: {
     versions: '/bible/versions',
     verses: '/bible/verses',
     search: '/bible/search',
     compare: (version: string, reference: string) => `/bible/${version}/compare/${encodeURIComponent(reference)}`,
-    installVersion: (version: string) => `/bible/versions/${version}/install`,
+    installVersion: (version: string) => `/bible/verses/${version}/install`,
     toggleHighlight: (verseId: string) => `/bible/verses/${verseId}/highlight`,
     toggleBookmark: (verseId: string) => `/bible/verses/${verseId}/bookmark`,
     like: (verseId: string) => `/bible/verses/${verseId}/like`,
@@ -511,7 +472,6 @@ export const endpoints = {
     explain: (verseId: string) => `/bible/verses/${verseId}/explain`,
   },
 
-  // Challenges
   challenges: {
     personal: '/challenges/personal',
     community: '/challenges/community',
@@ -530,7 +490,6 @@ export const endpoints = {
     participants: (id: string) => `/challenges/${id}/participants`,
   },
 
-  // Prayer Requests
   prayerRequests: {
     list: '/prayer-requests',
     show: (id: string) => `/prayer-requests/${id}`,
@@ -542,14 +501,12 @@ export const endpoints = {
     byUser: (userId: string) => `/users/${userId}/prayer-requests`,
   },
 
-  // Uploads
   uploads: {
     presign: '/uploads/presign',
     upload: '/uploads/upload',
     delete: (id: string) => `/uploads/${id}`,
   },
 
-  // Prayer Request Comments
   prayerRequestComments: {
     list: '/prayer-request-comments',
     show: (id: string) => `/prayer-request-comments/${id}`,
@@ -559,7 +516,6 @@ export const endpoints = {
     amen: (id: string) => `/prayer-request-comments/${id}/amen`,
   },
 
-  // Spiritual Career (Kingdom Calling)
   spiritualCareer: {
     progress: '/spiritual-career/progress',
     submit: '/spiritual-career/submit',
@@ -568,6 +524,16 @@ export const endpoints = {
     leaderboard: '/spiritual-career/leaderboard',
     growthHistory: '/spiritual-career/growth-history',
     reset: '/spiritual-career/progress',
+  },
+
+  featured: {
+    list: '/featured',
+    show: (id: string) => `/featured/${id}`,
+  },
+
+  public: {
+    list: '/public',
+    show: (id: string) => `/public/${id}`,
   },
 };
 
@@ -580,7 +546,6 @@ export const apiClient = {
       return response.data;
     } catch (error) {
       if (isAPIResponse(error)) {
-        // Return structured API error from interceptor
         return error as APIResponse<T>;
       }
       if (error instanceof Error) {
@@ -589,7 +554,7 @@ export const apiClient = {
       throw new Error('Unknown error occurred');
     }
   },
-  
+
   async post<T>(url: string, data?: any, config?: AxiosRequestConfig): Promise<APIResponse<T>> {
     try {
       const response = await api.post<APIResponse<T>>(url, data, config);
@@ -604,7 +569,7 @@ export const apiClient = {
       throw new Error('Unknown error occurred');
     }
   },
-  
+
   async put<T>(url: string, data?: any, config?: AxiosRequestConfig): Promise<APIResponse<T>> {
     try {
       const response = await api.put<APIResponse<T>>(url, data, config);
@@ -619,7 +584,7 @@ export const apiClient = {
       throw new Error('Unknown error occurred');
     }
   },
-  
+
   async patch<T>(url: string, data?: any, config?: AxiosRequestConfig): Promise<APIResponse<T>> {
     try {
       const response = await api.patch<APIResponse<T>>(url, data, config);
@@ -634,7 +599,7 @@ export const apiClient = {
       throw new Error('Unknown error occurred');
     }
   },
-  
+
   async delete<T>(url: string, config?: AxiosRequestConfig): Promise<APIResponse<T>> {
     try {
       const response = await api.delete<APIResponse<T>>(url, config);
@@ -650,12 +615,11 @@ export const apiClient = {
     }
   },
 
-  // Helper methods for common operations
   async uploadFile<T>(url: string, file: any, onProgress?: (progress: number) => void): Promise<APIResponse<T>> {
     try {
       const formData = new FormData();
       formData.append('file', file);
-      
+
       const response = await api.post<APIResponse<T>>(url, formData, {
         headers: {
           'Content-Type': 'multipart/form-data',

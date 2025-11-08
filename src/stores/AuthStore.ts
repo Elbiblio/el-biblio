@@ -404,6 +404,62 @@ export class AuthStore {
       this.reauthInProgress = false;
     }
   };
+
+  upgradeGuestAccount = async (
+    data: Pick<SignUpData, 'first_name' | 'last_name' | 'email' | 'password' | 'avatar'>
+  ): Promise<boolean> => {
+    if (!this.user?.id) {
+      this.setError('User not found');
+      return false;
+    }
+
+    try {
+      this.setLoading(true);
+      this.setError(null);
+
+      const payload: Record<string, string> = {
+        first_name: data.first_name.trim(),
+        last_name: data.last_name.trim(),
+        email: data.email.trim(),
+        password: data.password,
+      };
+
+      if (data.avatar) {
+        payload.avatar = data.avatar;
+      }
+
+      const response = await apiClient.put<User>(
+        endpoints.users.profile(this.user.id),
+        payload
+      );
+
+      const updatedUser = ((response.data as any)?.data ?? response.data) as User | undefined;
+
+      runInAction(() => {
+        const mergedUser: User = {
+          ...this.user!,
+          first_name: data.first_name.trim(),
+          last_name: data.last_name.trim(),
+          email: data.email.trim(),
+          ...(data.avatar ? { avatar: data.avatar } : {}),
+          ...(updatedUser ?? {}),
+        };
+
+        this.setUser(mergedUser);
+        this.isGuest = false;
+      });
+
+      await AsyncStorage.removeItem(this.GUEST_CREDENTIALS_KEY);
+      this.authRequired = false;
+
+      return true;
+    } catch (error) {
+      this.handleAuthError(error);
+      return false;
+    } finally {
+      this.setLoading(false);
+    }
+  };
 }
 
 // Create a singleton instance
