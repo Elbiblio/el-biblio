@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -105,13 +105,14 @@ const MeditationScreen = () => {
   const auth = useAuthStore();
   const { user } = auth;
 
-  // Virtue store (MobX)
+  // Store references
   const virtueStore = useVirtueStore();
   const { virtues } = virtueStore;
-  // Meditation store (MobX)
   const meditationStore = useMeditationStore();
   const challengeStore = useChallengeStore();
   const leaderboardStore = useLeaderboardStore();
+
+  // Destructure state once
   const {
     selectedVirtue,
     selectedTime,
@@ -126,154 +127,77 @@ const MeditationScreen = () => {
     jesusPrayerPace,
     isPreviewingSound,
   } = meditationStore.state;
+
   const {
     parableReadMode,
     centeringReadMode,
     centeringRepeatIntervalSec,
     chantReflectionPauseSec,
   } = meditationStore.state as any;
-  const {
-    setSelectedVirtue: setStoreSelectedVirtue,
-    setSelectedTime: setStoreSelectedTime,
-    setSelectedChallenge: setStoreSelectedChallenge,
-    setSelectedBackgroundSound: setStoreSelectedBackgroundSound,
-    setSelectedStyle: setStoreSelectedStyle,
-    setCenteringWord: setStoreCenteringWord,
-    setChosenChantId: setStoreChosenChantId,
-    setJesusPrayerPace: setStoreJesusPrayerPace,
-    setParableReadMode: setStoreParableReadMode,
-    setCenteringReadMode: setStoreCenteringReadMode,
-    setCenteringRepeatIntervalSec: setStoreCenteringRepeatIntervalSec,
-    setChantReflectionPauseSec: setStoreChantReflectionPauseSec,
-    startMeditation: startMeditationStore,
-    decrementCountdown,
-    incrementMeditationTimer,
-    endMeditationSession,
-  } = meditationStore;
+
+  // Core state
   const [currentPromptIndex, setCurrentPromptIndex] = useState(0);
-  const [showPrompt, setShowPrompt] = useState(false);
   const [challengeExpanded, setChallengeExpanded] = useState(false);
   const [showFirstTipModal, setShowFirstTipModal] = useState(false);
   const [showCustomTimeModal, setShowCustomTimeModal] = useState(false);
   const [selectedPace, setSelectedPace] = useState<'slow' | 'medium' | 'fast'>('medium');
-  const [selectedBreathLoops, setSelectedBreathLoops] = useState<number | 'continuous'>('continuous');
   const [smartPickDismissed, setSmartPickDismissed] = useState(false);
+  const [showSetupModal, setShowSetupModal] = useState(false);
+
+  // Refs for persistent data
   const pendingStartRef = useRef(false);
+  const preSessionPointsRef = useRef<number | null>(null);
+  const congratulatedRef = useRef(false);
+  const hasMarkedComplete = useRef(false);
+  const spokenPromptsRef = useRef<Set<number>>(new Set());
+  const orchestratorRef = useRef<MeditationOrchestrator | null>(null);
+  const nudgeShownRef = useRef(false);
+  const activatedRef = useRef(false);
+  
+  // Single source of truth for orchestrated guide
+  const [orchestratedGuide, setOrchestratedGuide] = useState<OrchestratorMeditationGuide | null>(null);
 
   // Animation values
   const fadeAnim = useSharedValue(1);
-  const breatheTextOpacity = useSharedValue(0);
   const numberScale = useSharedValue(1);
   const numberOpacity = useSharedValue(1);
   const pulseAnim = useSharedValue(0);
   const progressAnim = useSharedValue(0);
   const promptOpacity = useSharedValue(0);
   const bellScale = useSharedValue(1);
-  const breathPhaseIndex = useSharedValue(0); // 0=in, 1=hold, 2=out
-
-  // Centralized audio service
-  const isSpeaking = useRef(false);
-  const preSessionPointsRef = useRef<number | null>(null);
-  const congratulatedRef = useRef(false);
-
-  // Refs for flow control
-  const hasMarkedComplete = useRef(false);
-  const spokenPromptsRef = useRef<Set<number>>(new Set());
-  const orchestratorRef = useRef<MeditationOrchestrator | null>(null);
-  const [orchestratedGuide, setOrchestratedGuide] = useState<OrchestratorMeditationGuide | null>(null);
-  const activatedRef = useRef(false);
-
-  const pauseAllAudio = React.useCallback(() => {
-    try { Speech.stop(); } catch {}
-    try { stopMusic('meditation'); } catch {}
-    try { stopMusic('heartbeat'); } catch {}
-    try {
-      const voice = CHANT_VOICE_MAP[chosenChantId || ''];
-      const instrumental = CHANT_INSTRUMENTAL_MAP[chosenChantId || ''];
-      if (instrumental) { void stopByKey(instrumental); }
-      if (voice) { void stopByKey(voice); }
-    } catch {}
-    // Pause audio coordinator if in chant mode
-    if (selectedStyle === 'chant' && audioCoordinatorRef.current) {
-      audioCoordinatorRef.current.pause();
-    }
-    // Pause orchestrator
-    if (orchestratorRef.current) {
-      orchestratorRef.current.pause();
-    }
-  }, [chosenChantId, selectedStyle]);
+  const breathPhaseIndex = useSharedValue(0);
+  const breatheTextOpacity = useSharedValue(0);
 
   // Load virtues on mount
   useEffect(() => {
     virtueStore.fetchVirtues();
   }, [virtueStore]);
 
-  const goalVirtueId = selectedVirtue;
-  const [showSetupModal, setShowSetupModal] = useState(false);
-  
-  // Keep the screen awake while meditation is active
-  useEffect(() => {
-    if (meditationState === MeditationState.ACTIVE) {
-      try { activateKeepAwake('meditation'); } catch {}
-    } else {
-      try { deactivateKeepAwake('meditation'); } catch {}
-    }
-    return () => { try { deactivateKeepAwake('meditation'); } catch {} };
-  }, [meditationState]);
-
+  // Computed values - only calculate when needed
   const currentVirtue = React.useMemo(
     () => virtues?.find((v: Virtue) => v.id === selectedVirtue),
     [selectedVirtue, virtues]
   );
+
   const totalMeditationSeconds = React.useMemo(
     () => (selectedTime || 0) * 60,
     [selectedTime]
   );
+
   const promptInterval = totalMeditationSeconds > 0 ? Math.floor(totalMeditationSeconds / 4) : 0;
-  const orchestratorConfigRef = useRef({
-    selectedStyle,
-    promptInterval,
-    totalMeditationSeconds,
-    selectedChallenge,
-    centeringWord,
-    centeringReadMode,
-    centeringRepeatIntervalSec,
-    chantReflectionPauseSec,
-    parableReadMode,
-    selectedBackgroundSound,
-  });
-  const orchestratorConfig = React.useMemo(() => ({
-    selectedStyle,
-    promptInterval,
-    totalMeditationSeconds,
-    selectedChallenge,
-    centeringWord,
-    centeringReadMode,
-    centeringRepeatIntervalSec,
-    chantReflectionPauseSec,
-    parableReadMode,
-    selectedBackgroundSound,
-  }), [
-    selectedStyle,
-    promptInterval,
-    totalMeditationSeconds,
-    selectedChallenge,
-    centeringWord,
-    centeringReadMode,
-    centeringRepeatIntervalSec,
-    chantReflectionPauseSec,
-    parableReadMode,
-    selectedBackgroundSound,
-  ]);
-  // Assign memoized config to ref without causing effects
-  orchestratorConfigRef.current = orchestratorConfig;
 
   const sessions = meditationStore.state.sessions;
   const completedSessions = React.useMemo(() => {
     if (!selectedVirtue) return sessions.length;
     return sessions.filter(session => session.virtue_id === selectedVirtue).length;
   }, [sessions, selectedVirtue]);
-  const previewGuide = React.useMemo(() => {
+
+  // Build fallback guide only (orchestrator builds real one)
+  const fallbackGuide = React.useMemo(() => {
+    if (meditationState !== MeditationState.SETUP) {
+      return null; // Don't compute during active session
+    }
+    
     return MeditationOrchestrator.buildGuide({
       selectedStyle,
       selectedMinutes: selectedTime ?? null,
@@ -284,6 +208,7 @@ const MeditationScreen = () => {
       chosenChantId: chosenChantId ?? null,
     });
   }, [
+    meditationState,
     selectedStyle,
     selectedTime,
     selectedChallenge,
@@ -292,8 +217,21 @@ const MeditationScreen = () => {
     centeringWord,
     chosenChantId,
   ]);
-  const guideForUI = (orchestratedGuide ?? previewGuide);
+
+  const guideForUI = orchestratedGuide ?? fallbackGuide ?? {
+    title: 'Meditation',
+    imagery: '',
+    scripture: '',
+    prompts: [''],
+    declaration: '',
+    leadIn: '',
+    focus: '',
+    breathInvitation: '',
+    closingReminder: '',
+  };
+
   const currentPrompt = guideForUI.prompts[currentPromptIndex] || guideForUI.prompts[0];
+
   const isReadyToBegin = React.useMemo(() => {
     if (!selectedTime) return false;
     if (selectedStyle === 'virtue') return Boolean(selectedVirtue);
@@ -310,33 +248,36 @@ const MeditationScreen = () => {
       excludeIds: exclude,
       allowJoined: false,
     });
-  }, [challengeStore, currentVirtue?.name, selectedChallenge?.id, smartPickDismissed, meditationState]);
+  }, [challengeStore, currentVirtue?.name, selectedChallenge?.id, smartPickDismissed, meditationState, selectedStyle]);
 
-  const handleSmartPickJoin = React.useCallback((challenge: ChallengeRecommendation) => {
-    void (async () => {
-      const success = await challengeStore.joinChallenge(challenge.id);
-      if (success) {
-        toast.success('Challenge added to your day');
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        setSmartPickDismissed(true);
-        navigation.navigate('DailyChallengeScreen');
-      }
-    })();
-  }, [challengeStore, navigation]);
+  const styles = React.useMemo(
+    () => createStyles(theme, currentVirtue),
+    [theme, currentVirtue]
+  );
 
-  React.useEffect(() => {
-    if (meditationState === MeditationState.SETUP) {
-      setSmartPickDismissed(false);
+  // Keep screen awake during active meditation
+  useEffect(() => {
+    if (meditationState === MeditationState.ACTIVE) {
+      try { activateKeepAwake('meditation'); } catch {}
+    } else {
+      try { deactivateKeepAwake('meditation'); } catch {}
     }
+    return () => { try { deactivateKeepAwake('meditation'); } catch {} };
   }, [meditationState]);
 
+  // Initialize audio mode once
   useEffect(() => {
-    if (selectedTime == null) {
-      setStoreSelectedTime(10);
-    }
+    setAudioModeAsync({ playsInSilentMode: true }).catch(() => {});
   }, []);
 
-  const nudgeShownRef = useRef(false);
+  // Set default time
+  useEffect(() => {
+    if (selectedTime == null) {
+      meditationStore.setSelectedTime(10);
+    }
+  }, [selectedTime]);
+
+  // Auto-show setup modal for virtue mode
   useEffect(() => {
     if (
       meditationState === MeditationState.SETUP &&
@@ -349,97 +290,342 @@ const MeditationScreen = () => {
     }
   }, [meditationState, selectedStyle, selectedVirtue]);
 
-  const styles = React.useMemo(
-    () => createStyles(theme, currentVirtue),
-    [theme, currentVirtue]
-  );
+  // Reset smart pick on setup
+  React.useEffect(() => {
+    if (meditationState === MeditationState.SETUP) {
+      setSmartPickDismissed(false);
+    }
+  }, [meditationState]);
 
-  const [introCompleted, setIntroCompleted] = useState(false);
-
-  // Configure audio mode (allow playback in silent mode)
+  // Reset JP pace when entering JP mode
   useEffect(() => {
-    setAudioModeAsync({ playsInSilentMode: true }).catch(() => { });
-    return () => {
-      stopMusic('meditation');
-      stopMusic('heartbeat');
-      try {
-        Object.values(CHANT_INSTRUMENTAL_MAP).forEach((key) => {
-          if (key) stopByKey(key as any);
-        });
-      } catch { }
-    };
-  }, []);
+    if (selectedStyle === 'jesus_prayer' && jesusPrayerPace) {
+      setSelectedPace(jesusPrayerPace);
+    }
+  }, [selectedStyle, jesusPrayerPace]);
 
+  // App state listener - pause on background
   useEffect(() => {
     const onChange = (state: AppStateStatus) => {
-      // Only pause when app goes to background, not on 'inactive' which can happen
-      // during normal usage (notification center, control center, etc.)
-      if (state === 'background' && (meditationState === MeditationState.ACTIVE || meditationState === MeditationState.COUNTDOWN)) {
-        pauseAllAudio();
+      if (state === 'background' && 
+          (meditationState === MeditationState.ACTIVE || meditationState === MeditationState.COUNTDOWN)) {
         meditationStore.pause();
-        try { orchestratorRef.current?.pause(); } catch {}
-        try { audioCoordinatorRef.current?.pause(); } catch {}
+        orchestratorRef.current?.pause();
       }
     };
     const sub = AppState.addEventListener('change', onChange);
     return () => { try { sub.remove(); } catch {} };
-  }, [meditationState, meditationStore, pauseAllAudio]);
+  }, [meditationState, meditationStore]);
 
-  // Background sound PREVIEW in SETUP only (ACTIVE is orchestrated)
+  // Background sound PREVIEW (setup only)
   useEffect(() => {
     if (meditationState !== MeditationState.SETUP) return;
-    if (selectedStyle !== 'chant') {
-      if (isPreviewingSound) {
-        if (selectedBackgroundSound === 'ambient') playMusic('meditation', 0.6);
-        if (selectedBackgroundSound === 'heartbeat') playMusic('heartbeat', 0.6);
-      } else {
-        stopMusic('meditation');
-        stopMusic('heartbeat');
-      }
+    if (selectedStyle === 'chant') return;
+
+    if (isPreviewingSound) {
+      if (selectedBackgroundSound === 'ambient') playMusic('meditation', 0.6);
+      if (selectedBackgroundSound === 'heartbeat') playMusic('heartbeat', 0.6);
     } else {
       stopMusic('meditation');
       stopMusic('heartbeat');
     }
+
     return () => {
       stopMusic('meditation');
       stopMusic('heartbeat');
     };
   }, [meditationState, isPreviewingSound, selectedBackgroundSound, selectedStyle]);
 
+  // Cleanup on complete
   useEffect(() => {
     if (meditationState === MeditationState.COMPLETE) {
-      try { Speech.stop(); } catch { }
-      try { stopAllSounds(); } catch { }
-      try {
-        const voice = CHANT_VOICE_MAP[chosenChantId || ''];
-        const instrumental = CHANT_INSTRUMENTAL_MAP[chosenChantId || ''];
-        if (instrumental) { void stopByKey(instrumental); }
-        if (voice) { void stopByKey(voice); }
-      } catch { }
-      try {
-        breathTimeoutsRef.current.forEach(clearTimeout);
-        breathTimeoutsRef.current = [];
-      } catch { }
-      try {
-        if (audioCoordinatorRef.current) {
-          audioCoordinatorRef.current.stop();
-          audioCoordinatorRef.current = null;
-        }
-      } catch { }
+      try { Speech.stop(); } catch {}
+      try { stopAllSounds(); } catch {}
     }
-  }, [meditationState, chosenChantId]);
+  }, [meditationState]);
 
-  
+  // Bell animation on complete
+  useEffect(() => {
+    if (meditationState === MeditationState.COMPLETE) {
+      bellScale.value = withRepeat(
+        withSequence(
+          withTiming(1.05, { duration: 1000 }),
+          withTiming(1, { duration: 1000 })
+        ),
+        -1
+      );
+      
+      // Show congratulations once
+      if (!congratulatedRef.current && user?.id) {
+        congratulatedRef.current = true;
+        (async () => {
+          const before = preSessionPointsRef.current;
+          const stats = await leaderboardStore.fetchUserStats(user.id);
+          const after = stats?.totalPoints ?? null;
+          
+          if (before != null && after != null && after > before) {
+            const delta = after - before;
+            toast.success(`Great job! +${delta} points earned today`);
+          } else {
+            toast.success('Meditation complete. Keep it up!');
+          }
+        })();
+      }
+    } else if (meditationState === MeditationState.SETUP) {
+      congratulatedRef.current = false;
+    }
+  }, [meditationState, user?.id]);
+
+  // Reset session state when leaving active
+  useEffect(() => {
+    if (meditationState !== MeditationState.ACTIVE) {
+      hasMarkedComplete.current = false;
+      spokenPromptsRef.current.clear();
+    }
+  }, [meditationState]);
 
   // UI-only prompt display (speech handled by Orchestrator)
-  const showPromptOnly = (index: number) => {
+  const showPromptOnly = useCallback((index: number) => {
     if (spokenPromptsRef.current.has(index)) return;
     spokenPromptsRef.current.add(index);
     setCurrentPromptIndex(index);
-    setShowPrompt(true);
     promptOpacity.value = withTiming(1, { duration: 1000 });
+  }, [promptOpacity]);
+
+  // Countdown animation
+  const animateCountdownNumber = useCallback(() => {
+    numberScale.value = withSequence(
+      withTiming(1.2, { duration: 300, easing: Easing.out(Easing.quad) }),
+      withTiming(0.8, { duration: 700, easing: Easing.inOut(Easing.quad) })
+    );
+    numberOpacity.value = withSequence(
+      withTiming(1, { duration: 100, easing: Easing.out(Easing.quad) }),
+      withTiming(0.5, { duration: 700, easing: Easing.inOut(Easing.quad) })
+    );
+  }, [numberScale, numberOpacity]);
+
+  const animateBreathText = useCallback((phaseDuration: number) => {
+    const fadeIn = Math.min(500, Math.max(250, phaseDuration * 0.25));
+    const delay = Math.max(0, phaseDuration - fadeIn - 400);
+    breatheTextOpacity.value = withSequence(
+      withTiming(1, { duration: fadeIn, easing: Easing.out(Easing.quad) }),
+      withDelay(delay, withTiming(0, { duration: 400, easing: Easing.inOut(Easing.quad) }))
+    );
+  }, [breatheTextOpacity]);
+
+  // CONSOLIDATED ORCHESTRATOR LIFECYCLE
+  useEffect(() => {
+    const isCountdown = meditationState === MeditationState.COUNTDOWN;
+    const isActive = meditationState === MeditationState.ACTIVE && selectedTime;
+    
+    // Create orchestrator once when entering countdown or active
+    if ((isCountdown || isActive) && !orchestratorRef.current) {
+      orchestratorRef.current = new MeditationOrchestrator({
+        getConfig: () => ({
+          selectedStyle,
+          promptInterval,
+          totalMeditationSeconds,
+          selectedChallenge,
+          centeringWord,
+          centeringReadMode,
+          centeringRepeatIntervalSec,
+          chantReflectionPauseSec,
+          parableReadMode,
+          sessionCount: completedSessions,
+          selectedMinutes: selectedTime ?? null,
+          virtueName: selectedStyle === 'virtue' ? (currentVirtue?.name || null) : null,
+          chosenChantId: chosenChantId ?? null,
+          jesusPrayerPace: jesusPrayerPace,
+          selectedBackgroundSound: (selectedBackgroundSound === 'ambient'
+            ? 'ambient'
+            : selectedBackgroundSound === 'heartbeat'
+              ? 'heartbeat'
+              : null) as 'ambient' | 'heartbeat' | null,
+        }),
+        callbacks: {
+          showPrompt: showPromptOnly,
+          onComplete: () => {
+            if (!hasMarkedComplete.current) {
+              hasMarkedComplete.current = true;
+              meditationStore.endMeditationSession();
+            }
+          },
+          onTick: (t: number, ratio: number) => {
+            meditationStore.setMeditationTimer(t);
+            progressAnim.value = ratio;
+          },
+          onGuide: (g: OrchestratorMeditationGuide) => {
+            setOrchestratedGuide(g);
+          },
+          onIntroComplete: () => {
+            breathPhaseIndex.value = 0;
+          },
+          onBreathPhase: (phase, durationMs) => {
+            animateBreathText(durationMs);
+            if (phase === 'in') {
+              breathPhaseIndex.value = 0;
+              pulseAnim.value = withTiming(1, { duration: durationMs, easing: Easing.inOut(Easing.quad) });
+            } else if (phase === 'hold') {
+              breathPhaseIndex.value = 1;
+              pulseAnim.value = withTiming(1, { duration: durationMs, easing: Easing.linear });
+            } else {
+              breathPhaseIndex.value = 2;
+              pulseAnim.value = withTiming(0, { duration: durationMs, easing: Easing.inOut(Easing.quad) });
+            }
+          },
+          onCountdownTick: (n: number) => {
+            meditationStore.setCountdown(n);
+            animateCountdownNumber();
+            if (n === 0 && !activatedRef.current) {
+              activatedRef.current = true;
+              progressAnim.value = 0;
+              meditationStore.beginActivePhase();
+            }
+          },
+        },
+      });
+    }
+
+    // Start flows
+    if (isCountdown && orchestratorRef.current) {
+      activatedRef.current = false;
+      orchestratorRef.current.startCountdown(countdown);
+    }
+    
+    if (isActive && orchestratorRef.current) {
+      orchestratorRef.current.start();
+    }
+
+    // Cleanup when leaving countdown/active
+    return () => {
+      const stillInFlow = (meditationState === MeditationState.COUNTDOWN) || 
+                          (meditationState === MeditationState.ACTIVE);
+      if (!stillInFlow && orchestratorRef.current) {
+        orchestratorRef.current.stop();
+        orchestratorRef.current = null;
+      }
+    };
+  }, [
+    meditationState,
+    selectedTime,
+    countdown,
+    // Don't include all config deps - orchestrator uses getConfig callback
+  ]);
+
+  // Handlers
+  const startMeditation = async () => {
+    const missingVirtue = selectedStyle === 'virtue' && !selectedVirtue;
+    let minutes = selectedTime;
+    
+    if (selectedStyle === 'parable' && (minutes == null || minutes < 10)) {
+      minutes = 10;
+      meditationStore.setSelectedTime(10);
+    }
+    
+    if (missingVirtue || !minutes) {
+      fadeAnim.value = withSequence(
+        withTiming(0.3, { duration: 200 }), 
+        withTiming(1, { duration: 200 })
+      );
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      return;
+    }
+
+    try {
+      const seen = await AsyncStorage.getItem('med_first_tip_shown');
+      if (!seen) {
+        pendingStartRef.current = true;
+        setShowFirstTipModal(true);
+        return;
+      }
+    } catch {}
+
+    // Capture points snapshot
+    preSessionPointsRef.current = leaderboardStore.userStats?.totalPoints ?? null;
+    progressAnim.value = 0;
+    meditationStore.setExternalDriver(true);
+    meditationStore.startMeditation();
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   };
 
+  const endMeditation = useCallback(() => {
+    meditationStore.endMeditationSession();
+    try { Speech.stop(); } catch {}
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  }, [meditationStore]);
+
+  const resumeMeditation = useCallback(() => {
+    meditationStore.resume();
+    orchestratorRef.current?.resume();
+  }, [meditationStore]);
+
+  const handleSelectTime = useCallback((minutes: number) => {
+    const clamped = selectedStyle === 'parable' ? Math.max(10, minutes) : minutes;
+    meditationStore.setSelectedTime(clamped);
+    Haptics.selectionAsync();
+    setShowCustomTimeModal(false);
+  }, [meditationStore, selectedStyle]);
+
+  const handleSmartPickJoin = useCallback((challenge: ChallengeRecommendation) => {
+    void (async () => {
+      const success = await challengeStore.joinChallenge(challenge.id);
+      if (success) {
+        toast.success('Challenge added to your day');
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        setSmartPickDismissed(true);
+        navigation.navigate('DailyChallengeScreen');
+      }
+    })();
+  }, [challengeStore, navigation]);
+
+  const createChallenge = async () => {
+    if (!selectedChallenge) {
+      navigation.navigate('DailyChallengeScreen');
+      return;
+    }
+    
+    const endTime = new Date();
+    endTime.setHours(endTime.getHours() + (selectedTime === 40 ? 24 : selectedTime === 15 ? 6 : 3));
+    const challenge = { ...selectedChallenge, end_time: endTime.toISOString() };
+
+    if (user) {
+      await meditationStore.joinChallenge(selectedChallenge.id);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    }
+    navigation.navigate('Home', { meditationComplete: true, challenge });
+  };
+
+  const formatTime = useCallback((seconds: number) => {
+    const clamped = Math.max(0, seconds);
+    const mins = Math.floor(clamped / 60);
+    const secs = clamped % 60;
+    return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+  }, []);
+
+  // Animated styles
+  const fadeAnimStyle = useAnimatedStyle(() => ({ opacity: fadeAnim.value }));
+  const countdownNumberStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: numberScale.value }],
+    opacity: numberOpacity.value,
+  }));
+  const breatheTextStyle = useAnimatedStyle(() => ({ opacity: breatheTextOpacity.value }));
+  const promptAnimStyle = useAnimatedStyle(() => ({
+    opacity: promptOpacity.value,
+    transform: [{ translateY: interpolate(promptOpacity.value, [0, 1], [20, 0]) }],
+  }));
+  const bellButtonStyle = useAnimatedStyle(() => ({ transform: [{ scale: bellScale.value }] }));
+  const breathingCircleStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: interpolate(pulseAnim.value, [0, 1], [0.7, 1.6]) }],
+    opacity: interpolate(pulseAnim.value, [0, 1], [0.5, 0.9]),
+  }));
+  const breatheInLabelStyle = useAnimatedStyle(() => ({ opacity: breathPhaseIndex.value === 0 ? 1 : 0 }));
+  const breatheHoldLabelStyle = useAnimatedStyle(() => ({ opacity: breathPhaseIndex.value === 1 ? 1 : 0 }));
+  const breatheOutLabelStyle = useAnimatedStyle(() => ({ opacity: breathPhaseIndex.value === 2 ? 1 : 0 }));
+  const jpInStyle = useAnimatedStyle(() => ({ opacity: breathPhaseIndex.value === 0 ? 1 : 0.4 }));
+  const jpHoldStyle = useAnimatedStyle(() => ({ opacity: breathPhaseIndex.value === 1 ? 1 : 0.4 }));
+  const jpOutStyle = useAnimatedStyle(() => ({ opacity: breathPhaseIndex.value === 2 ? 1 : 0.4 }));
+
+  // Render functions
   const renderIdleScreen = () => {
     const last = sessions && sessions.length > 0 ? sessions[0] : null;
     const lastDuration = last?.duration_minutes ? `${last.duration_minutes} min` : null;
@@ -455,7 +641,7 @@ const MeditationScreen = () => {
           <View style={styles.idleRow}>
             <TouchableOpacity style={[styles.idleBtn, styles.idleBtnPrimary]} onPress={() => {
               progressAnim.value = 0;
-              startMeditationStore();
+              meditationStore.startMeditation();
               Haptics.selectionAsync();
             }}>
               <Text style={[styles.idleBtnText, styles.idleBtnTextPrimary]}>Start Again</Text>
@@ -468,344 +654,6 @@ const MeditationScreen = () => {
       </ScrollView>
     );
   };
-
-  // Countdown speech handled by Orchestrator
-  const speakCountdownNumber = (_: number) => {};
-
-  // Countdown animation
-  const animateCountdownNumber = () => {
-    numberScale.value = withSequence(
-      withTiming(1.2, { duration: 300, easing: Easing.out(Easing.quad) }),
-      withTiming(0.8, { duration: 700, easing: Easing.inOut(Easing.quad) })
-    );
-    numberOpacity.value = withSequence(
-      withTiming(1, { duration: 100, easing: Easing.out(Easing.quad) }),
-      withTiming(0.5, { duration: 700, easing: Easing.inOut(Easing.quad) })
-    );
-  };
-
-  const animateBreathText = React.useCallback((phaseDuration: number) => {
-    const fadeIn = Math.min(500, Math.max(250, phaseDuration * 0.25));
-    const delay = Math.max(0, phaseDuration - fadeIn - 400);
-    breatheTextOpacity.value = withSequence(
-      withTiming(1, { duration: fadeIn, easing: Easing.out(Easing.quad) }),
-      withDelay(delay, withTiming(0, { duration: 400, easing: Easing.inOut(Easing.quad) }))
-    );
-  }, [breatheTextOpacity]);
-
-  const breathTimeoutsRef = useRef<Array<ReturnType<typeof setTimeout>>>([]);
-  const audioCoordinatorRef = useRef<AudioCoordinator | null>(null);
-  const breathCycleCount = useRef(0);
-
-  useEffect(() => {
-    if (selectedStyle === 'jesus_prayer' && jesusPrayerPace) {
-      setSelectedPace(jesusPrayerPace);
-    }
-  }, [selectedStyle, jesusPrayerPace]);
-
-  // Breath loop moved into Orchestrator via onBreathPhase
-
-  // Enhanced breathing circle style with better animation match
-  const breathingCircleStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: interpolate(pulseAnim.value, [0, 1], [0.7, 1.6]) }],
-    opacity: interpolate(pulseAnim.value, [0, 1], [0.5, 0.9]),
-  }));
-
-  // Animated styles for breath labels and JP phrases
-  const breatheInLabelStyle = useAnimatedStyle(() => ({ opacity: breathPhaseIndex.value === 0 ? 1 : 0 }));
-  const breatheHoldLabelStyle = useAnimatedStyle(() => ({ opacity: breathPhaseIndex.value === 1 ? 1 : 0 }));
-  const breatheOutLabelStyle = useAnimatedStyle(() => ({ opacity: breathPhaseIndex.value === 2 ? 1 : 0 }));
-  const jpInStyle = useAnimatedStyle(() => ({ opacity: breathPhaseIndex.value === 0 ? 1 : 0.4 }));
-  const jpHoldStyle = useAnimatedStyle(() => ({ opacity: breathPhaseIndex.value === 1 ? 1 : 0.4 }));
-  const jpOutStyle = useAnimatedStyle(() => ({ opacity: breathPhaseIndex.value === 2 ? 1 : 0.4 }));
-
-  // Consolidated Orchestrator lifecycle (COUNTDOWN and ACTIVE)
-  useEffect(() => {
-    const isCountdown = meditationState === MeditationState.COUNTDOWN;
-    const canStartActive = meditationState === MeditationState.ACTIVE && selectedTime;
-    // Create orchestrator once when entering countdown/active
-    if ((isCountdown || canStartActive) && !orchestratorRef.current) {
-      orchestratorRef.current = new MeditationOrchestrator({
-        getConfig: () => ({
-          ...orchestratorConfigRef.current,
-          sessionCount: completedSessions,
-          selectedMinutes: selectedTime ?? null,
-          virtueName: selectedStyle === 'virtue' ? (currentVirtue?.name || null) : null,
-          chosenChantId: chosenChantId ?? null,
-          jesusPrayerPace: jesusPrayerPace,
-          selectedBackgroundSound: (selectedBackgroundSound === 'ambient'
-            ? 'ambient'
-            : selectedBackgroundSound === 'heartbeat'
-              ? 'heartbeat'
-              : null) as 'ambient' | 'heartbeat' | null,
-        }),
-        callbacks: {
-          showPrompt: (i: number) => showPromptOnly(i),
-          onComplete: () => {
-            if (!hasMarkedComplete.current) {
-              hasMarkedComplete.current = true;
-              endMeditationSession();
-            }
-          },
-          onTick: (t: number, ratio: number) => {
-            try { meditationStore.setMeditationTimer(t); } catch {}
-            try { progressAnim.value = ratio; } catch {}
-          },
-          onGuide: (g: OrchestratorMeditationGuide) => {
-            setOrchestratedGuide(g);
-          },
-          onIntroComplete: () => {
-            setIntroCompleted(true);
-            breathPhaseIndex.value = 0;
-          },
-          onBreathPhase: (phase, durationMs) => {
-            // Batch breath text fade + pulse + phase index without React state
-            animateBreathText(durationMs);
-            if (phase === 'in') {
-              breathPhaseIndex.value = 0;
-              pulseAnim.value = withTiming(1, { duration: durationMs, easing: Easing.inOut(Easing.quad) });
-            } else if (phase === 'hold') {
-              breathPhaseIndex.value = 1;
-              pulseAnim.value = withTiming(1, { duration: durationMs, easing: Easing.linear });
-            } else {
-              breathPhaseIndex.value = 2;
-              pulseAnim.value = withTiming(0, { duration: durationMs, easing: Easing.inOut(Easing.quad) });
-            }
-          },
-          onChantStart: ({ chantId, pauseDurationMs, cues }) => {
-            try {
-              if (audioCoordinatorRef.current) {
-                audioCoordinatorRef.current.stop();
-                audioCoordinatorRef.current = null;
-              }
-              const voice = CHANT_VOICE_MAP[chantId || ''];
-              const instrumental = CHANT_INSTRUMENTAL_MAP[chantId || ''];
-              const coordinator = new AudioCoordinator({
-                voiceKey: voice as SoundKey,
-                instrumentalKey: instrumental as SoundKey,
-                cues,
-                pauseDurationMs,
-                onPhaseChange: () => {},
-              });
-              audioCoordinatorRef.current = coordinator;
-              coordinator.preload().then(() => {
-                if (audioCoordinatorRef.current === coordinator) {
-                  coordinator.start();
-                }
-              }).catch(() => {});
-            } catch {}
-          },
-          onChantStop: () => {
-            try {
-              if (audioCoordinatorRef.current) {
-                audioCoordinatorRef.current.stop();
-                audioCoordinatorRef.current = null;
-              }
-            } catch {}
-          },
-          onCountdownTick: (n: number) => {
-            try { meditationStore.setCountdown(n); } catch {}
-            animateCountdownNumber();
-            if (n === 0 && !activatedRef.current) {
-              activatedRef.current = true;
-              progressAnim.value = 0;
-              try { meditationStore.beginActivePhase(); } catch {}
-            }
-          },
-        },
-      });
-    }
-    // Start flows
-    if (meditationState === MeditationState.COUNTDOWN && orchestratorRef.current) {
-      activatedRef.current = false;
-      orchestratorRef.current.startCountdown(countdown);
-    }
-    if (canStartActive && orchestratorRef.current) {
-      orchestratorRef.current.start();
-    }
-    // Cleanup when leaving countdown/active
-    return () => {
-      const stillInFlow = (meditationState === MeditationState.COUNTDOWN) || (meditationState === MeditationState.ACTIVE);
-      if (!stillInFlow && orchestratorRef.current) {
-        orchestratorRef.current.stop();
-        orchestratorRef.current = null;
-      }
-    };
-  }, [meditationState, selectedTime, completedSessions, selectedStyle, currentVirtue?.name, chosenChantId, countdown]);
-
-  // (removed duplicate orchestrator init effect)
-
-  // Progress ring driven by Orchestrator onTick
-
-  // Reset session state when meditation ends
-  useEffect(() => {
-    if (meditationState !== MeditationState.ACTIVE) {
-      hasMarkedComplete.current = false;
-      try { spokenPromptsRef.current.clear(); } catch {}
-    }
-  }, [meditationState]);
-
-  // Chant mode coordination is now driven by orchestrator callbacks (onChantStart/onChantStop)
-
-  // Refresh points and bell animation on complete
-  useEffect(() => {
-    if (meditationState === MeditationState.COMPLETE) {
-      bellScale.value = withRepeat(
-        withSequence(
-          withTiming(1.05, { duration: 1000 }),
-          withTiming(1, { duration: 1000 })
-        ),
-        -1
-      );
-      if (!congratulatedRef.current && user?.id) {
-        congratulatedRef.current = true;
-        (async () => {
-          const before = preSessionPointsRef.current;
-          const stats = await leaderboardStore.fetchUserStats(user.id);
-          const after = stats?.totalPoints ?? null;
-          if (before != null && after != null && after > before) {
-            const delta = after - before;
-            toast.success(`Great job! +${delta} points earned today`);
-          } else {
-            toast.success('Meditation complete. Keep it up!');
-          }
-        })();
-      }
-    } else if (meditationState === MeditationState.SETUP) {
-      // reset congratulation guard when returning to setup
-      congratulatedRef.current = false;
-    }
-  }, [meditationState]);
-
-  // Handlers
-  // Scripture reading handled by Orchestrator
-  const readScriptureSlowly = React.useCallback(async (_reference?: string) => { return; }, []);
-
-  const startMeditation = async () => {
-    const missingVirtue = selectedStyle === 'virtue' && !selectedVirtue;
-    let minutes = selectedTime;
-    if (selectedStyle === 'parable' && (minutes == null || minutes < 10)) {
-      minutes = 10;
-      setStoreSelectedTime(10);
-    }
-    if (missingVirtue || !minutes) {
-      fadeAnim.value = withSequence(withTiming(0.3, { duration: 200 }), withTiming(1, { duration: 200 }));
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      return;
-    }
-    try {
-      const seen = await AsyncStorage.getItem('med_first_tip_shown');
-      if (!seen) {
-        // show tips modal before starting
-        pendingStartRef.current = true;
-        setShowFirstTipModal(true);
-        return;
-      }
-    } catch { }
-    // capture points snapshot before session begins
-    preSessionPointsRef.current = leaderboardStore.userStats?.totalPoints ?? null;
-    progressAnim.value = 0;
-    try { meditationStore.setExternalDriver(true); } catch {}
-    setIntroCompleted(false);
-    startMeditationStore();
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  };
-
-  // Store initializes itself; avoid re-initializing to prevent repeated API calls
-
-  const endMeditation = () => {
-    endMeditationSession();
-    if (isSpeaking.current) Speech.stop();
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  };
-
-  const resumeMeditation = React.useCallback(() => {
-    meditationStore.resume();
-    // Resume audio coordinator if in chant mode
-    if (selectedStyle === 'chant' && audioCoordinatorRef.current) {
-      audioCoordinatorRef.current.resume();
-    }
-    // Resume orchestrator
-    if (orchestratorRef.current) {
-      orchestratorRef.current.resume();
-    }
-  }, [meditationStore, selectedStyle]);
-
-  const renderPausedScreen = () => (
-    <View style={styles.pausedOverlay}>
-      <BlurView intensity={80} tint="default" style={styles.pausedBlur}>
-        <View style={styles.pausedCard}>
-          <View style={styles.pausedIconContainer}>
-            <View style={[styles.pausedIcon, { backgroundColor: `${currentVirtue?.color_code || theme?.colors.primary}20` }]}>
-              <Text style={[styles.pausedIconText, { color: currentVirtue?.color_code || theme?.colors.primary }]}>⏸</Text>
-            </View>
-          </View>
-          <Text style={styles.pausedTitle}>Meditation Paused</Text>
-          <Text style={styles.pausedSubtitle}>Take your time. Resume when you're ready.</Text>
-          <View style={styles.pausedActions}>
-            <TouchableOpacity
-              style={[styles.pausedResumeButton, { backgroundColor: currentVirtue?.color_code || theme?.colors.primary }]}
-              onPress={resumeMeditation}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.pausedResumeText}>Resume Meditation</Text>
-            </TouchableOpacity>
-            <TouchableOpacity 
-              style={styles.pausedEndButton} 
-              onPress={endMeditation}
-              activeOpacity={0.7}
-            >
-              <Text style={styles.pausedEndText}>End Session</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </BlurView>
-    </View>
-  );
-
-  const createChallenge = async () => {
-    if (!selectedChallenge) {
-      navigation.navigate('DailyChallengeScreen');
-      return;
-    }
-    const endTime = new Date();
-    // Keep server as source of truth for points; only compute local end_time for UI
-    endTime.setHours(endTime.getHours() + (selectedTime === 40 ? 24 : selectedTime === 15 ? 6 : 3));
-    const challenge = { ...selectedChallenge, end_time: endTime.toISOString() };
-
-    if (user) {
-      // Do not calculate or set points on the client. Let the backend handle it.
-      await meditationStore.joinChallenge(selectedChallenge.id);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      // Optionally, refresh user data here if auth store exposes a fetch method
-      // await auth.refreshUser();
-    }
-    navigation.navigate('Home', { meditationComplete: true, challenge });
-  };
-
-  // Animated styles
-  const fadeAnimStyle = useAnimatedStyle(() => ({ opacity: fadeAnim.value }));
-  const countdownNumberStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: numberScale.value }],
-    opacity: numberOpacity.value,
-  }));
-  const breatheTextStyle = useAnimatedStyle(() => ({ opacity: breatheTextOpacity.value }));
-  const promptAnimStyle = useAnimatedStyle(() => ({
-    opacity: promptOpacity.value,
-    transform: [{ translateY: interpolate(promptOpacity.value, [0, 1], [20, 0]) }],
-  }));
-  const bellButtonStyle = useAnimatedStyle(() => ({ transform: [{ scale: bellScale.value }] }));
-
-  
-
-  // Render functions
-  const handleSelectTime = React.useCallback((minutes: number) => {
-    const min = selectedStyle === 'parable' ? 10 : minutes;
-    const clamped = selectedStyle === 'parable' ? Math.max(10, minutes) : minutes;
-    setStoreSelectedTime(clamped);
-    Haptics.selectionAsync();
-    setShowCustomTimeModal(false);
-  }, [setStoreSelectedTime, selectedStyle]);
 
   const renderSetupScreen = () => (
     <ScrollView style={styles.scrollContainer} showsVerticalScrollIndicator={false}>
@@ -917,7 +765,7 @@ const MeditationScreen = () => {
                     <TouchableOpacity
                       style={styles.changeChallengeButton}
                       onPress={() => {
-                        setStoreSelectedChallenge(null);
+                        meditationStore.setSelectedChallenge(null);
                         Haptics.selectionAsync();
                       }}
                     >
@@ -984,13 +832,6 @@ const MeditationScreen = () => {
     </View>
   );
 
-  const formatTime = React.useCallback((seconds: number) => {
-    const clamped = Math.max(0, seconds);
-    const mins = Math.floor(clamped / 60);
-    const secs = clamped % 60;
-    return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
-  }, []);
-
   const renderActiveScreen = () => {
     const totalSeconds = selectedTime ? selectedTime * 60 : null;
     const elapsedLabel = formatTime(meditationTimer);
@@ -1021,10 +862,8 @@ const MeditationScreen = () => {
           lineCap="round"
         >
           <View style={styles.breathCircleContainer}>
-            {/* Base circle for better contrast */}
             <View style={[styles.baseCircle, { backgroundColor: theme.colors.background }]} />
 
-            {/* Improved breathing circle with better visibility */}
             <Animated.View style={[styles.breathGradient, breathingCircleStyle]}>
               <LinearGradient
                 colors={[
@@ -1043,6 +882,7 @@ const MeditationScreen = () => {
             </View>
           </View>
         </AnimatedCircularProgress>
+
         {!isChant && (
           <Animated.View style={[styles.breatheInstructionContainer, breatheTextStyle]}>
             <View style={styles.breatheInstructionBackground}>
@@ -1100,6 +940,38 @@ const MeditationScreen = () => {
     );
   };
 
+  const renderPausedScreen = () => (
+    <View style={styles.pausedOverlay}>
+      <BlurView intensity={80} tint="default" style={styles.pausedBlur}>
+        <View style={styles.pausedCard}>
+          <View style={styles.pausedIconContainer}>
+            <View style={[styles.pausedIcon, { backgroundColor: `${currentVirtue?.color_code || theme?.colors.primary}20` }]}>
+              <Text style={[styles.pausedIconText, { color: currentVirtue?.color_code || theme?.colors.primary }]}>⏸</Text>
+            </View>
+          </View>
+          <Text style={styles.pausedTitle}>Meditation Paused</Text>
+          <Text style={styles.pausedSubtitle}>Take your time. Resume when you're ready.</Text>
+          <View style={styles.pausedActions}>
+            <TouchableOpacity
+              style={[styles.pausedResumeButton, { backgroundColor: currentVirtue?.color_code || theme?.colors.primary }]}
+              onPress={resumeMeditation}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.pausedResumeText}>Resume Meditation</Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={styles.pausedEndButton} 
+              onPress={endMeditation}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.pausedEndText}>End Session</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </BlurView>
+    </View>
+  );
+
   const renderCompleteScreen = () => (
     <MeditationCompleteView
       theme={theme}
@@ -1119,38 +991,13 @@ const MeditationScreen = () => {
       guideChallengePrompt={(selectedStyle === 'parable' || selectedStyle === 'virtue') ? guideForUI?.closingReminder : undefined}
       onFinish={() => {
         try {
-          // Stop any ongoing speech
-          if (isSpeaking.current) Speech.stop();
           Speech.stop();
-
-          // Stop background music
           stopMusic('meditation');
           stopMusic('heartbeat');
-
-          // Stop chant audio if any
-          const voice = CHANT_VOICE_MAP[chosenChantId || ''];
-          const instrumental = CHANT_INSTRUMENTAL_MAP[chosenChantId || ''];
-          if (instrumental) { void stopByKey(instrumental); }
-          if (voice) { void stopByKey(voice); }
-
-          // Clear local timers/intervals
-          breathTimeoutsRef.current.forEach(clearTimeout);
-          breathTimeoutsRef.current = [];
-          if (audioCoordinatorRef.current) {
-            audioCoordinatorRef.current.stop();
-            audioCoordinatorRef.current = null;
-          }
-
-          // Reset local animations
-          try { bellScale.value = 1; } catch { }
-          try { pulseAnim.value = 0; } catch { }
-
-          // As a safety, stop all sounds
-          void stopAllSounds();
+          stopAllSounds();
         } finally {
-          try { meditationStore.setExternalDriver(false); } catch {}
+          meditationStore.setExternalDriver(false);
           meditationStore.resetMeditationSession();
-          // Use replace to force navigation change
           navigation.replace('Home', { meditationComplete: true });
         }
       }}
@@ -1170,32 +1017,32 @@ const MeditationScreen = () => {
           centeringWord: centeringWord ?? undefined,
           jesusPrayerPace: jesusPrayerPace,
           chantId: chosenChantId ?? undefined,
-          parableReadMode: (meditationStore.state as any).parableReadMode,
-          centeringReadMode: (meditationStore.state as any).centeringReadMode,
-          centeringRepeatIntervalSec: (meditationStore.state as any).centeringRepeatIntervalSec,
-          chantReflectionPauseSec: (meditationStore.state as any).chantReflectionPauseSec,
+          parableReadMode: parableReadMode,
+          centeringReadMode: centeringReadMode,
+          centeringRepeatIntervalSec: centeringRepeatIntervalSec,
+          chantReflectionPauseSec: chantReflectionPauseSec,
         }}
         onStart={(values) => {
-          setStoreSelectedStyle(values.style);
-          setStoreSelectedBackgroundSound(values.sound ?? null);
-          setStoreSelectedVirtue(values.virtueId ?? null);
-          setStoreCenteringWord(values.centeringWord ?? null);
-          setStoreJesusPrayerPace(values.jesusPrayerPace ?? 'medium');
-          setStoreChosenChantId(values.chantId ?? null);
-          setStoreParableReadMode(values.parableReadMode ?? 'silent');
-          setStoreCenteringReadMode(values.centeringReadMode ?? 'silent');
-          setStoreCenteringRepeatIntervalSec(values.centeringRepeatIntervalSec ?? 15);
-          setStoreChantReflectionPauseSec(values.chantReflectionPauseSec ?? 20);
+          meditationStore.setSelectedStyle(values.style);
+          meditationStore.setSelectedBackgroundSound(values.sound ?? null);
+          meditationStore.setSelectedVirtue(values.virtueId ?? null);
+          meditationStore.setCenteringWord(values.centeringWord ?? null);
+          meditationStore.setJesusPrayerPace(values.jesusPrayerPace ?? 'medium');
+          meditationStore.setChosenChantId(values.chantId ?? null);
+          meditationStore.setParableReadMode(values.parableReadMode ?? 'silent');
+          meditationStore.setCenteringReadMode(values.centeringReadMode ?? 'silent');
+          meditationStore.setCenteringRepeatIntervalSec(values.centeringRepeatIntervalSec ?? 15);
+          meditationStore.setChantReflectionPauseSec(values.chantReflectionPauseSec ?? 20);
           Haptics.selectionAsync();
         }}
       />
-      {/* First-time meditation tips modal */}
+
       <Modal visible={showFirstTipModal} animationType="fade" transparent onRequestClose={() => setShowFirstTipModal(false)}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>Quick Tips</Text>
             <Text style={styles.modalText}>• Switch on Do Not Disturb to avoid distractions
-              {'\n'}• If it’s safe, gently close your eyes
+              {'\n'}• If it's safe, gently close your eyes
               {'\n'}• Listen to the voice guide and breathe calmly</Text>
             <View style={styles.modalActions}>
               <TouchableOpacity
@@ -1210,13 +1057,13 @@ const MeditationScreen = () => {
               <TouchableOpacity
                 style={[styles.modalBtn, { backgroundColor: theme.colors.primary }]}
                 onPress={async () => {
-                  try { await AsyncStorage.setItem('med_first_tip_shown', '1'); } catch { }
+                  try { await AsyncStorage.setItem('med_first_tip_shown', '1'); } catch {}
                   setShowFirstTipModal(false);
                   if (pendingStartRef.current) {
                     pendingStartRef.current = false;
                     progressAnim.value = 0;
-                    try { meditationStore.setExternalDriver(true); } catch {}
-                    startMeditationStore();
+                    meditationStore.setExternalDriver(true);
+                    meditationStore.startMeditation();
                     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
                   }
                 }}
@@ -1227,6 +1074,7 @@ const MeditationScreen = () => {
           </View>
         </View>
       </Modal>
+
       <Modal visible={showCustomTimeModal} animationType="fade" transparent onRequestClose={() => setShowCustomTimeModal(false)}>
         <View style={styles.modalOverlay}>
           <View style={styles.customModalCard}>
@@ -1251,6 +1099,7 @@ const MeditationScreen = () => {
           </View>
         </View>
       </Modal>
+
       {meditationState === MeditationState.SETUP && (
         <View style={styles.header}>
           <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
