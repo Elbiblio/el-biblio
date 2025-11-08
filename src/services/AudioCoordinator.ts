@@ -48,37 +48,27 @@ export const speak = async (
  * Simple speech queue to prevent overlapping TTS
  */
 class SpeechQueue {
-  private queue: Array<{ text: string; rate?: number }> = [];
+  private queue: Array<{ text: string; rate?: number; resolve: () => void }> = [];
   private processing = false;
 
   enqueue(text: string, rate?: number): Promise<void> {
     return new Promise<void>((resolve) => {
-      this.queue.push({ text, rate });
-
-      if (!this.processing) {
-        this.process().finally(resolve);
-      } else {
-        // Wait for this item to be processed
-        const checkInterval = setInterval(() => {
-          if (!this.queue.some(item => item.text === text)) {
-            clearInterval(checkInterval);
-            resolve();
-          }
-        }, 100);
-      }
+      this.queue.push({ text, rate, resolve });
+      if (!this.processing) { void this.process(); }
     });
   }
 
   private async process(): Promise<void> {
+    if (this.processing) return;
     this.processing = true;
 
     while (this.queue.length > 0) {
       const item = this.queue.shift();
       if (!item) break;
-
       try {
         await speak(item.text, { rate: item.rate ?? 0.85, timeout: 8000 });
       } catch {}
+      try { item.resolve(); } catch {}
     }
 
     this.processing = false;
@@ -86,7 +76,10 @@ class SpeechQueue {
 
   clear() {
     try { Speech.stop(); } catch {}
-    this.queue = [];
+    while (this.queue.length > 0) {
+      const item = this.queue.shift();
+      try { item?.resolve(); } catch {}
+    }
     this.processing = false;
   }
 }

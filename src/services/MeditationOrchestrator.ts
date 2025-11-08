@@ -78,6 +78,7 @@ export class MeditationOrchestrator {
   private currentGuide: MeditationGuide | null = null;
   private chantCoordinator: AudioCoordinator | null = null;
   private lastStartAt: number = 0;
+  private bgActive: boolean = false;
 
   constructor(opts: OrchestratorOptions) {
     this.getConfig = opts.getConfig;
@@ -188,9 +189,7 @@ export class MeditationOrchestrator {
 
     // Pause background audio
     const channel = this.getBackgroundChannel();
-    if (channel) {
-      stopMusic(channel);
-    }
+    if (channel && this.bgActive) { stopMusic(channel); this.bgActive = false; }
     // Pause chant coordinator
     this.chantCoordinator?.pause().catch(() => {});
   }
@@ -224,9 +223,7 @@ export class MeditationOrchestrator {
     
     // Stop background audio
     const channel = this.getBackgroundChannel();
-    if (channel) {
-      stopMusic(channel);
-    }
+    if (channel && this.bgActive) { stopMusic(channel); this.bgActive = false; }
     // Stop chant coordinator
     if (this.chantCoordinator) {
       this.chantCoordinator.stop().catch(() => {});
@@ -421,9 +418,7 @@ export class MeditationOrchestrator {
 
   private startBackgroundAudio() {
     const channel = this.getBackgroundChannel();
-    if (channel) {
-      playMusic(channel, 0.6);
-    }
+    if (channel && !this.bgActive) { playMusic(channel, 0.6); this.bgActive = true; }
   }
 
   private async speakWithDuck(text: string, rate = 0.85) {
@@ -679,9 +674,7 @@ export class MeditationOrchestrator {
 
     // Stop background audio
     const channel = this.getBackgroundChannel();
-    if (channel) {
-      stopMusic(channel);
-    }
+    if (channel && this.bgActive) { stopMusic(channel); this.bgActive = false; }
 
     this.speakWithDuck('Open your eyes', 0.85)
       .then(() => this.callbacks.onComplete())

@@ -22,6 +22,9 @@ import {
   LayoutChangeEvent,
   ViewToken,
   SafeAreaView,
+  PanResponder,
+  GestureResponderEvent,
+  PanResponderGestureState,
 } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -154,6 +157,16 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
   const routeParams = route?.params ?? null;
   const [showDoneOverlay, setShowDoneOverlay] = useState(false);
 
+  const goToNextChapterGeneric = useCallback(async () => {
+    if (!bibleStore.currentBook || !bibleStore.currentVersion) return;
+    const nextChapter = Math.max(1, (bibleStore.currentChapter || 1) + 1);
+    const lastInBook = bibleStore.currentBook.chapters || nextChapter;
+    if (nextChapter > lastInBook) return;
+    await bibleStore.fetchVerses(bibleStore.currentBook, nextChapter, bibleStore.currentVersion, 1);
+  }, [bibleStore]);
+
+  
+
   const resetIdleTimer = useCallback(() => {
     if (idleTimerRef.current) {
       clearTimeout(idleTimerRef.current);
@@ -238,6 +251,12 @@ const planRemainingSeconds = useMemo(() => {
     }
     lastAtEndRef.current = atEnd;
   }, [atEnd]);
+
+  useEffect(() => {
+    try {
+      (navigation as any).setOptions?.({ gestureEnabled: !atEnd });
+    } catch {}
+  }, [atEnd, navigation]);
 
   useEffect(() => {
     if (!bibleStore.isPlanMode) {
@@ -534,6 +553,41 @@ const handleCompleteSegment = useCallback(async () => {
     if (nextChapter > lastChapter) return;
     await bibleStore.fetchVerses(bibleStore.currentBook, nextChapter, bibleStore.currentVersion, 1);
   }, [bibleStore]);
+
+  const handleRightSwipeToNext = useCallback(async () => {
+    try { await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+    if (bibleStore.isPlanMode) {
+      const seg = bibleStore.activeReadingSegment;
+      const cur = bibleStore.currentChapter || 1;
+      const last = seg ? (seg.chapterEnd ?? seg.chapterStart) : null;
+      if (seg && last && cur < last) {
+        await goToNextChapterWithinSegment();
+        return;
+      }
+    }
+    await goToNextChapterGeneric();
+  }, [bibleStore.isPlanMode, bibleStore.activeReadingSegment, bibleStore.currentChapter, goToNextChapterWithinSegment, goToNextChapterGeneric]);
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_evt: GestureResponderEvent, gesture: PanResponderGestureState) => {
+        if (!atEnd) return false;
+        const isHorizontal = Math.abs(gesture.dx) > 18 && Math.abs(gesture.dy) < 10;
+        const isRightSwipe = gesture.dx > 18;
+        const fromLeftEdge = (gesture.x0 ?? 0) < 28;
+        return isHorizontal && isRightSwipe && fromLeftEdge;
+      },
+      onPanResponderRelease: async (_evt, gesture) => {
+        if (!atEnd) return;
+        const isRightSwipe = gesture.dx > 30 && Math.abs(gesture.dy) < 20;
+        if (isRightSwipe) {
+          await handleRightSwipeToNext();
+        }
+      },
+      onPanResponderTerminationRequest: () => true,
+      onPanResponderTerminate: () => {},
+    })
+  ).current;
 
   useEffect(() => {
     // Open plan setup if requested by navigation and no plan exists
@@ -1919,7 +1973,7 @@ const renderMeditationModal = () => {
 };
 
   return (
-    <View style={styles.container}>
+    <View style={styles.container} {...panResponder.panHandlers}>
       <Animated.View style={[styles.headerContainer, { transform: [{ translateY: headerTranslateY }] }]}>
         {renderHeader()}
       </Animated.View>

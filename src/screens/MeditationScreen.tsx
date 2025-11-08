@@ -29,7 +29,7 @@ import { Theme } from '@/theme';
 import { useAuthStore, useVirtueStore, useMeditationStore, useChallengeStore, useLeaderboardStore } from '@/stores/StoreProvider';
 import * as Haptics from 'expo-haptics';
 import { useKeepAwake } from 'expo-keep-awake';
-import { playMusic, stopMusic, preloadMusicCue, stopAllSounds } from '@/services/audio';
+import { playMusic, stopMusic, preloadMusicCue } from '@/services/audio';
 import { MeditationOrchestrator } from '@/services/MeditationOrchestrator';
 import type { MeditationGuide as OrchestratorMeditationGuide } from '@/services/MeditationOrchestrator';
 import { getChantById } from '@/data/chantTracks';
@@ -115,6 +115,7 @@ const MeditationScreen = () => {
   const orchestratorRef = useRef<MeditationOrchestrator | null>(null);
   const nudgeShownRef = useRef(false);
   const activatedRef = useRef(false);
+  const previewKeyRef = useRef<'meditation' | 'heartbeat' | null>(null);
   
   // Single source of truth for orchestrated guide
   const [orchestratedGuide, setOrchestratedGuide] = useState<OrchestratorMeditationGuide | null>(null);
@@ -260,32 +261,38 @@ const MeditationScreen = () => {
     return () => { try { sub.remove(); } catch {} };
   }, [meditationState, meditationStore]);
 
-  // Background sound PREVIEW (setup only)
   useEffect(() => {
-    if (meditationState !== MeditationState.SETUP) return;
-    if (selectedStyle === 'chant') return;
+    if (meditationState !== MeditationState.SETUP || selectedStyle === 'chant') {
+      if (previewKeyRef.current) {
+        try { stopMusic(previewKeyRef.current); } catch {}
+        previewKeyRef.current = null;
+      }
+      return;
+    }
 
-    if (isPreviewingSound) {
-      if (selectedBackgroundSound === 'ambient') playMusic('meditation', 0.6);
-      if (selectedBackgroundSound === 'heartbeat') playMusic('heartbeat', 0.6);
-    } else {
-      stopMusic('meditation');
-      stopMusic('heartbeat');
+    const desiredKey: 'meditation' | 'heartbeat' | null = isPreviewingSound
+      ? (selectedBackgroundSound === 'ambient' ? 'meditation'
+        : selectedBackgroundSound === 'heartbeat' ? 'heartbeat' : null)
+      : null;
+
+    if (desiredKey !== previewKeyRef.current) {
+      if (previewKeyRef.current) {
+        try { stopMusic(previewKeyRef.current); } catch {}
+      }
+      if (desiredKey) {
+        try { playMusic(desiredKey, 0.6); } catch {}
+      }
+      previewKeyRef.current = desiredKey;
     }
 
     return () => {
-      stopMusic('meditation');
-      stopMusic('heartbeat');
+      if (previewKeyRef.current) {
+        try { stopMusic(previewKeyRef.current); } catch {}
+        previewKeyRef.current = null;
+      }
     };
   }, [meditationState, isPreviewingSound, selectedBackgroundSound, selectedStyle]);
 
-  // Cleanup on complete handled by orchestrator; avoid cutting final TTS
-  useEffect(() => {
-    if (meditationState === MeditationState.COMPLETE) {
-      try { stopMusic('meditation'); } catch {}
-      try { stopMusic('heartbeat'); } catch {}
-    }
-  }, [meditationState]);
 
   // Ensure setup preview is stopped and preload background when entering countdown
   useEffect(() => {
@@ -949,7 +956,6 @@ const MeditationScreen = () => {
           Speech.stop();
           stopMusic('meditation');
           stopMusic('heartbeat');
-          stopAllSounds();
         } finally {
           meditationStore.setExternalDriver(false);
           meditationStore.resetMeditationSession();
