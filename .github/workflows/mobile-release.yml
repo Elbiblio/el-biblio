@@ -89,7 +89,9 @@ jobs:
           echo "Version code: ${{ steps.versioning.outputs.version_code }}" >> "$GITHUB_STEP_SUMMARY"
 
   build-android:
-    needs: build-ios
+    needs:
+      - prepare-build
+      - build-ios
     runs-on: ubuntu-latest
     env:
       VERSION_NAME: ${{ needs.prepare-build.outputs.version_name }}
@@ -137,6 +139,12 @@ jobs:
           const path = 'android/app/build.gradle';
           const code = process.env.VERSION_CODE;
           const name = process.env.VERSION_NAME;
+          if (!code || !/^\d+$/.test(code)) {
+            throw new Error(`VERSION_CODE is missing or invalid: "${code ?? ''}"`);
+          }
+          if (!name) {
+            throw new Error('VERSION_NAME is missing');
+          }
           let contents = fs.readFileSync(path, 'utf8');
           contents = contents.replace(/versionCode\s+\d+/g, `versionCode ${code}`);
           contents = contents.replace(/versionName\s+"[^"]+"/g, `versionName "${name}"`);
