@@ -58,6 +58,7 @@ import { registerGlobals, AudioSession } from '@livekit/react-native';
 import ChallengeCompletionBanner from './src/components/ChallengeCompletionBanner';
 import type { Challenge } from './src/types/challenges';
 import { registerChallengeReminderTask } from './src/tasks/challengeReminderTask';
+import { initAudio } from './src/services/audio';
 import { usePreferencesStore, useChallengeStore } from './src/stores/StoreProvider';
 import { syncDailyNuggets, setDailyNuggetStores } from './src/tasks/dailyNuggetOrchestrator';
 
@@ -207,6 +208,8 @@ const AppContent = () => {
   useEffect(() => {
     const initialize = async () => {
       try {
+        // Configure audio session once
+        await initAudio();
         const savedThemeVariant = await AsyncStorage.getItem(STORAGE_KEYS.THEME);
         if (savedThemeVariant) {
           setInitialTheme(getTheme(savedThemeVariant as ThemeVariant));

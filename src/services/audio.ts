@@ -257,6 +257,16 @@ export const stopMusic = async (cue: 'musicverse' | 'verseplay' | 'meditation' |
   } catch {}
 };
 
+// Preload a looping music cue without starting playback
+export const preloadMusicCue = async (cue: 'musicverse' | 'verseplay' | 'meditation' | 'heartbeat') => {
+  const key = CUE_ALIASES[cue];
+  if (!key) return;
+  try {
+    await initAudio();
+    await getSound(key);
+  } catch {}
+};
+
 export const stopAllSounds = async () => {
   try {
     await Promise.all(

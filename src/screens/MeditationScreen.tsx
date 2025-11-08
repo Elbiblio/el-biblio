@@ -28,21 +28,16 @@ import {
 import { Theme } from '@/theme';
 import { useAuthStore, useVirtueStore, useMeditationStore, useChallengeStore, useLeaderboardStore } from '@/stores/StoreProvider';
 import * as Haptics from 'expo-haptics';
-import { setAudioModeAsync } from 'expo-audio';
-import { activateKeepAwake, deactivateKeepAwake } from 'expo-keep-awake';
-import { playCue, playMusic, stopByKey, stopMusic, stopAllSounds, setMusicVolume, playLoopByKey, playOneShotByKey, SoundKey } from '@/services/audio';
-import { AudioCoordinator } from '@/services/AudioCoordinator';
+import { useKeepAwake } from 'expo-keep-awake';
+import { playMusic, stopMusic, preloadMusicCue, stopAllSounds } from '@/services/audio';
 import { MeditationOrchestrator } from '@/services/MeditationOrchestrator';
 import type { MeditationGuide as OrchestratorMeditationGuide } from '@/services/MeditationOrchestrator';
-import BibleDBService from '@/utils/database';
-import { bibleBooks } from '@/constants/bibleBooks';
-import { DailyChallenge } from '@/types';
+import { getChantById } from '@/data/chantTracks';
 import { Challenge as ChallengeRecommendation } from '@/types/challenges';
 import AnimatedCircularProgress from '@/components/AnimatedCircularProgress';
 import AnimatedParticles from '@/components/AnimatedParticles';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { toast } from 'sonner-native';
-import SmartPickCard from '@/components/SmartPickCard';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -57,38 +52,6 @@ import MeditationSetupModal from '@/components/MeditationSetupModal';
 
 const TIME_OPTIONS: number[] = [5, 10, 15, 20];
 const ADVANCED_TIME_OPTIONS: number[] = [30, 45, 60];
-
-const BREATH_CONFIG = {
-  slow: { in: 5200, hold: 3000, out: 6000 },
-  medium: { in: 4000, hold: 2000, out: 4800 },
-  fast: { in: 2800, hold: 1500, out: 3200 },
-};
-
-
-const CHANT_INSTRUMENTAL_MAP: Record<string, SoundKey | undefined> = {
-  '10000-reasons': 'db/10000_reasons_instrumental.mp3',
-  '10000-reasons-african': 'db/10000_reasons_instrumental.mp3',
-  'be-still-my-soul': 'db/be_still_my_soul_instrumental.mp3',
-  'soul-of-jesus-sanctify-me': 'db/anima_christi_instrumental.mp3',
-  'oceans': 'db/oceans_instrumental.mp3',
-};
-
-const CHANT_LABEL_MAP: Record<string, string> = {
-  '10000-reasons': '10,000 Reasons',
-  '10000-reasons-african': '10,000 Reasons (African)',
-  'be-still-my-soul': 'Be Still My Soul',
-  'soul-of-jesus-sanctify-me': 'Soul of Jesus, Sanctify Me',
-  'oceans': 'Oceans (Spirit Lead Me)',
-};
-
-const CHANT_VOICE_MAP: Record<string, SoundKey | undefined> = {
-  '10000-reasons': 'db/10000_reasons.mp3',
-  '10000-reasons-african': 'db/10000_reasons_african.mp3',
-  'be-still-my-soul': 'db/be_still_my_soul.mp3',
-  'soul-of-jesus-sanctify-me': 'db/anima_christi.mp3',
-  'oceans': 'db/oceans_voice.mp3',
-};
-
 
 enum MeditationState {
   SETUP = 'setup',
@@ -140,7 +103,6 @@ const MeditationScreen = () => {
   const [challengeExpanded, setChallengeExpanded] = useState(false);
   const [showFirstTipModal, setShowFirstTipModal] = useState(false);
   const [showCustomTimeModal, setShowCustomTimeModal] = useState(false);
-  const [selectedPace, setSelectedPace] = useState<'slow' | 'medium' | 'fast'>('medium');
   const [smartPickDismissed, setSmartPickDismissed] = useState(false);
   const [showSetupModal, setShowSetupModal] = useState(false);
 
@@ -256,19 +218,7 @@ const MeditationScreen = () => {
   );
 
   // Keep screen awake during active meditation
-  useEffect(() => {
-    if (meditationState === MeditationState.ACTIVE) {
-      try { activateKeepAwake('meditation'); } catch {}
-    } else {
-      try { deactivateKeepAwake('meditation'); } catch {}
-    }
-    return () => { try { deactivateKeepAwake('meditation'); } catch {} };
-  }, [meditationState]);
-
-  // Initialize audio mode once
-  useEffect(() => {
-    setAudioModeAsync({ playsInSilentMode: true }).catch(() => {});
-  }, []);
+  useKeepAwake('meditation')
 
   // Set default time
   useEffect(() => {
@@ -296,13 +246,6 @@ const MeditationScreen = () => {
       setSmartPickDismissed(false);
     }
   }, [meditationState]);
-
-  // Reset JP pace when entering JP mode
-  useEffect(() => {
-    if (selectedStyle === 'jesus_prayer' && jesusPrayerPace) {
-      setSelectedPace(jesusPrayerPace);
-    }
-  }, [selectedStyle, jesusPrayerPace]);
 
   // App state listener - pause on background
   useEffect(() => {
@@ -336,13 +279,25 @@ const MeditationScreen = () => {
     };
   }, [meditationState, isPreviewingSound, selectedBackgroundSound, selectedStyle]);
 
-  // Cleanup on complete
+  // Cleanup on complete handled by orchestrator; avoid cutting final TTS
   useEffect(() => {
     if (meditationState === MeditationState.COMPLETE) {
-      try { Speech.stop(); } catch {}
-      try { stopAllSounds(); } catch {}
+      try { stopMusic('meditation'); } catch {}
+      try { stopMusic('heartbeat'); } catch {}
     }
   }, [meditationState]);
+
+  // Ensure setup preview is stopped and preload background when entering countdown
+  useEffect(() => {
+    if (meditationState === MeditationState.COUNTDOWN) {
+      try { stopMusic('meditation'); } catch {}
+      try { stopMusic('heartbeat'); } catch {}
+      if (selectedStyle !== 'chant') {
+        if (selectedBackgroundSound === 'ambient') { try { preloadMusicCue('meditation'); } catch {} }
+        if (selectedBackgroundSound === 'heartbeat') { try { preloadMusicCue('heartbeat'); } catch {} }
+      }
+    }
+  }, [meditationState, selectedStyle, selectedBackgroundSound]);
 
   // Bell animation on complete
   useEffect(() => {
@@ -678,7 +633,7 @@ const MeditationScreen = () => {
               {selectedStyle === 'virtue' ? (currentVirtue?.name || 'Choose a virtue') :
                 selectedStyle === 'centering' ? `Centering: ${centeringWord || 'Jesus'}` :
                   selectedStyle === 'jesus_prayer' ? 'Jesus Prayer' :
-                    selectedStyle === 'chant' ? (chosenChantId ? CHANT_LABEL_MAP[chosenChantId] || 'Chant' : 'Chant') : 'Parable Meditation'}
+                    selectedStyle === 'chant' ? (chosenChantId ? (getChantById(chosenChantId)?.label || 'Chant') : 'Chant') : 'Parable Meditation'}
             </Text>
           </View>
           <TouchableOpacity
@@ -839,7 +794,7 @@ const MeditationScreen = () => {
     const isChant = selectedStyle === 'chant';
     const isCentering = selectedStyle === 'centering';
     const isJP = selectedStyle === 'jesus_prayer';
-    const chantNow = chosenChantId ? (CHANT_LABEL_MAP[chosenChantId] || 'Chant') : 'Chant';
+    const chantNow = chosenChantId ? (getChantById(chosenChantId)?.label || 'Chant') : 'Chant';
 
     return (
       <View style={styles.activeContainer}>

@@ -1,5 +1,7 @@
 import { buildMeditationPlan, contemplativePractices } from '@/data/meditationPlans';
-import { speak, readScriptureSlowly } from '@/services/AudioCoordinator';
+import { speak, readScriptureSlowly, queueSpeak, clearSpeechQueue } from '@/services/AudioCoordinator';
+import { AudioCoordinator } from '@/services/AudioCoordinator';
+import { getChantById } from '@/data/chantTracks';
 import { playCue, playMusic, stopMusic, setMusicVolume } from '@/services/audio';
 
 type Challenge = { title: string; description: string } | null;
@@ -73,8 +75,9 @@ export class MeditationOrchestrator {
   private breathCycleCount: number = 0;
   private stages = { s1: false, s2: false };
 
-  // Guide
   private currentGuide: MeditationGuide | null = null;
+  private chantCoordinator: AudioCoordinator | null = null;
+  private lastStartAt: number = 0;
 
   constructor(opts: OrchestratorOptions) {
     this.getConfig = opts.getConfig;
@@ -84,7 +87,10 @@ export class MeditationOrchestrator {
   // ----- PUBLIC METHODS -----
 
   start() {
+    const now = Date.now();
     if (this.started) return;
+    if (now - this.lastStartAt < 300) return;
+    this.lastStartAt = now;
     this.started = true;
     this.reset();
 
@@ -94,13 +100,32 @@ export class MeditationOrchestrator {
     if (cfg.selectedStyle !== 'chant') {
       this.startBackgroundAudio();
     }
+    // Initialize chant coordinator for chant mode
+    if (cfg.selectedStyle === 'chant') {
+      const track = getChantById(cfg.chosenChantId || null);
+      if (track) {
+        if (!this.chantCoordinator) {
+          this.chantCoordinator = new AudioCoordinator({
+            voiceKey: track.voiceKey as any,
+            instrumentalKey: track.instrumentalKey as any,
+            cues: track.cues,
+            pauseDurationMs: track.pauseDurationMs,
+          });
+        }
+        this.chantCoordinator.preload().then(() => {
+          if (this.started && !this.paused) {
+            this.chantCoordinator?.start().catch(() => {});
+          }
+        }).catch(() => {});
+      }
+    }
 
     // Build and emit guide
     this.buildAndEmitGuide();
 
     // Start main tick loop
     this.activeStartMs = Date.now();
-    this.mainInterval = setInterval(() => this.tick(), 500) as unknown as number;
+    this.mainInterval = setInterval(() => this.tick(), 1000) as unknown as number;
 
     // Run intro sequence
     this.runIntro().catch(() => {});
@@ -115,7 +140,23 @@ export class MeditationOrchestrator {
     this.callbacks.onCountdownTick?.(n);
     if (n > 0) {
       playCue('tickTock');
-      speak(`${n}`, { rate: 0.8 }).catch(() => {});
+      queueSpeak(`${n}`, 0.8).catch(() => {});
+    }
+
+    const cfg = this.getConfig();
+    if (cfg.selectedStyle === 'chant') {
+      const track = getChantById(cfg.chosenChantId || null);
+      if (track) {
+        if (!this.chantCoordinator) {
+          this.chantCoordinator = new AudioCoordinator({
+            voiceKey: track.voiceKey as any,
+            instrumentalKey: track.instrumentalKey as any,
+            cues: track.cues,
+            pauseDurationMs: track.pauseDurationMs,
+          });
+        }
+        this.chantCoordinator.preload().catch(() => {});
+      }
     }
 
     this.countdownInterval = setInterval(() => {
@@ -124,7 +165,7 @@ export class MeditationOrchestrator {
       
       if (n > 0) {
         playCue('tickTock');
-        speak(`${n}`, { rate: 0.8 }).catch(() => {});
+        queueSpeak(`${n}`, 0.8).catch(() => {});
       } else {
         this.clearTimer('countdown');
       }
@@ -150,6 +191,8 @@ export class MeditationOrchestrator {
     if (channel) {
       stopMusic(channel);
     }
+    // Pause chant coordinator
+    this.chantCoordinator?.pause().catch(() => {});
   }
 
   resume() {
@@ -169,6 +212,10 @@ export class MeditationOrchestrator {
         this.startCenteringInterval();
       }
     }
+    // Resume chant if applicable
+    if (cfg.selectedStyle === 'chant') {
+      this.chantCoordinator?.resume().catch(() => {});
+    }
   }
 
   stop() {
@@ -179,6 +226,11 @@ export class MeditationOrchestrator {
     const channel = this.getBackgroundChannel();
     if (channel) {
       stopMusic(channel);
+    }
+    // Stop chant coordinator
+    if (this.chantCoordinator) {
+      this.chantCoordinator.stop().catch(() => {});
+      this.chantCoordinator = null;
     }
 
     this.started = false;
@@ -378,7 +430,7 @@ export class MeditationOrchestrator {
     const channel = this.getBackgroundChannel();
     try {
       if (channel) await setMusicVolume(channel, 0.2);
-      await speak(text, { rate });
+      await queueSpeak(text, rate);
     } finally {
       if (channel) await setMusicVolume(channel, 0.6);
     }
@@ -608,6 +660,7 @@ export class MeditationOrchestrator {
       const Speech = require('expo-speech');
       Speech.stop();
     } catch {}
+    try { clearSpeechQueue(); } catch {}
 
     let n = 3;
     const countdownTimer = setInterval(() => {
