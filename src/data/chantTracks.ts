@@ -15,7 +15,7 @@ export const CHANT_TRACKS: Record<ChantId, ChantTrack> = {
     label: '10,000 Reasons',
     voiceKey: 'db/10000_reasons.mp3',
     instrumentalKey: 'db/10000_reasons_instrumental.mp3',
-    cues: ['Bless the Lord, O my soul', 'Worship His holy name'],
+    cues: ['Pause and thank God for today', 'Let praise rise with each breath'],
     pauseDurationMs: 12000,
   },
   '10000-reasons-african': {
@@ -23,7 +23,7 @@ export const CHANT_TRACKS: Record<ChantId, ChantTrack> = {
     label: '10,000 Reasons (African)',
     voiceKey: 'db/10000_reasons_african.mp3',
     instrumentalKey: 'db/10000_reasons_instrumental.mp3',
-    cues: ['Bless the Lord, O my soul', 'Worship His holy name'],
+    cues: ['Pause and thank God for today', 'Let praise echo with each breath'],
     pauseDurationMs: 12000,
   },
   'be-still-my-soul': {
@@ -31,7 +31,7 @@ export const CHANT_TRACKS: Record<ChantId, ChantTrack> = {
     label: 'Be Still My Soul',
     voiceKey: 'db/be_still_my_soul.mp3',
     instrumentalKey: 'db/be_still_my_soul_instrumental.mp3',
-    cues: ['Be still my soul', 'Wait patiently before God'],
+    cues: ['Rest your heart in God\'s care', 'Trust that Christ holds your future'],
     pauseDurationMs: 14000,
   },
   'soul-of-jesus-sanctify-me': {
@@ -39,7 +39,7 @@ export const CHANT_TRACKS: Record<ChantId, ChantTrack> = {
     label: 'Soul of Jesus, Sanctify Me',
     voiceKey: 'db/anima_christi.mp3',
     instrumentalKey: 'db/anima_christi_instrumental.mp3',
-    cues: ['Anima Christi, sanctifica me', 'Corpus Christi, salva me'],
+    cues: ['Invite Jesus to sanctify you today', 'Be reassured in His saving mercy'],
     pauseDurationMs: 14000,
   },
   oceans: {
@@ -47,7 +47,7 @@ export const CHANT_TRACKS: Record<ChantId, ChantTrack> = {
     label: 'Oceans (Spirit Lead Me)',
     voiceKey: 'db/oceans_voice.mp3',
     instrumentalKey: 'db/oceans_instrumental.mp3',
-    cues: ['Spirit lead me', 'Where my trust is without borders'],
+    cues: ['Notice where God invites you to trust deeper', 'Trust in every breath'],
     pauseDurationMs: 13000,
   },
 };

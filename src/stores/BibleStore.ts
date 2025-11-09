@@ -11,6 +11,7 @@ import * as Clipboard from 'expo-clipboard';
 import { formatVerseShareMessage } from '@/utils/share';
 import * as Notifications from 'expo-notifications';
 import { estimateChaptersPerDay, DEFAULT_TIME_PER_DAY, DEFAULT_READING_MODE, buildPlanPhases } from '@/constants/readingPlanModes';
+import { getVirtueFocusFromPresets } from '@/constants/readingPlanPresets';
 
 // Extend the BibleVersion type to include id
 interface ExtendedBibleVersion extends Omit<BibleVersion, 'id'> {
@@ -152,6 +153,8 @@ type BibleReadingPlan = {
   reminderTime?: string | null;
   versionTable: string;
   versionName?: string | null;
+  presetIds?: string[];
+  focusVirtue?: { virtue: string; displayLabel: string; matchTerms: string[] } | null;
 };
 export type DailyPhaseProgress = {
   id: ReadingPlanPhase['id'];
@@ -174,6 +177,7 @@ export type DailyReadingSession = {
   secondsRemainingInPhase: number;
   chaptersCompleted: number;
   completed: boolean;
+  pausedMeditationVerses?: Array<{ text: string; reference: string }>;
 };
 
 type ReadingReminder = {
@@ -192,6 +196,7 @@ type CreateReadingPlanParams = {
   readingMode: ReadingPlanMode;
   phases: ReadingPlanPhase[];
   reminderTime?: string | null;
+  presetIds?: string[];
 };
 
 // Storage keys
@@ -408,6 +413,7 @@ async ensureDailySessionPrepared() {
       secondsRemainingInPhase: firstPlanned,
       chaptersCompleted: 0,
       completed: false,
+      pausedMeditationVerses: [],
     };
     
     await this.saveDailySession(session);
@@ -563,6 +569,68 @@ async markTodaySessionCompleted() {
     runInAction(() => {
       this.dailySession = next;
     });
+  }
+
+  addPausedMeditationVerse(verse: { text: string; reference: string }) {
+    if (!this.dailySession) return;
+    const key = (v: { text: string; reference: string }) => `${v.reference}::${v.text}`;
+    const prev = this.dailySession.pausedMeditationVerses ?? [];
+    const seen = new Set(prev.map(key));
+    if (seen.has(key(verse))) return;
+    const updated = [...prev, verse].slice(-50);
+    const next: DailyReadingSession = { ...this.dailySession, pausedMeditationVerses: updated };
+    void this.saveDailySession(next);
+    runInAction(() => { this.dailySession = next; });
+  }
+
+  clearPausedMeditationVerses() {
+    if (!this.dailySession) return;
+    const next: DailyReadingSession = { ...this.dailySession, pausedMeditationVerses: [] };
+    void this.saveDailySession(next);
+    runInAction(() => { this.dailySession = next; });
+  }
+
+  private parseReferenceParts(ref?: string | null): { book: string | null; chapter: number | null; verse: number | null } {
+    if (!ref) return { book: null, chapter: null, verse: null };
+    const trimmed = ref.trim();
+    // Match patterns like "John 3:16" or "1 John 4:8"
+    const m = trimmed.match(/^(?<book>[^0-9]+?)\s*(?<chapter>\d+)(?::(?<verse>\d+))?/);
+    const book = m?.groups?.book?.trim?.() ?? null;
+    const chapter = m?.groups?.chapter ? Number(m.groups.chapter) : null;
+    const verse = m?.groups?.verse ? Number(m.groups.verse) : null;
+    return { book, chapter, verse };
+  }
+
+  getPausedMeditationVersesScoped(): Array<{ text: string; reference: string }> {
+    const paused = this.dailySession?.pausedMeditationVerses ?? [];
+    const seg = this.activeReadingSegment;
+    if (!seg || paused.length === 0) return paused;
+    const startCh = seg.chapterStart ?? null;
+    const endCh = seg.chapterEnd ?? seg.chapterStart ?? null;
+    const startV = seg.verseStart ?? null;
+    const endV = seg.verseEnd ?? null;
+    const segBook = seg.bookName ?? null;
+    return paused.filter(p => {
+      const { book, chapter, verse } = this.parseReferenceParts(p.reference);
+      if (segBook && book && book.toLowerCase() !== segBook.toLowerCase()) return false;
+      if (chapter == null) return false;
+      if (startCh != null && endCh != null && (chapter < startCh || chapter > endCh)) return false;
+      if (startV != null && endV != null) {
+        if (chapter === startCh && verse != null && verse < startV) return false;
+        if (chapter === endCh && verse != null && verse > endV) return false;
+      }
+      return true;
+    });
+  }
+
+  removePausedMeditationVerse(verse: { text: string; reference: string }) {
+    if (!this.dailySession) return;
+    const key = (v: { text: string; reference: string }) => `${v.reference}::${v.text}`;
+    const prev = this.dailySession.pausedMeditationVerses ?? [];
+    const updated = prev.filter(v => key(v) !== key(verse));
+    const next: DailyReadingSession = { ...this.dailySession, pausedMeditationVerses: updated };
+    void this.saveDailySession(next);
+    runInAction(() => { this.dailySession = next; });
   }
 
   async startOverPlan() {
@@ -1604,6 +1672,7 @@ async markTodaySessionCompleted() {
     const versionName = this.currentVersion?.englishName ?? this.currentVersion?.shortName ?? null;
 
     const segments = this.buildReadingSegments(params.books, chaptersPerDay);
+    const focus = getVirtueFocusFromPresets(params.presetIds ?? null);
     const plan: BibleReadingPlan = {
       id: `plan-${Date.now()}`,
       createdAt: new Date().toISOString(),
@@ -1616,6 +1685,8 @@ async markTodaySessionCompleted() {
       reminderTime: params.reminderTime ?? null,
       versionTable,
       versionName,
+      presetIds: params.presetIds ?? undefined,
+      focusVirtue: focus ? { virtue: focus.virtue, displayLabel: focus.displayLabel, matchTerms: focus.matchTerms } : null,
     };
 
     await this.saveReadingPlan(plan);

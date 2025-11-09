@@ -153,6 +153,11 @@ export class AudioCoordinator {
   private audioCache: Map<SoundKey, Audio.Sound> = new Map();
   private currentVolume = 0.6;
   private duckedVolume = 0.15;
+  private instrumentalSound: Audio.Sound | null = null;
+  private instrumentalPosition = 0;
+  private loopCallback: (() => void) | null = null;
+  private loopDueAt: number | null = null;
+  private loopDelayRemaining: number | null = null;
 
   constructor(config: AudioCoordinatorConfig) {
     this.config = config;

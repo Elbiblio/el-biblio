@@ -27,6 +27,7 @@ import {
 } from '@/components/Icons';
 import { Theme } from '@/theme';
 import { useAuthStore, useVirtueStore, useMeditationStore, useChallengeStore, useLeaderboardStore } from '@/stores/StoreProvider';
+import { useBibleStore } from '@/stores/BibleStore';
 import * as Haptics from 'expo-haptics';
 import { useKeepAwake } from 'expo-keep-awake';
 import { playMusic, stopMusic, preloadMusicCue } from '@/services/audio';
@@ -74,6 +75,7 @@ const MeditationScreen = () => {
   const meditationStore = useMeditationStore();
   const challengeStore = useChallengeStore();
   const leaderboardStore = useLeaderboardStore();
+  const bibleStore = useBibleStore();
 
   // Destructure state once
   const {
@@ -113,6 +115,7 @@ const MeditationScreen = () => {
   const hasMarkedComplete = useRef(false);
   const spokenPromptsRef = useRef<Set<number>>(new Set());
   const orchestratorRef = useRef<MeditationOrchestrator | null>(null);
+  const countdownStartedRef = useRef(false);
   const nudgeShownRef = useRef(false);
   const activatedRef = useRef(false);
   const previewKeyRef = useRef<'meditation' | 'heartbeat' | null>(null);
@@ -379,7 +382,7 @@ const MeditationScreen = () => {
   useEffect(() => {
     const isCountdown = meditationState === MeditationState.COUNTDOWN;
     const isActive = meditationState === MeditationState.ACTIVE && selectedTime;
-    
+
     // Create orchestrator once when entering countdown or active
     if ((isCountdown || isActive) && !orchestratorRef.current) {
       orchestratorRef.current = new MeditationOrchestrator({
@@ -448,31 +451,31 @@ const MeditationScreen = () => {
       });
     }
 
-    // Start flows
+    // Start countdown once per session
     if (isCountdown && orchestratorRef.current) {
-      activatedRef.current = false;
-      orchestratorRef.current.startCountdown(countdown);
+      if (!countdownStartedRef.current) {
+        countdownStartedRef.current = true;
+        activatedRef.current = false;
+        orchestratorRef.current.startCountdown(countdown);
+      }
+    } else {
+      countdownStartedRef.current = false;
     }
-    
+
     if (isActive && orchestratorRef.current) {
       orchestratorRef.current.start();
     }
 
     // Cleanup when leaving countdown/active
     return () => {
-      const stillInFlow = (meditationState === MeditationState.COUNTDOWN) || 
-                          (meditationState === MeditationState.ACTIVE);
+      const stillInFlow = (meditationState === MeditationState.COUNTDOWN) || (meditationState === MeditationState.ACTIVE);
       if (!stillInFlow && orchestratorRef.current) {
         orchestratorRef.current.stop();
         orchestratorRef.current = null;
+        countdownStartedRef.current = false;
       }
     };
-  }, [
-    meditationState,
-    selectedTime,
-    countdown,
-    // Don't include all config deps - orchestrator uses getConfig callback
-  ]);
+  }, [meditationState, selectedTime, completedSessions, selectedStyle, currentVirtue?.name, chosenChantId, countdown]);
 
   // Handlers
   const startMeditation = async () => {
@@ -862,21 +865,20 @@ const MeditationScreen = () => {
         )}
 
         {!isChant && (
-          <Animated.View style={[styles.promptContainer, promptAnimStyle]}>
-            <Text style={styles.promptText}>{currentPrompt}</Text>
-            <View style={styles.promptProgress}>
-              {[1, 2, 3, 4].map((_, i) => (
-                <View
-                  key={i}
-                  style={[
-                    styles.progressDot,
-                    i === currentPromptIndex && styles.activeProgressDot,
-                    i === currentPromptIndex && { backgroundColor: currentVirtue?.color_code || theme?.colors.primary },
-                  ]}
-                />
-              ))}
-            </View>
-          </Animated.View>
+          <View style={styles.controlsRow}>
+            <TouchableOpacity
+              style={[styles.controlBtn, styles.pauseBtn]}
+              onPress={() => meditationStore.pause()}
+            >
+              <Text style={[styles.controlBtnText, styles.pauseBtnText]}>Pause</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.controlBtn, styles.endBtn]}
+              onPress={endMeditation}
+            >
+              <Text style={[styles.controlBtnText, styles.endBtnText]}>End</Text>
+            </TouchableOpacity>
+          </View>
         )}
 
         {isJP && (
@@ -1487,6 +1489,42 @@ const createStyles = (theme: Theme, currentVirtue: Virtue | undefined) =>
       ...theme?.typography.body.sans,
       color: theme?.colors.text.primary,
       lineHeight: 22,
+    },
+    controlsRow: {
+      flexDirection: 'row',
+      width: '100%',
+      gap: theme?.spacing.sm,
+      marginTop: theme?.spacing.md,
+      alignItems: 'center',
+      justifyContent: 'space-between',
+    },
+    controlBtn: {
+      flex: 1,
+      paddingVertical: theme?.spacing.md,
+      borderRadius: theme?.borderRadius.md,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 1,
+      borderColor: theme?.colors.border,
+      backgroundColor: theme?.colors.surface,
+    },
+    pauseBtn: {
+      backgroundColor: `${theme?.colors.surface}E6`,
+      borderColor: `${theme?.colors.border}AA`,
+    },
+    endBtn: {
+      backgroundColor: `${theme?.colors.primary}12`,
+      borderColor: `${theme?.colors.primary}66`,
+    },
+    controlBtnText: {
+      ...theme?.typography.body.sans,
+      fontWeight: '700',
+    },
+    pauseBtnText: {
+      color: theme?.colors.text.primary,
+    },
+    endBtnText: {
+      color: currentVirtue?.color_code || theme?.colors.primary,
     },
     jpGuideContainer: {
       alignItems: 'center',

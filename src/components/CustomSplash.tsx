@@ -39,6 +39,7 @@ const CustomSplash = ({ onAnimationComplete }: { onAnimationComplete?: () => voi
     },
     content: {
       alignItems: 'center',
+      overflow: 'visible',
     },
     icon: {
       width: 120,
@@ -49,6 +50,8 @@ const CustomSplash = ({ onAnimationComplete }: { onAnimationComplete?: () => voi
       ...theme.typography.heading.large,
       color: theme.colors.primary,
       marginBottom: theme.spacing.sm,
+      paddingHorizontal: theme.spacing.xs,
+      textAlign: 'center',
     },
     subtitle: {
       ...theme.typography.body.sans,

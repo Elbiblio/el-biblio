@@ -18,46 +18,7 @@ import {
 } from '@/constants/readingPlanModes';
 import { MaterialIcons } from '@expo/vector-icons';
 import ReminderTimePicker from '@/components/ReminderTimePicker';
-
-type ReadingPlanPreset = {
-  id: string;
-  label: string;
-  books: string[];
-  description: string;
-};
-
-const PLAN_PRESETS: ReadingPlanPreset[] = [
-  {
-    id: 'gospels',
-    label: 'Journey through the Gospels',
-    books: ['Matthew', 'Mark', 'Luke', 'John'],
-    description: 'Walk with Jesus across the four gospel accounts.',
-  },
-  {
-    id: 'wisdom',
-    label: 'Grow in Wisdom',
-    books: ['Psalms', 'Proverbs', 'Ecclesiastes'],
-    description: 'Sit with songs, proverbs, and reflections for the heart.',
-  },
-  {
-    id: 'grow-in-faith',
-    label: 'Grow in Faith',
-    books: ['Hebrews', 'Romans', 'Genesis', 'Daniel'],
-    description: 'Deepen trust in God through stories of faith and powerful teaching on belief.',
-  },
-  {
-    id: 'grow-in-love',
-    label: 'Grow in Love',
-    books: ['1 John', '1 Corinthians', 'John', 'Romans'],
-    description: 'Learn sacrificial, Christlike love through teaching and the life of Jesus.',
-  },
-  {
-    id: 'grow-in-humility',
-    label: 'Grow in Humility',
-    books: ['Philippians', 'James', '1 Peter', 'Matthew'],
-    description: 'Embrace servant-hearted living through Christ\'s example and apostolic wisdom.',
-  },
-];
+import { PLAN_PRESETS, getVirtueFocusFromPresets } from '@/constants/readingPlanPresets';
 
 interface ReadingPlanSetupModalProps {
   visible: boolean;
@@ -68,6 +29,7 @@ interface ReadingPlanSetupModalProps {
     readingMode: ReadingPlanMode;
     phases: ReadingPlanPhase[];
     reminderTime?: string;
+    presetIds?: string[];
   }) => Promise<void>;
 }
 
@@ -100,6 +62,11 @@ const ReadingPlanSetupModal: React.FC<ReadingPlanSetupModalProps> = observer(({ 
   const phaseSummaryLines = useMemo(
     () => getModeSummaryLines(readingMode, timePerDay),
     [readingMode, timePerDay]
+  );
+
+  const focusVirtue = useMemo(
+    () => getVirtueFocusFromPresets(selectedPresetIds),
+    [selectedPresetIds]
   );
 
   const estimatedChaptersPerDay = useMemo(
@@ -185,6 +152,7 @@ const ReadingPlanSetupModal: React.FC<ReadingPlanSetupModalProps> = observer(({ 
         readingMode,
         phases: sessionPhases,
         reminderTime: reminderTime.trim() || undefined,
+        presetIds: selectedPresetIds,
       });
       onClose();
       // Reset state
@@ -388,6 +356,12 @@ const ReadingPlanSetupModal: React.FC<ReadingPlanSetupModalProps> = observer(({ 
                         <Text style={styles.summaryValue}>
                           ~{estimatedDaysToComplete} {estimatedDaysToComplete === 1 ? 'day' : 'days'}
                         </Text>
+                      </View>
+                    )}
+                    {focusVirtue && (
+                      <View style={styles.summaryRow}>
+                        <Text style={styles.summaryLabel}>Focus virtue</Text>
+                        <Text style={styles.summaryValue}>{focusVirtue.displayLabel}</Text>
                       </View>
                     )}
                   </View>

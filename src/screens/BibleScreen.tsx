@@ -60,6 +60,7 @@ import { Audio } from 'expo-av';
 import EmptyState from '@/components/EmptyState';
 import MeditationVerse from '@/components/MeditationVerse';
 import { appTimerStore } from '@/stores/AppTimerStore';
+import { useKeepAwake } from 'expo-keep-awake';
 
 const getLocalMidnightMs = (date: Date) => {
   const d = new Date(date);
@@ -142,6 +143,7 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
   const [showTimerModal, setShowTimerModal] = useState(false);
   const [showMeditationMode, setShowMeditationMode] = useState(false);
   const [meditationVerses, setMeditationVerses] = useState<Array<{ text: string; reference: string }>>([]);
+  // Paused verses are persisted in BibleStore.dailySession
 
 
   // Timer view derived from AppTimerStore via BibleStore
@@ -227,6 +229,8 @@ const planRemainingSeconds = useMemo(() => {
     outputRange: [0, -56],
   });
 
+  useKeepAwake('bible-screen');
+
   const lastAtEndRef = useRef(false);
 
   const handleScrollNearEnd = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
@@ -280,6 +284,8 @@ const planRemainingSeconds = useMemo(() => {
       setShowFloatingProgress(false);
     }
   }, [bibleStore.dailySession?.completed]);
+
+  // Paused verses are persisted per daily session; no local reset needed
 
   // Auto-hide the completion overlay after 5 seconds when the day completes
   useEffect(() => {
@@ -1160,14 +1166,15 @@ const handleEnterPlanMode = useCallback(async () => {
     });
   }, [navigation, scopedView]);
 
-  const handleCreatePlan = useCallback(async ({ books, timePerDay, readingMode, phases, reminderTime }: { books: string[]; timePerDay: number; readingMode: ReadingPlanMode; phases: ReadingPlanPhase[]; reminderTime?: string }) => {
+  const handleCreatePlan = useCallback(async ({ books, timePerDay, readingMode, phases, reminderTime, presetIds }: { books: string[]; timePerDay: number; readingMode: ReadingPlanMode; phases: ReadingPlanPhase[]; reminderTime?: string; presetIds?: string[] }) => {
     try {
       await bibleStore.createReadingPlan({
         books,
         timePerDay,
         readingMode,
         phases,
-        reminderTime,
+        reminderTime: reminderTime ?? null,
+        presetIds,
       });
       
       setBuilderReminder(reminderTime?.trim?.() ?? reminderTime ?? '');
@@ -1208,6 +1215,8 @@ const handleEnterPlanMode = useCallback(async () => {
         readingMode,
         phases,
         reminderTime: reminderTime ?? null,
+        presetIds: presetIds ?? [],
+        focusVirtue: bibleStore.readingPlan?.focusVirtue ?? null,
       });
       void journeyStore.syncUserProgress();
       // Keep compact plan minimized while focused
@@ -1935,10 +1944,13 @@ const renderMeditationModal = () => {
     return null;
   }
 
+  const readingMode = bibleStore.readingPlan?.readingMode;
+  const focusVirtueTerms = bibleStore.readingPlan?.focusVirtue?.matchTerms ?? null;
+
   let versesForMeditation = meditationVerses.length
     ? meditationVerses
     : (bibleStore.verses || []).map(v => ({ text: v.text, reference: v.reference ?? v.id })).slice(0, 40);
-    
+  
   if (!versesForMeditation.length) {
     const seg = bibleStore.activeReadingSegment;
     if (seg) {
@@ -1947,6 +1959,19 @@ const renderMeditationModal = () => {
         reference: `${seg.bookName} ${seg.chapterStart}${seg.chapterEnd && seg.chapterEnd !== seg.chapterStart ? '-' + seg.chapterEnd : ''}` 
       });
     }
+  }
+
+  // During prayer/contemplation, prepend paused verses and de-duplicate
+  if (currentPhase.id === 'prayer' || currentPhase.id === 'contemplation') {
+    const dedup = new Map<string, { text: string; reference: string }>();
+    const keyOf = (v: { text: string; reference: string }) => `${v.reference}::${v.text}`;
+    const paused = bibleStore.dailySession?.pausedMeditationVerses ?? [];
+    paused.forEach(v => dedup.set(keyOf(v), v));
+    versesForMeditation.forEach(v => {
+      const k = keyOf(v);
+      if (!dedup.has(k)) dedup.set(k, v);
+    });
+    versesForMeditation = Array.from(dedup.values());
   }
 
   const remainingSeconds = appTimerStore.remainingInPhase(timer.id);
@@ -1958,6 +1983,11 @@ const renderMeditationModal = () => {
         phase={currentPhase}
         isActive={timer.isActive}
         remainingSeconds={Math.max(0, remainingSeconds)}
+        readingMode={readingMode}
+        focusVirtueTerms={focusVirtueTerms}
+        pausedKeys={(bibleStore.getPausedMeditationVersesScoped?.() ?? []).map(v => `${v.reference}::${v.text}`)}
+        onPauseAtVerse={(v) => { bibleStore.addPausedMeditationVerse(v); }}
+        onDeletePausedVerse={(v) => { bibleStore.removePausedMeditationVerse(v); }}
         onReturn={() => {
           setShowMeditationMode(false);
           setPlanDetailsExpanded(true);

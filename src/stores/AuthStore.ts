@@ -365,12 +365,36 @@ export class AuthStore {
 
   private handleAuthError = (error: any) => {
     console.error('Auth error:', error);
+
+    const extractFirstError = (errors?: Record<string, string[]>) => {
+      if (!errors) return undefined;
+      for (const value of Object.values(errors)) {
+        if (Array.isArray(value) && value.length > 0) {
+          return value[0];
+        }
+      }
+      return undefined;
+    };
+
     let errorMessage = 'An error occurred during authentication';
 
     if (axios.isAxiosError(error)) {
-      errorMessage = error.response?.data?.message || error.message;
-    } else if (error instanceof Error) {
-      errorMessage = error.message;
+      const responseData: any = error.response?.data;
+      errorMessage = responseData?.message || error.message || errorMessage;
+      const firstValidationError = extractFirstError(responseData?.errors);
+      if (firstValidationError) {
+        errorMessage = firstValidationError;
+      }
+    } else if (error && typeof error === 'object') {
+      if ('success' in error && error.success === false) {
+        const apiError = error as { message?: string; errors?: Record<string, string[]> };
+        const firstValidationError = extractFirstError(apiError.errors);
+        errorMessage = firstValidationError || apiError.message || errorMessage;
+      } else if ('message' in error && typeof (error as any).message === 'string') {
+        errorMessage = (error as any).message || errorMessage;
+      }
+    } else if (typeof error === 'string') {
+      errorMessage = error || errorMessage;
     }
 
     this.setError(errorMessage);
