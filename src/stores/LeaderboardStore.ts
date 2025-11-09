@@ -1,5 +1,6 @@
 import { runInAction, makeAutoObservable } from 'mobx';
 import { apiClient, endpoints } from '@/api/client';
+import { pointsTracker } from '@/utils/pointsTracker';
 import { LeaderboardEntry, UserStats, PaginatedResponse, BackendUserStats } from '@/types';
 
 export type Timeframe = 'all' | 'day' | 'week' | 'month';
@@ -32,6 +33,8 @@ interface LeaderboardStoreState {
   userStats: UserStats | null;
   isUserStatsLoading: boolean;
   userStatsError: string | null;
+  // Optimistic local points delta (added to displayed totalPoints until next successful sync)
+  optimisticPointsDelta: number;
 
   // Global stats
   globalStats: {
@@ -80,6 +83,7 @@ export class LeaderboardStore {
       userStats: null,
       isUserStatsLoading: false,
       userStatsError: null,
+      optimisticPointsDelta: 0,
 
       globalStats: null,
       isGlobalStatsLoading: false,
@@ -101,6 +105,16 @@ export class LeaderboardStore {
 
     // Auto-bind class methods so `this` remains correct when methods are passed around
     makeAutoObservable(this, {}, { autoBind: true });
+
+    // Subscribe to global points events for optimistic local-first updates
+    // Note: API interceptor also emits points on successful responses; this subscription
+    // makes the UI reflect points immediately even if stats are not refetched yet.
+    pointsTracker.subscribe(({ points }) => {
+      if (!points || points <= 0) return;
+      runInAction(() => {
+        this.state.optimisticPointsDelta = (this.state.optimisticPointsDelta || 0) + points;
+      });
+    });
   }
 
   private setError(message: string | null) {
@@ -323,6 +337,8 @@ export class LeaderboardStore {
 
       runInAction(() => {
         this.state.userStats = mapped;
+        // Reset optimistic delta after a successful authoritative fetch
+        this.state.optimisticPointsDelta = 0;
         this.state.isUserStatsLoading = false;
       });
 
@@ -390,7 +406,12 @@ export class LeaderboardStore {
   }
 
   get userStats(): UserStats | null {
-    return this.state.userStats;
+    // Reflect optimistic local-first points by adding the delta to totalPoints for display
+    if (!this.state.userStats) return null;
+    const base = this.state.userStats;
+    const delta = this.state.optimisticPointsDelta || 0;
+    if (!delta) return base;
+    return { ...base, totalPoints: Math.max(0, (base.totalPoints || 0) + delta) };
   }
 
 

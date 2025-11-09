@@ -535,6 +535,10 @@ export const endpoints = {
     list: '/public',
     show: (id: string) => `/public/${id}`,
   },
+ 
+  readingProgress: {
+    dailyComplete: '/bible-reading/daily/complete',
+  },
 };
 
 export const apiClient = {

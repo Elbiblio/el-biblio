@@ -144,6 +144,7 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
   const [showMeditationMode, setShowMeditationMode] = useState(false);
   const [meditationVerses, setMeditationVerses] = useState<Array<{ text: string; reference: string }>>([]);
   // Paused verses are persisted in BibleStore.dailySession
+  const [insightByKey, setInsightByKey] = useState<Record<string, string>>({});
 
 
   // Timer view derived from AppTimerStore via BibleStore
@@ -355,6 +356,36 @@ const planRemainingSeconds = useMemo(() => {
     void buildMeditationList();
   }, [showMeditationMode, bibleStore.activeReadingSegment?.id, bibleStore.readingPlan?.versionTable]);
 
+  // Prefetch insights for paused/marked verses in contemplation mode
+  useEffect(() => {
+    const run = async () => {
+      const tid = bibleStore.getTodayTimerIdPublic();
+      if (!tid) return;
+      const t = appTimerStore.get(tid);
+      if (!t) return;
+      const curPhase = phasesForToday[t.currentPhaseIndex];
+      if (!curPhase || curPhase.id !== 'contemplation') return;
+      const paused = bibleStore.getPausedMeditationVersesScoped?.() ?? [];
+      if (!paused.length) return;
+      // Fetch insights sequentially for stability and store locally by key
+      for (const p of paused) {
+        const key = `${p.reference}::${p.text}`;
+        if (insightByKey[key]) continue;
+        try {
+          // Try to locate a BibleVerse matching this paused verse from current list
+          const bv = bibleStore.verses.find(v => (v.reference && p.reference && v.reference === p.reference) || (v.text && p.text && v.text.trim() === p.text.trim())) || null;
+          if (!bv) continue;
+          await bibleStore.explainVerse(bv);
+          const joined = (bibleStore.aiInsightSections || []).map(s => s.content).filter(Boolean).join('\n\n');
+          if (joined && joined.trim().length) {
+            setInsightByKey(prev => ({ ...prev, [key]: joined.trim() }));
+          }
+        } catch {}
+      }
+    };
+    void run();
+  }, [showMeditationMode, bibleStore.dailySession?.pausedMeditationVerses?.length, phasesForToday, appTimerStore.now]);
+
   useEffect(() => {
     if (!totalPlanSeconds || planRemainingSeconds == null) {
       progressShared.value = withTiming(0, { duration: 250 });
@@ -397,6 +428,26 @@ const planRemainingSeconds = useMemo(() => {
       if (!t.isActive) appTimerStore.resume(tid);
       if (!showMeditationMode) setShowMeditationMode(true);
       if (showTimerModal) setShowTimerModal(false);
+      // If entering contemplation phase and there are no paused verses, cap remaining time to 2 minutes for silent listening
+      if (curPhase.id === 'contemplation') {
+        try {
+          const pausedScoped = bibleStore.getPausedMeditationVersesScoped?.() ?? [];
+          const remaining = appTimerStore.remainingInPhase(tid);
+          if ((pausedScoped.length === 0) && remaining > 120) {
+            const phases = t.phases.map(p => ({ id: p.id, label: p.label, plannedSeconds: p.plannedSeconds }));
+            const summaries = t.summaries.map(s => ({ id: s.id, label: s.label, plannedSeconds: s.plannedSeconds, elapsedSeconds: s.elapsedSeconds }));
+            appTimerStore.setFromSnapshot(
+              tid,
+              phases,
+              t.currentPhaseIndex,
+              120,
+              summaries,
+              true,
+              t.completed
+            );
+          }
+        } catch {}
+      }
     }
   }, [bibleStore.isPlanMode, phasesForToday, appTimerStore.now, showTimerModal, showMeditationMode]);
 
@@ -1074,11 +1125,6 @@ const handleEnterPlanMode = useCallback(async () => {
   bibleStore.enablePlanMode();
   await bibleStore.focusPlanSegment();
   setShowCompactPlan(true);
-  
-  if (bibleStore.dailySession?.completed) {
-    toast.success('All done for today — great job!');
-    return;
-  }
   
   await bibleStore.ensureDailySessionPrepared();
   
@@ -1988,6 +2034,7 @@ const renderMeditationModal = () => {
         pausedKeys={(bibleStore.getPausedMeditationVersesScoped?.() ?? []).map(v => `${v.reference}::${v.text}`)}
         onPauseAtVerse={(v) => { bibleStore.addPausedMeditationVerse(v); }}
         onDeletePausedVerse={(v) => { bibleStore.removePausedMeditationVerse(v); }}
+        insightByKey={insightByKey}
         onReturn={() => {
           setShowMeditationMode(false);
           setPlanDetailsExpanded(true);

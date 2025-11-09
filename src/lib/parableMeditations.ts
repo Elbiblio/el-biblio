@@ -24,7 +24,7 @@ export const foundationParablePlans: MeditationPlan[] = [
     parable: 'Parable of the Mustard Seed',
     scripture: 'Matthew 13:31-32',
     overview: 'Small shelters.',
-    breathInvitation: 'Inhale small. Exhale trust.',
+    breathInvitation: 'Inhale seed. Exhale trust.',
     reflectionPrompts: shortPrompts(['Name your small start.', 'Plan a 10‑minute step.', 'Tell a friend for accountability.', 'Thank God for unseen growth.']),
     focusOptions: ['Start small', 'Show up daily', 'Celebrate tiny wins'],
     challengePrompt: 'Do one 10‑minute action.',

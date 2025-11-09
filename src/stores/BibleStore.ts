@@ -560,6 +560,47 @@ async markTodaySessionCompleted() {
   runInAction(() => {
     this.dailySession = session;
   });
+
+  // Notify backend about daily completion (fire-and-forget)
+  try {
+    const phaseSeconds = (session.phases || []).reduce((sum, p) => sum + Math.max(0, p.elapsedSeconds || 0), 0);
+    const durationMinutes = Math.max(0, Math.round(phaseSeconds / 60));
+    const abbr = session.bookAbbr ?? undefined;
+    let bookName: string | undefined = undefined;
+    if (abbr) {
+      try {
+        const meta = this.getBookMetadata(abbr);
+        bookName = meta?.name || abbr;
+      } catch { bookName = abbr; }
+    }
+    const startCh = session.chapterStart ?? undefined;
+    const endCh = (session.chapterEnd ?? session.chapterStart) ?? undefined;
+    const chapters: string[] = [];
+    if (bookName && startCh) {
+      const last = endCh && endCh >= startCh ? endCh : startCh;
+      for (let ch = startCh; ch <= last; ch++) {
+        chapters.push(`${bookName} ${ch}`);
+      }
+    }
+    const payload = {
+      date: session.date,
+      plan_name: (this.readingPlan.presetIds && this.readingPlan.presetIds.length)
+        ? this.readingPlan.presetIds.join(', ')
+        : 'Bible Reading Plan',
+      reading_mode: this.readingPlan.readingMode,
+      duration_minutes: durationMinutes,
+      chapters_read: chapters,
+      notes: '',
+    } as {
+      date: string;
+      plan_name: string;
+      reading_mode: string;
+      duration_minutes: number;
+      chapters_read: string[];
+      notes: string;
+    };
+    void apiClient.post(endpoints.readingProgress.dailyComplete, payload);
+  } catch {}
 }
 
   async incrementChaptersCompletedBy(count: number) {

@@ -4,6 +4,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { useTheme } from '@/contexts/ThemeContext';
 import { ReadingPlanPhase, ReadingPlanMode } from '@/constants/readingPlanModes';
 import * as Haptics from 'expo-haptics';
+import * as Speech from 'expo-speech';
 
 type MeditationVerseProps = {
   verses: Array<{ text: string; reference: string }>;
@@ -17,14 +18,17 @@ type MeditationVerseProps = {
   onPauseAtVerse?: (verse: { text: string; reference: string }) => void;
   pausedKeys?: string[] | null;
   onDeletePausedVerse?: (verse: { text: string; reference: string }) => void;
+  insightByKey?: Record<string, string>;
 };
 
-const MeditationVerse: React.FC<MeditationVerseProps> = ({ verses, phase, isActive, remainingSeconds, onReturn, onCompletePhase, readingMode, focusVirtueTerms, onPauseAtVerse, pausedKeys, onDeletePausedVerse }) => {
+const MeditationVerse: React.FC<MeditationVerseProps> = ({ verses, phase, isActive, remainingSeconds, onReturn, onCompletePhase, readingMode, focusVirtueTerms, onPauseAtVerse, pausedKeys, onDeletePausedVerse, insightByKey }) => {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   
   const [currentVerseIndex, setCurrentVerseIndex] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
+  const [prayerPromptIndex, setPrayerPromptIndex] = useState(0);
+  const [isSpeaking, setIsSpeaking] = useState(false);
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const advanceTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const allocatedSecondsRef = useRef<number>(Math.max(1, Math.round((phase.minutes || 0) * 60)));
@@ -55,6 +59,16 @@ const MeditationVerse: React.FC<MeditationVerseProps> = ({ verses, phase, isActi
   const scheduleNextAdvance = useCallback(() => {
     clearScheduledAdvance();
     if (!isActive || isPaused || versesCount === 0) return;
+
+    // Stop cycling verses during Lectio Divina prayer phase
+    if (readingMode === 'lectio_divina' && phase.id === 'prayer') {
+      return;
+    }
+
+    // Reserve the last 2 minutes of contemplation for silence (no cycling)
+    if (phase.id === 'contemplation' && Math.max(0, remainingSecondsRef.current) <= 120) {
+      return;
+    }
 
     const versesRemainingIncludingCurrent = versesCount - currentVerseIndex;
     if (versesRemainingIncludingCurrent <= 1) return;
@@ -89,6 +103,47 @@ const MeditationVerse: React.FC<MeditationVerseProps> = ({ verses, phase, isActi
   useEffect(() => {
     remainingSecondsRef.current = Math.max(0, remainingSeconds);
   }, [remainingSeconds]);
+
+  // Lectio divina prayer prompts at 0%, 25%, 50%, 75%
+  const isLectioPrayer = readingMode === 'lectio_divina' && phase.id === 'prayer';
+  const prayerPrompts = useMemo(
+    () => [
+      'Adore and thank God for His words revealed to you.',
+      'Pray to receive the meaning of the words and for them to bear fruit.',
+      'Pray to receive grace and sanctification through contemplating these words.',
+      'Sing or pray for blessings and guidance with a psalm related to this reading.',
+    ],
+    []
+  );
+
+  useEffect(() => {
+    if (!isLectioPrayer) return;
+    const total = allocatedSecondsRef.current || 1;
+    const elapsed = Math.max(0, total - remainingSecondsRef.current);
+    const ratio = Math.max(0, Math.min(1, elapsed / total));
+    const idx = ratio >= 0.75 ? 3 : ratio >= 0.5 ? 2 : ratio >= 0.25 ? 1 : 0;
+    setPrayerPromptIndex(idx);
+  }, [isLectioPrayer, remainingSeconds]);
+
+  const speakPrompt = useCallback((text: string) => {
+    try { Haptics.selectionAsync(); } catch {}
+    try {
+      if (isSpeaking) {
+        Speech.stop();
+        setIsSpeaking(false);
+        return;
+      }
+      setIsSpeaking(true);
+      Speech.speak(text, {
+        language: 'en-US',
+        onDone: () => setIsSpeaking(false),
+        onStopped: () => setIsSpeaking(false),
+        onError: () => setIsSpeaking(false),
+      });
+    } catch {
+      setIsSpeaking(false);
+    }
+  }, [isSpeaking]);
 
   useEffect(() => {
     fadeAnim.setValue(0);
@@ -184,19 +239,27 @@ const MeditationVerse: React.FC<MeditationVerseProps> = ({ verses, phase, isActi
 
   const currentKey = useMemo(() => currentVerse ? `${currentVerse.reference}::${currentVerse.text}` : '', [currentVerse]);
   const isCurrentPaused = useMemo(() => !!(pausedKeys && currentKey && pausedKeys.includes(currentKey)), [pausedKeys, currentKey]);
+  const currentInsight = useMemo(() => (currentKey && insightByKey ? insightByKey[currentKey] : undefined), [currentKey, insightByKey]);
 
   const getPhasePrompt = useCallback(() => {
     switch (phase.id) {
       case 'meditation':
         return 'Meditate on the word...';
       case 'prayer':
+        if (isLectioPrayer) {
+          return prayerPrompts[prayerPromptIndex] ?? prayerPrompts[0];
+        }
         return 'Pray through the word...';
       case 'contemplation':
+        // If in the last 2 minutes, guide silence
+        if (Math.max(0, remainingSecondsRef.current) <= 120) {
+          return 'Be still. Keep quiet and listen to the Holy Spirit.';
+        }
         return 'Contemplate the meaning...';
       default:
         return 'Reflect on this word...';
     }
-  }, [phase.id]);
+  }, [phase.id, isLectioPrayer, prayerPromptIndex, prayerPrompts]);
 
   const formatTime = useCallback((s: number) => {
     const mins = Math.floor(s / 60);
@@ -216,6 +279,26 @@ const MeditationVerse: React.FC<MeditationVerseProps> = ({ verses, phase, isActi
           <View style={styles.timerPill}>
             <Text style={styles.timerPillText}>{formatTime(Math.max(0, remainingSeconds))}</Text>
           </View>
+          {isLectioPrayer && (
+            <TouchableOpacity
+              style={styles.iconButton}
+              onPress={() => speakPrompt(getPhasePrompt())}
+              accessibilityRole="button"
+              accessibilityLabel={isSpeaking ? 'Stop reading prompt' : 'Read prayer prompt aloud'}
+            >
+              <MaterialIcons name={isSpeaking ? 'stop' : 'volume-up'} size={20} color={theme.colors.text.secondary} />
+            </TouchableOpacity>
+          )}
+          {phase.id === 'contemplation' && currentInsight && (
+            <TouchableOpacity
+              style={styles.iconButton}
+              onPress={() => speakPrompt(currentInsight)}
+              accessibilityRole="button"
+              accessibilityLabel={isSpeaking ? 'Stop reading insight' : 'Read insight aloud'}
+            >
+              <MaterialIcons name={isSpeaking ? 'stop' : 'record-voice-over'} size={20} color={theme.colors.text.secondary} />
+            </TouchableOpacity>
+          )}
           <TouchableOpacity 
             style={styles.returnButton} 
             onPress={() => {
@@ -229,10 +312,15 @@ const MeditationVerse: React.FC<MeditationVerseProps> = ({ verses, phase, isActi
       </View>
 
       <View style={styles.content}>
-        <Animated.View style={[styles.verseContainer, { opacity: fadeAnim }]}>
+        <Animated.View style={[styles.verseContainer, { opacity: fadeAnim }]}> 
           <Text style={styles.promptText}>{getPhasePrompt()}</Text>
-          {renderHighlightedText(currentVerse.text)}
-          <Text style={styles.referenceText}>{currentVerse.reference}</Text>
+          {/* Hide verse cycling display during lectio prayer or contemplation silence window */}
+          {!(isLectioPrayer || (phase.id === 'contemplation' && Math.max(0, remainingSecondsRef.current) <= 120)) && (
+            <>
+              {renderHighlightedText(currentVerse.text)}
+              <Text style={styles.referenceText}>{currentVerse.reference}</Text>
+            </>
+          )}
         </Animated.View>
       </View>
 

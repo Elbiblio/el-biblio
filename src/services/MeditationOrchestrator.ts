@@ -76,12 +76,14 @@ export class MeditationOrchestrator {
   private stages = { s1: false, s2: false };
   private lastBellMs: number = 0;
   private chantFinalPromptSpoken: boolean = false;
+  private closingStarted: boolean = false;
 
   private currentGuide: MeditationGuide | null = null;
   private chantCoordinator: AudioCoordinator | null = null;
   private lastStartAt: number = 0;
   private bgActive: boolean = false;
   private chantFadedOut: boolean = false;
+  private finalCountdownTimer: number | null = null;
 
   constructor(opts: OrchestratorOptions) {
     this.getConfig = opts.getConfig;
@@ -211,6 +213,13 @@ export class MeditationOrchestrator {
     if (channel && this.bgActive) { stopMusic(channel); this.bgActive = false; }
     // Pause chant coordinator
     this.chantCoordinator?.pause().catch(() => {});
+
+    // Stop and clear any TTS activity/queue while paused
+    try {
+      const Speech = require('expo-speech');
+      Speech.stop();
+    } catch {}
+    try { clearSpeechQueue(); } catch {}
   }
 
   resume() {
@@ -249,8 +258,16 @@ export class MeditationOrchestrator {
       this.chantCoordinator = null;
     }
 
+    // Stop and clear any TTS activity/queue
+    try {
+      const Speech = require('expo-speech');
+      Speech.stop();
+    } catch {}
+    try { clearSpeechQueue(); } catch {}
+
     this.started = false;
     this.paused = false;
+    this.currentGuide = null;
   }
 
   isStarted(): boolean {
@@ -411,12 +428,14 @@ export class MeditationOrchestrator {
     this.lastBellMs = 0;
     this.chantFinalPromptSpoken = false;
     this.chantFadedOut = false;
+    this.closingStarted = false;
   }
 
   private clearAllTimers() {
     this.clearTimer('main');
     this.clearTimer('countdown');
     this.clearTimer('centering');
+    this.clearFinalCountdown();
   }
 
   private clearTimer(type: 'main' | 'countdown' | 'centering') {
@@ -521,7 +540,8 @@ export class MeditationOrchestrator {
     await wait(1000);
     this.maybePlayBell();
     await wait(500);
-    await this.speakWithDuck(guide.breathInvitation || 'Breathe in...', cfg.selectedStyle === 'parable' ? 0.72 : 0.8);
+    // await this.speakWithDuck(guide.breathInvitation || 'Breathe in...', cfg.selectedStyle === 'parable' ? 0.72 : 0.8);
+    await this.speakWithDuck('Breathe in...', cfg.selectedStyle === 'parable' ? 0.72 : 0.8);
 
     const stageNote = guide.stageNote?.trim();
     const openReflection = guide.openReflection?.trim();
@@ -536,9 +556,9 @@ export class MeditationOrchestrator {
     }
 
     // 5) Hold and out
-    await wait(400);
+    await wait(5000);
     await this.speakWithDuck('Keep still...', cfg.selectedStyle === 'parable' ? 0.72 : 0.8);
-    await wait(400);
+    await wait(5000);
     await this.speakWithDuck('Breathe out...', cfg.selectedStyle === 'parable' ? 0.72 : 0.8);
 
     this.finishIntro();
@@ -613,11 +633,13 @@ export class MeditationOrchestrator {
       this.callbacks.onTick?.(t, ratio);
     }
 
-    // Prompt handling
-    if (selectedStyle === 'virtue') {
-      this.handleVirtueStages(t, totalMeditationSeconds);
-    } else if (selectedStyle !== 'chant') {
-      this.handlePeriodicPrompts(t, promptInterval, totalMeditationSeconds);
+    // Prompt handling (skip once closing sequence has begun)
+    if (!this.closingStarted) {
+      if (selectedStyle === 'virtue') {
+        this.handleVirtueStages(t, totalMeditationSeconds);
+      } else if (selectedStyle !== 'chant') {
+        this.handlePeriodicPrompts(t, promptInterval, totalMeditationSeconds);
+      }
     }
 
     const timeLeft = totalMeditationSeconds - t;
@@ -635,20 +657,50 @@ export class MeditationOrchestrator {
       }
     }
 
-    // Challenge announcement at 30s
+    // Universal closing sequence trigger at T-30s
+    if (!this.closingStarted && timeLeft <= 30 && timeLeft > 3) {
+      this.closingStarted = true;
+      this.beginClosingSequence(selectedStyle);
+    }
+
+    // Challenge announcement within the closing window
     if (!this.challengeSpoken && timeLeft <= 30 && timeLeft > 3) {
       this.handleChallengeAnnouncement(selectedStyle, selectedChallenge);
     }
 
-    // Final countdown at 3s
-    if (!this.finalCountdownStarted && timeLeft === 3) {
+    // Final countdown at ~3s (robust to timer drift)
+    if (!this.finalCountdownStarted && timeLeft <= 3 && timeLeft >= 0) {
       this.handleFinalCountdown();
     }
 
-    // Completion
-    if (!this.sessionCompleted && timeLeft === 0) {
+    // Completion (robust to timer drift)
+    if (!this.sessionCompleted && timeLeft <= 0) {
       this.handleSessionComplete();
     }
+  }
+
+  private beginClosingSequence(style: string) {
+    // Stop scheduling centering prompts beyond this point
+    // Keep breathing visuals going; only halt added prompts
+    try {
+      // For quiet close in centering/parable, stop background audio now
+      if (style === 'centering' || style === 'parable') {
+        const channel = this.getBackgroundChannel();
+        if (channel && this.bgActive) { stopMusic(channel); this.bgActive = false; }
+      }
+      if (style === 'centering') {
+        // Stop repeating centering word & bell during closing window
+        this.clearTimer('centering');
+        // one gentle reminder for silence in last half-minute
+        this.speakWithDuck('In these closing moments, rest in quiet.', 0.85).catch(() => {});
+      } else if (style === 'virtue') {
+        this.speakWithDuck('Take one last quiet moment to receive this virtue.', 0.85).catch(() => {});
+      } else if (style === 'jesus_prayer') {
+        this.speakWithDuck('Gently rest in the presence of Jesus.', 0.85).catch(() => {});
+      } else if (style === 'parable') {
+        this.speakWithDuck('Sit quietly with this word as we close.', 0.75).catch(() => {});
+      }
+    } catch {}
   }
 
   private handleVirtueStages(t: number, totalSeconds: number) {
@@ -704,15 +756,21 @@ export class MeditationOrchestrator {
     } catch {}
     try { clearSpeechQueue(); } catch {}
 
+    // Stop meditative guidance loops to avoid overlap during countdown
+    this.clearTimer('centering');
+    this.stopBreathingLoop();
+
     let n = 3;
-    const countdownTimer = setInterval(() => {
+    // Clear any previous final countdown
+    this.clearFinalCountdown();
+    this.finalCountdownTimer = setInterval(() => {
       if (n > 0) {
         this.speakWithDuck(`${n}`, 0.9).catch(() => {});
         n -= 1;
       } else {
-        clearInterval(countdownTimer);
+        this.clearFinalCountdown();
       }
-    }, 1000);
+    }, 1000) as unknown as number;
   }
 
   private handleSessionComplete() {
@@ -723,9 +781,28 @@ export class MeditationOrchestrator {
     const channel = this.getBackgroundChannel();
     if (channel && this.bgActive) { stopMusic(channel); this.bgActive = false; }
 
+    // Full cleanup of loops and audio
+    this.clearAllTimers();
+    this.stopBreathingLoop();
+    this.clearFinalCountdown();
+    try { clearSpeechQueue(); } catch {}
+    if (this.chantCoordinator) {
+      this.chantCoordinator.stop().catch(() => {});
+      this.chantCoordinator = null;
+    }
+    this.started = false;
+    this.paused = false;
+
     this.speakWithDuck('Open your eyes', 0.85)
       .then(() => this.callbacks.onComplete())
       .catch(() => this.callbacks.onComplete());
+  }
+
+  private clearFinalCountdown() {
+    if (this.finalCountdownTimer) {
+      clearInterval(this.finalCountdownTimer);
+      this.finalCountdownTimer = null;
+    }
   }
 
   private startCenteringInterval() {

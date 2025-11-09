@@ -1,5 +1,6 @@
 import { runInAction, makeAutoObservable } from 'mobx';
 import { apiClient } from '@/api/client';
+import { pointsTracker } from '@/utils/pointsTracker';
 import { GameId, GameScore, LeaderboardEntry, PaginatedResponse } from '@/types';
 
 interface PaginationState {
@@ -174,6 +175,13 @@ export class GameStore {
         this.state.personalBests = { ...this.state.personalBests, [gameId]: score };
       }
     });
+
+    // Optimistic local-first points: award points equal to improvement over personal best
+    // This mirrors common leaderboard logic where only improvements contribute to total points
+    const improvement = Math.max(0, score - currentBest);
+    if (improvement > 0) {
+      pointsTracker.emit(improvement, 'Game Score');
+    }
 
     // Attempt to sync immediately
     await this.sync();

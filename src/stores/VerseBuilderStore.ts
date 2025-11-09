@@ -156,8 +156,9 @@ export class VerseBuilderStore {
     this.isInitializing = true;
     this.setLoading(true);
     try {
+      // Fire-and-forget gameStore init so verse setup is never blocked by network
       if (!this.gameStore.state.lastSynced) {
-        await this.gameStore.initialize();
+        void this.gameStore.initialize().catch(() => {});
       }
       runInAction(() => {
         const personalBest = this.gameStore.getPersonalBest('verse_builder');

@@ -7,7 +7,7 @@ export interface ReadingPlanPhase {
   hint?: string;
 }
 
-export const TIME_OPTIONS = [15, 30, 60] as const;
+export const TIME_OPTIONS = [9, 15, 30] as const;
 export type DailyTimeOption = typeof TIME_OPTIONS[number];
 
 export const DEFAULT_TIME_PER_DAY: DailyTimeOption = 30;
@@ -37,7 +37,7 @@ const MODE_CONFIG = {
     id: 'reading_meditation',
     label: 'Reading & Meditation',
     description: 'Blend Scripture reading with quiet reflection afterwards.',
-    weights: [2, 1],
+    weights: [2, 3],
     phaseLabels: ['Reading', 'Meditation'],
     phaseIds: ['reading', 'meditation'],
     hints: [
@@ -49,7 +49,7 @@ const MODE_CONFIG = {
     id: 'lectio_divina',
     label: 'Divine Readings (Lectio Divina)',
     description: 'Move through reading, meditation, prayer, and contemplation.',
-    weights: [3, 2, 2, 3],
+    weights: [4, 4, 3, 4],
     phaseLabels: ['Reading', 'Meditation', 'Prayer', 'Contemplation'],
     phaseIds: ['reading', 'meditation', 'prayer', 'contemplation'],
     hints: [

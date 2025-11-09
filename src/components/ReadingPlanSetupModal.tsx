@@ -108,15 +108,6 @@ const ReadingPlanSetupModal: React.FC<ReadingPlanSetupModalProps> = observer(({ 
     return Math.max(1, Math.ceil(totalEstimatedWords / wordsPerDay));
   }, [builderBooks.length, totalEstimatedWords, wordsPerDay]);
 
-  const estimatedWeeksToComplete = useMemo(() => {
-    if (!estimatedDaysToComplete) {
-      return null;
-    }
-    return Math.max(1, Math.ceil(estimatedDaysToComplete / 7));
-  }, [estimatedDaysToComplete]);
-
-  const formatNumber = useCallback((value: number) => value.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ','), []);
-
   const handleTogglePreset = useCallback((presetId: string) => {
     setSelectedPresetIds(prev => 
       prev.includes(presetId) 

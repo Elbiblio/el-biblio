@@ -59,5 +59,7 @@ export class RootStore {
     this.journeyStore = new JourneyStore(this.authStore);
     this.dailyPathStore = new DailyPathStore();
     this.meditationStore = new MeditationStore(this.authStore);
+    // Attach cross-store dependencies after all are constructed
+    this.virtueStore.attachStores(this.leaderboardStore, this.journeyStore);
   }
 }

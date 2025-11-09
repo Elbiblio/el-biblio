@@ -1,9 +1,11 @@
-import { runInAction, makeAutoObservable } from 'mobx';
+import { runInAction, makeAutoObservable, reaction } from 'mobx';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { apiClient, endpoints } from '@/api/client';
 import { Virtue, VirtueProgress, VIRTUE_NOTES, AppVirtue, VirtueGroups, AllVirtues, FoundationalVirtue } from '@/types';
 import { toast } from 'sonner-native';
 import * as Haptics from 'expo-haptics';
+import { LeaderboardStore } from './LeaderboardStore';
+import { JourneyStore } from './JourneyStore';
 
 interface PaginationState {
   currentPage: number;
@@ -33,6 +35,8 @@ interface VirtueStoreState {
   userProgress: Record<string, VirtueProgress>;
   isProgressLoading: boolean;
   progressError: string | null;
+  // Local-first progress percentage per virtue (0-100, capped at 95.9)
+  localVirtueProgress: Record<string, number>;
 
   // Virtue notes
   virtueNotes: VIRTUE_NOTES[];
@@ -67,6 +71,12 @@ interface VirtueStoreState {
 export class VirtueStore {
   state: VirtueStoreState;
   error: string | null = null;
+  // Optional external stores
+  private leaderboardStore?: LeaderboardStore;
+  private journeyStore?: JourneyStore;
+  private LOCAL_PROGRESS_KEY = 'virtue_store.local_progress_v1';
+  private isAttached = false;
+  private disposeReactions: Array<() => void> = [];
   // Public Getters
   get virtues() {
     return this.state.virtues;
@@ -153,6 +163,7 @@ export class VirtueStore {
       userProgress: {},
       isProgressLoading: false,
       progressError: null,
+      localVirtueProgress: {},
 
       virtueNotes: [],
       isNotesLoading: false,
@@ -191,10 +202,142 @@ export class VirtueStore {
 
     // Load persisted goal from storage
     this.loadCurrentGoal().catch(() => {});
+    // Load local progress from storage
+    this.loadLocalProgress().catch(() => {});
   }
 
   private setError(message: string | null) {
     this.error = message;
+  }
+
+  // Attach external stores after RootStore finishes constructing them
+  attachStores(leaderboardStore: LeaderboardStore, journeyStore: JourneyStore) {
+    if (this.isAttached) return;
+    this.leaderboardStore = leaderboardStore;
+    this.journeyStore = journeyStore;
+    this.isAttached = true;
+
+    // React to changes in total points (optimistic included) and journey phase statuses
+    const dispose = reaction(
+      () => [
+        this.leaderboardStore?.userStats?.totalPoints || 0,
+        JSON.stringify(this.journeyStore?.journeyPhases.map(p => ({ id: p.id, status: p.status })) || []),
+      ],
+      () => { void this.updateLocalVirtueProgress(); }
+    );
+    this.disposeReactions.push(dispose);
+
+    void this.updateLocalVirtueProgress();
+  }
+
+  private async loadLocalProgress() {
+    try {
+      const raw = await AsyncStorage.getItem(this.LOCAL_PROGRESS_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw) as Record<string, number>;
+        runInAction(() => {
+          this.state.localVirtueProgress = parsed || {};
+        });
+      }
+    } catch (e) {
+      // best-effort
+    }
+  }
+
+  private async saveLocalProgress() {
+    try {
+      await AsyncStorage.setItem(this.LOCAL_PROGRESS_KEY, JSON.stringify(this.state.localVirtueProgress || {}));
+    } catch (e) {
+      // best-effort
+    }
+  }
+
+  // Ensure virtues list is available offline by seeding from known groups if API fails/empty
+  private ensureVirtuesPresent() {
+    if (Array.isArray(this.state.virtues) && this.state.virtues.length > 0) return;
+    const groups = this.state.virtueGroups;
+    const all: string[] = [
+      ...groups.foundational.virtues,
+      ...groups.derived.virtues,
+      ...groups.compound.virtues,
+    ] as unknown as string[];
+    const dedup = Array.from(new Set(all));
+    const seeded: Virtue[] = dedup.map((id) => ({
+      id,
+      name: id,
+      description: '',
+      color_code: '#888888',
+    } as Virtue));
+    runInAction(() => {
+      this.state.virtues = seeded;
+    });
+  }
+
+  // Compute local virtue progress based on journey phases and total points
+  async updateLocalVirtueProgress() {
+    // Gather inputs
+    const totalPoints = this.leaderboardStore?.userStats?.totalPoints || 0;
+    const phases = this.journeyStore?.journeyPhases || [];
+
+    // Journey-based bonuses
+    let journeyPct = 0;
+    const firstCompleted = phases.some(p => p.order === 1 && p.status === 'completed');
+    if (firstCompleted) journeyPct += 40;
+    const completedAfterFirst = phases.filter(p => p.order > 1 && p.status === 'completed').length;
+    journeyPct += completedAfterFirst * 5;
+    const last = phases.length > 0 ? phases[phases.length - 1] : undefined;
+    if (last && last.status === 'completed') journeyPct += 10;
+
+    // Micro additions by points: 1% per 1000 points
+    const pointsPct = Math.floor(totalPoints / 1000);
+
+    // Combine additively and cap by 95.9
+    const combined = Math.min(95.9, journeyPct + pointsPct);
+
+    // Apply to all virtues known in groups
+    const groups = this.state.virtueGroups;
+    const allVirtues: string[] = [
+      ...groups.foundational.virtues,
+      ...groups.derived.virtues,
+      ...groups.compound.virtues,
+    ] as unknown as string[];
+
+    const next: Record<string, number> = { ...(this.state.localVirtueProgress || {}) };
+    for (const vId of allVirtues) {
+      const prev = next[vId] || 0;
+      next[vId] = Math.min(95.9, Math.max(prev, combined));
+    }
+
+    runInAction(() => {
+      this.state.localVirtueProgress = next;
+      // Also mirror into userProgress so existing UIs pick it up
+      this.mergeLocalIntoUserProgress();
+    });
+    await this.saveLocalProgress();
+  }
+
+  private mergeLocalIntoUserProgress() {
+    const local = this.state.localVirtueProgress || {};
+    const userRec: Record<string, VirtueProgress> = { ...(this.state.userProgress || {}) };
+    const toLevel = (pct: number) => Math.max(0, Math.min(9, Math.floor((pct || 0) / 10)));
+    const totalLevels = 10;
+    Object.entries(local).forEach(([virtueId, pct]) => {
+      const existing = userRec[virtueId];
+      const lvl = toLevel(pct);
+      userRec[virtueId] = {
+        current_level: lvl,
+        level: lvl,
+        total_levels: totalLevels,
+        theme_id: virtueId,
+        virtue: virtueId,
+        total_minutes: existing?.total_minutes || 0,
+        total_points: existing?.total_points || 0,
+        total_challenges: existing?.total_challenges || 0,
+      } as VirtueProgress as any;
+    });
+    runInAction(() => {
+      this.state.userProgress = userRec;
+    });
   }
 
   async fetchVirtues(page = 1) {
@@ -230,6 +373,8 @@ export class VirtueStore {
         this.state.virtuesError = error instanceof Error ? error.message : 'Failed to fetch virtues';
       });
       this.setError(this.state.virtuesError);
+      // Seed defaults for offline use
+      this.ensureVirtuesPresent();
     }
   }
 
@@ -300,6 +445,9 @@ export class VirtueStore {
         this.state.isProgressLoading = false;
         this.state.lastUpdate = new Date();
       });
+      // Merge local progress overlay and persist
+      this.mergeLocalIntoUserProgress();
+      await this.updateLocalVirtueProgress();
     } catch (error: any) {
       console.error('Error fetching user progress:', error);
       runInAction(() => {
@@ -307,6 +455,9 @@ export class VirtueStore {
         this.state.progressError = error instanceof Error ? error.message : 'Failed to fetch user progress';
       });
       this.setError(this.state.progressError);
+      // On failure, still ensure local overlay present for offline
+      this.ensureVirtuesPresent();
+      this.mergeLocalIntoUserProgress();
     }
   }
 

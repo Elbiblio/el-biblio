@@ -7,6 +7,7 @@ import {
   ScrollView,
   Platform,
   BackHandler,
+  Alert,
   Modal,
   AppState,
   AppStateStatus,
@@ -477,6 +478,53 @@ const MeditationScreen = () => {
     };
   }, [meditationState, selectedTime, completedSessions, selectedStyle, currentVirtue?.name, chosenChantId, countdown]);
 
+  // Intercept back actions during countdown/active to avoid background/duplicate sessions
+  useEffect(() => {
+    const shouldGuard = meditationState === MeditationState.COUNTDOWN || meditationState === MeditationState.ACTIVE;
+    if (!shouldGuard) return;
+
+    const confirmEnd = (proceedNav?: () => void) => {
+      Alert.alert(
+        'End meditation?',
+        'Your meditation is currently running. Do you want to end it?',
+        [
+          { text: 'Keep Going', style: 'cancel' },
+          {
+            text: 'End Session',
+            style: 'destructive',
+            onPress: () => {
+              try { orchestratorRef.current?.stop(); } catch {}
+              orchestratorRef.current = null;
+              meditationStore.endMeditationSession();
+              try { Speech.stop(); } catch {}
+              proceedNav?.();
+            },
+          },
+        ]
+      );
+    };
+
+    // Hardware back (Android)
+    const onBack = () => {
+      confirmEnd();
+      return true; // prevent default
+    };
+    const bhSub = BackHandler.addEventListener('hardwareBackPress', onBack);
+
+    // Navigation back (gesture or button)
+    const beforeRemove = navigation.addListener('beforeRemove', (e) => {
+      e.preventDefault();
+      confirmEnd(() => {
+        try { navigation.dispatch(e.data.action); } catch {}
+      });
+    });
+
+    return () => {
+      try { bhSub.remove(); } catch {}
+      try { beforeRemove(); } catch {}
+    };
+  }, [navigation, meditationState, meditationStore]);
+
   // Handlers
   const startMeditation = async () => {
     const missingVirtue = selectedStyle === 'virtue' && !selectedVirtue;
@@ -574,10 +622,10 @@ const MeditationScreen = () => {
     opacity: numberOpacity.value,
   }));
   const breatheTextStyle = useAnimatedStyle(() => ({ opacity: breatheTextOpacity.value }));
-  const promptAnimStyle = useAnimatedStyle(() => ({
-    opacity: promptOpacity.value,
-    transform: [{ translateY: interpolate(promptOpacity.value, [0, 1], [20, 0]) }],
-  }));
+  // const promptAnimStyle = useAnimatedStyle(() => ({
+  //   opacity: promptOpacity.value,
+  //   transform: [{ translateY: interpolate(promptOpacity.value, [0, 1], [20, 0]) }],
+  // }));
   const bellButtonStyle = useAnimatedStyle(() => ({ transform: [{ scale: bellScale.value }] }));
   const breathingCircleStyle = useAnimatedStyle(() => ({
     transform: [{ scale: interpolate(pulseAnim.value, [0, 1], [0.7, 1.6]) }],
@@ -1438,7 +1486,7 @@ const createStyles = (theme: Theme, currentVirtue: Virtue | undefined) =>
     breatheInstruction: {
       ...theme?.typography.body.sans,
       color: currentVirtue?.color_code || theme?.colors.primary,
-      fontSize: 20,
+      fontSize: 17,
       fontWeight: '700',
       minWidth: 170,
       textAlign: 'center',

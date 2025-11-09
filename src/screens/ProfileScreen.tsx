@@ -455,6 +455,9 @@ const ProfileScreen = () => {
             <Text style={styles.sectionTitle}>Top Virtues</Text>
             <Text style={styles.sectionSubtitle}>Learning Progress</Text>
           </View>
+          <Text style={styles.sectionDisclaimer}>
+            Guidance only: virtue points/progress are not a rank or true measure of spiritual progress.
+          </Text>
           <View style={styles.virtuesContainer}>
             {userStatsData.topVirtues.map((virtueData, index) => (
               <View key={index} style={styles.virtueItem}>
@@ -831,6 +834,11 @@ const createStyles = (theme: Theme) => StyleSheet.create({
   sectionSubtitle: {
     ...theme.typography.caption.primary,
     color: theme.colors.text.secondary,
+  },
+  sectionDisclaimer: {
+    ...theme.typography.caption.secondary,
+    color: theme.colors.text.secondary,
+    marginBottom: theme.spacing.sm,
   },
   virtuesContainer: {
     gap: theme.spacing.md,

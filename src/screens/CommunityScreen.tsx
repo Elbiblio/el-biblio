@@ -128,6 +128,13 @@ const CommunityScreen = ({ navigation }: CommunityScreenProps) => {
     React.useCallback(() => {
       markOpened();
       loadUsageStage();
+      try {
+        const unlocked = dailyPathStore?.state?.communityUnlocked;
+        if (!unlocked) {
+          const stage = getUsageStage(null);
+          toast.info('Community features unlock as you engage with Bible reading and meditation. Keep going!');
+        }
+      } catch {}
       return () => {};
     }, [markOpened, loadUsageStage])
   );

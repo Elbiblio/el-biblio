@@ -11,7 +11,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { ActivityIndicator } from 'react-native';
 import { Star, Trophy, Sparkle, Clock } from '../components/Icons';
-import { UserLevel, VerseResult } from '@/types';
+import { UserLevel, VerseResult, VirtueGroups as VirtueGroupsConst } from '@/types';
 import { Theme } from '@/theme';
 import { useTheme } from '@/contexts/ThemeContext';
 import { observer } from 'mobx-react-lite';
@@ -74,6 +74,18 @@ const VirtueTriviaScreen = () => {
 
   // Virtue store
   const { virtues, userProgress, fetchVirtues, fetchUserProgress } = useVirtueStore();
+  // Build a local fallback list of virtues for offline-first UX
+  const fallbackVirtues = React.useMemo(() => {
+    const groups = VirtueGroupsConst;
+    const ids = [
+      ...groups.foundational.virtues,
+      ...groups.derived.virtues,
+      ...groups.compound.virtues,
+    ] as string[];
+    const dedup = Array.from(new Set(ids));
+    return dedup.map(id => ({ id, name: id } as any));
+  }, []);
+  const displayedVirtues = virtues && virtues.length > 0 ? virtues : fallbackVirtues;
 
   // State
   const [gameState, setGameState] = useState<GameState>({
@@ -678,7 +690,7 @@ const VirtueTriviaScreen = () => {
         </View>
         
         <View style={styles.virtueGrid}>
-          {virtues.map(virtue => {
+          {displayedVirtues.map(virtue => {
             const virtueData = userProgress[virtue.id] || { current_level: 0, total_levels: 3 };
             const isCompleted = virtueData.current_level >= virtueData.total_levels;
             
