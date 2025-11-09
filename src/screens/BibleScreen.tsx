@@ -1905,7 +1905,7 @@ const handleEnterPlanMode = useCallback(async () => {
     if (!timerId) return null;
 
     return (
-      <Modal visible={showTimerModal} animationType="slide" transparent>
+      <Modal visible={showTimerModal && !bibleStore.dailySession?.completed} animationType="slide" transparent>
         <View style={styles.timerModalBackdrop}>
           <View style={styles.timerModalCard}>
             <View style={styles.timerModalHeader}>

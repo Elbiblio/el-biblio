@@ -12,6 +12,10 @@ interface AudioCoordinatorConfig {
   cues: string[];
   pauseDurationMs: number;
   onPhaseChange?: (phase: ChantPhase) => void;
+  getTimeLeftSeconds?: () => number;
+  minSecondsToStartNextLoop?: number; // default 72
+  finalFadeOutThresholdSec?: number; // default 60
+  decayPerLoop?: number; // default 0.94
 }
 
 // ---------- TTS HELPERS ----------
@@ -158,6 +162,7 @@ export class AudioCoordinator {
   private loopCallback: (() => void) | null = null;
   private loopDueAt: number | null = null;
   private loopDelayRemaining: number | null = null;
+  private loopCount: number = 0;
 
   constructor(config: AudioCoordinatorConfig) {
     this.config = config;
@@ -187,6 +192,7 @@ export class AudioCoordinator {
 
     this.isActive = true;
     this.cueIndex = 0;
+    this.loopCount = 0;
     this.setPhase('playing');
 
     if (this.config.voiceKey) {
@@ -329,6 +335,7 @@ export class AudioCoordinator {
     if (!this.isActive || !this.config.voiceKey) return;
 
     try {
+      if (this.shouldSkipNextLoop()) return;
       this.setPhase('playing');
 
       // Play voice chant
@@ -346,8 +353,12 @@ export class AudioCoordinator {
       if (!this.isActive) return;
 
       // Wait before next loop
+      this.loopCount++;
+      this.applyVolumeDecay();
       this.loopTimeout = setTimeout(() => {
-        this.startVoiceLoop();
+        if (!this.shouldSkipNextLoop()) {
+          this.startVoiceLoop();
+        }
       }, this.config.pauseDurationMs);
     } catch (error) {
       console.warn('[AudioCoordinator] Voice loop error:', error);
@@ -355,7 +366,9 @@ export class AudioCoordinator {
       // Retry after delay
       if (this.isActive) {
         this.loopTimeout = setTimeout(() => {
-          this.startVoiceLoop();
+          if (!this.shouldSkipNextLoop()) {
+            this.startVoiceLoop();
+          }
         }, 1000);
       }
     }
@@ -368,10 +381,13 @@ export class AudioCoordinator {
     if (!this.isActive || !this.config.instrumentalKey) return;
 
     try {
+      if (this.shouldSkipNextLoop()) return;
       this.setPhase('playing');
 
       // Start looping instrumental
       await playLoopByKey(this.config.instrumentalKey, this.currentVolume);
+      // Cache handle for volume adjustments
+      this.instrumentalSound = await this.getSound(this.config.instrumentalKey);
 
       if (!this.isActive) return;
 
@@ -412,16 +428,60 @@ export class AudioCoordinator {
 
         this.setPhase('playing');
 
+        // After each cue cycle, apply decay and check time left to continue scheduling
+        this.loopCount++;
+        await this.applyVolumeDecay();
+
         // Schedule next cue
-        this.scheduleNextCue();
+        if (!this.shouldSkipNextLoop()) {
+          this.scheduleNextCue();
+        }
       } catch (error) {
         console.warn('[AudioCoordinator] Cue error:', error);
         
         if (this.isActive) {
           this.setPhase('playing');
-          this.scheduleNextCue();
+          if (!this.shouldSkipNextLoop()) {
+            this.scheduleNextCue();
+          }
         }
       }
     }, this.config.pauseDurationMs);
+  }
+
+  private shouldSkipNextLoop(): boolean {
+    const minLeft = this.config.minSecondsToStartNextLoop ?? 72;
+    try {
+      const left = this.config.getTimeLeftSeconds?.();
+      return typeof left === 'number' && left < minLeft;
+    } catch {
+      return false;
+    }
+  }
+
+  private async applyVolumeDecay() {
+    const decay = this.config.decayPerLoop ?? 0.94;
+    const minVol = 0.2;
+    this.currentVolume = Math.max(minVol, this.currentVolume * decay);
+    try {
+      if (this.config.instrumentalKey && this.instrumentalSound) {
+        await this.instrumentalSound.setVolumeAsync(this.currentVolume);
+      }
+    } catch {}
+  }
+
+  async fadeOut(ms: number = 2000) {
+    try {
+      const steps = 10;
+      const stepDur = Math.max(50, Math.floor(ms / steps));
+      for (let i = 0; i < steps; i++) {
+        this.currentVolume = Math.max(0, this.currentVolume - (0.6 / steps));
+        if (this.config.instrumentalKey && this.instrumentalSound) {
+          await this.instrumentalSound.setVolumeAsync(this.currentVolume);
+        }
+        await new Promise(r => setTimeout(r, stepDur));
+      }
+    } catch {}
+    await this.pause();
   }
 }

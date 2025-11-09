@@ -74,15 +74,26 @@ export class MeditationOrchestrator {
   private spokenPrompts = new Set<number>();
   private breathCycleCount: number = 0;
   private stages = { s1: false, s2: false };
+  private lastBellMs: number = 0;
+  private chantFinalPromptSpoken: boolean = false;
 
   private currentGuide: MeditationGuide | null = null;
   private chantCoordinator: AudioCoordinator | null = null;
   private lastStartAt: number = 0;
   private bgActive: boolean = false;
+  private chantFadedOut: boolean = false;
 
   constructor(opts: OrchestratorOptions) {
     this.getConfig = opts.getConfig;
     this.callbacks = opts.callbacks;
+  }
+
+  private timeLeftSeconds(): number {
+    const cfg = this.getConfig();
+    const now = Date.now();
+    const elapsedMs = this.accumulatedMs + (this.activeStartMs ? (now - this.activeStartMs) : 0);
+    const t = Math.max(0, Math.floor(elapsedMs / 1000));
+    return Math.max(0, (cfg.totalMeditationSeconds || 0) - t);
   }
 
   // ----- PUBLIC METHODS -----
@@ -111,6 +122,10 @@ export class MeditationOrchestrator {
             instrumentalKey: track.instrumentalKey as any,
             cues: track.cues,
             pauseDurationMs: track.pauseDurationMs,
+            getTimeLeftSeconds: () => this.timeLeftSeconds(),
+            minSecondsToStartNextLoop: 72,
+            finalFadeOutThresholdSec: 60,
+            decayPerLoop: 0.94,
           });
         }
         this.chantCoordinator.preload().then(() => {
@@ -154,6 +169,10 @@ export class MeditationOrchestrator {
             instrumentalKey: track.instrumentalKey as any,
             cues: track.cues,
             pauseDurationMs: track.pauseDurationMs,
+            getTimeLeftSeconds: () => this.timeLeftSeconds(),
+            minSecondsToStartNextLoop: 72,
+            finalFadeOutThresholdSec: 60,
+            decayPerLoop: 0.94,
           });
         }
         this.chantCoordinator.preload().catch(() => {});
@@ -388,6 +407,10 @@ export class MeditationOrchestrator {
     this.lastEmittedSecond = -1;
     this.breathCycleCount = 0;
     this.introDone = false;
+    this.currentGuide = null;
+    this.lastBellMs = 0;
+    this.chantFinalPromptSpoken = false;
+    this.chantFadedOut = false;
   }
 
   private clearAllTimers() {
@@ -431,6 +454,14 @@ export class MeditationOrchestrator {
     }
   }
 
+  private maybePlayBell() {
+    const now = Date.now();
+    if (now - this.lastBellMs >= 30000) {
+      this.lastBellMs = now;
+      playCue('meditationBell');
+    }
+  }
+
   private buildAndEmitGuide() {
     const cfg = this.getConfig();
     const guide = MeditationOrchestrator.buildGuide({
@@ -463,11 +494,11 @@ export class MeditationOrchestrator {
 
     // 1) Close eyes
     await wait(200);
-    await this.speakWithDuck('Close your eyes if you are able to do so...', 0.8);
+    await this.speakWithDuck('Close your eyes if you are able to do so...', cfg.selectedStyle === 'parable' ? 0.72 : 0.8);
 
     // 2) Lead-in
     await wait(1000);
-    await this.speakWithDuck(guide.leadIn, 0.8);
+    await this.speakWithDuck(guide.leadIn, cfg.selectedStyle === 'parable' ? 0.72 : 0.8);
 
     // 3) Mode-specific prelude
     await wait(1000);
@@ -479,17 +510,18 @@ export class MeditationOrchestrator {
     } else if (cfg.selectedStyle === 'parable' && cfg.parableReadMode === 'aloud') {
       try {
         await readScriptureSlowly(guide.scripture);
-        await wait(1200);
+        // Ensure a contemplative pause of at least 30s immediately after reading
+        await wait(30000);
       } catch {}
     } else {
-      await this.speakWithDuck(guide.focus, 0.8);
+      await this.speakWithDuck(guide.focus, cfg.selectedStyle === 'parable' ? 0.72 : 0.8);
     }
 
     // 4) Bell, breath invite, insights
     await wait(1000);
-    playCue('meditationBell');
+    this.maybePlayBell();
     await wait(500);
-    await this.speakWithDuck(guide.breathInvitation || 'Breathe in...', 0.8);
+    await this.speakWithDuck(guide.breathInvitation || 'Breathe in...', cfg.selectedStyle === 'parable' ? 0.72 : 0.8);
 
     const stageNote = guide.stageNote?.trim();
     const openReflection = guide.openReflection?.trim();
@@ -499,15 +531,15 @@ export class MeditationOrchestrator {
       const insights = [stageNote, openReflection].filter(Boolean) as string[];
       for (let i = 0; i < insights.length; i++) {
         await wait(i === 0 ? 400 : 600);
-        await this.speakWithDuck(insights[i]!, 0.8);
+        await this.speakWithDuck(insights[i]!, cfg.selectedStyle === 'parable' ? 0.72 : 0.8);
       }
     }
 
     // 5) Hold and out
     await wait(400);
-    await this.speakWithDuck('Keep still...', 0.8);
+    await this.speakWithDuck('Keep still...', cfg.selectedStyle === 'parable' ? 0.72 : 0.8);
     await wait(400);
-    await this.speakWithDuck('Breathe out...', 0.8);
+    await this.speakWithDuck('Breathe out...', cfg.selectedStyle === 'parable' ? 0.72 : 0.8);
 
     this.finishIntro();
   }
@@ -545,18 +577,20 @@ export class MeditationOrchestrator {
     const prompt = prompts[index] || prompts[0];
     if (!prompt) return;
 
+    const cfg = this.getConfig();
+    const rate = cfg.selectedStyle === 'parable' ? 0.72 : 0.85;
     if (index === 0) {
-      await this.speakWithDuck(prompt, 0.85);
+      await this.speakWithDuck(prompt, rate);
     } else {
-      await this.speakWithDuck('Now...', 0.85);
+      await this.speakWithDuck('Now...', rate);
       await new Promise(r => setTimeout(r, 800));
-      await this.speakWithDuck(prompt, 0.85);
+      await this.speakWithDuck(prompt, rate);
     }
 
     const isLast = index === prompts.length - 1;
     if (isLast && guide.declaration) {
       await new Promise(r => setTimeout(r, 1200));
-      await this.speakWithDuck(guide.declaration, 0.85);
+      await this.speakWithDuck(guide.declaration, rate);
     }
   }
 
@@ -587,6 +621,19 @@ export class MeditationOrchestrator {
     }
 
     const timeLeft = totalMeditationSeconds - t;
+
+    // Chant-time specific controls
+    if (selectedStyle === 'chant') {
+      if (!this.chantFinalPromptSpoken && timeLeft === 60) {
+        this.chantFinalPromptSpoken = true;
+        this.speakWithDuck('As we close, connect this chant with your day today.', 0.85).catch(() => {});
+      }
+      // Fade out chant when under 60s
+      if (!this.chantFadedOut && timeLeft < 60) {
+        this.chantFadedOut = true;
+        try { this.chantCoordinator?.fadeOut(2000); } catch {}
+      }
+    }
 
     // Challenge announcement at 30s
     if (!this.challengeSpoken && timeLeft <= 30 && timeLeft > 3) {
@@ -683,16 +730,16 @@ export class MeditationOrchestrator {
 
   private startCenteringInterval() {
     const { centeringWord, centeringReadMode, centeringRepeatIntervalSec } = this.getConfig();
-    const intervalMs = Math.max(10, Math.min(30, centeringRepeatIntervalSec)) * 1000;
+    const intervalMs = Math.max(30, Math.min(60, centeringRepeatIntervalSec)) * 1000;
 
     this.centeringInterval = setInterval(() => {
       const word = (centeringWord || 'Jesus').trim();
       if (centeringReadMode === 'aloud') {
         this.speakWithDuck(word, 0.85)
-          .then(() => playCue('meditationBell'))
-          .catch(() => playCue('meditationBell'));
+          .then(() => this.maybePlayBell())
+          .catch(() => this.maybePlayBell());
       } else {
-        playCue('meditationBell');
+        this.maybePlayBell();
       }
     }, intervalMs) as unknown as number;
   }
@@ -716,7 +763,7 @@ export class MeditationOrchestrator {
       this.callbacks.onBreathPhase?.(phase, duration);
 
       if (phase === 'out' && this.breathCycleCount < 3) {
-        playCue('meditationBell');
+        this.maybePlayBell();
         this.breathCycleCount += 1;
       }
 
