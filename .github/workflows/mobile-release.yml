@@ -654,6 +654,17 @@ jobs:
             exit 1
           fi
 
+          if [ ! -d "ios/build/ElBiblio.xcarchive" ]; then
+            echo "Archive not found at ios/build/ElBiblio.xcarchive" >&2
+            ls -R ios/build >&2 || true
+            echo "Available .xcarchive directories:" >&2
+            find ios -type d -name "*.xcarchive" >&2 || true
+            if [ -f "$LOG_PATH" ]; then
+              echo "xcodebuild log stored at $LOG_PATH" >&2
+            fi
+            exit 1
+          fi
+
       - name: Prepare export options
         run: |
           cat <<'EOF' > ios/exportOptions.plist
