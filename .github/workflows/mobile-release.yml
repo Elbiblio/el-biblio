@@ -493,14 +493,14 @@ jobs:
           PROFILE_DIR="$HOME/Library/MobileDevice/Provisioning Profiles"
           mkdir -p "$PROFILE_DIR"
           PROFILE_PATH="$PROFILE_DIR/store-profile.mobileprovision"
-          LOCAL_PROFILE="Elbiblio.mobileprovision"
+          LOCAL_PROFILE="elbiblioprofile.mobileprovision"
           USE_R2=1
           if [ -z "${R2_BUCKET:-}" ] || [ -z "${R2_ACCOUNT_ID:-}" ] || [ -z "${AWS_ACCESS_KEY_ID:-}" ] || [ -z "${AWS_SECRET_ACCESS_KEY:-}" ]; then
             USE_R2=0
           fi
           if [ "$USE_R2" -eq 1 ]; then
             R2_ENDPOINT="https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
-            OBJECT_KEY="${R2_IOS_PROFILE_OBJECT_KEY:-signing/ios-store.mobileprovision}"
+            OBJECT_KEY="${R2_IOS_PROFILE_OBJECT_KEY:-signing/elbiblioprofile.mobileprovision}"
             if ! aws s3 ls "s3://${R2_BUCKET}/${OBJECT_KEY}" --endpoint-url "$R2_ENDPOINT" >/dev/null 2>&1; then
               if [ -f "$LOCAL_PROFILE" ]; then
                 echo "Provisioning profile missing in R2; uploading local $LOCAL_PROFILE"
