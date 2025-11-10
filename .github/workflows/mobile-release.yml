@@ -670,7 +670,6 @@ jobs:
             DEVELOPMENT_TEAM=${{ env.DEVELOPMENT_TEAM }}
             PROVISIONING_PROFILE_SPECIFIER=${{ env.PROVISIONING_PROFILE_SPECIFIER }}
             CODE_SIGN_IDENTITY=${{ env.CODE_SIGN_IDENTITY_FOR_BUILD }}
-            -archivePath ios/build/ElBiblio.xcarchive
 
       - name: Archive iOS app (project)
         if: env.WORKSPACE_PATH == ''
@@ -692,20 +691,24 @@ jobs:
       - name: Locate archive and export path
         run: |
           set -euo pipefail
-          DEFAULT_ARCHIVE="ios/build/ElBiblio.xcarchive"
-          if [ -d "$DEFAULT_ARCHIVE" ]; then
-            echo "ARCHIVE_PATH=$DEFAULT_ARCHIVE" >> "$GITHUB_ENV"
+          # Prefer local path if present
+          if [ -d "ios/build/ElBiblio.xcarchive" ]; then
+            echo "ARCHIVE_PATH=ios/build/ElBiblio.xcarchive" >> "$GITHUB_ENV"
+            exit 0
+          fi
+          echo "Searching for archives under repo and Xcode Archives..." >&2
+          CANDIDATES=$( {
+            find ios . -type d -name "*.xcarchive" 2>/dev/null;
+            find "$HOME/Library/Developer/Xcode/Archives" -type d -name "*.xcarchive" 2>/dev/null;
+          } | xargs -I{} stat -f "%m	%N" {} 2>/dev/null | sort -nr | awk -F '\t' '{print $2}' )
+          FOUND=$(echo "$CANDIDATES" | head -n 1 || true)
+          if [ -n "$FOUND" ] && [ -d "$FOUND" ]; then
+            echo "Using discovered archive: $FOUND"
+            echo "ARCHIVE_PATH=$FOUND" >> "$GITHUB_ENV"
           else
-            echo "Archive not found at $DEFAULT_ARCHIVE; searching..." >&2
-            FOUND=$(find ios . -type d -name "*.xcarchive" -print0 | xargs -0 ls -1td 2>/dev/null | head -n 1 || true)
-            if [ -n "$FOUND" ] && [ -d "$FOUND" ]; then
-              echo "Using discovered archive: $FOUND"
-              echo "ARCHIVE_PATH=$FOUND" >> "$GITHUB_ENV"
-            else
-              echo "No .xcarchive found under ios/ or repo root" >&2
-              ls -R ios || true
-              exit 1
-            fi
+            echo "No .xcarchive found in repo or Xcode Archives" >&2
+            ls -R ios || true
+            exit 1
           fi
 
       - name: Prepare export options
