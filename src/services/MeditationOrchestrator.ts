@@ -84,10 +84,18 @@ export class MeditationOrchestrator {
   private bgActive: boolean = false;
   private chantFadedOut: boolean = false;
   private finalCountdownTimer: number | null = null;
+  private closingWatchdogTimer: number | null = null;
 
   constructor(opts: OrchestratorOptions) {
     this.getConfig = opts.getConfig;
     this.callbacks = opts.callbacks;
+  }
+
+  private logDebug(...args: any[]) {
+    if ((typeof __DEV__ !== 'undefined' && __DEV__) || (typeof process !== 'undefined' && process.env?.NODE_ENV === 'development')) {
+      // eslint-disable-next-line no-console
+      console.log('[MeditationOrchestrator]', ...args);
+    }
   }
 
   private timeLeftSeconds(): number {
@@ -144,6 +152,7 @@ export class MeditationOrchestrator {
     // Start main tick loop
     this.activeStartMs = Date.now();
     this.mainInterval = setInterval(() => this.tick(), 1000) as unknown as number;
+    this.scheduleClosingWatchdog();
 
     // Run intro sequence
     this.runIntro().catch(() => {});
@@ -429,6 +438,7 @@ export class MeditationOrchestrator {
     this.chantFinalPromptSpoken = false;
     this.chantFadedOut = false;
     this.closingStarted = false;
+    this.clearClosingWatchdog();
   }
 
   private clearAllTimers() {
@@ -436,6 +446,7 @@ export class MeditationOrchestrator {
     this.clearTimer('countdown');
     this.clearTimer('centering');
     this.clearFinalCountdown();
+    this.clearClosingWatchdog();
   }
 
   private clearTimer(type: 'main' | 'countdown' | 'centering') {
@@ -657,26 +668,7 @@ export class MeditationOrchestrator {
       }
     }
 
-    // Universal closing sequence trigger at T-30s
-    if (!this.closingStarted && timeLeft <= 30 && timeLeft > 3) {
-      this.closingStarted = true;
-      this.beginClosingSequence(selectedStyle);
-    }
-
-    // Challenge announcement within the closing window
-    if (!this.challengeSpoken && timeLeft <= 30 && timeLeft > 3) {
-      this.handleChallengeAnnouncement(selectedStyle, selectedChallenge);
-    }
-
-    // Final countdown at ~3s (robust to timer drift)
-    if (!this.finalCountdownStarted && timeLeft <= 3 && timeLeft >= 0) {
-      this.handleFinalCountdown();
-    }
-
-    // Completion (robust to timer drift)
-    if (!this.sessionCompleted && timeLeft <= 0) {
-      this.handleSessionComplete();
-    }
+    this.ensureClosingWindow(timeLeft, selectedStyle, selectedChallenge);
   }
 
   private beginClosingSequence(style: string) {
@@ -744,31 +736,39 @@ export class MeditationOrchestrator {
           .catch(() => {});
       }, 500);
     }
+
+    this.startFinalCountdown();
   }
 
-  private handleFinalCountdown() {
+  private startFinalCountdown() {
+    if (this.finalCountdownStarted) return;
+
     this.finalCountdownStarted = true;
-    
-    // Stop any ongoing speech
-    try {
-      const Speech = require('expo-speech');
-      Speech.stop();
-    } catch {}
-    try { clearSpeechQueue(); } catch {}
+    this.logDebug('Starting final countdown sequence');
 
     // Stop meditative guidance loops to avoid overlap during countdown
     this.clearTimer('centering');
     this.stopBreathingLoop();
 
+    // Ensure no pending speech keeps playing
+    try {
+      const Speech = require('expo-speech');
+      Speech.stop();
+    } catch {}
+
     let n = 3;
-    // Clear any previous final countdown
     this.clearFinalCountdown();
     this.finalCountdownTimer = setInterval(() => {
       if (n > 0) {
         this.speakWithDuck(`${n}`, 0.9).catch(() => {});
         n -= 1;
       } else {
-        this.clearFinalCountdown();
+        if (!this.sessionCompleted) {
+          this.logDebug('Final countdown reached zero – forcing completion');
+          this.handleSessionComplete();
+        } else {
+          this.clearFinalCountdown();
+        }
       }
     }, 1000) as unknown as number;
   }
@@ -785,6 +785,7 @@ export class MeditationOrchestrator {
     this.clearAllTimers();
     this.stopBreathingLoop();
     this.clearFinalCountdown();
+    this.clearClosingWatchdog();
     try { clearSpeechQueue(); } catch {}
     if (this.chantCoordinator) {
       this.chantCoordinator.stop().catch(() => {});
@@ -802,6 +803,62 @@ export class MeditationOrchestrator {
     if (this.finalCountdownTimer) {
       clearInterval(this.finalCountdownTimer);
       this.finalCountdownTimer = null;
+    }
+  }
+
+  private clearClosingWatchdog() {
+    if (this.closingWatchdogTimer) {
+      clearTimeout(this.closingWatchdogTimer);
+      this.closingWatchdogTimer = null;
+    }
+  }
+
+  private scheduleClosingWatchdog() {
+    if (this.closingWatchdogTimer) return;
+
+    const run = () => {
+      this.closingWatchdogTimer = null;
+
+      if (!this.started || this.sessionCompleted) {
+        return;
+      }
+
+      try {
+        const cfg = this.getConfig();
+        const remaining = this.timeLeftSeconds();
+        this.ensureClosingWindow(remaining, cfg.selectedStyle, cfg.selectedChallenge);
+      } catch (error) {
+        this.logDebug('Closing watchdog error', error);
+      } finally {
+        if (this.started && !this.sessionCompleted) {
+          this.closingWatchdogTimer = setTimeout(run, 2000) as unknown as number;
+        }
+      }
+    };
+
+    this.closingWatchdogTimer = setTimeout(run, 2000) as unknown as number;
+  }
+
+  private ensureClosingWindow(timeLeft: number, style: 'parable' | 'virtue' | 'centering' | 'jesus_prayer' | 'chant', challenge: Challenge | null) {
+    if (!this.closingStarted && timeLeft <= 30 && timeLeft > 0) {
+      this.closingStarted = true;
+      this.logDebug('Triggering closing sequence', { timeLeft });
+      this.beginClosingSequence(style);
+    }
+
+    if (!this.challengeSpoken && timeLeft <= 30 && timeLeft > 3) {
+      this.logDebug('Announcing closing challenge', { timeLeft });
+      this.handleChallengeAnnouncement(style, challenge);
+    }
+
+    if (!this.finalCountdownStarted && timeLeft <= 3 && timeLeft >= 0) {
+      this.logDebug('Starting final countdown', { timeLeft });
+      this.startFinalCountdown();
+    }
+
+    if (!this.sessionCompleted && timeLeft <= 0) {
+      this.logDebug('Ensuring session complete', { timeLeft });
+      this.handleSessionComplete();
     }
   }
 
