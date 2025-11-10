@@ -461,6 +461,17 @@ jobs:
           security set-key-partition-list -S apple-tool:,apple: -s -k "$IOS_KEYCHAIN_PASSWORD" "$KEYCHAIN" >/dev/null 2>&1 || true
           echo "Verifying code signing identities in keychain:"
           security find-identity -v -p codesigning "$KEYCHAIN" || true
+          CERT_IDENTITY=$(security find-identity -v -p codesigning "$KEYCHAIN" | awk -F'"' '/Apple Distribution/ {print $2; exit}')
+          if [ -z "$CERT_IDENTITY" ]; then
+            CERT_IDENTITY=$(security find-identity -v -p codesigning "$KEYCHAIN" | awk -F'"' 'NR==1 {print $2}')
+          fi
+          if [ -n "$CERT_IDENTITY" ]; then
+            echo "Detected code signing identity: $CERT_IDENTITY"
+            echo "CODE_SIGN_IDENTITY=$CERT_IDENTITY" >> "$GITHUB_ENV"
+          fi
+          KEYCHAIN_FULL_PATH="$HOME/Library/Keychains/$KEYCHAIN"
+          echo "Using keychain: $KEYCHAIN_FULL_PATH"
+          echo "OTHER_CODE_SIGN_FLAGS=--keychain $KEYCHAIN_FULL_PATH" >> "$GITHUB_ENV"
 
       - name: Fetch provisioning profile from R2
         env:
@@ -499,6 +510,31 @@ jobs:
             fi
             echo "R2 credentials not provided; using local $LOCAL_PROFILE"
             cp "$LOCAL_PROFILE" "$PROFILE_PATH"
+          fi
+          if [ ! -f "$PROFILE_PATH" ]; then
+            echo "Provisioning profile not found at $PROFILE_PATH" >&2
+            exit 1
+          fi
+          TMP_PLIST=$(mktemp)
+          if ! security cms -D -i "$PROFILE_PATH" > "$TMP_PLIST"; then
+            echo "Failed to decode provisioning profile" >&2
+            rm -f "$TMP_PLIST"
+            exit 1
+          fi
+          PROFILE_UUID=$( /usr/libexec/PlistBuddy -c "Print :UUID" "$TMP_PLIST" 2>/dev/null || true )
+          PROFILE_NAME=$( /usr/libexec/PlistBuddy -c "Print :Name" "$TMP_PLIST" 2>/dev/null || true )
+          TEAM_ID=$( /usr/libexec/PlistBuddy -c "Print :TeamIdentifier:0" "$TMP_PLIST" 2>/dev/null || true )
+          rm -f "$TMP_PLIST"
+          if [ -z "$PROFILE_UUID" ] || [ -z "$PROFILE_NAME" ]; then
+            echo "Unable to extract UUID/Name from provisioning profile" >&2
+            exit 1
+          fi
+          echo "Using provisioning profile: $PROFILE_NAME ($PROFILE_UUID)"
+          echo "PROVISIONING_PROFILE_SPECIFIER=$PROFILE_NAME" >> "$GITHUB_ENV"
+          echo "PROVISIONING_PROFILE=$PROFILE_UUID" >> "$GITHUB_ENV"
+          if [ -n "$TEAM_ID" ]; then
+            echo "Detected Apple Team ID: $TEAM_ID"
+            echo "DEVELOPMENT_TEAM=$TEAM_ID" >> "$GITHUB_ENV"
           fi
 
       - name: Fetch App Store Connect API key
@@ -570,8 +606,9 @@ jobs:
               echo "Unable to determine scheme" >&2
               exit 1
             fi
-            set +e
-            xcodebuild \
+            LOG_PATH="ios/build/xcodebuild-archive.log"
+            rm -f "$LOG_PATH"
+            if ! xcodebuild \
               -workspace "$WORKSPACE" \
               -scheme "$SCHEME" \
               -configuration Release \
@@ -580,13 +617,11 @@ jobs:
               -archivePath ios/build/ElBiblio.xcarchive \
               clean archive \
               -allowProvisioningUpdates \
-              CODE_SIGN_STYLE=Manual 2>&1 | tee xcodebuild.log
-            XCODE_EXIT=${PIPESTATUS[0]}
-            set -e
-            if [ $XCODE_EXIT -ne 0 ]; then
-              echo "Archive failed with exit code $XCODE_EXIT. Last 100 lines:"
-              tail -100 xcodebuild.log
-              exit $XCODE_EXIT
+              CODE_SIGN_STYLE=Manual \
+              -verbose | tee "$LOG_PATH"; then
+              echo "xcodebuild archive failed. Showing last 200 lines:" >&2
+              tail -n 200 "$LOG_PATH" >&2 || true
+              exit 1
             fi
           elif [ -n "$PROJECT" ]; then
             SCHEME=$(xcodebuild -list -json -project "$PROJECT" 2>/dev/null | node -e "let s='';process.stdin.on('data',d=>s+=d);process.stdin.on('end',()=>{try{const j=JSON.parse(s);const arr=(j.project&&j.project.schemes)||[];const pick=arr.find(n=>/^(ElBiblio|El-Biblio|Elbiblio)/.test(n))||arr.find(n=>!/^Pods(\\b|\\-)/.test(n)&&!/Tests$/.test(n))||arr[0]||'';process.stdout.write(pick)}catch(e){} })" || true)
@@ -597,8 +632,9 @@ jobs:
               echo "Unable to determine scheme" >&2
               exit 1
             fi
-            set +e
-            xcodebuild \
+            LOG_PATH="ios/build/xcodebuild-archive.log"
+            rm -f "$LOG_PATH"
+            if ! xcodebuild \
               -project "$PROJECT" \
               -scheme "$SCHEME" \
               -configuration Release \
@@ -607,22 +643,14 @@ jobs:
               -archivePath ios/build/ElBiblio.xcarchive \
               clean archive \
               -allowProvisioningUpdates \
-              CODE_SIGN_STYLE=Manual 2>&1 | tee xcodebuild.log
-            XCODE_EXIT=${PIPESTATUS[0]}
-            set -e
-            if [ $XCODE_EXIT -ne 0 ]; then
-              echo "Archive failed with exit code $XCODE_EXIT. Last 100 lines:"
-              tail -100 xcodebuild.log
-              exit $XCODE_EXIT
+              CODE_SIGN_STYLE=Manual \
+              -verbose | tee "$LOG_PATH"; then
+              echo "xcodebuild archive failed. Showing last 200 lines:" >&2
+              tail -n 200 "$LOG_PATH" >&2 || true
+              exit 1
             fi
           else
             echo "No Xcode workspace or project found under ios/" >&2
-            exit 1
-          fi
-          if [ ! -d "ios/build/ElBiblio.xcarchive" ]; then
-            echo "Archive was not created at ios/build/ElBiblio.xcarchive"
-            echo "Last 50 lines of build log:"
-            tail -50 xcodebuild.log
             exit 1
           fi
 
