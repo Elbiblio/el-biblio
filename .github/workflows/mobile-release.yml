@@ -608,6 +608,29 @@ jobs:
           set -euo pipefail
           WORKSPACE=$(ls -1d ios/*.xcworkspace 2>/dev/null | head -n 1 || true)
           PROJECT=$(ls -1d ios/*.xcodeproj 2>/dev/null | head -n 1 || true)
+          CODE_SIGN_IDENTITY_VALUE="${CODE_SIGN_IDENTITY:-}"
+          PROFILE_SPECIFIER_VALUE="${PROVISIONING_PROFILE_SPECIFIER:-}"
+          PROFILE_UUID_VALUE="${PROVISIONING_PROFILE:-}"
+          DEVELOPMENT_TEAM_VALUE="${DEVELOPMENT_TEAM:-}"
+          OTHER_FLAGS_VALUE="${OTHER_CODE_SIGN_FLAGS:-}"
+          if [ -z "$CODE_SIGN_IDENTITY_VALUE" ]; then
+            echo "CODE_SIGN_IDENTITY is not available from keychain import step" >&2
+            exit 1
+          fi
+          if [ -z "$PROFILE_SPECIFIER_VALUE" ]; then
+            echo "PROVISIONING_PROFILE_SPECIFIER not exported; provisioning profile step likely failed" >&2
+            exit 1
+          fi
+          if [ -z "$PROFILE_UUID_VALUE" ]; then
+            echo "PROVISIONING_PROFILE UUID missing" >&2
+            exit 1
+          fi
+          if [ -z "$DEVELOPMENT_TEAM_VALUE" ]; then
+            echo "DEVELOPMENT_TEAM not detected from provisioning profile" >&2
+            exit 1
+          fi
+          echo "Signing with identity: $CODE_SIGN_IDENTITY_VALUE"
+          echo "Provisioning profile: $PROFILE_SPECIFIER_VALUE ($PROFILE_UUID_VALUE)"
           if [ -n "$WORKSPACE" ]; then
             SCHEME=$(xcodebuild -list -json -workspace "$WORKSPACE" 2>/dev/null | node -e "let s='';process.stdin.on('data',d=>s+=d);process.stdin.on('end',()=>{try{const j=JSON.parse(s);const arr=(j.workspace&&j.workspace.schemes)||[];const pick=arr.find(n=>/^(ElBiblio|El-Biblio|Elbiblio)/.test(n))||arr.find(n=>!/^Pods(\\b|\\-)/.test(n)&&!/Tests$/.test(n))||arr[0]||'';process.stdout.write(pick)}catch(e){} })" || true)
             if [ -z "$SCHEME" ]; then
@@ -620,6 +643,11 @@ jobs:
             LOG_PATH="ios/build/xcodebuild-archive.log"
             rm -f "$LOG_PATH"
             if ! xcodebuild \
+              CODE_SIGN_IDENTITY="$CODE_SIGN_IDENTITY_VALUE" \
+              DEVELOPMENT_TEAM="$DEVELOPMENT_TEAM_VALUE" \
+              PROVISIONING_PROFILE_SPECIFIER="$PROFILE_SPECIFIER_VALUE" \
+              PROVISIONING_PROFILE="$PROFILE_UUID_VALUE" \
+              OTHER_CODE_SIGN_FLAGS="$OTHER_FLAGS_VALUE" \
               -workspace "$WORKSPACE" \
               -scheme "$SCHEME" \
               -configuration Release \
@@ -646,6 +674,11 @@ jobs:
             LOG_PATH="ios/build/xcodebuild-archive.log"
             rm -f "$LOG_PATH"
             if ! xcodebuild \
+              CODE_SIGN_IDENTITY="$CODE_SIGN_IDENTITY_VALUE" \
+              DEVELOPMENT_TEAM="$DEVELOPMENT_TEAM_VALUE" \
+              PROVISIONING_PROFILE_SPECIFIER="$PROFILE_SPECIFIER_VALUE" \
+              PROVISIONING_PROFILE="$PROFILE_UUID_VALUE" \
+              OTHER_CODE_SIGN_FLAGS="$OTHER_FLAGS_VALUE" \
               -project "$PROJECT" \
               -scheme "$SCHEME" \
               -configuration Release \
