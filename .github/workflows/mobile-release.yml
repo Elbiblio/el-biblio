@@ -377,9 +377,14 @@ jobs:
           IOS_KEYCHAIN_PASSWORD: ${{ secrets.IOS_KEYCHAIN_PASSWORD }}
         run: |
           set -euo pipefail
-          if [ -z "${IOS_KEYCHAIN_PASSWORD:-}" ]; then
-            echo "IOS_KEYCHAIN_PASSWORD secret is not set" >&2
-            exit 1
+          IOS_KEYCHAIN_PASSWORD="${IOS_KEYCHAIN_PASSWORD:-}"
+          if [ -z "$IOS_KEYCHAIN_PASSWORD" ]; then
+            IOS_KEYCHAIN_PASSWORD=$(python3 -c "import secrets; print(secrets.token_hex(16))")
+            echo "Using generated temporary keychain password"
+            echo "IOS_KEYCHAIN_PASSWORD=$IOS_KEYCHAIN_PASSWORD" >> "$GITHUB_ENV"
+          else
+            echo "Using IOS_KEYCHAIN_PASSWORD from secrets"
+            echo "IOS_KEYCHAIN_PASSWORD=$IOS_KEYCHAIN_PASSWORD" >> "$GITHUB_ENV"
           fi
           CERT_DIR="ios/signing"
           mkdir -p "$CERT_DIR"
@@ -389,8 +394,24 @@ jobs:
           OBJECT_KEY="${R2_IOS_CERT_OBJECT_KEY:-signing/ios-distribution.p12}"
           if ! aws s3 ls "s3://${R2_BUCKET}/${OBJECT_KEY}" --endpoint-url "$R2_ENDPOINT" >/dev/null 2>&1; then
             echo "iOS distribution certificate not found at s3://${R2_BUCKET}/${OBJECT_KEY}" >&2
-            echo "Upload the .p12 certificate to R2 or update R2_IOS_CERT_OBJECT_KEY." >&2
-            exit 1
+            LOCAL_P12="ios-distribution.p12"
+            if [ ! -f "$LOCAL_P12" ]; then
+              if [ -f "distribution.cer" ] && [ -f "certs/elbiblio-dist.key" ]; then
+                echo "Generating $LOCAL_P12 from distribution.cer and certs/elbiblio-dist.key"
+                openssl pkcs12 -export \
+                  -inkey certs/elbiblio-dist.key \
+                  -in distribution.cer \
+                  -out "$LOCAL_P12" \
+                  -name "Apple Distribution" \
+                  -passout pass:
+              else
+                echo "Expected ios-distribution.p12 or distribution.cer + certs/elbiblio-dist.key in repository root" >&2
+                echo "Place the signing assets in the repo or pre-upload to R2." >&2
+                exit 1
+              fi
+            fi
+            echo "Uploading $LOCAL_P12 to s3://${R2_BUCKET}/${OBJECT_KEY}"
+            aws s3 cp "$LOCAL_P12" "s3://${R2_BUCKET}/${OBJECT_KEY}" --endpoint-url "$R2_ENDPOINT"
           fi
           aws s3 cp "s3://${R2_BUCKET}/${OBJECT_KEY}" "$CERT_PATH" --endpoint-url "$R2_ENDPOINT"
           security create-keychain -p "$IOS_KEYCHAIN_PASSWORD" "$KEYCHAIN"
@@ -415,8 +436,13 @@ jobs:
           OBJECT_KEY="${R2_IOS_PROFILE_OBJECT_KEY:-signing/ios-store.mobileprovision}"
           if ! aws s3 ls "s3://${R2_BUCKET}/${OBJECT_KEY}" --endpoint-url "$R2_ENDPOINT" >/dev/null 2>&1; then
             echo "Provisioning profile not found at s3://${R2_BUCKET}/${OBJECT_KEY}" >&2
-            echo "Upload the .mobileprovision file to R2 or update R2_IOS_PROFILE_OBJECT_KEY." >&2
-            exit 1
+            if [ -f "Elbiblio.mobileprovision" ]; then
+              echo "Uploading Elbiblio.mobileprovision from repository root"
+              aws s3 cp "Elbiblio.mobileprovision" "s3://${R2_BUCKET}/${OBJECT_KEY}" --endpoint-url "$R2_ENDPOINT"
+            else
+              echo "Expected Elbiblio.mobileprovision in repository root or pre-upload to R2." >&2
+              exit 1
+            fi
           fi
           aws s3 cp "s3://${R2_BUCKET}/${OBJECT_KEY}" "$PROFILE_PATH" --endpoint-url "$R2_ENDPOINT"
 
@@ -427,6 +453,7 @@ jobs:
           R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
           R2_BUCKET: ${{ secrets.R2_KEYSTORE_BUCKET }}
           R2_APPSTORE_API_KEY_OBJECT_KEY: ${{ secrets.R2_APPSTORE_API_KEY_OBJECT_KEY }}
+          APPSTORE_KEY_ID: ${{ secrets.APPSTORE_KEY_ID }}
         run: |
           set -euo pipefail
           mkdir -p ios/signing
@@ -434,8 +461,18 @@ jobs:
           OBJECT_KEY="${R2_APPSTORE_API_KEY_OBJECT_KEY:-signing/appstoreconnect/AuthKey.p8}"
           if ! aws s3 ls "s3://${R2_BUCKET}/${OBJECT_KEY}" --endpoint-url "$R2_ENDPOINT" >/dev/null 2>&1; then
             echo "App Store Connect API key not found at s3://${R2_BUCKET}/${OBJECT_KEY}" >&2
-            echo "Upload the AuthKey_XXXX.p8 file to R2 or update R2_APPSTORE_API_KEY_OBJECT_KEY." >&2
-            exit 1
+            KEY_FILE=""
+            if [ -n "${APPSTORE_KEY_ID:-}" ] && [ -f "AuthKey_${APPSTORE_KEY_ID}.p8" ]; then
+              KEY_FILE="AuthKey_${APPSTORE_KEY_ID}.p8"
+            else
+              KEY_FILE=$(ls AuthKey_*.p8 2>/dev/null | head -n 1 || true)
+            fi
+            if [ -z "$KEY_FILE" ]; then
+              echo "Expected AuthKey_<KEYID>.p8 in repository root or pre-upload to R2." >&2
+              exit 1
+            fi
+            echo "Uploading $KEY_FILE to s3://${R2_BUCKET}/${OBJECT_KEY}"
+            aws s3 cp "$KEY_FILE" "s3://${R2_BUCKET}/${OBJECT_KEY}" --endpoint-url "$R2_ENDPOINT"
           fi
           aws s3 cp "s3://${R2_BUCKET}/${OBJECT_KEY}" "ios/signing/AuthKey_AppStoreConnect.p8" --endpoint-url "$R2_ENDPOINT"
 
@@ -566,8 +603,6 @@ jobs:
 
       - name: Clean up signing material
         if: always()
-        env:
-          IOS_KEYCHAIN_PASSWORD: ${{ secrets.IOS_KEYCHAIN_PASSWORD }}
         run: |
           set +e
           security delete-keychain build.keychain-db
