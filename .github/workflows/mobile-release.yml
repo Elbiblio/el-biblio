@@ -665,6 +665,9 @@ jobs:
           configuration: Release
           derived-data-path: ios/build/derivedData
           allow-provisioning-updates: true
+          result-bundle-path: ios/build/ElBiblio.xcresult
+          output-formatter: raw
+          use-xcpretty: false
           build-settings: |
             CODE_SIGN_STYLE=Manual
             DEVELOPMENT_TEAM=${{ env.DEVELOPMENT_TEAM }}
@@ -682,11 +685,23 @@ jobs:
           configuration: Release
           derived-data-path: ios/build/derivedData
           allow-provisioning-updates: true
+          result-bundle-path: ios/build/ElBiblio.xcresult
+          output-formatter: raw
+          use-xcpretty: false
           build-settings: |
             CODE_SIGN_STYLE=Manual
             DEVELOPMENT_TEAM=${{ env.DEVELOPMENT_TEAM }}
             PROVISIONING_PROFILE_SPECIFIER=${{ env.PROVISIONING_PROFILE_SPECIFIER }}
-            CODE_SIGN_IDENTITY=${{ env.CODE_SIGN_IDENTITY }}
+            CODE_SIGN_IDENTITY=${{ env.CODE_SIGN_IDENTITY_FOR_BUILD }}
+
+      - name: Upload archive xcresult
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-archive-xcresult-${{ github.run_id }}
+          path: ios/build/ElBiblio.xcresult
+          if-no-files-found: ignore
+          retention-days: 7
 
       - name: Locate archive and export path
         run: |
@@ -697,11 +712,17 @@ jobs:
             exit 0
           fi
           echo "Searching for archives under repo and Xcode Archives..." >&2
-          CANDIDATES=$( {
-            find ios . -type d -name "*.xcarchive" 2>/dev/null;
+          FIND_CMD_OUTPUT=$( {
+            find ios -type d -name "*.xcarchive" 2>/dev/null;
+            find . -maxdepth 2 -type d -name "*.xcarchive" 2>/dev/null;
             find "$HOME/Library/Developer/Xcode/Archives" -type d -name "*.xcarchive" 2>/dev/null;
-          } | xargs -I{} stat -f "%m	%N" {} 2>/dev/null | sort -nr | awk -F '\t' '{print $2}' )
-          FOUND=$(echo "$CANDIDATES" | head -n 1 || true)
+          } )
+          if [ -z "$FIND_CMD_OUTPUT" ]; then
+            echo "No .xcarchive found in repo or Xcode Archives" >&2
+            ls -R ios || true
+            exit 1
+          fi
+          FOUND=$(echo "$FIND_CMD_OUTPUT" | xargs -I{} stat -f "%m\t%N" {} 2>/dev/null | sort -nr | awk -F '\t' '{print $2}' | head -n 1 || true)
           if [ -n "$FOUND" ] && [ -d "$FOUND" ]; then
             echo "Using discovered archive: $FOUND"
             echo "ARCHIVE_PATH=$FOUND" >> "$GITHUB_ENV"
