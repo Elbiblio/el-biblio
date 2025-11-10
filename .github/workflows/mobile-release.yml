@@ -397,46 +397,8 @@ jobs:
           if [ -f "$LOCAL_CERT" ] && [ -f "$LOCAL_KEY" ]; then
             CAN_GENERATE=1
           fi
-          # Generate .p12 with a simple known password that macOS security can handle
-          P12_PASS="temp"
-          if [ "$CAN_GENERATE" -eq 1 ]; then
-            echo "Preparing certificate PEM from $LOCAL_CERT"
-            CERT_PEM="distribution.pem"
-            if openssl x509 -in "$LOCAL_CERT" -inform DER -noout >/dev/null 2>&1; then
-              openssl x509 -in "$LOCAL_CERT" -inform DER -out "$CERT_PEM"
-            elif openssl x509 -in "$LOCAL_CERT" -inform PEM -noout >/dev/null 2>&1; then
-              cp "$LOCAL_CERT" "$CERT_PEM"
-            else
-              echo "Unable to parse $LOCAL_CERT as DER or PEM certificate" >&2
-              exit 1
-            fi
-            echo "Verifying private key matches certificate (pubkey hash)"
-            openssl pkey -in "$LOCAL_KEY" -pubout -out key_pub.pem >/dev/null 2>&1 || { echo "Unable to read private key $LOCAL_KEY" >&2; exit 1; }
-            openssl x509 -in "$CERT_PEM" -pubkey -noout > cert_pub.pem 2>/dev/null || { echo "Unable to read certificate $CERT_PEM" >&2; exit 1; }
-            KEY_HASH=$(openssl pkey -pubin -in key_pub.pem -outform DER 2>/dev/null | shasum -a 256 | awk '{print $1}')
-            CERT_HASH=$(openssl pkey -pubin -in cert_pub.pem -outform DER 2>/dev/null | shasum -a 256 | awk '{print $1}')
-            if [ -z "$KEY_HASH" ] || [ -z "$CERT_HASH" ] || [ "$KEY_HASH" != "$CERT_HASH" ]; then
-              echo "Private key and certificate do not match" >&2
-              exit 1
-            fi
-            echo "Generating $LOCAL_P12 with temporary password"
-            if ! openssl pkcs12 -export -inkey "$LOCAL_KEY" -in "$CERT_PEM" -out "$LOCAL_P12" -name "Apple Distribution" -passout pass:"$P12_PASS"; then
-              echo "Failed to generate PKCS#12. Ensure distribution.cer is valid and matches the private key." >&2
-              exit 1
-            fi
-          else
-            if [ -f "$LOCAL_P12" ]; then
-              echo "Found existing $LOCAL_P12; will use provided IOS_CERT_PASSWORD or default"
-              P12_PASS="${IOS_CERT_PASSWORD:-temp}"
-            else
-              echo "Expected ios-distribution.p12 or distribution.cer + certs/elbiblio-dist.key in repository root" >&2
-              exit 1
-            fi
-          fi
-          if [ ! -f "$LOCAL_P12" ]; then
-            echo "Failed to prepare $LOCAL_P12" >&2
-            exit 1
-          fi
+          P12_PASS="${IOS_CERT_PASSWORD:-temp}"
+          GENERATED_P12=0
           USE_R2=1
           if [ -z "${R2_BUCKET:-}" ] || [ -z "${R2_ACCOUNT_ID:-}" ] || [ -z "${AWS_ACCESS_KEY_ID:-}" ] || [ -z "${AWS_SECRET_ACCESS_KEY:-}" ]; then
             USE_R2=0
@@ -444,12 +406,58 @@ jobs:
           if [ "$USE_R2" -eq 1 ]; then
             R2_ENDPOINT="https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
             OBJECT_KEY="${R2_IOS_CERT_OBJECT_KEY:-signing/ios-distribution.p12}"
-            echo "Uploading local $LOCAL_P12 to s3://${R2_BUCKET}/${OBJECT_KEY}"
-            aws s3 cp "$LOCAL_P12" "s3://${R2_BUCKET}/${OBJECT_KEY}" --endpoint-url "$R2_ENDPOINT"
-            cp "$LOCAL_P12" "$CERT_PATH"
-          else
-            echo "R2 credentials not provided; using local $LOCAL_P12"
-            cp "$LOCAL_P12" "$CERT_PATH"
+            echo "Attempting to download signing certificate from s3://${R2_BUCKET}/${OBJECT_KEY}"
+            if aws s3 cp "s3://${R2_BUCKET}/${OBJECT_KEY}" "$CERT_PATH" --endpoint-url "$R2_ENDPOINT" >/dev/null 2>&1; then
+              echo "Downloaded signing certificate from R2"
+            else
+              echo "Certificate not found in R2; will fall back to local sources"
+              rm -f "$CERT_PATH"
+            fi
+          fi
+          if [ ! -f "$CERT_PATH" ]; then
+            if [ -f "$LOCAL_P12" ]; then
+              echo "Using local $LOCAL_P12"
+              cp "$LOCAL_P12" "$CERT_PATH"
+            elif [ "$CAN_GENERATE" -eq 1 ]; then
+              echo "Preparing certificate PEM from $LOCAL_CERT"
+              CERT_PEM="distribution.pem"
+              if openssl x509 -in "$LOCAL_CERT" -inform DER -noout >/dev/null 2>&1; then
+                openssl x509 -in "$LOCAL_CERT" -inform DER -out "$CERT_PEM"
+              elif openssl x509 -in "$LOCAL_CERT" -inform PEM -noout >/dev/null 2>&1; then
+                cp "$LOCAL_CERT" "$CERT_PEM"
+              else
+                echo "Unable to parse $LOCAL_CERT as DER or PEM certificate" >&2
+                exit 1
+              fi
+              echo "Verifying private key matches certificate (pubkey hash)"
+              openssl pkey -in "$LOCAL_KEY" -pubout -out key_pub.pem >/dev/null 2>&1 || { echo "Unable to read private key $LOCAL_KEY" >&2; exit 1; }
+              openssl x509 -in "$CERT_PEM" -pubkey -noout > cert_pub.pem 2>/dev/null || { echo "Unable to read certificate $CERT_PEM" >&2; exit 1; }
+              KEY_HASH=$(openssl pkey -pubin -in key_pub.pem -outform DER 2>/dev/null | shasum -a 256 | awk '{print $1}')
+              CERT_HASH=$(openssl pkey -pubin -in cert_pub.pem -outform DER 2>/dev/null | shasum -a 256 | awk '{print $1}')
+              if [ -z "$KEY_HASH" ] || [ -z "$CERT_HASH" ] || [ "$KEY_HASH" != "$CERT_HASH" ]; then
+                echo "Private key and certificate do not match" >&2
+                exit 1
+              fi
+              echo "Generating $LOCAL_P12 with password derived from IOS_CERT_PASSWORD (default 'temp')"
+              if ! openssl pkcs12 -export -inkey "$LOCAL_KEY" -in "$CERT_PEM" -out "$CERT_PATH" -name "Apple Distribution" -passout pass:"$P12_PASS"; then
+                echo "Failed to generate PKCS#12. Ensure distribution.cer is valid and matches the private key." >&2
+                exit 1
+              fi
+              GENERATED_P12=1
+            else
+              echo "No signing certificate available. Provide ios-distribution.p12 or distribution.cer + certs/elbiblio-dist.key." >&2
+              exit 1
+            fi
+          fi
+          if [ ! -f "$CERT_PATH" ]; then
+            echo "Failed to obtain signing certificate" >&2
+            exit 1
+          fi
+          if [ "$GENERATED_P12" -eq 1 ] && [ "$USE_R2" -eq 1 ]; then
+            R2_ENDPOINT="https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
+            OBJECT_KEY="${R2_IOS_CERT_OBJECT_KEY:-signing/ios-distribution.p12}"
+            echo "Uploading newly generated certificate to s3://${R2_BUCKET}/${OBJECT_KEY}"
+            aws s3 cp "$CERT_PATH" "s3://${R2_BUCKET}/${OBJECT_KEY}" --endpoint-url "$R2_ENDPOINT"
           fi
           security create-keychain -p "$IOS_KEYCHAIN_PASSWORD" "$KEYCHAIN"
           security set-keychain-settings -lut 21600 "$KEYCHAIN"
