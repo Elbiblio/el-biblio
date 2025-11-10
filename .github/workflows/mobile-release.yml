@@ -570,6 +570,7 @@ jobs:
               echo "Unable to determine scheme" >&2
               exit 1
             fi
+            set +e
             xcodebuild \
               -workspace "$WORKSPACE" \
               -scheme "$SCHEME" \
@@ -579,8 +580,14 @@ jobs:
               -archivePath ios/build/ElBiblio.xcarchive \
               clean archive \
               -allowProvisioningUpdates \
-              CODE_SIGN_STYLE=Manual \
-              -verbose 2>&1 | tee xcodebuild.log | grep -E "(error:|warning:|note:|\*\* ARCHIVE)" || cat xcodebuild.log
+              CODE_SIGN_STYLE=Manual 2>&1 | tee xcodebuild.log
+            XCODE_EXIT=${PIPESTATUS[0]}
+            set -e
+            if [ $XCODE_EXIT -ne 0 ]; then
+              echo "Archive failed with exit code $XCODE_EXIT. Last 100 lines:"
+              tail -100 xcodebuild.log
+              exit $XCODE_EXIT
+            fi
           elif [ -n "$PROJECT" ]; then
             SCHEME=$(xcodebuild -list -json -project "$PROJECT" 2>/dev/null | node -e "let s='';process.stdin.on('data',d=>s+=d);process.stdin.on('end',()=>{try{const j=JSON.parse(s);const arr=(j.project&&j.project.schemes)||[];const pick=arr.find(n=>/^(ElBiblio|El-Biblio|Elbiblio)/.test(n))||arr.find(n=>!/^Pods(\\b|\\-)/.test(n)&&!/Tests$/.test(n))||arr[0]||'';process.stdout.write(pick)}catch(e){} })" || true)
             if [ -z "$SCHEME" ]; then
@@ -590,6 +597,7 @@ jobs:
               echo "Unable to determine scheme" >&2
               exit 1
             fi
+            set +e
             xcodebuild \
               -project "$PROJECT" \
               -scheme "$SCHEME" \
@@ -599,10 +607,22 @@ jobs:
               -archivePath ios/build/ElBiblio.xcarchive \
               clean archive \
               -allowProvisioningUpdates \
-              CODE_SIGN_STYLE=Manual \
-              -verbose 2>&1 | tee xcodebuild.log | grep -E "(error:|warning:|note:|\*\* ARCHIVE)" || cat xcodebuild.log
+              CODE_SIGN_STYLE=Manual 2>&1 | tee xcodebuild.log
+            XCODE_EXIT=${PIPESTATUS[0]}
+            set -e
+            if [ $XCODE_EXIT -ne 0 ]; then
+              echo "Archive failed with exit code $XCODE_EXIT. Last 100 lines:"
+              tail -100 xcodebuild.log
+              exit $XCODE_EXIT
+            fi
           else
             echo "No Xcode workspace or project found under ios/" >&2
+            exit 1
+          fi
+          if [ ! -d "ios/build/ElBiblio.xcarchive" ]; then
+            echo "Archive was not created at ios/build/ElBiblio.xcarchive"
+            echo "Last 50 lines of build log:"
+            tail -50 xcodebuild.log
             exit 1
           fi
 
