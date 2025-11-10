@@ -390,30 +390,38 @@ jobs:
           mkdir -p "$CERT_DIR"
           KEYCHAIN="build.keychain-db"
           CERT_PATH="$CERT_DIR/ios-distribution.p12"
-          R2_ENDPOINT="https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
-          OBJECT_KEY="${R2_IOS_CERT_OBJECT_KEY:-signing/ios-distribution.p12}"
-          if ! aws s3 ls "s3://${R2_BUCKET}/${OBJECT_KEY}" --endpoint-url "$R2_ENDPOINT" >/dev/null 2>&1; then
-            echo "iOS distribution certificate not found at s3://${R2_BUCKET}/${OBJECT_KEY}" >&2
-            LOCAL_P12="ios-distribution.p12"
-            if [ ! -f "$LOCAL_P12" ]; then
-              if [ -f "distribution.cer" ] && [ -f "certs/elbiblio-dist.key" ]; then
-                echo "Generating $LOCAL_P12 from distribution.cer and certs/elbiblio-dist.key"
-                openssl pkcs12 -export \
-                  -inkey certs/elbiblio-dist.key \
-                  -in distribution.cer \
-                  -out "$LOCAL_P12" \
-                  -name "Apple Distribution" \
-                  -passout pass:
-              else
-                echo "Expected ios-distribution.p12 or distribution.cer + certs/elbiblio-dist.key in repository root" >&2
-                echo "Place the signing assets in the repo or pre-upload to R2." >&2
-                exit 1
-              fi
+          LOCAL_P12="ios-distribution.p12"
+          if [ ! -f "$LOCAL_P12" ]; then
+            if [ -f "distribution.cer" ] && [ -f "certs/elbiblio-dist.key" ]; then
+              echo "Generating $LOCAL_P12 from distribution.cer and certs/elbiblio-dist.key"
+              openssl pkcs12 -export \
+                -inkey certs/elbiblio-dist.key \
+                -in distribution.cer \
+                -out "$LOCAL_P12" \
+                -name "Apple Distribution" \
+                -passout pass:
+            else
+              echo "Expected ios-distribution.p12 or distribution.cer + certs/elbiblio-dist.key in repository root" >&2
+              echo "Place the signing assets in the repo or configure R2 credentials." >&2
+              exit 1
             fi
-            echo "Uploading $LOCAL_P12 to s3://${R2_BUCKET}/${OBJECT_KEY}"
-            aws s3 cp "$LOCAL_P12" "s3://${R2_BUCKET}/${OBJECT_KEY}" --endpoint-url "$R2_ENDPOINT"
           fi
-          aws s3 cp "s3://${R2_BUCKET}/${OBJECT_KEY}" "$CERT_PATH" --endpoint-url "$R2_ENDPOINT"
+          USE_R2=1
+          if [ -z "${R2_BUCKET:-}" ] || [ -z "${R2_ACCOUNT_ID:-}" ] || [ -z "${AWS_ACCESS_KEY_ID:-}" ] || [ -z "${AWS_SECRET_ACCESS_KEY:-}" ]; then
+            USE_R2=0
+          fi
+          if [ "$USE_R2" -eq 1 ]; then
+            R2_ENDPOINT="https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
+            OBJECT_KEY="${R2_IOS_CERT_OBJECT_KEY:-signing/ios-distribution.p12}"
+            if ! aws s3 ls "s3://${R2_BUCKET}/${OBJECT_KEY}" --endpoint-url "$R2_ENDPOINT" >/dev/null 2>&1; then
+              echo "iOS distribution certificate not found at s3://${R2_BUCKET}/${OBJECT_KEY}, uploading local copy"
+              aws s3 cp "$LOCAL_P12" "s3://${R2_BUCKET}/${OBJECT_KEY}" --endpoint-url "$R2_ENDPOINT"
+            fi
+            aws s3 cp "s3://${R2_BUCKET}/${OBJECT_KEY}" "$CERT_PATH" --endpoint-url "$R2_ENDPOINT"
+          else
+            echo "R2 credentials not provided; using local $LOCAL_P12"
+            cp "$LOCAL_P12" "$CERT_PATH"
+          fi
           security create-keychain -p "$IOS_KEYCHAIN_PASSWORD" "$KEYCHAIN"
           security set-keychain-settings -lut 21600 "$KEYCHAIN"
           security unlock-keychain -p "$IOS_KEYCHAIN_PASSWORD" "$KEYCHAIN"
@@ -432,19 +440,32 @@ jobs:
           PROFILE_DIR="$HOME/Library/MobileDevice/Provisioning Profiles"
           mkdir -p "$PROFILE_DIR"
           PROFILE_PATH="$PROFILE_DIR/store-profile.mobileprovision"
-          R2_ENDPOINT="https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
-          OBJECT_KEY="${R2_IOS_PROFILE_OBJECT_KEY:-signing/ios-store.mobileprovision}"
-          if ! aws s3 ls "s3://${R2_BUCKET}/${OBJECT_KEY}" --endpoint-url "$R2_ENDPOINT" >/dev/null 2>&1; then
-            echo "Provisioning profile not found at s3://${R2_BUCKET}/${OBJECT_KEY}" >&2
-            if [ -f "Elbiblio.mobileprovision" ]; then
-              echo "Uploading Elbiblio.mobileprovision from repository root"
-              aws s3 cp "Elbiblio.mobileprovision" "s3://${R2_BUCKET}/${OBJECT_KEY}" --endpoint-url "$R2_ENDPOINT"
-            else
-              echo "Expected Elbiblio.mobileprovision in repository root or pre-upload to R2." >&2
+          LOCAL_PROFILE="Elbiblio.mobileprovision"
+          USE_R2=1
+          if [ -z "${R2_BUCKET:-}" ] || [ -z "${R2_ACCOUNT_ID:-}" ] || [ -z "${AWS_ACCESS_KEY_ID:-}" ] || [ -z "${AWS_SECRET_ACCESS_KEY:-}" ]; then
+            USE_R2=0
+          fi
+          if [ "$USE_R2" -eq 1 ]; then
+            R2_ENDPOINT="https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
+            OBJECT_KEY="${R2_IOS_PROFILE_OBJECT_KEY:-signing/ios-store.mobileprovision}"
+            if ! aws s3 ls "s3://${R2_BUCKET}/${OBJECT_KEY}" --endpoint-url "$R2_ENDPOINT" >/dev/null 2>&1; then
+              if [ -f "$LOCAL_PROFILE" ]; then
+                echo "Provisioning profile missing in R2; uploading local $LOCAL_PROFILE"
+                aws s3 cp "$LOCAL_PROFILE" "s3://${R2_BUCKET}/${OBJECT_KEY}" --endpoint-url "$R2_ENDPOINT"
+              else
+                echo "Expected $LOCAL_PROFILE in repository root or configure R2 credentials." >&2
+                exit 1
+              fi
+            fi
+            aws s3 cp "s3://${R2_BUCKET}/${OBJECT_KEY}" "$PROFILE_PATH" --endpoint-url "$R2_ENDPOINT"
+          else
+            if [ ! -f "$LOCAL_PROFILE" ]; then
+              echo "R2 credentials not provided and $LOCAL_PROFILE not found in repository." >&2
               exit 1
             fi
+            echo "R2 credentials not provided; using local $LOCAL_PROFILE"
+            cp "$LOCAL_PROFILE" "$PROFILE_PATH"
           fi
-          aws s3 cp "s3://${R2_BUCKET}/${OBJECT_KEY}" "$PROFILE_PATH" --endpoint-url "$R2_ENDPOINT"
 
       - name: Fetch App Store Connect API key
         env:
@@ -457,24 +478,37 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p ios/signing
-          R2_ENDPOINT="https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
-          OBJECT_KEY="${R2_APPSTORE_API_KEY_OBJECT_KEY:-signing/appstoreconnect/AuthKey.p8}"
-          if ! aws s3 ls "s3://${R2_BUCKET}/${OBJECT_KEY}" --endpoint-url "$R2_ENDPOINT" >/dev/null 2>&1; then
-            echo "App Store Connect API key not found at s3://${R2_BUCKET}/${OBJECT_KEY}" >&2
-            KEY_FILE=""
-            if [ -n "${APPSTORE_KEY_ID:-}" ] && [ -f "AuthKey_${APPSTORE_KEY_ID}.p8" ]; then
-              KEY_FILE="AuthKey_${APPSTORE_KEY_ID}.p8"
-            else
-              KEY_FILE=$(ls AuthKey_*.p8 2>/dev/null | head -n 1 || true)
+          USE_R2=1
+          if [ -z "${R2_BUCKET:-}" ] || [ -z "${R2_ACCOUNT_ID:-}" ] || [ -z "${AWS_ACCESS_KEY_ID:-}" ] || [ -z "${AWS_SECRET_ACCESS_KEY:-}" ]; then
+            USE_R2=0
+          fi
+          KEY_FILE=""
+          if [ -n "${APPSTORE_KEY_ID:-}" ] && [ -f "AuthKey_${APPSTORE_KEY_ID}.p8" ]; then
+            KEY_FILE="AuthKey_${APPSTORE_KEY_ID}.p8"
+          else
+            KEY_FILE=$(ls AuthKey_*.p8 2>/dev/null | head -n 1 || true)
+          fi
+          if [ "$USE_R2" -eq 1 ]; then
+            R2_ENDPOINT="https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
+            OBJECT_KEY="${R2_APPSTORE_API_KEY_OBJECT_KEY:-signing/appstoreconnect/AuthKey.p8}"
+            if ! aws s3 ls "s3://${R2_BUCKET}/${OBJECT_KEY}" --endpoint-url "$R2_ENDPOINT" >/dev/null 2>&1; then
+              if [ -n "$KEY_FILE" ]; then
+                echo "App Store Connect API key missing in R2; uploading $KEY_FILE"
+                aws s3 cp "$KEY_FILE" "s3://${R2_BUCKET}/${OBJECT_KEY}" --endpoint-url "$R2_ENDPOINT"
+              else
+                echo "Expected AuthKey_<KEYID>.p8 in repository root or configure R2 credentials." >&2
+                exit 1
+              fi
             fi
+            aws s3 cp "s3://${R2_BUCKET}/${OBJECT_KEY}" "ios/signing/AuthKey_AppStoreConnect.p8" --endpoint-url "$R2_ENDPOINT"
+          else
             if [ -z "$KEY_FILE" ]; then
-              echo "Expected AuthKey_<KEYID>.p8 in repository root or pre-upload to R2." >&2
+              echo "R2 credentials not provided and no AuthKey_<KEYID>.p8 found in repository." >&2
               exit 1
             fi
-            echo "Uploading $KEY_FILE to s3://${R2_BUCKET}/${OBJECT_KEY}"
-            aws s3 cp "$KEY_FILE" "s3://${R2_BUCKET}/${OBJECT_KEY}" --endpoint-url "$R2_ENDPOINT"
+            echo "R2 credentials not provided; using local $KEY_FILE"
+            cp "$KEY_FILE" "ios/signing/AuthKey_AppStoreConnect.p8"
           fi
-          aws s3 cp "s3://${R2_BUCKET}/${OBJECT_KEY}" "ios/signing/AuthKey_AppStoreConnect.p8" --endpoint-url "$R2_ENDPOINT"
 
       - name: Install App Store Connect key for altool
         env:
