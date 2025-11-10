@@ -397,7 +397,8 @@ jobs:
           if [ -f "$LOCAL_CERT" ] && [ -f "$LOCAL_KEY" ]; then
             CAN_GENERATE=1
           fi
-          # Prefer passwordless .p12 by default
+          # Generate .p12 with a simple known password that macOS security can handle
+          P12_PASS="temp"
           if [ "$CAN_GENERATE" -eq 1 ]; then
             echo "Preparing certificate PEM from $LOCAL_CERT"
             CERT_PEM="distribution.pem"
@@ -418,14 +419,15 @@ jobs:
               echo "Private key and certificate do not match" >&2
               exit 1
             fi
-            echo "Generating passwordless $LOCAL_P12"
-            if ! openssl pkcs12 -export -inkey "$LOCAL_KEY" -in "$CERT_PEM" -out "$LOCAL_P12" -name "Apple Distribution" -passout pass:; then
+            echo "Generating $LOCAL_P12 with temporary password"
+            if ! openssl pkcs12 -export -inkey "$LOCAL_KEY" -in "$CERT_PEM" -out "$LOCAL_P12" -name "Apple Distribution" -passout pass:"$P12_PASS"; then
               echo "Failed to generate PKCS#12. Ensure distribution.cer is valid and matches the private key." >&2
               exit 1
             fi
           else
             if [ -f "$LOCAL_P12" ]; then
-              echo "Found existing $LOCAL_P12; will try to use it directly"
+              echo "Found existing $LOCAL_P12; will use provided IOS_CERT_PASSWORD or default"
+              P12_PASS="${IOS_CERT_PASSWORD:-temp}"
             else
               echo "Expected ios-distribution.p12 or distribution.cer + certs/elbiblio-dist.key in repository root" >&2
               exit 1
@@ -452,19 +454,11 @@ jobs:
           security create-keychain -p "$IOS_KEYCHAIN_PASSWORD" "$KEYCHAIN"
           security set-keychain-settings -lut 21600 "$KEYCHAIN"
           security unlock-keychain -p "$IOS_KEYCHAIN_PASSWORD" "$KEYCHAIN"
-          # Try importing with empty password first (passwordless .p12), then fallback to secret if provided
-          if ! security import "$CERT_PATH" -k "$KEYCHAIN" -P "" -T /usr/bin/codesign -T /usr/bin/security -T /usr/bin/productsign; then
-            if [ -n "${IOS_CERT_PASSWORD:-}" ]; then
-              echo "Retrying import with provided IOS_CERT_PASSWORD"
-              security import "$CERT_PATH" -k "$KEYCHAIN" -P "${IOS_CERT_PASSWORD}" -T /usr/bin/codesign -T /usr/bin/security -T /usr/bin/productsign
-            else
-              echo "Failed to import PKCS#12 (empty password) and no IOS_CERT_PASSWORD provided" >&2
-              exit 1
-            fi
-          fi
+          echo "Importing certificate with password: $P12_PASS"
+          security import "$CERT_PATH" -k "$KEYCHAIN" -P "$P12_PASS" -T /usr/bin/codesign -T /usr/bin/security -T /usr/bin/productsign -A
           security list-keychains -s "$KEYCHAIN" $(security list-keychains | sed 's/\"//g')
           security default-keychain -s "$KEYCHAIN"
-          security set-key-partition-list -S apple-tool:,apple: -s -k "$IOS_KEYCHAIN_PASSWORD" "$KEYCHAIN" >/dev/null
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$IOS_KEYCHAIN_PASSWORD" "$KEYCHAIN" >/dev/null 2>&1 || true
           echo "Verifying code signing identities in keychain:"
           security find-identity -v -p codesigning "$KEYCHAIN" || true
 
