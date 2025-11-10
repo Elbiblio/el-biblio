@@ -662,16 +662,14 @@ jobs:
           workspace: ${{ env.WORKSPACE_PATH }}
           scheme: ${{ env.SCHEME }}
           sdk: iphoneos
-          destination: generic/platform=iOS
           configuration: Release
           derived-data-path: ios/build/derivedData
-          xcargs: |
-            CODE_SIGN_STYLE=Manual \
-            DEVELOPMENT_TEAM=${{ env.DEVELOPMENT_TEAM }} \
-            PROVISIONING_PROFILE_SPECIFIER="${{ env.PROVISIONING_PROFILE_SPECIFIER }}" \
-            OTHER_CODE_SIGN_FLAGS="${{ env.OTHER_CODE_SIGN_FLAGS }}" \
-            CODE_SIGN_IDENTITY=${{ env.CODE_SIGN_IDENTITY_FOR_BUILD }} \
-            -allowProvisioningUpdates \
+          allow-provisioning-updates: true
+          build-settings: |
+            CODE_SIGN_STYLE=Manual
+            DEVELOPMENT_TEAM=${{ env.DEVELOPMENT_TEAM }}
+            PROVISIONING_PROFILE_SPECIFIER=${{ env.PROVISIONING_PROFILE_SPECIFIER }}
+            CODE_SIGN_IDENTITY=${{ env.CODE_SIGN_IDENTITY_FOR_BUILD }}
             -archivePath ios/build/ElBiblio.xcarchive
 
       - name: Archive iOS app (project)
@@ -682,16 +680,14 @@ jobs:
           project: ${{ env.PROJECT_PATH }}
           scheme: ${{ env.SCHEME }}
           sdk: iphoneos
-          destination: generic/platform=iOS
           configuration: Release
           derived-data-path: ios/build/derivedData
-          xcargs: |
-            CODE_SIGN_STYLE=Manual \
-            DEVELOPMENT_TEAM=${{ env.DEVELOPMENT_TEAM }} \
-            PROVISIONING_PROFILE_SPECIFIER="${{ env.PROVISIONING_PROFILE_SPECIFIER }}" \
-            OTHER_CODE_SIGN_FLAGS="${{ env.OTHER_CODE_SIGN_FLAGS }}" \
-            CODE_SIGN_IDENTITY="${{ env.CODE_SIGN_IDENTITY }}" \
-            -archivePath ios/build/ElBiblio.xcarchive
+          allow-provisioning-updates: true
+          build-settings: |
+            CODE_SIGN_STYLE=Manual
+            DEVELOPMENT_TEAM=${{ env.DEVELOPMENT_TEAM }}
+            PROVISIONING_PROFILE_SPECIFIER=${{ env.PROVISIONING_PROFILE_SPECIFIER }}
+            CODE_SIGN_IDENTITY=${{ env.CODE_SIGN_IDENTITY }}
 
       - name: Locate archive and export path
         run: |
