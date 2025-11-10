@@ -524,6 +524,7 @@ jobs:
           PROFILE_UUID=$( /usr/libexec/PlistBuddy -c "Print :UUID" "$TMP_PLIST" 2>/dev/null || true )
           PROFILE_NAME=$( /usr/libexec/PlistBuddy -c "Print :Name" "$TMP_PLIST" 2>/dev/null || true )
           TEAM_ID=$( /usr/libexec/PlistBuddy -c "Print :TeamIdentifier:0" "$TMP_PLIST" 2>/dev/null || true )
+          APS_ENV=$( /usr/libexec/PlistBuddy -c "Print :Entitlements:aps-environment" "$TMP_PLIST" 2>/dev/null || true )
           rm -f "$TMP_PLIST"
           if [ -z "$PROFILE_UUID" ] || [ -z "$PROFILE_NAME" ]; then
             echo "Unable to extract UUID/Name from provisioning profile" >&2
@@ -535,6 +536,16 @@ jobs:
           if [ -n "$TEAM_ID" ]; then
             echo "Detected Apple Team ID: $TEAM_ID"
             echo "DEVELOPMENT_TEAM=$TEAM_ID" >> "$GITHUB_ENV"
+          fi
+          if [ -n "$APS_ENV" ]; then
+            echo "Provisioning profile includes Push Notifications (aps-environment=$APS_ENV)"
+            echo "PROFILE_HAS_PUSH=1" >> "$GITHUB_ENV"
+            echo "APS_ENVIRONMENT=$APS_ENV" >> "$GITHUB_ENV"
+          else
+            echo "Provisioning profile does not include Push Notifications entitlement" >&2
+            echo "PROFILE_HAS_PUSH=0" >> "$GITHUB_ENV"
+            echo "Please regenerate the provisioning profile with Push Notifications enabled and upload it to R2 (or place Elbiblio.mobileprovision in the repo root)." >&2
+            exit 1
           fi
 
       - name: Fetch App Store Connect API key
