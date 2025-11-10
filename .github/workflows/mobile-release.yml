@@ -659,7 +659,9 @@ jobs:
           set -euo pipefail
           ARCHIVE_PATH="ElBiblio.xcarchive"
           RESULT_BUNDLE="ios/build/ElBiblio.xcresult"
+          LOG_PATH="ios/build/xcodebuild-archive.log"
           rm -rf "$ARCHIVE_PATH" "$RESULT_BUNDLE"
+          rm -f "$LOG_PATH"
           
           if [ -n "${WORKSPACE_PATH:-}" ]; then
             BUILD_TARGET="-workspace ${WORKSPACE_PATH}"
@@ -670,7 +672,7 @@ jobs:
             exit 1
           fi
           
-          xcodebuild archive \
+          if ! xcodebuild archive \
             $BUILD_TARGET \
             -scheme "${SCHEME}" \
             -configuration Release \
@@ -685,7 +687,15 @@ jobs:
             PROVISIONING_PROFILE_SPECIFIER="${PROVISIONING_PROFILE_SPECIFIER}" \
             CODE_SIGN_IDENTITY="${CODE_SIGN_IDENTITY_FOR_BUILD}" \
             OTHER_CODE_SIGN_FLAGS="${OTHER_CODE_SIGN_FLAGS}" \
-            | tee ios/build/xcodebuild-archive.log
+            | tee "$LOG_PATH"; then
+            echo "::error::xcodebuild archive failed" >&2
+            if [ -f "$LOG_PATH" ]; then
+              echo "----- xcodebuild archive tail -----" >&2
+              tail -n 200 "$LOG_PATH" >&2 || true
+              echo "----- end of tail -----" >&2
+            fi
+            exit 1
+          fi
           
           echo "Archive created at: $ARCHIVE_PATH"
           ls -la "$ARCHIVE_PATH" || true
