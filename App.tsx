@@ -1,6 +1,6 @@
 import 'react-native-gesture-handler';
 import React, { useEffect, useState } from 'react';
-import { Text, View, StyleSheet, TouchableOpacity } from 'react-native';
+import { Linking, Modal, Platform, Text, View, StyleSheet, TouchableOpacity } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -61,6 +61,7 @@ import { registerChallengeReminderTask } from './src/tasks/challengeReminderTask
 import { initAudio } from './src/services/audio';
 import { usePreferencesStore, useChallengeStore } from './src/stores/StoreProvider';
 import { syncDailyNuggets, setDailyNuggetStores } from './src/tasks/dailyNuggetOrchestrator';
+import { checkForAppUpdate } from './src/services/appUpdate';
 
 registerGlobals();
 
@@ -181,6 +182,10 @@ const AppContent = () => {
   const [initialTheme, setInitialTheme] = useState(defaultTheme);
   const [showThemeSelector, setShowThemeSelector] = useState(false);
   const [isSplashComplete, setIsSplashComplete] = useState(false);
+  const [showUpdateModal, setShowUpdateModal] = useState(false);
+  const [isMandatoryUpdate, setIsMandatoryUpdate] = useState(false);
+  const [updateMessage, setUpdateMessage] = useState<string | undefined>(undefined);
+  const [updateStoreUrl, setUpdateStoreUrl] = useState<string | undefined>(undefined);
   // Global points modal queue: show one award at a time, queue extras
   const [pointsQueue, setPointsQueue] = useState<Array<{ points: number; title?: string }>>([]);
   const [isPointsVisible, setIsPointsVisible] = useState(false);
@@ -219,6 +224,23 @@ const AppContent = () => {
         // Initialize welcome state
         await initializeWelcomeState();
         await registerChallengeReminderTask();
+        if (Platform.OS === 'android') {
+          checkForAppUpdate()
+            .then(result => {
+              if (!result) return;
+              if (result.needsMandatoryUpdate || result.hasOptionalUpdate) {
+                setIsMandatoryUpdate(result.needsMandatoryUpdate);
+                setUpdateMessage(result.message);
+                setUpdateStoreUrl(result.storeUrl);
+                setShowUpdateModal(true);
+              }
+            })
+            .catch(error => {
+              if (__DEV__) {
+                console.warn('[App] Failed to check for updates', error);
+              }
+            });
+        }
       } catch (error) {
         if (__DEV__) console.warn('Error loading theme:', error);
         setShowThemeSelector(true);
@@ -362,6 +384,57 @@ const AppContent = () => {
           )}
         </ErrorBoundary>
         <Toaster />
+        <Modal
+          transparent
+          animationType="fade"
+          visible={showUpdateModal}
+          onRequestClose={() => {
+            if (!isMandatoryUpdate) {
+              setShowUpdateModal(false);
+            }
+          }}
+        >
+          <View style={styles.updateModalBackdrop}>
+            <View style={styles.updateModalContainer}>
+              <Text style={styles.updateModalTitle}>
+                {isMandatoryUpdate ? 'Update Required' : 'Update Available'}
+              </Text>
+              <Text style={styles.updateModalBody}>
+                {updateMessage ||
+                  (isMandatoryUpdate
+                    ? 'A newer version of the app is required to continue.'
+                    : 'A newer version of the app is available. Would you like to update now?')}
+              </Text>
+              <View style={styles.updateModalActions}>
+                {!isMandatoryUpdate && (
+                  <TouchableOpacity
+                    style={[styles.updateModalButton, styles.updateModalSecondary]}
+                    onPress={() => setShowUpdateModal(false)}
+                  >
+                    <Text style={styles.updateModalSecondaryText}>Later</Text>
+                  </TouchableOpacity>
+                )}
+                <TouchableOpacity
+                  style={[styles.updateModalButton, styles.updateModalPrimary]}
+                  onPress={() => {
+                    if (updateStoreUrl) {
+                      Linking.openURL(updateStoreUrl).catch(err => {
+                        if (__DEV__) {
+                          console.warn('[App] Failed to open store URL', err);
+                        }
+                      });
+                    }
+                    if (!isMandatoryUpdate) {
+                      setShowUpdateModal(false);
+                    }
+                  }}
+                >
+                  <Text style={styles.updateModalPrimaryText}>Update</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
         <PointsEarnedModal
           visible={isPointsVisible && pointsQueue.length > 0}
           pointsEarned={pointsQueue[0]?.points || 0}
@@ -422,6 +495,69 @@ const stylesDebug = StyleSheet.create({
   text: {
     color: '#fff',
     fontSize: 10,
+  },
+});
+
+const styles = StyleSheet.create({
+  updateModalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+  },
+  updateModalContainer: {
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    paddingVertical: 24,
+    paddingHorizontal: 20,
+    width: '100%',
+    maxWidth: 360,
+    shadowColor: '#000000',
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    elevation: 6,
+  },
+  updateModalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#111827',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  updateModalBody: {
+    fontSize: 16,
+    color: '#374151',
+    marginBottom: 24,
+    textAlign: 'center',
+  },
+  updateModalActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 12,
+  },
+  updateModalButton: {
+    minWidth: 96,
+    borderRadius: 999,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+  },
+  updateModalPrimary: {
+    backgroundColor: '#1f2937',
+  },
+  updateModalPrimaryText: {
+    color: '#ffffff',
+    fontWeight: '600',
+  },
+  updateModalSecondary: {
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+  },
+  updateModalSecondaryText: {
+    color: '#1f2937',
+    fontWeight: '600',
   },
 });
 
