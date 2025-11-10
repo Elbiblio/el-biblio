@@ -465,9 +465,17 @@ jobs:
           if [ -z "$CERT_IDENTITY" ]; then
             CERT_IDENTITY=$(security find-identity -v -p codesigning "$KEYCHAIN" | awk -F'"' 'NR==1 {print $2}')
           fi
+          CERT_HASH=$(security find-identity -v -p codesigning "$KEYCHAIN" | awk '/Apple Distribution/ {print $2; exit}')
+          if [ -z "$CERT_HASH" ]; then
+            CERT_HASH=$(security find-identity -v -p codesigning "$KEYCHAIN" | awk 'NR==1 {print $2}')
+          fi
           if [ -n "$CERT_IDENTITY" ]; then
             echo "Detected code signing identity: $CERT_IDENTITY"
             echo "CODE_SIGN_IDENTITY=$CERT_IDENTITY" >> "$GITHUB_ENV"
+          fi
+          if [ -n "$CERT_HASH" ]; then
+            echo "Using identity hash for build: $CERT_HASH"
+            echo "CODE_SIGN_IDENTITY_FOR_BUILD=$CERT_HASH" >> "$GITHUB_ENV"
           fi
           KEYCHAIN_FULL_PATH="$HOME/Library/Keychains/$KEYCHAIN"
           echo "Using keychain: $KEYCHAIN_FULL_PATH"
@@ -657,12 +665,13 @@ jobs:
           destination: generic/platform=iOS
           configuration: Release
           derived-data-path: ios/build/derivedData
-          build-settings: |
-            CODE_SIGN_STYLE=Manual
-            DEVELOPMENT_TEAM=${{ env.DEVELOPMENT_TEAM }}
-            PROVISIONING_PROFILE_SPECIFIER=${{ env.PROVISIONING_PROFILE_SPECIFIER }}
-            OTHER_CODE_SIGN_FLAGS=${{ env.OTHER_CODE_SIGN_FLAGS }}
-            CODE_SIGN_IDENTITY=${{ env.CODE_SIGN_IDENTITY }}
+          xcargs: |
+            CODE_SIGN_STYLE=Manual \
+            DEVELOPMENT_TEAM=${{ env.DEVELOPMENT_TEAM }} \
+            PROVISIONING_PROFILE_SPECIFIER="${{ env.PROVISIONING_PROFILE_SPECIFIER }}" \
+            OTHER_CODE_SIGN_FLAGS="${{ env.OTHER_CODE_SIGN_FLAGS }}" \
+            CODE_SIGN_IDENTITY=${{ env.CODE_SIGN_IDENTITY_FOR_BUILD }} \
+            -allowProvisioningUpdates \
             -archivePath ios/build/ElBiblio.xcarchive
 
       - name: Archive iOS app (project)
@@ -676,12 +685,12 @@ jobs:
           destination: generic/platform=iOS
           configuration: Release
           derived-data-path: ios/build/derivedData
-          build-settings: |
-            CODE_SIGN_STYLE=Manual
-            DEVELOPMENT_TEAM=${{ env.DEVELOPMENT_TEAM }}
-            PROVISIONING_PROFILE_SPECIFIER=${{ env.PROVISIONING_PROFILE_SPECIFIER }}
-            OTHER_CODE_SIGN_FLAGS=${{ env.OTHER_CODE_SIGN_FLAGS }}
-            CODE_SIGN_IDENTITY=${{ env.CODE_SIGN_IDENTITY }}
+          xcargs: |
+            CODE_SIGN_STYLE=Manual \
+            DEVELOPMENT_TEAM=${{ env.DEVELOPMENT_TEAM }} \
+            PROVISIONING_PROFILE_SPECIFIER="${{ env.PROVISIONING_PROFILE_SPECIFIER }}" \
+            OTHER_CODE_SIGN_FLAGS="${{ env.OTHER_CODE_SIGN_FLAGS }}" \
+            CODE_SIGN_IDENTITY="${{ env.CODE_SIGN_IDENTITY }}" \
             -archivePath ios/build/ElBiblio.xcarchive
 
       - name: Locate archive and export path
