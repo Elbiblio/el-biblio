@@ -376,7 +376,7 @@ jobs:
       - name: Set up Xcode
         uses: maxim-lobanov/setup-xcode@v1
         with:
-          xcode-version: ${{ vars.IOS_XCODE_VERSION != '' && vars.IOS_XCODE_VERSION || '16.4' }}
+          xcode-version: ${{ vars.IOS_XCODE_VERSION != '' && vars.IOS_XCODE_VERSION || '16.2.0' }}
 
       - name: Resolve Swift packages
         run: |
