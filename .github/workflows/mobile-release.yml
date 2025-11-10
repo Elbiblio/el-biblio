@@ -608,17 +608,6 @@ jobs:
         with:
           xcode-version: latest-stable
 
-      - name: Resolve Swift Package dependencies
-        run: |
-          set -euo pipefail
-          WORKSPACE=$(ls -1d ios/*.xcworkspace 2>/dev/null | head -n 1 || true)
-          PROJECT=$(ls -1d ios/*.xcodeproj 2>/dev/null | head -n 1 || true)
-          if [ -n "$WORKSPACE" ]; then
-            xcodebuild -resolvePackageDependencies -workspace "$WORKSPACE" -clonedSourcePackagesDirPath .
-          elif [ -n "$PROJECT" ]; then
-            xcodebuild -resolvePackageDependencies -project "$PROJECT" -clonedSourcePackagesDirPath .
-          fi
-
       - name: Determine workspace/project and scheme
         run: |
           set -euo pipefail
@@ -626,12 +615,14 @@ jobs:
           PROJECT=$(ls -1d ios/*.xcodeproj 2>/dev/null | head -n 1 || true)
           if [ -n "$WORKSPACE" ]; then
             echo "WORKSPACE_PATH=$WORKSPACE" >> "$GITHUB_ENV"
+            echo "PROJECT_PATH=" >> "$GITHUB_ENV"
             SCHEME=$(xcodebuild -list -json -workspace "$WORKSPACE" 2>/dev/null | node -e "let s='';process.stdin.on('data',d=>s+=d);process.stdin.on('end',()=>{try{const j=JSON.parse(s);const arr=(j.workspace&&j.workspace.schemes)||[];const pick=arr.find(n=>/^(ElBiblio|El-Biblio|Elbiblio)/.test(n))||arr.find(n=>!/^Pods(\\b|\\-)/.test(n)&&!/Tests$/.test(n))||arr[0]||'';process.stdout.write(pick)}catch(e){} })" || true)
             if [ -z "$SCHEME" ]; then
               SCHEME=$(xcodebuild -list -workspace "$WORKSPACE" 2>/dev/null | awk '/Schemes:/ {getline; print $1; exit}')
             fi
           elif [ -n "$PROJECT" ]; then
             echo "PROJECT_PATH=$PROJECT" >> "$GITHUB_ENV"
+            echo "WORKSPACE_PATH=" >> "$GITHUB_ENV"
             SCHEME=$(xcodebuild -list -json -project "$PROJECT" 2>/dev/null | node -e "let s='';process.stdin.on('data',d=>s+=d);process.stdin.on('end',()=>{try{const j=JSON.parse(s);const arr=(j.project&&j.project.schemes)||[];const pick=arr.find(n=>/^(ElBiblio|El-Biblio|Elbiblio)/.test(n))||arr.find(n=>!/^[Pp]ods(\\b|\\-)/.test(n)&&!/Tests$/.test(n))||arr[0]||'';process.stdout.write(pick)}catch(e){} })" || true)
             if [ -z "$SCHEME" ]; then
               SCHEME=$(xcodebuild -list -project "$PROJECT" 2>/dev/null | awk '/Schemes:/ {getline; print $1; exit}')
@@ -645,6 +636,15 @@ jobs:
             exit 1
           fi
           echo "SCHEME=$SCHEME" >> "$GITHUB_ENV"
+
+      - name: Resolve Swift Package dependencies
+        run: |
+          set -euo pipefail
+          if [ -n "${WORKSPACE_PATH:-}" ]; then
+            xcodebuild -resolvePackageDependencies -workspace "${WORKSPACE_PATH}" -scheme "${SCHEME}" -clonedSourcePackagesDirPath .
+          elif [ -n "${PROJECT_PATH:-}" ]; then
+            xcodebuild -resolvePackageDependencies -project "${PROJECT_PATH}" -scheme "${SCHEME}" -clonedSourcePackagesDirPath .
+          fi
 
       - name: Archive iOS app (workspace)
         if: env.WORKSPACE_PATH != ''
