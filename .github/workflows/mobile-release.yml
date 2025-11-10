@@ -603,119 +603,104 @@ jobs:
           mkdir -p "$HOME/private_keys"
           cp ios/signing/AuthKey_AppStoreConnect.p8 "$HOME/private_keys/AuthKey_${APPSTORE_KEY_ID}.p8"
 
-      - name: Archive iOS app
+      - name: Select Xcode version
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Resolve Swift Package dependencies
         run: |
           set -euo pipefail
           WORKSPACE=$(ls -1d ios/*.xcworkspace 2>/dev/null | head -n 1 || true)
           PROJECT=$(ls -1d ios/*.xcodeproj 2>/dev/null | head -n 1 || true)
-          CODE_SIGN_IDENTITY_VALUE="${CODE_SIGN_IDENTITY:-}"
-          PROFILE_SPECIFIER_VALUE="${PROVISIONING_PROFILE_SPECIFIER:-}"
-          PROFILE_UUID_VALUE="${PROVISIONING_PROFILE:-}"
-          DEVELOPMENT_TEAM_VALUE="${DEVELOPMENT_TEAM:-}"
-          OTHER_FLAGS_VALUE="${OTHER_CODE_SIGN_FLAGS:-}"
-          if [ -z "$CODE_SIGN_IDENTITY_VALUE" ]; then
-            echo "CODE_SIGN_IDENTITY is not available from keychain import step" >&2
-            exit 1
-          fi
-          if [ -z "$PROFILE_SPECIFIER_VALUE" ]; then
-            echo "PROVISIONING_PROFILE_SPECIFIER not exported; provisioning profile step likely failed" >&2
-            exit 1
-          fi
-          if [ -z "$PROFILE_UUID_VALUE" ]; then
-            echo "PROVISIONING_PROFILE UUID missing" >&2
-            exit 1
-          fi
-          if [ -z "$DEVELOPMENT_TEAM_VALUE" ]; then
-            echo "DEVELOPMENT_TEAM not detected from provisioning profile" >&2
-            exit 1
-          fi
-          echo "Signing with identity: $CODE_SIGN_IDENTITY_VALUE"
-          echo "Provisioning profile: $PROFILE_SPECIFIER_VALUE ($PROFILE_UUID_VALUE)"
           if [ -n "$WORKSPACE" ]; then
+            xcodebuild -resolvePackageDependencies -workspace "$WORKSPACE" -clonedSourcePackagesDirPath .
+          elif [ -n "$PROJECT" ]; then
+            xcodebuild -resolvePackageDependencies -project "$PROJECT" -clonedSourcePackagesDirPath .
+          fi
+
+      - name: Determine workspace/project and scheme
+        run: |
+          set -euo pipefail
+          WORKSPACE=$(ls -1d ios/*.xcworkspace 2>/dev/null | head -n 1 || true)
+          PROJECT=$(ls -1d ios/*.xcodeproj 2>/dev/null | head -n 1 || true)
+          if [ -n "$WORKSPACE" ]; then
+            echo "WORKSPACE_PATH=$WORKSPACE" >> "$GITHUB_ENV"
             SCHEME=$(xcodebuild -list -json -workspace "$WORKSPACE" 2>/dev/null | node -e "let s='';process.stdin.on('data',d=>s+=d);process.stdin.on('end',()=>{try{const j=JSON.parse(s);const arr=(j.workspace&&j.workspace.schemes)||[];const pick=arr.find(n=>/^(ElBiblio|El-Biblio|Elbiblio)/.test(n))||arr.find(n=>!/^Pods(\\b|\\-)/.test(n)&&!/Tests$/.test(n))||arr[0]||'';process.stdout.write(pick)}catch(e){} })" || true)
             if [ -z "$SCHEME" ]; then
               SCHEME=$(xcodebuild -list -workspace "$WORKSPACE" 2>/dev/null | awk '/Schemes:/ {getline; print $1; exit}')
             fi
-            if [ -z "$SCHEME" ]; then
-              echo "Unable to determine scheme" >&2
-              exit 1
-            fi
           elif [ -n "$PROJECT" ]; then
+            echo "PROJECT_PATH=$PROJECT" >> "$GITHUB_ENV"
             SCHEME=$(xcodebuild -list -json -project "$PROJECT" 2>/dev/null | node -e "let s='';process.stdin.on('data',d=>s+=d);process.stdin.on('end',()=>{try{const j=JSON.parse(s);const arr=(j.project&&j.project.schemes)||[];const pick=arr.find(n=>/^(ElBiblio|El-Biblio|Elbiblio)/.test(n))||arr.find(n=>!/^[Pp]ods(\\b|\\-)/.test(n)&&!/Tests$/.test(n))||arr[0]||'';process.stdout.write(pick)}catch(e){} })" || true)
             if [ -z "$SCHEME" ]; then
               SCHEME=$(xcodebuild -list -project "$PROJECT" 2>/dev/null | awk '/Schemes:/ {getline; print $1; exit}')
-            fi
-            if [ -z "$SCHEME" ]; then
-              echo "Unable to determine scheme" >&2
-              exit 1
             fi
           else
             echo "No Xcode workspace or project found under ios/" >&2
             exit 1
           fi
-
-          ARCHIVE_PATH="ios/build/ElBiblio.xcarchive"
-          LOG_PATH="ios/build/xcodebuild-archive.log"
-          rm -f "$LOG_PATH"
-          rm -rf "$ARCHIVE_PATH"
-
-          if [ -n "$WORKSPACE" ]; then
-            if ! xcodebuild \
-              CODE_SIGN_IDENTITY="$CODE_SIGN_IDENTITY_VALUE" \
-              DEVELOPMENT_TEAM="$DEVELOPMENT_TEAM_VALUE" \
-              PROVISIONING_PROFILE_SPECIFIER="$PROFILE_SPECIFIER_VALUE" \
-              PROVISIONING_PROFILE="$PROFILE_UUID_VALUE" \
-              OTHER_CODE_SIGN_FLAGS="$OTHER_FLAGS_VALUE" \
-              -workspace "$WORKSPACE" \
-              -scheme "$SCHEME" \
-              -configuration Release \
-              -sdk iphoneos \
-              -destination "generic/platform=iOS" \
-              -archivePath "$ARCHIVE_PATH" \
-              clean archive \
-              -allowProvisioningUpdates \
-              CODE_SIGN_STYLE=Manual \
-              -verbose | tee "$LOG_PATH"; then
-              echo "xcodebuild archive failed. Showing last 200 lines:" >&2
-              grep -n " error:" "$LOG_PATH" >&2 || true
-              grep -n " fatal:" "$LOG_PATH" >&2 || true
-              tail -n 200 "$LOG_PATH" >&2 || true
-              exit 1
-            fi
-          else
-            if ! xcodebuild \
-              CODE_SIGN_IDENTITY="$CODE_SIGN_IDENTITY_VALUE" \
-              DEVELOPMENT_TEAM="$DEVELOPMENT_TEAM_VALUE" \
-              PROVISIONING_PROFILE_SPECIFIER="$PROFILE_SPECIFIER_VALUE" \
-              PROVISIONING_PROFILE="$PROFILE_UUID_VALUE" \
-              OTHER_CODE_SIGN_FLAGS="$OTHER_FLAGS_VALUE" \
-              -project "$PROJECT" \
-              -scheme "$SCHEME" \
-              -configuration Release \
-              -sdk iphoneos \
-              -destination "generic/platform=iOS" \
-              -archivePath "$ARCHIVE_PATH" \
-              clean archive \
-              -allowProvisioningUpdates \
-              CODE_SIGN_STYLE=Manual \
-              -verbose | tee "$LOG_PATH"; then
-              echo "xcodebuild archive failed. Showing last 200 lines:" >&2
-              grep -n " error:" "$LOG_PATH" >&2 || true
-              grep -n " fatal:" "$LOG_PATH" >&2 || true
-              tail -n 200 "$LOG_PATH" >&2 || true
-              exit 1
-            fi
-          fi
-
-          if [ ! -d "ios/build/ElBiblio.xcarchive" ]; then
-            echo "Archive not found at ios/build/ElBiblio.xcarchive" >&2
-            ls -R ios/build >&2 || true
-            echo "Available .xcarchive directories:" >&2
-            find ios -type d -name "*.xcarchive" >&2 || true
-            if [ -f "$LOG_PATH" ]; then
-              echo "xcodebuild log stored at $LOG_PATH" >&2
-            fi
+          if [ -z "$SCHEME" ]; then
+            echo "Unable to determine scheme" >&2
             exit 1
+          fi
+          echo "SCHEME=$SCHEME" >> "$GITHUB_ENV"
+
+      - name: Archive iOS app (workspace)
+        if: env.WORKSPACE_PATH != ''
+        uses: sersoft-gmbh/xcodebuild-action@v2
+        with:
+          action: archive
+          workspace: ${{ env.WORKSPACE_PATH }}
+          scheme: ${{ env.SCHEME }}
+          sdk: iphoneos
+          destination: generic/platform=iOS
+          configuration: Release
+          derived-data-path: ios/build/derivedData
+          build-settings: |
+            CODE_SIGN_STYLE=Manual
+            DEVELOPMENT_TEAM=${{ env.DEVELOPMENT_TEAM }}
+            PROVISIONING_PROFILE_SPECIFIER=${{ env.PROVISIONING_PROFILE_SPECIFIER }}
+            OTHER_CODE_SIGN_FLAGS=${{ env.OTHER_CODE_SIGN_FLAGS }}
+            CODE_SIGN_IDENTITY=${{ env.CODE_SIGN_IDENTITY }}
+            -archivePath ios/build/ElBiblio.xcarchive
+
+      - name: Archive iOS app (project)
+        if: env.WORKSPACE_PATH == ''
+        uses: sersoft-gmbh/xcodebuild-action@v2
+        with:
+          action: archive
+          project: ${{ env.PROJECT_PATH }}
+          scheme: ${{ env.SCHEME }}
+          sdk: iphoneos
+          destination: generic/platform=iOS
+          configuration: Release
+          derived-data-path: ios/build/derivedData
+          build-settings: |
+            CODE_SIGN_STYLE=Manual
+            DEVELOPMENT_TEAM=${{ env.DEVELOPMENT_TEAM }}
+            PROVISIONING_PROFILE_SPECIFIER=${{ env.PROVISIONING_PROFILE_SPECIFIER }}
+            OTHER_CODE_SIGN_FLAGS=${{ env.OTHER_CODE_SIGN_FLAGS }}
+            CODE_SIGN_IDENTITY=${{ env.CODE_SIGN_IDENTITY }}
+            -archivePath ios/build/ElBiblio.xcarchive
+
+      - name: Locate archive and export path
+        run: |
+          set -euo pipefail
+          DEFAULT_ARCHIVE="ios/build/ElBiblio.xcarchive"
+          if [ -d "$DEFAULT_ARCHIVE" ]; then
+            echo "ARCHIVE_PATH=$DEFAULT_ARCHIVE" >> "$GITHUB_ENV"
+          else
+            echo "Archive not found at $DEFAULT_ARCHIVE; searching..." >&2
+            FOUND=$(find ios . -type d -name "*.xcarchive" -print0 | xargs -0 ls -1td 2>/dev/null | head -n 1 || true)
+            if [ -n "$FOUND" ] && [ -d "$FOUND" ]; then
+              echo "Using discovered archive: $FOUND"
+              echo "ARCHIVE_PATH=$FOUND" >> "$GITHUB_ENV"
+            else
+              echo "No .xcarchive found under ios/ or repo root" >&2
+              ls -R ios || true
+              exit 1
+            fi
           fi
 
       - name: Prepare export options
@@ -745,7 +730,7 @@ jobs:
         run: |
           set -euo pipefail
           xcodebuild -exportArchive \
-            -archivePath ios/build/ElBiblio.xcarchive \
+            -archivePath "${ARCHIVE_PATH}" \
             -exportOptionsPlist ios/exportOptions.plist \
             -exportPath ios/build/export \
             -allowProvisioningUpdates
