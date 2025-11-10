@@ -640,28 +640,6 @@ jobs:
               echo "Unable to determine scheme" >&2
               exit 1
             fi
-            LOG_PATH="ios/build/xcodebuild-archive.log"
-            rm -f "$LOG_PATH"
-            if ! xcodebuild \
-              CODE_SIGN_IDENTITY="$CODE_SIGN_IDENTITY_VALUE" \
-              DEVELOPMENT_TEAM="$DEVELOPMENT_TEAM_VALUE" \
-              PROVISIONING_PROFILE_SPECIFIER="$PROFILE_SPECIFIER_VALUE" \
-              PROVISIONING_PROFILE="$PROFILE_UUID_VALUE" \
-              OTHER_CODE_SIGN_FLAGS="$OTHER_FLAGS_VALUE" \
-              -workspace "$WORKSPACE" \
-              -scheme "$SCHEME" \
-              -configuration Release \
-              -sdk iphoneos \
-              -destination "generic/platform=iOS" \
-              -archivePath ios/build/ElBiblio.xcarchive \
-              clean archive \
-              -allowProvisioningUpdates \
-              CODE_SIGN_STYLE=Manual \
-              -verbose | tee "$LOG_PATH"; then
-              echo "xcodebuild archive failed. Showing last 200 lines:" >&2
-              tail -n 200 "$LOG_PATH" >&2 || true
-              exit 1
-            fi
           elif [ -n "$PROJECT" ]; then
             SCHEME=$(xcodebuild -list -json -project "$PROJECT" 2>/dev/null | node -e "let s='';process.stdin.on('data',d=>s+=d);process.stdin.on('end',()=>{try{const j=JSON.parse(s);const arr=(j.project&&j.project.schemes)||[];const pick=arr.find(n=>/^(ElBiblio|El-Biblio|Elbiblio)/.test(n))||arr.find(n=>!/^Pods(\\b|\\-)/.test(n)&&!/Tests$/.test(n))||arr[0]||'';process.stdout.write(pick)}catch(e){} })" || true)
             if [ -z "$SCHEME" ]; then
@@ -669,28 +647,6 @@ jobs:
             fi
             if [ -z "$SCHEME" ]; then
               echo "Unable to determine scheme" >&2
-              exit 1
-            fi
-            LOG_PATH="ios/build/xcodebuild-archive.log"
-            rm -f "$LOG_PATH"
-            if ! xcodebuild \
-              CODE_SIGN_IDENTITY="$CODE_SIGN_IDENTITY_VALUE" \
-              DEVELOPMENT_TEAM="$DEVELOPMENT_TEAM_VALUE" \
-              PROVISIONING_PROFILE_SPECIFIER="$PROFILE_SPECIFIER_VALUE" \
-              PROVISIONING_PROFILE="$PROFILE_UUID_VALUE" \
-              OTHER_CODE_SIGN_FLAGS="$OTHER_FLAGS_VALUE" \
-              -project "$PROJECT" \
-              -scheme "$SCHEME" \
-              -configuration Release \
-              -sdk iphoneos \
-              -destination "generic/platform=iOS" \
-              -archivePath ios/build/ElBiblio.xcarchive \
-              clean archive \
-              -allowProvisioningUpdates \
-              CODE_SIGN_STYLE=Manual \
-              -verbose | tee "$LOG_PATH"; then
-              echo "xcodebuild archive failed. Showing last 200 lines:" >&2
-              tail -n 200 "$LOG_PATH" >&2 || true
               exit 1
             fi
           else
