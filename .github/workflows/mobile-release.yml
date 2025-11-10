@@ -47,7 +47,6 @@ jobs:
             echo "ref=${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
             echo "tag=" >> "$GITHUB_OUTPUT"
           fi
-
       - name: Generate build ID
         id: build_id
         run: echo "id=$(date +'%Y%m%d%H%M%S')" >> "$GITHUB_OUTPUT"
@@ -80,14 +79,12 @@ jobs:
             echo "Using GitHub run number for version_code: ${GITHUB_RUN_NUMBER}"
             echo "version_code=${GITHUB_RUN_NUMBER}" >> "$GITHUB_OUTPUT"
           fi
-
       - name: Versioning summary
         run: |
           echo "Ref: ${{ steps.resolve-ref.outputs.ref }}" >> "$GITHUB_STEP_SUMMARY"
           echo "Tag: ${{ steps.resolve-ref.outputs.tag }}" >> "$GITHUB_STEP_SUMMARY"
           echo "Version name: ${{ steps.versioning.outputs.version_name }}" >> "$GITHUB_STEP_SUMMARY"
           echo "Version code: ${{ steps.versioning.outputs.version_code }}" >> "$GITHUB_STEP_SUMMARY"
-
   build-android:
     needs:
       - prepare-build
@@ -123,7 +120,6 @@ jobs:
           key: gradle-${{ runner.os }}-${{ hashFiles('android/**/*.gradle*', 'android/**/*.properties') }}
           restore-keys: |
             gradle-${{ runner.os }}-
-
       - name: Install dependencies
         run: npm ci
 
@@ -150,7 +146,6 @@ jobs:
           contents = contents.replace(/versionName\s+"[^"]+"/g, `versionName "${name}"`);
           fs.writeFileSync(path, contents);
           EOF
-
       - name: Prepare Android keystore from R2
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
@@ -189,7 +184,6 @@ jobs:
           fi
           echo "Verifying keystore integrity..."
           keytool -list -keystore "$KEYSTORE_PATH" -storepass "$ANDROID_KEYSTORE_PASSWORD" >/dev/null
-
       - name: Generate PEM certificate
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
@@ -217,7 +211,6 @@ jobs:
           openssl x509 -in "$PEM_PATH" -text -noout > android/key/certificate-info.txt
           echo "Uploading PEM certificate to R2..."
           aws s3 cp "$PEM_PATH" "s3://${R2_BUCKET}/${PEM_OBJECT_KEY}" --endpoint-url "$R2_ENDPOINT"
-
       - name: Create keystore properties
         env:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
@@ -230,13 +223,11 @@ jobs:
           keyAlias=${ANDROID_KEY_ALIAS}
           keyPassword=${ANDROID_KEY_PASSWORD}
           EOF
-
       - name: Build Android artifacts
         working-directory: android
         run: |
           chmod +x ./gradlew
           ./gradlew assembleRelease bundleRelease -x lint --parallel --no-daemon
-
       - name: Locate Android outputs
         id: locate-android
         run: |
@@ -250,7 +241,6 @@ jobs:
           if [ -n "$AAB" ]; then
             echo "aab=$AAB" >> "$GITHUB_OUTPUT"
           fi
-
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
@@ -274,25 +264,12 @@ jobs:
           rm -f android/key/app-release.der
           rm -f android/key/certificate-info.txt
           rm -f android/keystore.properties
-
   build-ios:
     needs: prepare-build
-    runs-on: macos-14
+    runs-on: macos-latest
     env:
       VERSION_NAME: ${{ needs.prepare-build.outputs.version_name }}
       VERSION_CODE: ${{ needs.prepare-build.outputs.version_code }}
-      APPSTORE_KEY_ID: 66937UCN8F
-      APPSTORE_ALT_KEY_ID: 4WKTZ9VTBH
-      KEYCHAIN_NAME: build.keychain
-      APPSTORE_ISSUER_ID: ${{ secrets.APPSTORE_ISSUER_ID }}
-      APPSTORE_PROVIDER: ${{ secrets.APPSTORE_PROVIDER }}
-      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-      ARCHIVE_PATH: ios/build/AppStore.xcarchive
-      EXPORT_PATH: ios/build/export
-      EXPORT_OPTIONS: ios/exportOptions.plist
-    defaults:
-      run:
-        shell: bash
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -309,278 +286,510 @@ jobs:
         run: npm ci
 
       - name: Expo prebuild (ios)
+        run: npx expo prebuild --non-interactive --platform ios
         env:
           EXPO_NO_DOCTOR: 1
-        run: npx expo prebuild --non-interactive --platform ios
 
-      - name: Install CocoaPods
-        working-directory: ios
-        run: |
-          set -euo pipefail
-          if [ -f Podfile ]; then
-            pod install
-          else
-            echo "Podfile not found, skipping pod install."
-          fi
-
-      - name: Detect Xcode target
-        id: detect
-        run: |
-          set -euo pipefail
-          WORKSPACE=$(find ios -maxdepth 1 -name "*.xcworkspace" | head -n 1 || true)
-          PROJECT=$(find ios -maxdepth 1 -name "*.xcodeproj" | head -n 1 || true)
-          if [ -n "$WORKSPACE" ]; then
-            TYPE="workspace"
-            TARGET_PATH="$WORKSPACE"
-          elif [ -n "$PROJECT" ]; then
-            TYPE="project"
-            TARGET_PATH="$PROJECT"
-          else
-            echo "No Xcode workspace or project found under ios/" >&2
-            exit 1
-          fi
-
-          if [ "$TYPE" = "workspace" ]; then
-            LIST_ARGS=(-workspace "$TARGET_PATH")
-          else
-            LIST_ARGS=(-project "$TARGET_PATH")
-          fi
-
-          SCHEME_INPUT="${{ secrets.IOS_SCHEME }}"
-          if [ -n "$SCHEME_INPUT" ]; then
-            SCHEME="$SCHEME_INPUT"
-          else
-            SCHEME=$(xcodebuild -list -json "${LIST_ARGS[@]}" 2>/dev/null | python3 -c "import json,sys; data=json.load(sys.stdin); container=data.get('workspace') or data.get('project') or {}; schemes=container.get('schemes') or []; pick=next((s for s in schemes if not s.lower().startswith('pods') and not s.endswith('Tests')), schemes[0] if schemes else ''); print(pick, end='')" || true)
-          fi
-
-          if [ -z "$SCHEME" ]; then
-            echo "Unable to determine build scheme" >&2
-            exit 1
-          fi
-
-          ARCHIVE_BASENAME=$(echo "$SCHEME" | tr -cd '[:alnum:]_-' )
-          if [ -z "$ARCHIVE_BASENAME" ]; then
-            ARCHIVE_BASENAME="AppStore"
-          fi
-
-          echo "Detected $TYPE at $TARGET_PATH using scheme $SCHEME"
-          echo "XCODE_FILE_TYPE=$TYPE" >> "$GITHUB_ENV"
-          echo "XCODE_FILE_PATH=$TARGET_PATH" >> "$GITHUB_ENV"
-          echo "XCODE_SCHEME=$SCHEME" >> "$GITHUB_ENV"
-          echo "ARCHIVE_PATH=ios/build/${ARCHIVE_BASENAME}.xcarchive" >> "$GITHUB_ENV"
-
-      - name: Export development team
-        if: env.APPLE_TEAM_ID != ''
-        run: echo "DEVELOPMENT_TEAM=${APPLE_TEAM_ID}" >> "$GITHUB_ENV"
-
-      - name: Set up Xcode
-        uses: maxim-lobanov/setup-xcode@v1
+      - name: Cache CocoaPods
+        uses: actions/cache@v4
         with:
-          xcode-version: ${{ vars.IOS_XCODE_VERSION != '' && vars.IOS_XCODE_VERSION || '16.2.0' }}
-
-      - name: Resolve Swift packages
+          path: ios/Pods
+          key: pods-${{ runner.os }}-${{ hashFiles('ios/Podfile.lock') }}
+          restore-keys: |
+            pods-${{ runner.os }}-
+      - name: Install CocoaPods
+        run: |
+          cd ios
+          pod install
+      - name: Apply iOS versioning
         run: |
           set -euo pipefail
-          if [ "${XCODE_FILE_TYPE}" = "workspace" ]; then
-            xcodebuild -resolvePackageDependencies -workspace "${XCODE_FILE_PATH}" -scheme "${XCODE_SCHEME}" -clonedSourcePackagesDirPath .
-          else
-            xcodebuild -resolvePackageDependencies -project "${XCODE_FILE_PATH}" -scheme "${XCODE_SCHEME}" -clonedSourcePackagesDirPath .
-          fi
-
-      - name: Import code signing certificates
-        env:
-          P12_PASSWORD: ${{ secrets.IOS_DIST_CERT_PASSWORD }}
-        run: |
-          set -euo pipefail
-          KEYCHAIN_NAME="${KEYCHAIN_NAME:-build.keychain}"
-          KEYCHAIN_PATH="$HOME/Library/Keychains/${KEYCHAIN_NAME}"
-          security create-keychain -p "" "$KEYCHAIN_NAME"
-          security set-keychain-settings -lut 21600 "$KEYCHAIN_NAME"
-          security unlock-keychain -p "" "$KEYCHAIN_NAME"
-          if [ -f ios-distribution.p12 ]; then
-            echo "Attempting to import ios-distribution.p12"
-            IMPORT_CMD=(security import ios-distribution.p12 -k "$KEYCHAIN_NAME" -T /usr/bin/codesign -T /usr/bin/security -T /usr/bin/productsign -A)
-            if [ -n "${P12_PASSWORD:-}" ]; then
-              IMPORT_CMD+=(-P "$P12_PASSWORD")
+          WORKSPACE=$(ls -1d ios/*.xcworkspace 2>/dev/null | head -n 1 || true)
+          PROJECT=$(ls -1d ios/*.xcodeproj 2>/dev/null | head -n 1 || true)
+          SCHEME=""
+          if [ -n "$WORKSPACE" ]; then
+            SCHEME=$(xcodebuild -list -json -workspace "$WORKSPACE" 2>/dev/null | node -e "let s='';process.stdin.on('data',d=>s+=d);process.stdin.on('end',()=>{try{const j=JSON.parse(s);const arr=(j.workspace&&j.workspace.schemes)||[];if(arr.length){console.log(arr[0])}}catch(e){} })" || true)
+            if [ -z "$SCHEME" ]; then
+              SCHEME=$(xcodebuild -list -workspace "$WORKSPACE" 2>/dev/null | awk '/Schemes:/ {getline; print $1; exit}')
             fi
-            if ! "${IMPORT_CMD[@]}" >/dev/null 2>&1; then
-              echo "Primary PKCS#12 import failed; attempting to rebuild from distribution.cer + private key" >&2
-              if [ -f distribution.cer ] && [ -f certs/elbiblio-dist.key ]; then
-                TEMP_DIR=$(mktemp -d)
-                CERT_PEM="$TEMP_DIR/distribution.pem"
-                KEY_PEM="$TEMP_DIR/private.pem"
-                if openssl x509 -in distribution.cer -inform DER -out "$CERT_PEM" >/dev/null 2>&1; then
-                  echo "Converted distribution.cer from DER to PEM"
-                elif openssl x509 -in distribution.cer -inform PEM -out "$CERT_PEM" >/dev/null 2>&1; then
-                  echo "Using distribution.cer as PEM"
-                else
-                  echo "Unable to parse distribution.cer" >&2
-                  exit 1
-                fi
-                if ! openssl pkey -in certs/elbiblio-dist.key -out "$KEY_PEM" >/dev/null 2>&1; then
-                  echo "Unable to parse private key certs/elbiblio-dist.key" >&2
-                  exit 1
-                fi
-                openssl pkcs12 -export -inkey "$KEY_PEM" -in "$CERT_PEM" -name "Apple Distribution" -out "$TEMP_DIR/rebuilt.p12" -passout pass:temp-pass >/dev/null 2>&1
-                security import "$TEMP_DIR/rebuilt.p12" -k "$KEYCHAIN_NAME" -P temp-pass -T /usr/bin/codesign -T /usr/bin/security -T /usr/bin/productsign -A
+            SETTINGS=$(xcodebuild -showBuildSettings -workspace "$WORKSPACE" -scheme "$SCHEME" -configuration Release 2>/dev/null)
+          elif [ -n "$PROJECT" ]; then
+            SCHEME=$(xcodebuild -list -json -project "$PROJECT" 2>/dev/null | node -e "let s='';process.stdin.on('data',d=>s+=d);process.stdin.on('end',()=>{try{const j=JSON.parse(s);const arr=(j.project&&j.project.schemes)||[];if(arr.length){console.log(arr[0])}}catch(e){} })" || true)
+            if [ -z "$SCHEME" ]; then
+              SCHEME=$(xcodebuild -list -project "$PROJECT" 2>/dev/null | awk '/Schemes:/ {getline; print $1; exit}')
+            fi
+            SETTINGS=$(xcodebuild -showBuildSettings -project "$PROJECT" -scheme "$SCHEME" -configuration Release 2>/dev/null)
+          else
+            SETTINGS=""
+          fi
+          SRCROOT=$(echo "$SETTINGS" | awk -F" = " '/\bSRCROOT\b/ {print $2; exit}')
+          INFOPLIST_FILE=$(echo "$SETTINGS" | awk -F" = " '/\bINFOPLIST_FILE\b/ {print $2; exit}')
+          if [ -n "${INFOPLIST_FILE:-}" ]; then
+            if [[ "$INFOPLIST_FILE" = /* ]]; then
+              PLIST="$INFOPLIST_FILE"
+            else
+              INFOPATH="$INFOPLIST_FILE"
+              INFOPATH="${INFOPATH//\$\(SRCROOT\)/$SRCROOT}"
+              INFOPATH="${INFOPATH//\${SRCROOT}/$SRCROOT}"
+              INFOPATH="${INFOPATH//\$\(PROJECT_DIR\)/$SRCROOT}"
+              INFOPATH="${INFOPATH//\${PROJECT_DIR}/$SRCROOT}"
+              if [[ "$INFOPATH" != /* ]]; then
+                BASE_DIR="${SRCROOT:-ios}"
+                PLIST="$BASE_DIR/$INFOPATH"
               else
-                echo "Missing distribution.cer or certs/elbiblio-dist.key for fallback" >&2
-                exit 1
+                PLIST="$INFOPATH"
               fi
             fi
           fi
-          if [ -f distribution.cer ]; then
-            security import distribution.cer -k "$KEYCHAIN_NAME" -T /usr/bin/codesign -T /usr/bin/security -T /usr/bin/productsign -A || true
+          if [ -z "${PLIST:-}" ] || [ ! -f "$PLIST" ]; then
+            PLIST=$(find ios -type f -name Info.plist \( -not -path "*/Pods/*" -and -not -path "*Tests/*" \) | head -n 1 || true)
           fi
-          if [ -f ios_development.cer ]; then
-            security import ios_development.cer -k "$KEYCHAIN_NAME" -T /usr/bin/codesign -T /usr/bin/security -T /usr/bin/productsign -A || true
+          if [ -z "${PLIST:-}" ] || [ ! -f "$PLIST" ]; then
+            echo "Unable to locate Info.plist" >&2
+            exit 1
           fi
-          security list-keychains -s "$KEYCHAIN_NAME" $(security list-keychains | tr -d '"')
-          security default-keychain -s "$KEYCHAIN_NAME"
-          security set-key-partition-list -S apple-tool:,apple: -s -k "" "$KEYCHAIN_NAME" >/dev/null 2>&1 || true
-          CODE_SIGN_IDENTITY=$(security find-identity -v -p codesigning "$KEYCHAIN_NAME" | awk -F '"' '/Apple Distribution/ {print $2; exit}')
-          if [ -z "$CODE_SIGN_IDENTITY" ]; then
-            CODE_SIGN_IDENTITY=$(security find-identity -v -p codesigning "$KEYCHAIN_NAME" | awk -F '"' 'NR==1 {print $2}')
+          /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION_NAME" "$PLIST" || \
+          /usr/libexec/PlistBuddy -c "Add :CFBundleShortVersionString string $VERSION_NAME" "$PLIST"
+          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $VERSION_CODE" "$PLIST" || \
+          /usr/libexec/PlistBuddy -c "Add :CFBundleVersion string $VERSION_CODE" "$PLIST"
+      - name: Fetch and install signing certificate
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_BUCKET: ${{ secrets.R2_KEYSTORE_BUCKET }}
+          R2_IOS_CERT_OBJECT_KEY: ${{ secrets.R2_IOS_CERT_OBJECT_KEY }}
+          IOS_CERT_PASSWORD: ${{ secrets.IOS_CERT_PASSWORD }}
+          IOS_KEYCHAIN_PASSWORD: ${{ secrets.IOS_KEYCHAIN_PASSWORD }}
+        run: |
+          set -euo pipefail
+          IOS_KEYCHAIN_PASSWORD="${IOS_KEYCHAIN_PASSWORD:-}"
+          if [ -z "$IOS_KEYCHAIN_PASSWORD" ]; then
+            IOS_KEYCHAIN_PASSWORD=$(python3 -c "import secrets; print(secrets.token_hex(16))")
+            echo "Using generated temporary keychain password"
+            echo "IOS_KEYCHAIN_PASSWORD=$IOS_KEYCHAIN_PASSWORD" >> "$GITHUB_ENV"
+          else
+            echo "Using IOS_KEYCHAIN_PASSWORD from secrets"
+            echo "IOS_KEYCHAIN_PASSWORD=$IOS_KEYCHAIN_PASSWORD" >> "$GITHUB_ENV"
           fi
-          if [ -n "$CODE_SIGN_IDENTITY" ]; then
-            echo "CODE_SIGN_IDENTITY=$CODE_SIGN_IDENTITY" >> "$GITHUB_ENV"
+          CERT_DIR="ios/signing"
+          mkdir -p "$CERT_DIR"
+          KEYCHAIN="build.keychain-db"
+          CERT_PATH="$CERT_DIR/ios-distribution.p12"
+          LOCAL_P12="ios-distribution.p12"
+          LOCAL_CERT="distribution.cer"
+          LOCAL_KEY="certs/elbiblio-dist.key"
+          CAN_GENERATE=0
+          if [ -f "$LOCAL_CERT" ] && [ -f "$LOCAL_KEY" ]; then
+            CAN_GENERATE=1
           fi
-          echo "OTHER_CODE_SIGN_FLAGS=--keychain $KEYCHAIN_PATH" >> "$GITHUB_ENV"
-
-      - name: Install provisioning profile
+          # Generate .p12 with a simple known password that macOS security can handle
+          P12_PASS="temp"
+          if [ "$CAN_GENERATE" -eq 1 ]; then
+            echo "Preparing certificate PEM from $LOCAL_CERT"
+            CERT_PEM="distribution.pem"
+            if openssl x509 -in "$LOCAL_CERT" -inform DER -noout >/dev/null 2>&1; then
+              openssl x509 -in "$LOCAL_CERT" -inform DER -out "$CERT_PEM"
+            elif openssl x509 -in "$LOCAL_CERT" -inform PEM -noout >/dev/null 2>&1; then
+              cp "$LOCAL_CERT" "$CERT_PEM"
+            else
+              echo "Unable to parse $LOCAL_CERT as DER or PEM certificate" >&2
+              exit 1
+            fi
+            echo "Verifying private key matches certificate (pubkey hash)"
+            openssl pkey -in "$LOCAL_KEY" -pubout -out key_pub.pem >/dev/null 2>&1 || { echo "Unable to read private key $LOCAL_KEY" >&2; exit 1; }
+            openssl x509 -in "$CERT_PEM" -pubkey -noout > cert_pub.pem 2>/dev/null || { echo "Unable to read certificate $CERT_PEM" >&2; exit 1; }
+            KEY_HASH=$(openssl pkey -pubin -in key_pub.pem -outform DER 2>/dev/null | shasum -a 256 | awk '{print $1}')
+            CERT_HASH=$(openssl pkey -pubin -in cert_pub.pem -outform DER 2>/dev/null | shasum -a 256 | awk '{print $1}')
+            if [ -z "$KEY_HASH" ] || [ -z "$CERT_HASH" ] || [ "$KEY_HASH" != "$CERT_HASH" ]; then
+              echo "Private key and certificate do not match" >&2
+              exit 1
+            fi
+            echo "Generating $LOCAL_P12 with temporary password"
+            if ! openssl pkcs12 -export -inkey "$LOCAL_KEY" -in "$CERT_PEM" -out "$LOCAL_P12" -name "Apple Distribution" -passout pass:"$P12_PASS"; then
+              echo "Failed to generate PKCS#12. Ensure distribution.cer is valid and matches the private key." >&2
+              exit 1
+            fi
+          else
+            if [ -f "$LOCAL_P12" ]; then
+              echo "Found existing $LOCAL_P12; will use provided IOS_CERT_PASSWORD or default"
+              P12_PASS="${IOS_CERT_PASSWORD:-temp}"
+            else
+              echo "Expected ios-distribution.p12 or distribution.cer + certs/elbiblio-dist.key in repository root" >&2
+              exit 1
+            fi
+          fi
+          if [ ! -f "$LOCAL_P12" ]; then
+            echo "Failed to prepare $LOCAL_P12" >&2
+            exit 1
+          fi
+          USE_R2=1
+          if [ -z "${R2_BUCKET:-}" ] || [ -z "${R2_ACCOUNT_ID:-}" ] || [ -z "${AWS_ACCESS_KEY_ID:-}" ] || [ -z "${AWS_SECRET_ACCESS_KEY:-}" ]; then
+            USE_R2=0
+          fi
+          if [ "$USE_R2" -eq 1 ]; then
+            R2_ENDPOINT="https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
+            OBJECT_KEY="${R2_IOS_CERT_OBJECT_KEY:-signing/ios-distribution.p12}"
+            echo "Uploading local $LOCAL_P12 to s3://${R2_BUCKET}/${OBJECT_KEY}"
+            aws s3 cp "$LOCAL_P12" "s3://${R2_BUCKET}/${OBJECT_KEY}" --endpoint-url "$R2_ENDPOINT"
+            cp "$LOCAL_P12" "$CERT_PATH"
+          else
+            echo "R2 credentials not provided; using local $LOCAL_P12"
+            cp "$LOCAL_P12" "$CERT_PATH"
+          fi
+          security create-keychain -p "$IOS_KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$IOS_KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          echo "Importing certificate with password: $P12_PASS"
+          security import "$CERT_PATH" -k "$KEYCHAIN" -P "$P12_PASS" -T /usr/bin/codesign -T /usr/bin/security -T /usr/bin/productsign -A
+          security list-keychains -s "$KEYCHAIN" $(security list-keychains | sed 's/\"//g')
+          security default-keychain -s "$KEYCHAIN"
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$IOS_KEYCHAIN_PASSWORD" "$KEYCHAIN" >/dev/null 2>&1 || true
+          echo "Verifying code signing identities in keychain:"
+          security find-identity -v -p codesigning "$KEYCHAIN" || true
+          CERT_IDENTITY=$(security find-identity -v -p codesigning "$KEYCHAIN" | awk -F'"' '/Apple Distribution/ {print $2; exit}')
+          if [ -z "$CERT_IDENTITY" ]; then
+            CERT_IDENTITY=$(security find-identity -v -p codesigning "$KEYCHAIN" | awk -F'"' 'NR==1 {print $2}')
+          fi
+          CERT_HASH=$(security find-identity -v -p codesigning "$KEYCHAIN" | awk '/Apple Distribution/ {print $2; exit}')
+          if [ -z "$CERT_HASH" ]; then
+            CERT_HASH=$(security find-identity -v -p codesigning "$KEYCHAIN" | awk 'NR==1 {print $2}')
+          fi
+          if [ -n "$CERT_IDENTITY" ]; then
+            echo "Detected code signing identity: $CERT_IDENTITY"
+            echo "CODE_SIGN_IDENTITY=$CERT_IDENTITY" >> "$GITHUB_ENV"
+          fi
+          if [ -n "$CERT_HASH" ]; then
+            echo "Using identity hash for build: $CERT_HASH"
+            echo "CODE_SIGN_IDENTITY_FOR_BUILD=$CERT_HASH" >> "$GITHUB_ENV"
+          fi
+          KEYCHAIN_FULL_PATH="$HOME/Library/Keychains/$KEYCHAIN"
+          echo "Using keychain: $KEYCHAIN_FULL_PATH"
+          echo "OTHER_CODE_SIGN_FLAGS=--keychain $KEYCHAIN_FULL_PATH" >> "$GITHUB_ENV"
+      - name: Fetch provisioning profile from R2
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_BUCKET: ${{ secrets.R2_KEYSTORE_BUCKET }}
+          R2_IOS_PROFILE_OBJECT_KEY: ${{ secrets.R2_IOS_PROFILE_OBJECT_KEY }}
         run: |
           set -euo pipefail
           PROFILE_DIR="$HOME/Library/MobileDevice/Provisioning Profiles"
           mkdir -p "$PROFILE_DIR"
-          PROFILE_PATH="$PROFILE_DIR/$(uuidgen).mobileprovision"
-          cp elbiblioprofile.mobileprovision "$PROFILE_PATH"
-          TMP_PLIST=$(mktemp)
-          security cms -D -i "$PROFILE_PATH" > "$TMP_PLIST"
-          PROFILE_NAME=$( /usr/libexec/PlistBuddy -c "Print :Name" "$TMP_PLIST" 2>/dev/null || echo "" )
-          PROFILE_UUID=$( /usr/libexec/PlistBuddy -c "Print :UUID" "$TMP_PLIST" 2>/dev/null || echo "" )
-          TEAM_ID=$( /usr/libexec/PlistBuddy -c "Print :TeamIdentifier:0" "$TMP_PLIST" 2>/dev/null || echo "" )
-          rm -f "$TMP_PLIST"
-          if [ -n "$PROFILE_NAME" ]; then
-            echo "PROVISIONING_PROFILE_SPECIFIER=$PROFILE_NAME" >> "$GITHUB_ENV"
+          PROFILE_PATH="$PROFILE_DIR/store-profile.mobileprovision"
+          LOCAL_PROFILE="Elbiblio.mobileprovision"
+          USE_R2=1
+          if [ -z "${R2_BUCKET:-}" ] || [ -z "${R2_ACCOUNT_ID:-}" ] || [ -z "${AWS_ACCESS_KEY_ID:-}" ] || [ -z "${AWS_SECRET_ACCESS_KEY:-}" ]; then
+            USE_R2=0
           fi
-          if [ -n "$PROFILE_UUID" ]; then
-            echo "PROVISIONING_PROFILE=$PROFILE_UUID" >> "$GITHUB_ENV"
-          fi
-          if [ -n "$TEAM_ID" ]; then
-            echo "DEVELOPMENT_TEAM=$TEAM_ID" >> "$GITHUB_ENV"
-          fi
-
-      - name: Prepare App Store Connect key
-        id: appstore-key
-        run: |
-          set -euo pipefail
-          mkdir -p "${RUNNER_TEMP}/private_keys"
-          if [ -f AuthKey_${APPSTORE_KEY_ID}.p8 ]; then
-            cp AuthKey_${APPSTORE_KEY_ID}.p8 "${RUNNER_TEMP}/private_keys/AuthKey_${APPSTORE_KEY_ID}.p8"
-            echo "filePath=${RUNNER_TEMP}/private_keys/AuthKey_${APPSTORE_KEY_ID}.p8" >> "$GITHUB_OUTPUT"
-          elif [ -f AuthKey_${APPSTORE_ALT_KEY_ID}.p8 ]; then
-            cp AuthKey_${APPSTORE_ALT_KEY_ID}.p8 "${RUNNER_TEMP}/private_keys/AuthKey_${APPSTORE_ALT_KEY_ID}.p8"
-            echo "filePath=${RUNNER_TEMP}/private_keys/AuthKey_${APPSTORE_ALT_KEY_ID}.p8" >> "$GITHUB_OUTPUT"
-            echo "APPSTORE_KEY_ID=${APPSTORE_ALT_KEY_ID}" >> "$GITHUB_ENV"
+          if [ "$USE_R2" -eq 1 ]; then
+            R2_ENDPOINT="https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
+            OBJECT_KEY="${R2_IOS_PROFILE_OBJECT_KEY:-signing/ios-store.mobileprovision}"
+            if ! aws s3 ls "s3://${R2_BUCKET}/${OBJECT_KEY}" --endpoint-url "$R2_ENDPOINT" >/dev/null 2>&1; then
+              if [ -f "$LOCAL_PROFILE" ]; then
+                echo "Provisioning profile missing in R2; uploading local $LOCAL_PROFILE"
+                aws s3 cp "$LOCAL_PROFILE" "s3://${R2_BUCKET}/${OBJECT_KEY}" --endpoint-url "$R2_ENDPOINT"
+              else
+                echo "Expected $LOCAL_PROFILE in repository root or configure R2 credentials." >&2
+                exit 1
+              fi
+            fi
+            aws s3 cp "s3://${R2_BUCKET}/${OBJECT_KEY}" "$PROFILE_PATH" --endpoint-url "$R2_ENDPOINT"
           else
-            echo "No AuthKey_*.p8 file found in repository" >&2
+            if [ ! -f "$LOCAL_PROFILE" ]; then
+              echo "R2 credentials not provided and $LOCAL_PROFILE not found in repository." >&2
+              exit 1
+            fi
+            echo "R2 credentials not provided; using local $LOCAL_PROFILE"
+            cp "$LOCAL_PROFILE" "$PROFILE_PATH"
+          fi
+          if [ ! -f "$PROFILE_PATH" ]; then
+            echo "Provisioning profile not found at $PROFILE_PATH" >&2
             exit 1
           fi
-
-      - name: Install App Store Connect key
+          TMP_PLIST=$(mktemp)
+          if ! security cms -D -i "$PROFILE_PATH" > "$TMP_PLIST"; then
+            echo "Failed to decode provisioning profile" >&2
+            rm -f "$TMP_PLIST"
+            exit 1
+          fi
+          PROFILE_UUID=$( /usr/libexec/PlistBuddy -c "Print :UUID" "$TMP_PLIST" 2>/dev/null || true )
+          PROFILE_NAME=$( /usr/libexec/PlistBuddy -c "Print :Name" "$TMP_PLIST" 2>/dev/null || true )
+          TEAM_ID=$( /usr/libexec/PlistBuddy -c "Print :TeamIdentifier:0" "$TMP_PLIST" 2>/dev/null || true )
+          APS_ENV=$( /usr/libexec/PlistBuddy -c "Print :Entitlements:aps-environment" "$TMP_PLIST" 2>/dev/null || true )
+          rm -f "$TMP_PLIST"
+          if [ -z "$PROFILE_UUID" ] || [ -z "$PROFILE_NAME" ]; then
+            echo "Unable to extract UUID/Name from provisioning profile" >&2
+            exit 1
+          fi
+          echo "Using provisioning profile: $PROFILE_NAME ($PROFILE_UUID)"
+          echo "PROVISIONING_PROFILE_SPECIFIER=$PROFILE_NAME" >> "$GITHUB_ENV"
+          echo "PROVISIONING_PROFILE=$PROFILE_UUID" >> "$GITHUB_ENV"
+          if [ -n "$TEAM_ID" ]; then
+            echo "Detected Apple Team ID: $TEAM_ID"
+            echo "DEVELOPMENT_TEAM=$TEAM_ID" >> "$GITHUB_ENV"
+          fi
+          if [ -n "$APS_ENV" ]; then
+            echo "Provisioning profile includes Push Notifications (aps-environment=$APS_ENV)"
+            echo "PROFILE_HAS_PUSH=1" >> "$GITHUB_ENV"
+            echo "APS_ENVIRONMENT=$APS_ENV" >> "$GITHUB_ENV"
+          else
+            echo "Provisioning profile does not include Push Notifications entitlement" >&2
+            echo "PROFILE_HAS_PUSH=0" >> "$GITHUB_ENV"
+            echo "Please regenerate the provisioning profile with Push Notifications enabled and upload it to R2 (or place Elbiblio.mobileprovision in the repo root)." >&2
+            exit 1
+          fi
+      - name: Fetch App Store Connect API key
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_BUCKET: ${{ secrets.R2_KEYSTORE_BUCKET }}
+          R2_APPSTORE_API_KEY_OBJECT_KEY: ${{ secrets.R2_APPSTORE_API_KEY_OBJECT_KEY }}
+          APPSTORE_KEY_ID: ${{ secrets.APPSTORE_KEY_ID }}
         run: |
           set -euo pipefail
+          mkdir -p ios/signing
+          USE_R2=1
+          if [ -z "${R2_BUCKET:-}" ] || [ -z "${R2_ACCOUNT_ID:-}" ] || [ -z "${AWS_ACCESS_KEY_ID:-}" ] || [ -z "${AWS_SECRET_ACCESS_KEY:-}" ]; then
+            USE_R2=0
+          fi
+          KEY_FILE=""
+          if [ -n "${APPSTORE_KEY_ID:-}" ] && [ -f "AuthKey_${APPSTORE_KEY_ID}.p8" ]; then
+            KEY_FILE="AuthKey_${APPSTORE_KEY_ID}.p8"
+          else
+            KEY_FILE=$(ls AuthKey_*.p8 2>/dev/null | head -n 1 || true)
+          fi
+          if [ "$USE_R2" -eq 1 ]; then
+            R2_ENDPOINT="https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
+            OBJECT_KEY="${R2_APPSTORE_API_KEY_OBJECT_KEY:-signing/appstoreconnect/AuthKey.p8}"
+            if ! aws s3 ls "s3://${R2_BUCKET}/${OBJECT_KEY}" --endpoint-url "$R2_ENDPOINT" >/dev/null 2>&1; then
+              if [ -n "$KEY_FILE" ]; then
+                echo "App Store Connect API key missing in R2; uploading $KEY_FILE"
+                aws s3 cp "$KEY_FILE" "s3://${R2_BUCKET}/${OBJECT_KEY}" --endpoint-url "$R2_ENDPOINT"
+              else
+                echo "Expected AuthKey_<KEYID>.p8 in repository root or configure R2 credentials." >&2
+                exit 1
+              fi
+            fi
+            aws s3 cp "s3://${R2_BUCKET}/${OBJECT_KEY}" "ios/signing/AuthKey_AppStoreConnect.p8" --endpoint-url "$R2_ENDPOINT"
+          else
+            if [ -z "$KEY_FILE" ]; then
+              echo "R2 credentials not provided and no AuthKey_<KEYID>.p8 found in repository." >&2
+              exit 1
+            fi
+            echo "R2 credentials not provided; using local $KEY_FILE"
+            cp "$KEY_FILE" "ios/signing/AuthKey_AppStoreConnect.p8"
+          fi
+      - name: Install App Store Connect key for altool
+        env:
+          APPSTORE_KEY_ID: ${{ secrets.APPSTORE_KEY_ID }}
+        run: |
+          set -euo pipefail
+          if [ -z "${APPSTORE_KEY_ID:-}" ]; then
+            echo "APPSTORE_KEY_ID secret is not set" >&2
+            exit 1
+          fi
           mkdir -p "$HOME/private_keys"
-          cp "${{ steps.appstore-key.outputs.filePath }}" "$HOME/private_keys/"
+          cp ios/signing/AuthKey_AppStoreConnect.p8 "$HOME/private_keys/AuthKey_${APPSTORE_KEY_ID}.p8"
+      - name: Select Xcode version
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: '16.4'
 
-      - name: Update iOS version numbers
+      - name: Determine workspace/project and scheme
         run: |
           set -euo pipefail
-          cd ios
-          xcrun agvtool new-marketing-version "${VERSION_NAME}"
-          xcrun agvtool new-version -all "${VERSION_CODE}"
-
-      - name: Archive iOS app (workspace)
-        if: env.XCODE_FILE_TYPE == 'workspace'
-        uses: sersoft-gmbh/xcodebuild-action@v2
-        with:
-          action: archive
-          workspace: ${{ env.XCODE_FILE_PATH }}
-          scheme: ${{ env.XCODE_SCHEME }}
-          configuration: Release
-          sdk: iphoneos
-          destination: generic/platform=iOS
-          derived-data-path: ios/build/derivedData
-          use-xcpretty: false
-          build-settings: |
-            -archivePath ${{ env.ARCHIVE_PATH }}
-            CODE_SIGN_STYLE=Manual
-            CODE_SIGN_IDENTITY=${{ env.CODE_SIGN_IDENTITY }}
-            OTHER_CODE_SIGN_FLAGS=${{ env.OTHER_CODE_SIGN_FLAGS }}
-            DEVELOPMENT_TEAM=${{ env.DEVELOPMENT_TEAM }}
-            PROVISIONING_PROFILE_SPECIFIER=${{ env.PROVISIONING_PROFILE_SPECIFIER }}
-
-      - name: Archive iOS app (project)
-        if: env.XCODE_FILE_TYPE == 'project'
-        uses: sersoft-gmbh/xcodebuild-action@v2
-        with:
-          action: archive
-          project: ${{ env.XCODE_FILE_PATH }}
-          scheme: ${{ env.XCODE_SCHEME }}
-          configuration: Release
-          sdk: iphoneos
-          destination: generic/platform=iOS
-          derived-data-path: ios/build/derivedData
-          use-xcpretty: false
-          build-settings: |
-            -archivePath ${{ env.ARCHIVE_PATH }}
-
-      - name: Write export options
-        run: |
-          python3 -c "import os; path=os.environ['EXPORT_OPTIONS']; os.makedirs(os.path.dirname(path), exist_ok=True); team=os.environ.get('DEVELOPMENT_TEAM'); lines=['<?xml version=\"1.0\" encoding=\"UTF-8\"?>','<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">','<plist version=\"1.0\">','<dict>','  <key>method</key>','  <string>app-store</string>','  <key>destination</key>','  <string>export</string>','  <key>generateAppStoreInformation</key>','  <false/>','  <key>uploadSymbols</key>','  <true/>','  <key>compileBitcode</key>','  <false/>','  <key>stripSwiftSymbols</key>','  <true/>']; if team: lines.extend([f'  <key>teamID</key>', f'  <string>{team}</string>']); lines.extend(['</dict>','</plist>']); open(path,'w',encoding='utf-8').write('\\n'.join(lines)+'\\n')"
-
-      - name: Export IPA
+          WORKSPACE=$(ls -1d ios/*.xcworkspace 2>/dev/null | head -n 1 || true)
+          PROJECT=$(ls -1d ios/*.xcodeproj 2>/dev/null | head -n 1 || true)
+          if [ -n "$WORKSPACE" ]; then
+            echo "WORKSPACE_PATH=$WORKSPACE" >> "$GITHUB_ENV"
+            echo "PROJECT_PATH=" >> "$GITHUB_ENV"
+            SCHEME=$(xcodebuild -list -json -workspace "$WORKSPACE" 2>/dev/null | node -e "let s='';process.stdin.on('data',d=>s+=d);process.stdin.on('end',()=>{try{const j=JSON.parse(s);const arr=(j.workspace&&j.workspace.schemes)||[];const pick=arr.find(n=>/^(ElBiblio|El-Biblio|Elbiblio)/.test(n))||arr.find(n=>!/^Pods(\\b|\\-)/.test(n)&&!/Tests$/.test(n))||arr[0]||'';process.stdout.write(pick)}catch(e){} })" || true)
+            if [ -z "$SCHEME" ]; then
+              SCHEME=$(xcodebuild -list -workspace "$WORKSPACE" 2>/dev/null | awk '/Schemes:/ {getline; print $1; exit}')
+            fi
+          elif [ -n "$PROJECT" ]; then
+            echo "PROJECT_PATH=$PROJECT" >> "$GITHUB_ENV"
+            echo "WORKSPACE_PATH=" >> "$GITHUB_ENV"
+            SCHEME=$(xcodebuild -list -json -project "$PROJECT" 2>/dev/null | node -e "let s='';process.stdin.on('data',d=>s+=d);process.stdin.on('end',()=>{try{const j=JSON.parse(s);const arr=(j.project&&j.project.schemes)||[];const pick=arr.find(n=>/^(ElBiblio|El-Biblio|Elbiblio)/.test(n))||arr.find(n=>!/^[Pp]ods(\\b|\\-)/.test(n)&&!/Tests$/.test(n))||arr[0]||'';process.stdout.write(pick)}catch(e){} })" || true)
+            if [ -z "$SCHEME" ]; then
+              SCHEME=$(xcodebuild -list -project "$PROJECT" 2>/dev/null | awk '/Schemes:/ {getline; print $1; exit}')
+            fi
+          else
+            echo "No Xcode workspace or project found under ios/" >&2
+            exit 1
+          fi
+          if [ -z "$SCHEME" ]; then
+            echo "Unable to determine scheme" >&2
+            exit 1
+          fi
+          echo "SCHEME=$SCHEME" >> "$GITHUB_ENV"
+      - name: Resolve Swift Package dependencies
         run: |
           set -euo pipefail
-          mkdir -p "${EXPORT_PATH}"
+          if [ -n "${WORKSPACE_PATH:-}" ]; then
+            xcodebuild -resolvePackageDependencies -workspace "${WORKSPACE_PATH}" -scheme "${SCHEME}" -clonedSourcePackagesDirPath .
+          elif [ -n "${PROJECT_PATH:-}" ]; then
+            xcodebuild -resolvePackageDependencies -project "${PROJECT_PATH}" -scheme "${SCHEME}" -clonedSourcePackagesDirPath .
+          fi
+      - name: Archive iOS app
+        run: |
+          set -euo pipefail
+          ARCHIVE_PATH="ElBiblio.xcarchive"
+          RESULT_BUNDLE="ios/build/ElBiblio.xcresult"
+          LOG_PATH="ios/build/xcodebuild-archive.log"
+          rm -rf "$ARCHIVE_PATH" "$RESULT_BUNDLE"
+          rm -f "$LOG_PATH"
+          
+          if [ -n "${WORKSPACE_PATH:-}" ]; then
+            BUILD_TARGET="-workspace ${WORKSPACE_PATH}"
+          elif [ -n "${PROJECT_PATH:-}" ]; then
+            BUILD_TARGET="-project ${PROJECT_PATH}"
+          else
+            echo "No workspace or project found" >&2
+            exit 1
+          fi
+          
+          if ! xcodebuild archive \
+            $BUILD_TARGET \
+            -scheme "${SCHEME}" \
+            -configuration Release \
+            -sdk iphoneos \
+            -archivePath "$ARCHIVE_PATH" \
+            -derivedDataPath ios/build/derivedData \
+            -resultBundlePath "$RESULT_BUNDLE" \
+            -destination "generic/platform=iOS" \
+            -allowProvisioningUpdates \
+            CODE_SIGN_STYLE=Manual \
+            DEVELOPMENT_TEAM="${DEVELOPMENT_TEAM}" \
+            PROVISIONING_PROFILE_SPECIFIER="${PROVISIONING_PROFILE_SPECIFIER}" \
+            CODE_SIGN_IDENTITY="${CODE_SIGN_IDENTITY_FOR_BUILD}" \
+            OTHER_CODE_SIGN_FLAGS="${OTHER_CODE_SIGN_FLAGS}" \
+            | tee "$LOG_PATH"; then
+            echo "::error::xcodebuild archive failed" >&2
+            if [ -f "$LOG_PATH" ]; then
+              echo "----- xcodebuild archive tail -----" >&2
+              tail -n 200 "$LOG_PATH" >&2 || true
+              echo "----- end of tail -----" >&2
+            fi
+            exit 1
+          fi
+          
+          echo "Archive created at: $ARCHIVE_PATH"
+          ls -la "$ARCHIVE_PATH" || true
+      - name: Upload archive xcresult
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-archive-xcresult-${{ github.run_id }}
+          path: ios/build/ElBiblio.xcresult
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Upload archive log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-archive-log-${{ github.run_id }}
+          path: ios/build/xcodebuild-archive.log
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Locate archive and export path
+        run: |
+          set -euo pipefail
+          # Check expected location first
+          if [ -d "ElBiblio.xcarchive" ]; then
+            echo "ARCHIVE_PATH=ElBiblio.xcarchive" >> "$GITHUB_ENV"
+            exit 0
+          fi
+          # Search for any .xcarchive
+          echo "Searching for archives..." >&2
+          FOUND=$(find . -maxdepth 2 -type d -name "*.xcarchive" 2>/dev/null | head -n 1 || true)
+          if [ -n "$FOUND" ] && [ -d "$FOUND" ]; then
+            echo "Using discovered archive: $FOUND"
+            echo "ARCHIVE_PATH=$FOUND" >> "$GITHUB_ENV"
+          else
+            echo "No .xcarchive found" >&2
+            ls -la . || true
+            exit 1
+          fi
+      - name: Prepare export options
+        run: |
+          cat <<'EOF' > ios/exportOptions.plist
+            <?xml version="1.0" encoding="UTF-8"?>
+            <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+            <plist version="1.0">
+            <dict>
+              <key>compileBitcode</key>
+              <false/>
+              <key>destination</key>
+              <string>export</string>
+              <key>method</key>
+              <string>app-store</string>
+              <key>stripSwiftSymbols</key>
+              <true/>
+              <key>uploadBitcode</key>
+              <false/>
+              <key>uploadSymbols</key>
+              <true/>
+            </dict>
+            </plist>
+          EOF
+      - name: Export signed IPA
+        run: |
+          set -euo pipefail
           xcodebuild -exportArchive \
             -archivePath "${ARCHIVE_PATH}" \
-            -exportOptionsPlist "${EXPORT_OPTIONS}" \
-            -exportPath "${EXPORT_PATH}" \
-            -authenticationKeyIssuerID "${APPSTORE_ISSUER_ID}" \
-            -authenticationKeyID "${APPSTORE_KEY_ID}" \
-            -authenticationKeyPath "$HOME/private_keys/AuthKey_${APPSTORE_KEY_ID}.p8"
-          ls -R "${EXPORT_PATH}" || true
-
+            -exportOptionsPlist ios/exportOptions.plist \
+            -exportPath ios/build/export \
+            -allowProvisioningUpdates
+          ls -R ios/build/export || true
       - name: Upload iOS artifact
         uses: actions/upload-artifact@v4
         with:
           name: ios-ipa-${{ needs.prepare-build.outputs.build_id }}
-          path: ${{ env.EXPORT_PATH }}/*.ipa
+          path: ios/build/export/*.ipa
           retention-days: 21
 
-      - name: Upload to TestFlight
+      - name: Upload IPA to TestFlight
+        env:
+          APPSTORE_ISSUER_ID: ${{ secrets.APPSTORE_ISSUER_ID }}
+          APPSTORE_KEY_ID: ${{ secrets.APPSTORE_KEY_ID }}
+          APPSTORE_PROVIDER: ${{ secrets.APPSTORE_PROVIDER }}
         run: |
           set -euo pipefail
-          IPA=$(find "${EXPORT_PATH}" -name "*.ipa" -print -quit)
-          if [ -z "$IPA" ]; then
-            echo "IPA not found in ${EXPORT_PATH}" >&2
+          if [ -z "${APPSTORE_ISSUER_ID:-}" ]; then
+            echo "APPSTORE_ISSUER_ID secret is not set" >&2
+            exit 1
+          fi
+          if [ -z "${APPSTORE_KEY_ID:-}" ]; then
+            echo "APPSTORE_KEY_ID secret is not set" >&2
+            exit 1
+          fi
+          IPA_PATH=$(ls ios/build/export/*.ipa | head -n 1)
+          if [ -z "$IPA_PATH" ]; then
+            echo "No IPA found in export directory" >&2
             exit 1
           fi
           if [ -n "${APPSTORE_PROVIDER:-}" ]; then
-            xcrun altool --upload-app --type ios --file "$IPA" --apiKey "$APPSTORE_KEY_ID" --apiIssuer "$APPSTORE_ISSUER_ID" --asc-provider "$APPSTORE_PROVIDER"
+            xcrun altool --upload-app --type ios --file "$IPA_PATH" --apiKey "$APPSTORE_KEY_ID" --apiIssuer "$APPSTORE_ISSUER_ID" --asc-provider "$APPSTORE_PROVIDER"
           else
-            xcrun altool --upload-app --type ios --file "$IPA" --apiKey "$APPSTORE_KEY_ID" --apiIssuer "$APPSTORE_ISSUER_ID"
+            xcrun altool --upload-app --type ios --file "$IPA_PATH" --apiKey "$APPSTORE_KEY_ID" --apiIssuer "$APPSTORE_ISSUER_ID"
           fi
-
+          echo "Upload to TestFlight triggered via altool"
       - name: Clean up signing material
         if: always()
         run: |
           set +e
-          security delete-keychain "${KEYCHAIN_NAME:-build.keychain}" >/dev/null 2>&1
-          rm -f "$HOME/private_keys/AuthKey_${APPSTORE_KEY_ID}.p8"
-          rm -f "${EXPORT_OPTIONS}"
-
+          security delete-keychain build.keychain-db
+          rm -f "$HOME/Library/MobileDevice/Provisioning Profiles/store-profile.mobileprovision"
+          rm -f ios/signing/AuthKey_AppStoreConnect.p8
+          if [ -n "${APPSTORE_KEY_ID:-}" ]; then
+            rm -f "$HOME/private_keys/AuthKey_${APPSTORE_KEY_ID}.p8"
+          fi
   release:
     needs:
       - prepare-build
