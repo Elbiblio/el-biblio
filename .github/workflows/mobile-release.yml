@@ -391,20 +391,55 @@ jobs:
           KEYCHAIN="build.keychain-db"
           CERT_PATH="$CERT_DIR/ios-distribution.p12"
           LOCAL_P12="ios-distribution.p12"
-          if [ ! -f "$LOCAL_P12" ]; then
-            if [ -f "distribution.cer" ] && [ -f "certs/elbiblio-dist.key" ]; then
-              echo "Generating $LOCAL_P12 from distribution.cer and certs/elbiblio-dist.key"
+          LOCAL_CERT="distribution.cer"
+          LOCAL_KEY="certs/elbiblio-dist.key"
+          CAN_GENERATE=0
+          if [ -f "$LOCAL_CERT" ] && [ -f "$LOCAL_KEY" ]; then
+            CAN_GENERATE=1
+          fi
+          CERT_PASS="${IOS_CERT_PASSWORD:-}"
+          if [ -z "$CERT_PASS" ]; then
+            if [ "$CAN_GENERATE" -eq 1 ]; then
+              CERT_PASS=$(python3 -c "import secrets; print(secrets.token_hex(16))")
+              IOS_CERT_PASSWORD="$CERT_PASS"
+              export IOS_CERT_PASSWORD
+              echo "Generated password for iOS distribution certificate"
+              echo "IOS_CERT_PASSWORD=$IOS_CERT_PASSWORD" >> "$GITHUB_ENV"
+              echo "Regenerating $LOCAL_P12 with generated password"
               openssl pkcs12 -export \
-                -inkey certs/elbiblio-dist.key \
-                -in distribution.cer \
+                -inkey "$LOCAL_KEY" \
+                -in "$LOCAL_CERT" \
                 -out "$LOCAL_P12" \
                 -name "Apple Distribution" \
-                -passout pass:
+                -passout pass:"$IOS_CERT_PASSWORD"
             else
-              echo "Expected ios-distribution.p12 or distribution.cer + certs/elbiblio-dist.key in repository root" >&2
-              echo "Place the signing assets in the repo or configure R2 credentials." >&2
+              if [ -f "$LOCAL_P12" ]; then
+                echo "IOS_CERT_PASSWORD secret required to import existing ios-distribution.p12" >&2
+              else
+                echo "Expected ios-distribution.p12 or distribution.cer + certs/elbiblio-dist.key in repository root" >&2
+              fi
               exit 1
             fi
+          else
+            IOS_CERT_PASSWORD="$CERT_PASS"
+            export IOS_CERT_PASSWORD
+            echo "Using provided IOS_CERT_PASSWORD secret"
+            if [ "$CAN_GENERATE" -eq 1 ]; then
+              echo "Ensuring $LOCAL_P12 matches provided password"
+              openssl pkcs12 -export \
+                -inkey "$LOCAL_KEY" \
+                -in "$LOCAL_CERT" \
+                -out "$LOCAL_P12" \
+                -name "Apple Distribution" \
+                -passout pass:"$IOS_CERT_PASSWORD"
+            elif [ ! -f "$LOCAL_P12" ]; then
+              echo "ios-distribution.p12 not found and cannot regenerate without $LOCAL_CERT and $LOCAL_KEY" >&2
+              exit 1
+            fi
+          fi
+          if [ ! -f "$LOCAL_P12" ]; then
+            echo "Failed to prepare $LOCAL_P12" >&2
+            exit 1
           fi
           USE_R2=1
           if [ -z "${R2_BUCKET:-}" ] || [ -z "${R2_ACCOUNT_ID:-}" ] || [ -z "${AWS_ACCESS_KEY_ID:-}" ] || [ -z "${AWS_SECRET_ACCESS_KEY:-}" ]; then
