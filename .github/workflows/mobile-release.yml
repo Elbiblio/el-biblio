@@ -398,6 +398,10 @@ jobs:
             CAN_GENERATE=1
           fi
           CERT_PASS="${IOS_CERT_PASSWORD:-}"
+          # If an existing p12 is present, try to use it first (with provided or empty password)
+          if [ -f "$LOCAL_P12" ]; then
+            echo "Found existing $LOCAL_P12; will try to use it directly"
+          fi
           if [ -z "$CERT_PASS" ]; then
             if [ "$CAN_GENERATE" -eq 1 ]; then
               CERT_PASS=$(python3 -c "import secrets; print(secrets.token_hex(16))")
@@ -405,13 +409,31 @@ jobs:
               export IOS_CERT_PASSWORD
               echo "Generated password for iOS distribution certificate"
               echo "IOS_CERT_PASSWORD=$IOS_CERT_PASSWORD" >> "$GITHUB_ENV"
+              echo "Preparing certificate PEM from $LOCAL_CERT"
+              CERT_PEM="distribution.pem"
+              # Detect certificate format robustly and produce PEM
+              if openssl x509 -in "$LOCAL_CERT" -inform DER -noout >/dev/null 2>&1; then
+                openssl x509 -in "$LOCAL_CERT" -inform DER -out "$CERT_PEM"
+              elif openssl x509 -in "$LOCAL_CERT" -inform PEM -noout >/dev/null 2>&1; then
+                cp "$LOCAL_CERT" "$CERT_PEM"
+              else
+                echo "Unable to parse $LOCAL_CERT as DER or PEM certificate" >&2
+                exit 1
+              fi
+              echo "Verifying private key matches certificate (pubkey hash)"
+              openssl pkey -in "$LOCAL_KEY" -pubout -out key_pub.pem >/dev/null 2>&1 || { echo "Unable to read private key $LOCAL_KEY" >&2; exit 1; }
+              openssl x509 -in "$CERT_PEM" -pubkey -noout > cert_pub.pem 2>/dev/null || { echo "Unable to read certificate $CERT_PEM" >&2; exit 1; }
+              KEY_HASH=$(openssl pkey -pubin -in key_pub.pem -outform DER 2>/dev/null | shasum -a 256 | awk '{print $1}')
+              CERT_HASH=$(openssl pkey -pubin -in cert_pub.pem -outform DER 2>/dev/null | shasum -a 256 | awk '{print $1}')
+              if [ -z "$KEY_HASH" ] || [ -z "$CERT_HASH" ] || [ "$KEY_HASH" != "$CERT_HASH" ]; then
+                echo "Private key and certificate do not match" >&2
+                exit 1
+              fi
               echo "Regenerating $LOCAL_P12 with generated password"
-              openssl pkcs12 -export \
-                -inkey "$LOCAL_KEY" \
-                -in "$LOCAL_CERT" \
-                -out "$LOCAL_P12" \
-                -name "Apple Distribution" \
-                -passout pass:"$IOS_CERT_PASSWORD"
+              if ! openssl pkcs12 -export -inkey "$LOCAL_KEY" -in "$CERT_PEM" -out "$LOCAL_P12" -name "Apple Distribution" -passout pass:"$IOS_CERT_PASSWORD"; then
+                echo "Failed to generate PKCS#12. Ensure distribution.cer is valid and matches the private key." >&2
+                exit 1
+              fi
             else
               if [ -f "$LOCAL_P12" ]; then
                 echo "IOS_CERT_PASSWORD secret required to import existing ios-distribution.p12" >&2
@@ -425,13 +447,21 @@ jobs:
             export IOS_CERT_PASSWORD
             echo "Using provided IOS_CERT_PASSWORD secret"
             if [ "$CAN_GENERATE" -eq 1 ]; then
+              echo "Preparing certificate PEM from $LOCAL_CERT"
+              CERT_PEM="distribution.pem"
+              if openssl x509 -in "$LOCAL_CERT" -inform DER -noout >/dev/null 2>&1; then
+                openssl x509 -in "$LOCAL_CERT" -inform DER -out "$CERT_PEM"
+              elif openssl x509 -in "$LOCAL_CERT" -inform PEM -noout >/dev/null 2>&1; then
+                cp "$LOCAL_CERT" "$CERT_PEM"
+              else
+                echo "Unable to parse $LOCAL_CERT as DER or PEM certificate" >&2
+                exit 1
+              fi
               echo "Ensuring $LOCAL_P12 matches provided password"
-              openssl pkcs12 -export \
-                -inkey "$LOCAL_KEY" \
-                -in "$LOCAL_CERT" \
-                -out "$LOCAL_P12" \
-                -name "Apple Distribution" \
-                -passout pass:"$IOS_CERT_PASSWORD"
+              if ! openssl pkcs12 -export -inkey "$LOCAL_KEY" -in "$CERT_PEM" -out "$LOCAL_P12" -name "Apple Distribution" -passout pass:"$IOS_CERT_PASSWORD"; then
+                echo "Failed to generate PKCS#12 with provided password." >&2
+                exit 1
+              fi
             elif [ ! -f "$LOCAL_P12" ]; then
               echo "ios-distribution.p12 not found and cannot regenerate without $LOCAL_CERT and $LOCAL_KEY" >&2
               exit 1
@@ -460,8 +490,21 @@ jobs:
           security create-keychain -p "$IOS_KEYCHAIN_PASSWORD" "$KEYCHAIN"
           security set-keychain-settings -lut 21600 "$KEYCHAIN"
           security unlock-keychain -p "$IOS_KEYCHAIN_PASSWORD" "$KEYCHAIN"
-          security import "$CERT_PATH" -k "$KEYCHAIN" -P "${IOS_CERT_PASSWORD:-}" -T /usr/bin/codesign
-          security list-keychains -s "$KEYCHAIN" $(security list-keychains | sed 's/"//g')
+          # Try importing with provided password; on failure and if no password provided, retry with empty
+          if ! security import "$CERT_PATH" -k "$KEYCHAIN" -P "${IOS_CERT_PASSWORD:-}" -T /usr/bin/codesign -T /usr/bin/security -T /usr/bin/productsign; then
+            if [ -z "${IOS_CERT_PASSWORD:-}" ]; then
+              echo "Retrying import with empty password"
+              security import "$CERT_PATH" -k "$KEYCHAIN" -P "" -T /usr/bin/codesign -T /usr/bin/security -T /usr/bin/productsign
+            else
+              echo "Failed to import PKCS#12 with provided password" >&2
+              exit 1
+            fi
+          fi
+          security list-keychains -s "$KEYCHAIN" $(security list-keychains | sed 's/\"//g')
+          security default-keychain -s "$KEYCHAIN"
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$IOS_KEYCHAIN_PASSWORD" "$KEYCHAIN" >/dev/null
+          echo "Verifying code signing identities in keychain:"
+          security find-identity -v -p codesigning "$KEYCHAIN" || true
 
       - name: Fetch provisioning profile from R2
         env:
