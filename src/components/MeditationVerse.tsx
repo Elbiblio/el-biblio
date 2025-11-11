@@ -136,6 +136,7 @@ const MeditationVerse: React.FC<MeditationVerseProps> = ({ verses, phase, isActi
       setIsSpeaking(true);
       Speech.speak(text, {
         language: 'en-US',
+        rate: isLectioPrayer ? 0.72 : 0.85,
         onDone: () => setIsSpeaking(false),
         onStopped: () => setIsSpeaking(false),
         onError: () => setIsSpeaking(false),
@@ -143,7 +144,7 @@ const MeditationVerse: React.FC<MeditationVerseProps> = ({ verses, phase, isActi
     } catch {
       setIsSpeaking(false);
     }
-  }, [isSpeaking]);
+  }, [isSpeaking, isLectioPrayer]);
 
   useEffect(() => {
     fadeAnim.setValue(0);

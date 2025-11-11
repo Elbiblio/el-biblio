@@ -159,6 +159,7 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
   const progressShared = useSharedValue(0);
   const routeParams = route?.params ?? null;
   const [showDoneOverlay, setShowDoneOverlay] = useState(false);
+  const hasShownCompletionToastRef = useRef(false);
 
   const goToNextChapterGeneric = useCallback(async () => {
     if (!bibleStore.currentBook || !bibleStore.currentVersion) return;
@@ -472,6 +473,8 @@ const planRemainingSeconds = useMemo(() => {
   }, []);
 
   const handleAllPhasesComplete = useCallback(async () => {
+    if (hasShownCompletionToastRef.current) return;
+    hasShownCompletionToastRef.current = true;
     toast.success('Daily reading complete! 🎉');
     try {
       const { sound } = await Audio.Sound.createAsync(require('../../assets/sounds/cheers.mp3'));

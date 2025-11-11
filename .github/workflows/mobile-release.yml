@@ -222,6 +222,27 @@ jobs:
           keyAlias=${ANDROID_KEY_ALIAS}
           keyPassword=${ANDROID_KEY_PASSWORD}
           EOF
+      - name: Verify Android signing config
+        working-directory: android
+        run: |
+          set -euo pipefail
+          echo "Generating Gradle signing report..."
+          chmod +x ./gradlew
+          ./gradlew :app:signingReport --no-daemon
+          REPORT=$(./gradlew :app:signingReport --console=plain --no-daemon | sed -n '/Variant: release/,/Variant:/p')
+          echo "$REPORT"
+          # Fail if debug alias or debug keystore is detected for release variant
+          if echo "$REPORT" | grep -qi 'androiddebugkey'; then
+            echo "::error::Release signing appears to use the debug alias (androiddebugkey)." >&2
+            exit 1
+          fi
+          if echo "$REPORT" | grep -qi 'debug.keystore'; then
+            echo "::error::Release signing appears to use the debug keystore." >&2
+            exit 1
+          fi
+          if ! echo "$REPORT" | grep -qi "Alias name: ${ANDROID_KEY_ALIAS}"; then
+            echo "::warning::Release signing report did not show expected alias ${ANDROID_KEY_ALIAS}. Proceeding, but verify Play Console if issues persist." >&2
+          fi
       - name: Build Android artifacts
         working-directory: android
         run: |

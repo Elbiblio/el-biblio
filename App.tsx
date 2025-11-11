@@ -318,6 +318,11 @@ const AppContent = () => {
       setPointsQueue(prev => [...prev, { points, title }]);
       // If nothing showing, trigger visibility
       setIsPointsVisible(v => v || true);
+      // Update user's points total so UI (e.g., HomeScreen header) reflects changes
+      // Note: updateUserPoints preserves legacy server semantics (additive)
+      if (authStoreObj?.user?.id) {
+        authStoreObj.updateUserPoints(points).catch(() => undefined);
+      }
     });
     return () => { unsubscribe(); };
   }, []);

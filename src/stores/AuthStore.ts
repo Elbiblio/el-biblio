@@ -245,16 +245,37 @@ export class AuthStore {
         user?: User;
       }>(endpoints.auth.signup, data);
 
-      if (!response.success || !response.data?.token || !response.data?.user) {
+      if (!response.success) {
         throw new Error(response.message || 'Sign up failed');
       }
 
-      runInAction(() => {
-        this.setToken(response.data!.token!);
-        this.setUser(response.data!.user!);
-      });
+      if (response.data?.token && response.data?.user) {
+        runInAction(() => {
+          this.setToken(response.data!.token!);
+          this.setUser(response.data!.user!);
+        });
+        return true;
+      }
 
-      return true;
+      const email = (data as any).email;
+      const password = (data as any).password;
+      if (!email || !password) {
+        throw new Error('Account created, but automatic sign-in failed. Please sign in.');
+      }
+
+      const maxLoginAttempts = 2;
+      for (let attempt = 1; attempt <= maxLoginAttempts; attempt++) {
+        if (attempt > 1) {
+          const delay = 400 * Math.pow(2, attempt - 2);
+          await this.wait(delay);
+        }
+        const loggedIn = await this.login(email, password);
+        if (loggedIn) {
+          return true;
+        }
+      }
+
+      throw new Error('Account created, but automatic sign-in failed. Please sign in.');
     } catch (error) {
       this.handleAuthError(error);
       return false;

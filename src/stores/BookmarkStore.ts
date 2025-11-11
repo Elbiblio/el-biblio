@@ -50,8 +50,14 @@ export class BookmarkStore {
     try {
       this.setLoading(true);
       this.setError(null);
-      
-      const response = await apiClient.get<PaginatedResponse<Bookmark>>(endpoints.bookmarks.list, params);
+      // Ensure we request necessary relations for reflections to display properly
+      const mergedParams = {
+        include: Array.from(new Set([...(params?.include || []), 'bookmarkable', 'bookmarkable.user', 'bookmarkable.author'])),
+        sort: params?.sort,
+        per_page: params?.per_page,
+        page: params?.page,
+      };
+      const response = await apiClient.get<PaginatedResponse<Bookmark>>(endpoints.bookmarks.list, mergedParams as any);
       if (!response || !response.success || !response.data) {
         const errMsg = response?.message || 'Failed to fetch bookmarks';
         const err: any = new Error(errMsg);
@@ -61,7 +67,25 @@ export class BookmarkStore {
       }
       
       runInAction(() => {
-        this.state.bookmarks = Array.isArray(response.data.data) ? response.data.data : [];
+        const rows = Array.isArray(response.data.data) ? response.data.data : [];
+        // Normalize shape for UI assumptions
+        const normalized = rows.map((b: any) => {
+          const bb = { ...b } as Bookmark & { [k: string]: any };
+          const bm = bb.bookmarkable as any;
+          if (bm && !bm.author && bm.user) {
+            bm.author = bm.user;
+          }
+          if (bm && typeof bm.type === 'string') {
+            const t = bm.type;
+            if (t.includes('Reflection')) bm.type = 'reflection';
+            else if (t.includes('Verse')) bm.type = 'verse';
+            else if (t.includes('Note')) bm.type = 'note';
+            else if (t.includes('Clip')) bm.type = 'clip';
+          }
+          bb.bookmarkable = bm;
+          return bb as Bookmark;
+        });
+        this.state.bookmarks = normalized;
       });
       
       await this.saveToStorage();

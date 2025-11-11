@@ -53,7 +53,7 @@ export const contemplativePractices: ContemplativePractice[] = [
       'Practicing gentle surrender when distractions appear'
     ],
     guidance: [
-      'Set a timer for 5–20 minutes based on your capacity.',
+      'Let your sacred word anchor your attitude and attention.',
       'Gently repeat your sacred word whenever you notice your attention drifting.',
       'Close with gratitude, acknowledging any subtle movements of the heart.'
     ],
@@ -62,7 +62,7 @@ export const contemplativePractices: ContemplativePractice[] = [
   {
     id: 'silent-communion',
     name: 'Silent Communion',
-    description: 'Sit in receptive stillness, imagining yourself with Jesus and allowing quiet communion to deepen trust.',
+    description: 'Sit in receptive stillness, imagine yourself with Jesus. Allow quiet communion to deepen your trust.',
     focus: [
       'Imagining the nearness of Jesus',
       'Letting silence soften restless thoughts',

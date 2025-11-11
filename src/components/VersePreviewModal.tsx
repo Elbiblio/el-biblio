@@ -127,10 +127,25 @@ const VersePreviewModal: React.FC<VersePreviewModalProps> = ({ verse, onClose, o
           bookmarkable_type: 'App\\Models\\Verse',
           bookmarkable_id: verse.id,
         });
-        if (ok) toast.success('Verse bookmarked'); else toast.error('Failed to bookmark verse');
+        if (ok) {
+          toast.success('Verse bookmarked');
+        } else {
+          const key = `App\\Models\\Verse_${verse.id}`;
+          const exists = useVerseStore().state.bookmarks.has(key);
+          if (exists) {
+            toast.info('Verse already bookmarked');
+          } else {
+            toast.error('Failed to bookmark');
+          }
+        }
       }
-    } catch {
-      toast.error('Failed to update bookmark');
+    } catch (error: any) {
+      const status = error?.status || error?.response?.status;
+      if (status === 409) {
+        toast.info('Verse already bookmarked');
+      } else {
+        toast.error('Failed to update bookmark');
+      }
     }
   };
 

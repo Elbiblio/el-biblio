@@ -49,7 +49,7 @@ const MODE_CONFIG = {
     id: 'lectio_divina',
     label: 'Divine Readings (Lectio Divina)',
     description: 'Move through reading, meditation, prayer, and contemplation.',
-    weights: [4, 4, 3, 4],
+    weights: [4, 4, 2, 2],
     phaseLabels: ['Reading', 'Meditation', 'Prayer', 'Contemplation'],
     phaseIds: ['reading', 'meditation', 'prayer', 'contemplation'],
     hints: [

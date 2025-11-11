@@ -177,15 +177,28 @@ export class ReflectionStore {
       const response = await apiClient.get<Reflection>(endpoints.reflections.show(id), {
         include: ['user', 'verse', 'comments.user', 'comments.replies.user'],
       });
+      if (!response || !response.success || !response.data) {
+        const err: any = new Error(response?.message || 'Failed to fetch reflection');
+        err.status = (response as any)?.status; err.response = response as any; throw err;
+      }
+
+      const base: any = response.data || {};
+      const normalized: Reflection = {
+        ...base,
+        comments: Array.isArray(base.comments) ? base.comments : [],
+        likes: typeof base.likes === 'number' ? base.likes : 0,
+        shares: typeof base.shares === 'number' ? base.shares : 0,
+        isLiked: Boolean(base.isLiked),
+      } as Reflection;
 
       runInAction(() => {
-        this.state.currentReflection = response.data;
+        this.state.currentReflection = normalized;
         this.state.isReflectionLoading = false;
       });
       
       await this.saveToStorage();
 
-      return response.data;
+      return normalized;
     } catch (error: any) {
       console.error('Error fetching reflection:', error);
       runInAction(() => {
@@ -392,8 +405,14 @@ export class ReflectionStore {
         page,
         sort: '-created_at',
       });
+      if (!response || !response.success || !response.data) {
+        const err: any = new Error(response?.message || 'Failed to fetch comments');
+        err.status = (response as any)?.status; err.response = response as any; throw err;
+      }
 
-      const { data, meta } = response.data;
+      const payload = response.data;
+      const data = Array.isArray(payload.data) ? payload.data : [];
+      const meta = payload.meta || { current_page: page, last_page: page, per_page: 20, total: data.length };
 
       runInAction(() => {
         this.state.comments = page === 1 ? data : [...this.state.comments, ...data];

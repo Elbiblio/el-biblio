@@ -467,13 +467,14 @@ export class VerseStore {
 
       // Update local verse state
       runInAction(() => {
+        const updater = (v: Verse) => v.id === verseId ? { ...v, likes: v.likes + 1, isLiked: true } : v;
+        this.state.dailyVerses = this.state.dailyVerses.map(updater);
+        this.state.trendingVerses = this.state.trendingVerses.map(updater);
+        this.state.featuredVerses = this.state.featuredVerses.map(updater);
         if (this.state.currentVerse?.id === verseId) {
-          this.state.currentVerse = {
-            ...this.state.currentVerse,
-            likes: this.state.currentVerse.likes + 1,
-            isLiked: true
-          };
+          this.state.currentVerse = updater(this.state.currentVerse);
         }
+        this.state.lastUpdate = new Date();
       });
       
       await this.saveToStorage();

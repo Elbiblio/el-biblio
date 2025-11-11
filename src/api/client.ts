@@ -158,6 +158,12 @@ api.interceptors.response.use(
   (response) => {
     const transformed = transformResponse(response);
     try {
+      // Suppress duplicate points emission for game score submissions since
+      // GameStore.submitScore already emits optimistically for improvements.
+      const url = String(response?.config?.url || '');
+      if (url.endsWith('/game/scores')) {
+        return transformed;
+      }
       const headerPoints = Number(response.headers?.['x-points-earned'] || response.headers?.['X-Points-Earned']);
       const body: any = transformed.data;
       const directPoints = Number((body?.data as any)?.points_earned ?? body?.points_earned);

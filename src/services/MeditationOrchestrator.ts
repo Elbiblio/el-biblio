@@ -51,6 +51,7 @@ const BREATH_DURATIONS = {
 export class MeditationOrchestrator {
   private getConfig: OrchestratorOptions['getConfig'];
   private callbacks: OrchestratorCallbacks;
+  private sessionCfg: ReturnType<GetConfig> | null = null;
 
   // Timers - consolidated
   private mainInterval: number | null = null;
@@ -91,6 +92,33 @@ export class MeditationOrchestrator {
     this.callbacks = opts.callbacks;
   }
 
+  private estimateSpeechSeconds(text: string, rate = 0.85) {
+    const words = (text || '').trim().split(/\s+/).filter(Boolean).length;
+    const wordsPerSecondAtRate1 = 2.0; // ~120 wpm conservative for contemplative pace
+    const wps = Math.max(0.8, wordsPerSecondAtRate1 * rate);
+    return words > 0 ? words / wps : 0;
+  }
+
+  private getClosingLeadSeconds(style: 'parable' | 'virtue' | 'centering' | 'jesus_prayer' | 'chant', challenge: Challenge | null) {
+    const rate = style === 'parable' ? 0.72 : 0.85;
+    const betweenPause = 0.6;
+    const initialDelay = 0.5; // setTimeout used in challenge announcement
+    let challengeSeconds = 0;
+    if (challenge) {
+      challengeSeconds = this.estimateSpeechSeconds('Your challenge is:', rate)
+        + betweenPause
+        + this.estimateSpeechSeconds(challenge.title || '', rate)
+        + betweenPause
+        + this.estimateSpeechSeconds(challenge.description || '', rate)
+        + initialDelay;
+    }
+    const countdown = 3;
+    const outro = 1.4; // 'Open your eyes'
+    const buffer = 1.0;
+    const lead = Math.ceil(challengeSeconds + countdown + outro + buffer);
+    return Math.min(30, Math.max(7, lead));
+  }
+
   private logDebug(...args: any[]) {
     if ((typeof __DEV__ !== 'undefined' && __DEV__) || (typeof process !== 'undefined' && process.env?.NODE_ENV === 'development')) {
       // eslint-disable-next-line no-console
@@ -99,7 +127,7 @@ export class MeditationOrchestrator {
   }
 
   private timeLeftSeconds(): number {
-    const cfg = this.getConfig();
+    const cfg = this.cfg();
     const now = Date.now();
     const elapsedMs = this.accumulatedMs + (this.activeStartMs ? (now - this.activeStartMs) : 0);
     const t = Math.max(0, Math.floor(elapsedMs / 1000));
@@ -117,6 +145,7 @@ export class MeditationOrchestrator {
     this.reset();
 
     const cfg = this.getConfig();
+    this.sessionCfg = { ...cfg };
 
     // Start background audio for non-chant modes
     if (cfg.selectedStyle !== 'chant') {
@@ -236,7 +265,7 @@ export class MeditationOrchestrator {
     this.paused = false;
     this.activeStartMs = Date.now();
 
-    const cfg = this.getConfig();
+    const cfg = this.cfg();
     
     // Resume background audio for non-chant
     if (cfg.selectedStyle !== 'chant') {
@@ -277,6 +306,7 @@ export class MeditationOrchestrator {
     this.started = false;
     this.paused = false;
     this.currentGuide = null;
+    this.sessionCfg = null;
   }
 
   isStarted(): boolean {
@@ -463,7 +493,7 @@ export class MeditationOrchestrator {
   }
 
   private getBackgroundChannel(): 'meditation' | 'heartbeat' | null {
-    const s = this.getConfig().selectedBackgroundSound;
+    const s = this.cfg().selectedBackgroundSound;
     if (s === 'ambient') return 'meditation';
     if (s === 'heartbeat') return 'heartbeat';
     return null;
@@ -493,7 +523,7 @@ export class MeditationOrchestrator {
   }
 
   private buildAndEmitGuide() {
-    const cfg = this.getConfig();
+    const cfg = this.cfg();
     const guide = MeditationOrchestrator.buildGuide({
       selectedStyle: cfg.selectedStyle,
       selectedMinutes: cfg.selectedMinutes,
@@ -513,7 +543,7 @@ export class MeditationOrchestrator {
     const guide = this.currentGuide;
     if (!guide) return;
 
-    const cfg = this.getConfig();
+    const cfg = this.cfg();
     const wait = (ms: number) => new Promise<void>(r => setTimeout(r, ms));
 
     // Chant: minimal intro
@@ -579,7 +609,7 @@ export class MeditationOrchestrator {
     this.introDone = true;
     this.callbacks.onIntroComplete?.();
 
-    const cfg = this.getConfig();
+    const cfg = this.cfg();
     
     // Start centering interval
     if (cfg.selectedStyle === 'centering') {
@@ -608,7 +638,7 @@ export class MeditationOrchestrator {
     const prompt = prompts[index] || prompts[0];
     if (!prompt) return;
 
-    const cfg = this.getConfig();
+    const cfg = this.cfg();
     const rate = cfg.selectedStyle === 'parable' ? 0.72 : 0.85;
     if (index === 0) {
       await this.speakWithDuck(prompt, rate);
@@ -631,7 +661,7 @@ export class MeditationOrchestrator {
     const now = Date.now();
     if (this.activeStartMs === 0) this.activeStartMs = now;
 
-    const cfg = this.getConfig();
+    const cfg = this.cfg();
     const { selectedStyle, promptInterval, totalMeditationSeconds, selectedChallenge } = cfg;
 
     const elapsedMs = this.accumulatedMs + (now - this.activeStartMs);
@@ -736,8 +766,6 @@ export class MeditationOrchestrator {
           .catch(() => {});
       }, 500);
     }
-
-    this.startFinalCountdown();
   }
 
   private startFinalCountdown() {
@@ -806,6 +834,10 @@ export class MeditationOrchestrator {
     }
   }
 
+  private cfg() {
+    return this.sessionCfg ?? this.getConfig();
+  }
+
   private clearClosingWatchdog() {
     if (this.closingWatchdogTimer) {
       clearTimeout(this.closingWatchdogTimer);
@@ -824,7 +856,7 @@ export class MeditationOrchestrator {
       }
 
       try {
-        const cfg = this.getConfig();
+        const cfg = this.cfg();
         const remaining = this.timeLeftSeconds();
         this.ensureClosingWindow(remaining, cfg.selectedStyle, cfg.selectedChallenge);
       } catch (error) {
@@ -840,13 +872,14 @@ export class MeditationOrchestrator {
   }
 
   private ensureClosingWindow(timeLeft: number, style: 'parable' | 'virtue' | 'centering' | 'jesus_prayer' | 'chant', challenge: Challenge | null) {
-    if (!this.closingStarted && timeLeft <= 30 && timeLeft > 0) {
+    const closingLead = this.getClosingLeadSeconds(style, challenge);
+    if (!this.closingStarted && timeLeft <= Math.max(10, closingLead) && timeLeft > 0) {
       this.closingStarted = true;
       this.logDebug('Triggering closing sequence', { timeLeft });
       this.beginClosingSequence(style);
     }
 
-    if (!this.challengeSpoken && timeLeft <= 30 && timeLeft > 3) {
+    if (!this.challengeSpoken && timeLeft <= closingLead && timeLeft > 3) {
       this.logDebug('Announcing closing challenge', { timeLeft });
       this.handleChallengeAnnouncement(style, challenge);
     }
@@ -857,13 +890,15 @@ export class MeditationOrchestrator {
     }
 
     if (!this.sessionCompleted && timeLeft <= 0) {
-      this.logDebug('Ensuring session complete', { timeLeft });
-      this.handleSessionComplete();
+      if (!this.finalCountdownStarted) {
+        this.logDebug('Time elapsed; enforcing final countdown before completion', { timeLeft });
+        this.startFinalCountdown();
+      }
     }
   }
 
   private startCenteringInterval() {
-    const { centeringWord, centeringReadMode, centeringRepeatIntervalSec } = this.getConfig();
+    const { centeringWord, centeringReadMode, centeringRepeatIntervalSec } = this.cfg();
     const intervalMs = Math.max(30, Math.min(60, centeringRepeatIntervalSec)) * 1000;
 
     this.centeringInterval = setInterval(() => {
@@ -881,7 +916,7 @@ export class MeditationOrchestrator {
   private startBreathingLoop() {
     this.stopBreathingLoop();
 
-    const cfg = this.getConfig();
+    const cfg = this.cfg();
     const pace = cfg.jesusPrayerPace || 'medium';
     const P = BREATH_DURATIONS[pace];
     const phases: Array<'in' | 'hold' | 'out'> = ['in', 'hold', 'out'];

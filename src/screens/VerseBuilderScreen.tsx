@@ -150,7 +150,7 @@ const VerseBuilderScreen = observer(() => {
   const timeoutPlayedRef = useRef(false);
   const timerIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const play = useCallback(async (name: 'tickTock' | 'timeout' | 'correct' | 'streak' | 'retry' | 'cheers' | 'powerup' | 'levelup' | 'ding') => {
+  const play = useCallback(async (name: 'tickTock' | 'timeout' | 'correct' | 'streak' | 'retry' | 'cheers' | 'powerup' | 'levelup' | 'ding' | 'successBell') => {
     await playCue(name as any);
   }, []);
 
@@ -502,7 +502,7 @@ const VerseBuilderScreen = observer(() => {
       withTiming(1, { duration: 100 })
     );
     // Correct path: add 1s grace time to keep round flowing
-    play('ding');
+    play('successBell');
     verseBuilderStore.addGraceTime?.(1);
     selectWordFromPool(word);
     return true;

@@ -49,6 +49,7 @@ import CommentsOverlay from '@/components/CommentsOverlay';
 import { Theme } from '@/theme';
 import { SCREEN_DIMENSIONS } from '@/constants';
 import { useVerseStore, useAuthStore } from '@/stores/StoreProvider';
+import { useGuestRestrictions } from '@/hooks/useGuestRestrictions';
 import { useBibleStore } from '@/stores/BibleStore';
 import { apiClient, endpoints } from '@/api/client';
 import * as Clipboard from 'expo-clipboard';
@@ -65,6 +66,7 @@ const VerseDetail = ({ navigation, route }: VerseDetailProps) => {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const { user } = useAuthStore();
+  const { isGuest, restrictions } = useGuestRestrictions();
   const styles = React.useMemo(() => createStyles(theme, insets.bottom), [theme, insets.bottom]);
   const learnContext = route.params?.learnContext;
 
@@ -341,16 +343,14 @@ const VerseDetail = ({ navigation, route }: VerseDetailProps) => {
       toast.info('Please log in to like verses');
       return;
     }
-    
     try {
-      await createInteraction({
-        interactable_id: currentVerse.id,
-        interactable_type: 'App\\Models\\Verse',
-        type: 1, // Like
-        user_id: user.id
-      });
-      toast.success(currentVerse.isLiked ? 'Verse unliked' : 'Verse liked');
-    } catch (error) {
+      const ok = await likeVerse(currentVerse.id);
+      if (ok) {
+        toast.success('Verse liked');
+      } else {
+        toast.warning('Failed to like verse');
+      }
+    } catch {
       toast.warning('Failed to like verse');
     }
   };
@@ -372,10 +372,26 @@ const VerseDetail = ({ navigation, route }: VerseDetailProps) => {
           bookmarkable_id: currentVerse.id,
           clip_text: clipText
         });
-        if (ok) toast.success('Verse bookmarked'); else toast.error('Failed to bookmark verse');
+        if (ok) {
+          toast.success('Verse bookmarked');
+        } else {
+          // Try to distinguish duplicate vs other errors via server state
+          const key = `App\\Models\\Verse_${currentVerse.id}`;
+          const exists = useVerseStore().state.bookmarks.has(key);
+          if (exists) {
+            toast.info('Verse already bookmarked');
+          } else {
+            toast.error('Failed to bookmark');
+          }
+        }
       }
-    } catch (error) {      
-      toast.error('Failed to bookmark verse');
+    } catch (error: any) {      
+      const status = error?.status || error?.response?.status;
+      if (status === 409) {
+        toast.info('Verse already bookmarked');
+      } else {
+        toast.error('Failed to bookmark');
+      }
     }
   };
 
@@ -496,13 +512,27 @@ const VerseDetail = ({ navigation, route }: VerseDetailProps) => {
       const existing = await Camera.getCameraPermissionsAsync();
       if (existing.status === 'granted') {
         setHasCameraPermission(true);
+        // Also ensure microphone permission for video recording
+        const mic = await Camera.getMicrophonePermissionsAsync();
+        if (mic.status !== 'granted') {
+          const micRes = await Camera.requestMicrophonePermissionsAsync();
+          if (micRes.status !== 'granted') {
+            toast.error('Microphone permission is required for Face2Face');
+            return false;
+          }
+        }
         return true;
       }
       const res = await Camera.requestCameraPermissionsAsync();
       const granted = res.status === 'granted';
       setHasCameraPermission(granted);
       if (!granted) toast.error('Camera permission is required for Face2Face');
-      return granted;
+      if (!granted) return false;
+      // Request microphone permission after camera
+      const micRes = await Camera.requestMicrophonePermissionsAsync();
+      const micGranted = micRes.status === 'granted';
+      if (!micGranted) toast.error('Microphone permission is required for Face2Face');
+      return micGranted;
     } catch {
       toast.error('Unable to check camera permission');
       return false;
@@ -510,6 +540,10 @@ const VerseDetail = ({ navigation, route }: VerseDetailProps) => {
   };
 
   const openFace2Face = async () => {
+    if (isGuest || !restrictions.canComment) {
+      toast.info('Please create an account to share Face2Face reflections');
+      return;
+    }
     if (!(await ensureCameraPermission())) return;
     setShowFace2Face(true);
   };

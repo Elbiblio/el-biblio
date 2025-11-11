@@ -1060,6 +1060,9 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
   const handleQuickActionPress = (route: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     if (!user && route !== 'BibleScreen') {
+      if (route === 'CommunityScreen') {
+        toast.info('Create a free account to access Community features.');
+      }
       setShowAuthModal(true);
       return;
     }
@@ -1588,7 +1591,14 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
             <View style={styles.statItem}>
               <BookmarkSimple size={16} color={theme?.colors.secondary} />
               <Text style={styles.statText}>
-                {verse.likes || 0} Saves
+                {(() => {
+                  try {
+                    const key = `App\\Models\\Verse_${verse.id}`;
+                    return verseStore.state.bookmarks.has(key) ? 1 : 0;
+                  } catch {
+                    return 0;
+                  }
+                })()} Saves
               </Text>
             </View>
           </View>
