@@ -137,8 +137,8 @@ jobs:
             if keytool -list -keystore "$KEYSTORE_PATH" -storepass "${{ secrets.ANDROID_KEYSTORE_PASSWORD }}" > /dev/null 2>&1; then
               echo "Keystore verification successful"
             else
-              echo "Keystore verification failed, will regenerate"
-              rm -f "$KEYSTORE_PATH"
+              echo "Keystore verification failed. Refusing to overwrite existing keystore in R2. Please verify ANDROID_KEYSTORE_PASSWORD/ANDROID_KEY_PASSWORD secrets or the keystore integrity. Aborting."
+              exit 1
             fi
           fi
 
@@ -154,9 +154,13 @@ jobs:
               -keypass "${{ secrets.ANDROID_KEY_PASSWORD }}" \
               -dname "CN=Elbiblio, OU=Mobile, O=Elbiblio, L=Unknown, S=Unknown, C=US"
 
-            echo "Uploading new keystore to R2..."
-            aws s3 cp "$KEYSTORE_PATH" "$R2_KEYSTORE_PATH" --endpoint-url="$R2_ENDPOINT"
-            echo "Keystore uploaded to R2 successfully"
+            echo "Attempting to upload new keystore to R2 (no overwrite)..."
+            if aws s3 ls "$R2_KEYSTORE_PATH" --endpoint-url="$R2_ENDPOINT" > /dev/null 2>&1; then
+              echo "A keystore already exists at $R2_KEYSTORE_PATH. Skipping upload to avoid overwrite."
+            else
+              aws s3 cp "$KEYSTORE_PATH" "$R2_KEYSTORE_PATH" --endpoint-url="$R2_ENDPOINT"
+              echo "Keystore uploaded to R2 successfully"
+            fi
           fi
 
           echo "Final keystore verification..."
