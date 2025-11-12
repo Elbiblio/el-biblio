@@ -744,6 +744,8 @@ const handleCompleteSegment = useCallback(async () => {
 
   const routeVerseParam = routeParams?.verse;
 
+  
+
   useEffect(() => {
     if (!bibleStore.readingPlan) {
       setBuilderReminder('');
@@ -905,6 +907,39 @@ const handleCompleteSegment = useCallback(async () => {
       scrollToVerse(pendingScrollVerseRef.current);
     }
   }, [bibleStore.verses, scrollToVerse]);
+
+  // When entering scoped mode, also ensure the underlying chapter is prepared
+  useEffect(() => {
+    if (!routeParams || routeParams.mode !== 'scoped') return;
+    const { book, chapter, verse, version } = routeParams;
+    // Optionally switch version if provided
+    if (version && bibleStore.availableVersions?.length) {
+      const nextVersion = bibleStore.availableVersions.find(v => v.shortName.toLowerCase() === String(version).toLowerCase());
+      if (nextVersion && (!bibleStore.currentVersion || bibleStore.currentVersion.shortName !== nextVersion.shortName)) {
+        bibleStore.setCurrentVersion(nextVersion);
+      }
+    }
+
+    if (book) {
+      const foundBook = bibleBooks.find((b: Book) => b.name.toLowerCase() === book.toLowerCase() || b.abbreviation.toLowerCase() === book.toLowerCase());
+      if (foundBook) {
+        if (!bibleStore.currentBook || bibleStore.currentBook.abbreviation !== foundBook.abbreviation) {
+          bibleStore.setCurrentBook(foundBook);
+        }
+        if (chapter && bibleStore.currentChapter !== chapter) {
+          bibleStore.setCurrentChapter(Math.min(chapter, foundBook.chapters));
+        }
+      }
+    } else if (chapter && bibleStore.currentBook) {
+      if (bibleStore.currentChapter !== chapter) {
+        bibleStore.setCurrentChapter(Math.min(chapter, bibleStore.currentBook.chapters));
+      }
+    }
+
+    if (verse != null) {
+      scrollToVerse(verse);
+    }
+  }, [routeParams?.mode, routeParams?.book, routeParams?.chapter, routeParams?.verse, routeParams?.version, bibleStore.availableVersions, bibleStore.currentVersion, bibleStore.currentBook, bibleStore.currentChapter, scrollToVerse]);
 
   // Update offline status in Bible store
   useEffect(() => {

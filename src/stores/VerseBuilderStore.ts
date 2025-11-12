@@ -362,10 +362,8 @@ export class VerseBuilderStore {
       expert: 8,
     };
     const base = baselineByLevel[level] ?? 30;
-    // Streak influence: >=20 -> 30% reduction, >=10 -> 20% reduction
-    let influenced = base;
-    if (this.state.streak >= 20) influenced = Math.floor(base * 0.7);
-    else if (this.state.streak >= 10) influenced = Math.floor(base * 0.8);
+    const stepsOfFive = Math.floor(this.state.streak / 5);
+    const influenced = base - stepsOfFive;
     return Math.max(MIN_TIME, influenced);
   }
 

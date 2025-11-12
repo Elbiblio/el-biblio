@@ -59,14 +59,14 @@ const SVG_COMPONENTS: Record<string, React.ComponentType<any>> = {
   mask: Mask,
 };
 
-// Add DOM type definitions
-interface DOMElement extends Element {
+// Add DOM type definitions (minimal shape, do not extend lib.dom Element to avoid conflicts)
+interface DOMElement {
   tagName: string;
   getAttribute: (name: string) => string | null;
   attributes: NamedNodeMap;
-  children: HTMLCollection;
-  getElementsByTagName: (tagName: string) => HTMLCollectionOf<Element>;
-  textContent: string | null;
+  children: HTMLCollectionOfDOMElements;
+  getElementsByTagName: (tagName: string) => HTMLCollectionOfDOMElements;
+  textContent: string;
   id: string;
 }
 
@@ -135,7 +135,7 @@ const AdvancedSvgUri: React.FC<SvgUriProps> = ({
   }, [parseCssText]);
 
   const processStyles = useCallback((
-    element: Element,
+    element: DOMElement,
     styleDefinitions: StyleDefinition[]
   ): Record<string, any> => {
     const styles: Record<string, any> = {};
@@ -280,20 +280,23 @@ const AdvancedSvgUri: React.FC<SvgUriProps> = ({
     // Parse styles from defs
     const styleElements = Array.from(doc.getElementsByTagName('style'));
     const styleDefinitions: StyleDefinition[] = styleElements
-      .map(style => parseStylesheet((style as DOMElement).textContent || ''))
+      .map(style => parseStylesheet(((style as unknown) as DOMElement).textContent || ''))
       .flat();
 
     // Parse defs
     const defs: ParsedDef[] = Array.from(svgElement.getElementsByTagName('defs'))
-      .map(def => Array.from((def as DOMElement).children)
-        .map((child: Element) => ({
-          type: (child as DOMElement).tagName.toLowerCase() as ParsedDef['type'],
-          id: (child as DOMElement).id,
-          content: (child as DOMElement).textContent || '',
-          elements: Array.from((child as DOMElement).children).map(el => 
-            parseElement(el as DOMElement, styleDefinitions)
-          )
-        }))
+      .map(def => Array.from(((def as unknown) as DOMElement).children)
+        .map(child => {
+          const dChild = (child as unknown) as DOMElement;
+          return {
+            type: dChild.tagName.toLowerCase() as ParsedDef['type'],
+            id: dChild.id,
+            content: dChild.textContent || '',
+            elements: Array.from(dChild.children).map(el => 
+              parseElement((el as unknown) as DOMElement, styleDefinitions)
+            )
+          };
+        })
       ).flat();
 
     return {
@@ -301,8 +304,8 @@ const AdvancedSvgUri: React.FC<SvgUriProps> = ({
       width: svgElement.getAttribute('width') || '',
       height: svgElement.getAttribute('height') || '',
       elements: Array.from(svgElement.children)
-        .filter(child => (child as DOMElement).tagName.toLowerCase() !== 'defs')
-        .map(child => parseElement(child as DOMElement, styleDefinitions)),
+        .filter(child => ((child as unknown) as DOMElement).tagName.toLowerCase() !== 'defs')
+        .map(child => parseElement(((child as unknown) as DOMElement), styleDefinitions)),
       defs
     };
   }, [parseElement, parseStylesheet]);

@@ -78,6 +78,9 @@ const VerseDetail = ({ navigation, route }: VerseDetailProps) => {
         scopedTitle: learnContext.scopedTitle ?? currentVerse.context_reference ?? currentVerse.reference_display,
         scopedSubtitle: learnContext.scopedSubtitle ?? currentVerse.translation,
         scopedVerses: learnContext.scopedVerses || null,
+        book: (currentVerse as any).book || undefined,
+        chapter: (currentVerse as any).chapter || undefined,
+        verse: (currentVerse as any).verse || undefined,
       });
       setShowLearnMore(false);
       return;
@@ -99,7 +102,8 @@ const VerseDetail = ({ navigation, route }: VerseDetailProps) => {
     createInteraction,
     createReflection,
     createBookmark,
-    removeBookmark
+    removeBookmark,
+    likeVerse
   } = useVerseStore();
 
   // Local state

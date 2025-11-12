@@ -189,15 +189,8 @@ export class MeditationOrchestrator {
 
   startCountdown(startFrom = 5) {
     this.clearTimer('countdown');
-    
+
     let n = Math.max(0, Math.floor(startFrom));
-    
-    // Emit immediately
-    this.callbacks.onCountdownTick?.(n);
-    if (n > 0) {
-      playCue('tickTock');
-      queueSpeak(`${n}`, 0.8).catch(() => {});
-    }
 
     const cfg = this.getConfig();
     if (cfg.selectedStyle === 'chant') {
@@ -219,17 +212,21 @@ export class MeditationOrchestrator {
       }
     }
 
-    this.countdownInterval = setInterval(() => {
-      n = Math.max(0, n - 1);
-      this.callbacks.onCountdownTick?.(n);
-      
-      if (n > 0) {
-        playCue('tickTock');
-        queueSpeak(`${n}`, 0.8).catch(() => {});
+    const step = async (current: number) => {
+      this.callbacks.onCountdownTick?.(current);
+      if (current > 0) {
+        try { playCue('tickTock'); } catch {}
+        try { await queueSpeak(`${current}`, 0.8); } catch {}
+        this.clearTimer('countdown');
+        this.countdownInterval = setTimeout(() => {
+          void step(Math.max(0, current - 1));
+        }, 0) as unknown as number;
       } else {
         this.clearTimer('countdown');
       }
-    }, 1000) as unknown as number;
+    };
+
+    void step(n);
   }
 
   pause() {
@@ -786,10 +783,13 @@ export class MeditationOrchestrator {
 
     let n = 3;
     this.clearFinalCountdown();
-    this.finalCountdownTimer = setInterval(() => {
+
+    const step = async () => {
       if (n > 0) {
-        this.speakWithDuck(`${n}`, 0.9).catch(() => {});
+        try { await this.speakWithDuck(`${n}`, 0.9); } catch {}
         n -= 1;
+        this.clearFinalCountdown();
+        this.finalCountdownTimer = setTimeout(() => { void step(); }, 0) as unknown as number;
       } else {
         if (!this.sessionCompleted) {
           this.logDebug('Final countdown reached zero – forcing completion');
@@ -798,7 +798,9 @@ export class MeditationOrchestrator {
           this.clearFinalCountdown();
         }
       }
-    }, 1000) as unknown as number;
+    };
+
+    void step();
   }
 
   private handleSessionComplete() {

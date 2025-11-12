@@ -32,6 +32,7 @@ import { useBibleStore } from '@/stores/BibleStore';
 import * as Haptics from 'expo-haptics';
 import { useKeepAwake } from 'expo-keep-awake';
 import { playMusic, stopMusic, preloadMusicCue } from '@/services/audio';
+import { clearSpeechQueue } from '@/services/AudioCoordinator';
 import { MeditationOrchestrator } from '@/services/MeditationOrchestrator';
 import type { MeditationGuide as OrchestratorMeditationGuide } from '@/services/MeditationOrchestrator';
 import { getChantById } from '@/data/chantTracks';
@@ -341,6 +342,18 @@ const MeditationScreen = () => {
       congratulatedRef.current = false;
     }
   }, [meditationState, user?.id]);
+
+  // Hard-stop any residual prompts/audio on completion
+  useEffect(() => {
+    if (meditationState === MeditationState.COMPLETE) {
+      try { orchestratorRef.current?.stop(); } catch {}
+      orchestratorRef.current = null;
+      try { Speech.stop(); } catch {}
+      try { clearSpeechQueue(); } catch {}
+      try { stopMusic('meditation'); } catch {}
+      try { stopMusic('heartbeat'); } catch {}
+    }
+  }, [meditationState]);
 
   // Reset session state when leaving active
   useEffect(() => {

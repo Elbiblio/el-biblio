@@ -59,7 +59,8 @@ import ChallengeCompletionBanner from './src/components/ChallengeCompletionBanne
 import type { Challenge } from './src/types/challenges';
 import { registerChallengeReminderTask } from './src/tasks/challengeReminderTask';
 import { initAudio } from './src/services/audio';
-import { usePreferencesStore, useChallengeStore } from './src/stores/StoreProvider';
+import { usePreferencesStore, useChallengeStore, useGameStore, useLeaderboardStore } from './src/stores/StoreProvider';
+import { getNextUnlock } from './src/utils/gameUnlocks';
 import { syncDailyNuggets, setDailyNuggetStores } from './src/tasks/dailyNuggetOrchestrator';
 import { checkForAppUpdate } from './src/services/appUpdate';
 
@@ -196,7 +197,10 @@ const AppContent = () => {
   const authStoreObj = useAuthStore();
   const preferencesStore = usePreferencesStore();
   const challengeStore = useChallengeStore();
+  const gameStore = useGameStore();
+  const leaderboardStore = useLeaderboardStore();
   const { hasCompletedWelcome, initializeWelcomeState } = appStore;
+  const [suppressGenericPointsUntil, setSuppressGenericPointsUntil] = useState<number | null>(null);
   
   // Debug: log gate values to diagnose splash/blank screen issues
   React.useEffect(() => {
@@ -250,6 +254,18 @@ const AppContent = () => {
     };
 
     initialize();
+  }, []);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const raw = await AsyncStorage.getItem('points_modal_suppress_until');
+        if (raw) {
+          const ts = Number(raw);
+          if (!Number.isNaN(ts)) setSuppressGenericPointsUntil(ts);
+        }
+      } catch {}
+    })();
   }, []);
 
   useEffect(() => {
@@ -315,11 +331,24 @@ const AppContent = () => {
   // Subscribe to global points earned events emitted by the API interceptor
   useEffect(() => {
     const unsubscribe = pointsTracker.subscribe(({ points, title }) => {
-      setPointsQueue(prev => [...prev, { points, title }]);
-      // If nothing showing, trigger visibility
-      setIsPointsVisible(v => v || true);
-      // Update user's points total so UI (e.g., HomeScreen header) reflects changes
-      // Note: updateUserPoints preserves legacy server semantics (additive)
+      const now = Date.now();
+      const suppressActive = suppressGenericPointsUntil != null && now < suppressGenericPointsUntil;
+      const totalBefore = leaderboardStore.userStats?.totalPoints ?? authStoreObj?.user?.points ?? 0;
+      const vbBest = gameStore.getPersonalBest('verse_builder') || 0;
+      const nextBefore = getNextUnlock(totalBefore, vbBest);
+      const totalAfter = totalBefore + (points || 0);
+      const nextAfter = getNextUnlock(totalAfter, vbBest);
+      const unlockedNow = !!nextBefore && !nextAfter;
+      if (unlockedNow) {
+        const endOfDay = (() => { const d = new Date(); d.setHours(23,59,59,999); return d.getTime(); })();
+        setSuppressGenericPointsUntil(endOfDay);
+        AsyncStorage.setItem('points_modal_suppress_until', String(endOfDay)).catch(() => undefined);
+      }
+      const shouldSuppress = (suppressActive || unlockedNow) && !title;
+      if (!shouldSuppress) {
+        setPointsQueue(prev => [...prev, { points, title }]);
+        setIsPointsVisible(v => v || true);
+      }
       if (authStoreObj?.user?.id) {
         authStoreObj.updateUserPoints(points).catch(() => undefined);
       }

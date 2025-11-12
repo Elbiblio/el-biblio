@@ -270,7 +270,7 @@ const createStyles = (theme: any) => StyleSheet.create({
   container: {
     backgroundColor: theme.colors.background,
     borderRadius: 16,
-    maxHeight: '80%',
+    maxHeight: '90%',
     overflow: 'hidden',
   } as ViewStyle,
   header: {
@@ -299,7 +299,7 @@ const createStyles = (theme: any) => StyleSheet.create({
     marginTop: 4,
   } as TextStyle,
   body: {
-    maxHeight: 360,
+    maxHeight: '70%',
   } as ViewStyle,
   bodyContent: {
     paddingHorizontal: 20,
