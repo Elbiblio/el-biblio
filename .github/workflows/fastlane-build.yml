@@ -570,7 +570,7 @@ jobs:
 
           cd ios
           fastlane pilot upload \
-            --apiKeyPath signing/appstoreconnect_api_key.json \
+            --api-key-path signing/appstoreconnect_api_key.json \
             --ipa build/export/Elbiblio.ipa \
             --skip_waiting_for_build_processing true \
             --distribute_external false \
