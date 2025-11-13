@@ -369,6 +369,7 @@ export interface Note {
   created_at?: string;
   updated_at?: string;
   isPinned?: boolean;
+  isBookmarked?: boolean;
   color?: string; // For note background tint
 }
 

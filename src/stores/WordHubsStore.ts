@@ -730,6 +730,16 @@ export class WordHubsStore {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       toast.success('Word hub bookmarked!');
 
+      runInAction(() => {
+        const idx = this.state.wordHubs.findIndex(h => String(h.id) === String(hubId));
+        if (idx !== -1) {
+          this.state.wordHubs[idx] = { ...this.state.wordHubs[idx], isBookmarked: true } as any;
+        }
+        if (this.state.currentHub && String(this.state.currentHub.id) === String(hubId)) {
+          this.state.currentHub = { ...this.state.currentHub, isBookmarked: true } as any;
+        }
+      });
+
       return true;
     } catch (error: any) {
       console.error('Error bookmarking word hub:', error);

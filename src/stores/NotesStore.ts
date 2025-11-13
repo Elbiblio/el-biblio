@@ -315,7 +315,26 @@ export class NotesStore {
   async bookmarkNote(noteId: string) {
     try {
       const response = await apiClient.post<{ is_bookmarked: boolean }>(`/notes/${noteId}/bookmark`);
-      return response.data.is_bookmarked;
+      const isBookmarked = response.data.is_bookmarked;
+
+      runInAction(() => {
+        // Update currentNote if matched
+        if (this.state.currentNote?.id === noteId) {
+          this.state.currentNote = {
+            ...this.state.currentNote,
+            isBookmarked,
+          } as any;
+        }
+        // Update in list
+        const idx = this.state.notes.findIndex(n => n.id === noteId);
+        if (idx !== -1) {
+          this.state.notes[idx] = { ...this.state.notes[idx], isBookmarked } as any;
+        }
+      });
+
+      await this.saveToStorage();
+
+      return isBookmarked;
     } catch (error) {
       console.error(`Error bookmarking note ${noteId}:`, error);
       throw error;

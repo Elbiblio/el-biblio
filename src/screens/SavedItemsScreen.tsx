@@ -105,7 +105,7 @@ const SavedItemsScreen = ({
           navigation.navigate('NoteDetail', { noteId: bookmarkable.id });
           break;
         case 'clip':
-          // Handle clip navigation
+          toast.info('Clip view is not available yet');
           break;
       }
     } catch (error) {

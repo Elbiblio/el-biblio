@@ -33,6 +33,8 @@ import CircleButton from './CircleButton';
 import { Theme } from '@/theme';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
+import { useAuthStore, useBookmarkStore } from '@/stores/StoreProvider';
+import { toast } from 'sonner-native';
 
 interface ReflectionCardProps {
   reflection: Reflection;
@@ -71,6 +73,49 @@ const ReflectionCard: React.FC<ReflectionCardProps> = ({
   const [muted, setMuted] = useState<boolean>(true);
 
   const topComment = (reflection.comments ?? [])[0];
+
+  const { user } = useAuthStore();
+  const { bookmarks, createBookmark, deleteBookmark } = useBookmarkStore();
+  const isSaved = React.useMemo(() => {
+    const idNum = Number(reflection.id);
+    return Array.isArray(bookmarks) && bookmarks.some(b => b.bookmarkable?.type === 'reflection' && Number(b.bookmarkable?.id) === idNum);
+  }, [bookmarks, reflection.id]);
+
+  const handleSave = async () => {
+    if (!user) {
+      toast.info('Please log in to save');
+      return;
+    }
+    try {
+      if (isSaved) {
+        const existing = Array.isArray(bookmarks) ? bookmarks.find(b => b.bookmarkable?.type === 'reflection' && Number(b.bookmarkable?.id) === Number(reflection.id)) : undefined;
+        if (existing) {
+          const ok = await deleteBookmark(existing.id);
+          if (ok) {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            toast.success('Removed from saved');
+          } else {
+            toast.error('Failed to remove');
+          }
+        }
+      } else {
+        await createBookmark({
+          user_id: user.id as any,
+          bookmarkable_type: 'App\\Models\\Reflection',
+          bookmarkable_id: Number(reflection.id) as any,
+        } as any);
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        toast.success('Saved');
+      }
+    } catch (error: any) {
+      const status = error?.status || error?.response?.status;
+      if (status === 409) {
+        toast.info('Already saved');
+      } else {
+        toast.error('Failed to save');
+      }
+    }
+  };
 
   // Animation configs
   const springConfig = {
@@ -384,10 +429,10 @@ const ReflectionCard: React.FC<ReflectionCardProps> = ({
             </Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.actionButton}>
-            <BookmarkSimple size={24} color={theme.colors.text.secondary} />
-            <Text style={[styles.actionText, { color: theme.colors.text.secondary }]}>
-              Save
+          <TouchableOpacity style={styles.actionButton} onPress={handleSave}>
+            <BookmarkSimple size={24} color={isSaved ? theme.colors.primary : theme.colors.text.secondary} filled={isSaved} />
+            <Text style={[styles.actionText, { color: isSaved ? theme.colors.primary : theme.colors.text.secondary }]}>
+              {isSaved ? 'Saved' : 'Save'}
             </Text>
           </TouchableOpacity>
         </>
