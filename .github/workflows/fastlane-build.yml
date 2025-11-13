@@ -74,7 +74,7 @@ jobs:
           fi
 
   build-android:
-    needs: prepare-build
+    needs: build-ios
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -272,12 +272,17 @@ jobs:
 
   build-ios:
     needs: prepare-build
-    runs-on: macos-14
+    runs-on: macos-15
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           ref: ${{ needs.prepare-build.outputs.ref }}
+
+      - name: Select Xcode 16
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: '16.*'
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
