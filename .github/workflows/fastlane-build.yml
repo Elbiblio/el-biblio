@@ -97,6 +97,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Remove existing android directory
+        run: rm -rf android
+
       - name: Update app.json with version
         run: |
           node -e "
@@ -531,14 +534,49 @@ jobs:
           path: ios/build/export/Elbiblio.ipa
           retention-days: 30
 
+      - name: Install Fastlane
+        run: sudo gem install fastlane --no-document
+
       - name: Upload to TestFlight (Optional)
+        env:
+          APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          APPSTORE_ISSUER_ID: ${{ secrets.APPSTORE_ISSUER_ID }}
         run: |
-          xcrun altool --upload-app \
-            --type ios \
-            --file ios/build/export/Elbiblio.ipa \
-            --apiKey ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }} \
-            --apiIssuer ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }} \
-            || echo "TestFlight upload failed or not configured"
+          if [ ! -f ios/signing/AuthKey.p8 ]; then
+            echo "AuthKey.p8 not found; skipping TestFlight upload"
+            exit 0
+          fi
+
+          python3 - <<'PY'
+          import json
+          import os
+
+          key_path = 'ios/signing/AuthKey.p8'
+          if not os.path.exists(key_path):
+              raise SystemExit('AuthKey.p8 missing')
+
+          with open(key_path, 'r', encoding='utf-8') as fp:
+              key_contents = fp.read()
+
+          data = {
+              "key_id": os.environ["APP_STORE_CONNECT_API_KEY_ID"],
+              "issuer_id": os.environ["APPSTORE_ISSUER_ID"],
+              "key": key_contents
+          }
+
+          with open('ios/signing/appstoreconnect_api_key.json', 'w', encoding='utf-8') as out_fp:
+              json.dump(data, out_fp)
+          PY
+
+          cd ios
+          fastlane pilot upload \
+            --apiKeyPath signing/appstoreconnect_api_key.json \
+            --ipa build/export/Elbiblio.ipa \
+            --skip_waiting_for_build_processing true \
+            --distribute_external false \
+            --notify_external_testers false \
+            --skip_submission true \
+            --changelog "Automated build from GitHub Actions"
 
       - name: Cleanup
         if: always()
