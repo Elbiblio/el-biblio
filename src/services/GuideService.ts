@@ -1,6 +1,8 @@
 import { RootStackParamList } from '@/types';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+const GUIDES_ENDPOINT = '/api/guides';
+
 export type GuideMode = 'meditation' | 'interactive_reading_quiz' | 'reading_reflection';
 
 export type GuideRouteName = keyof RootStackParamList;
@@ -200,6 +202,22 @@ const LOCAL_GUIDES: GuideDefinition[] = [
   },
 ];
 
+async function fetchGuidesFromApi(): Promise<GuideDefinition[] | null> {
+  try {
+    const response = await fetch(GUIDES_ENDPOINT);
+    if (!response.ok) {
+      return null;
+    }
+    const data = (await response.json()) as unknown;
+    if (!Array.isArray(data)) {
+      return null;
+    }
+    return data as GuideDefinition[];
+  } catch {
+    return null;
+  }
+}
+
 async function loadCachedGuides(): Promise<GuideDefinition[] | null> {
   try {
     const raw = await AsyncStorage.getItem(GUIDE_CACHE_KEY);
@@ -220,21 +238,29 @@ async function saveCachedGuides(guides: GuideDefinition[]): Promise<void> {
   }
 }
 
-export async function getGuides(): Promise<GuideSummary[]> {
-  const cached = await loadCachedGuides();
-  const source = cached && cached.length > 0 ? cached : LOCAL_GUIDES;
-  if (!cached) {
-    await saveCachedGuides(LOCAL_GUIDES);
+async function resolveGuides(): Promise<GuideDefinition[]> {
+  const apiGuides = await fetchGuidesFromApi();
+  if (apiGuides && apiGuides.length > 0) {
+    await saveCachedGuides(apiGuides);
+    return apiGuides;
   }
-  return source.map(({ content, ...summary }) => summary);
+
+  const cachedGuides = await loadCachedGuides();
+  if (cachedGuides && cachedGuides.length > 0) {
+    return cachedGuides;
+  }
+
+  await saveCachedGuides(LOCAL_GUIDES);
+  return LOCAL_GUIDES;
+}
+
+export async function getGuides(): Promise<GuideSummary[]> {
+  const guides = await resolveGuides();
+  return guides.map(({ content, ...summary }) => summary);
 }
 
 export async function getGuideById(id: string): Promise<GuideDefinition | null> {
-  const cached = await loadCachedGuides();
-  const source = cached && cached.length > 0 ? cached : LOCAL_GUIDES;
-  if (!cached) {
-    await saveCachedGuides(LOCAL_GUIDES);
-  }
-  const found = source.find(guide => guide.id === id);
+  const guides = await resolveGuides();
+  const found = guides.find(guide => guide.id === id);
   return found || null;
 }

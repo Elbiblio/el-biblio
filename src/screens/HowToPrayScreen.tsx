@@ -23,6 +23,8 @@ const HowToPrayScreen = ({ navigation }: HowToPrayScreenProps) => {
   const [questions, setQuestions] = React.useState<InteractiveReadingQuizConfig['questions']>([]);
   const [howAnswers, setHowAnswers] = React.useState<Record<string, number | null>>({});
   const [howSubmitted, setHowSubmitted] = React.useState(false);
+  const [hasReachedEnd, setHasReachedEnd] = React.useState(false);
+  const [quizVisible, setQuizVisible] = React.useState(false);
 
   React.useEffect(() => {
     let isActive = true;
@@ -36,6 +38,11 @@ const HowToPrayScreen = ({ navigation }: HowToPrayScreenProps) => {
         if (isActive) {
           setPages(cfg.pages || []);
           setQuestions(cfg.questions || []);
+          const pageCount = cfg.pages?.length ?? 0;
+          setHasReachedEnd(pageCount <= 1);
+          setQuizVisible(pageCount <= 1);
+          setHowAnswers({});
+          setHowSubmitted(false);
         }
       } catch {
         // ignore
@@ -53,7 +60,12 @@ const HowToPrayScreen = ({ navigation }: HowToPrayScreenProps) => {
     const { contentOffset, layoutMeasurement } = event.nativeEvent;
     const index = Math.round(contentOffset.x / layoutMeasurement.width);
     setPageIndex(index);
+    if (pages.length > 0 && index >= pages.length - 1) {
+      setHasReachedEnd(true);
+    }
   };
+
+  const readingComplete = hasReachedEnd || pages.length === 0;
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}> 
@@ -100,82 +112,109 @@ const HowToPrayScreen = ({ navigation }: HowToPrayScreenProps) => {
           </View>
         </View>
 
-        <View style={styles.questionCard}>
-          <View style={styles.quizHeaderRow}>
-            <Text style={styles.questionTitle}>Check your understanding</Text>
-            {questions.length > 0 && (
-              <View style={styles.quizProgressPill}>
-                <Text style={styles.quizProgressText}>
-                  {Object.values(howAnswers).filter(v => v !== null).length}/{questions.length}
-                </Text>
-              </View>
-            )}
-          </View>
-          {questions.map((question, index) => {
-            const selected = howAnswers[question.id] ?? null;
-            return (
-              <Animated.View
-                key={question.id}
-                entering={FadeIn.delay(100 + index * 60).duration(250)}
-                style={styles.questionBlock}
-              >
-                <Text style={styles.cardBody}>{question.prompt}</Text>
-                {question.options.map((option, index) => {
-                  const isSelected = selected === index;
-                  const isCorrectOption = howSubmitted && index === question.correctIndex;
-                  const isIncorrectSelected =
-                    howSubmitted && isSelected && index !== question.correctIndex;
-                  return (
-                    <TouchableOpacity
-                      key={index}
-                      style={[
-                        styles.questionOption,
-                        isSelected && styles.questionOptionSelected,
-                        isCorrectOption && styles.questionOptionCorrect,
-                        isIncorrectSelected && styles.questionOptionIncorrect,
-                      ]}
-                      activeOpacity={0.85}
-                      onPress={() => {
-                        setHowSubmitted(false);
-                        setHowAnswers(prev => ({ ...prev, [question.id]: index }));
-                      }}
-                    >
-                      <Text
-                        style={[
-                          styles.questionOptionText,
-                          isCorrectOption && styles.questionOptionTextCorrect,
-                          isIncorrectSelected && styles.questionOptionTextIncorrect,
-                        ]}
-                      >
-                        {option}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-                {howSubmitted && selected !== null && (
-                  <Text
-                    style={
-                      selected === question.correctIndex
-                        ? styles.questionFeedbackCorrect
-                        : styles.questionFeedbackIncorrect
-                    }
-                  >
-                    {selected === question.correctIndex
-                      ? 'Beautiful - this lines up with the heart of this guide.'
-                      : 'Pause and reread the reflections above, then try again.'}
+        {quizVisible ? (
+          <View style={styles.questionCard}>
+            <View style={styles.quizHeaderRow}>
+              <Text style={styles.questionTitle}>Check your understanding</Text>
+              {questions.length > 0 && (
+                <View style={styles.quizProgressPill}>
+                  <Text style={styles.quizProgressText}>
+                    {Object.values(howAnswers).filter(v => v !== null).length}/{questions.length}
                   </Text>
-                )}
-              </Animated.View>
-            );
-          })}
-          <TouchableOpacity
-            style={styles.primaryButton}
-            activeOpacity={0.9}
-            onPress={() => setHowSubmitted(true)}
-          >
-            <Text style={styles.primaryButtonText}>Check answers</Text>
-          </TouchableOpacity>
-        </View>
+                </View>
+              )}
+            </View>
+            {questions.map((question, index) => {
+              const selected = howAnswers[question.id] ?? null;
+              return (
+                <Animated.View
+                  key={question.id}
+                  entering={FadeIn.delay(100 + index * 60).duration(250)}
+                  style={styles.questionBlock}
+                >
+                  <Text style={styles.cardBody}>{question.prompt}</Text>
+                  {question.options.map((option, index) => {
+                    const isSelected = selected === index;
+                    const isCorrectOption = howSubmitted && index === question.correctIndex;
+                    const isIncorrectSelected =
+                      howSubmitted && isSelected && index !== question.correctIndex;
+                    return (
+                      <TouchableOpacity
+                        key={index}
+                        style={[
+                          styles.questionOption,
+                          isSelected && styles.questionOptionSelected,
+                          isCorrectOption && styles.questionOptionCorrect,
+                          isIncorrectSelected && styles.questionOptionIncorrect,
+                        ]}
+                        activeOpacity={0.85}
+                        onPress={() => {
+                          setHowSubmitted(false);
+                          setHowAnswers(prev => ({ ...prev, [question.id]: index }));
+                        }}
+                      >
+                        <Text
+                          style={[
+                            styles.questionOptionText,
+                            isCorrectOption && styles.questionOptionTextCorrect,
+                            isIncorrectSelected && styles.questionOptionTextIncorrect,
+                          ]}
+                        >
+                          {option}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                  {howSubmitted && selected !== null && (
+                    <Text
+                      style={
+                        selected === question.correctIndex
+                          ? styles.questionFeedbackCorrect
+                          : styles.questionFeedbackIncorrect
+                      }
+                    >
+                      {selected === question.correctIndex
+                        ? 'Beautiful - this lines up with the heart of this guide.'
+                        : 'Pause and reread the reflections above, then try again.'}
+                    </Text>
+                  )}
+                </Animated.View>
+              );
+            })}
+            <TouchableOpacity
+              style={styles.primaryButton}
+              activeOpacity={0.9}
+              onPress={() => setHowSubmitted(true)}
+            >
+              <Text style={styles.primaryButtonText}>Check answers</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <Animated.View entering={FadeInDown.delay(80).duration(280)} style={styles.quizLocker}>
+            <Text style={styles.quizLockerTitle}>Ready to check your heart?</Text>
+            <Text style={styles.quizLockerBody}>
+              Move through each reflection card first. When you feel the teaching settle in your
+              spirit, test your understanding with a short quiz.
+            </Text>
+            <TouchableOpacity
+              style={[
+                styles.quizLockerButton,
+                !readingComplete && styles.quizLockerButtonDisabled,
+              ]}
+              activeOpacity={0.9}
+              disabled={!readingComplete}
+              onPress={() => {
+                setQuizVisible(true);
+                setHowAnswers({});
+                setHowSubmitted(false);
+              }}
+            >
+              <Text style={styles.quizLockerButtonText}>
+                {readingComplete ? 'Begin the quiz' : 'Keep reading to unlock'}
+              </Text>
+            </TouchableOpacity>
+          </Animated.View>
+        )}
       </ScrollView>
     </View>
   );
@@ -268,6 +307,39 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     height: 10,
     borderRadius: 5,
     backgroundColor: theme.colors.primary,
+  },
+  quizLocker: {
+    marginTop: theme.spacing.lg,
+    padding: theme.spacing.lg,
+    borderRadius: theme.borderRadius.xl,
+    backgroundColor: theme.colors.surface,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    gap: theme.spacing.sm,
+  },
+  quizLockerTitle: {
+    ...theme.typography.heading.small,
+    color: theme.colors.text.primary,
+  },
+  quizLockerBody: {
+    ...theme.typography.caption.secondary,
+    color: theme.colors.text.secondary,
+  },
+  quizLockerButton: {
+    marginTop: theme.spacing.sm,
+    alignSelf: 'flex-start',
+    paddingHorizontal: theme.spacing.lg,
+    paddingVertical: theme.spacing.sm,
+    borderRadius: theme.borderRadius.full,
+    backgroundColor: theme.colors.primary,
+  },
+  quizLockerButtonDisabled: {
+    backgroundColor: theme.colors.border,
+  },
+  quizLockerButtonText: {
+    ...theme.typography.caption.primary,
+    color: theme.colors.text.inverse,
+    fontWeight: '600',
   },
   questionCard: {
     marginTop: theme.spacing.md,

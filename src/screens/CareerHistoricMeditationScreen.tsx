@@ -8,7 +8,18 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '@/contexts/ThemeContext';
 import type { Theme } from '@/theme';
 import type { RootStackParamList } from '@/types';
-import { ArrowLeft, Brain } from '@/components/Icons';
+import {
+  ArrowLeft,
+  Brain,
+  Sparkle,
+  Lightbulb,
+  HeartHandshake,
+  Lightning,
+  Shield,
+  PrayingHands,
+  CheckCircle,
+} from '@/components/Icons';
+import type { IconProps } from '@/components/Icons';
 import { CAREER_DEFINITIONS, DAILY_TASKS, STRENGTH_DEFINITIONS } from '@/services/spiritualCareerData';
 
 export type CareerHistoricMeditationScreenProps = NativeStackScreenProps<
@@ -18,6 +29,20 @@ export type CareerHistoricMeditationScreenProps = NativeStackScreenProps<
 
 type StrengthCategoryKey = 'expression' | 'wisdom' | 'care' | 'action' | 'service' | 'spiritual';
 type StepKey = 'joy' | 'direct' | 'indirect' | 'combined' | 'reflect';
+type CategoryBadgeMeta = {
+  label: string;
+  tint: string;
+  color: string;
+  Icon: React.ComponentType<IconProps>;
+};
+
+const DEFAULT_CATEGORY: StrengthCategoryKey = 'expression';
+type JoySummary = {
+  primary: StrengthCategoryKey;
+  strengths: string[];
+  careers: (typeof CAREER_DEFINITIONS)[StrengthCategoryKey];
+  tasks: (typeof DAILY_TASKS)[StrengthCategoryKey];
+};
 
 const CATEGORY_LABELS: Record<StrengthCategoryKey, string> = {
   expression: 'creative expression',
@@ -35,6 +60,39 @@ const CATEGORY_SHORT_LABELS: Record<StrengthCategoryKey, string> = {
   action: 'Action',
   service: 'Service',
   spiritual: 'Prayer',
+};
+
+const CATEGORY_AFFIRMATIONS: Record<StrengthCategoryKey, { headline: string; encouragement: string }> = {
+  expression: {
+    headline: 'Beauty reveals the Kingdom',
+    encouragement:
+      'God placed a creative voice within you. Shape moments, language, and spaces so that others can see the goodness of the Father.',
+  },
+  wisdom: {
+    headline: 'Insight safeguards the family of God',
+    encouragement:
+      'Your clarity and discernment help people around you make holy decisions. Offer the questions and frameworks that keep people on the narrow way.',
+  },
+  care: {
+    headline: 'Compassion heals the body',
+    encouragement:
+      'Gentle presence is a Kingdom force. Bring encouragement, hospitality, and nurture that remind people they are already loved by God.',
+  },
+  action: {
+    headline: 'Courage opens new ground',
+    encouragement:
+      'Initiative and holy boldness are gifts. Lead the charge where others hesitate, trusting that the Spirit has gone ahead of you.',
+  },
+  service: {
+    headline: 'Stewardship builds Kingdom infrastructure',
+    encouragement:
+      'Systems and faithful execution are part of your worship. Organise, resource, and protect so ministries can flourish.',
+  },
+  spiritual: {
+    headline: 'Prayer fuels every assignment',
+    encouragement:
+      'You carry a deep hunger for God. Intercede, worship, and create holy atmospheres so others can encounter Him.',
+  },
 };
 
 const JOY_OPTIONS: {
@@ -145,7 +203,56 @@ const CareerHistoricMeditationScreen = ({
   const [currentJob, setCurrentJob] = React.useState('');
   const [step, setStep] = React.useState<StepKey>('joy');
 
-  const joySummary = React.useMemo(() => {
+  const fallbackCategoryMeta = React.useMemo<CategoryBadgeMeta>(() => ({
+    label: 'Kingdom gift',
+    tint: `${theme.colors.primary}16`,
+    color: theme.colors.primary,
+    Icon: Sparkle,
+  }), [theme]);
+
+  const categoryBadgeMeta = React.useMemo<Record<StrengthCategoryKey, CategoryBadgeMeta>>(
+    () => ({
+      expression: {
+        label: CATEGORY_SHORT_LABELS.expression,
+        tint: `${theme.colors.primary}16`,
+        color: theme.colors.primary,
+        Icon: Sparkle,
+      },
+      wisdom: {
+        label: CATEGORY_SHORT_LABELS.wisdom,
+        tint: `${theme.colors.info}16`,
+        color: theme.colors.info,
+        Icon: Lightbulb,
+      },
+      care: {
+        label: CATEGORY_SHORT_LABELS.care,
+        tint: `${theme.colors.success}16`,
+        color: theme.colors.success,
+        Icon: HeartHandshake,
+      },
+      action: {
+        label: CATEGORY_SHORT_LABELS.action,
+        tint: `${theme.colors.warning}16`,
+        color: theme.colors.warning,
+        Icon: Lightning,
+      },
+      service: {
+        label: CATEGORY_SHORT_LABELS.service,
+        tint: `${theme.colors.secondary}16`,
+        color: theme.colors.secondary,
+        Icon: Shield,
+      },
+      spiritual: {
+        label: CATEGORY_SHORT_LABELS.spiritual,
+        tint: `${theme.colors.like}16`,
+        color: theme.colors.like,
+        Icon: PrayingHands,
+      },
+    }),
+    [theme],
+  );
+
+  const joySummary = React.useMemo<JoySummary | null>(() => {
     if (!selectedJoyIds.length) return null;
 
     const counts: Record<StrengthCategoryKey, number> = {
@@ -183,8 +290,8 @@ const CareerHistoricMeditationScreen = ({
     const strengths = STRENGTH_DEFINITIONS.filter(s => s.category === primary).map(
       s => s.label,
     );
-    const careers = CAREER_DEFINITIONS[primary] || [];
-    const tasks = DAILY_TASKS[primary] || [];
+    const careers = CAREER_DEFINITIONS[primary] ?? [];
+    const tasks = DAILY_TASKS[primary] ?? [];
 
     return { primary, strengths, careers, tasks };
   }, [selectedJoyIds]);
@@ -290,6 +397,9 @@ const CareerHistoricMeditationScreen = ({
             <View style={styles.joyGrid}>
               {JOY_OPTIONS.map(option => {
                 const isSelected = selectedJoyIds.includes(option.id);
+                const primaryCategory = option.categories[0] ?? DEFAULT_CATEGORY;
+                const primaryMeta = (categoryBadgeMeta[primaryCategory] ?? fallbackCategoryMeta) as CategoryBadgeMeta;
+                const PrimaryIcon = primaryMeta.Icon;
                 return (
                   <TouchableOpacity
                     key={option.id}
@@ -300,15 +410,37 @@ const CareerHistoricMeditationScreen = ({
                     activeOpacity={0.85}
                     onPress={() => toggleJoyOption(option.id)}
                   >
-                    <Text style={isSelected ? styles.joyTileLabelSelected : styles.joyTileLabel}>
+                    <View style={styles.joyTileHeader}>
+                      <View
+                        style={[
+                          styles.categoryChip,
+                          { backgroundColor: `${primaryMeta.color}14` },
+                        ]}
+                      >
+                        <PrimaryIcon size={18} color={primaryMeta.color} />
+                      </View>
+                      <Text
+                        style={[
+                          styles.joyTileCategoryLabel,
+                          isSelected && { color: primaryMeta.color },
+                        ]}
+                      >
+                        {primaryMeta.label}
+                      </Text>
+                    </View>
+                    <Text
+                      style={[
+                        styles.joyTileTitle,
+                        isSelected && { color: primaryMeta.color },
+                      ]}
+                    >
                       {option.label}
                     </Text>
                     <Text
-                      style={
-                        isSelected
-                          ? styles.joyTileDescriptionSelected
-                          : styles.joyTileDescription
-                      }
+                      style={[
+                        styles.joyTileDescription,
+                        isSelected && { color: primaryMeta.color },
+                      ]}
                     >
                       {option.description}
                     </Text>
@@ -366,17 +498,46 @@ const CareerHistoricMeditationScreen = ({
               placeholderTextColor={theme.colors.text.tertiary}
               style={styles.jobInput}
             />
-            <View style={styles.callout}>
-              <Text style={styles.calloutLabel}>As a {currentJob.trim() || 'worker or student'}</Text>
-              <Text style={styles.calloutBody}>
-                Express {CATEGORY_LABELS[joySummary.primary]} in practical, Spirit-led ways:
-              </Text>
-              {joySummary.tasks.slice(0, 2).map(task => (
-                <Text key={task.id} style={styles.calloutBullet}>
-                  • {task.text}
-                </Text>
-              ))}
-            </View>
+            {(() => {
+              const meta = (categoryBadgeMeta[joySummary.primary] ?? fallbackCategoryMeta) as CategoryBadgeMeta;
+              const IconComponent = meta.Icon;
+              const copySource = CATEGORY_AFFIRMATIONS[joySummary.primary] ?? CATEGORY_AFFIRMATIONS[DEFAULT_CATEGORY];
+              const visibleTasks = joySummary.tasks.slice(0, 3);
+              const roleLabel = currentJob.trim() || 'worker or student';
+              return (
+                <>
+                  <View
+                    style={[
+                      styles.affirmationCard,
+                      { borderColor: `${meta.color}26`, backgroundColor: `${meta.color}0D` },
+                    ]}
+                  >
+                    <View style={[styles.affirmationIcon, { backgroundColor: meta.tint }]}> 
+                      <IconComponent size={20} color={meta.color} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.affirmationTitle, { color: meta.color }]}>
+                        {copySource.headline}
+                      </Text>
+                      <Text style={styles.affirmationBody}>{copySource.encouragement}</Text>
+                    </View>
+                  </View>
+                  <View style={styles.planCard}>
+                    <Text style={styles.planCardTitle}>
+                      As a {roleLabel}, keep an eye on these Kingdom expressions:
+                    </Text>
+                    <View style={styles.taskRow}>
+                      {visibleTasks.map(task => (
+                        <View key={task.id} style={styles.taskCard}>
+                          <CheckCircle size={16} color={meta.color} />
+                          <Text style={styles.taskCardText}>{task.text}</Text>
+                        </View>
+                      ))}
+                    </View>
+                  </View>
+                </>
+              );
+            })()}
           </Animated.View>
         )}
 
@@ -385,22 +546,50 @@ const CareerHistoricMeditationScreen = ({
             <Text style={styles.sectionHeading}>Hold direct and indirect together</Text>
             <Text style={styles.sectionBody}>
               Stay faithful in your current assignment while dedicating intentional time to direct
-              service flowing from this gift.
+              service flowing from this gift. Use a rhythm that blends provision and ministry.
             </Text>
-            {joySummary.careers[0] && (
-              <View style={styles.callout}>
-                <Text style={styles.calloutLabel}>Try a blended rhythm</Text>
-                <Text style={styles.calloutBody}>
-                  Keep your present role and explore something like {joySummary.careers[0].title}
-                  {' '}on a weekly or monthly cadence.
-                </Text>
-              </View>
-            )}
-            {joySummary.tasks[0] && (
-              <Text style={styles.sectionBody}>
-                Start with one small practice this week: {joySummary.tasks[0].text}
-              </Text>
-            )}
+            {(() => {
+              const meta = (categoryBadgeMeta[joySummary.primary] ?? fallbackCategoryMeta) as CategoryBadgeMeta;
+              const directRole = joySummary.careers[0];
+              const stretchRole = joySummary.careers[1];
+              const spotlightTask = joySummary.tasks[0];
+              const roleLabel = currentJob.trim() || 'worker or student';
+              return (
+                <View style={styles.rhythmGrid}>
+                  <View style={styles.rhythmCard}>
+                    <Text style={[styles.rhythmLabel, { color: meta.color }]}>Weekly anchor</Text>
+                    <Text style={styles.rhythmBody}>
+                      Honour your current calling as a {roleLabel}. Block time each week to
+                      intentionally express {CATEGORY_LABELS[joySummary.primary]} where you already serve.
+                    </Text>
+                    {spotlightTask && (
+                      <View style={[styles.taskCard, styles.rhythmTaskCard]}>
+                        <CheckCircle size={16} color={meta.color} />
+                        <Text style={styles.taskCardText}>{spotlightTask.text}</Text>
+                      </View>
+                    )}
+                  </View>
+                  {directRole && (
+                    <View style={styles.rhythmCard}>
+                      <Text style={[styles.rhythmLabel, { color: meta.color }]}>Direct service pulse</Text>
+                      <Text style={styles.rhythmBody}>
+                        Choose a dedicated slot to serve as {directRole.title.toLowerCase()} — even if it is monthly.
+                        Invite trusted friends or mentors to keep you accountable.
+                      </Text>
+                      <Text style={styles.rhythmHint}>{directRole.description}</Text>
+                    </View>
+                  )}
+                  {stretchRole && (
+                    <View style={styles.rhythmCard}>
+                      <Text style={[styles.rhythmLabel, { color: meta.color }]}>Future stretch</Text>
+                      <Text style={styles.rhythmBody}>
+                        When capacity grows, experiment with a pop-up expression such as {stretchRole.title.toLowerCase()}.
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              );
+            })()}
           </Animated.View>
         )}
 
@@ -419,7 +608,7 @@ const CareerHistoricMeditationScreen = ({
               <Text style={styles.calloutBullet}>• Do your current roles today help to bring about God's Kingdom directly or indirectly?</Text>
               <Text style={styles.calloutBullet}>• If not, how can you adjust your roles to better serve God's Kingdom?</Text>
               <Text style={styles.calloutBullet}>• Do you feel satisified, safe or overwhelmed with your wordly role?</Text>
-              <Text style={styles.calloutBullet}>• If not talk to God about how you feel, let His Spirit inspire you on practical directions to take</Text>
+              <Text style={styles.calloutBullet}>• Talk to God about how you feel, let His Spirit inspire you on practical directions to take</Text>
             </View>
           </Animated.View>
         )}
@@ -569,39 +758,53 @@ const createStyles = (theme: Theme) => StyleSheet.create({
   },
   joyTile: {
     width: '48%',
-    padding: theme.spacing.md,
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.md,
     borderRadius: theme.borderRadius.lg,
     borderWidth: 1,
     borderColor: theme.colors.border,
-    backgroundColor: theme.colors.background,
-    gap: theme.spacing.xs,
+    backgroundColor: theme.colors.surface,
+    rowGap: theme.spacing.xs,
   },
   joyTileSelected: {
     borderColor: theme.colors.primary,
-    backgroundColor: `${theme.colors.primary}10`,
+    // backgroundColor: `${theme.colors.primary}08`,
     shadowColor: theme.colors.shadow,
-    shadowOpacity: 0.12,
-    shadowOffset: { width: 0, height: 10 },
-    shadowRadius: 18,
-    elevation: 5,
+    shadowOpacity: 0.08,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 6,
+    elevation: 2,
   },
-  joyTileLabel: {
+  joyTileHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.xs,
+  },
+  categoryChip: {
+    alignSelf: 'flex-start',
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  joyTileCategoryLabel: {
+    ...theme.typography.caption.primary,
+    color: theme.colors.text.secondary,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+    marginTop: theme.spacing.xs / 2,
+  },
+  joyTileTitle: {
     ...theme.typography.caption.primary,
     color: theme.colors.text.primary,
-    fontWeight: '600',
-  },
-  joyTileLabelSelected: {
-    ...theme.typography.caption.primary,
-    color: theme.colors.primary,
     fontWeight: '700',
+    marginTop: theme.spacing.xs,
   },
   joyTileDescription: {
     ...theme.typography.caption.secondary,
     color: theme.colors.text.secondary,
-  },
-  joyTileDescriptionSelected: {
-    ...theme.typography.caption.secondary,
-    color: theme.colors.primary,
   },
   callout: {
     padding: theme.spacing.md,
@@ -623,6 +826,92 @@ const createStyles = (theme: Theme) => StyleSheet.create({
   calloutBullet: {
     ...theme.typography.caption.secondary,
     color: theme.colors.text.secondary,
+  },
+  affirmationCard: {
+    flexDirection: 'row',
+    gap: theme.spacing.sm,
+    borderRadius: theme.borderRadius.lg,
+    padding: theme.spacing.md,
+    borderWidth: 1,
+  },
+  affirmationIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  affirmationTitle: {
+    ...theme.typography.caption.primary,
+    fontWeight: '700',
+    marginBottom: theme.spacing.xs / 2,
+  },
+  affirmationBody: {
+    ...theme.typography.caption.secondary,
+    color: theme.colors.text.secondary,
+  },
+  planCard: {
+    marginTop: theme.spacing.md,
+    padding: theme.spacing.md,
+    borderRadius: theme.borderRadius.lg,
+    backgroundColor: theme.colors.surface,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    gap: theme.spacing.sm,
+  },
+  planCardTitle: {
+    ...theme.typography.caption.primary,
+    color: theme.colors.text.primary,
+    fontWeight: '600',
+  },
+  taskRow: {
+    flexDirection: 'column',
+    gap: theme.spacing.xs,
+  },
+  taskCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.xs,
+    paddingVertical: theme.spacing.xs,
+  },
+  taskCardText: {
+    ...theme.typography.caption.primary,
+    color: theme.colors.text.primary,
+  },
+  rhythmGrid: {
+    gap: theme.spacing.md,
+  },
+  rhythmCard: {
+    padding: theme.spacing.md,
+    borderRadius: theme.borderRadius.lg,
+    backgroundColor: theme.colors.surface,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    gap: theme.spacing.xs,
+  },
+  rhythmLabel: {
+    ...theme.typography.caption.primary,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+  },
+  rhythmBody: {
+    ...theme.typography.caption.secondary,
+    color: theme.colors.text.secondary,
+  },
+  rhythmHint: {
+    ...theme.typography.caption.secondary,
+    color: theme.colors.text.tertiary,
+    fontStyle: 'italic',
+  },
+  rhythmTaskCard: {
+    marginTop: theme.spacing.xs,
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: theme.spacing.xs,
+    borderRadius: theme.borderRadius.md,
+    backgroundColor: theme.colors.background,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
   },
   applySection: {
     gap: theme.spacing.sm,
