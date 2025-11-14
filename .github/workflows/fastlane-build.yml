@@ -15,6 +15,11 @@ on:
         description: 'Optional release tag (e.g., mobile-v1.2.0)'
         required: false
 
+# Optimize concurrency - cancel in-progress runs for same branch
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   prepare-build:
     runs-on: ubuntu-latest
@@ -25,6 +30,11 @@ jobs:
       version_name: ${{ steps.versioning.outputs.version_name }}
       version_code: ${{ steps.versioning.outputs.version_code }}
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
       - name: Resolve ref
         id: resolve-ref
         run: |
@@ -43,39 +53,47 @@ jobs:
         id: build_id
         run: echo "id=$(date +'%Y%m%d%H%M%S')" >> $GITHUB_OUTPUT
 
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ steps.resolve-ref.outputs.ref }}
-
       - name: Compute version name/code
         id: versioning
         run: |
           TAG="${{ steps.resolve-ref.outputs.tag }}"
+          
           if [ -n "$TAG" ]; then
             VER="${TAG#mobile-v}"
+            VER="${VER#v}"
             echo "Using tag version: $VER"
-            echo "version_name=$VER" >> "$GITHUB_OUTPUT"
-            MAJOR=$(echo "$VER" | cut -d. -f1)
-            MINOR=$(echo "$VER" | cut -d. -f2)
-            PATCH=$(echo "$VER" | cut -d. -f3)
-            CODE=$((10#$MAJOR * 10000 + 10#$MINOR * 100 + 10#$PATCH))
-            echo "version_code=$CODE" >> "$GITHUB_OUTPUT"
           else
-            if [ -f package.json ]; then
+            git fetch --tags 2>/dev/null || true
+            LATEST_TAG=$(git tag -l 'mobile-v*' 'v*' | grep -E '(mobile-v|^v)?[0-9]+\.[0-9]+\.[0-9]+$' | sed 's/^mobile-v//;s/^v//' | sort -V | tail -1)
+            
+            if [ -n "$LATEST_TAG" ]; then
+              VER="$LATEST_TAG"
+              echo "Using latest tag version: $VER"
+            elif [ -f package.json ]; then
               VER=$(node -p "require('./package.json').version" 2>/dev/null || echo "1.0.0")
+              echo "Using package.json version: $VER"
             else
               VER="1.0.0"
+              echo "Using fallback version: $VER"
             fi
-            echo "Using fallback version: $VER"
-            echo "version_name=$VER" >> "$GITHUB_OUTPUT"
-            CODE=${GITHUB_RUN_NUMBER}
-            echo "version_code=$CODE" >> "$GITHUB_OUTPUT"
           fi
+          
+          echo "version_name=$VER" >> "$GITHUB_OUTPUT"
+          
+          MAJOR=$(echo "$VER" | cut -d. -f1)
+          MINOR=$(echo "$VER" | cut -d. -f2)
+          PATCH=$(echo "$VER" | cut -d. -f3)
+          CODE=$((10#$MAJOR * 10000 + 10#$MINOR * 100 + 10#$PATCH))
+          echo "version_code=$CODE" >> "$GITHUB_OUTPUT"
+          
+          echo "Final version: $VER (code: $CODE)"
 
   build-android:
-    needs: build-ios
+    needs: prepare-build
     runs-on: ubuntu-latest
+    # Use build matrix for potential parallelization if needed
+    strategy:
+      fail-fast: true
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -87,6 +105,14 @@ jobs:
         with:
           distribution: 'temurin'
           java-version: '21'
+          cache: 'gradle'  # Enable Gradle caching
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.2'
+          bundler-cache: true  # Auto-cache bundler dependencies
+          working-directory: 'android'
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -94,11 +120,18 @@ jobs:
           node-version: '20'
           cache: 'npm'
 
-      - name: Install dependencies
-        run: npm ci
+      - name: Install npm dependencies
+        run: npm ci --prefer-offline --no-audit
 
       - name: Remove existing android directory
         run: rm -rf android
+
+      - name: Verify app.json exists
+        run: |
+          if [ ! -f "app.json" ]; then
+            echo "Error: app.json not found"
+            exit 1
+          fi
 
       - name: Update app.json with version
         run: |
@@ -111,169 +144,265 @@ jobs:
           appJson.expo.ios = appJson.expo.ios || {};
           appJson.expo.ios.buildNumber = '${{ needs.prepare-build.outputs.version_code }}';
           fs.writeFileSync('app.json', JSON.stringify(appJson, null, 2));
-          console.log('Updated app.json:', JSON.stringify(appJson.expo, null, 2));
           "
 
-      - name: Expo Prebuild (Generate Native Directories)
+      - name: Expo Prebuild
         run: |
-          npx expo prebuild --clean --platform android
-          echo "=== Generated Android Structure ==="
-          ls -la android/
-          ls -la android/app/ || true
+          npx expo prebuild --clean --platform android --no-install
+          
+          # Verify android directory was created
+          if [ ! -d "android" ] || [ ! -f "android/app/build.gradle" ]; then
+            echo "Error: Expo prebuild failed to generate android directory"
+            exit 1
+          fi
+          
+          echo "✓ Android native directory generated successfully"
 
-      - name: Configure AWS CLI for R2
+      - name: Configure AWS CLI
         run: |
           aws configure set aws_access_key_id "${{ secrets.R2_ACCESS_KEY_ID }}"
           aws configure set aws_secret_access_key "${{ secrets.R2_SECRET_ACCESS_KEY }}"
           aws configure set region us-east-1
-          aws configure set output json
 
-      - name: Setup Keystore Directory
-        run: mkdir -p android/app/keystore
-
-      - name: Download or Create Keystore
+      - name: Setup Keystore
         run: |
+          mkdir -p android/app/keystore
           KEYSTORE_PATH="android/app/keystore/elbiblio.jks"
-          R2_KEYSTORE_PATH="s3://${{ secrets.R2_KEYSTORE_BUCKET }}/keystore/elbiblio.jks"
+          R2_PATH="s3://${{ secrets.R2_KEYSTORE_BUCKET }}/keystore/elbiblio.jks"
           R2_ENDPOINT="https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com"
 
-          echo "Checking if keystore exists in R2..."
-          if aws s3 ls "$R2_KEYSTORE_PATH" --endpoint-url="$R2_ENDPOINT" > /dev/null 2>&1; then
-            echo "Keystore found in R2, downloading..."
-            aws s3 cp "$R2_KEYSTORE_PATH" "$KEYSTORE_PATH" --endpoint-url="$R2_ENDPOINT"
+          echo "Checking for existing keystore in R2..."
+          if aws s3 ls "$R2_PATH" --endpoint-url="$R2_ENDPOINT" 2>/dev/null; then
+            echo "Downloading existing keystore..."
+            aws s3 cp "$R2_PATH" "$KEYSTORE_PATH" --endpoint-url="$R2_ENDPOINT"
             
-            if keytool -list -keystore "$KEYSTORE_PATH" -storepass "${{ secrets.ANDROID_KEYSTORE_PASSWORD }}" > /dev/null 2>&1; then
-              echo "✓ Keystore verification successful"
-            else
-              echo "✗ Keystore verification failed"
+            # Verify keystore is valid
+            if ! keytool -list -keystore "$KEYSTORE_PATH" -storepass "${{ secrets.ANDROID_KEYSTORE_PASSWORD }}" >/dev/null 2>&1; then
+              echo "Error: Downloaded keystore is invalid"
               exit 1
             fi
+            echo "✓ Keystore verified successfully"
           else
             echo "Creating new keystore..."
-            keytool -genkey -v \
-              -keystore "$KEYSTORE_PATH" \
-              -alias elbiblio \
-              -keyalg RSA \
-              -keysize 2048 \
-              -validity 10000 \
-              -storepass "${{ secrets.ANDROID_KEYSTORE_PASSWORD }}" \
-              -keypass "${{ secrets.ANDROID_KEY_PASSWORD }}" \
+            keytool -genkey -v -keystore "$KEYSTORE_PATH" -alias elbiblio -keyalg RSA -keysize 2048 -validity 10000 \
+              -storepass "${{ secrets.ANDROID_KEYSTORE_PASSWORD }}" -keypass "${{ secrets.ANDROID_KEY_PASSWORD }}" \
               -dname "CN=Elbiblio, OU=Mobile, O=Elbiblio, L=Unknown, S=Unknown, C=US"
-
-            aws s3 cp "$KEYSTORE_PATH" "$R2_KEYSTORE_PATH" --endpoint-url="$R2_ENDPOINT"
-            echo "✓ Keystore uploaded to R2"
+            
+            # Verify new keystore
+            if ! keytool -list -keystore "$KEYSTORE_PATH" -storepass "${{ secrets.ANDROID_KEYSTORE_PASSWORD }}" >/dev/null 2>&1; then
+              echo "Error: Failed to create valid keystore"
+              exit 1
+            fi
+            
+            # Upload to R2
+            aws s3 cp "$KEYSTORE_PATH" "$R2_PATH" --endpoint-url="$R2_ENDPOINT"
+            echo "✓ New keystore created and uploaded"
           fi
         env:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
 
-      - name: Create gradle.properties for signing
-        run: |
-          cat >> android/gradle.properties <<EOF
-          MYAPP_UPLOAD_STORE_FILE=keystore/elbiblio.jks
-          MYAPP_UPLOAD_KEY_ALIAS=elbiblio
-          MYAPP_UPLOAD_STORE_PASSWORD=${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          MYAPP_UPLOAD_KEY_PASSWORD=${{ secrets.ANDROID_KEY_PASSWORD }}
-          EOF
-        env:
-          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-
-      - name: Configure signing in build.gradle
-        run: |
-          BUILD_GRADLE="android/app/build.gradle"
-          
-          # Check if signing config already exists
-          if ! grep -q "signingConfigs" "$BUILD_GRADLE"; then
-            echo "Adding signing configuration to build.gradle..."
-            
-            # Add signing config after android { block
-            sed -i '/^android {/a\
-            \    signingConfigs {\
-            \        release {\
-            \            if (project.hasProperty("MYAPP_UPLOAD_STORE_FILE")) {\
-            \                storeFile file(MYAPP_UPLOAD_STORE_FILE)\
-            \                storePassword MYAPP_UPLOAD_STORE_PASSWORD\
-            \                keyAlias MYAPP_UPLOAD_KEY_ALIAS\
-            \                keyPassword MYAPP_UPLOAD_KEY_PASSWORD\
-            \            }\
-            \        }\
-            \    }' "$BUILD_GRADLE"
-            
-            # Add signing config to release buildType
-            sed -i '/buildTypes {/,/release {/a\
-            \            signingConfig signingConfigs.release' "$BUILD_GRADLE"
-          fi
-          
-          echo "=== Signing Configuration ==="
-          grep -A 10 "signingConfigs" "$BUILD_GRADLE" || echo "No signing config found"
-
-      - name: Build Android APK and AAB
+      - name: Setup Fastlane
         run: |
           cd android
-          chmod +x ./gradlew
-          ./gradlew assembleRelease bundleRelease --parallel --daemon --info
           
-          echo "=== Build Outputs ==="
-          find app/build/outputs -name "*.apk" -o -name "*.aab"
-        env:
-          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-
-      - name: Find and Verify Build Outputs
-        id: find-files
-        run: |
-          APK_PATH=$(find android/app/build/outputs/apk/release -name "*.apk" | grep -v "unsigned" | head -1)
-          AAB_PATH=$(find android/app/build/outputs/bundle/release -name "*.aab" | head -1)
-          
-          if [ -z "$APK_PATH" ]; then
-            echo "Error: No signed APK found"
-            find android/app/build/outputs -name "*.apk"
+          # Verify we're in android directory
+          if [ ! -f "app/build.gradle" ]; then
+            echo "Error: build.gradle not found in android/app/"
             exit 1
           fi
           
-          echo "apk_path=$APK_PATH" >> $GITHUB_OUTPUT
-          if [ -n "$AAB_PATH" ]; then
-            echo "aab_path=$AAB_PATH" >> $GITHUB_OUTPUT
+          cat > Gemfile <<EOF
+          source "https://rubygems.org"
+          gem "fastlane"
+          EOF
+          
+          mkdir -p fastlane
+          
+          cat > fastlane/Fastfile <<'EOF'
+          default_platform(:android)
+          
+          platform :android do
+            lane :build_release do
+              gradle(
+                task: "clean",
+                project_dir: "."
+              )
+              
+              gradle(
+                tasks: ["assembleRelease", "bundleRelease"],
+                project_dir: ".",
+                properties: {
+                  "MYAPP_UPLOAD_STORE_FILE" => "keystore/elbiblio.jks",
+                  "MYAPP_UPLOAD_KEY_ALIAS" => "elbiblio",
+                  "MYAPP_UPLOAD_STORE_PASSWORD" => ENV["ANDROID_KEYSTORE_PASSWORD"],
+                  "MYAPP_UPLOAD_KEY_PASSWORD" => ENV["ANDROID_KEY_PASSWORD"],
+                  "org.gradle.daemon" => "true",
+                  "org.gradle.parallel" => "true",
+                  "org.gradle.configureondemand" => "true",
+                  "org.gradle.caching" => "true"
+                },
+                print_command: false
+              )
+            end
+          end
+          EOF
+
+      - name: Configure signing
+        run: |
+          cd android/app
+          
+          # Backup and verify build.gradle exists
+          if [ ! -f "build.gradle" ]; then
+            echo "Error: build.gradle not found"
+            exit 1
           fi
           
-          echo "=== Build Artifacts ==="
-          ls -lh "$APK_PATH"
-          if [ -n "$AAB_PATH" ]; then
-            ls -lh "$AAB_PATH"
+          cp build.gradle build.gradle.bak
+          
+          python3 <<'PYTHON'
+          import re
+          import sys
+          
+          try:
+              with open("build.gradle", "r") as f:
+                  content = f.read()
+          except Exception as e:
+              print(f"Error reading build.gradle: {e}")
+              sys.exit(1)
+          
+          if "signingConfigs" not in content:
+              signing = '''
+              signingConfigs {
+                  release {
+                      if (project.hasProperty('MYAPP_UPLOAD_STORE_FILE')) {
+                          storeFile file(MYAPP_UPLOAD_STORE_FILE)
+                          storePassword MYAPP_UPLOAD_STORE_PASSWORD
+                          keyAlias MYAPP_UPLOAD_KEY_ALIAS
+                          keyPassword MYAPP_UPLOAD_KEY_PASSWORD
+                      }
+                  }
+              }
+          '''
+              content = re.sub(r'(android\s*\{)', r'\1' + signing, content, count=1)
+              
+              if 'signingConfig signingConfigs.release' not in content:
+                  content = re.sub(
+                      r'(buildTypes\s*\{[^}]*release\s*\{)',
+                      r'\1\n            signingConfig signingConfigs.release',
+                      content, count=1
+                  )
+              
+              try:
+                  with open("build.gradle", "w") as f:
+                      f.write(content)
+                  print("✓ Signing configuration added successfully")
+              except Exception as e:
+                  print(f"Error writing build.gradle: {e}")
+                  sys.exit(1)
+          else:
+              print("✓ Signing configuration already exists")
+          PYTHON
+
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+            android/.gradle
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+
+      - name: Build with Fastlane
+        run: |
+          cd android
+          
+          # Verify Gradle wrapper exists
+          if [ ! -f "gradlew" ]; then
+            echo "Error: Gradle wrapper not found"
+            exit 1
           fi
           
-          # Verify APK is signed
-          if command -v apksigner &> /dev/null; then
-            echo "=== APK Signature Verification ==="
-            apksigner verify --verbose "$APK_PATH" || echo "APK verification failed"
+          chmod +x gradlew
+          bundle exec fastlane build_release
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+
+      - name: Find artifacts
+        id: find-files
+        run: |
+          APK=$(find android/app/build/outputs/apk/release -name "*.apk" ! -name "*unsigned*" 2>/dev/null | head -1)
+          AAB=$(find android/app/build/outputs/bundle/release -name "*.aab" 2>/dev/null | head -1)
+          
+          if [ -z "$APK" ]; then
+            echo "Error: No signed APK found"
+            echo "Available APKs:"
+            find android/app/build/outputs -name "*.apk" 2>/dev/null || echo "No APK files found"
+            exit 1
           fi
+          
+          echo "apk_path=$APK" >> $GITHUB_OUTPUT
+          
+          if [ -n "$AAB" ]; then
+            echo "aab_path=$AAB" >> $GITHUB_OUTPUT
+            echo "✓ Found AAB: $(basename $AAB)"
+          else
+            echo "⚠ Warning: No AAB found (APK only)"
+          fi
+          
+          APK_SIZE=$(du -h "$APK" | cut -f1)
+          echo "✓ Found APK: $(basename $APK) ($APK_SIZE)"
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: elbiblio-android-${{ needs.prepare-build.outputs.build_id }}
+          name: android-apk-${{ needs.prepare-build.outputs.build_id }}
           path: ${{ steps.find-files.outputs.apk_path }}
           retention-days: 30
+          compression-level: 0  # APK already compressed
 
       - name: Upload AAB
-        if: steps.find-files.outputs.aab_path != ''
+        if: steps.find-files.outputs.aab_path
         uses: actions/upload-artifact@v4
         with:
-          name: elbiblio-android-bundle-${{ needs.prepare-build.outputs.build_id }}
+          name: android-aab-${{ needs.prepare-build.outputs.build_id }}
           path: ${{ steps.find-files.outputs.aab_path }}
           retention-days: 30
+          compression-level: 0
 
       - name: Cleanup
         if: always()
-        run: |
-          rm -rf android/app/keystore
-          rm -f android/gradle.properties
+        run: rm -rf android/app/keystore
 
   build-ios:
-    needs: prepare-build
+    needs: 
+      - prepare-build
+      - build-android
     runs-on: macos-15
+    strategy:
+      fail-fast: true
     steps:
+      - name: Verify required secrets
+        run: |
+          MISSING_SECRETS=""
+          
+          [ -z "${{ secrets.R2_ACCESS_KEY_ID }}" ] && MISSING_SECRETS="$MISSING_SECRETS R2_ACCESS_KEY_ID"
+          [ -z "${{ secrets.R2_SECRET_ACCESS_KEY }}" ] && MISSING_SECRETS="$MISSING_SECRETS R2_SECRET_ACCESS_KEY"
+          [ -z "${{ secrets.R2_ACCOUNT_ID }}" ] && MISSING_SECRETS="$MISSING_SECRETS R2_ACCOUNT_ID"
+          [ -z "${{ secrets.R2_KEYSTORE_BUCKET }}" ] && MISSING_SECRETS="$MISSING_SECRETS R2_KEYSTORE_BUCKET"
+          [ -z "${{ secrets.IOS_KEYCHAIN_PASSWORD }}" ] && MISSING_SECRETS="$MISSING_SECRETS IOS_KEYCHAIN_PASSWORD"
+          
+          if [ -n "$MISSING_SECRETS" ]; then
+            echo "Error: Missing required secrets:$MISSING_SECRETS"
+            echo "Please configure these secrets in GitHub repository settings"
+            exit 1
+          fi
+          
+          echo "✓ All required iOS secrets are configured"
+
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
@@ -284,16 +413,30 @@ jobs:
         with:
           xcode-version: '16.*'
 
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.2'
+          bundler-cache: true
+          working-directory: 'ios'
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
 
-      - name: Install dependencies
-        run: npm ci
+      - name: Install npm dependencies
+        run: npm ci --prefer-offline --no-audit
 
-      - name: Update app.json with version
+      - name: Verify app.json exists
+        run: |
+          if [ ! -f "app.json" ]; then
+            echo "Error: app.json not found"
+            exit 1
+          fi
+
+      - name: Update app.json
         run: |
           node -e "
           const fs = require('fs');
@@ -304,289 +447,285 @@ jobs:
           appJson.expo.android = appJson.expo.android || {};
           appJson.expo.android.versionCode = parseInt('${{ needs.prepare-build.outputs.version_code }}');
           fs.writeFileSync('app.json', JSON.stringify(appJson, null, 2));
-          console.log('Updated app.json:', JSON.stringify(appJson.expo, null, 2));
           "
 
-      - name: Expo Prebuild (Generate Native Directories)
+      - name: Expo Prebuild
         run: |
-          npx expo prebuild --clean --platform ios
-          echo "=== Generated iOS Structure ==="
-          ls -la ios/
+          npx expo prebuild --clean --platform ios --no-install
+          
+          # Verify ios directory was created
+          if [ ! -d "ios" ]; then
+            echo "Error: Expo prebuild failed to generate ios directory"
+            exit 1
+          fi
+          
+          # Verify Xcode project exists
+          XCODE_PROJECT=$(find ios -maxdepth 1 -name "*.xcworkspace" -o -name "*.xcodeproj" | head -1)
+          if [ -z "$XCODE_PROJECT" ]; then
+            echo "Error: No Xcode workspace or project found"
+            exit 1
+          fi
+          
+          echo "✓ iOS native directory generated successfully"
+          echo "✓ Found Xcode project: $(basename $XCODE_PROJECT)"
+
+      - name: Cache CocoaPods
+        uses: actions/cache@v4
+        with:
+          path: |
+            ios/Pods
+            ~/Library/Caches/CocoaPods
+          key: ${{ runner.os }}-pods-${{ hashFiles('ios/Podfile.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-pods-
 
       - name: Install CocoaPods
         run: |
           cd ios
-          pod install
-          echo "=== CocoaPods Installation Complete ==="
-          ls -la
+          
+          # Verify Podfile exists
+          if [ ! -f "Podfile" ]; then
+            echo "Error: Podfile not found"
+            exit 1
+          fi
+          
+          pod install --repo-update
+          
+          # Verify Pods were installed
+          if [ ! -d "Pods" ]; then
+            echo "Error: CocoaPods installation failed"
+            exit 1
+          fi
+          
+          echo "✓ CocoaPods installed successfully"
 
-      - name: Configure AWS CLI for R2
+      - name: Configure AWS CLI
         run: |
           aws configure set aws_access_key_id "${{ secrets.R2_ACCESS_KEY_ID }}"
           aws configure set aws_secret_access_key "${{ secrets.R2_SECRET_ACCESS_KEY }}"
           aws configure set region us-east-1
-          aws configure set output json
 
-      - name: Download iOS signing assets from R2
+      - name: Download signing assets
         run: |
           mkdir -p ios/signing
           R2_ENDPOINT="https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com"
           BUCKET="${{ secrets.R2_KEYSTORE_BUCKET }}"
           
-          echo "Downloading iOS signing materials from R2..."
-          aws s3 cp "s3://$BUCKET/iosbuild/distribution.cer" ios/signing/distribution.cer --endpoint-url="$R2_ENDPOINT"
-          aws s3 cp "s3://$BUCKET/iosbuild/Venmail_Distribution.p12" ios/signing/ios_dist.p12 --endpoint-url="$R2_ENDPOINT"
-          aws s3 cp "s3://$BUCKET/iosbuild/Elbiblio.mobileprovision" ios/signing/Elbiblio.mobileprovision --endpoint-url="$R2_ENDPOINT"
-          aws s3 cp "s3://$BUCKET/iosbuild/AuthKey_4WKTZ9VTBH_ConnectKey.p8" ios/signing/AuthKey.p8 --endpoint-url="$R2_ENDPOINT" || true
+          echo "Downloading iOS signing materials..."
           
-          ls -la ios/signing/
+          # Download required files
+          aws s3 cp "s3://$BUCKET/iosbuild/distribution.cer" ios/signing/distribution.cer --endpoint-url="$R2_ENDPOINT" || \
+            { echo "Error: Failed to download distribution.cer"; exit 1; }
+          
+          aws s3 cp "s3://$BUCKET/iosbuild/Venmail_Distribution.p12" ios/signing/ios_dist.p12 --endpoint-url="$R2_ENDPOINT" || \
+            { echo "Error: Failed to download p12 certificate"; exit 1; }
+          
+          aws s3 cp "s3://$BUCKET/iosbuild/Elbiblio.mobileprovision" ios/signing/Elbiblio.mobileprovision --endpoint-url="$R2_ENDPOINT" || \
+            { echo "Error: Failed to download provisioning profile"; exit 1; }
+          
+          # AuthKey is optional for TestFlight
+          aws s3 cp "s3://$BUCKET/iosbuild/AuthKey_4WKTZ9VTBH_ConnectKey.p8" ios/signing/AuthKey.p8 --endpoint-url="$R2_ENDPOINT" 2>/dev/null || \
+            echo "⚠ AuthKey.p8 not found - TestFlight upload will be skipped"
+          
+          # Verify required files exist
+          for file in distribution.cer ios_dist.p12 Elbiblio.mobileprovision; do
+            if [ ! -f "ios/signing/$file" ]; then
+              echo "Error: Required file $file not found"
+              exit 1
+            fi
+          done
+          
+          echo "✓ All required signing materials downloaded"
 
-      - name: Create temporary keychain
-        run: |
-          KEYCHAIN="build.keychain"
-          KEYCHAIN_PASSWORD=$(uuidgen)
-          P12_PASSWORD="${{ secrets.IOS_KEYCHAIN_PASSWORD }}"
-          
-          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
-          security set-keychain-settings -lut 21600 "$KEYCHAIN"
-          security default-keychain -s "$KEYCHAIN"
-          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
-          
-          # Import certificate and p12
-          security import ios/signing/distribution.cer -k "$KEYCHAIN" -A
-          security import ios/signing/ios_dist.p12 -k "$KEYCHAIN" -P "$P12_PASSWORD" -A || \
-          security import ios/signing/ios_dist.p12 -k "$KEYCHAIN" -P "" -A
-          
-          security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
-          
-          # Add to keychain search list
-          CURRENT_LIST=$(security list-keychains -d user | sed 's/[""]//g')
-          security list-keychains -d user -s "$KEYCHAIN" $CURRENT_LIST
-          
-          echo "=== Available Signing Identities ==="
-          security find-identity -p codesigning -v
-          
-          echo "KEYCHAIN_PASSWORD=$KEYCHAIN_PASSWORD" >> $GITHUB_ENV
-        env:
-          IOS_KEYCHAIN_PASSWORD: ${{ secrets.IOS_KEYCHAIN_PASSWORD }}
-
-      - name: Install provisioning profile
-        id: install-profile
-        run: |
-          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
-          
-          security cms -D -i ios/signing/Elbiblio.mobileprovision > ios/signing/profile.plist
-          PROFILE_UUID=$(/usr/libexec/PlistBuddy -c "Print :UUID" ios/signing/profile.plist)
-          PROFILE_NAME=$(/usr/libexec/PlistBuddy -c "Print :Name" ios/signing/profile.plist)
-          
-          if [ -z "$PROFILE_UUID" ]; then
-            echo "Error: Failed to extract UUID from provisioning profile"
-            exit 1
-          fi
-          
-          cp ios/signing/Elbiblio.mobileprovision "$HOME/Library/MobileDevice/Provisioning Profiles/$PROFILE_UUID.mobileprovision"
-          
-          echo "uuid=$PROFILE_UUID" >> "$GITHUB_OUTPUT"
-          echo "name=$PROFILE_NAME" >> "$GITHUB_OUTPUT"
-          echo "✓ Provisioning profile installed: $PROFILE_NAME ($PROFILE_UUID)"
-
-      - name: Parse provisioning profile details
-        id: parse-profile
-        run: |
-          TEAM_ID=$(/usr/libexec/PlistBuddy -c "Print :TeamIdentifier:0" ios/signing/profile.plist)
-          APP_ID=$(/usr/libexec/PlistBuddy -c "Print :Entitlements:application-identifier" ios/signing/profile.plist)
-          BUNDLE_ID=${APP_ID#${TEAM_ID}.}
-          
-          echo "team_id=$TEAM_ID" >> "$GITHUB_OUTPUT"
-          echo "bundle_id=$BUNDLE_ID" >> "$GITHUB_OUTPUT"
-          
-          echo "Team ID: $TEAM_ID"
-          echo "Bundle ID: $BUNDLE_ID"
-
-      - name: Detect signing identity
-        id: detect-identity
-        run: |
-          IDENTITY=$(security find-identity -p codesigning -v | grep 'Apple Distribution' | head -n1 | grep -o '[A-F0-9]\{40\}')
-          
-          if [ -z "$IDENTITY" ]; then
-            echo "Error: No Apple Distribution identity found"
-            security find-identity -p codesigning -v
-            exit 1
-          fi
-          
-          echo "identity=$IDENTITY" >> "$GITHUB_OUTPUT"
-          echo "✓ Found signing identity: $IDENTITY"
-
-      - name: Find Xcode workspace/project
-        id: find-xcode
+      - name: Setup Fastlane
         run: |
           cd ios
           
-          # Look for workspace first (preferred for CocoaPods)
+          # Detect workspace/project and scheme
           WORKSPACE=$(find . -maxdepth 1 -name "*.xcworkspace" | head -1)
           PROJECT=$(find . -maxdepth 1 -name "*.xcodeproj" | head -1)
           
+          if [ -z "$WORKSPACE" ] && [ -z "$PROJECT" ]; then
+            echo "Error: No Xcode workspace or project found"
+            exit 1
+          fi
+          
           if [ -n "$WORKSPACE" ]; then
             XCODE_FILE=$(basename "$WORKSPACE")
-            USE_WORKSPACE="true"
-          elif [ -n "$PROJECT" ]; then
+            SCHEME=$(basename "$XCODE_FILE" .xcworkspace)
+            echo "✓ Using workspace: $XCODE_FILE"
+          else
             XCODE_FILE=$(basename "$PROJECT")
-            USE_WORKSPACE="false"
-          else
-            echo "Error: No Xcode workspace or project found"
-            ls -la
-            exit 1
+            SCHEME=$(basename "$XCODE_FILE" .xcodeproj)
+            echo "✓ Using project: $XCODE_FILE"
           fi
           
-          # Detect scheme name
-          SCHEME=$(basename "$XCODE_FILE" .xcworkspace)
-          SCHEME=$(basename "$SCHEME" .xcodeproj)
+          echo "✓ Detected scheme: $SCHEME"
           
-          echo "xcode_file=$XCODE_FILE" >> "$GITHUB_OUTPUT"
-          echo "use_workspace=$USE_WORKSPACE" >> "$GITHUB_OUTPUT"
-          echo "scheme=$SCHEME" >> "$GITHUB_OUTPUT"
-          
-          echo "✓ Xcode file: $XCODE_FILE"
-          echo "✓ Scheme: $SCHEME"
-          echo "✓ Using workspace: $USE_WORKSPACE"
-
-      - name: Build iOS Archive
-        run: |
-          cd ios
-          
-          XCODE_FILE="${{ steps.find-xcode.outputs.xcode_file }}"
-          SCHEME="${{ steps.find-xcode.outputs.scheme }}"
-          USE_WORKSPACE="${{ steps.find-xcode.outputs.use_workspace }}"
-          
-          if [ "$USE_WORKSPACE" = "true" ]; then
-            BUILD_CMD="xcodebuild archive -workspace $XCODE_FILE"
-          else
-            BUILD_CMD="xcodebuild archive -project $XCODE_FILE"
-          fi
-          
-          $BUILD_CMD \
-            -scheme "$SCHEME" \
-            -configuration Release \
-            -archivePath build/App.xcarchive \
-            -destination 'generic/platform=iOS' \
-            DEVELOPMENT_TEAM="${{ steps.parse-profile.outputs.team_id }}" \
-            CODE_SIGN_STYLE=Manual \
-            CODE_SIGN_IDENTITY="${{ steps.detect-identity.outputs.identity }}" \
-            PROVISIONING_PROFILE_SPECIFIER="${{ steps.install-profile.outputs.uuid }}" \
-            OTHER_CODE_SIGN_FLAGS="--keychain build.keychain" \
-            | tee build.log
-          
-          if [ ! -d "build/App.xcarchive" ]; then
-            echo "Error: Archive not created"
-            tail -100 build.log
-            exit 1
-          fi
-          
-          echo "✓ Archive created successfully"
-
-      - name: Export IPA
-        run: |
-          cd ios
-          
-          cat > exportOptions.plist <<EOF
-          <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0">
-          <dict>
-              <key>method</key>
-              <string>app-store</string>
-              <key>teamID</key>
-              <string>${{ steps.parse-profile.outputs.team_id }}</string>
-              <key>uploadBitcode</key>
-              <false/>
-              <key>uploadSymbols</key>
-              <true/>
-              <key>compileBitcode</key>
-              <false/>
-              <key>signingStyle</key>
-              <string>manual</string>
-              <key>provisioningProfiles</key>
-              <dict>
-                  <key>${{ steps.parse-profile.outputs.bundle_id }}</key>
-                  <string>${{ steps.install-profile.outputs.name }}</string>
-              </dict>
-          </dict>
-          </plist>
+          cat > Gemfile <<EOF
+          source "https://rubygems.org"
+          gem "fastlane"
           EOF
           
-          xcodebuild -exportArchive \
-            -archivePath build/App.xcarchive \
-            -exportPath build/export \
-            -exportOptionsPlist exportOptions.plist \
-            | tee export.log
+          mkdir -p fastlane
           
-          if [ ! -f "build/export/"*.ipa ]; then
-            echo "Error: IPA not created"
-            tail -100 export.log
+          cat > fastlane/Fastfile <<EOF
+          default_platform(:ios)
+          
+          platform :ios do
+            lane :setup_signing do
+              profile_path = File.expand_path("../signing/Elbiblio.mobileprovision")
+              
+              # Verify profile exists
+              unless File.exist?(profile_path)
+                UI.user_error!("Provisioning profile not found at #{profile_path}")
+              end
+              
+              profile_uuid = sh("security cms -D -i #{profile_path} | plutil -extract UUID raw -o - -").strip
+              profile_name = sh("security cms -D -i #{profile_path} | plutil -extract Name raw -o - -").strip
+              team_id = sh("security cms -D -i #{profile_path} | plutil -extract TeamIdentifier.0 raw -o - -").strip
+              app_id = sh("security cms -D -i #{profile_path} | plutil -extract Entitlements.application-identifier raw -o - -").strip
+              bundle_id = app_id.sub("#{team_id}.", "")
+              
+              # Verify we extracted valid data
+              if profile_uuid.empty? || team_id.empty? || bundle_id.empty?
+                UI.user_error!("Failed to extract profile information")
+              end
+              
+              profile_dir = File.expand_path("~/Library/MobileDevice/Provisioning Profiles")
+              FileUtils.mkdir_p(profile_dir)
+              FileUtils.cp(profile_path, "#{profile_dir}/#{profile_uuid}.mobileprovision")
+              
+              keychain_name = "build.keychain"
+              keychain_password = SecureRandom.uuid
+              
+              create_keychain(
+                name: keychain_name,
+                password: keychain_password,
+                default_keychain: true,
+                unlock: true,
+                timeout: 21600,
+                lock_when_sleeps: false
+              )
+              
+              import_certificate(
+                certificate_path: "signing/distribution.cer",
+                keychain_name: keychain_name,
+                keychain_password: keychain_password
+              )
+              
+              begin
+                import_certificate(
+                  certificate_path: "signing/ios_dist.p12",
+                  certificate_password: ENV["IOS_KEYCHAIN_PASSWORD"],
+                  keychain_name: keychain_name,
+                  keychain_password: keychain_password
+                )
+              rescue
+                import_certificate(
+                  certificate_path: "signing/ios_dist.p12",
+                  certificate_password: "",
+                  keychain_name: keychain_name,
+                  keychain_password: keychain_password
+                )
+              end
+              
+              identity = sh("security find-identity -p codesigning -v | grep 'Apple Distribution' | head -n1 | grep -o '[A-F0-9]\\{40\\}'").strip
+              
+              { team_id: team_id, bundle_id: bundle_id, profile_name: profile_name, 
+                profile_uuid: profile_uuid, identity: identity, keychain: keychain_name }
+            end
+            
+            lane :build_release do
+              signing_info = setup_signing
+              
+              build_app(
+                workspace: "${XCODE_FILE}",
+                scheme: "${SCHEME}",
+                configuration: "Release",
+                export_method: "app-store",
+                output_directory: "build/export",
+                output_name: "Elbiblio.ipa",
+                archive_path: "build/App.xcarchive",
+                export_options: {
+                  method: "app-store",
+                  teamID: signing_info[:team_id],
+                  uploadBitcode: false,
+                  uploadSymbols: true,
+                  compileBitcode: false,
+                  signingStyle: "manual",
+                  provisioningProfiles: {
+                    signing_info[:bundle_id] => signing_info[:profile_name]
+                  }
+                },
+                xcargs: "DEVELOPMENT_TEAM=#{signing_info[:team_id]} CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=#{signing_info[:identity]} PROVISIONING_PROFILE_SPECIFIER=#{signing_info[:profile_uuid]} OTHER_CODE_SIGN_FLAGS='--keychain #{signing_info[:keychain]}'"
+              )
+            end
+            
+            lane :upload_testflight do
+              return unless File.exist?("signing/AuthKey.p8")
+              
+              api_key = app_store_connect_api_key(
+                key_id: ENV["APP_STORE_CONNECT_API_KEY_ID"],
+                issuer_id: ENV["APPSTORE_ISSUER_ID"],
+                key_content: File.read("signing/AuthKey.p8")
+              )
+              
+              upload_to_testflight(
+                api_key: api_key,
+                ipa: "build/export/Elbiblio.ipa",
+                skip_waiting_for_build_processing: true
+              )
+            end
+          end
+          EOF
+
+      - name: Build with Fastlane
+        run: |
+          cd ios
+          
+          # Verify Fastfile exists
+          if [ ! -f "fastlane/Fastfile" ]; then
+            echo "Error: Fastfile not found"
             exit 1
           fi
           
-          # Rename IPA
-          mv build/export/*.ipa build/export/Elbiblio.ipa
+          bundle exec fastlane build_release
+        env:
+          IOS_KEYCHAIN_PASSWORD: ${{ secrets.IOS_KEYCHAIN_PASSWORD }}
+
+      - name: Verify IPA was created
+        run: |
+          if [ ! -f "ios/build/export/Elbiblio.ipa" ]; then
+            echo "Error: IPA file not found at ios/build/export/Elbiblio.ipa"
+            find ios/build -name "*.ipa" 2>/dev/null || echo "No IPA files found"
+            exit 1
+          fi
           
-          echo "✓ IPA exported successfully"
-          ls -lh build/export/Elbiblio.ipa
+          IPA_SIZE=$(du -h ios/build/export/Elbiblio.ipa | cut -f1)
+          echo "✓ IPA created successfully: $IPA_SIZE"
 
       - name: Upload IPA
         uses: actions/upload-artifact@v4
         with:
-          name: elbiblio-ios-${{ needs.prepare-build.outputs.build_id }}
+          name: ios-ipa-${{ needs.prepare-build.outputs.build_id }}
           path: ios/build/export/Elbiblio.ipa
           retention-days: 30
+          compression-level: 0
 
-      - name: Install Fastlane
-        run: sudo gem install fastlane --no-document
-
-      - name: Upload to TestFlight (Optional)
+      - name: Upload to TestFlight
+        if: needs.prepare-build.outputs.tag != ''
+        run: |
+          cd ios
+          bundle exec fastlane upload_testflight
         env:
           APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
           APPSTORE_ISSUER_ID: ${{ secrets.APPSTORE_ISSUER_ID }}
-        run: |
-          if [ ! -f ios/signing/AuthKey.p8 ]; then
-            echo "AuthKey.p8 not found; skipping TestFlight upload"
-            exit 0
-          fi
-
-          python3 - <<'PY'
-          import json
-          import os
-
-          key_path = 'ios/signing/AuthKey.p8'
-          if not os.path.exists(key_path):
-              raise SystemExit('AuthKey.p8 missing')
-
-          with open(key_path, 'r', encoding='utf-8') as fp:
-              key_contents = fp.read()
-
-          data = {
-              "key_id": os.environ["APP_STORE_CONNECT_API_KEY_ID"],
-              "issuer_id": os.environ["APPSTORE_ISSUER_ID"],
-              "key": key_contents
-          }
-
-          with open('ios/signing/appstoreconnect_api_key.json', 'w', encoding='utf-8') as out_fp:
-              json.dump(data, out_fp)
-          PY
-
-          cd ios
-          fastlane pilot upload \
-            --api-key-path signing/appstoreconnect_api_key.json \
-            --ipa build/export/Elbiblio.ipa \
-            --skip_waiting_for_build_processing true \
-            --distribute_external false \
-            --notify_external_testers false \
-            --skip_submission true \
-            --changelog "Automated build from GitHub Actions"
 
       - name: Cleanup
         if: always()
         run: |
-          security delete-keychain build.keychain || true
+          security delete-keychain build.keychain 2>/dev/null || true
           rm -rf ios/signing
           rm -rf ~/Library/MobileDevice/Provisioning\ Profiles/*.mobileprovision
 
@@ -598,12 +737,12 @@ jobs:
     runs-on: ubuntu-latest
     if: needs.prepare-build.outputs.tag != ''
     steps:
-      - name: Download build artifacts
+      - name: Download artifacts
         uses: actions/download-artifact@v4
         with:
           path: dist
 
-      - name: Publish GitHub release
+      - name: Create release
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ needs.prepare-build.outputs.tag }}
@@ -611,9 +750,6 @@ jobs:
           draft: false
           prerelease: false
           generate_release_notes: true
-          files: |
-            dist/**/*.apk
-            dist/**/*.aab
-            dist/**/*.ipa
+          files: dist/**/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
