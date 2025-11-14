@@ -39,6 +39,8 @@ import ProfileScreen from './src/screens/ProfileScreen';
 import LeaderboardScreen from './src/screens/LeaderboardScreen';
 import GameScreen from './src/screens/GameScreen';
 import SpiritualCareerScreen from './src/screens/SpiritualCareerScreen';
+import CareerDiscoveryScreen from './src/screens/CareerDiscoveryScreen';
+import CareerHistoricMeditationScreen from './src/screens/CareerHistoricMeditationScreen';
 import RegistrationScreen from './src/screens/RegistrationScreen';
 import CommunityScreen from './src/screens/CommunityScreen';
 import PrayerRequestsScreen from './src/screens/PrayerRequestsScreen';
@@ -47,6 +49,10 @@ import JourneyQuizScreen from './src/screens/JourneyQuizScreen';
 import CitizenshipSetupScreen from './src/screens/CitizenshipSetupScreen';
 import HabitConquestSetupScreen from './src/screens/HabitConquestSetupScreen';
 import HabitConquestSessionScreen from './src/screens/HabitConquestSessionScreen';
+import TalkToGodScreen from './src/screens/TalkToGodScreen';
+import HowToPrayScreen from './src/screens/HowToPrayScreen';
+import ForgivenessScreen from './src/screens/ForgivenessScreen';
+import HolySpiritScreen from './src/screens/HolySpiritScreen';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { appStore } from './src/stores/appStore';
 import { StoreProvider } from './src/stores/StoreProvider';
@@ -156,6 +162,8 @@ const NavigationContent: React.FC = () => {
         <Stack.Screen name="MatchScreen" component={MatchScreen} />
         <Stack.Screen name="SavedItemsScreen" component={SavedItemsScreen} />
         <Stack.Screen name="NotesScreen" component={NotesScreen} />
+        <Stack.Screen name="CommunityScreen" component={CommunityScreen} />
+        <Stack.Screen name="PrayerRequestsScreen" component={PrayerRequestsScreen} />
         <Stack.Screen name="NoteDetail" component={NoteDetailScreen} />
         <Stack.Screen name="MeditationScreen" component={MeditationScreen} />
         <Stack.Screen name="VirtueScreen" component={VirtueScreen} />
@@ -168,11 +176,20 @@ const NavigationContent: React.FC = () => {
         <Stack.Screen name="LeaderboardScreen" component={LeaderboardScreen} />
         <Stack.Screen name="GameScreen" component={GameScreen} />
         <Stack.Screen name="SpiritualCareerScreen" component={SpiritualCareerScreen} />
+        <Stack.Screen name="CareerDiscoveryScreen" component={CareerDiscoveryScreen} />
+        <Stack.Screen
+          name="CareerHistoricMeditationScreen"
+          component={CareerHistoricMeditationScreen}
+        />
         <Stack.Screen name="MyJourneyScreen" component={MyJourneyScreen} />
         <Stack.Screen name="JourneyQuizScreen" component={JourneyQuizScreen} />
         <Stack.Screen name="CitizenshipSetupScreen" component={CitizenshipSetupScreen} />
         <Stack.Screen name="HabitConquestSetupScreen" component={HabitConquestSetupScreen} />
         <Stack.Screen name="HabitConquestSessionScreen" component={HabitConquestSessionScreen} />
+        <Stack.Screen name="TalkToGodScreen" component={TalkToGodScreen} />
+        <Stack.Screen name="HowToPrayScreen" component={HowToPrayScreen} />
+        <Stack.Screen name="ForgivenessScreen" component={ForgivenessScreen} />
+        <Stack.Screen name="HolySpiritScreen" component={HolySpiritScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );

@@ -732,6 +732,12 @@ export type RootStackParamList = {
   JourneyQuizScreen: { phaseId: string };
   HabitConquestSetupScreen: undefined;
   HabitConquestSessionScreen: undefined;
+  TalkToGodScreen: undefined;
+  HowToPrayScreen: undefined;
+  ForgivenessScreen: undefined;
+  HolySpiritScreen: undefined;
+  CareerDiscoveryScreen: undefined;
+  CareerHistoricMeditationScreen: undefined;
 };
 
 export interface BibleVersion {

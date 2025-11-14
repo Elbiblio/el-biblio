@@ -65,13 +65,19 @@ jobs:
           PREVIOUS_VERSION=""
           if git rev-parse HEAD^ >/dev/null 2>&1; then
             if git show HEAD^:app.json >/dev/null 2>&1; then
-              PREVIOUS_VERSION=$(git show HEAD^:app.json | python3 - << 'PY'
+              PREVIOUS_VERSION=$(git show HEAD^:app.json 2>/dev/null | python3 - << 'PY'
           import json, sys
-          data = json.load(sys.stdin)
-          expo = data.get("expo") or {}
-          version = expo.get("version")
-          if not isinstance(version, str):
+
+          try:
+              data = json.load(sys.stdin)
+              expo = data.get("expo") or {}
+              version = expo.get("version")
+              if not isinstance(version, str):
+                  version = ""
+          except Exception:
+              # If previous app.json is missing or invalid, treat as no previous version
               version = ""
+
           sys.stdout.write(version)
           PY
               )

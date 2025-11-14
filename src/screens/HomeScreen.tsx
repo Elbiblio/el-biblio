@@ -60,6 +60,7 @@ import {
   useLeaderboardStore,
   useMeditationStore,
   useDailyPathStore,
+  useJourneyStore,
 } from '@/stores/StoreProvider';
 import { ensureReviveRemindersActive, cancelReviveReminders, scheduleReviveReminders, REVIVE_REMINDER_DEFAULT_TIMES } from '@/tasks/reviveReminderScheduler';
 import { useGameBadgeStore } from '@/stores/GameBadgeStore';
@@ -222,6 +223,7 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
   const { unreadCount, computeUnreadFromReflections } = useCommunityStore();
   const { shouldShowBadge, updateRank } = useGameBadgeStore();
   const dailyPathStore = useDailyPathStore();
+  const journeyStore = useJourneyStore();
   const [timeTracking, setTimeTracking] = useState<TimeTracking>({
     lastActiveTimestamp: Date.now(),
     totalActiveTime: user?.total_active_time || 0,
@@ -826,6 +828,8 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
   const meditationStore = useMeditationStore();
   const { meditationState, meditationTimer, selectedChallenge } = meditationStore.state;
 
+  const acceptedJesusCompleted = journeyStore.getPhaseStatus('accept-jesus') === 'completed';
+
   useEffect(() => {
     const getHttpStatus = (err: any): number | undefined => err?.status || err?.response?.status;
     const handleAuthHttpError = (err: any) => {
@@ -1182,18 +1186,37 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
   const renderQuickTools = () => {
     const toolAnimatedStyle = toolsAnimatedStyle;
 
+    const baseTools = [
+      { icon: Trophy, label: 'Games', route: 'GameScreen', badge: shouldShowBadge ? 1 : null, color: theme?.colors.success, requiresUnlock: false, stage: 0 },
+      { icon: Bible, label: 'Bible', route: 'BibleScreen', badge: null, color: theme?.colors.secondary, requiresUnlock: false, stage: 0 },
+      { icon: Users, label: 'Community', route: 'CommunityScreen', badge: communityUnreadBadge, color: theme?.colors.success, requiresUnlock: false, stage: 0 },
+      { icon: BookOpen, label: 'Meditation', route: 'MeditationScreen', badge: hasUnfinishedMeditation ? 1 : null, color: theme?.colors.primary, requiresUnlock: false, stage: 0 },
+      { icon: BookmarkSimple, label: 'Bookmarks', route: 'SavedItemsScreen', badge: null, color: theme?.colors.like, requiresUnlock: false, stage: 1 },
+      { icon: Fire, label: 'SoulForge', route: 'VirtueScreen', badge: null, color: theme?.colors.primaryDark, requiresUnlock: true, stage: 2 },
+    ];
+
+    const tools = acceptedJesusCompleted
+      ? [
+          baseTools[0],
+          baseTools[1],
+          {
+            icon: Lightning,
+            label: 'Guides',
+            route: 'TalkToGodScreen',
+            badge: null,
+            color: theme?.colors.primary,
+            requiresUnlock: false,
+            stage: 0,
+          },
+          ...baseTools.slice(2),
+        ]
+      : baseTools;
+
     return (
       <Animated.View style={[styles.section, toolAnimatedStyle]}>
         <Text style={styles.sectionTitle}>QUICK MENU</Text>
         <View style={styles.toolsGrid}>
-          {[
-            { icon: Trophy, label: 'Games', route: 'GameScreen', badge: shouldShowBadge ? 1 : null, color: theme?.colors.success, requiresUnlock: false, stage: 0 },
-            { icon: Bible, label: 'Bible', route: 'BibleScreen', badge: null, color: theme?.colors.secondary, requiresUnlock: false, stage: 0 },
-            { icon: Users, label: 'Community', route: 'CommunityScreen', badge: communityUnreadBadge, color: theme?.colors.success, requiresUnlock: false, stage: 0 },
-            { icon: BookOpen, label: 'Meditation', route: 'MeditationScreen', badge: hasUnfinishedMeditation ? 1 : null, color: theme?.colors.primary, requiresUnlock: false, stage: 0 },
-            { icon: BookmarkSimple, label: 'Bookmarks', route: 'SavedItemsScreen', badge: null, color: theme?.colors.like, requiresUnlock: false, stage: 1 },
-            { icon: Fire, label: 'SoulForge', route: 'VirtueScreen', badge: null, color: theme?.colors.primaryDark, requiresUnlock: true, stage: 2 },
-          ].map((tool) => {
+          {tools.map((tool) => {
             const totalPoints = leaderboardStore.userStats?.totalPoints ?? 0;
             const isUnlocked = tool.requiresUnlock ? isSoulForgeUnlocked(totalPoints) : true;
             const usageStage = quickMenuUsage.unlockedItems.includes('coreTools') ? 2 : (quickMenuUsage.meditationCount > 0 && quickMenuUsage.bibleCount > 0 ? 1 : 0);
@@ -1257,7 +1280,6 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
       </Animated.View>
     );
   };
-
   // Calculate challenge progress based on time
   const calculateChallengeProgress = (challenge: Challenge): number => {
     if (!challenge.createdAt || !challenge.expiresAt) return 0;
@@ -1747,6 +1769,7 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
         {renderHabitConquestCapsule()}
         {renderReviveReminderBanner()}
         {renderQuickTools()}
+        {/* {renderTalkToGodSection()} */}
         {renderDailyChallenges()}
         {renderVerseOfTheDay()}
         {renderLearningSpotlight()}
@@ -2648,6 +2671,56 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     marginTop: theme?.spacing.md,
     textAlign: 'center',
     fontStyle: 'italic',
+  },
+  talkCard: {
+    backgroundColor: theme?.colors.surface,
+    borderRadius: theme?.borderRadius.lg,
+    padding: theme?.spacing.md,
+    borderWidth: 1,
+    borderColor: theme?.colors.border,
+  },
+  talkSubtitle: {
+    ...theme?.typography.caption.secondary,
+    color: theme?.colors.text.secondary,
+  },
+  talkLockedRow: {
+    marginTop: theme?.spacing.sm,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: theme?.spacing.sm,
+  },
+  talkLockedText: {
+    flex: 1,
+    ...theme?.typography.caption.secondary,
+    color: theme?.colors.text.secondary,
+  },
+  talkSecondaryButton: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: theme?.spacing.md,
+    paddingVertical: theme?.spacing.sm,
+    borderRadius: theme?.borderRadius.full,
+    borderWidth: 1,
+    borderColor: theme?.colors.primary,
+    backgroundColor: `${theme?.colors.primary}08`,
+  },
+  talkSecondaryButtonText: {
+    ...theme?.typography.caption.primary,
+    color: theme?.colors.primary,
+    fontWeight: '600',
+  },
+  talkPrimaryButton: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: theme?.spacing.lg,
+    paddingVertical: theme?.spacing.sm,
+    borderRadius: theme?.borderRadius.full,
+    backgroundColor: theme?.colors.primary,
+    marginTop: theme?.spacing.sm,
+  },
+  talkPrimaryButtonText: {
+    ...theme?.typography.caption.primary,
+    color: theme?.colors.text.inverse,
+    fontWeight: '600',
   },
   challengeCard: {
     backgroundColor: theme?.colors.surface,

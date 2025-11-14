@@ -25,19 +25,19 @@ export class JourneyQuizLibrary {
     },
     {
       id: 'accept-jesus-3',
-      prompt: 'Do you reject a life of sin and selfishness and pledge to humbly flee from occasions of sin? (1 John 3:9, 2 Tim 2:22)',
+      prompt: 'Sin could be likened to a spiritual disease, like wounds and rot attract bacteria, decay and death (James 1:14-15). Do you promise to avoid sin through God\'s grace? (1 John 3:9, 2 Tim 2:22)',
       options: ['Yes', 'No'],
       correctIndex: 0,
     },
     {
       id: 'accept-jesus-4',
-      prompt: 'Jesus came that we may have life in abundance. Do you promise to practice the teachings of Jesus in your business and personal life? (Luke 6:46)',
+      prompt: 'Jesus came that we may have life in abundance. Do you promise to follow his teachings in your daily life? (Luke 6:46)',
       options: ['Yes', 'No'],
       correctIndex: 0,
     },
     {
       id: 'accept-jesus-5',
-      prompt: 'Do you promise to accept and work with the grace of the Holy Spirit in your business and personal life?',
+      prompt: 'Do you promise to accept and work with the grace of the Holy Spirit in your daily life?',
       options: ['Yes', 'No'],
       correctIndex: 0,
     },
