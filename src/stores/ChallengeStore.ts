@@ -284,6 +284,10 @@ export class ChallengeStore {
         { page }
       );
       if (!response.success || !response.data) {
+        // Preserve status for upstream handlers (e.g., 401)
+        if ((response as any)?.status === 401) {
+          throw response as any;
+        }
         throw new Error(response.message || 'Failed to fetch personal challenges');
       }
       
@@ -302,6 +306,11 @@ export class ChallengeStore {
       await this.saveToStorage();
       return this.state.personalChallenges;
     } catch (error) {
+      const status = (error as any)?.status || (error as any)?.response?.status;
+      if (status === 401) {
+        // Propagate 401 so screens can prompt auth immediately
+        throw error;
+      }
       console.error('Error fetching personal challenges:', error);
       this.setError('Failed to fetch personal challenges');
       this.personalError = 'Failed to fetch personal challenges';
@@ -321,6 +330,9 @@ export class ChallengeStore {
         { page }
       );
       if (!response.success || !response.data) {
+        if ((response as any)?.status === 401) {
+          throw response as any;
+        }
         throw new Error(response.message || 'Failed to fetch community challenges');
       }
       
@@ -339,6 +351,10 @@ export class ChallengeStore {
       await this.saveToStorage();
       return this.state.communityChallenges;
     } catch (error) {
+      const status = (error as any)?.status || (error as any)?.response?.status;
+      if (status === 401) {
+        throw error;
+      }
       console.error('Error fetching community challenges:', error);
       this.setError('Failed to fetch community challenges');
       this.communityError = 'Failed to fetch community challenges';
@@ -358,6 +374,9 @@ export class ChallengeStore {
         { page }
       );
       if (!response.success || !response.data) {
+        if ((response as any)?.status === 401) {
+          throw response as any;
+        }
         throw new Error(response.message || 'Failed to fetch suggested challenges');
       }
       
@@ -376,6 +395,10 @@ export class ChallengeStore {
       await this.saveToStorage();
       return this.state.suggestedChallenges;
     } catch (error) {
+      const status = (error as any)?.status || (error as any)?.response?.status;
+      if (status === 401) {
+        throw error;
+      }
       console.error('Error fetching suggested challenges:', error);
       this.setError('Failed to fetch suggested challenges');
       this.suggestedError = 'Failed to fetch suggested challenges';

@@ -120,7 +120,12 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { err
 }
 
 // Extracted out of AppContent to stabilize hook identity/order across renders
-const NavigationContent: React.FC = () => {
+type NavigationContentProps = {
+  showChallengeBanner: boolean;
+  onDismissChallengeBanner: () => void;
+};
+
+const NavigationContent: React.FC<NavigationContentProps> = ({ showChallengeBanner, onDismissChallengeBanner }) => {
   // Bind WebSocket verse handlers to provider-based verse store
   useWebSocketVerseSync();
   const { isInitialized: authInitialized, user, token } = useAuthStore();
@@ -191,6 +196,9 @@ const NavigationContent: React.FC = () => {
         <Stack.Screen name="ForgivenessScreen" component={ForgivenessScreen} />
         <Stack.Screen name="HolySpiritScreen" component={HolySpiritScreen} />
       </Stack.Navigator>
+      {showChallengeBanner && (
+        <ChallengeCompletionBanner onDismiss={onDismissChallengeBanner} />
+      )}
     </NavigationContainer>
   );
 };
@@ -361,11 +369,17 @@ const AppContent = () => {
         setSuppressGenericPointsUntil(endOfDay);
         AsyncStorage.setItem('points_modal_suppress_until', String(endOfDay)).catch(() => undefined);
       }
+
+      const isGameScore = title === 'Game Score';
       const shouldSuppress = (suppressActive || unlockedNow) && !title;
-      if (!shouldSuppress) {
+
+      // Only show the global points modal for non-game-score awards
+      if (!shouldSuppress && !isGameScore) {
         setPointsQueue(prev => [...prev, { points, title }]);
         setIsPointsVisible(v => v || true);
       }
+
+      // Still always update the user's points balance
       if (authStoreObj?.user?.id) {
         authStoreObj.updateUserPoints(points).catch(() => undefined);
       }
@@ -425,13 +439,10 @@ const AppContent = () => {
           {showThemeSelector ? (
             <ThemeSelector onSelect={handleThemeSelect} closeAfterSelection />
           ) : (
-            <>
-              <NavigationContent />
-              {/* Place overlay components within App tree instead of nested inside NavigationContent */}
-              {showChallengeBanner && (
-                <ChallengeCompletionBanner onDismiss={() => setShowChallengeBanner(false)} />
-              )}
-            </>
+            <NavigationContent
+              showChallengeBanner={showChallengeBanner}
+              onDismissChallengeBanner={() => setShowChallengeBanner(false)}
+            />
           )}
         </ErrorBoundary>
         <Toaster />

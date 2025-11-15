@@ -9,6 +9,7 @@ export interface APIResponse<T> {
   data: T;
   message: string;
   errors?: Record<string, string[]>;
+  status?: number;
 }
 
 export interface PaginatedResponse<T> {
@@ -158,10 +159,9 @@ api.interceptors.response.use(
   (response) => {
     const transformed = transformResponse(response);
     try {
-      // Suppress duplicate points emission for game score submissions since
-      // GameStore.submitScore already emits optimistically for improvements.
+      // Suppress points emission for all game endpoints; GameStore handles game score logic separately.
       const url = String(response?.config?.url || '');
-      if (url.endsWith('/game/scores')) {
+      if (url.includes('/game/')) {
         return transformed;
       }
       const headerPoints = Number(response.headers?.['x-points-earned'] || response.headers?.['X-Points-Earned']);
@@ -192,6 +192,7 @@ api.interceptors.response.use(
     if (axios.isAxiosError(error)) {
       const { response, config } = error;
       const status = response?.status;
+      errorResponse.status = status;
       if (__DEV__) console.log('Response:', response);
 
       if (status === 401) {

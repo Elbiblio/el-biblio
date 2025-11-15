@@ -3,6 +3,7 @@ import { Activity } from '@/types';
 import { apiClient, endpoints } from '@/api/client';
 import { AuthStore } from './AuthStore';
 import JourneyQuizLibrary from '@/utils/JourneyQuizLibrary';
+import { toast } from 'sonner-native';
 
 export type JourneyPhaseStatus = 'locked' | 'available' | 'completed';
 
@@ -61,6 +62,7 @@ export class JourneyStore {
   isActivitiesLoading = false;
   activityError: string | null = null;
   justCompletedPhase: string | null = null;
+  lastPhaseCompletedAt: number | null = null;
 
   private authStore: AuthStore;
 
@@ -75,6 +77,7 @@ export class JourneyStore {
       justCompletedPhase: observable,
       biblePlan: observable,
       dailyPlan: observable,
+      lastPhaseCompletedAt: observable,
       
       // computed
       level: computed,
@@ -307,7 +310,42 @@ export class JourneyStore {
   }
 
   startPhaseQuiz(phaseId: string) {
-    if (!this.phaseStatus[phaseId] || this.phaseStatus[phaseId] === 'locked') return;
+    const status = this.phaseStatus[phaseId];
+    if (!status || status === 'locked') return;
+
+    const phase = this.phases.find(p => p.id === phaseId);
+    const now = Date.now();
+
+    // Restrict guests from phases beyond 5
+    if (this.authStore.isGuest && phase && phase.order > 5) {
+      toast(
+        'Account Upgrade Required',
+        {
+          description: 'We would like to know you better. Please create a full account to proceed.',
+        }
+      );
+
+      runInAction(() => {
+        this.authStore.authPromptIntent = 'guest_signup';
+        this.authStore.authRequired = true;
+      });
+      return;
+    }
+
+    // Throttle phase progress: only one new phase per 4 hours
+    if (status !== 'completed' && this.lastPhaseCompletedAt) {
+      const elapsedMs = now - this.lastPhaseCompletedAt;
+      const fourHourMs = 4 * 60 * 60 * 1000;
+      if (elapsedMs < fourHourMs) {
+        toast(
+          'That was fast, please try again later.',
+          {
+            description: 'The journey of a thousand miles begins with one step.',
+          }
+        );
+        return;
+      }
+    }
 
     const questions = this.buildPlaceholderQuestions(phaseId);
 
@@ -391,9 +429,22 @@ export class JourneyStore {
     runInAction(() => {
       this.phaseStatus[phaseId] = 'completed';
       const nextPhase = ordered[index + 1];
+
+      // Only unlock next phase automatically if within allowed range
       if (nextPhase) {
-        this.phaseStatus[nextPhase.id] = 'available';
+        if (this.authStore.isGuest && nextPhase.order > 5) {
+          toast(
+            'Upgrade to continue your journey',
+            {
+              description: 'To unlock phase ' + nextPhase.order + ' and beyond, please create a full account.',
+            }
+          );
+        } else {
+          this.phaseStatus[nextPhase.id] = 'available';
+        }
       }
+
+      this.lastPhaseCompletedAt = Date.now();
     });
 
     void this.updateUserLevelAndPhase(this.level, this.currentPhaseNumber);

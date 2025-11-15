@@ -134,6 +134,7 @@ const DailyChallengesScreen = observer(({ navigation }: DailyChallengesProps) =>
   });
   const [hasAttemptedAutoJoin, setHasAttemptedAutoJoin] = useState(false);
   const [autoJoinError, setAutoJoinError] = useState<string | null>(null);
+  const [hasLoadedInitialChallenges, setHasLoadedInitialChallenges] = useState(false);
   
   const [newChallenge, setNewChallenge] = useState({
     title: '',
@@ -166,7 +167,7 @@ const DailyChallengesScreen = observer(({ navigation }: DailyChallengesProps) =>
   }, []);
 
   useEffect(() => {
-    if (!isOnboarding || hasAttemptedAutoJoin) {
+    if (!isOnboarding || hasAttemptedAutoJoin || !hasLoadedInitialChallenges) {
       return;
     }
 
@@ -202,7 +203,7 @@ const DailyChallengesScreen = observer(({ navigation }: DailyChallengesProps) =>
     };
 
     tryAutoJoin();
-  }, [isOnboarding, hasAttemptedAutoJoin, personalChallenges, suggestedChallenges, communityChallenges, joinChallenge, dailyPathStore, setActiveCategory]);
+  }, [isOnboarding, hasAttemptedAutoJoin, hasLoadedInitialChallenges, personalChallenges, suggestedChallenges, communityChallenges, joinChallenge, dailyPathStore, setActiveCategory]);
 
   useEffect(() => {
     if (!isOnboarding) {
@@ -236,6 +237,7 @@ const DailyChallengesScreen = observer(({ navigation }: DailyChallengesProps) =>
       console.error('Error loading challenges:', error);
     } finally {
       setRefreshing(false);
+      setHasLoadedInitialChallenges(true);
     }
   }, [personalChallenges?.length, communityChallenges?.length, suggestedChallenges?.length, fetchPersonalChallenges, fetchCommunityChallenges, fetchSuggestedChallenges, setRefreshing]);
   

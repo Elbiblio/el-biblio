@@ -4,6 +4,8 @@ import axios from 'axios';
 import { apiClient, endpoints, setUnauthorizedHandler, setTokenCache } from '@/api/client';
 import { User, UserRole, SignUpData } from '@/types';
 
+export type AuthPromptIntent = 'reauth' | 'guest_signup' | null;
+
 export class AuthStore {
   user: User | null = null;
   token: string | null = null;
@@ -18,6 +20,8 @@ export class AuthStore {
   private readonly GUEST_CREDENTIALS_KEY = 'guest_credentials';
   // When true, UI should prompt user to login/sign up
   authRequired = false;
+  authPromptIntent: AuthPromptIntent = null;
+  pendingAuthEmail: string | null = null;
 
   constructor() {
     // Auto-bind methods to preserve `this` when functions are destructured in components
@@ -129,6 +133,9 @@ export class AuthStore {
     this.userRole = user?.role ?? UserRole.User;
     if (user) {
       AsyncStorage.setItem(this.USER_KEY, JSON.stringify(user));
+      this.authPromptIntent = null;
+      this.pendingAuthEmail = null;
+      this.authRequired = false;
     } else {
       AsyncStorage.removeItem(this.USER_KEY);
     }
@@ -230,6 +237,9 @@ export class AuthStore {
       runInAction(() => {
         this.setToken(null);
         this.setUser(null);
+        this.authPromptIntent = null;
+        this.pendingAuthEmail = null;
+        this.authRequired = false;
         this.setLoading(false);
       });
     }
@@ -426,6 +436,18 @@ export class AuthStore {
   private handleUnauthorized = async () => {
     if (this.reauthInProgress) return;
     this.reauthInProgress = true;
+    const lastEmail = this.user?.email ?? null;
+    const wasGuestSession = this.isGuest;
+    const promptForAuth = () => {
+      runInAction(() => {
+        const intent: AuthPromptIntent = wasGuestSession ? 'guest_signup' : 'reauth';
+        this.authPromptIntent = intent;
+        this.pendingAuthEmail = wasGuestSession ? null : lastEmail;
+        this.setToken(null);
+        this.setUser(null);
+        this.authRequired = true;
+      });
+    };
     try {
       // Try silent guest re-login if we have stored credentials
       const credsStr = await AsyncStorage.getItem(this.GUEST_CREDENTIALS_KEY);
@@ -436,15 +458,9 @@ export class AuthStore {
       }
 
       // No guest creds or re-login failed: clear auth and signal UI to prompt
-      runInAction(() => {
-        this.setToken(null);
-        this.setUser(null);
-        this.authRequired = true;
-      });
+      promptForAuth();
     } catch (e) {
-      runInAction(() => {
-        this.authRequired = true;
-      });
+      promptForAuth();
     } finally {
       this.reauthInProgress = false;
     }
@@ -504,6 +520,14 @@ export class AuthStore {
     } finally {
       this.setLoading(false);
     }
+  };
+
+  dismissAuthPrompt = () => {
+    runInAction(() => {
+      this.authRequired = false;
+      this.authPromptIntent = null;
+      this.pendingAuthEmail = null;
+    });
   };
 }
 

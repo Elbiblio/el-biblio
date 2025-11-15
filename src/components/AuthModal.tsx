@@ -1,5 +1,5 @@
 // AuthModal.tsx
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -22,13 +22,16 @@ import AvatarSelectionModal from './AvatarSelectionModal';
 import { SCREEN_DIMENSIONS } from '@/constants';
 import * as Haptics from 'expo-haptics';
 import { toast } from 'sonner-native';
+import { AuthPromptIntent } from '@/stores/AuthStore';
 
 interface AuthModalProps {
   visible: boolean;
   onClose: () => void;
+  intent?: AuthPromptIntent;
+  pendingEmail?: string | null;
 }
 
-const AuthModal: React.FC<AuthModalProps> = ({ visible, onClose }) => {
+const AuthModal: React.FC<AuthModalProps> = ({ visible, onClose, intent = null, pendingEmail = null }) => {
   const theme = useTheme();
   const { login, signUp, isLoading, error: authError } = useAuthStore();
   const [isSignUp, setIsSignUp] = useState(true);
@@ -81,6 +84,56 @@ const AuthModal: React.FC<AuthModalProps> = ({ visible, onClose }) => {
     setError(null);
     return true;
   };
+
+  useEffect(() => {
+    if (!visible) return;
+    if (intent === 'reauth') {
+      setIsSignUp(false);
+    } else if (intent === 'guest_signup') {
+      setIsSignUp(true);
+    }
+  }, [intent, visible]);
+
+  useEffect(() => {
+    if (!visible || !pendingEmail) return;
+    setFormData((prev) => ({
+      ...prev,
+      email: pendingEmail,
+    }));
+  }, [pendingEmail, visible]);
+
+  const intentContent = React.useMemo(() => {
+    if (intent === 'reauth') {
+      return {
+        title: 'Sign in to continue',
+        body: 'Your session expired for security reasons. Please confirm your password to keep using Elbiblio.',
+      };
+    }
+    if (intent === 'guest_signup') {
+      return {
+        title: 'Create your free account',
+        body: 'Guest sessions are temporary. Create an account so we can keep your history, progress, and reminders in sync.',
+      };
+    }
+    return null;
+  }, [intent]);
+
+  const modalTitle = React.useMemo(() => {
+    if (intent === 'reauth') {
+      return 'Welcome back';
+    }
+    if (intent === 'guest_signup') {
+      return 'Keep your progress';
+    }
+    return isSignUp ? 'Join the Community' : 'Welcome Back';
+  }, [intent, isSignUp]);
+
+  const submitLabel = React.useMemo(() => {
+    if (intent === 'reauth') {
+      return 'Re-authenticate';
+    }
+    return isSignUp ? 'Join Now' : 'Sign In';
+  }, [intent, isSignUp]);
 
   const handleSubmit = async () => {
     try {
@@ -191,9 +244,14 @@ const AuthModal: React.FC<AuthModalProps> = ({ visible, onClose }) => {
                   </TouchableOpacity>
 
                   <View style={styles.contentContainer}>
-                    <Text style={styles.title}>
-                      {isSignUp ? 'Join the Community' : 'Welcome Back'}
-                    </Text>
+                    <Text style={styles.title}>{modalTitle}</Text>
+
+                    {intentContent && (
+                      <View style={styles.intentBanner}>
+                        <Text style={styles.intentTitle}>{intentContent.title}</Text>
+                        <Text style={styles.intentBody}>{intentContent.body}</Text>
+                      </View>
+                    )}
 
                     {/* Form Fields */}
                     {isSignUp && (
@@ -254,25 +312,27 @@ const AuthModal: React.FC<AuthModalProps> = ({ visible, onClose }) => {
                         {showPassword ? <EyeOff size={24} color={theme.colors.text.secondary} /> : <Eye size={24} color={theme.colors.text.secondary} />}
                       </TouchableOpacity>
                     </View>
+                  </View>
 
-                    {(error || authError) && (
-                      <Text style={styles.errorText}>{error || authError}</Text>
+                  {(error || authError) && (
+                    <Text style={styles.errorText}>{error || authError}</Text>
+                  )}
+
+                  <TouchableOpacity
+                    style={[styles.submitButton, isLoading && styles.submitButtonDisabled]}
+                    onPress={handleSubmit}
+                    disabled={isLoading}
+                  >
+                    {isLoading ? (
+                      <ActivityIndicator color={theme.colors.text.inverse} />
+                    ) : (
+                      <Text style={styles.submitText}>
+                        {submitLabel}
+                      </Text>
                     )}
+                  </TouchableOpacity>
 
-                    <TouchableOpacity
-                      style={[styles.submitButton, isLoading && styles.submitButtonDisabled]}
-                      onPress={handleSubmit}
-                      disabled={isLoading}
-                    >
-                      {isLoading ? (
-                        <ActivityIndicator color={theme.colors.text.inverse} />
-                      ) : (
-                        <Text style={styles.submitText}>
-                          {isSignUp ? 'Join Now' : 'Sign In'}
-                        </Text>
-                      )}
-                    </TouchableOpacity>
-
+                  {intent === null && (
                     <TouchableOpacity
                       onPress={() => {
                         setError(null);
@@ -284,22 +344,21 @@ const AuthModal: React.FC<AuthModalProps> = ({ visible, onClose }) => {
                         {isSignUp ? 'Already have an account? Sign in' : 'New here? Create account'}
                       </Text>
                     </TouchableOpacity>
-                  </View>
-                </BlurView>
-              </Pressable>
-            </KeyboardAvoidingView>
-          </Pressable>
-        </View>
-      </Modal>
+                  )}
+              </BlurView>
+            </Pressable>
+          </KeyboardAvoidingView>
+        </Pressable>
+      </View>
+    </Modal>
 
-      <AvatarSelectionModal
-        visible={showAvatarModal}
-        onClose={handleAvatarModalClose}
-        onSelect={handleAvatarSelect}
-      />
-    </>
-  );
-};
+    <AvatarSelectionModal
+      visible={showAvatarModal}
+      onClose={handleAvatarModalClose}
+      onSelect={handleAvatarSelect}
+    />
+  </>
+)};
 
 const createStyles = (theme: Theme) => StyleSheet.create({
   container: {
@@ -415,6 +474,24 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     color: theme.colors.primary,
     textAlign: 'center',
     marginTop: theme.spacing.md,
+  },
+  intentBanner: {
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    borderRadius: theme.borderRadius.lg,
+    padding: theme.spacing.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255, 255, 255, 0.18)',
+    marginBottom: theme.spacing.lg,
+  },
+  intentTitle: {
+    ...theme.typography.body.sans,
+    color: theme.colors.text.inverse,
+    fontWeight: '600',
+    marginBottom: theme.spacing.xs,
+  },
+  intentBody: {
+    ...theme.typography.caption.primary,
+    color: theme.colors.text.secondary,
   },
   eyeIcon: {
     position: "absolute",

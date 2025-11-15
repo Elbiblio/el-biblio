@@ -217,7 +217,7 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
     lastSyncedTime: 0,
     dayStartTimestamp: new Date().setHours(0, 0, 0, 0),
   });
-  const { user, updateUserTime, authRequired, logout } = useAuthStore();
+  const { user, updateUserTime, authRequired, logout, authPromptIntent, pendingAuthEmail, dismissAuthPrompt } = useAuthStore();
   const { completeChallenge } = useMeditationStore();
   const { isConnected } = useWebSocket();
   const { unreadCount, computeUnreadFromReflections } = useCommunityStore();
@@ -679,9 +679,10 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
 
   useEffect(() => {
     if (user) {
+      dismissAuthPrompt();
       setShowAuthModal(false);
     }
-  }, [user]);
+  }, [user, dismissAuthPrompt]);
 
   const loadTimeTracking = async () => {
     try {
@@ -699,6 +700,11 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
       console.error('Failed to load time tracking:', error);
     }
   };
+
+  const handleAuthModalClose = useCallback(() => {
+    dismissAuthPrompt();
+    setShowAuthModal(false);
+  }, [dismissAuthPrompt]);
 
   const handleOpenHomeWelcome = useCallback(() => {
     setShowHomeWelcomeNote(true);
@@ -810,12 +816,34 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
   const { personalChallenges, communityChallenges } = challengeStore;
   const { fetchPersonalChallenges, fetchCommunityChallenges } = challengeStore;
 
+  const getHttpStatus = useCallback((err: any): number | undefined => err?.status || err?.response?.status, []);
+  const handleAuthHttpError = useCallback((err: any) => {
+    const status = getHttpStatus(err);
+    if (status === 401) {
+      setShowAuthModal(true);
+    }
+  }, [getHttpStatus, setShowAuthModal]);
+
   // Refresh challenges whenever Home gains focus (ensures newly joined show up)
   useFocusEffect(
     React.useCallback(() => {
-      fetchPersonalChallenges(1);
-      fetchCommunityChallenges(1);
-    }, [fetchPersonalChallenges, fetchCommunityChallenges])
+      const refreshChallenges = async () => {
+        try {
+          await fetchPersonalChallenges(1);
+        } catch (error) {
+          handleAuthHttpError(error);
+        }
+        try {
+          await fetchCommunityChallenges(1);
+        } catch (error) {
+          handleAuthHttpError(error);
+        }
+      };
+
+      refreshChallenges();
+
+      return () => {};
+    }, [fetchPersonalChallenges, fetchCommunityChallenges, handleAuthHttpError])
   );
 
   const reflectionStore = useReflectionStore();
@@ -831,15 +859,6 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
   const acceptedJesusCompleted = journeyStore.getPhaseStatus('accept-jesus') === 'completed';
 
   useEffect(() => {
-    const getHttpStatus = (err: any): number | undefined => err?.status || err?.response?.status;
-    const handleAuthHttpError = (err: any) => {
-      const status = getHttpStatus(err);
-      if (status === 401) {
-        // Global interceptor will also mark authRequired; proactively show modal
-        setShowAuthModal(true);
-      }
-    };
-
     const load = async () => {
       try { await fetchDailyVerses(); } catch (e) { /* Not auth-critical */ }
       try { await fetchPersonalChallenges(1); } catch (e) { handleAuthHttpError(e); }
@@ -863,7 +882,7 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
     };
 
     load();
-  }, [fetchDailyVerses, fetchPersonalChallenges, fetchCommunityChallenges, fetchReflections, fetchGlobalLeaderboard, user?.id]);
+  }, [fetchDailyVerses, fetchPersonalChallenges, fetchCommunityChallenges, fetchReflections, fetchGlobalLeaderboard, user?.id, handleAuthHttpError, logout]);
 
   // Poll user rank periodically to detect changes and toggle Games badge
   useEffect(() => {
@@ -1828,7 +1847,9 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
 
       <AuthModal
         visible={showAuthModal}
-        onClose={() => setShowAuthModal(false)}
+        onClose={handleAuthModalClose}
+        intent={authPromptIntent}
+        pendingEmail={pendingAuthEmail ?? undefined}
       />
 
       <Modal
