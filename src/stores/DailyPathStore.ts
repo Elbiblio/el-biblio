@@ -520,7 +520,7 @@ export class DailyPathStore {
     revive: {
       id: 'revive',
       focus: 'revive',
-      title: 'Reawaken your heart',
+      title: 'Renew your spirit',
       summary: 'Start with a short guided prayer to reconnect with God’s presence.',
       actionLabel: 'Start guided prayer',
       route: 'MeditationScreen',

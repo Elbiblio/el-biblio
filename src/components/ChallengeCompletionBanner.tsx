@@ -452,8 +452,10 @@ const createStyles = (theme: Theme) => StyleSheet.create({
   countdownContainer: {
     alignItems: 'center',
     gap: theme?.spacing.xs,
-    paddingVertical: theme?.spacing.xs,
+    paddingVertical: theme?.spacing.sm,
     overflow: 'visible',
+    position: 'relative',
+    zIndex: 1,
   },
   countdownLabel: {
     ...theme?.typography.body.sans,
@@ -465,16 +467,17 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-end',
     gap: theme?.spacing.xs,
-    minHeight: 48,
+    minHeight: 56,
     overflow: 'visible',
   },
   countdownNumber: {
     ...theme?.typography.heading.large,
     color: theme?.colors.primary,
     fontSize: 40,
-    lineHeight: 48,
+    lineHeight: 56,
     fontWeight: '800',
-    includeFontPadding: false, // Android: remove extra top padding that can cause clipping
+    includeFontPadding: false,
+    paddingTop: 2,
   },
   countdownUnit: {
     ...theme?.typography.body.sans,

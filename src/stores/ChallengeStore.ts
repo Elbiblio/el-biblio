@@ -697,24 +697,59 @@ export class ChallengeStore {
   async completeChallenge(challengeId: string, isCompleted: boolean) {
     try {
       this.setLoading(true);
-      const response = await apiClient.post<BackendChallenge>(
+      const response = await apiClient.post<any>(
         endpoints.challenges.complete(challengeId)
       );
-      
+
+      let nextIsCompleted = true; // treat completion as idempotent success
+
       runInAction(() => {
-        const mapped = mapChallenge(response.data as BackendChallenge);
-        // Update the challenge in all lists
+        const payload: any = response?.data;
+        let mapped: Challenge | null = null as any;
+
+        if (payload && typeof payload === 'object') {
+          if (payload.challenge && typeof payload.challenge === 'object') {
+            try {
+              mapped = mapChallenge(payload.challenge as BackendChallenge);
+            } catch {}
+          }
+          else if ('id' in payload && ('title' in payload || 'is_completed' in payload || 'effective_points' in payload)) {
+            try {
+              mapped = mapChallenge(payload as BackendChallenge);
+            } catch {}
+          }
+
+          if (!mapped) {
+            if ('completed_at' in payload || 'challenge_id' in payload) {
+              nextIsCompleted = true;
+            }
+          }
+        }
+
+        if (!mapped && response?.message && typeof response.message === 'string') {
+          const msg = response.message.toLowerCase();
+          if (msg.includes('already completed')) {
+            nextIsCompleted = true;
+          }
+        }
+
+        if (mapped) {
+          nextIsCompleted = !!mapped.isCompleted || true;
+          this.replaceChallengeInLists(challengeId, mapped);
+        }
+
+        // Ensure local state reflects completion idempotently
         this.updateChallengeInLists(challengeId, {
-          isCompleted: mapped.isCompleted,
+          isCompleted: nextIsCompleted,
         });
       });
-      
+
       await this.saveToStorage();
-      toast.success(`Challenge marked as ${isCompleted ? 'completed' : 'incomplete'}`);
+      toast.success(`Challenge marked as completed`);
       return this.getChallengeById(challengeId);
     } catch (error) {
       console.error(`Error updating challenge ${challengeId} completion status:`, error);
-      this.setError(`Failed to mark challenge as ${isCompleted ? 'completed' : 'incomplete'}`);
+      this.setError(`Failed to mark challenge as completed`);
       throw error;
     } finally {
       this.setLoading(false);
