@@ -24,7 +24,7 @@ const TIERS: DonationTier[] = [
     id: 'app-growth',
     title: 'App and Community Growth',
     price: '$5 / month',
-    membersLabel: '0 members',
+    // membersLabel: '0 members',
     description:
       'Donate directly to ElBiblio. Used for server maintenance, outreach, and caring for the team keeping everything running.',
   },
