@@ -1,5 +1,6 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import Animated, {
   FadeInDown,
   FadeIn,
@@ -21,6 +22,7 @@ import {
   type DailyTask,
   type CareerDefinition,
 } from '@/services/spiritualCareerData';
+import { useNetworkStatus } from '@/hooks/useNetworkStatus';
 
 type StatusValue = string;
 
@@ -37,6 +39,10 @@ const SpiritualCareerScreen = () => {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const gameStore = useGameStore();
+  const { isOffline } = useNetworkStatus();
+
+  const CONFIG_CACHE_KEY = 'spiritualCareer:config';
+  const PROGRESS_CACHE_KEY = 'spiritualCareer:progress';
 
   const [step, setStep] = useState<1 | 2 | 3 | 4 | 5>(1);
   const [status, setStatus] = useState<StatusValue | null>(null);
@@ -164,61 +170,124 @@ const SpiritualCareerScreen = () => {
 
   // Load data from service on mount
   useEffect(() => {
+    const loadCachedConfig = async () => {
+      try {
+        const cached = await AsyncStorage.getItem(CONFIG_CACHE_KEY);
+        if (!cached) return null;
+        return JSON.parse(cached);
+      } catch {
+        return null;
+      }
+    };
+
+    const loadCachedProgress = async () => {
+      try {
+        const cached = await AsyncStorage.getItem(PROGRESS_CACHE_KEY);
+        if (!cached) return null;
+        return JSON.parse(cached);
+      } catch {
+        return null;
+      }
+    };
+
+    const persistConfig = async (payload: unknown) => {
+      try {
+        await AsyncStorage.setItem(CONFIG_CACHE_KEY, JSON.stringify(payload));
+      } catch {}
+    };
+
+    const persistProgress = async (payload: unknown) => {
+      try {
+        await AsyncStorage.setItem(PROGRESS_CACHE_KEY, JSON.stringify(payload));
+      } catch {}
+    };
+
+    const hydrateFromConfig = (configData: any | null | undefined) => {
+      if (!configData) {
+        return false;
+      }
+      STATUSES = configData.statuses || [];
+      STRENGTH_KEYS = configData.gifts || [];
+      DAILY_TASKS_DATA = configData.dailyTasks || {};
+      CAREER_DEFINITIONS_DATA = configData.careers || {};
+      return true;
+    };
+
+    const applyProgressPayload = (savedProgress: any | null | undefined) => {
+      if (!savedProgress) return;
+      if (savedProgress.status) setStatus(savedProgress.status);
+      if (savedProgress.strengths) {
+        setStrengths(savedProgress.strengths);
+        setHasCompletedAssessment(true);
+        setHasRevealedCareer(true);
+        setStep(5);
+      }
+      if (savedProgress.initialScores) setInitialScores(savedProgress.initialScores);
+      if (savedProgress.completedTasks) setCompletedTasks(new Set(savedProgress.completedTasks));
+      if (savedProgress.dailyPoints) setDailyPoints(savedProgress.dailyPoints);
+      if (savedProgress.monthlyTaskHistory) setMonthlyTaskHistory(savedProgress.monthlyTaskHistory);
+      if (savedProgress.consistencyStreak) setConsistencyStreak(savedProgress.consistencyStreak);
+    };
+
+    const loadLocalFallbackConfig = async () => {
+      const [statuses, strengths, tasks, careers] = await Promise.all([
+        SpiritualCareerDataService.getStatusOptions(),
+        SpiritualCareerDataService.getStrengthDefinitions(),
+        SpiritualCareerDataService.getAllDailyTasks(),
+        SpiritualCareerDataService.getCareerDefinitions(),
+      ]);
+      const fallbackConfig = {
+        statuses,
+        gifts: strengths,
+        dailyTasks: tasks,
+        careers,
+        source: 'local',
+      };
+      hydrateFromConfig(fallbackConfig);
+      await persistConfig(fallbackConfig);
+      return fallbackConfig;
+    };
+
     const loadData = async () => {
       try {
-        // Try to load static config from API first, fallback to local service
-        let configData;
-        try {
-          const configResponse = await apiClient.get(endpoints.spiritualCareer.config);
-          if (configResponse.success && configResponse.data) {
-            configData = configResponse.data as any;
-            console.log('✅ Loaded config from API');
-          }
-        } catch (error) {
-          console.log('⚠️ API config not available, using local service');
+        let configData: any | null = await loadCachedConfig();
+        if (!hydrateFromConfig(configData)) {
+          configData = await loadLocalFallbackConfig();
         }
 
-        // Use API data if available, otherwise load from local service
-        if (configData) {
-          STATUSES = configData.statuses || [];
-          STRENGTH_KEYS = configData.gifts || [];
-          DAILY_TASKS_DATA = configData.dailyTasks || {};
-          CAREER_DEFINITIONS_DATA = configData.careers || {};
-        } else {
-          // Fallback to local service
-          const [statuses, strengths, tasks, careers] = await Promise.all([
-            SpiritualCareerDataService.getStatusOptions(),
-            SpiritualCareerDataService.getStrengthDefinitions(),
-            SpiritualCareerDataService.getAllDailyTasks(),
-            SpiritualCareerDataService.getCareerDefinitions(),
-          ]);
-          
-          STATUSES = statuses;
-          STRENGTH_KEYS = strengths;
-          DAILY_TASKS_DATA = tasks;
-          CAREER_DEFINITIONS_DATA = careers;
-        }
-        
-        setDataLoaded(true);
-        
-        // Load user's saved progress from dedicated API
-        const progressResponse = await apiClient.get(endpoints.spiritualCareer.progress);
-        
-        if (progressResponse.success && progressResponse.data) {
-          const savedProgress = progressResponse.data as any;
-          
-          if (savedProgress.status) setStatus(savedProgress.status);
-          if (savedProgress.strengths) {
-            setStrengths(savedProgress.strengths);
-            setHasCompletedAssessment(true);
-            setHasRevealedCareer(true);
-            setStep(5); // Go directly to career dashboard
+        if (!isOffline) {
+          try {
+            const configResponse = await apiClient.get(endpoints.spiritualCareer.config);
+            if (configResponse.success && configResponse.data) {
+              hydrateFromConfig(configResponse.data);
+              await persistConfig(configResponse.data);
+            }
+          } catch (error) {
+            console.log('⚠️ API config not available, using cached/local data');
           }
-          if (savedProgress.initialScores) setInitialScores(savedProgress.initialScores);
-          if (savedProgress.completedTasks) setCompletedTasks(new Set(savedProgress.completedTasks));
-          if (savedProgress.dailyPoints) setDailyPoints(savedProgress.dailyPoints);
-          if (savedProgress.monthlyTaskHistory) setMonthlyTaskHistory(savedProgress.monthlyTaskHistory);
-          if (savedProgress.consistencyStreak) setConsistencyStreak(savedProgress.consistencyStreak);
+        }
+
+        if (!STATUSES.length) {
+          await loadLocalFallbackConfig();
+        }
+
+        setDataLoaded(true);
+
+        const cachedProgress = await loadCachedProgress();
+        if (cachedProgress) {
+          applyProgressPayload(cachedProgress);
+        }
+
+        if (!isOffline) {
+          try {
+            const progressResponse = await apiClient.get(endpoints.spiritualCareer.progress);
+            if (progressResponse.success && progressResponse.data) {
+              applyProgressPayload(progressResponse.data);
+              await persistProgress(progressResponse.data);
+            }
+          } catch (error) {
+            console.log('⚠️ Unable to load remote progress, using cached data');
+          }
         }
       } catch (error: any) {
         // 404 is expected if user hasn't completed assessment yet
@@ -362,7 +431,7 @@ const SpiritualCareerScreen = () => {
     setIsSaving(true);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     try {
-      const response = await apiClient.post(endpoints.spiritualCareer.submit, {
+      const payload = {
         score: overallScore.percentage,
         gameId: 'sp_career',
         meta: {
@@ -382,10 +451,17 @@ const SpiritualCareerScreen = () => {
           consistencyStreak,
           completedAt: new Date().toISOString(),
         },
-      });
-      
+      };
+
+      await AsyncStorage.setItem(PROGRESS_CACHE_KEY, JSON.stringify(payload.meta));
+
+      if (isOffline) {
+        toast.success('Progress saved for offline sync. 🔄');
+        return;
+      }
+
+      const response = await apiClient.post(endpoints.spiritualCareer.submit, payload);
       if (response.success) {
-        // Update game personal best so GameScreen shows correct value
         await gameStore.submitScore('sp_career', overallScore.percentage);
         toast.success('✨ Progress saved!');
       } else {
@@ -489,28 +565,33 @@ const SpiritualCareerScreen = () => {
     setDailyPoints(newPoints);
     
     // Auto-save progress
+    const metaSnapshot = {
+      status,
+      strengths,
+      initialScores,
+      career: {
+        title: spiritualCareer.title,
+        description: spiritualCareer.description,
+        level: spiritualCareer.level,
+        icon: spiritualCareer.icon,
+      },
+      completedTasks: Array.from(newCompleted),
+      dailyPoints: newPoints,
+      monthlyTaskHistory,
+      consistencyStreak,
+      giftScores: overallScore.byTalent,
+      completedAt: new Date().toISOString(),
+    };
+
     try {
-      await apiClient.post(endpoints.spiritualCareer.submit, {
-        score: overallScore.percentage,
-        gameId: 'sp_career',
-        meta: {
-          status,
-          strengths,
-          initialScores,
-          career: {
-            title: spiritualCareer.title,
-            description: spiritualCareer.description,
-            level: spiritualCareer.level,
-            icon: spiritualCareer.icon,
-          },
-          completedTasks: Array.from(newCompleted),
-          dailyPoints: newPoints,
-          monthlyTaskHistory,
-          consistencyStreak,
-          giftScores: overallScore.byTalent,
-          completedAt: new Date().toISOString(),
-        },
-      });
+      await AsyncStorage.setItem(PROGRESS_CACHE_KEY, JSON.stringify(metaSnapshot));
+      if (!isOffline) {
+        await apiClient.post(endpoints.spiritualCareer.submit, {
+          score: overallScore.percentage,
+          gameId: 'sp_career',
+          meta: metaSnapshot,
+        });
+      }
     } catch (error) {
       console.error('Error auto-saving task progress:', error);
     }
@@ -577,44 +658,63 @@ const SpiritualCareerScreen = () => {
       </View>
 
       {step === 1 && (
-        <Animated.View entering={FadeInDown.duration(400)} style={styles.card}>
-          <LinearGradient
-            colors={[`${theme?.colors.primary}05`, 'transparent']}
-            style={styles.cardGradient}
-          />
+        <Animated.View entering={FadeInDown.delay(200)} style={styles.card}>
           <View style={styles.cardHeader}>
             <View style={styles.iconBadge}>
-              <Brain size={24} color={theme?.colors.primary} />
+              <Brain size={28} color={theme?.colors.primary} />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.cardTitle}>What's your current season?</Text>
-              <Text style={styles.subtitle}>Your life season shapes how your gifts bear fruit.</Text>
+              <Text style={styles.subtitle}>
+                Your season shapes your daily rhythm. Choose the status that best reflects where you are today.
+              </Text>
             </View>
           </View>
-          <View style={styles.chipsWrap}>
-            {STATUSES.map((s, idx) => (
-              <Animated.View key={s.value} entering={FadeInDown.delay(idx * 50).duration(300)}>
+
+          <View style={styles.statusGrid}>
+            {!dataLoaded && (
+              <View style={styles.statusNotice}>
+                <ActivityIndicator color={theme?.colors.primary} size="small" />
+                <Text style={styles.statusNoticeText}>Loading seasons… please stay on this screen. This may take a moment.</Text>
+              </View>
+            )}
+            {dataLoaded && !STATUSES.length && (
+              <View style={styles.statusNotice}>
+                <InfoCircle size={18} color={theme?.colors.primary} style={{ marginRight: 8 }} />
+                <Text style={styles.statusNoticeText}>
+                  We couldn't reach the server. Using our offline seasons for now.
+                </Text>
+              </View>
+            )}
+            {STATUSES.map(option => {
+              const isSelected = status === option.value;
+              return (
                 <TouchableOpacity
-                  style={[styles.chip, status === s.value && styles.chipActive]}
+                  key={option.value}
+                  style={[styles.statusCard, isSelected && styles.statusCardSelected]}
+                  activeOpacity={0.85}
                   onPress={() => {
-                    setStatus(s.value);
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                    setStatus(option.value);
+                    Haptics.selectionAsync();
                   }}
-                  activeOpacity={0.7}
                 >
-                  <Text style={styles.statusEmoji}>{s.emoji}</Text>
-                  <Text style={[styles.chipText, status === s.value && styles.chipTextActive]}>{s.label}</Text>
+                  <View style={styles.statusCardHeader}>
+                    <Text style={styles.statusEmoji}>{option.emoji}</Text>
+                    <Text style={[styles.statusLabel, isSelected && { color: theme?.colors.primary }]}>{option.label}</Text>
+                  </View>
+                  <Text style={styles.statusDescription}>{option.description}</Text>
                 </TouchableOpacity>
-              </Animated.View>
-            ))}
+              );
+            })}
           </View>
+
           <TouchableOpacity
+            style={[styles.primaryBtn, !status && styles.primaryBtnDisabled]}
             disabled={!status}
             onPress={() => {
               setStep(2);
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
             }}
-            style={[styles.primaryBtn, !status && { opacity: 0.5 }]}
           >
             <Text style={styles.primaryBtnText}>Continue</Text>
             <ChevronRight size={16} color={'#fff'} />
@@ -1044,6 +1144,14 @@ const createStyles = (theme: any) => StyleSheet.create({
   iconBadge: { width: 48, height: 48, borderRadius: 24, backgroundColor: `${theme?.colors.primary}15`, alignItems: 'center', justifyContent: 'center' },
   cardTitle: { fontSize: 18, fontWeight: '800', color: theme?.colors.text.primary, marginBottom: 4 },
   subtitle: { fontSize: 13, color: theme?.colors.text.secondary, lineHeight: 18 },
+  statusGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  statusNotice: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: `${theme?.colors.primary}25`, backgroundColor: `${theme?.colors.primary}08` },
+  statusNoticeText: { flex: 1, color: theme?.colors.text.secondary, fontSize: 13, lineHeight: 18 },
+  statusCard: { flexBasis: '48%', borderRadius: 14, borderWidth: 1.5, borderColor: theme?.colors.border, backgroundColor: theme?.colors.background, padding: 14, gap: 10 },
+  statusCardSelected: { borderColor: theme?.colors.primary, backgroundColor: `${theme?.colors.primary}12`, shadowColor: theme?.colors.primary, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.15, shadowRadius: 10, elevation: 4 },
+  statusCardHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  statusLabel: { fontSize: 14, fontWeight: '700', color: theme?.colors.text.primary },
+  statusDescription: { fontSize: 13, color: theme?.colors.text.secondary, lineHeight: 18 },
 
   chipsWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   chip: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: 999, borderWidth: 1.5, borderColor: theme?.colors.border, backgroundColor: theme?.colors.background, flexDirection: 'row', alignItems: 'center', gap: 6 },
@@ -1064,6 +1172,7 @@ const createStyles = (theme: any) => StyleSheet.create({
 
   primaryBtn: { marginTop: 8, backgroundColor: theme?.colors.primary, paddingVertical: 12, borderRadius: 12, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 6, shadowColor: theme?.colors.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 4 },
   primaryBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
+  primaryBtnDisabled: { opacity: 0.45 },
   secondaryBtn: { marginTop: 8, backgroundColor: 'transparent', paddingVertical: 12, borderRadius: 12, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 6, borderWidth: 1.5, borderColor: theme?.colors.primary },
   secondaryBtnText: { color: theme?.colors.primary, fontWeight: '700', fontSize: 15 },
 

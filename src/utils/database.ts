@@ -1,5 +1,6 @@
 import { SQLiteDatabase, openDatabaseAsync, deleteDatabaseAsync } from 'expo-sqlite';
 import * as FileSystem from 'expo-file-system';
+import { Platform } from 'react-native';
 import { BibleVersion, Book, UserLevel, VerseResult } from '@/types';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { bibleBooks } from '@/constants/bibleBooks';
@@ -137,6 +138,10 @@ export function parseVPLId(vplId: string): { bookAbbr: string, chapter: number, 
 
 const DB_PREFIX = 'bible_';
 const CDN_BASE = 'https://api.elbiblio.com/dbs/';
+const DEFAULT_BIBLE_ASSET = require('../../assets/bibles/rv.db');
+const DEFAULT_VERSION_METADATA = (versionsList as unknown as BibleVersion[]).find(
+  version => version.tableName === 'eng_rv_vpl'
+);
 
 interface LevelConfig {
   minWords: number;
@@ -213,71 +218,17 @@ class BibleDBService {
 
     this.isInitializing = true;
     try {
-      if (__DEV__) console.log("Initializing Bible database service...");
+      if (__DEV__) console.log('Initializing Bible database service...');
       const sqliteDir = `${FileSystem.documentDirectory}SQLite`;
-      const dirInfo = await FileSystem.getInfoAsync(sqliteDir);
-
-      if (!dirInfo.exists) {
-        if (__DEV__) console.log(`Creating SQLite directory at: ${sqliteDir}`);
-        await FileSystem.makeDirectoryAsync(sqliteDir, { intermediates: true });
-      }
-
-      const defaultDbPath = `${sqliteDir}/${DB_PREFIX}${this.DEFAULT_VERSION}.db`;
-      const dbExists = await FileSystem.getInfoAsync(defaultDbPath);
-
-      if (!dbExists.exists) {
-        if (__DEV__) console.log(`Default Bible database not found. Copying from assets to: ${defaultDbPath}`);
-        try {
-          const assets = await Asset.Asset.loadAsync(require('../../assets/bibles/rv.db'));
-          const defaultBibleAsset = assets[0];
-
-          if (!defaultBibleAsset?.localUri) {
-            throw new Error('Failed to load default Bible asset');
-          }
-
-          if (__DEV__) console.log(`Copying from: ${defaultBibleAsset.localUri} to: ${defaultDbPath}`);
-          await FileSystem.copyAsync({
-            from: defaultBibleAsset.localUri,
-            to: defaultDbPath
-          });
-
-          // Verify the file was copied successfully
-          const verifyDbExists = await FileSystem.getInfoAsync(defaultDbPath);
-          if (!verifyDbExists.exists) {
-            throw new Error(`Failed to copy Bible database to: ${defaultDbPath}`);
-          }
-          if (__DEV__) console.log("Default Bible database copied successfully");
-        } catch (error) {
-          if (__DEV__) console.error('Failed to copy default Bible:', error);
-          throw new Error(`Failed to copy default Bible database: ${(error as Error).message}`);
-        }
-      } else {
-        if (__DEV__) console.log("Default Bible database already exists");
-      }
-
-      // Load versions information from bundled JSON (avoid Asset for JSON)
-      try {
-        const versions: BibleVersion[] = (versionsList as unknown as BibleVersion[]);
-        await AsyncStorage.setItem('bibleVersions', JSON.stringify(versions));
-      } catch (error) {
-        if (__DEV__) console.error('Failed to load versions:', error);
-        // Load fallback versions from constant if available
-        const fallbackVersions = [
-          {
-            englishName: "Revised Version",
-            tableName: "eng_rv_vpl",
-            downloadUrl: "https://api.elbiblio.com/dbs/rv.db",
-            preinstalled: true
-          }
-        ];
-        await AsyncStorage.setItem('bibleVersions', JSON.stringify(fallbackVersions));
-      }
+      await this.ensureDirectory(sqliteDir);
+      await this.ensureDefaultBible(sqliteDir);
+      await this.ensureVersionsMetadata();
 
       // Set up app state monitoring to handle background/foreground transitions
       this.setupAppStateMonitoring();
 
       this.isInitialized = true;
-      if (__DEV__) console.log("Bible database service initialized successfully");
+      if (__DEV__) console.log('Bible database service initialized successfully');
     } catch (error) {
       this.isInitialized = false;
       if (__DEV__) console.error('Failed to initialize Bible database:', error);
@@ -285,6 +236,103 @@ class BibleDBService {
     } finally {
       this.isInitializing = false;
     }
+  }
+
+  private static async ensureDirectory(dir: string): Promise<void> {
+    const dirInfo = await FileSystem.getInfoAsync(dir);
+    if (!dirInfo.exists) {
+      if (__DEV__) console.log(`Creating SQLite directory at: ${dir}`);
+      await FileSystem.makeDirectoryAsync(dir, { intermediates: true });
+    }
+  }
+
+  private static async ensureDefaultBible(sqliteDir: string): Promise<void> {
+    const defaultDbPath = `${sqliteDir}/${DB_PREFIX}${this.DEFAULT_VERSION}.db`;
+    const dbExists = await FileSystem.getInfoAsync(defaultDbPath);
+
+    if (!dbExists.exists) {
+      if (__DEV__) console.log(`Default Bible database not found. Copying from assets to: ${defaultDbPath}`);
+      let copied = false;
+
+      const copyFromBundledAsset = async () => {
+        if (Platform.OS === 'web') {
+          return false;
+        }
+        try {
+          const asset = Asset.Asset.fromModule(DEFAULT_BIBLE_ASSET);
+          if (!asset.downloaded) {
+            await asset.downloadAsync();
+          }
+          const sourceUri = asset.localUri ?? asset.uri;
+          if (!sourceUri) {
+            throw new Error('Bundled Bible asset missing local URI');
+          }
+          if (__DEV__) console.log(`Copying bundled Bible from ${sourceUri} to ${defaultDbPath}`);
+          await FileSystem.copyAsync({ from: sourceUri, to: defaultDbPath });
+          return true;
+        } catch (assetError) {
+          if (__DEV__) console.warn('Bundled Bible copy failed; will try CDN fallback', assetError);
+          return false;
+        }
+      };
+
+      const downloadFromCdn = async () => {
+        const downloadUrl = DEFAULT_VERSION_METADATA?.downloadUrl || `${CDN_BASE}rv.db`;
+        try {
+          if (__DEV__) console.log(`Downloading default Bible from ${downloadUrl}`);
+          const result = await FileSystem.downloadAsync(downloadUrl, defaultDbPath);
+          if (!result?.uri) {
+            throw new Error('Download returned empty result');
+          }
+          return true;
+        } catch (downloadError) {
+          if (__DEV__) console.error('Failed to download Bible from CDN', downloadError);
+          return false;
+        }
+      };
+
+      copied = await copyFromBundledAsset();
+      if (!copied) {
+        copied = await downloadFromCdn();
+      }
+
+      if (!copied) {
+        throw new Error('Failed to provision default Bible database from all sources');
+      }
+
+      const verifyDbExists = await FileSystem.getInfoAsync(defaultDbPath);
+      if (!verifyDbExists.exists) {
+        throw new Error(`Default Bible database missing after copy: ${defaultDbPath}`);
+      }
+
+      if (__DEV__) console.log('Default Bible database provisioned successfully');
+    } else {
+      if (__DEV__) console.log('Default Bible database already exists');
+    }
+  }
+
+  private static async ensureVersionsMetadata(): Promise<void> {
+    try {
+      const versions = this.getBundledVersions();
+      await AsyncStorage.setItem('bibleVersions', JSON.stringify(versions));
+    } catch (error) {
+      if (__DEV__) console.error('Failed to load versions:', error);
+      // Load fallback versions from constant if available
+      const fallbackVersions = [
+        {
+          englishName: 'Revised Version',
+          tableName: 'eng_rv_vpl',
+          shortName: 'RV',
+          downloadUrl: `${CDN_BASE}rv.db`,
+          preinstalled: true,
+        },
+      ];
+      await AsyncStorage.setItem('bibleVersions', JSON.stringify(fallbackVersions));
+    }
+  }
+
+  static getBundledVersions(): BibleVersion[] {
+    return (versionsList as unknown as BibleVersion[]).map(version => ({ ...version }));
   }
 
   // Setup app state monitoring to handle database connections
