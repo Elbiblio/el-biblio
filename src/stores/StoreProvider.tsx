@@ -42,3 +42,4 @@ export const useRegistrationStore = () => useStores().registrationStore;
 export const useBookmarkStore = () => useStores().bookmarkStore;
 export const useJourneyStore = () => useStores().journeyStore;
 export const useDailyPathStore = () => useStores().dailyPathStore;
+export const useGuideStore = () => useStores().guideStore;

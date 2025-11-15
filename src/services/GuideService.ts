@@ -1,7 +1,8 @@
 import { RootStackParamList } from '@/types';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { apiClient, endpoints } from '@/api/client';
 
-const GUIDES_ENDPOINT = '/api/guides';
+ 
 
 export type GuideMode = 'meditation' | 'interactive_reading_quiz' | 'reading_reflection';
 
@@ -16,11 +17,44 @@ export interface GuideSummary {
   ctaLabel: string;
 }
 
+export interface MeditationPassageConfig {
+  id: string;
+  label: string;
+  book: string;
+  chapter: number;
+  verse?: number;
+}
+
+export interface MeditationStepConfig {
+  id: string;
+  title: string;
+  body?: string;
+  suggestedMinutesShort?: string;
+  suggestedMinutesLong?: string;
+}
+
+export type GuideBlock =
+  | { type: 'heading'; level?: 1 | 2 | 3; text: string }
+  | { type: 'paragraph'; text: string }
+  | { type: 'bullet_list'; items: string[] }
+  | { type: 'scripture'; book: string; chapter: number; verseFrom?: number; verseTo?: number; label?: string }
+  | { type: 'cta'; label: string; action: { type: 'navigate' | 'open_bible' | 'open_url'; params?: Record<string, any> } }
+  | { type: 'audio'; cue?: string; label?: string }
+  | { type: 'image'; uri: string; alt?: string }
+  | { type: 'quote'; text: string; attribution?: string }
+  | { type: 'callout'; text: string }
+  | { type: 'divider'; size?: 'sm' | 'md' | 'lg' }
+  | { type: 'spacer'; height?: number }
+  | { type: 'accordion'; items: Array<{ id: string; title: string; body: string }> };
+
 export interface MeditationGuideConfig {
   mode: 'meditation';
   minutesShort: number;
   minutesLong: number;
   orchestrationKey: string;
+  steps?: MeditationStepConfig[];
+  passages?: MeditationPassageConfig[];
+  blocks?: GuideBlock[];
 }
 
 export interface InteractiveReadingQuizPage {
@@ -40,6 +74,7 @@ export interface InteractiveReadingQuizConfig {
   mode: 'interactive_reading_quiz';
   pages: InteractiveReadingQuizPage[];
   questions: InteractiveReadingQuizQuestion[];
+  blocks?: GuideBlock[];
 }
 
 export interface ReadingReflectionSection {
@@ -52,6 +87,7 @@ export interface ReadingReflectionConfig {
   mode: 'reading_reflection';
   sections: ReadingReflectionSection[];
   reflectionPrompt?: string;
+  blocks?: GuideBlock[];
 }
 
 export type GuideContentConfig =
@@ -63,7 +99,7 @@ export interface GuideDefinition extends GuideSummary {
   content: GuideContentConfig;
 }
 
-const GUIDE_CACHE_KEY = 'GUIDE_DEFINITIONS_V2';
+const GUIDE_CACHE_KEY = 'GUIDE_DEFINITIONS_V3';
 
 const LOCAL_GUIDES: GuideDefinition[] = [
   {
@@ -148,6 +184,16 @@ const LOCAL_GUIDES: GuideDefinition[] = [
       minutesShort: 10,
       minutesLong: 20,
       orchestrationKey: 'forgiveness-default',
+      steps: [
+        { id: 'reflection', title: 'Reflection', body: 'Review your day gently before God.', suggestedMinutesShort: '3–4 min', suggestedMinutesLong: '7–10 min' },
+        { id: 'prayer', title: 'Prayer for forgiveness', body: 'Bring specifics into the light and ask for healing.', suggestedMinutesShort: '3–4 min', suggestedMinutesLong: '4–5 min' },
+        { id: 'penitence', title: 'Penitence & thanksgiving', body: 'Respond with gratitude and a concrete step.', suggestedMinutesShort: '2–3 min', suggestedMinutesLong: '3–5 min' },
+      ],
+      passages: [
+        { id: 'ps51', label: 'Psalm 51 – A prayer of repentance', book: 'Psalms', chapter: 51 },
+        { id: 'ps32', label: 'Psalm 32 – Joy of forgiveness', book: 'Psalms', chapter: 32 },
+        { id: 'eph4', label: 'Ephesians 4:31–32 – Forgive as Christ forgave you', book: 'Ephesians', chapter: 4, verse: 31 },
+      ],
     },
   },
   {
@@ -204,15 +250,13 @@ const LOCAL_GUIDES: GuideDefinition[] = [
 
 async function fetchGuidesFromApi(): Promise<GuideDefinition[] | null> {
   try {
-    const response = await fetch(GUIDES_ENDPOINT);
-    if (!response.ok) {
+    const res = await apiClient.get<GuideDefinition[]>(endpoints.guides.list, undefined, { headers: { 'X-Anonymous': 'true' } });
+    const data = res?.data as unknown;
+    if (!res?.success || !Array.isArray(data)) {
       return null;
     }
-    const data = (await response.json()) as unknown;
-    if (!Array.isArray(data)) {
-      return null;
-    }
-    return data as GuideDefinition[];
+    const valid = data.filter(g => g && typeof g === 'object' && typeof (g as any).id === 'string' && (g as any).content);
+    return valid as GuideDefinition[];
   } catch {
     return null;
   }
@@ -254,12 +298,37 @@ async function resolveGuides(): Promise<GuideDefinition[]> {
   return LOCAL_GUIDES;
 }
 
+async function fetchGuideByIdFromApi(id: string): Promise<GuideDefinition | null> {
+  try {
+    const res = await apiClient.get<GuideDefinition>(endpoints.guides.show(id), undefined, { headers: { 'X-Anonymous': 'true' } });
+    const data = res?.data as unknown;
+    if (!res?.success || !data || typeof data !== 'object') return null;
+    const g = data as GuideDefinition;
+    if (!g?.id || !g?.content) return null;
+    try {
+      const existing = (await loadCachedGuides()) || [];
+      const idx = existing.findIndex(x => x.id === g.id);
+      if (idx === -1) {
+        existing.push(g);
+      } else {
+        existing[idx] = g;
+      }
+      await saveCachedGuides(existing);
+    } catch {}
+    return g;
+  } catch {
+    return null;
+  }
+}
+
 export async function getGuides(): Promise<GuideSummary[]> {
   const guides = await resolveGuides();
   return guides.map(({ content, ...summary }) => summary);
 }
 
 export async function getGuideById(id: string): Promise<GuideDefinition | null> {
+  const live = await fetchGuideByIdFromApi(id);
+  if (live) return live;
   const guides = await resolveGuides();
   const found = guides.find(guide => guide.id === id);
   return found || null;

@@ -30,6 +30,9 @@ interface ReadingPlanSetupModalProps {
     phases: ReadingPlanPhase[];
     reminderTime?: string;
     presetIds?: string[];
+    minChaptersPerDay?: number;
+    maxChaptersPerDay?: number;
+    readingPaceWpm?: number;
   }) => Promise<void>;
 }
 
@@ -44,6 +47,8 @@ const ReadingPlanSetupModal: React.FC<ReadingPlanSetupModalProps> = observer(({ 
   const [reminderTime, setReminderTime] = useState('');
   const [isCreating, setIsCreating] = useState(false);
   const [currentStep, setCurrentStep] = useState<'books' | 'time' | 'mode' | 'reminder' | 'summary'>('books');
+  const [chapterRange, setChapterRange] = useState<{ min: number; max: number } | null>(null);
+  const [readingPaceWpm, setReadingPaceWpm] = useState<number>(200);
 
   const builderBooks = useMemo(() => {
     const presetBooks = selectedPresetIds.flatMap(id => {
@@ -90,7 +95,6 @@ const ReadingPlanSetupModal: React.FC<ReadingPlanSetupModalProps> = observer(({ 
   }, [builderBooks]);
 
   const AVERAGE_WORDS_PER_CHAPTER = 780;
-  const AVERAGE_READING_SPEED_WPM = 180;
 
   const totalEstimatedWords = useMemo(() => totalChapters * AVERAGE_WORDS_PER_CHAPTER, [totalChapters]);
 
@@ -99,7 +103,7 @@ const ReadingPlanSetupModal: React.FC<ReadingPlanSetupModalProps> = observer(({ 
     [readingMode, timePerDay]
   );
 
-  const wordsPerDay = useMemo(() => readingMinutesPerDay * AVERAGE_READING_SPEED_WPM, [readingMinutesPerDay]);
+  const wordsPerDay = useMemo(() => readingMinutesPerDay * Math.max(80, Math.min(400, readingPaceWpm)), [readingMinutesPerDay, readingPaceWpm]);
 
   const estimatedDaysToComplete = useMemo(() => {
     if (!builderBooks.length || wordsPerDay <= 0 || totalEstimatedWords <= 0) {
@@ -144,6 +148,9 @@ const ReadingPlanSetupModal: React.FC<ReadingPlanSetupModalProps> = observer(({ 
         phases: sessionPhases,
         reminderTime: reminderTime.trim() || undefined,
         presetIds: selectedPresetIds,
+        minChaptersPerDay: chapterRange?.min,
+        maxChaptersPerDay: chapterRange?.max,
+        readingPaceWpm,
       });
       onClose();
       // Reset state
@@ -153,10 +160,11 @@ const ReadingPlanSetupModal: React.FC<ReadingPlanSetupModalProps> = observer(({ 
       setTimePerDay(DEFAULT_TIME_PER_DAY);
       setReadingMode(DEFAULT_READING_MODE);
       setReminderTime('');
+      setChapterRange(null);
     } finally {
       setIsCreating(false);
     }
-  }, [builderBooks, timePerDay, readingMode, sessionPhases, reminderTime, onCreatePlan, onClose]);
+  }, [builderBooks, timePerDay, readingMode, sessionPhases, reminderTime, chapterRange, onCreatePlan, onClose]);
 
   const handleNext = useCallback(() => {
     if (currentStep === 'books' && builderBooks.length > 0) {
@@ -278,8 +286,49 @@ const ReadingPlanSetupModal: React.FC<ReadingPlanSetupModalProps> = observer(({ 
                     );
                   })}
                 </View>
+                <View style={[styles.timeOptionsRow, { marginTop: 12 }]}> 
+                  {[null, { min: 1, max: 2 }, { min: 1, max: 3 }, { min: 2, max: 4 }].map((opt, idx) => {
+                    const isActive = (!!chapterRange && !!opt && chapterRange.min === opt.min && chapterRange.max === opt.max) || (!chapterRange && opt === null);
+                    const label = opt ? `${opt.min}\u2013${opt.max}` : 'Auto';
+                    return (
+                      <TouchableOpacity
+                        key={idx}
+                        style={[styles.timeOption, isActive && styles.timeOptionActive]}
+                        onPress={() => setChapterRange(opt as any)}
+                      >
+                        <Text style={[styles.timeOptionText, isActive && styles.timeOptionTextActive]}>
+                          {label}
+                        </Text>
+                        <Text style={[styles.timeOptionLabel, isActive && styles.timeOptionLabelActive]}>
+                          chapters/day
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+                <View style={[styles.timeOptionsRow, { marginTop: 12 }]}> 
+                  {[150, 180, 200, 220, 250].map((wpm) => {
+                    const isActive = wpm === readingPaceWpm;
+                    return (
+                      <TouchableOpacity
+                        key={wpm}
+                        style={[styles.timeOption, isActive && styles.timeOptionActive]}
+                        onPress={() => setReadingPaceWpm(wpm)}
+                      >
+                        <Text style={[styles.timeOptionText, isActive && styles.timeOptionTextActive]}>
+                          {wpm}
+                        </Text>
+                        <Text style={[styles.timeOptionLabel, isActive && styles.timeOptionLabelActive]}>
+                          wpm
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
                 <Text style={styles.helperHint}>
-                  Estimated {estimatedChaptersPerDay} {estimatedChaptersPerDay === 1 ? 'chapter' : 'chapters'} per day
+                  {chapterRange
+                    ? `Chapters per day: ${chapterRange.min}\u2013${chapterRange.max}`
+                    : `Estimated ~${estimatedChaptersPerDay} ${estimatedChaptersPerDay === 1 ? 'chapter' : 'chapters'} per day at ${readingPaceWpm} wpm`}
                 </Text>
               </View>
             )}
@@ -340,6 +389,16 @@ const ReadingPlanSetupModal: React.FC<ReadingPlanSetupModalProps> = observer(({ 
                     <View style={styles.summaryRow}>
                       <Text style={styles.summaryLabel}>Daily time</Text>
                       <Text style={styles.summaryValue}>{timePerDay} mins</Text>
+                    </View>
+                    <View style={styles.summaryRow}>
+                      <Text style={styles.summaryLabel}>Daily chapters</Text>
+                      <Text style={styles.summaryValue}>
+                        {chapterRange ? `${chapterRange.min}\u2013${chapterRange.max}` : `~${estimatedChaptersPerDay}`}
+                      </Text>
+                    </View>
+                    <View style={styles.summaryRow}>
+                      <Text style={styles.summaryLabel}>Reading pace</Text>
+                      <Text style={styles.summaryValue}>{readingPaceWpm} wpm</Text>
                     </View>
                     {estimatedDaysToComplete && (
                       <View style={styles.summaryRow}>

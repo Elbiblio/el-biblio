@@ -543,6 +543,11 @@ export const endpoints = {
     show: (id: string) => `/public/${id}`,
   },
  
+  guides: {
+    list: '/guides',
+    show: (id: string) => `/guides/${id}`,
+  },
+ 
   readingProgress: {
     dailyComplete: '/bible-reading/daily/complete',
   },

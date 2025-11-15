@@ -18,6 +18,7 @@ import { RegistrationStore } from './RegistrationStore';
 import { BookmarkStore } from './BookmarkStore';
 import { JourneyStore } from './JourneyStore';
 import { DailyPathStore } from './DailyPathStore';
+import { GuideStore } from './GuideStore';
 
 export class RootStore {
   authStore = authStore;
@@ -40,6 +41,7 @@ export class RootStore {
   bookmarkStore: BookmarkStore;
   journeyStore: JourneyStore;
   dailyPathStore: DailyPathStore;
+  guideStore: GuideStore;
 
   constructor() {
     this.reflectionStore = new ReflectionStore();
@@ -59,6 +61,7 @@ export class RootStore {
     this.journeyStore = new JourneyStore(this.authStore);
     this.dailyPathStore = new DailyPathStore();
     this.meditationStore = new MeditationStore(this.authStore);
+    this.guideStore = new GuideStore();
     // Attach cross-store dependencies after all are constructed
     this.virtueStore.attachStores(this.leaderboardStore, this.journeyStore);
   }

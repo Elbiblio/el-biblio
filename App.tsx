@@ -53,6 +53,8 @@ import TalkToGodScreen from './src/screens/TalkToGodScreen';
 import HowToPrayScreen from './src/screens/HowToPrayScreen';
 import ForgivenessScreen from './src/screens/ForgivenessScreen';
 import HolySpiritScreen from './src/screens/HolySpiritScreen';
+import GuidePlayerScreen from './src/screens/GuidePlayerScreen';
+import SetupCompleteScreen from './src/screens/SetupCompleteScreen';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { appStore } from './src/stores/appStore';
 import { StoreProvider } from './src/stores/StoreProvider';
@@ -188,6 +190,7 @@ const NavigationContent: React.FC<NavigationContentProps> = ({ showChallengeBann
         />
         <Stack.Screen name="MyJourneyScreen" component={MyJourneyScreen} />
         <Stack.Screen name="JourneyQuizScreen" component={JourneyQuizScreen} />
+        <Stack.Screen name="SetupCompleteScreen" component={SetupCompleteScreen} />
         <Stack.Screen name="CitizenshipSetupScreen" component={CitizenshipSetupScreen} />
         <Stack.Screen name="HabitConquestSetupScreen" component={HabitConquestSetupScreen} />
         <Stack.Screen name="HabitConquestSessionScreen" component={HabitConquestSessionScreen} />
@@ -195,6 +198,7 @@ const NavigationContent: React.FC<NavigationContentProps> = ({ showChallengeBann
         <Stack.Screen name="HowToPrayScreen" component={HowToPrayScreen} />
         <Stack.Screen name="ForgivenessScreen" component={ForgivenessScreen} />
         <Stack.Screen name="HolySpiritScreen" component={HolySpiritScreen} />
+        <Stack.Screen name="GuidePlayerScreen" component={GuidePlayerScreen} />
       </Stack.Navigator>
       {showChallengeBanner && (
         <ChallengeCompletionBanner onDismiss={onDismissChallengeBanner} />

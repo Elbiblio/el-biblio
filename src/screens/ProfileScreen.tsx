@@ -504,6 +504,21 @@ const ProfileScreen = () => {
           <ArrowRight size={18} color={theme.colors.text.secondary} />
         </TouchableOpacity>
 
+        {/* Reconfigure Daily Path */}
+        <TouchableOpacity 
+          style={styles.leaderboardButton}
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            navigation.navigate('CitizenshipSetupScreen');
+          }}
+        >
+          <View style={styles.leaderboardIconContainer}>
+            <BookOpen size={20} color={theme.colors.text.inverse} />
+          </View>
+          <Text style={styles.leaderboardText}>Reconfigure daily path</Text>
+          <ArrowRight size={18} color={theme.colors.text.secondary} />
+        </TouchableOpacity>
+
         {/* Stats */}
         <View style={styles.sectionContainer}>
           <Text style={styles.sectionTitle}>Activity</Text>

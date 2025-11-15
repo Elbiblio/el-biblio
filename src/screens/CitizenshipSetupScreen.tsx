@@ -4,8 +4,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { observer } from 'mobx-react-lite';
 import { useTheme } from '@/contexts/ThemeContext';
 import { Theme } from '@/theme';
-import { useDailyPathStore } from '@/stores/StoreProvider';
+import { useDailyPathStore, useJourneyStore } from '@/stores/StoreProvider';
 import { HABIT_CONQUEST_SCOPE_PARAMS } from '@/stores/DailyPathStore';
+import ReadingPlanSetupModal from '@/components/ReadingPlanSetupModal';
+import { useBibleStore } from '@/stores/BibleStore';
+import { ReadingPlanMode, ReadingPlanPhase } from '@/constants/readingPlanModes';
 import type { DailyFocusKey } from '@/stores/DailyPathStore';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -73,6 +76,8 @@ const CitizenshipSetupScreen = observer(() => {
   const styles = useMemo(() => createStyles(theme), [theme]);
   const navigation = useNavigation<Navigation>();
   const dailyPathStore = useDailyPathStore();
+  const bibleStore = useBibleStore();
+  const journeyStore = useJourneyStore();
   const [showReviveChecklist, setShowReviveChecklist] = useState(false);
   const [reviveSelections, setReviveSelections] = useState<string[]>([]);
   const [selectedFocuses, setSelectedFocuses] = useState<DailyFocusKey[]>(
@@ -80,6 +85,7 @@ const CitizenshipSetupScreen = observer(() => {
   );
   const [enableChallenges, setEnableChallenges] = useState<boolean>(dailyPathStore.isChallengesEnabled);
   const [isSaving, setIsSaving] = useState(false);
+  const [isPlanSetupVisible, setIsPlanSetupVisible] = useState(false);
   const [isSchedulingRevive, setIsSchedulingRevive] = useState(false);
   const primaryOption = useMemo(() => focusOptions.find(option => option.key === selectedFocuses[0]), [selectedFocuses]);
 
@@ -112,9 +118,6 @@ const CitizenshipSetupScreen = observer(() => {
       dailyPathStore.setFocuses(firstFocus ?? 'revive', remaining);
 
       const includesKnowledge = selectedFocuses.includes('knowledge');
-      const includesDiscipleship = selectedFocuses.includes('habits');
-      const includesHabitConquest = selectedFocuses.includes('habit_conquest');
-      const includesRevive = selectedFocuses.includes('revive');
 
       // Unlocks and flags
       if (selectedFocuses.includes('habits')) {
@@ -128,22 +131,44 @@ const CitizenshipSetupScreen = observer(() => {
 
       dailyPathStore.markSetupComplete();
 
-      // Post-setup flows: prioritize Reading Plan > Challenges > Revive checklist
       if (includesKnowledge) {
-        navigation.navigate('BibleScreen', { openPlanSetup: true } as any);
-      } else if (includesHabitConquest) {
-        navigation.navigate('HabitConquestSetupScreen');
-      } else if (includesDiscipleship) {
-        navigation.navigate('DailyChallengeScreen', { onboarding: true });
-      } else if (includesRevive) {
-        setShowReviveChecklist(true);
+        setIsPlanSetupVisible(true);
       } else {
-        navigation.navigate('Home');
+        navigation.navigate('SetupCompleteScreen');
       }
     } finally {
       setIsSaving(false);
     }
   }, [dailyPathStore, enableChallenges, isSaving, navigation, selectedFocuses]);
+
+  const handleCreatePlan = useCallback(async ({ books, timePerDay, readingMode, phases, reminderTime, presetIds, minChaptersPerDay, maxChaptersPerDay, readingPaceWpm }: { books: string[]; timePerDay: number; readingMode: ReadingPlanMode; phases: ReadingPlanPhase[]; reminderTime?: string; presetIds?: string[]; minChaptersPerDay?: number; maxChaptersPerDay?: number; readingPaceWpm?: number }) => {
+    try {
+      await bibleStore.createReadingPlan({
+        books,
+        timePerDay,
+        readingMode,
+        phases,
+        reminderTime: reminderTime ?? null,
+        presetIds,
+        minChaptersPerDay,
+        maxChaptersPerDay,
+        readingPaceWpm,
+      });
+      journeyStore.setBiblePlan({
+        id: bibleStore.readingPlan?.id ?? '',
+        books,
+        timePerDay,
+        readingMode,
+        phases,
+        reminderTime: reminderTime ?? null,
+        presetIds: presetIds ?? [],
+        focusVirtue: bibleStore.readingPlan?.focusVirtue ?? null,
+      } as any);
+    } finally {
+      setIsPlanSetupVisible(false);
+      navigation.navigate('SetupCompleteScreen');
+    }
+  }, [bibleStore, journeyStore, navigation]);
 
   return (
     <View style={[styles.container, { paddingTop: insets.top + theme.spacing.md }]}> 
@@ -278,6 +303,11 @@ const CitizenshipSetupScreen = observer(() => {
           </View>
         </Modal>
       )}
+      <ReadingPlanSetupModal
+        visible={isPlanSetupVisible}
+        onClose={() => { setIsPlanSetupVisible(false); navigation.navigate('SetupCompleteScreen'); }}
+        onCreatePlan={handleCreatePlan}
+      />
     </View>
   );
 });

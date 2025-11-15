@@ -10,7 +10,7 @@ import { Share } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { formatVerseShareMessage } from '@/utils/share';
 import * as Notifications from 'expo-notifications';
-import { estimateChaptersPerDay, DEFAULT_TIME_PER_DAY, DEFAULT_READING_MODE, buildPlanPhases } from '@/constants/readingPlanModes';
+import { estimateChaptersPerDay, DEFAULT_TIME_PER_DAY, DEFAULT_READING_MODE, buildPlanPhases, getReadingMinutes } from '@/constants/readingPlanModes';
 import { getVirtueFocusFromPresets } from '@/constants/readingPlanPresets';
 
 // Extend the BibleVersion type to include id
@@ -155,6 +155,7 @@ type BibleReadingPlan = {
   versionName?: string | null;
   presetIds?: string[];
   focusVirtue?: { virtue: string; displayLabel: string; matchTerms: string[] } | null;
+  readingPaceWpm?: number;
 };
 export type DailyPhaseProgress = {
   id: ReadingPlanPhase['id'];
@@ -197,6 +198,9 @@ type CreateReadingPlanParams = {
   phases: ReadingPlanPhase[];
   reminderTime?: string | null;
   presetIds?: string[];
+  minChaptersPerDay?: number;
+  maxChaptersPerDay?: number;
+  readingPaceWpm?: number;
 };
 
 // Storage keys
@@ -1708,11 +1712,40 @@ async markTodaySessionCompleted() {
     }
 
     const timePerDay = Math.max(1, Math.floor(params.timePerDay));
-    const chaptersPerDay = Math.max(1, estimateChaptersPerDay(timePerDay));
+    const readingMinutes = Math.max(0, getReadingMinutes(params.readingMode, timePerDay));
+    const pace = Math.max(80, Math.min(400, params.readingPaceWpm ?? 200));
+    const avgWordsPerChapter = 780;
+    const wordsPerDay = readingMinutes * pace;
+    const chaptersPerDay = Math.max(1, Math.round(wordsPerDay / avgWordsPerChapter));
     const versionTable = this.currentVersion?.tableName ?? DEFAULT_BIBLE_TABLE;
     const versionName = this.currentVersion?.englishName ?? this.currentVersion?.shortName ?? null;
 
-    const segments = this.buildReadingSegments(params.books, chaptersPerDay);
+    const avgWordsByBook: Record<string, number> = {};
+    for (const input of params.books) {
+      const meta = this.resolveBookMeta(input);
+      if (!meta) continue;
+      try {
+        let totalWords = 0;
+        for (let ch = 1; ch <= meta.chapters; ch++) {
+          const verses = await BibleDBService.getChapter(versionTable, meta.abbreviation, ch);
+          const words = verses.reduce((sum, v) => sum + (v.text?.trim?.().split(/\s+/).length || 0), 0);
+          totalWords += words;
+        }
+        const avg = Math.max(1, Math.round(totalWords / Math.max(1, meta.chapters)));
+        avgWordsByBook[meta.abbreviation.toUpperCase()] = avg;
+      } catch (e) {
+        avgWordsByBook[meta.abbreviation.toUpperCase()] = avgWordsPerChapter;
+      }
+    }
+
+    const segments = this.buildReadingSegments(
+      params.books,
+      chaptersPerDay,
+      params.minChaptersPerDay,
+      params.maxChaptersPerDay,
+      avgWordsByBook,
+      wordsPerDay,
+    );
     const focus = getVirtueFocusFromPresets(params.presetIds ?? null);
     const plan: BibleReadingPlan = {
       id: `plan-${Date.now()}`,
@@ -1728,6 +1761,7 @@ async markTodaySessionCompleted() {
       versionName,
       presetIds: params.presetIds ?? undefined,
       focusVirtue: focus ? { virtue: focus.virtue, displayLabel: focus.displayLabel, matchTerms: focus.matchTerms } : null,
+      readingPaceWpm: params.readingPaceWpm,
     };
 
     await this.saveReadingPlan(plan);
@@ -1846,8 +1880,21 @@ async markTodaySessionCompleted() {
     });
   }
 
-  private buildReadingSegments(bookInputs: string[], chaptersPerDay: number): ReadingPlanSegment[] {
+  private buildReadingSegments(
+    bookInputs: string[],
+    chaptersPerDay: number,
+    minChaptersPerDay?: number,
+    maxChaptersPerDay?: number,
+    avgWordsByBook?: Record<string, number>,
+    wordsPerDay?: number,
+  ): ReadingPlanSegment[] {
     const segments: ReadingPlanSegment[] = [];
+
+    // Lightweight book-length heuristics
+    const longBooks = new Set(['JHN','LUK','MAT','ACT','ISA','JER']);
+    const shortBooks = new Set(['PSA','PRO','JUD','PHM','2JN','3JN','OBA']);
+    const hasRange = typeof minChaptersPerDay === 'number' && typeof maxChaptersPerDay === 'number' && (minChaptersPerDay as number) > 0 && (maxChaptersPerDay as number) >= (minChaptersPerDay as number);
+    const avgRange = hasRange ? Math.max(1, Math.round(((minChaptersPerDay as number) + (maxChaptersPerDay as number)) / 2)) : chaptersPerDay;
 
     bookInputs.forEach(bookInput => {
       const book = this.resolveBookMeta(bookInput);
@@ -1855,9 +1902,20 @@ async markTodaySessionCompleted() {
 
       let chapter = 1;
       const totalChapters = book.chapters;
+
+      // Determine effective group size for this book
+      const abbr = book.abbreviation.toUpperCase();
+      let effectiveSize = chaptersPerDay;
+      if (avgWordsByBook && wordsPerDay && avgWordsByBook[abbr]) {
+        const base = Math.max(1, Math.round(wordsPerDay / Math.max(1, avgWordsByBook[abbr])));
+        effectiveSize = hasRange ? Math.max(minChaptersPerDay as number, Math.min(maxChaptersPerDay as number, base)) : base;
+      } else if (hasRange) {
+        effectiveSize = longBooks.has(abbr) ? (minChaptersPerDay as number) : shortBooks.has(abbr) ? (maxChaptersPerDay as number) : avgRange;
+      }
+
       while (chapter <= totalChapters) {
         const start = chapter;
-        const end = Math.min(totalChapters, chapter + chaptersPerDay - 1);
+        const end = Math.min(totalChapters, chapter + Math.max(1, effectiveSize) - 1);
         segments.push({
           id: `${book.abbreviation}-${start}-${end}`,
           bookAbbreviation: book.abbreviation,

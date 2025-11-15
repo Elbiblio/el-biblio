@@ -730,6 +730,7 @@ export type RootStackParamList = {
   SpiritualCareerScreen: undefined;
   MyJourneyScreen: undefined;
   JourneyQuizScreen: { phaseId: string };
+  SetupCompleteScreen: undefined;
   HabitConquestSetupScreen: undefined;
   HabitConquestSessionScreen: undefined;
   TalkToGodScreen: undefined;
@@ -738,6 +739,7 @@ export type RootStackParamList = {
   HolySpiritScreen: undefined;
   CareerDiscoveryScreen: undefined;
   CareerHistoricMeditationScreen: undefined;
+  GuidePlayerScreen: { guideId: string; startAtStepId?: string };
 };
 
 export interface BibleVersion {

@@ -1250,7 +1250,7 @@ const handleEnterPlanMode = useCallback(async () => {
     });
   }, [navigation, scopedView]);
 
-  const handleCreatePlan = useCallback(async ({ books, timePerDay, readingMode, phases, reminderTime, presetIds }: { books: string[]; timePerDay: number; readingMode: ReadingPlanMode; phases: ReadingPlanPhase[]; reminderTime?: string; presetIds?: string[] }) => {
+  const handleCreatePlan = useCallback(async ({ books, timePerDay, readingMode, phases, reminderTime, presetIds, minChaptersPerDay, maxChaptersPerDay, readingPaceWpm }: { books: string[]; timePerDay: number; readingMode: ReadingPlanMode; phases: ReadingPlanPhase[]; reminderTime?: string; presetIds?: string[]; minChaptersPerDay?: number; maxChaptersPerDay?: number; readingPaceWpm?: number }) => {
     try {
       await bibleStore.createReadingPlan({
         books,
@@ -1259,37 +1259,16 @@ const handleEnterPlanMode = useCallback(async () => {
         phases,
         reminderTime: reminderTime ?? null,
         presetIds,
+        minChaptersPerDay,
+        maxChaptersPerDay,
+        readingPaceWpm,
       });
       
       setBuilderReminder(reminderTime?.trim?.() ?? reminderTime ?? '');
       setIsPlanSetupVisible(false);
       
-      // Enable plan mode and navigate to first segment
-      bibleStore.enablePlanMode();
-      const navigated = await bibleStore.focusPlanSegment();
-      
-      if (navigated) {
-        toast.success('Your reading plan has started!');
-        setShowTimerModal(true);
-        setShowCompactPlan(true);
-        
-        // Play start chime
-        try {
-          const { sound } = await Audio.Sound.createAsync(
-            require('../../assets/sounds/bell.wav')
-          );
-          await sound.playAsync();
-          sound.setOnPlaybackStatusUpdate(status => {
-            if (status.isLoaded && status.didJustFinish) {
-              sound.unloadAsync();
-            }
-          });
-        } catch (error) {
-          console.warn('Could not play start chime', error);
-        }
-      } else {
-        toast.success('Bible Studio plan ready');
-      }
+      setShowCompactPlan(true);
+      toast.success('Bible Studio plan ready');
       
       // Sync with journey store
       journeyStore.setBiblePlan({

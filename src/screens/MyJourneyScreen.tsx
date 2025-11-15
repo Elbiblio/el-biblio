@@ -165,6 +165,14 @@ const MyJourneyScreen = observer(() => {
           <Text style={styles.progressText}>
             {Math.round(overallProgress)}% Complete • {completedPhases} of {totalPhases} phases
           </Text>
+
+          <TouchableOpacity
+            style={styles.reconfigureButton}
+            onPress={() => navigation.navigate('CitizenshipSetupScreen')}
+            accessibilityLabel="Reconfigure daily path"
+          >
+            <Text style={styles.reconfigureButtonText}>Reconfigure daily path</Text>
+          </TouchableOpacity>
         </View>
 
         {/* Motivational Quote Section */}
@@ -841,6 +849,21 @@ const createStyles = (theme: Theme) =>
     activityMeta: {
       ...theme.typography.caption.secondary,
       color: theme.colors.text.secondary,
+    },
+    reconfigureButton: {
+      marginTop: theme.spacing.md,
+      paddingHorizontal: theme.spacing.lg,
+      paddingVertical: theme.spacing.xs,
+      borderRadius: theme.borderRadius.full,
+      backgroundColor: theme.colors.surface,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+    },
+    reconfigureButtonText: {
+      ...theme.typography.caption.primary,
+      color: theme.colors.primary,
+      textAlign: 'center',
+      fontWeight: '600',
     },
   })
 
