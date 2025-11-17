@@ -232,7 +232,7 @@ export class ChallengeStore {
       if (!comment?.trim()) return false;
       this.setLoading(true);
       await apiClient.post(endpoints.challenges.feedback(challengeId), { comment: comment.trim() });
-      toast.success('Thanks for the encouragement!');
+      toast.success('Thanks for the feedback!');
       return true;
     } catch (error) {
       console.error(`Error submitting feedback for challenge ${challengeId}:`, error);
