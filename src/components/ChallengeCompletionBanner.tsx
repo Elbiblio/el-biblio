@@ -162,12 +162,15 @@ const ChallengeCompletionBanner: React.FC<ChallengeCompletionBannerProps> = ({ o
     }
   }, [selectedChallenge, navigation, handleDismiss]);
 
+  const overlayColors = useMemo(() => ['rgba(0,0,0,0.7)', 'rgba(0,0,0,0.7)'] as const, []);
+  const surfaceColors = useMemo(
+    () => [theme?.colors.surface ?? '#F5F7F3', theme?.colors.surface ?? '#F5F7F3'] as const,
+    [theme?.colors.surface]
+  );
+
   if (!selectedChallenge) {
     return null;
   }
-
-  const overlayColors = useMemo(() => ['rgba(0,0,0,0.7)', 'rgba(0,0,0,0.7)'] as const, []);
-  const surfaceColors = useMemo(() => [theme?.colors.surface ?? '#F5F7F3', theme?.colors.surface ?? '#F5F7F3'] as const, [theme?.colors.surface]);
 
   return (
     <Animated.View style={styles.overlay} pointerEvents="auto">

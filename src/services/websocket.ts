@@ -24,6 +24,13 @@ export interface WebSocketAuthInfo {
   userId?: string | number;
 }
 
+export interface WebSocketRuntimeConfig {
+  host: string;
+  port: string; // string to match Pusher options and existing config
+  appKey: string;
+  secure: boolean;
+}
+
 class WebSocketService {
   private pusher: Pusher | null = null;
   private channels: Map<string, Channel | PresenceChannel> = new Map();
@@ -42,8 +49,11 @@ class WebSocketService {
   private reconnectAttempts = 0;
   private reconnectTimer: any = null;
   
-  // Configuration sourced from app.json extra to avoid process.env on SDK 52
-  private config = (() => {
+  // Optional runtime configuration (preferred) – typically provided from API
+  private runtimeConfig: WebSocketRuntimeConfig | null = null;
+
+  // Configuration sourced from app.json extra as a fallback
+  private getDefaultConfig(): WebSocketRuntimeConfig {
     const extra: any = (Constants as any)?.expoConfig?.extra || (Constants as any)?.manifest?.extra || {};
     return {
       host: extra.WS_HOST || 'api.elbiblio.com',
@@ -51,7 +61,11 @@ class WebSocketService {
       appKey: extra.WS_APP_KEY || 'your-app-key',
       secure: !!extra.WS_SECURE,
     };
-  })();
+  }
+
+  private getConfig(): WebSocketRuntimeConfig {
+    return this.runtimeConfig ?? this.getDefaultConfig();
+  }
 
   // State
   public state: WebSocketState = {
@@ -66,6 +80,15 @@ class WebSocketService {
 
   constructor() {
     // Pusher will be initialized when auth info is set
+  }
+
+  // Allow callers (e.g., App initialization) to provide runtime WebSocket config from API
+  public setConfig(config: WebSocketRuntimeConfig | null): void {
+    this.runtimeConfig = config;
+    // Optionally reconnect with new config if already authenticated
+    if (this.authInfo.token && this.authInfo.userId && this.pusher) {
+      this.reconnect().catch(() => undefined);
+    }
   }
 
   // Method to set auth information
@@ -101,12 +124,15 @@ class WebSocketService {
     this.setState({ isConnecting: true, error: null });
 
     try {
+      // Resolve configuration (runtime config from API preferred over app.json extras)
+      const config = this.getConfig();
+
       // Initialize Pusher with Reverb configuration
-      this.pusher = new Pusher(this.config.appKey, {
-        wsHost: this.config.host,
-        wsPort: parseInt(this.config.port),
-        wssPort: parseInt(this.config.port),
-        forceTLS: this.config.secure,
+      this.pusher = new Pusher(config.appKey, {
+        wsHost: config.host,
+        wsPort: parseInt(config.port, 10),
+        wssPort: parseInt(config.port, 10),
+        forceTLS: config.secure,
         enabledTransports: ['ws', 'wss'],
         disableStats: true,
         cluster: 'mt1', // dummy for self-hosted Reverb

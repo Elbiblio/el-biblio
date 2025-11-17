@@ -11,6 +11,7 @@ import {
   Switch,
   RefreshControl,
   Alert,
+  Modal,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BlurView } from 'expo-blur';
@@ -117,6 +118,9 @@ const WordHubsScreen = ({
   const [activeTab, setActiveTab] = useState<'discover' | 'joined'>('discover');
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showRestrictionModal, setShowRestrictionModal] = useState(false);
+  const [showAccessCodeModal, setShowAccessCodeModal] = useState(false);
+  const [accessCodeInput, setAccessCodeInput] = useState('');
+  const [pendingJoinHubId, setPendingJoinHubId] = useState<string | null>(null);
 
   // Create Hub Form States
   const [hubTitle, setHubTitle] = useState('');
@@ -237,23 +241,28 @@ const WordHubsScreen = ({
     }
 
     if (hub.is_private) {
-      // Show access code input
-      Alert.prompt(
-        'Join Private Hub',
-        'Enter the 6-digit access code:',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          {
-            text: 'Join',
-            onPress: async (code) => {
-              if (code) {
-                await performJoinHub(hub.id, code);
+      if (Platform.OS === 'ios') {
+        Alert.prompt(
+          'Join Private Hub',
+          'Enter the 6-digit access code:',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            {
+              text: 'Join',
+              onPress: async (code) => {
+                if (code) {
+                  await performJoinHub(hub.id, code);
+                }
               }
             }
-          }
-        ],
-        'plain-text'
-      );
+          ],
+          'plain-text'
+        );
+      } else {
+        setPendingJoinHubId(hub.id);
+        setAccessCodeInput('');
+        setShowAccessCodeModal(true);
+      }
     } else {
       await performJoinHub(hub.id);
     }
@@ -645,6 +654,48 @@ const WordHubsScreen = ({
                 ) : (
                   <Text style={styles.createButtonText}>Create Hub</Text>
                 )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </BlurView>
+      )}
+
+      {/* Android Private Hub Access Code Modal */}
+      {showAccessCodeModal && (
+        <BlurView intensity={20} style={styles.modalOverlay}>
+          <View style={styles.modal}>
+            <Text style={styles.modalTitle}>Join Private Hub</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="6-digit Access Code"
+              value={accessCodeInput}
+              onChangeText={setAccessCodeInput}
+              keyboardType="number-pad"
+              maxLength={6}
+            />
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={styles.cancelButton}
+                onPress={() => { setShowAccessCodeModal(false); setPendingJoinHubId(null); }}
+              >
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.createButton,
+                  (!accessCodeInput.trim() || !pendingJoinHubId) && styles.createButtonDisabled,
+                ]}
+                onPress={async () => {
+                  if (pendingJoinHubId && accessCodeInput.trim()) {
+                    await performJoinHub(pendingJoinHubId, accessCodeInput.trim());
+                    setShowAccessCodeModal(false);
+                    setPendingJoinHubId(null);
+                    setAccessCodeInput('');
+                  }
+                }}
+                disabled={!accessCodeInput.trim() || !pendingJoinHubId}
+              >
+                <Text style={styles.createButtonText}>Join</Text>
               </TouchableOpacity>
             </View>
           </View>

@@ -73,6 +73,7 @@ import { usePreferencesStore, useChallengeStore, useGameStore, useLeaderboardSto
 import { getNextUnlock } from './src/utils/gameUnlocks';
 import { syncDailyNuggets, setDailyNuggetStores } from './src/tasks/dailyNuggetOrchestrator';
 import { checkForAppUpdate } from './src/services/appUpdate';
+import { loadMobileConfig } from './src/services/mobileConfig';
 import FeatureSuggestionsScreen from './src/screens/FeatureSuggestionsScreen';
 import FeatureSuggestionDetailScreen from './src/screens/FeatureSuggestionDetailScreen';
 
@@ -265,6 +266,9 @@ const AppContent = () => {
         // Initialize welcome state
         await initializeWelcomeState();
         await registerChallengeReminderTask();
+
+        // Load mobile runtime config (e.g. WebSocket host/port/appKey) from backend
+        await loadMobileConfig();
         if (Platform.OS === 'android') {
           checkForAppUpdate()
             .then(result => {

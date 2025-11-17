@@ -90,13 +90,12 @@ const DailyVersesScreen = ({ navigation }: NativeStackScreenProps<RootStackParam
     fetchDailyVerses();
   }, [fetchDailyVerses]);
 
-  // Simulate real-time updates (in a real app, this would be WebSocket)
+  // Simulate real-time updates only in development
   React.useEffect(() => {
+    if (!__DEV__) return; // avoid random status flips in production
     const interval = setInterval(() => {
-      // Simulate connection status updates
-      setConnectionStatus(Math.random() > 0.1); // 90% uptime simulation
-    }, 30000); // Check every 30 seconds
-
+      setConnectionStatus(Math.random() > 0.1);
+    }, 30000);
     return () => clearInterval(interval);
   }, [setConnectionStatus]);
 

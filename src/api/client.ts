@@ -542,6 +542,7 @@ export const endpoints = {
   public: {
     list: '/public',
     show: (id: string) => `/public/${id}`,
+    mobileConfig: '/public/mobile-config',
   },
  
   guides: {
