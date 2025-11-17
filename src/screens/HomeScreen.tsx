@@ -199,6 +199,9 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
   const [quickMenuUsage, setQuickMenuUsage] = useState<QuickMenuUsage>({ meditationCount: 0, bibleCount: 0, unlockedItems: [] });
   const [showSetupPrompt, setShowSetupPrompt] = useState(false);
   const [smartPickDismissed, setSmartPickDismissed] = useState(false);
+  const [showChallengeFeedback, setShowChallengeFeedback] = useState(false);
+  const [challengeFeedbackText, setChallengeFeedbackText] = useState('');
+  const [feedbackTargetId, setFeedbackTargetId] = useState<string | null>(null);
 
   const meditationComplete = route.params?.meditationComplete || false;
   // const challenge = route.params?.challenge;
@@ -1452,8 +1455,10 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
               style={[styles.completeButton, 
                 isPersonalChallengeComplete ? styles.completeButtonActive : {}]}
               onPress={() => {
-                if (isPersonalChallengeComplete && personalChallenge.id) {
-                  handleCompleteChallenge(personalChallenge.id);
+                if (personalChallenge.id && isPersonalChallengeComplete) {
+                  setFeedbackTargetId(personalChallenge.id);
+                  setChallengeFeedbackText('');
+                  setShowChallengeFeedback(true);
                 } else {
                   challengeOpacity.value = withSequence(
                     withTiming(0.7, { duration: 100 }),
@@ -1463,7 +1468,7 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
               }}
             >
               <Text style={styles.completeButtonText}>
-                {isPersonalChallengeComplete ? '✅ Complete' : '⏳ In Progress'}
+                {isPersonalChallengeComplete ? 'Complete Now' : '⏳ In Progress'}
               </Text>
             </TouchableOpacity>
           </View>
@@ -1874,6 +1879,67 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
             <View style={styles.homeWelcomeButtonContainer}>
               <TouchableOpacity style={styles.homeWelcomeButton} onPress={handleDismissHomeWelcome} activeOpacity={0.85}>
                 <Text style={styles.homeWelcomeButtonText}>I agree</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Challenge Feedback Modal */}
+      <Modal
+        visible={showChallengeFeedback}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowChallengeFeedback(false)}
+      >
+        <View style={styles.reviveModalOverlay}>
+          <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={() => setShowChallengeFeedback(false)} />
+          <View style={styles.reviveModalCard}>
+            <Text style={styles.reviveModalTitle}>Share a quick encouragement?</Text>
+            <Text style={styles.reviveBannerBody}>A short note helps others stick with it.</Text>
+            <TextInput
+              style={styles.reviveModalItemInput}
+              placeholder="What helped you complete this today?"
+              placeholderTextColor={theme?.colors.text.tertiary}
+              value={challengeFeedbackText}
+              onChangeText={setChallengeFeedbackText}
+              multiline
+            />
+            <View style={styles.reviveModalActions}>
+              <TouchableOpacity
+                style={styles.reviveModalClose}
+                onPress={() => setShowChallengeFeedback(false)}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.reviveModalCloseText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.reviveModalDisable}
+                onPress={async () => {
+                  if (feedbackTargetId) {
+                    await handleCompleteChallenge(feedbackTargetId);
+                  }
+                  setShowChallengeFeedback(false);
+                }}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.reviveModalDisableText}>Skip</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.reviveModalSave}
+                onPress={async () => {
+                  if (feedbackTargetId) {
+                    const text = challengeFeedbackText.trim();
+                    if (text) {
+                      try { await challengeStore.submitCompletionFeedback(feedbackTargetId, text); } catch {}
+                    }
+                    await handleCompleteChallenge(feedbackTargetId);
+                  }
+                  setShowChallengeFeedback(false);
+                }}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.reviveModalSaveText}>Share & Done</Text>
               </TouchableOpacity>
             </View>
           </View>
