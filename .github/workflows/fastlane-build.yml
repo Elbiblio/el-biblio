@@ -124,7 +124,7 @@ jobs:
         with:
           distribution: 'temurin'
           java-version: '21'
-          cache: 'gradle'  # Enable Gradle caching
+          # Gradle cache disabled here because android/ is generated later by Expo prebuild
 
       - name: Set up Ruby
         uses: ruby/setup-ruby@v1
