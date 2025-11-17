@@ -21,6 +21,7 @@ import MeditationCompleteView from '@/components/MeditationCompleteView';
 import { observer } from 'mobx-react-lite';
 import * as Speech from 'expo-speech';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useDailyPathStore } from '@/stores/StoreProvider';
 import { RootStackParamList, Virtue } from '@/types';
 import {
   ArrowLeft,
@@ -155,6 +156,7 @@ const MeditationScreen = () => {
   const promptInterval = totalMeditationSeconds > 0 ? Math.floor(totalMeditationSeconds / 4) : 0;
 
   const sessions = meditationStore.state.sessions;
+  const dailyPathStore = useDailyPathStore();
   const completedSessions = React.useMemo(() => {
     if (!selectedVirtue) return sessions.length;
     return sessions.filter(session => session.virtue_id === selectedVirtue).length;
@@ -427,6 +429,14 @@ const MeditationScreen = () => {
             if (!hasMarkedComplete.current) {
               hasMarkedComplete.current = true;
               meditationStore.endMeditationSession();
+              try {
+                const target = (dailyPathStore.todaysSteps || []).find(s => s.route === 'MeditationScreen' && !dailyPathStore.isStepComplete(s.id));
+                if (target) {
+                  dailyPathStore.markStepComplete(target.id);
+                } else {
+                  dailyPathStore.markStepComplete('meditation');
+                }
+              } catch {}
             }
           },
           onTick: (t: number, ratio: number) => {
@@ -1480,7 +1490,7 @@ const createStyles = (theme: Theme, currentVirtue: Virtue | undefined) =>
       zIndex: 10, // Ensure this is on top
     },
     breatheInstructionBackground: {
-      backgroundColor: `${theme.colors.background}CC`, // More opaque background
+      // backgroundColor: `${theme.colors.background}CC`, // More opaque background
       paddingHorizontal: 18,
       paddingVertical: 8,
       borderRadius: 18,
@@ -1507,28 +1517,6 @@ const createStyles = (theme: Theme, currentVirtue: Virtue | undefined) =>
       textShadowOffset: { width: 0, height: 0 },
       textShadowRadius: 2,
     },
-    promptContainer: {
-      padding: theme?.spacing.lg,
-      borderRadius: theme?.borderRadius.lg,
-      backgroundColor: theme?.colors.surface,
-      width: '100%',
-      alignItems: 'center',
-      ...Platform.select({
-        ios: { shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4 },
-        android: { elevation: 2 },
-      }),
-    },
-    promptText: {
-      ...theme?.typography.body.sans,
-      color: theme?.colors.text.primary,
-      textAlign: 'center',
-      lineHeight: 24,
-      fontWeight: '600',
-      fontSize: 18,
-    },
-    promptProgress: { flexDirection: 'row', marginTop: theme?.spacing.md, gap: theme?.spacing.xs },
-    progressDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: theme?.colors.border },
-    activeProgressDot: { width: 16 },
     declarationContainer: {
       width: '100%',
       marginTop: theme?.spacing.lg,

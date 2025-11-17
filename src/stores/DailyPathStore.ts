@@ -74,6 +74,7 @@ interface DailyPathState {
   hasCompletedReadingPlanSetup: boolean;
   hasViewedChallengeSelection: boolean;
   hasConfiguredReviveReminders: boolean;
+  hasSeenHabitConquestIntro?: boolean;
   communityUnlocked: boolean;
   hasCompletedChallengeOnboarding: boolean;
   reviveReminderItems: string[];
@@ -89,6 +90,10 @@ interface DailyPathState {
       label: string;
       minutes: number;
     }>;
+    pledgeGood?: string | null;
+    doorOfSin?: string | null;
+    checkins?: Record<string, { clean: boolean; pledged: boolean }>;
+    lastCheckinDate?: string | null;
   };
 }
 
@@ -103,6 +108,7 @@ const DEFAULT_STATE: DailyPathState = {
   hasCompletedReadingPlanSetup: false,
   hasViewedChallengeSelection: false,
   hasConfiguredReviveReminders: false,
+  hasSeenHabitConquestIntro: false,
   communityUnlocked: false,
   hasCompletedChallengeOnboarding: false,
   reviveReminderItems: [],
@@ -119,6 +125,10 @@ const DEFAULT_STATE: DailyPathState = {
       { id: 'forgiveness', label: 'Prayer for Forgiveness', minutes: 2 },
       { id: 'thanksgiving', label: 'Prayer for Thanksgiving', minutes: 1 },
     ],
+    pledgeGood: null,
+    doorOfSin: null,
+    checkins: {},
+    lastCheckinDate: null,
   },
 };
 
@@ -212,6 +222,10 @@ export class DailyPathStore {
     sequence.slice(0, 3).forEach((focus) => {
       const base = this.stepLibrary[focus];
       if (base) {
+        if (focus === 'habit_conquest') {
+          // Hidden: do not include Habit Conquest in today's steps for now
+          return;
+        }
         steps.push({ ...base, id: focus });
       }
     });
@@ -401,6 +415,9 @@ export class DailyPathStore {
             if (typeof (parsed as any).hasCompletedChallengeOnboarding === 'boolean') {
               this.state.hasCompletedChallengeOnboarding = (parsed as any).hasCompletedChallengeOnboarding;
             }
+            if (typeof (parsed as any).hasSeenHabitConquestIntro === 'boolean') {
+              this.state.hasSeenHabitConquestIntro = (parsed as any).hasSeenHabitConquestIntro;
+            }
             if ((parsed as any).habitConquest) {
               this.state.habitConquest = (parsed as any).habitConquest;
             }
@@ -456,6 +473,7 @@ export class DailyPathStore {
           hasConfiguredReviveReminders: payload.hasConfiguredReviveReminders,
           communityUnlocked: payload.communityUnlocked,
           hasCompletedChallengeOnboarding: payload.hasCompletedChallengeOnboarding,
+          hasSeenHabitConquestIntro: payload.hasSeenHabitConquestIntro,
           reviveReminderItems: payload.reviveReminderItems,
           lastRevivePromptAt: payload.lastRevivePromptAt,
           reviveReminderSchedules: payload.reviveReminderSchedules,
@@ -506,14 +524,68 @@ export class DailyPathStore {
     void this.saveToStorage();
   }
 
+  setHabitConquestPledge(text: string | null) {
+    runInAction(() => {
+      if (!this.state.habitConquest) this.state.habitConquest = { ...DEFAULT_STATE.habitConquest! } as any;
+      this.state.habitConquest!.pledgeGood = text ?? null;
+    });
+    void this.saveToStorage();
+  }
+
+  setHabitConquestDoor(text: string | null) {
+    runInAction(() => {
+      if (!this.state.habitConquest) this.state.habitConquest = { ...DEFAULT_STATE.habitConquest! } as any;
+      this.state.habitConquest!.doorOfSin = text ?? null;
+    });
+    void this.saveToStorage();
+  }
+
+  recordHabitConquestCheckin(dateKey: string | null, payload: { clean: boolean; pledged: boolean }) {
+    runInAction(() => {
+      if (!this.state.habitConquest) this.state.habitConquest = { ...DEFAULT_STATE.habitConquest! } as any;
+      const key = (dateKey || this.getTodayKey());
+      const map = { ...(this.state.habitConquest!.checkins || {}) } as Record<string, { clean: boolean; pledged: boolean }>;
+      map[key] = { clean: !!payload.clean, pledged: !!payload.pledged };
+      this.state.habitConquest!.checkins = map;
+      const prev = this.state.habitConquest!.lastCheckinDate;
+      if (!prev || key > prev) {
+        this.state.habitConquest!.lastCheckinDate = key;
+      }
+    });
+    void this.saveToStorage();
+  }
+
+  getMissingHabitConquestDates(): string[] {
+    const today = this.getTodayKey();
+    const hc = this.state.habitConquest;
+    const last = hc?.lastCheckinDate || null;
+    if (!last) {
+      // If never checked in, prompt for yesterday only (if before today)
+      const d = new Date();
+      d.setDate(d.getDate() - 1);
+      const y = d.toISOString().slice(0,10);
+      return y === today ? [] : [y];
+    }
+    const res: string[] = [];
+    const start = new Date(last);
+    start.setDate(start.getDate() + 1);
+    let cursor = start;
+    while (cursor.toISOString().slice(0,10) < today) {
+      res.push(cursor.toISOString().slice(0,10));
+      cursor.setDate(cursor.getDate() + 1);
+    }
+    return res;
+  }
+
   private getFocusSequence(): DailyFocusKey[] {
     const sequence = [...this.state.focusOrder];
     const unique = sequence.filter((focus, index) => sequence.indexOf(focus) === index);
-
-    if (this.state.enableChallenges && !unique.includes('challenge')) {
-      unique.push('challenge');
+    // Hidden: remove Habit Conquest from sequence temporarily
+    const filtered = unique.filter(f => f !== 'habit_conquest');
+    if (this.state.enableChallenges && !filtered.includes('challenge')) {
+      filtered.push('challenge');
     }
-    return unique;
+    return filtered;
   }
 
   private stepLibrary: Record<DailyFocusKey, DailyStep> = {
@@ -558,9 +630,9 @@ export class DailyPathStore {
       focus: 'habit_conquest',
       title: 'Conquer harmful habits',
       summary: 'Name the false trades stealing your devotion and replace them with Kingdom purpose.',
-      actionLabel: 'Open habit conquest plan',
-      route: 'BibleScreen',
-      params: HABIT_CONQUEST_SCOPE_PARAMS,
+      actionLabel: 'Set up habit conquest',
+      route: 'HabitConquestSetupScreen',
+      params: undefined,
       icon: 'Shield',
     },
     challenge: {
@@ -589,5 +661,12 @@ export class DailyPathStore {
   private getTodayKey(): string {
     const now = new Date();
     return now.toISOString().slice(0, 10);
+  }
+
+  setHasSeenHabitConquestIntro(seen: boolean) {
+    runInAction(() => {
+      this.state.hasSeenHabitConquestIntro = !!seen;
+    });
+    void this.saveToStorage();
   }
 }

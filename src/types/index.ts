@@ -731,8 +731,10 @@ export type RootStackParamList = {
   MyJourneyScreen: undefined;
   JourneyQuizScreen: { phaseId: string };
   SetupCompleteScreen: undefined;
+  DailyPathSetupScreen: undefined;
   HabitConquestSetupScreen: undefined;
   HabitConquestSessionScreen: undefined;
+  HabitConquestProgressScreen: undefined;
   TalkToGodScreen: undefined;
   HowToPrayScreen: undefined;
   ForgivenessScreen: undefined;
@@ -740,6 +742,8 @@ export type RootStackParamList = {
   CareerDiscoveryScreen: undefined;
   CareerHistoricMeditationScreen: undefined;
   GuidePlayerScreen: { guideId: string; startAtStepId?: string };
+  FeatureSuggestionsScreen: undefined;
+  FeatureSuggestionDetailScreen: { id: string };
 };
 
 export interface BibleVersion {

@@ -292,51 +292,13 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
   );
 
   const renderHabitConquestCapsule = () => {
-    const hc = dailyPathStore.state.habitConquest;
-    const hasHC = dailyPathStore.primaryFocus === 'habit_conquest' || dailyPathStore.secondaryFocus.includes('habit_conquest');
-    if (!hasHC || !hc?.vice) return null;
-    const capsule = getCapsuleForVice(hc.vice as any);
-    const now = new Date();
-    const hour = now.getHours();
-    const dayKey = Math.floor(now.getTime() / (24 * 60 * 60 * 1000));
-    const isMorning = hour >= 5 && hour < 12;
-    const isAfternoon = hour >= 12 && hour < 18;
-    const kindsOrder = isMorning
-      ? ['affirmation','precept']
-      : isAfternoon
-        ? ['reflection','precept']
-        : ['prayer','reflection'];
-    const rotated = kindsOrder.map((k, idx) => {
-      const options = capsule.filter(it => it.kind === (k as any));
-      if (!options.length) return null;
-      const pick = options[dayKey % options.length];
-      return pick;
-    }).filter(Boolean) as typeof capsule;
-    return (
-      <View style={styles.hcCard}>
-        <View style={styles.hcHeader}>
-          <Text style={styles.hcTitle}>Daily Spiritual Capsule</Text>
-          <Text style={styles.hcSubtitle}>{hc.vice}</Text>
-        </View>
-        <View style={styles.hcBody}>
-          {rotated.map(item => (
-            <View key={item.id} style={styles.hcItem}>
-              <Text style={styles.hcItemKind}>{item.kind.toUpperCase()}</Text>
-              <Text style={styles.hcItemText}>{item.text}{item.scripture ? ` — ${item.scripture}` : ''}</Text>
-            </View>
-          ))}
-        </View>
-        <View style={styles.hcActions}>
-          <TouchableOpacity
-            style={styles.hcPrimary}
-            onPress={() => navigation.navigate('HabitConquestSessionScreen' as any)}
-            activeOpacity={0.9}
-          >
-            <Text style={styles.hcPrimaryText}>Begin Habit Conquest</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    );
+    // Hidden: temporarily disable Habit Conquest card on Home
+    return null;
+  };
+
+  const renderHabitConquestCheckinBanner = () => {
+    // Hidden: temporarily disable Habit Conquest check-in banner
+    return null;
   };
 
   const handleEditItemLabel = useCallback((index: number, text: string) => {
@@ -516,6 +478,24 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
       return null;
     }
 
+    if (dailyPathStore.progress >= 1) {
+      return (
+        <View style={styles.miniJourney}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.miniJourneyTitle}>Daily path completed</Text>
+            <Text style={styles.miniJourneySub}>Well done. See your journey or adjust tomorrow's plan.</Text>
+          </View>
+          <TouchableOpacity
+            style={styles.miniJourneyBtn}
+            activeOpacity={0.85}
+            onPress={() => navigation.navigate('MyJourneyScreen' as any)}
+          >
+            <Text style={styles.miniJourneyBtnText}>View</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+
     return (
       <DailyJourneyCard
         steps={steps}
@@ -558,25 +538,13 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
     if (!dailyPathStore.isReady) {
       return;
     }
-
-    if (dailyPathStore.isSetupComplete) {
-      setShowSetupPrompt(false);
-      return;
-    }
-
-    const now = new Date();
-    const lastPrompt = dailyPathStore.lastPromptedAt ? new Date(dailyPathStore.lastPromptedAt) : null;
-    const hoursSincePrompt = lastPrompt ? (now.getTime() - lastPrompt.getTime()) / (1000 * 60 * 60) : Infinity;
-
-    if (!lastPrompt || hoursSincePrompt >= 12) {
-      dailyPathStore.recordSetupPrompt(now.toISOString());
-      setShowSetupPrompt(true);
-    }
+    // Setup prompt is now shown only on MyJourneyScreen
+    return;
   }, [dailyPathStore, dailyPathStore.isReady, dailyPathStore.isSetupComplete, dailyPathStore.lastPromptedAt]);
 
   const handleOpenCitizenshipSetup = useCallback(() => {
     setShowSetupPrompt(false);
-    navigation.navigate('CitizenshipSetupScreen');
+    navigation.navigate('DailyPathSetupScreen');
   }, [navigation]);
 
   const handleDismissCitizenshipPrompt = useCallback(() => {
@@ -1784,6 +1752,7 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
       >
         {renderHeader()}
         {renderCitizenshipPrompt()}
+        {renderHabitConquestCheckinBanner()}
         {renderDailyJourneyCard()}
         {renderHabitConquestCapsule()}
         {renderReviveReminderBanner()}
@@ -3151,6 +3120,42 @@ const createStyles = (theme: Theme) => StyleSheet.create({
   completeButtonActive: {
     backgroundColor: `${theme?.colors.success}15`,
   },
+  hcCheckinBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginHorizontal: 16,
+    marginBottom: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 14,
+    backgroundColor: theme.colors.surface,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    gap: 12,
+  },
+  hcCheckinTitle: { fontWeight: '700', color: theme.colors.text.primary },
+  hcCheckinBody: { color: theme.colors.text.secondary, marginTop: 2 },
+  hcCheckinPrimary: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: 12, backgroundColor: theme.colors.primary },
+  hcCheckinPrimaryText: { color: theme.colors.text.inverse, fontWeight: '600' },
+  miniJourney: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginHorizontal: 16,
+    marginBottom: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 14,
+    backgroundColor: theme.colors.surface,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    gap: 12,
+  },
+  miniJourneyTitle: { fontWeight: '700', color: theme.colors.text.primary },
+  miniJourneySub: { color: theme.colors.text.secondary, marginTop: 2 },
+  miniJourneyBtn: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: 12, backgroundColor: theme.colors.primary },
+  miniJourneyBtnText: { color: theme.colors.text.inverse, fontWeight: '600' },
 });
 
 export default HomeScreen;

@@ -77,6 +77,7 @@ export class MeditationOrchestrator {
   private stages = { s1: false, s2: false };
   private lastBellMs: number = 0;
   private chantFinalPromptSpoken: boolean = false;
+  private parableNearEndPromptSpoken: boolean = false;
   private closingStarted: boolean = false;
 
   private currentGuide: MeditationGuide | null = null;
@@ -465,6 +466,7 @@ export class MeditationOrchestrator {
     this.chantFinalPromptSpoken = false;
     this.chantFadedOut = false;
     this.closingStarted = false;
+    this.parableNearEndPromptSpoken = false;
     this.clearClosingWatchdog();
   }
 
@@ -692,6 +694,17 @@ export class MeditationOrchestrator {
       if (!this.chantFadedOut && timeLeft < 60) {
         this.chantFadedOut = true;
         try { this.chantCoordinator?.fadeOut(2000); } catch {}
+      }
+    } else if (selectedStyle === 'parable') {
+      const total = totalMeditationSeconds;
+      const speakAtTwoMinWindow = total >= 120 && timeLeft <= 120 && timeLeft > 55;
+      const speakAtOneMinWindow = total >= 90 && total < 120 && timeLeft <= 60 && timeLeft > 30;
+      if (!this.parableNearEndPromptSpoken && (speakAtTwoMinWindow || speakAtOneMinWindow)) {
+        this.parableNearEndPromptSpoken = true;
+        this.speakWithDuck(
+          'As we prepare to close, consider how this parable connects to your life today. What is one single thing you can do to become better?',
+          0.72
+        ).catch(() => {});
       }
     }
 

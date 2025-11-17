@@ -227,6 +227,31 @@ export class ChallengeStore {
     }
   }
 
+  async submitCompletionFeedback(challengeId: string, comment: string) {
+    try {
+      if (!comment?.trim()) return false;
+      this.setLoading(true);
+      await apiClient.post(endpoints.challenges.feedback(challengeId), { comment: comment.trim() });
+      toast.success('Thanks for the encouragement!');
+      return true;
+    } catch (error) {
+      console.error(`Error submitting feedback for challenge ${challengeId}:`, error);
+      this.setError('Failed to submit feedback');
+      return false;
+    } finally {
+      this.setLoading(false);
+    }
+  }
+
+  repeatChallengeLocal(challengeId: string) {
+    try {
+      runInAction(() => {
+        this.updateChallengeInLists(challengeId, { isCompleted: false, hasJoined: true });
+      });
+      this.saveToStorage().catch(() => undefined);
+    } catch {}
+  }
+
   async fetchChallengeParticipants(challengeId: string, page = 1) {
     try {
       this.setLoading(true);

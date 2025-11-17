@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Animated, Platform } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Animated, Platform, Modal, TextInput } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -33,6 +33,8 @@ const ChallengeCompletionBanner: React.FC<ChallengeCompletionBannerProps> = ({ o
   const [countdown, setCountdown] = useState(15);
   const [canDismiss, setCanDismiss] = useState(false);
   const [isCompleting, setIsCompleting] = useState(false);
+  const [showFeedback, setShowFeedback] = useState(false);
+  const [feedbackText, setFeedbackText] = useState('');
 
   // Sync selected challenge when store updates
   useEffect(() => {
@@ -123,14 +125,8 @@ const ChallengeCompletionBanner: React.FC<ChallengeCompletionBannerProps> = ({ o
 
       // Check if there are more uncompleted challenges
       const remaining = uncompletedChallenges.filter(c => c.id !== selectedChallenge.id);
-      if (remaining.length > 0) {
-        setSelectedChallenge(remaining[0]);
-        setCountdown(15);
-        setCanDismiss(false);
-        setIsCompleting(false);
-      } else {
-        handleDismiss();
-      }
+      setShowFeedback(true);
+      setIsCompleting(false);
     } catch (error) {
       console.error('Error completing challenge:', error);
       setIsCompleting(false);
@@ -174,10 +170,11 @@ const ChallengeCompletionBanner: React.FC<ChallengeCompletionBannerProps> = ({ o
   const surfaceColors = useMemo(() => [theme?.colors.surface ?? '#F5F7F3', theme?.colors.surface ?? '#F5F7F3'] as const, [theme?.colors.surface]);
 
   return (
-    <Animated.View style={styles.overlay}>
+    <Animated.View style={styles.overlay} pointerEvents="auto">
       <LinearGradient
         colors={overlayColors}
         style={styles.overlayGradient}
+        pointerEvents="auto"
       >
         <Animated.View
           style={[
@@ -319,6 +316,66 @@ const ChallengeCompletionBanner: React.FC<ChallengeCompletionBannerProps> = ({ o
           </LinearGradient>
         </Animated.View>
       </LinearGradient>
+      <Modal visible={showFeedback} transparent animationType="fade" onRequestClose={() => setShowFeedback(false)}>
+        <View style={styles.fbBackdrop}>
+          <View style={styles.fbCard}>
+            <Text style={styles.fbTitle}>Share a quick encouragement?</Text>
+            <Text style={styles.fbHint}>A short note helps others stick with it.</Text>
+            <TextInput
+              style={styles.fbInput}
+              placeholder="What helped you complete this today?"
+              placeholderTextColor={theme?.colors.text.tertiary}
+              value={feedbackText}
+              onChangeText={setFeedbackText}
+              multiline
+            />
+            <View style={styles.fbActionsRow}>
+              <TouchableOpacity style={[styles.fbAction, styles.fbSkip]} onPress={() => { setShowFeedback(false); handleDismiss(); }}>
+                <Text style={styles.fbSkipText}>Skip</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.fbAction, styles.fbSecondary]}
+                onPress={async () => {
+                  if (selectedChallenge) {
+                    await store.repeatChallengeLocal(selectedChallenge.id);
+                  }
+                  setShowFeedback(false);
+                  handleDismiss();
+                }}
+              >
+                <Text style={styles.fbSecondaryText}>Repeat (no share)</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.fbAction, styles.fbPrimary]}
+                onPress={async () => {
+                  if (selectedChallenge && feedbackText.trim()) {
+                    await store.submitCompletionFeedback(selectedChallenge.id, feedbackText.trim());
+                  }
+                  setShowFeedback(false);
+                  handleDismiss();
+                }}
+              >
+                <Text style={styles.fbPrimaryText}>Share & Done</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.fbAction, styles.fbPrimary]}
+                onPress={async () => {
+                  if (selectedChallenge && feedbackText.trim()) {
+                    await store.submitCompletionFeedback(selectedChallenge.id, feedbackText.trim());
+                  }
+                  if (selectedChallenge) {
+                    await store.repeatChallengeLocal(selectedChallenge.id);
+                  }
+                  setShowFeedback(false);
+                  handleDismiss();
+                }}
+              >
+                <Text style={styles.fbPrimaryText}>Share & Repeat</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </Animated.View>
   );
 };
@@ -330,13 +387,15 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    zIndex: 1000,
+    zIndex: 10000,
+    ...Platform.select({ android: { elevation: 10000 }, ios: {} }),
   },
   overlayGradient: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     padding: theme?.spacing.xs,
+    backgroundColor: 'rgba(0,0,0,0.6)',
   },
   banner: {
     width: '100%',
@@ -344,6 +403,7 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     borderRadius: theme?.borderRadius.xl,
     overflow: 'hidden',
     backgroundColor: theme?.colors.surface,
+    zIndex: 10001,
     ...Platform.select({
       ios: {
         shadowColor: '#000',
@@ -533,8 +593,6 @@ const createStyles = (theme: Theme) => StyleSheet.create({
   },
   viewButton: {
     backgroundColor: theme?.colors.surface,
-    borderWidth: 1,
-    borderColor: theme?.colors.border,
   },
   viewButtonText: {
     ...theme?.typography.body.sans,
@@ -581,6 +639,19 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     color: theme?.colors.text.secondary,
     fontSize: 12,
   },
+  fbBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center', padding: 16 },
+  fbCard: { width: '100%', maxWidth: 360, backgroundColor: theme?.colors.surface, borderRadius: theme?.borderRadius.lg, padding: theme?.spacing.lg, borderWidth: 1, borderColor: theme?.colors.border },
+  fbTitle: { ...theme?.typography.heading.small, color: theme?.colors.text.primary, fontWeight: '800', marginBottom: 4 },
+  fbHint: { ...theme?.typography.caption.secondary, color: theme?.colors.text.secondary, marginBottom: theme?.spacing.sm },
+  fbInput: { minHeight: 100, borderRadius: theme?.borderRadius.md, borderWidth: StyleSheet.hairlineWidth, borderColor: theme?.colors.border, padding: theme?.spacing.md, color: theme?.colors.text.primary, backgroundColor: theme?.colors.background },
+  fbActionsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: theme?.spacing.md, justifyContent: 'flex-end' },
+  fbAction: { borderRadius: 999, paddingVertical: 10, paddingHorizontal: 12 },
+  fbSkip: { backgroundColor: theme?.colors.background, borderWidth: 1, borderColor: theme?.colors.border },
+  fbSkipText: { color: theme?.colors.text.secondary, fontWeight: '600' },
+  fbSecondary: { backgroundColor: theme?.colors.surface, borderWidth: 1, borderColor: theme?.colors.border },
+  fbSecondaryText: { color: theme?.colors.text.primary, fontWeight: '700' },
+  fbPrimary: { backgroundColor: theme?.colors.primary },
+  fbPrimaryText: { color: theme?.colors.text.inverse, fontWeight: '700' },
 });
 
 export default ChallengeCompletionBanner;

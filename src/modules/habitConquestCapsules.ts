@@ -24,7 +24,7 @@ export function getCapsuleForVice(vice: HabitVice): CapsuleItem[] {
       return [
         { id: 'a', kind: 'affirmation', text: 'I am a faithful steward of the time God gives me.' },
         { id: 'pre1', kind: 'precept', text: 'Small daily obedience outgrows sloth.', scripture: 'Proverbs 6:6-8' },
-        { id: 'r', kind: 'reflection', text: 'What one good, small task can I complete for God today?' },
+        { id: 'r', kind: 'reflection', text: 'What one good, small task can I do today?' },
         { id: 'p', kind: 'prayer', text: 'Lord, awaken diligence in me; teach my hands to work with love.' },
       ];
     case 'Recklessness & impulsiveness':

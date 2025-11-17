@@ -13,7 +13,7 @@ export const foundationParablePlans: MeditationPlan[] = [
     reflectionPrompts: shortPrompts(['Think about your distractions.', 'How will you create more time for God?', 'Untangle your life, do not let emergencies teach you.', 'Simplify your life.']),
     focusOptions: ['Silence phone', 'Journal one line', 'Encourage someone'],
     challengePrompt: 'Choose one small obedience today.',
-    closingReminder: 'Is the world choking you?',
+    closingReminder: 'Are worldly troubles choking you?',
     openReflection: 'Where did you notice thorns (worry/tasks)?',
     guidanceTips: ['Schedule 5 quiet mins.', 'Put verse on lock screen.'],
     stageNote: 'Begin again.',

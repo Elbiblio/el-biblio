@@ -519,6 +519,21 @@ const ProfileScreen = () => {
           <ArrowRight size={18} color={theme.colors.text.secondary} />
         </TouchableOpacity>
 
+        {/* Habit Conquest Progress */}
+        <TouchableOpacity 
+          style={styles.leaderboardButton}
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            navigation.navigate('HabitConquestProgressScreen');
+          }}
+        >
+          <View style={styles.leaderboardIconContainer}>
+            <Shield size={20} color={theme.colors.text.inverse} />
+          </View>
+          <Text style={styles.leaderboardText}>Habit Conquest progress</Text>
+          <ArrowRight size={18} color={theme.colors.text.secondary} />
+        </TouchableOpacity>
+
         {/* Stats */}
         <View style={styles.sectionContainer}>
           <Text style={styles.sectionTitle}>Activity</Text>

@@ -499,6 +499,7 @@ const planRemainingSeconds = useMemo(() => {
     // Immediately collapse compact UI for the day
     setShowFloatingProgress(false);
     setShowCompactPlan(false);
+    try { dailyPathStore.markStepComplete('knowledge'); } catch {}
   }, [bibleStore]);
 
   // React to timer completion from AppTimerStore

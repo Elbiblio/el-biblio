@@ -33,7 +33,8 @@ type CommunityRoute =
   | 'DailyVersesScreen'
   | 'NotesScreen'
   | 'WordHubsScreen'
-  | 'PrayerRequestsScreen';
+  | 'PrayerRequestsScreen'
+  | 'FeatureSuggestionsScreen';
 
 type CommunityCard = {
   key: string;
@@ -91,6 +92,15 @@ const COMMUNITY_CARDS = (colors: Theme['colors']): CommunityCard[] => ([
     route: 'PrayerRequestsScreen',
     stage: 2,
   },
+  // {
+  //   key: 'feature_suggestions',
+  //   title: 'Feature suggestions',
+  //   subtitle: 'Propose and vote on ideas',
+  //   icon: Users,
+  //   color: colors.primary,
+  //   route: 'FeatureSuggestionsScreen',
+  //   stage: 2,
+  // },
 ]);
 
 const CommunityScreen = ({ navigation }: CommunityScreenProps) => {
@@ -109,6 +119,8 @@ const CommunityScreen = ({ navigation }: CommunityScreenProps) => {
     } catch {
       setUsageStage(0);
     }
+    //temporary testing
+    setUsageStage(2)
   }, []);
 
   const cards = useMemo(() => COMMUNITY_CARDS(theme.colors), [theme.colors]);

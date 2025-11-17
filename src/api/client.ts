@@ -493,6 +493,7 @@ export const endpoints = {
     upvote: (id: string) => `/challenges/${id}/upvote`,
     vote: (id: string) => `/challenges/${id}/vote`,
     complete: (id: string) => `/challenges/${id}/complete`,
+    feedback: (id: string) => `/challenges/${id}/feedback`,
     addToPersonal: (id: string) => `/challenges/${id}/add-to-personal`,
     participants: (id: string) => `/challenges/${id}/participants`,
   },
@@ -550,6 +551,14 @@ export const endpoints = {
  
   readingProgress: {
     dailyComplete: '/bible-reading/daily/complete',
+  },
+ 
+  featureSuggestions: {
+    list: '/feature-suggestions',
+    show: (id: string) => `/feature-suggestions/${id}`,
+    create: '/feature-suggestions',
+    vote: (id: string) => `/feature-suggestions/${id}/vote`,
+    unvote: (id: string) => `/feature-suggestions/${id}/vote`,
   },
 };
 

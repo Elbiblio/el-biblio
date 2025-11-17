@@ -13,7 +13,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context"
 import { observer } from "mobx-react-lite"
 import { useTheme } from "@/contexts/ThemeContext"
 import type { Theme } from "@/theme"
-import { useJourneyStore } from "@/stores/StoreProvider"
+import { useJourneyStore, useDailyPathStore } from "@/stores/StoreProvider"
 import { useNavigation } from "@react-navigation/native"
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack"
 import type { RootStackParamList, Activity as JourneyActivity } from "@/types"
@@ -47,6 +47,7 @@ const MyJourneyScreen = observer(() => {
   const theme = useTheme()
   const styles = useMemo(() => createStyles(theme), [theme])
   const journeyStore = useJourneyStore()
+  const dailyPathStore = useDailyPathStore()
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>()
   const { width } = useWindowDimensions()
   const isCompact = width < 360
@@ -166,13 +167,15 @@ const MyJourneyScreen = observer(() => {
             {Math.round(overallProgress)}% Complete • {completedPhases} of {totalPhases} phases
           </Text>
 
-          <TouchableOpacity
-            style={styles.reconfigureButton}
-            onPress={() => navigation.navigate('CitizenshipSetupScreen')}
-            accessibilityLabel="Reconfigure daily path"
-          >
-            <Text style={styles.reconfigureButtonText}>Reconfigure daily path</Text>
-          </TouchableOpacity>
+          {!dailyPathStore.isSetupComplete && (
+            <TouchableOpacity
+              style={styles.reconfigureButton}
+              onPress={() => navigation.navigate('DailyPathSetupScreen')}
+              accessibilityLabel="Set up daily path"
+            >
+              <Text style={styles.reconfigureButtonText}>Set up daily path</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* Motivational Quote Section */}

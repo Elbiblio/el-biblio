@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '@/types';
@@ -44,6 +44,8 @@ const HabitConquestSetupScreen: React.FC = () => {
     { id: 'forgiveness', label: 'Prayer for Forgiveness', minutes: 2 },
     { id: 'thanksgiving', label: 'Prayer for Thanksgiving', minutes: 1 },
   ]);
+  const [door, setDoor] = useState<string>(initial?.doorOfSin ?? '');
+  const [pledge, setPledge] = useState<string>(initial?.pledgeGood ?? '');
 
   const totalPhaseMinutes = useMemo(() => phases.reduce((s,p)=>s+p.minutes,0), [phases]);
   const remainingToAllocate = Math.max(0, minutes - totalPhaseMinutes);
@@ -75,6 +77,8 @@ const HabitConquestSetupScreen: React.FC = () => {
     const update: any = {};
     for (const p of phases) update[p.id] = p.minutes;
     dailyPathStore.setHabitConquestPhaseMinutes(update);
+    dailyPathStore.setHabitConquestDoor(door?.trim() ? door.trim() : null);
+    dailyPathStore.setHabitConquestPledge(pledge?.trim() ? pledge.trim() : null);
 
     try {
       await scheduleHabitConquestReminders(split, vice, minutes, 30);
@@ -120,6 +124,26 @@ const HabitConquestSetupScreen: React.FC = () => {
             </TouchableOpacity>
           ))}
         </View>
+
+        <Text style={styles.sectionLabel}>Shut the door of sin</Text>
+        <Text style={styles.helper}>Name the situation, trigger, or access that leads you to fall, which you will avoid.</Text>
+        <TextInput
+          style={styles.input}
+          placeholder="e.g., No late-night scrolling alone"
+          placeholderTextColor={theme.colors.text.tertiary}
+          value={door}
+          onChangeText={setDoor}
+        />
+
+        <Text style={styles.sectionLabel}>Let aside the distractions so you can truly grow</Text>
+        <Text style={styles.helper}>Distractions are like weed, decide something nice you derive joy from that you can do to help replenish your spirit daily.</Text>
+        <TextInput
+          style={styles.input}
+          placeholder="e.g., Call someone to encourage them daily"
+          placeholderTextColor={theme.colors.text.tertiary}
+          value={pledge}
+          onChangeText={setPledge}
+        />
 
         <Text style={styles.sectionLabel}>Phase breakdown per session</Text>
         {phases.map(p => (
@@ -177,6 +201,7 @@ const createStyles = (theme: ReturnType<typeof useTheme>) => StyleSheet.create({
   allocateButton: { marginTop: 8, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12, backgroundColor: theme.colors.secondary },
   allocateButtonDisabled: { backgroundColor: theme.colors.surface },
   allocateText: { color: theme.colors.text.inverse, fontWeight: '600' },
+  input: { marginTop: 8, paddingHorizontal: 12, paddingVertical: 10, borderRadius: 12, backgroundColor: theme.colors.surface, color: theme.colors.text.primary },
   footer: { position: 'absolute', bottom: 0, left: 0, right: 0, padding: 16, backgroundColor: theme.colors.background, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.colors.border },
   saveButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: theme.colors.primary, paddingVertical: 12, borderRadius: 12 },
   saveText: { color: theme.colors.text.inverse, fontWeight: '700' },

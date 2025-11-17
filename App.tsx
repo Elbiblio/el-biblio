@@ -47,8 +47,10 @@ import PrayerRequestsScreen from './src/screens/PrayerRequestsScreen';
 import MyJourneyScreen from './src/screens/MyJourneyScreen';
 import JourneyQuizScreen from './src/screens/JourneyQuizScreen';
 import CitizenshipSetupScreen from './src/screens/CitizenshipSetupScreen';
+import DailyPathSetupScreen from './src/screens/DailyPathSetupScreen';
 import HabitConquestSetupScreen from './src/screens/HabitConquestSetupScreen';
 import HabitConquestSessionScreen from './src/screens/HabitConquestSessionScreen';
+import HabitConquestProgressScreen from './src/screens/HabitConquestProgressScreen';
 import TalkToGodScreen from './src/screens/TalkToGodScreen';
 import HowToPrayScreen from './src/screens/HowToPrayScreen';
 import ForgivenessScreen from './src/screens/ForgivenessScreen';
@@ -71,6 +73,8 @@ import { usePreferencesStore, useChallengeStore, useGameStore, useLeaderboardSto
 import { getNextUnlock } from './src/utils/gameUnlocks';
 import { syncDailyNuggets, setDailyNuggetStores } from './src/tasks/dailyNuggetOrchestrator';
 import { checkForAppUpdate } from './src/services/appUpdate';
+import FeatureSuggestionsScreen from './src/screens/FeatureSuggestionsScreen';
+import FeatureSuggestionDetailScreen from './src/screens/FeatureSuggestionDetailScreen';
 
 registerGlobals();
 
@@ -192,13 +196,17 @@ const NavigationContent: React.FC<NavigationContentProps> = ({ showChallengeBann
         <Stack.Screen name="JourneyQuizScreen" component={JourneyQuizScreen} />
         <Stack.Screen name="SetupCompleteScreen" component={SetupCompleteScreen} />
         <Stack.Screen name="CitizenshipSetupScreen" component={CitizenshipSetupScreen} />
+        <Stack.Screen name="DailyPathSetupScreen" component={DailyPathSetupScreen} />
         <Stack.Screen name="HabitConquestSetupScreen" component={HabitConquestSetupScreen} />
         <Stack.Screen name="HabitConquestSessionScreen" component={HabitConquestSessionScreen} />
+        <Stack.Screen name="HabitConquestProgressScreen" component={HabitConquestProgressScreen} />
         <Stack.Screen name="TalkToGodScreen" component={TalkToGodScreen} />
         <Stack.Screen name="HowToPrayScreen" component={HowToPrayScreen} />
         <Stack.Screen name="ForgivenessScreen" component={ForgivenessScreen} />
         <Stack.Screen name="HolySpiritScreen" component={HolySpiritScreen} />
         <Stack.Screen name="GuidePlayerScreen" component={GuidePlayerScreen} />
+        <Stack.Screen name="FeatureSuggestionsScreen" component={FeatureSuggestionsScreen as any} />
+        <Stack.Screen name="FeatureSuggestionDetailScreen" component={FeatureSuggestionDetailScreen as any} />
       </Stack.Navigator>
       {showChallengeBanner && (
         <ChallengeCompletionBanner onDismiss={onDismissChallengeBanner} />

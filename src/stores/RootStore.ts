@@ -19,6 +19,7 @@ import { BookmarkStore } from './BookmarkStore';
 import { JourneyStore } from './JourneyStore';
 import { DailyPathStore } from './DailyPathStore';
 import { GuideStore } from './GuideStore';
+import { FeatureSuggestionsStore } from './FeatureSuggestionsStore';
 
 export class RootStore {
   authStore = authStore;
@@ -37,6 +38,7 @@ export class RootStore {
   gameStore: GameStore;
   virtueQuizStore: VirtueQuizStore;
   communityStore: CommunityStore;
+  featureSuggestionsStore: FeatureSuggestionsStore;
   registrationStore: RegistrationStore;
   bookmarkStore: BookmarkStore;
   journeyStore: JourneyStore;
@@ -56,6 +58,7 @@ export class RootStore {
     this.virtueQuizStore = new VirtueQuizStore(this);
     this.verseBuilderStore = new VerseBuilderStore(this.verseStore, this.gameStore);
     this.communityStore = new CommunityStore();
+    this.featureSuggestionsStore = new FeatureSuggestionsStore();
     this.registrationStore = new RegistrationStore(this.authStore);
     this.bookmarkStore = new BookmarkStore();
     this.journeyStore = new JourneyStore(this.authStore);
