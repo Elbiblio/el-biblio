@@ -5,6 +5,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useTheme } from '@/contexts/ThemeContext';
 import { Theme } from '@/theme';
 import { useChallengeStore } from '@/stores/ChallengeStore';
+import { useMeditationStore } from '@/stores/StoreProvider';
 import { Challenge } from '@/types/challenges';
 import { RootStackParamList } from '@/types';
 import { Trophy, X, Check, Flame, Star, Sparkle } from '@/components/Icons';
@@ -19,6 +20,7 @@ const ChallengeCompletionBanner: React.FC<ChallengeCompletionBannerProps> = ({ o
   const theme = useTheme();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const store = useChallengeStore();
+  const { completeChallenge } = useMeditationStore();
   const styles = useMemo(() => createStyles(theme), [theme]);
 
   // Get uncompleted personal challenges - memoized for performance
@@ -120,7 +122,7 @@ const ChallengeCompletionBanner: React.FC<ChallengeCompletionBannerProps> = ({ o
 
     setIsCompleting(true);
     try {
-      await store.completeChallenge(selectedChallenge.id, true);
+      await completeChallenge(selectedChallenge.id);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
       // Check if there are more uncompleted challenges
@@ -132,7 +134,7 @@ const ChallengeCompletionBanner: React.FC<ChallengeCompletionBannerProps> = ({ o
       setIsCompleting(false);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     }
-  }, [selectedChallenge, isCompleting, store, uncompletedChallenges]);
+  }, [selectedChallenge, isCompleting, completeChallenge, uncompletedChallenges]);
 
   const handleDismiss = useCallback(() => {
     if (countdownInterval.current) {
@@ -322,7 +324,7 @@ const ChallengeCompletionBanner: React.FC<ChallengeCompletionBannerProps> = ({ o
       <Modal visible={showFeedback} transparent animationType="fade" onRequestClose={() => setShowFeedback(false)}>
         <View style={styles.fbBackdrop}>
           <View style={styles.fbCard}>
-            <Text style={styles.fbTitle}>Share a quick encouragement?</Text>
+            <Text style={styles.fbTitle}>Share a quick feedback?</Text>
             <Text style={styles.fbHint}>A short note helps others stick with it.</Text>
             <TextInput
               style={styles.fbInput}

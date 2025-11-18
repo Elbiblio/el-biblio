@@ -130,7 +130,7 @@ jobs:
         uses: ruby/setup-ruby@v1
         with:
           ruby-version: '3.2'
-          bundler-cache: true  # Auto-cache bundler dependencies
+          bundler-cache: false  # Disable auto Bundler cache to avoid chdir into missing android dir
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -435,7 +435,7 @@ jobs:
         uses: ruby/setup-ruby@v1
         with:
           ruby-version: '3.2'
-          bundler-cache: true
+          bundler-cache: false  # Disable auto Bundler cache; Fastlane will be run from ios/ later
 
       - name: Set up Node.js
         uses: actions/setup-node@v4

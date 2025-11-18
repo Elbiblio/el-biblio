@@ -693,7 +693,7 @@ export class MeditationOrchestrator {
       // Fade out chant when under 60s
       if (!this.chantFadedOut && timeLeft < 60) {
         this.chantFadedOut = true;
-        try { this.chantCoordinator?.fadeOut(2000); } catch {}
+        try { this.chantCoordinator?.fadeOut(4000); } catch {}
       }
     } else if (selectedStyle === 'parable') {
       const total = totalMeditationSeconds;
@@ -830,16 +830,35 @@ export class MeditationOrchestrator {
     this.clearFinalCountdown();
     this.clearClosingWatchdog();
     try { clearSpeechQueue(); } catch {}
-    if (this.chantCoordinator) {
-      this.chantCoordinator.stop().catch(() => {});
-      this.chantCoordinator = null;
-    }
-    this.started = false;
-    this.paused = false;
 
-    this.speakWithDuck('Open your eyes', 0.85)
-      .then(() => this.callbacks.onComplete())
-      .catch(() => this.callbacks.onComplete());
+    const cfg = this.cfg();
+    const isChant = cfg.selectedStyle === 'chant';
+
+    const finalize = () => {
+      this.started = false;
+      this.paused = false;
+
+      this.speakWithDuck('Open your eyes', 0.85)
+        .then(() => this.callbacks.onComplete())
+        .catch(() => this.callbacks.onComplete());
+    };
+
+    if (isChant && this.chantCoordinator) {
+      // For chant mode, fade out music cleanly before the closing prompt
+      this.chantCoordinator
+        .fadeOut(4000)
+        .catch(() => {})
+        .finally(() => {
+          this.chantCoordinator = null;
+          finalize();
+        });
+    } else {
+      if (this.chantCoordinator) {
+        this.chantCoordinator.stop().catch(() => {});
+        this.chantCoordinator = null;
+      }
+      finalize();
+    }
   }
 
   private clearFinalCountdown() {

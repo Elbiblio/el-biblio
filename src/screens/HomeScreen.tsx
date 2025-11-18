@@ -899,6 +899,12 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
     return hasMinimumBreak && withinActiveTimeLimit;
   };
 
+  // Only treat joined & not-completed challenges as "active" on Home
+  const activePersonalChallenges = useMemo(
+    () => (personalChallenges || []).filter((c: any) => c && c.hasJoined && !c.isCompleted),
+    [personalChallenges]
+  );
+
   // const { mainGreeting, subGreeting } = useMemo(() => {
   //   if (!user) {
   //     return {
@@ -1100,10 +1106,10 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
     const sessionInProgress = meditationState === 'countdown' || meditationState === 'active';
     const startedButNotCompleted = meditationTimer > 0 && meditationState !== 'complete';
     const selectedIncomplete = selectedChallenge
-      ? (personalChallenges || []).some((c: any) => c.id === (selectedChallenge as any).id && !c.isCompleted)
+      ? (activePersonalChallenges || []).some((c: any) => c.id === (selectedChallenge as any).id)
       : false;
     return sessionInProgress || startedButNotCompleted || selectedIncomplete;
-  }, [meditationState, meditationTimer, selectedChallenge, personalChallenges]);
+  }, [meditationState, meditationTimer, selectedChallenge, activePersonalChallenges]);
 
   // Community unread badge value
   const communityUnreadBadge = useMemo(() => {
@@ -1324,7 +1330,11 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
     }
   }, [dailyPathStore.isSetupComplete, dailyPathStore.isChallengesEnabled, challengesUnlockedByPoints]);
 
-  const joinedChallengeIds = useMemo(() => new Set((personalChallenges || []).map((challenge: any) => challenge.id)), [personalChallenges]);
+  const joinedChallengeIds = useMemo(
+    () => new Set((activePersonalChallenges || []).map((challenge: any) => challenge.id)),
+    [activePersonalChallenges]
+  );
+  // Use only active (joined & not-completed) challenges for Home logic
   const smartPickChallenge = useMemo(() => {
     if (smartPickDismissed) return null;
     if (challengeStore.isLoading) return null;
@@ -1371,8 +1381,8 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
     }
     
     // Use real API data from challenge store only
-    const personalChallenge = personalChallenges && personalChallenges.length > 0
-      ? personalChallenges[0]
+    const personalChallenge = activePersonalChallenges && activePersonalChallenges.length > 0
+      ? activePersonalChallenges[0]
       : undefined;
     const communityChallenge = (communityChallenges || []).find(challenge => {
       if (joinedChallengeIds.has(challenge.id)) return false;
@@ -1895,10 +1905,10 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
         <View style={styles.reviveModalOverlay}>
           <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={() => setShowChallengeFeedback(false)} />
           <View style={styles.reviveModalCard}>
-            <Text style={styles.reviveModalTitle}>Share a quick encouragement?</Text>
+            <Text style={styles.reviveModalTitle}>Share a quick feedback?</Text>
             <Text style={styles.reviveBannerBody}>A short note helps others stick with it.</Text>
             <TextInput
-              style={styles.reviveModalItemInput}
+              style={styles.reviveFeedbackInput}
               placeholder="What helped you complete this today?"
               placeholderTextColor={theme?.colors.text.tertiary}
               value={challengeFeedbackText}
@@ -2332,6 +2342,19 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     backgroundColor: theme?.colors.surface,
     ...theme?.typography.body.sans,
     color: theme?.colors.text.primary,
+  },
+  reviveFeedbackInput: {
+    paddingVertical: theme?.spacing.sm,
+    paddingHorizontal: theme?.spacing.sm,
+    borderRadius: theme?.borderRadius.lg,
+    borderWidth: 1,
+    borderColor: `${theme?.colors.border}70`,
+    backgroundColor: theme?.colors.surface,
+    ...theme?.typography.body.sans,
+    color: theme?.colors.text.primary,
+    minHeight: 100,
+    textAlignVertical: 'top',
+    marginTop: theme?.spacing.sm,
   },
   reviveModalTimeInput: {
     width: 84,

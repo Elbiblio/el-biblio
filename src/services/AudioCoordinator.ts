@@ -470,7 +470,7 @@ export class AudioCoordinator {
     } catch {}
   }
 
-  async fadeOut(ms: number = 2000) {
+  async fadeOut(ms: number = 5000) {
     try {
       const steps = 10;
       const stepDur = Math.max(50, Math.floor(ms / steps));
@@ -482,6 +482,20 @@ export class AudioCoordinator {
         await new Promise(r => setTimeout(r, stepDur));
       }
     } catch {}
-    await this.pause();
+
+    // After a fade-out we want chant audio to stop cleanly without interrupting
+    // any global Speech/TTS that may be playing (e.g. closing prompts).
+    this.isActive = false;
+    this.setPhase('paused');
+
+    if (this.loopTimeout) {
+      clearTimeout(this.loopTimeout);
+      this.loopTimeout = null;
+    }
+
+    try {
+      if (this.config.voiceKey) await stopByKey(this.config.voiceKey);
+      if (this.config.instrumentalKey) await stopByKey(this.config.instrumentalKey);
+    } catch {}
   }
 }
