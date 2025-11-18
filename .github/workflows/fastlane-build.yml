@@ -131,7 +131,6 @@ jobs:
         with:
           ruby-version: '3.2'
           bundler-cache: true  # Auto-cache bundler dependencies
-          working-directory: 'android'
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -437,7 +436,6 @@ jobs:
         with:
           ruby-version: '3.2'
           bundler-cache: true
-          working-directory: 'ios'
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
