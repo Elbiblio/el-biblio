@@ -132,9 +132,6 @@ const DailyChallengesScreen = observer(({ navigation }: DailyChallengesProps) =>
     }
     return !dailyPathStore.hasCompletedChallengeOnboarding;
   });
-  const [hasAttemptedAutoJoin, setHasAttemptedAutoJoin] = useState(false);
-  const [autoJoinError, setAutoJoinError] = useState<string | null>(null);
-  const [hasLoadedInitialChallenges, setHasLoadedInitialChallenges] = useState(false);
   
   const [newChallenge, setNewChallenge] = useState({
     title: '',
@@ -165,45 +162,6 @@ const DailyChallengesScreen = observer(({ navigation }: DailyChallengesProps) =>
     // Load challenges
     loadChallenges();
   }, []);
-
-  useEffect(() => {
-    if (!isOnboarding || hasAttemptedAutoJoin || !hasLoadedInitialChallenges) {
-      return;
-    }
-
-    const tryAutoJoin = async () => {
-      setHasAttemptedAutoJoin(true);
-      setAutoJoinError(null);
-      try {
-        // prefer existing joined challenge
-        const joined = (personalChallenges || []).find(challenge => challenge.hasJoined);
-        if (joined) {
-          dailyPathStore.setChallengeOnboardingCompleted(true);
-          setIsOnboarding(false);
-          return;
-        }
-
-        // fallback: take first suggested or community challenge
-        const candidate = (suggestedChallenges && suggestedChallenges[0])
-          || (communityChallenges && communityChallenges[0]);
-        if (!candidate) {
-          setAutoJoinError('No challenges available right now. Pull to refresh and try again.');
-          return;
-        }
-
-        await joinChallenge(candidate.id);
-        toast.success('Challenge joined. Let’s get started!');
-        dailyPathStore.setChallengeOnboardingCompleted(true);
-        setActiveCategory('personal');
-        setIsOnboarding(false);
-      } catch (error) {
-        console.error('[DailyChallengeScreen] auto-join failed', error);
-        setAutoJoinError('Could not join a challenge automatically. Please pick one manually.');
-      }
-    };
-
-    tryAutoJoin();
-  }, [isOnboarding, hasAttemptedAutoJoin, hasLoadedInitialChallenges, personalChallenges, suggestedChallenges, communityChallenges, joinChallenge, dailyPathStore, setActiveCategory]);
 
   useEffect(() => {
     if (!isOnboarding) {
@@ -237,7 +195,6 @@ const DailyChallengesScreen = observer(({ navigation }: DailyChallengesProps) =>
       console.error('Error loading challenges:', error);
     } finally {
       setRefreshing(false);
-      setHasLoadedInitialChallenges(true);
     }
   }, [personalChallenges?.length, communityChallenges?.length, suggestedChallenges?.length, fetchPersonalChallenges, fetchCommunityChallenges, fetchSuggestedChallenges, setRefreshing]);
   
@@ -769,12 +726,6 @@ const DailyChallengesScreen = observer(({ navigation }: DailyChallengesProps) =>
           <Text style={styles.onboardingBody}>
             Pick a challenge to stay consistent. We’ll guide you with reminders and track your progress.
           </Text>
-          {autoJoinError ? (
-            <Text style={styles.onboardingError}>{autoJoinError}</Text>
-          ) : null}
-          {!hasAttemptedAutoJoin && !hasJoinedChallenge ? (
-            <Text style={styles.onboardingSubtle}>Looking for a daily challenge that fits…</Text>
-          ) : null}
           <TouchableOpacity
             style={styles.onboardingPrimary}
             onPress={() => {
@@ -784,13 +735,12 @@ const DailyChallengesScreen = observer(({ navigation }: DailyChallengesProps) =>
                 setIsOnboarding(false);
                 return;
               }
-              setAutoJoinError(null);
-              setHasAttemptedAutoJoin(false);
-              void loadChallenges();
+              setActiveCategory('community');
+              setIsOnboarding(false);
             }}
           >
             <Text style={styles.onboardingPrimaryText}>
-              {hasJoinedChallenge ? 'Go to my challenge' : 'Try again'}
+              {hasJoinedChallenge ? 'Go to my challenge' : 'Browse challenges'}
             </Text>
           </TouchableOpacity>
           <TouchableOpacity

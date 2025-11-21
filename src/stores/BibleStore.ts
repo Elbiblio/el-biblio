@@ -6,7 +6,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { bibleBooks } from '@/constants/bibleBooks';
 import BibleDBService, { generateVPLId, parseVPLId } from '@/utils/database';
 import { toast } from 'sonner-native';
-import { Share } from 'react-native';
+import { Share, Platform } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { formatVerseShareMessage } from '@/utils/share';
 import * as Notifications from 'expo-notifications';
@@ -39,6 +39,7 @@ const toExtendedVersion = (version: BibleVersion): ExtendedBibleVersion => ({
 });
 
 const DEFAULT_BIBLE_TABLE = 'eng_rv_vpl';
+const READING_REMINDER_CHANNEL_ID = 'reading-reminders';
 
 // API Response type
 type ApiResponse<T> = {
@@ -1977,17 +1978,21 @@ async markTodaySessionCompleted() {
         await this.cancelReadingReminder(this.readingReminder.notificationId);
       }
 
+      await this.ensureReadingReminderChannel();
+
       const trigger: Notifications.DailyTriggerInput = {
         hour,
         minute,
         type: Notifications.SchedulableTriggerInputTypes.DAILY,
+        channelId: READING_REMINDER_CHANNEL_ID,
       };
 
       const notificationId = await Notifications.scheduleNotificationAsync({
         content: {
-          title: 'Bible Studio — Reading Reminder',
-          body: 'Take a moment to sit with today’s reading plan.',
-          sound: true,
+          title: 'Bible Studio \u2014 Reading Reminder',
+          body: 'Take a moment to sit with today\u2019s reading plan.',
+          sound: 'default',
+          priority: Notifications.AndroidNotificationPriority.HIGH,
         },
         trigger,
       });
@@ -2005,6 +2010,22 @@ async markTodaySessionCompleted() {
       await Notifications.cancelScheduledNotificationAsync(notificationId);
     } catch (error) {
       console.error('Failed to cancel reading reminder', error);
+    }
+  }
+
+  private async ensureReadingReminderChannel() {
+    if (Platform.OS !== 'android') {
+      return;
+    }
+    try {
+      await Notifications.setNotificationChannelAsync(READING_REMINDER_CHANNEL_ID, {
+        name: 'Reading reminders',
+        importance: Notifications.AndroidImportance.HIGH,
+        sound: 'default',
+        enableVibrate: true,
+      });
+    } catch (error) {
+      console.warn('Failed to configure reading reminder channel', error);
     }
   }
 

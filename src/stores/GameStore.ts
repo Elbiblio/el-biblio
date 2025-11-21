@@ -200,24 +200,31 @@ export class GameStore {
         { page, per_page: 20 }
       );
 
-      if (response.success && response.data) {
-        const { data, meta } = response.data;
-        
+      if (!response.success || !response.data) {
         runInAction(() => {
-          this.state.leaderboards = {
-            ...this.state.leaderboards,
-            [gameId]: page === 1 ? data : [...(this.state.leaderboards[gameId] || []), ...data],
-          };
-          this.state.pagination = {
-            currentPage: meta.current_page,
-            lastPage: meta.last_page,
-            perPage: meta.per_page,
-            total: meta.total,
-            hasMore: meta.current_page < meta.last_page,
-          };
           this.state.isLoading = false;
+          this.state.error = 'Failed to fetch leaderboard';
         });
+        this.setError(this.state.error);
+        return;
       }
+
+      const { data, meta } = response.data;
+
+      runInAction(() => {
+        this.state.leaderboards = {
+          ...this.state.leaderboards,
+          [gameId]: page === 1 ? data : [...(this.state.leaderboards[gameId] || []), ...data],
+        };
+        this.state.pagination = {
+          currentPage: meta?.current_page ?? page,
+          lastPage: meta?.last_page ?? page,
+          perPage: meta?.per_page ?? this.state.pagination.perPage,
+          total: meta?.total ?? this.state.pagination.total,
+          hasMore: (meta?.current_page ?? page) < (meta?.last_page ?? page),
+        };
+        this.state.isLoading = false;
+      });
     } catch (error: any) {
       console.error('Error fetching leaderboard:', error);
       runInAction(() => {

@@ -727,7 +727,7 @@ const VerseBuilderScreen = observer(() => {
               <Text style={styles.versionButtonCompactText}>{selectedVersion}</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={() => setShowSoundSettings(true)} style={{ marginLeft: 8 }}>
-              <Text style={{ color: theme.colors.primary }}>Sound</Text>
+              <Icon name="volume-high" size={18} color={theme.colors.primary} />
             </TouchableOpacity>
           </View>
 
@@ -845,7 +845,7 @@ const VerseBuilderScreen = observer(() => {
               {showCorrectAnswer && hasPlayed && (
                 <View style={styles.correctAnswerContainer}>
                   <Text style={styles.correctAnswerText}>{gameState.text}</Text>
-                  <TouchableOpacity style={styles.retryButton} onPress={startNewRound}>
+                  <TouchableOpacity style={styles.retryButton} onPress={handleRetry}>
                     <Text style={styles.retryButtonText}>Try Again</Text>
                   </TouchableOpacity>
                 </View>

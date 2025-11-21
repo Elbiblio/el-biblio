@@ -111,9 +111,6 @@ const VerseDetail = ({ navigation, route }: VerseDetailProps) => {
   const [reflectionFilter, setReflectionFilter] = useState<'all' | 'word' | 'face'>('all');
   const [reflectionSort, setReflectionSort] = useState<'new' | 'top'>('new');
   const [showReflectionInput, setShowReflectionInput] = useState(false);
-  const [showGuide, setShowGuide] = useState(false);
-  const [guideCountdown, setGuideCountdown] = useState(30);
-  const guideTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [reflectionText, setReflectionText] = useState('');
   const [reflectionType, setReflectionType] = useState<1 | 2>(1); // 1: story, 2: insight
   const [activeCommentReflectionId, setActiveCommentReflectionId] = useState<string | null>(null);
@@ -297,41 +294,6 @@ const VerseDetail = ({ navigation, route }: VerseDetailProps) => {
     };
     loadCompare();
   }, [showLearnMore, learnTab, currentVerse?.id, bibleStore.currentVersion?.tableName, bibleStore.availableVersions.length]);
-
-  // When opening composer, decide whether to show first-time guide
-  useEffect(() => {
-    (async () => {
-      if (!showReflectionInput) return;
-      try {
-        const seen = await AsyncStorage.getItem('vd_reflection_guide_seen');
-        if (seen === '1') {
-          setShowGuide(false);
-          return;
-        }
-        setShowGuide(true);
-        setGuideCountdown(30);
-        if (guideTimerRef.current) clearInterval(guideTimerRef.current);
-        guideTimerRef.current = setInterval(() => {
-          setGuideCountdown(prev => {
-            if (prev <= 1) {
-              if (guideTimerRef.current) clearInterval(guideTimerRef.current);
-              guideTimerRef.current = null;
-              AsyncStorage.setItem('vd_reflection_guide_seen', '1').catch(() => {});
-              setShowGuide(false);
-              return 0;
-            }
-            return prev - 1;
-          });
-        }, 1000);
-      } catch {
-        setShowGuide(false);
-      }
-    })();
-    return () => {
-      if (guideTimerRef.current) clearInterval(guideTimerRef.current);
-      guideTimerRef.current = null;
-    };
-  }, [showReflectionInput]);
 
   // Persist prefs on change
   useEffect(() => {

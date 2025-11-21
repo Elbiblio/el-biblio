@@ -764,7 +764,10 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
   const handleAppInactive = async () => {
     const now = Date.now();
     const prev = timeTrackingRef.current;
-    const sessionDuration = now - prev.lastActiveTimestamp;
+    const rawDuration = now - prev.lastActiveTimestamp;
+    // Clamp a single session chunk to avoid massively over-counting
+    // when the app has been backgrounded for a long time.
+    const sessionDuration = Math.max(0, Math.min(rawDuration, MAX_ACTIVE_TIME));
 
     const newTracking = {
       ...prev,
@@ -1618,11 +1621,11 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
                 {(() => {
                   try {
                     const key = `App\\Models\\Verse_${verse.id}`;
-                    return verseStore.state.bookmarks.has(key) ? 1 : 0;
+                    return verseStore.state.bookmarks.has(key) ? 'Saved' : 'Save';
                   } catch {
-                    return 0;
+                    return 'Save';
                   }
-                })()} Saves
+                })()}
               </Text>
             </View>
           </View>

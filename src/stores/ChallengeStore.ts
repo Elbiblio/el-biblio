@@ -439,11 +439,26 @@ export class ChallengeStore {
       this.setLoading(true);
       const response = await apiClient.get<{ data: DailyChallenge[] }>(endpoints.challenges.daily);
       
+      if (!response.success || !response.data) {
+        console.error('Error fetching daily challenges: unsuccessful response', response);
+        this.setError('Failed to fetch daily challenges');
+        return [];
+      }
+      
+      const payload: any = response.data;
+      const list: DailyChallenge[] = Array.isArray(payload?.data)
+        ? payload.data as DailyChallenge[]
+        : (Array.isArray(payload) ? payload as DailyChallenge[] : []);
+      
+      if (!list.length) {
+        return [];
+      }
+      
       // Update the relevant challenges in the store
       runInAction(() => {
         // This is a simplified example - you might want to handle this differently
         // based on how daily challenges are structured in your app
-        response.data.data.forEach(dailyChallenge => {
+        list.forEach(dailyChallenge => {
           const challengeIndex = this.state.personalChallenges.findIndex(
             c => c.id === dailyChallenge.id
           );
@@ -457,11 +472,11 @@ export class ChallengeStore {
         });
       });
       
-      return response.data.data;
+      return list;
     } catch (error) {
       console.error('Error fetching daily challenges:', error);
       this.setError('Failed to fetch daily challenges');
-      throw error;
+      return [];
     } finally {
       this.setLoading(false);
     }

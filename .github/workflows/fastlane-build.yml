@@ -230,10 +230,8 @@ jobs:
             exit 1
           fi
           
-          cat > Gemfile <<EOF
-          source "https://rubygems.org"
-          gem "fastlane"
-          EOF
+          # Install fastlane gem in the configured Ruby environment
+          gem install fastlane --no-document
           
           mkdir -p fastlane
           
@@ -344,7 +342,7 @@ jobs:
           fi
           
           chmod +x gradlew
-          bundle exec fastlane build_release
+          fastlane build_release
         env:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
@@ -579,10 +577,8 @@ jobs:
           
           echo "✓ Detected scheme: $SCHEME"
           
-          cat > Gemfile <<EOF
-          source "https://rubygems.org"
-          gem "fastlane"
-          EOF
+          # Install fastlane gem in the configured Ruby environment
+          gem install fastlane --no-document
           
           mkdir -p fastlane
           
@@ -707,7 +703,7 @@ jobs:
             exit 1
           fi
           
-          bundle exec fastlane build_release
+          fastlane build_release
         env:
           IOS_KEYCHAIN_PASSWORD: ${{ secrets.IOS_KEYCHAIN_PASSWORD }}
 
@@ -733,7 +729,7 @@ jobs:
       - name: Upload to TestFlight
         run: |
           cd ios
-          bundle exec fastlane upload_testflight
+          fastlane upload_testflight
         env:
           APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
           APPSTORE_ISSUER_ID: ${{ secrets.APPSTORE_ISSUER_ID }}
