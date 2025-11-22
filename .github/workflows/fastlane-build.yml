@@ -346,6 +346,15 @@ jobs:
         env:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ORG_GRADLE_PROJECT_MYAPP_UPLOAD_STORE_FILE: keystore/elbiblio.jks
+          ORG_GRADLE_PROJECT_MYAPP_UPLOAD_KEY_ALIAS: elbiblio
+          ORG_GRADLE_PROJECT_MYAPP_UPLOAD_STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ORG_GRADLE_PROJECT_MYAPP_UPLOAD_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+
+      - name: Android signing report (debug)
+        run: |
+          cd android
+          ./gradlew :app:signingReport --no-daemon --console=plain
 
       - name: Find artifacts
         id: find-files
