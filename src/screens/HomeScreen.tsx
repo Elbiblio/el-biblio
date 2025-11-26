@@ -80,6 +80,7 @@ import * as Haptics from 'expo-haptics';
 import { useCommunityStore } from '@/stores/CommunityStore';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from '@react-navigation/native';
+import { engagementTracker } from '@/utils/engagementTracker';
 
 const WELCOME_BACK_THRESHOLD = 10 * 60 * 1000; // 10 minutes in milliseconds
 const MAX_ACTIVE_TIME = 30 * 60 * 1000; // 30 minutes in milliseconds
@@ -96,6 +97,7 @@ interface TimeTracking {
 const CARD_WIDTH = SCREEN_DIMENSIONS.width * 0.9;
 const QUICK_MENU_STORAGE_KEY = 'home_quick_menu_usage';
 const HOME_WELCOME_KEY = 'home_welcome_note_seen';
+const WHAT_YOU_MISSED_LAST_PROMPT_KEY = 'what_you_missed_last_prompt_v1';
 const getUsageStage = (usage: QuickMenuUsage) => {
   if (usage.unlockedItems.includes('coreTools')) return 2;
   if (usage.meditationCount > 0 && usage.bibleCount > 0) return 1;
@@ -901,6 +903,43 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
 
     return hasMinimumBreak && withinActiveTimeLimit;
   };
+
+  const checkWhatYouMissed = useCallback(async () => {
+    try {
+      // Prefer engagement-based timestamp over generic last_seen
+      const engagedMs = await engagementTracker.getLastEngagedAtMs();
+
+      let baseMs: number | null = engagedMs;
+      if (!baseMs && user?.last_seen) {
+        const lastSeenMs = new Date(user.last_seen).getTime();
+        baseMs = !lastSeenMs || Number.isNaN(lastSeenMs) ? null : lastSeenMs;
+      }
+
+      if (!baseMs) return;
+
+      const now = Date.now();
+      const diffDays = Math.floor((now - baseMs) / (24 * 60 * 60 * 1000));
+      if (diffDays < 2) {
+        return;
+      }
+
+      const todayKey = new Date().toISOString().slice(0, 10);
+      const lastPrompt = await AsyncStorage.getItem(WHAT_YOU_MISSED_LAST_PROMPT_KEY);
+      if (lastPrompt === todayKey) {
+        return;
+      }
+
+      navigation.navigate('WhatYouMissedScreen', { daysAway: diffDays });
+      await AsyncStorage.setItem(WHAT_YOU_MISSED_LAST_PROMPT_KEY, todayKey);
+    } catch (error) {
+      console.warn('[HomeScreen] checkWhatYouMissed failed', error);
+    }
+  }, [user?.last_seen, navigation]);
+
+  useEffect(() => {
+    if (!user?.last_seen) return;
+    void checkWhatYouMissed();
+  }, [checkWhatYouMissed, user?.last_seen]);
 
   // Only treat joined & not-completed challenges as "active" on Home
   const activePersonalChallenges = useMemo(

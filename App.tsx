@@ -57,6 +57,7 @@ import ForgivenessScreen from './src/screens/ForgivenessScreen';
 import HolySpiritScreen from './src/screens/HolySpiritScreen';
 import GuidePlayerScreen from './src/screens/GuidePlayerScreen';
 import SetupCompleteScreen from './src/screens/SetupCompleteScreen';
+import WhatYouMissedScreen from './src/screens/WhatYouMissedScreen';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { appStore } from './src/stores/appStore';
 import { StoreProvider } from './src/stores/StoreProvider';
@@ -164,6 +165,7 @@ const NavigationContent: React.FC<NavigationContentProps> = ({ showChallengeBann
         <Stack.Screen name="IntroScreen" component={IntroScreen} />
         <Stack.Screen name="RegistrationScreen" component={RegistrationScreen} />
         <Stack.Screen name="Home" component={HomeScreen} />
+        <Stack.Screen name="WhatYouMissedScreen" component={WhatYouMissedScreen} />
         <Stack.Screen name="VerseDetail" component={VerseDetail} />
         <Stack.Screen name="ReflectionDetail" component={ReflectionDetail} />
         <Stack.Screen name="DailyVersesScreen" component={DailyVersesScreen} />

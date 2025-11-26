@@ -2,6 +2,7 @@ import { makeAutoObservable, runInAction } from 'mobx';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { apiClient, endpoints } from '@/api/client';
 import { Reflection, Comment, PaginatedResponse } from '@/types';
+import { engagementTracker } from '@/utils/engagementTracker';
 
 export interface ReflectionFilters {
   verseId?: string;
@@ -317,6 +318,8 @@ export class ReflectionStore {
       });
       
       await this.saveToStorage();
+      // Mark reflection engagement for "What you missed" flow
+      void engagementTracker.record('reflection');
       return newReflection;
     } catch (error) {
       console.error('Error creating reflection:', error);

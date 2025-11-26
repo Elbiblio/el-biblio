@@ -690,6 +690,7 @@ export interface PaginatedResponse<T> {
 
 export type RootStackParamList = {
   Home: undefined | { meditationComplete?: boolean, challenge?: DailyChallenge, pointsEarned?: number };
+  WhatYouMissedScreen: { daysAway: number };
   ThemeSelector: undefined;
   VerseDetail: { verse: Verse; learnContext?: { scopedTitle?: string | null; scopedSubtitle?: string | null; scopedVerses?: ScopedVerseParam[] | null } };
   ReflectionDetail: { reflection: Reflection };

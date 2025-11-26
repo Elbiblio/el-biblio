@@ -2,6 +2,7 @@ import { makeAutoObservable, runInAction } from 'mobx';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { apiClient, endpoints } from '@/api/client';
 import { Verse, Reflection, UserInteraction, Bookmark } from '@/types';
+import { engagementTracker } from '@/utils/engagementTracker';
 
 interface VerseStoreState {
   // Daily verses
@@ -567,6 +568,9 @@ export class VerseStore {
       });
       
       await this.saveToStorage();
+
+      // Mark reflection engagement for "What you missed" flow
+      void engagementTracker.record('reflection');
 
       return safeReflection;
     } catch (error) {

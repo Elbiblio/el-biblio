@@ -34,6 +34,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList, WordHub, WordHubMessage, User } from '@/types';
 import { formatTimeLeft, formatRelativeTime } from '@/utils/schedule';
+import { engagementTracker } from '@/utils/engagementTracker';
 import { observer } from 'mobx-react-lite';
 import { useAuthStore, useWordHubsStore } from '@/stores/StoreProvider';
 import { useLiveKitAudioRoom, AudioParticipant } from '@/hooks/useLiveKitAudioRoom';
@@ -201,6 +202,8 @@ const WordHubDetailScreen = observer(({ navigation, route }: Props) => {
         console.warn('Skipping LiveKit broadcast: room not connected', room.state);
       }
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      // Mark hub message engagement for "What you missed" flow
+      void engagementTracker.record('hub_message');
     } else {
       setMessage(trimmed);
     }

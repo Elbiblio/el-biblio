@@ -4,6 +4,7 @@ import { apiClient, endpoints } from '@/api/client';
 import { Challenge, ChallengeType, DailyChallenge, BackendChallenge, BackendChallengeParticipantsResponse } from '@/types/challenges';
 import { mapChallenge } from '@/utils/mapChallenge';
 import { PaginatedResponse } from '@/types';
+import { engagementTracker } from '@/utils/engagementTracker';
 import { toast } from 'sonner-native';
 import { differenceInMinutes } from 'date-fns';
 
@@ -636,6 +637,8 @@ export class ChallengeStore {
         await this.fetchChallengeParticipants(challengeId);
       } catch {}
       toast.success('Successfully joined the challenge');
+      // Mark challenge engagement for "What you missed" flow
+      void engagementTracker.record('challenge');
       return this.getChallengeById(challengeId);
     } catch (error) {
       console.error(`Error joining challenge ${challengeId}:`, error);
@@ -786,6 +789,8 @@ export class ChallengeStore {
 
       await this.saveToStorage();
       toast.success(`Challenge marked as completed`);
+      // Mark challenge engagement for "What you missed" flow
+      void engagementTracker.record('challenge');
       return this.getChallengeById(challengeId);
     } catch (error) {
       console.error(`Error updating challenge ${challengeId} completion status:`, error);

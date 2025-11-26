@@ -3,6 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { apiClient } from '@/api/client';
 import { AuthStore } from './AuthStore';
 import { MeditationSession, Challenge, DailyChallenge, PaginatedResponse } from '@/types';
+import { engagementTracker } from '@/utils/engagementTracker';
 
 export type MeditationPhase = 'setup' | 'countdown' | 'active' | 'paused' | 'complete' | 'idle';
 export type MeditationStyle = 'parable' | 'virtue' | 'centering' | 'jesus_prayer' | 'chant';
@@ -565,6 +566,9 @@ export class MeditationStore {
         console.error('Error saving meditation session:', error);
         // The session is already added to unsyncedSessions in the catch block of recordSession
       }
+
+      // Fire-and-forget engagement marker for "What you missed" flow
+      void engagementTracker.record('meditation');
     }
     
     this.state.meditationState = 'complete';

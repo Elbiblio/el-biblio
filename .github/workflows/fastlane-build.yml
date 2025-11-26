@@ -354,7 +354,27 @@ jobs:
       - name: Android signing report (debug)
         run: |
           cd android
-          ./gradlew :app:signingReport --no-daemon --console=plain
+          ./gradlew :app:signingReport --no-daemon --console=plain > signing-report.txt || {
+            echo "signingReport failed - printing partial output (Gradle configuration issue likely)"
+            cat signing-report.txt || true
+            exit 1
+          }
+
+          echo "======= :app:signingReport (full) ======="
+          cat signing-report.txt
+
+          echo "======= Checking release variant signing config ======="
+          RELEASE_BLOCK=$(awk '/Variant: release/{flag=1} /Variant: / && $2 != "release" {flag=0} flag' signing-report.txt || true)
+          echo "$RELEASE_BLOCK"
+
+          if echo "$RELEASE_BLOCK" | grep -q "Config: debug"; then
+            echo "ERROR: Release build is using debug signing config. This will produce a debug-signed AAB/APK that Google Play will reject."
+            echo "Likely causes:"
+            echo "- Gradle did not see MYAPP_UPLOAD_* properties (check ORG_GRADLE_PROJECT_MYAPP_UPLOAD_* env vars in the workflow)"
+            echo "- Keystore file android/app/keystore/elbiblio.jks is missing or invalid"
+            echo "- ANDROID_KEYSTORE_PASSWORD / ANDROID_KEY_PASSWORD secrets are incorrect"
+            exit 1
+          fi
 
       - name: Find artifacts
         id: find-files
@@ -611,9 +631,16 @@ jobs:
               
               # Verify we extracted valid data
               if profile_uuid.empty? || team_id.empty? || bundle_id.empty?
-                UI.user_error!("Failed to extract profile information")
+                UI.user_error!("Failed to extract profile information from provisioning profile at #{profile_path}")
               end
-              
+
+              UI.message("Provisioning profile details:")
+              UI.message("  Name: #{profile_name}")
+              UI.message("  UUID: #{profile_uuid}")
+              UI.message("  Team ID: #{team_id}")
+              UI.message("  Application Identifier: #{app_id}")
+              UI.message("  Bundle ID: #{bundle_id}")
+
               profile_dir = File.expand_path("~/Library/MobileDevice/Provisioning Profiles")
               FileUtils.mkdir_p(profile_dir)
               FileUtils.cp(profile_path, "#{profile_dir}/#{profile_uuid}.mobileprovision")
@@ -652,7 +679,18 @@ jobs:
                 )
               end
               
-              identity = sh("security find-identity -p codesigning -v | grep 'Apple Distribution' | head -n1 | grep -o '[A-F0-9]\\{40\\}'").strip
+              identities_output = sh("security find-identity -p codesigning -v || true")
+              UI.message("Available code signing identities:\n#{identities_output}")
+
+              identity_line = identities_output.lines.find { |l| l.include?("Apple Distribution") }
+              unless identity_line
+                UI.user_error!("Could not find an 'Apple Distribution' signing identity in the keychain. Ensure ios_dist.p12 contains a valid Apple Distribution certificate with a private key, and that IOS_KEYCHAIN_PASSWORD matches the .p12 export password.")
+              end
+
+              identity = identity_line[/[A-F0-9]{40}/]
+              if identity.to_s.empty?
+                UI.user_error!("Found an 'Apple Distribution' identity line but could not extract SHA-1 hash. Line: #{identity_line}")
+              end
               
               { team_id: team_id, bundle_id: bundle_id, profile_name: profile_name, 
                 profile_uuid: profile_uuid, identity: identity, keychain: keychain_name }
@@ -734,6 +772,28 @@ jobs:
           path: ios/build/export/Elbiblio.ipa
           retention-days: 30
           compression-level: 0
+
+      - name: Upload Fastlane logs (iOS)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-fastlane-logs-${{ needs.prepare-build.outputs.build_id }}
+          path: |
+            ios/fastlane/report.xml
+            ios/fastlane/Preview.html
+            ~/Library/Logs/gym/*.log
+          retention-days: 14
+          if-no-files-found: ignore
+
+      - name: Debug iOS keychains and profiles on failure
+        if: failure()
+        run: |
+          echo "======= Keychains (user domain) ======="
+          security list-keychains -d user || true
+          echo "======= Code signing identities (after failure) ======="
+          security find-identity -p codesigning -v || true
+          echo "======= Installed provisioning profiles ======="
+          ls -la ~/Library/MobileDevice/Provisioning\ Profiles || true
 
       - name: Upload to TestFlight
         run: |
