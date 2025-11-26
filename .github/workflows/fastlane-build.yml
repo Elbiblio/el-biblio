@@ -350,11 +350,8 @@ jobs:
 
           echo ">>> Verifying Android release signing configuration before build..."
 
-          echo "ORG_GRADLE_PROJECT_MYAPP_UPLOAD_STORE_FILE=${ORG_GRADLE_PROJECT_MYAPP_UPLOAD_STORE_FILE:-<unset>}"
-          echo "ORG_GRADLE_PROJECT_MYAPP_UPLOAD_KEY_ALIAS=${ORG_GRADLE_PROJECT_MYAPP_UPLOAD_KEY_ALIAS:-<unset>}"
-
-          KEYSTORE_REL="${ORG_GRADLE_PROJECT_MYAPP_UPLOAD_STORE_FILE:-keystore/elbiblio.jks}"
-          KEYSTORE_PATH="app/${KEYSTORE_REL}"
+          # Keystore path is now static and reliable
+          KEYSTORE_PATH="app/keystore/elbiblio.jks"
           echo "Expected keystore path: ${KEYSTORE_PATH}"
 
           echo ">>> Checking keystore file presence..."
@@ -364,30 +361,40 @@ jobs:
             exit 1
           fi
 
+          # Also check for the keystore.properties file, which is now critical
+          echo ">>> Checking keystore.properties file presence..."
+          if [ ! -f "keystore.properties" ]; then
+            echo "ROOT CAUSE: keystore.properties file does not exist in the android/ directory."
+            echo "This file should have been created in the previous step."
+            echo "Failing fast before attempting a release build."
+            exit 1
+          fi
+
           echo ">>> Verifying keystore with keytool..."
           if ! keytool -list -keystore "${KEYSTORE_PATH}" -storepass "${ANDROID_KEYSTORE_PASSWORD}" >/dev/null 2>&1; then
-            echo "ROOT CAUSE: Keystore '${KEYSTORE_PATH}' exists but could not be opened with the provided ANDROID_KEYSTORE_PASSWORD / ANDROID_KEY_PASSWORD."
+            echo "ROOT CAUSE: Keystore '${KEYSTORE_PATH}' exists but could not be opened with the provided ANDROID_KEYSTORE_PASSWORD."
             echo "Failing fast before attempting a release build."
             exit 1
           fi
 
           echo ">>> Running :app:signingReport (pre-build) to inspect variant configs..."
+          # No longer need to pass any -P properties; Gradle reads keystore.properties automatically
           ./gradlew :app:signingReport --no-daemon --console=plain > signing-report-prebuild.txt || {
             echo "signingReport (pre-build) failed - printing partial output (Gradle configuration issue likely)"
             cat signing-report-prebuild.txt || true
             exit 1
           }
 
-          echo "======= :app:signingReport (pre-build, full) ======="
+          echo "======= :app:signingReport (pre-build, full) ======"
           cat signing-report-prebuild.txt
 
-          echo "======= Checking release variant signing config (pre-build) ======="
+          echo "======= Checking release variant signing config (pre-build) ======"
           RELEASE_BLOCK=$(awk '/Variant: release/{flag=1} /Variant: / && $2 != "release" {flag=0} flag' signing-report-prebuild.txt || true)
           echo "${RELEASE_BLOCK}"
 
           if echo "${RELEASE_BLOCK}" | grep -q "Config: debug"; then
-            echo "ROOT CAUSE: Gradle is still using the debug signingConfig for the release variant even though the keystore exists and is valid."
-            echo "Most likely MYAPP_UPLOAD_* project properties were not seen by Gradle in app/build.gradle (hasReleaseKeystore=false) or the release buildType is explicitly wired to signingConfigs.debug."
+            echo "ROOT CAUSE: Gradle is still using the debug signingConfig for the release variant."
+            echo "This should not happen with the new keystore.properties and build.gradle setup."
             echo "Failing fast before attempting a release build."
             exit 1
           fi
@@ -396,10 +403,6 @@ jobs:
         env:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-          ORG_GRADLE_PROJECT_MYAPP_UPLOAD_STORE_FILE: keystore/elbiblio.jks
-          ORG_GRADLE_PROJECT_MYAPP_UPLOAD_KEY_ALIAS: elbiblio
-          ORG_GRADLE_PROJECT_MYAPP_UPLOAD_STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          ORG_GRADLE_PROJECT_MYAPP_UPLOAD_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
 
       - name: Build with Fastlane
         run: |
@@ -416,10 +419,6 @@ jobs:
         env:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-          ORG_GRADLE_PROJECT_MYAPP_UPLOAD_STORE_FILE: keystore/elbiblio.jks
-          ORG_GRADLE_PROJECT_MYAPP_UPLOAD_KEY_ALIAS: elbiblio
-          ORG_GRADLE_PROJECT_MYAPP_UPLOAD_STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          ORG_GRADLE_PROJECT_MYAPP_UPLOAD_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
 
       - name: Find artifacts
         id: find-files
