@@ -13,8 +13,9 @@ module.exports = (config) => {
         return config;
       }
 
-      // Find the signingConfigs block and replace/enhance it
-      const signingConfigPattern = /(signingConfigs\s*\{[\s\S]*?^\s*\})/m;
+      // Find the signingConfigs block - match only the signingConfigs block, not the android block closing brace
+      // The pattern matches: signingConfigs { ... } but stops at the first } that closes signingConfigs
+      const signingConfigPattern = /signingConfigs\s*\{\s*debug\s*\{[^}]*\}[^}]*\}/;
       
       if (signingConfigPattern.test(buildGradle)) {
         // Replace existing signingConfigs block
