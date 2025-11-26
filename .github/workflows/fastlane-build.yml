@@ -262,10 +262,6 @@ jobs:
                 tasks: ["assembleRelease", "bundleRelease"],
                 project_dir: ".",
                 properties: {
-                  "MYAPP_UPLOAD_STORE_FILE" => "keystore/elbiblio.jks",
-                  "MYAPP_UPLOAD_KEY_ALIAS" => "elbiblio",
-                  "MYAPP_UPLOAD_STORE_PASSWORD" => ENV["ANDROID_KEYSTORE_PASSWORD"],
-                  "MYAPP_UPLOAD_KEY_PASSWORD" => ENV["ANDROID_KEY_PASSWORD"],
                   "org.gradle.daemon" => "true",
                   "org.gradle.parallel" => "true",
                   "org.gradle.configureondemand" => "true",
