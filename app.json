@@ -78,7 +78,8 @@
       "expo-audio",
       "expo-camera",
       "expo-media-library",
-      "expo-background-task"
+      "expo-background-task",
+      "./scripts/expo-config-plugins/withBetterAndroidSigning.js"
     ]
   }
 }
