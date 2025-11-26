@@ -331,6 +331,63 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-gradle-
 
+      - name: Verify Android release signing config (pre-build)
+        run: |
+          cd android
+
+          echo ">>> Verifying Android release signing configuration before build..."
+
+          echo "ORG_GRADLE_PROJECT_MYAPP_UPLOAD_STORE_FILE=${ORG_GRADLE_PROJECT_MYAPP_UPLOAD_STORE_FILE:-<unset>}"
+          echo "ORG_GRADLE_PROJECT_MYAPP_UPLOAD_KEY_ALIAS=${ORG_GRADLE_PROJECT_MYAPP_UPLOAD_KEY_ALIAS:-<unset>}"
+
+          KEYSTORE_REL="${ORG_GRADLE_PROJECT_MYAPP_UPLOAD_STORE_FILE:-keystore/elbiblio.jks}"
+          KEYSTORE_PATH="app/${KEYSTORE_REL}"
+          echo "Expected keystore path: ${KEYSTORE_PATH}"
+
+          echo ">>> Checking keystore file presence..."
+          if [ ! -f "${KEYSTORE_PATH}" ]; then
+            echo "ROOT CAUSE: Keystore file '${KEYSTORE_PATH}' does not exist."
+            echo "Failing fast before attempting a release build."
+            exit 1
+          fi
+
+          echo ">>> Verifying keystore with keytool..."
+          if ! keytool -list -keystore "${KEYSTORE_PATH}" -storepass "${ANDROID_KEYSTORE_PASSWORD}" >/dev/null 2>&1; then
+            echo "ROOT CAUSE: Keystore '${KEYSTORE_PATH}' exists but could not be opened with the provided ANDROID_KEYSTORE_PASSWORD / ANDROID_KEY_PASSWORD."
+            echo "Failing fast before attempting a release build."
+            exit 1
+          fi
+
+          echo ">>> Running :app:signingReport (pre-build) to inspect variant configs..."
+          ./gradlew :app:signingReport --no-daemon --console=plain > signing-report-prebuild.txt || {
+            echo "signingReport (pre-build) failed - printing partial output (Gradle configuration issue likely)"
+            cat signing-report-prebuild.txt || true
+            exit 1
+          }
+
+          echo "======= :app:signingReport (pre-build, full) ======="
+          cat signing-report-prebuild.txt
+
+          echo "======= Checking release variant signing config (pre-build) ======="
+          RELEASE_BLOCK=$(awk '/Variant: release/{flag=1} /Variant: / && $2 != "release" {flag=0} flag' signing-report-prebuild.txt || true)
+          echo "${RELEASE_BLOCK}"
+
+          if echo "${RELEASE_BLOCK}" | grep -q "Config: debug"; then
+            echo "ROOT CAUSE: Gradle is still using the debug signingConfig for the release variant even though the keystore exists and is valid."
+            echo "Most likely MYAPP_UPLOAD_* project properties were not seen by Gradle in app/build.gradle (hasReleaseKeystore=false) or the release buildType is explicitly wired to signingConfigs.debug."
+            echo "Failing fast before attempting a release build."
+            exit 1
+          fi
+
+          echo "✓ Release variant is configured with a non-debug signing config (pre-build)."
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ORG_GRADLE_PROJECT_MYAPP_UPLOAD_STORE_FILE: keystore/elbiblio.jks
+          ORG_GRADLE_PROJECT_MYAPP_UPLOAD_KEY_ALIAS: elbiblio
+          ORG_GRADLE_PROJECT_MYAPP_UPLOAD_STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ORG_GRADLE_PROJECT_MYAPP_UPLOAD_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+
       - name: Build with Fastlane
         run: |
           cd android
@@ -343,38 +400,6 @@ jobs:
           
           chmod +x gradlew
           fastlane build_release
-        env:
-          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-          ORG_GRADLE_PROJECT_MYAPP_UPLOAD_STORE_FILE: keystore/elbiblio.jks
-          ORG_GRADLE_PROJECT_MYAPP_UPLOAD_KEY_ALIAS: elbiblio
-          ORG_GRADLE_PROJECT_MYAPP_UPLOAD_STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          ORG_GRADLE_PROJECT_MYAPP_UPLOAD_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-
-      - name: Android signing report (debug)
-        run: |
-          cd android
-          ./gradlew :app:signingReport --no-daemon --console=plain > signing-report.txt || {
-            echo "signingReport failed - printing partial output (Gradle configuration issue likely)"
-            cat signing-report.txt || true
-            exit 1
-          }
-
-          echo "======= :app:signingReport (full) ======="
-          cat signing-report.txt
-
-          echo "======= Checking release variant signing config ======="
-          RELEASE_BLOCK=$(awk '/Variant: release/{flag=1} /Variant: / && $2 != "release" {flag=0} flag' signing-report.txt || true)
-          echo "$RELEASE_BLOCK"
-
-          if echo "$RELEASE_BLOCK" | grep -q "Config: debug"; then
-            echo "ERROR: Release build is using debug signing config. This will produce a debug-signed AAB/APK that Google Play will reject."
-            echo "Likely causes:"
-            echo "- Gradle did not see MYAPP_UPLOAD_* properties (check ORG_GRADLE_PROJECT_MYAPP_UPLOAD_* env vars in the workflow)"
-            echo "- Keystore file android/app/keystore/elbiblio.jks is missing or invalid"
-            echo "- ANDROID_KEYSTORE_PASSWORD / ANDROID_KEY_PASSWORD secrets are incorrect"
-            exit 1
-          fi
         env:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
