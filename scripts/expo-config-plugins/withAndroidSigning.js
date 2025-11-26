@@ -1,36 +1,61 @@
 const { withAppBuildGradle } = require('@expo/config-plugins');
 
-// This is the definitive plugin to fix Android signing.
-// It modifies the `hasReleaseKeystore` variable in `android/app/build.gradle`
-// to check for the existence of a `keystore.properties` file in the `android` directory.
-// This is the standard and most robust way to handle signing configs.
+// This plugin configures Android release signing using keystore.properties file.
+// It injects the complete signing configuration into build.gradle.
 
 module.exports = (config) => {
   return withAppBuildGradle(config, (config) => {
     if (config.modResults.language === 'groovy') {
       let buildGradle = config.modResults.contents;
 
-      // Replace the hasReleaseKeystore definition if it exists
-      // This regex matches the multi-line definition that Expo generates
-      buildGradle = buildGradle.replace(
-        /def\s+hasReleaseKeystore\s*=\s*project\.hasProperty\("MYAPP_UPLOAD_STORE_FILE"\)\s*&&[\s\S]*?project\.hasProperty\("MYAPP_UPLOAD_KEY_PASSWORD"\)/,
-        `def hasReleaseKeystore = new File("../keystore.properties").exists()`
-      );
+      // Check if we already have our custom signing config
+      if (buildGradle.includes('// CUSTOM SIGNING CONFIG')) {
+        return config;
+      }
 
-      // Also update the signingConfigs.release block to read from keystore.properties
-      // if the file exists, instead of relying on project properties
-      if (buildGradle.includes('signingConfigs')) {
+      // Find the signingConfigs block and replace/enhance it
+      const signingConfigPattern = /(signingConfigs\s*\{[\s\S]*?^\s*\})/m;
+      
+      if (signingConfigPattern.test(buildGradle)) {
+        // Replace existing signingConfigs block
         buildGradle = buildGradle.replace(
-          /(release\s*\{[\s\S]*?if\s*\(hasReleaseKeystore\)\s*\{[\s\S]*?)(storeFile\s+file\(MYAPP_UPLOAD_STORE_FILE\)[\s\S]*?keyPassword\s+MYAPP_UPLOAD_KEY_PASSWORD)/,
-          `$1def keystorePropertiesFile = new File("../keystore.properties")
+          signingConfigPattern,
+          `// CUSTOM SIGNING CONFIG
+    def keystorePropertiesFile = file("../keystore.properties")
+    def hasReleaseKeystore = keystorePropertiesFile.exists()
+    
+    signingConfigs {
+        debug {
+            storeFile file('debug.keystore')
+            storePassword 'android'
+            keyAlias 'androiddebugkey'
+            keyPassword 'android'
+        }
+        release {
+            if (hasReleaseKeystore) {
                 def keystoreProperties = new Properties()
                 keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
                 storeFile file(keystoreProperties['storeFile'])
                 storePassword keystoreProperties['storePassword']
                 keyAlias keystoreProperties['keyAlias']
-                keyPassword keystoreProperties['keyPassword']`
+                keyPassword keystoreProperties['keyPassword']
+            } else {
+                // Fallback to debug for local development
+                storeFile file('debug.keystore')
+                storePassword 'android'
+                keyAlias 'androiddebugkey'
+                keyPassword 'android'
+            }
+        }
+    }`
         );
       }
+
+      // Update buildTypes.release to use the correct signing config
+      buildGradle = buildGradle.replace(
+        /(release\s*\{[^}]*)(signingConfig\s+signingConfigs\.debug)/,
+        '$1signingConfig signingConfigs.release'
+      );
 
       config.modResults.contents = buildGradle;
     }
