@@ -359,7 +359,12 @@ jobs:
           fi
 
           echo ">>> Running :app:signingReport (pre-build) to inspect variant configs..."
-          ./gradlew :app:signingReport --no-daemon --console=plain > signing-report-prebuild.txt || {
+          ./gradlew :app:signingReport \
+            -PMYAPP_UPLOAD_STORE_FILE="${KEYSTORE_REL}" \
+            -PMYAPP_UPLOAD_KEY_ALIAS=elbiblio \
+            -PMYAPP_UPLOAD_STORE_PASSWORD="${ANDROID_KEYSTORE_PASSWORD}" \
+            -PMYAPP_UPLOAD_KEY_PASSWORD="${ANDROID_KEY_PASSWORD}" \
+            --no-daemon --console=plain > signing-report-prebuild.txt || {
             echo "signingReport (pre-build) failed - printing partial output (Gradle configuration issue likely)"
             cat signing-report-prebuild.txt || true
             exit 1
