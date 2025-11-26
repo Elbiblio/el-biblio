@@ -8,16 +8,31 @@ const { withAppBuildGradle } = require('@expo/config-plugins');
 module.exports = (config) => {
   return withAppBuildGradle(config, (config) => {
     if (config.modResults.language === 'groovy') {
-      const buildGradle = config.modResults.contents;
+      let buildGradle = config.modResults.contents;
 
-      // The regex is designed to be resilient to future Expo SDK changes.
-      // It finds the `def hasReleaseKeystore = ...` line and replaces it entirely.
-      const newBuildGradle = buildGradle.replace(
-        /def\s+hasReleaseKeystore\s*=\s*.*project\.hasProperty\("MYAPP_UPLOAD_STORE_FILE"\).*/,
+      // Replace the hasReleaseKeystore definition if it exists
+      // This regex matches the multi-line definition that Expo generates
+      buildGradle = buildGradle.replace(
+        /def\s+hasReleaseKeystore\s*=\s*project\.hasProperty\("MYAPP_UPLOAD_STORE_FILE"\)\s*&&[\s\S]*?project\.hasProperty\("MYAPP_UPLOAD_KEY_PASSWORD"\)/,
         `def hasReleaseKeystore = new File("../keystore.properties").exists()`
       );
 
-      config.modResults.contents = newBuildGradle;
+      // Also update the signingConfigs.release block to read from keystore.properties
+      // if the file exists, instead of relying on project properties
+      if (buildGradle.includes('signingConfigs')) {
+        buildGradle = buildGradle.replace(
+          /(release\s*\{[\s\S]*?if\s*\(hasReleaseKeystore\)\s*\{[\s\S]*?)(storeFile\s+file\(MYAPP_UPLOAD_STORE_FILE\)[\s\S]*?keyPassword\s+MYAPP_UPLOAD_KEY_PASSWORD)/,
+          `$1def keystorePropertiesFile = new File("../keystore.properties")
+                def keystoreProperties = new Properties()
+                keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+                storeFile file(keystoreProperties['storeFile'])
+                storePassword keystoreProperties['storePassword']
+                keyAlias keystoreProperties['keyAlias']
+                keyPassword keystoreProperties['keyPassword']`
+        );
+      }
+
+      config.modResults.contents = buildGradle;
     }
     return config;
   });
