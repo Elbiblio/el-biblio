@@ -28,7 +28,8 @@
       "infoPlist": {
         "NSCameraUsageDescription": "El-Biblio uses the camera to let you record Face2Face reflections and capture media to share with the community.",
         "NSMicrophoneUsageDescription": "El-Biblio uses the microphone to capture audio while recording Face2Face reflections.",
-        "NSPhotoLibraryAddUsageDescription": "El-Biblio saves videos/photos to your library when you choose to export Face2Face reflections."
+        "NSPhotoLibraryAddUsageDescription": "El-Biblio saves videos/photos to your library when you choose to export Face2Face reflections.",
+        "NSPhotoLibraryUsageDescription": "El-Biblio reads photos and videos you select so you can attach and share them."
       }
     },
     "android": {
