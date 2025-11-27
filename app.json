@@ -79,6 +79,15 @@
       "expo-camera",
       "expo-media-library",
       "expo-background-task",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "compileSdkVersion": 35,
+            "targetSdkVersion": 35
+          }
+        }
+      ],
       "./scripts/expo-config-plugins/withAndroidSigning.js"
     ]
   }
