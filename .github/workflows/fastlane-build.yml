@@ -224,7 +224,7 @@ jobs:
         run: |
           echo "Creating keystore.properties..."
           KEYSTORE_PROPERTIES_PATH="android/keystore.properties"
-          echo "storeFile=app/keystore/elbiblio.jks" > $KEYSTORE_PROPERTIES_PATH
+          echo "storeFile=keystore/elbiblio.jks" > $KEYSTORE_PROPERTIES_PATH
           echo "storePassword=${{ secrets.ANDROID_KEYSTORE_PASSWORD }}" >> $KEYSTORE_PROPERTIES_PATH
           echo "keyAlias=elbiblio" >> $KEYSTORE_PROPERTIES_PATH
           echo "keyPassword=${{ secrets.ANDROID_KEY_PASSWORD }}" >> $KEYSTORE_PROPERTIES_PATH
