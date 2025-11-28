@@ -2,7 +2,7 @@
   "expo": {
     "name": "El-Biblio",
     "slug": "elbiblio",
-    "version": "1.0.10",
+    "version": "1.0.11",
     "orientation": "portrait",
     "icon": "./assets/penheart.png",
     "userInterfaceStyle": "light",
@@ -40,9 +40,7 @@
       "package": "com.elbiblio.app",
       "permissions": [
         "CAMERA",
-        "RECORD_AUDIO",
-        "READ_MEDIA_VIDEO",
-        "READ_MEDIA_IMAGES"
+        "RECORD_AUDIO"
       ]
     },
     "web": {
@@ -78,7 +76,6 @@
       "expo-sqlite",
       "expo-audio",
       "expo-camera",
-      "expo-media-library",
       "expo-background-task",
       [
         "expo-build-properties",
