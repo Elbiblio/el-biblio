@@ -8,7 +8,8 @@ import {
   Image,
   ActivityIndicator,
   Platform,
-  Switch
+  Switch,
+  Alert
 } from 'react-native';
 import { useTheme, useThemeVariant } from '@/contexts/ThemeContext';
 import { Theme, ThemeVariant, themeColors } from '@/theme';
@@ -39,13 +40,14 @@ import { apiClient, endpoints } from '@/api/client';
 const ProfileScreen = () => {
   const theme = useTheme();
   const setThemeVariant = useThemeVariant();
-  const { user, updateAvatar, isGuest, upgradeGuestAccount, error, isLoading } = useAuthStore();
+  const { user, updateAvatar, isGuest, upgradeGuestAccount, error, isLoading, logout } = useAuthStore();
   const [avatarModalVisible, setAvatarModalVisible] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [isUpgradeSubmitting, setIsUpgradeSubmitting] = useState(false);
   const [upgradeError, setUpgradeError] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   
@@ -305,6 +307,50 @@ const ProfileScreen = () => {
 
     setIsUpgradeSubmitting(false);
     return success;
+  };
+
+  const handleConfirmDeleteAccount = async () => {
+    if (!user?.id) {
+      return;
+    }
+
+    setIsDeleting(true);
+    try {
+      const response = await apiClient.delete<null>(endpoints.users.delete(user.id));
+      if (!response.success) {
+        toast.error(response.message || 'Unable to delete account');
+        return;
+      }
+
+      toast.success('Your account has been deleted');
+      await logout();
+    } catch (error) {
+      console.error('Failed to delete account:', error);
+      toast.error('Unable to delete account');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const handleDeleteAccount = () => {
+    if (!user?.id || isDeleting) {
+      return;
+    }
+
+    Alert.alert(
+      'Delete account',
+      'This will permanently delete your account and data. This action cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () => {
+            void handleConfirmDeleteAccount();
+          },
+        },
+      ],
+    );
   };
 
   if (!user) {
@@ -612,7 +658,6 @@ const ProfileScreen = () => {
           </View>
         </View>
 
-        {/* Theme Selection */}
         <View style={styles.sectionContainer}>
           <Text style={styles.sectionTitle}>Theme</Text>
           <ScrollView 
@@ -653,6 +698,21 @@ const ProfileScreen = () => {
               )
             )}
           </ScrollView>
+        </View>
+
+        <View style={styles.sectionContainer}>
+          <Text style={styles.sectionTitle}>Account</Text>
+          <TouchableOpacity
+            style={styles.deleteAccountButton}
+            onPress={handleDeleteAccount}
+            disabled={isDeleting}
+          >
+            {isDeleting ? (
+              <ActivityIndicator color={theme.colors.text.inverse} />
+            ) : (
+              <Text style={styles.deleteAccountButtonText}>Delete account</Text>
+            )}
+          </TouchableOpacity>
         </View>
       </ScrollView>
 
@@ -932,6 +992,18 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     ...theme.typography.body.sans,
     color: theme.colors.text.primary,
     flex: 1,
+  },
+  deleteAccountButton: {
+    marginTop: theme.spacing.sm,
+    paddingVertical: theme.spacing.sm,
+    borderRadius: theme.borderRadius.full,
+    backgroundColor: theme.colors.error,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  deleteAccountButtonText: {
+    ...theme.typography.button.primary,
+    color: theme.colors.text.inverse,
   },
   statsGrid: {
     flexDirection: 'row',
