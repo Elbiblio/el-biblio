@@ -576,7 +576,7 @@ const VirtueTriviaScreen = () => {
 
   // Timer logic
   useEffect(() => {
-    if (showVirtueSelector || gameState.answered || gameState.gameOver) return;
+    if (showVirtueSelector || gameState.answered || gameState.gameOver || showSoundSettings) return;
     
     const interval = setInterval(() => {
       const newTime = timeLeftRef.current - 1;
@@ -596,7 +596,7 @@ const VirtueTriviaScreen = () => {
     }, 1000);
     
     return () => clearInterval(interval);
-  }, [showVirtueSelector, gameState.answered, gameState.gameOver, userLevel, handleAnswerSelect]);
+  }, [showVirtueSelector, gameState.answered, gameState.gameOver, userLevel, handleAnswerSelect, showSoundSettings]);
 
   // Start new game
   const startNewGame = useCallback(() => {

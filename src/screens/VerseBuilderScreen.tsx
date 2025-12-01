@@ -320,7 +320,7 @@ const VerseBuilderScreen = observer(() => {
   }, [timeLeft, initialGameTime, progressWidth, timerColorAnim, timerPulse, warnScale, play]);
 
   useEffect(() => {
-    if (!isPlaying || isPaused) {
+    if (!isPlaying || isPaused || showTips || showSoundSettings) {
       if (timerIntervalRef.current) {
         clearInterval(timerIntervalRef.current);
         timerIntervalRef.current = null;
@@ -338,7 +338,7 @@ const VerseBuilderScreen = observer(() => {
         timerIntervalRef.current = null;
       }
     };
-  }, [decrementTime, isPaused, isPlaying]);
+  }, [decrementTime, isPaused, isPlaying, showTips, showSoundSettings]);
 
   // Transition animation
   useEffect(() => {
