@@ -75,6 +75,8 @@ import { getNextUnlock } from './src/utils/gameUnlocks';
 import { syncDailyNuggets, setDailyNuggetStores } from './src/tasks/dailyNuggetOrchestrator';
 import { checkForAppUpdate } from './src/services/appUpdate';
 import { loadMobileConfig } from './src/services/mobileConfig';
+import { PushNotificationService } from './src/services/pushNotifications';
+import { ReminderSyncService } from './src/services/reminderSync';
 import FeatureSuggestionsScreen from './src/screens/FeatureSuggestionsScreen';
 import FeatureSuggestionDetailScreen from './src/screens/FeatureSuggestionDetailScreen';
 
@@ -269,6 +271,9 @@ const AppContent = () => {
         await initializeWelcomeState();
         await registerChallengeReminderTask();
 
+        // Initialize push notifications
+        await PushNotificationService.initialize();
+
         // Load mobile runtime config (e.g. WebSocket host/port/appKey) from backend
         await loadMobileConfig();
         if (Platform.OS === 'android') {
@@ -314,6 +319,27 @@ const AppContent = () => {
   useEffect(() => {
     setDailyNuggetStores({ authStore: authStoreObj as any, preferencesStore: preferencesStore as any });
   }, [authStoreObj, preferencesStore]);
+
+  useEffect(() => {
+    const initializePushNotifications = async () => {
+      if (!user?.id || !token) {
+        return;
+      }
+
+      try {
+        await PushNotificationService.updateToken();
+        await ReminderSyncService.syncAllLocalReminders(String(user.id));
+      } catch (error) {
+        if (__DEV__) {
+          console.warn('[App] Failed to initialize push notifications for user:', error);
+        }
+      }
+    };
+
+    if (authInitialized && user?.id) {
+      initializePushNotifications();
+    }
+  }, [authInitialized, user?.id, token]);
 
   useEffect(() => {
     const startAudioSession = async () => {

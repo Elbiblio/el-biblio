@@ -2,7 +2,7 @@
   "expo": {
     "name": "El-Biblio",
     "slug": "elbiblio",
-    "version": "1.0.13",
+    "version": "1.0.14",
     "orientation": "portrait",
     "icon": "./assets/penheart.png",
     "userInterfaceStyle": "light",
@@ -20,7 +20,11 @@
       "./assets/sounds/timeout.mp3",
       "./assets/sounds/game-over.mp3",
       "./assets/sounds/correct.mp3",
-      "./assets/sounds/cheers.mp3"
+      "./assets/sounds/cheers.mp3",
+      "./assets/sounds/bell.wav",
+      "./assets/sounds/chime.wav",
+      "./assets/sounds/bell-meditation.mp3",
+      "./assets/sounds/success_bell.mp3"
     ],
     "ios": {
       "supportsTablet": true,
