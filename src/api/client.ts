@@ -289,6 +289,7 @@ export const endpoints = {
     avatar: (id: string) => `/users/${id}/avatar`,
     profile: (id: string) => `/users/${id}/profile`,
     preferences: (id: string) => `/users/${id}/preferences`,
+    reminderPreferences: (id: string) => `/users/${id}/reminder-preferences`,
     activity: (id: string) => `/users/${id}/activity`,
     stats: (id: string) => `/users/${id}/stats`,
   },
@@ -385,6 +386,7 @@ export const endpoints = {
     delete: (id: string) => `/notifications/${id}`,
     settings: '/notifications/settings',
     unreadCount: '/notifications/unread-count',
+    registerDevice: '/notifications/register-device',
   },
 
   themes: {
