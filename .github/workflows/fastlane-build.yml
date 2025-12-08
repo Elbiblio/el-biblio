@@ -106,6 +106,72 @@ jobs:
 
           echo "Final version: $CURRENT_VERSION (code: $CODE, changed: $VERSION_CHANGED)"
 
+      - name: Prune old workflow artifacts
+        if: steps.versioning.outputs.version_changed == 'true'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          if ! command -v gh >/dev/null 2>&1; then
+            echo "gh CLI not found; skipping artifact pruning."
+            exit 0
+          fi
+
+          KEEP=50
+          echo "Fetching active artifacts..."
+          gh api \
+            -H "Accept: application/vnd.github+json" \
+            /repos/${{ github.repository }}/actions/artifacts \
+            --paginate \
+            --jq '.artifacts[] | select(.expired==false) | "\(.created_at) \(.id) \(.name)"' \
+            > artifacts.txt || {
+              echo "Failed to list artifacts; skipping pruning."
+              exit 0
+            }
+
+          TOTAL=$(wc -l < artifacts.txt || echo 0)
+          echo "Found $TOTAL active artifacts"
+          if [ "$TOTAL" -le "$KEEP" ]; then
+            echo "No pruning needed (<= $KEEP artifacts)."
+            exit 0
+          fi
+
+          DELETE_COUNT=$((TOTAL - KEEP))
+          echo "Pruning $DELETE_COUNT oldest artifacts..."
+          sort artifacts.txt | head -n "$DELETE_COUNT" | while read -r CREATED ID NAME; do
+            echo "Deleting artifact $ID ($NAME, created $CREATED)..."
+            gh api \
+              --method DELETE \
+              -H "Accept: application/vnd.github+json" \
+              /repos/${{ github.repository }}/actions/artifacts/$ID \
+              || echo "Failed to delete artifact $ID"
+          done
+
+      - name: Check runner disk space
+        if: steps.versioning.outputs.version_changed == 'true'
+        run: |
+          set -euo pipefail
+          echo "Disk usage before build:"
+          df -h .
+
+          MIN_FREE_MB=5120
+          AVAIL_MB=$(df -Pm . | tail -1 | awk '{print $4}')
+          echo "Available space: ${AVAIL_MB} MB"
+
+          if [ "$AVAIL_MB" -lt "$MIN_FREE_MB" ]; then
+            echo "Error: Not enough disk space on runner (need at least ${MIN_FREE_MB} MB free)."
+            exit 1
+          fi
+
+      - name: Verify artifact storage availability
+        if: steps.versioning.outputs.version_changed == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: artifact-storage-check-${{ github.run_id }}
+          path: app.json
+          retention-days: 1
+
   build-android:
     needs: prepare-build
     if: needs.prepare-build.outputs.version_changed == 'true'
