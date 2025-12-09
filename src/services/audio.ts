@@ -109,27 +109,53 @@ const CUE_ALIASES: Record<string, SoundKey> = {
 
 const cache = new Map<SoundKey, Audio.Sound>();
 let initialized = false;
+let currentAudioMode: 'mix' | 'exclusive' | null = null;
 
 // Export cache for AudioCoordinator
 export const getSoundCache = () => cache;
 
-export const initAudio = async () => {
-  if (initialized) return;
-  
-  // Configure audio session for optimal mixing
+const applyAudioMode = async (mode: 'mix' | 'exclusive') => {
+  if (currentAudioMode === mode) return;
+  const base = {
+    playsInSilentModeIOS: true,
+    allowsRecordingIOS: false,
+    staysActiveInBackground: true,
+    shouldDuckAndroid: true,
+    playThroughEarpieceAndroid: false,
+  };
   try {
-    await Audio.setAudioModeAsync({
-      playsInSilentModeIOS: true,
-      allowsRecordingIOS: false,
-      staysActiveInBackground: true,
-      shouldDuckAndroid: true,
-      playThroughEarpieceAndroid: false,
-      interruptionModeIOS: 1, // DO_NOT_MIX
-      interruptionModeAndroid: 1, // DO_NOT_MIX
-    });
+    if (mode === 'mix') {
+      await Audio.setAudioModeAsync({
+        ...base,
+        interruptionModeIOS: 0,
+        interruptionModeAndroid: 2,
+      });
+    } else {
+      await Audio.setAudioModeAsync({
+        ...base,
+        interruptionModeIOS: 1,
+        interruptionModeAndroid: 1,
+      });
+    }
+    currentAudioMode = mode;
   } catch (error) {
     console.warn('[audio] Failed to set audio mode:', error);
   }
+};
+
+export const setMixingAudioMode = async () => {
+  await applyAudioMode('mix');
+};
+
+export const setExclusiveAudioMode = async () => {
+  await applyAudioMode('exclusive');
+};
+
+export const initAudio = async () => {
+  if (!currentAudioMode) {
+    await applyAudioMode('mix');
+  }
+  if (initialized) return;
   
   await SoundManager.init();
   

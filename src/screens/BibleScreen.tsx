@@ -28,7 +28,8 @@ import {
 } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { MaterialIcons } from '@expo/vector-icons';
-import { useNavigation, NavigationProp, RouteProp } from '@react-navigation/native';
+import { useNavigation, NavigationProp, RouteProp, useFocusEffect } from '@react-navigation/native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTheme } from '@/contexts/ThemeContext';
 import { Theme } from '@/theme';
 import BiblePicker from '@/components/BiblePicker';
@@ -57,6 +58,7 @@ import { parseVPLId } from '@/utils/database';
 import { toast } from 'sonner-native';
 import * as Haptics from 'expo-haptics';
 import { Audio } from 'expo-av';
+import { setExclusiveAudioMode, setMixingAudioMode } from '@/services/audio';
 import EmptyState from '@/components/EmptyState';
 import MeditationVerse from '@/components/MeditationVerse';
 import { appTimerStore } from '@/stores/AppTimerStore';
@@ -92,6 +94,40 @@ const makeSegmentRangeToken = (segment?: { chapterStart?: number | null; chapter
   const endVerse = segment.verseEnd ?? '';
   return `${startChapter}:${startVerse}-${endChapter}:${endVerse}`;
 };
+
+const NEW_TESTAMENT_ABBREVIATIONS = new Set([
+  'MAT',
+  'MRK',
+  'LUK',
+  'JHN',
+  'ACT',
+  'ROM',
+  '1CO',
+  '2CO',
+  'GAL',
+  'EPH',
+  'PHP',
+  'COL',
+  '1TH',
+  '2TH',
+  '1TI',
+  '2TI',
+  'TIT',
+  'PHM',
+  'HEB',
+  'JAS',
+  '1PE',
+  '2PE',
+  '1JN',
+  '2JN',
+  '3JN',
+  'JUD',
+  'REV',
+]);
+
+const TESTAMENT_FILTER_KEY = 'bible_testament_filter';
+
+const isNewTestamentAbbr = (abbreviation: string) => NEW_TESTAMENT_ABBREVIATIONS.has(abbreviation.toUpperCase());
 
 type ScopedViewState = {
   title?: string | null;
@@ -145,6 +181,28 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
   const [meditationVerses, setMeditationVerses] = useState<Array<{ text: string; reference: string }>>([]);
   // Paused verses are persisted in BibleStore.dailySession
   const [insightByKey, setInsightByKey] = useState<Record<string, string>>({});
+  const [testamentFilter, setTestamentFilter] = useState<'all' | 'ot' | 'nt'>('all');
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const stored = await AsyncStorage.getItem(TESTAMENT_FILTER_KEY);
+        if (!stored) return;
+        if (stored === 'all' || stored === 'ot' || stored === 'nt') {
+          if (!cancelled) {
+            setTestamentFilter(stored as 'all' | 'ot' | 'nt');
+          }
+        }
+      } catch {}
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    AsyncStorage.setItem(TESTAMENT_FILTER_KEY, testamentFilter).catch(() => {});
+  }, [testamentFilter]);
 
 
   // Timer view derived from AppTimerStore via BibleStore
@@ -168,6 +226,16 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
     if (nextChapter > lastInBook) return;
     await bibleStore.fetchVerses(bibleStore.currentBook, nextChapter, bibleStore.currentVersion, 1);
   }, [bibleStore]);
+
+  // Use exclusive audio only while Bible screen is focused
+  useFocusEffect(
+    React.useCallback(() => {
+      setExclusiveAudioMode().catch(() => {});
+      return () => {
+        setMixingAudioMode().catch(() => {});
+      };
+    }, [])
+  );
 
   
 
@@ -1038,7 +1106,9 @@ const handleCompleteSegment = useCallback(async () => {
     try {
       const success = await bibleStore.installVersion(version);
       if (success) {
-        toast.success(`${version.englishName} installed successfully`);
+        await bibleStore.fetchBibleVersions();
+        bibleStore.setCurrentVersion(version);
+        toast.success(`${version.englishName} installed and selected`);
       }
     } catch (error) {
       console.error('Installation failed:', error);
@@ -1756,6 +1826,39 @@ const handleEnterPlanMode = useCallback(async () => {
     bibleStore.setCurrentChapter(chapter);
   }, [bibleStore]);
 
+  const handleTestamentFilterChange = useCallback((next: 'all' | 'ot' | 'nt') => {
+    if (next === testamentFilter) {
+      return;
+    }
+
+    if (next === 'all') {
+      setTestamentFilter(next);
+      return;
+    }
+
+    const baseBooks = (bibleStore.filteredBooks as unknown as Book[]) || [];
+    const nextBooks = baseBooks.filter(book =>
+      next === 'nt'
+        ? isNewTestamentAbbr(book.abbreviation)
+        : !isNewTestamentAbbr(book.abbreviation)
+    );
+
+    if (nextBooks.length > 0) {
+      const current = (bibleStore.currentBook as unknown as Book | null) || null;
+      const currentInNext = current
+        ? nextBooks.some(b => b.abbreviation === current.abbreviation)
+        : false;
+
+      if (!currentInNext) {
+        const target = nextBooks[0];
+        bibleStore.setCurrentBook(target as any);
+        bibleStore.setCurrentChapter(1);
+      }
+    }
+
+    setTestamentFilter(next);
+  }, [testamentFilter, bibleStore.filteredBooks, bibleStore.currentBook, bibleStore]);
+
   const handleSearchPress = useCallback(() => {
     bibleStore.setShowSearch(true);
   }, [bibleStore]);
@@ -1767,62 +1870,115 @@ const handleEnterPlanMode = useCallback(async () => {
     const candidate = (version as any).shortName ?? (version as any).code ?? version.englishName;
     return typeof candidate === 'string' && candidate.trim().length > 0 ? candidate : 'Versions';
   }, [bibleStore.currentVersion]);
+  const renderHeader = () => {
+    const baseBooks = (bibleStore.filteredBooks as unknown as Book[]) || [];
+    const selectorBooks =
+      testamentFilter === 'all'
+        ? baseBooks
+        : baseBooks.filter(book =>
+            testamentFilter === 'nt'
+              ? isNewTestamentAbbr(book.abbreviation)
+              : !isNewTestamentAbbr(book.abbreviation)
+          );
 
-  const renderHeader = () => (
-    <View style={styles.headerContainer}>
-      <BlurView intensity={20} style={styles.header}>
-        <View style={styles.headerLeft}>
-          <TouchableOpacity
-            style={styles.headerButton}
-            onPress={() => setShowVersionsModal(true)}
-          >
-            <Text style={styles.headerButtonText}>
-              {currentVersionLabel}
-            </Text>
-            <MaterialIcons name="menu-book" size={20} color={theme.colors.text.primary} />
-          </TouchableOpacity>
-          
-          {isOffline && (
-            <View style={styles.offlineIndicator}>
-              <MaterialIcons name="wifi-off" size={12} color={theme.colors.warning} />
-              <Text style={styles.offlineText}>Offline</Text>
+    const currentBookForSelector =
+      (bibleStore.currentBook as unknown as Book | null) ||
+      selectorBooks[0] ||
+      bibleBooks[0];
+
+    return (
+      <View style={styles.headerContainer}>
+        <BlurView intensity={20} style={styles.header}>
+          <View style={styles.headerLeft}>
+            <TouchableOpacity
+              style={styles.headerButton}
+              onPress={() => setShowVersionsModal(true)}
+            >
+              <Text style={styles.headerButtonText}>
+                {currentVersionLabel}
+              </Text>
+              <MaterialIcons name="menu-book" size={20} color={theme.colors.text.primary} />
+            </TouchableOpacity>
+            
+            {isOffline && (
+              <View style={styles.offlineIndicator}>
+                <MaterialIcons name="wifi-off" size={12} color={theme.colors.warning} />
+                <Text style={styles.offlineText}>Offline</Text>
+              </View>
+            )}
+
+            <View style={styles.inlineSelectors}>
+              <View style={styles.testamentToggle}>
+                {(['all', 'ot', 'nt'] as const).map(key => (
+                  <TouchableOpacity
+                    key={key}
+                    style={[
+                      styles.testamentOption,
+                      testamentFilter === key && styles.testamentOptionActive,
+                    ]}
+                    onPress={() => {
+                      if (key !== 'all') {
+                        const baseBooks = (bibleStore.filteredBooks as unknown as Book[]) || [];
+                        const nextBooks = baseBooks.filter(book =>
+                          key === 'nt'
+                            ? isNewTestamentAbbr(book.abbreviation)
+                            : !isNewTestamentAbbr(book.abbreviation)
+                        );
+                        if (nextBooks.length > 0) {
+                          const target = nextBooks[0];
+                          bibleStore.setCurrentBook(target as any);
+                          bibleStore.setCurrentChapter(1);
+                        }
+                      }
+                      handleTestamentFilterChange(key);
+                    }}
+                  >
+                    <Text
+                      style={[
+                        styles.testamentOptionText,
+                        testamentFilter === key && styles.testamentOptionTextActive,
+                      ]}
+                    >
+                      {key === 'all' ? 'All' : key === 'ot' ? 'OT' : 'NT'}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <BookSelector
+                currentBook={currentBookForSelector}
+                onSelect={handleInlineBookSelect}
+                books={selectorBooks as any}
+              />
+              <BiblePicker
+                value={bibleStore.currentChapter}
+                items={Array.from({ length: bibleStore.getChapterCount() }, (_, i) => i + 1)}
+                onSelect={handleInlineChapterSelect}
+              />
             </View>
-          )}
-
-          <View style={styles.inlineSelectors}>
-            <BookSelector
-              currentBook={bibleStore.currentBook || bibleStore.filteredBooks[0] || bibleBooks[0]}
-              onSelect={handleInlineBookSelect}
-              books={bibleStore.filteredBooks as any}
-            />
-            <BiblePicker
-              value={bibleStore.currentChapter}
-              items={Array.from({ length: bibleStore.getChapterCount() }, (_, i) => i + 1)}
-              onSelect={handleInlineChapterSelect}
-            />
           </View>
-        </View>
 
-        <View style={styles.headerRight}>
-          <TouchableOpacity
-            style={styles.iconButton}
-            onPress={handleSearchPress}
-          >
-            <MaterialIcons name="search" size={24} color={theme.colors.text.primary} />
-          </TouchableOpacity>
+          <View style={styles.headerRight}>
+            <TouchableOpacity
+              style={styles.iconButton}
+              onPress={handleSearchPress}
+            >
+              <MaterialIcons name="search" size={24} color={theme.colors.text.primary} />
+            </TouchableOpacity>
 
-          <TouchableOpacity
-            style={styles.iconButton}
-            onPress={() => setShowHistoryModal(true)}
-            accessibilityLabel="Open history"
-            accessibilityRole="button"
-          >
-            <MaterialIcons name="history" size={24} color={theme.colors.text.primary} />
-          </TouchableOpacity>
-        </View>
-      </BlurView>
-    </View>
-  );
+            <TouchableOpacity
+              style={styles.iconButton}
+              onPress={() => setShowHistoryModal(true)}
+              accessibilityLabel="Open history"
+              accessibilityRole="button"
+            >
+              <MaterialIcons name="history" size={24} color={theme.colors.text.primary} />
+            </TouchableOpacity>
+          </View>
+        </BlurView>
+      </View>
+    );
+  };
 
 
   // Update verse text style to use fontSize state
@@ -2748,6 +2904,32 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     alignItems: 'center',
     gap: theme.spacing.sm,
     marginLeft: theme.spacing.md,
+  },
+  testamentToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: theme.borderRadius.full,
+    backgroundColor: `${theme.colors.surface}AA`,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: theme.colors.border,
+    paddingVertical: 2,
+    paddingHorizontal: 2,
+  },
+  testamentOption: {
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: 2,
+    borderRadius: theme.borderRadius.full,
+  },
+  testamentOptionActive: {
+    backgroundColor: theme.colors.primary,
+  },
+  testamentOptionText: {
+    ...theme.typography.caption.secondary,
+    color: theme.colors.text.secondary,
+    fontWeight: '600',
+  },
+  testamentOptionTextActive: {
+    color: theme.colors.text.inverse,
   },
   controlsGroup: {
     flexDirection: 'row',

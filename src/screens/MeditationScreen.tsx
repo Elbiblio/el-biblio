@@ -13,7 +13,7 @@ import {
   AppStateStatus,
 } from 'react-native';
 
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
@@ -32,7 +32,7 @@ import { useAuthStore, useVirtueStore, useMeditationStore, useChallengeStore, us
 import { useBibleStore } from '@/stores/BibleStore';
 import * as Haptics from 'expo-haptics';
 import { useKeepAwake } from 'expo-keep-awake';
-import { playMusic, stopMusic, preloadMusicCue } from '@/services/audio';
+import { playMusic, stopMusic, preloadMusicCue, setExclusiveAudioMode, setMixingAudioMode } from '@/services/audio';
 import { clearSpeechQueue } from '@/services/AudioCoordinator';
 import { MeditationOrchestrator } from '@/services/MeditationOrchestrator';
 import type { MeditationGuide as OrchestratorMeditationGuide } from '@/services/MeditationOrchestrator';
@@ -227,6 +227,16 @@ const MeditationScreen = () => {
 
   // Keep screen awake during active meditation
   useKeepAwake('meditation')
+
+  // Use exclusive audio only while Meditation screen is focused
+  useFocusEffect(
+    React.useCallback(() => {
+      setExclusiveAudioMode().catch(() => {});
+      return () => {
+        setMixingAudioMode().catch(() => {});
+      };
+    }, [])
+  );
 
   // Set default time
   useEffect(() => {
