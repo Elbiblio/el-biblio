@@ -438,9 +438,17 @@ export class AuthStore {
     this.reauthInProgress = true;
     const lastEmail = this.user?.email ?? null;
     const wasGuestSession = this.isGuest;
+    const hadSession = !!this.token || !!this.user || wasGuestSession;
     const promptForAuth = () => {
       runInAction(() => {
-        const intent: AuthPromptIntent = wasGuestSession ? 'guest_signup' : 'reauth';
+        let intent: AuthPromptIntent = null;
+        if (wasGuestSession) {
+          intent = 'guest_signup';
+        } else if (hadSession) {
+          intent = 'reauth';
+        } else {
+          intent = null;
+        }
         this.authPromptIntent = intent;
         this.pendingAuthEmail = wasGuestSession ? null : lastEmail;
         this.setToken(null);

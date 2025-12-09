@@ -476,11 +476,11 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     marginTop: theme.spacing.md,
   },
   intentBanner: {
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    backgroundColor: 'rgba(0, 0, 0, 0.55)',
     borderRadius: theme.borderRadius.lg,
     padding: theme.spacing.md,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(255, 255, 255, 0.18)',
+    borderColor: 'rgba(255, 255, 255, 0.35)',
     marginBottom: theme.spacing.lg,
   },
   intentTitle: {
@@ -491,7 +491,7 @@ const createStyles = (theme: Theme) => StyleSheet.create({
   },
   intentBody: {
     ...theme.typography.caption.primary,
-    color: theme.colors.text.secondary,
+    color: theme.colors.text.inverse,
   },
   eyeIcon: {
     position: "absolute",

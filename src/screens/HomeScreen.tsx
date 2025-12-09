@@ -795,10 +795,10 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
   const getHttpStatus = useCallback((err: any): number | undefined => err?.status || err?.response?.status, []);
   const handleAuthHttpError = useCallback((err: any) => {
     const status = getHttpStatus(err);
-    if (status === 401) {
+    if (status === 401 && user) {
       setShowAuthModal(true);
     }
-  }, [getHttpStatus, setShowAuthModal]);
+  }, [getHttpStatus, setShowAuthModal, user]);
 
   // Refresh challenges whenever Home gains focus (ensures newly joined show up)
   useFocusEffect(
@@ -850,8 +850,6 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
           const status = getHttpStatus(e);
           if (status === 404) {
             // User may have been deleted/banned: logout and prompt auth
-            try { await logout(); } catch {}
-            setShowAuthModal(true);
           }
         }
       }
