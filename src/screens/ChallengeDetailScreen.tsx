@@ -12,8 +12,8 @@ import * as Notifications from 'expo-notifications';
 import {
   loadStoredReminder,
   upsertStoredReminder,
-  removeStoredReminder,
   updateReminderNextDue,
+  cancelChallengeReminder,
 } from '@/tasks/challengeReminderTask';
 
 
@@ -89,8 +89,6 @@ const ChallengeDetailScreen = observer(({ route, navigation }: Props) => {
     if (!challenge) return;
     try {
       if (challenge.hasJoined) {
-        // Leave challenge - cancel any pending notifications
-        await cancelChallengeReminder(challenge.id);
         await store.leaveChallenge(challenge.id);
         // Use setTimeout to avoid unmounting during state updates
         setTimeout(() => navigation.goBack(), 100);
@@ -134,12 +132,28 @@ const ChallengeDetailScreen = observer(({ route, navigation }: Props) => {
 
       // Schedule periodic notifications every X hours until challenge is completed
       const now = new Date();
-      const challengeEndTime = challenge.endTime ? new Date(challenge.endTime) : null;
+      let challengeEndTime: Date | null = null;
+      if (challenge?.expiresAt) {
+        try {
+          const parsed = new Date(challenge.expiresAt);
+          if (!Number.isNaN(parsed.getTime())) {
+            challengeEndTime = parsed;
+          }
+        } catch {
+          challengeEndTime = null;
+        }
+      }
 
       // Schedule notifications every 'hours' interval, up to the challenge end time or max 24 hours
-      const maxNotifications = challengeEndTime
-        ? Math.min(24, Math.floor((challengeEndTime.getTime() - now.getTime()) / (hours * 60 * 60 * 1000)))
-        : 24; // Max 24 notifications if no end time
+      let maxNotifications = 24;
+      if (challengeEndTime) {
+        const msRemaining = challengeEndTime.getTime() - now.getTime();
+        if (msRemaining <= 0) {
+          maxNotifications = 0;
+        } else {
+          maxNotifications = Math.min(24, Math.floor(msRemaining / (hours * 60 * 60 * 1000)));
+        }
+      }
 
       const notificationIds: string[] = [];
 
@@ -181,22 +195,6 @@ const ChallengeDetailScreen = observer(({ route, navigation }: Props) => {
     }
   };
 
-  const cancelChallengeReminder = async (challengeId: string) => {
-    try {
-      const reminderData = await loadStoredReminder(challengeId);
-
-      if (reminderData?.notificationIds?.length) {
-        for (const notificationId of reminderData.notificationIds) {
-          await Notifications.cancelScheduledNotificationAsync(notificationId);
-        }
-      }
-
-      await removeStoredReminder(challengeId);
-    } catch (error) {
-      console.error('Error canceling reminder:', error);
-    }
-  };
-
   const handleUpvote = async () => {
     if (!challenge) return;
     try {
@@ -234,9 +232,6 @@ const ChallengeDetailScreen = observer(({ route, navigation }: Props) => {
     try {
       await store.completeChallenge(challenge.id, true);
       setShowReminderAlert(false);
-
-      // Cancel future reminders since challenge is completed
-      await cancelChallengeReminder(challenge.id);
     } catch (error) {
       console.error('Error completing challenge from reminder:', error);
       Alert.alert('Error', 'Unable to complete challenge.');

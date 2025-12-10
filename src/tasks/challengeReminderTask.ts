@@ -218,6 +218,26 @@ export const removeStoredReminder = async (challengeId: string) => {
   }
 };
 
+export const cancelChallengeReminder = async (challengeId: string) => {
+  try {
+    const reminderData = await loadStoredReminder(challengeId);
+
+    if (reminderData?.notificationIds?.length) {
+      for (const notificationId of reminderData.notificationIds) {
+        try {
+          await Notifications.cancelScheduledNotificationAsync(notificationId);
+        } catch (error) {
+          console.error('[ChallengeReminderTask] Failed to cancel scheduled notification', error);
+        }
+      }
+    }
+
+    await removeStoredReminder(challengeId);
+  } catch (error) {
+    console.error('[ChallengeReminderTask] Failed to cancel reminder', error);
+  }
+};
+
 export const registerChallengeReminderTask = async () => {
   try {
     const status = await BackgroundTask.getStatusAsync();

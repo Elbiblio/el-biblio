@@ -49,7 +49,6 @@ import SmartPickCard from '@/components/SmartPickCard';
 import { observer } from 'mobx-react-lite';
 import { RouteProp } from '@react-navigation/native';
 import type { RootStackParamList } from '@/types';
-import { toast } from 'sonner-native';
 
 type DailyChallengesProps = {
   navigation: any;
@@ -368,6 +367,19 @@ const DailyChallengesScreen = observer(({ navigation }: DailyChallengesProps) =>
     }
   };
   
+  const getFrequencyLabel = (freq?: string) => {
+    switch (freq) {
+      case 'd':
+        return 'Daily';
+      case 'w':
+        return 'Weekly';
+      case 'm':
+        return 'Monthly';
+      default:
+        return 'Daily';
+    }
+  };
+  
   // Animated styles
   const headerAnimatedStyle = useAnimatedStyle(() => ({
     height: headerHeight.value,
@@ -396,23 +408,14 @@ const DailyChallengesScreen = observer(({ navigation }: DailyChallengesProps) =>
       if (actionInProgress) return;
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       if (activeCategory === 'suggested') {
-        const success = await addSuggestedToPersonal(challenge.id);
-        if (success) {
-          toast.success('Challenge added to your list');
-        }
+        await addSuggestedToPersonal(challenge.id);
         return;
       }
 
       if (isJoined) {
-        const success = await leaveChallenge(challenge.id);
-        if (success) {
-          toast.success('Challenge left');
-        }
+        await leaveChallenge(challenge.id);
       } else {
-        const success = await joinChallenge(challenge.id);
-        if (success) {
-          toast.success('Challenge joined');
-        }
+        await joinChallenge(challenge.id);
       }
     };
 
@@ -507,7 +510,7 @@ const DailyChallengesScreen = observer(({ navigation }: DailyChallengesProps) =>
         {activeCategory === 'community' && (
           <View style={styles.compactInfoRow}>
             <Text style={styles.compactInfoText}>
-              {Math.max(0, Math.ceil((ms3days - (now.getTime() - createdAt.getTime()))/(24*60*60*1000)))}d window · {(challenge.upvotes||0)}/100 votes
+              {getFrequencyLabel(challenge.frequency)} {(challenge.upvotes||0)}/100 votes
             </Text>
           </View>
         )}
@@ -563,7 +566,6 @@ const DailyChallengesScreen = observer(({ navigation }: DailyChallengesProps) =>
     const success = await joinChallenge(challenge.id);
     if (success) {
       setSmartPickDismissed(true);
-      toast.success('Challenge joined. Let’s get started!');
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     }
   }, [joinChallenge]);

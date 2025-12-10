@@ -4,8 +4,7 @@ import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useTheme } from '@/contexts/ThemeContext';
 import { Theme } from '@/theme';
-import { useChallengeStore } from '@/stores/ChallengeStore';
-import { useMeditationStore } from '@/stores/StoreProvider';
+import { useChallengeStore } from '@/stores/StoreProvider';
 import { Challenge } from '@/types/challenges';
 import { RootStackParamList } from '@/types';
 import { Trophy, X, Check, Flame, Star, Sparkle } from '@/components/Icons';
@@ -20,7 +19,6 @@ const ChallengeCompletionBanner: React.FC<ChallengeCompletionBannerProps> = ({ o
   const theme = useTheme();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const store = useChallengeStore();
-  const { completeChallenge } = useMeditationStore();
   const styles = useMemo(() => createStyles(theme), [theme]);
 
   // Get uncompleted personal challenges - memoized for performance
@@ -122,7 +120,7 @@ const ChallengeCompletionBanner: React.FC<ChallengeCompletionBannerProps> = ({ o
 
     setIsCompleting(true);
     try {
-      await completeChallenge(selectedChallenge.id);
+      await store.completeChallenge(selectedChallenge.id, true);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
       // Check if there are more uncompleted challenges
@@ -134,7 +132,7 @@ const ChallengeCompletionBanner: React.FC<ChallengeCompletionBannerProps> = ({ o
       setIsCompleting(false);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     }
-  }, [selectedChallenge, isCompleting, completeChallenge, uncompletedChallenges]);
+  }, [selectedChallenge, isCompleting, store, uncompletedChallenges]);
 
   const handleDismiss = useCallback(() => {
     if (countdownInterval.current) {

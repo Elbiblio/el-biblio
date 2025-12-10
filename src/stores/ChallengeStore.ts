@@ -7,6 +7,7 @@ import { PaginatedResponse } from '@/types';
 import { engagementTracker } from '@/utils/engagementTracker';
 import { toast } from 'sonner-native';
 import { differenceInMinutes } from 'date-fns';
+import { cancelChallengeReminder } from '@/tasks/challengeReminderTask';
 
 export type ChallengeCategory = 'personal' | 'community' | 'suggested';
 
@@ -666,6 +667,7 @@ export class ChallengeStore {
       });
       
       await this.saveToStorage();
+      void cancelChallengeReminder(challengeId);
       toast.success('Successfully left the challenge');
       return this.getChallengeById(challengeId);
     } catch (error) {
@@ -788,6 +790,7 @@ export class ChallengeStore {
       });
 
       await this.saveToStorage();
+      void cancelChallengeReminder(challengeId);
       toast.success(`Challenge marked as completed`);
       // Mark challenge engagement for "What you missed" flow
       void engagementTracker.record('challenge');

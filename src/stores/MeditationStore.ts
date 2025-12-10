@@ -2,6 +2,7 @@ import { makeAutoObservable, runInAction, reaction } from 'mobx';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { apiClient } from '@/api/client';
 import { AuthStore } from './AuthStore';
+import { ChallengeStore } from './ChallengeStore';
 import { MeditationSession, Challenge, DailyChallenge, PaginatedResponse } from '@/types';
 import { engagementTracker } from '@/utils/engagementTracker';
 
@@ -86,6 +87,7 @@ export class MeditationStore {
   private hasInitialized = false;
   private disposeAuthReaction?: () => void;
   private authStore: AuthStore;
+  private challengeStore: ChallengeStore;
 
   private setLoading = (value: boolean) => {
     this.isLoading = value;
@@ -107,10 +109,11 @@ export class MeditationStore {
   private meditationInterval: number | null = null;
   private externalDriver: boolean = false;
   
-  constructor(authStore: AuthStore) {
+  constructor(authStore: AuthStore, challengeStore: ChallengeStore) {
     // Auto-bind ensures methods keep the correct `this` when passed around/destructured
     makeAutoObservable(this, {}, { autoBind: true });
     this.authStore = authStore;
+    this.challengeStore = challengeStore;
 
     // Wait for auth to be ready before initializing network calls
     this.disposeAuthReaction = reaction(
@@ -266,18 +269,16 @@ export class MeditationStore {
 
   async joinChallenge(challengeId: string) {
     try {
-      const response = await apiClient.post(`/challenges/${challengeId}/join`);
-      if (!response.success) {
-        throw new Error(response.message || 'Failed to join challenge');
+      const result = await this.challengeStore.joinChallenge(challengeId);
+      if (result) {
+        runInAction(() => {
+          if (!this.state.joinedChallenges.includes(challengeId)) {
+            this.state.joinedChallenges = [...this.state.joinedChallenges, challengeId];
+          }
+        });
+        return true;
       }
-      
-      runInAction(() => {
-        if (!this.state.joinedChallenges.includes(challengeId)) {
-          this.state.joinedChallenges = [...this.state.joinedChallenges, challengeId];
-        }
-      });
-      
-      return true;
+      return false;
     } catch (error) {
       console.error(`Error joining challenge ${challengeId}:`, error);
       this.setError('Failed to join challenge');
@@ -287,19 +288,7 @@ export class MeditationStore {
 
   async completeChallenge(challengeId: string) {
     try {
-      const response = await apiClient.post(`/challenges/${challengeId}/complete`);
-      if (!response.success) {
-        throw new Error(response.message || 'Failed to complete challenge');
-      }
-      
-      runInAction(() => {
-        this.state.challenges = this.state.challenges.map(challenge => 
-          challenge.id === challengeId 
-            ? { ...challenge, is_completed: true }
-            : challenge
-        );
-      });
-      
+      await this.challengeStore.completeChallenge(challengeId, true);
       return true;
     } catch (error) {
       console.error(`Error completing challenge ${challengeId}:`, error);

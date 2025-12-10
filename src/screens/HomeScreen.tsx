@@ -1385,7 +1385,6 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
     void (async () => {
       const success = await challengeStore.joinChallenge(challenge.id);
       if (success) {
-        toast.success('Challenge added to your day');
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         setSmartPickDismissed(true);
         navigation.navigate('DailyChallengeScreen');
