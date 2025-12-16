@@ -65,13 +65,16 @@ const GameScreen = () => {
     { icon: BookOpen, title: 'Verse Builder', subtitle: 'Assemble the verse', color: theme?.colors.primary, route: 'VerseBuilderScreen', bestKey: 'verse_builder' },
     { icon: Flame, title: 'Virtue Trivia', subtitle: 'Test your knowledge', color: theme?.colors.secondary, route: 'VirtueTriviaScreen', bestKey: 'virtue_trivia' },
     { icon: Lightning, title: 'Virtue Quiz', subtitle: 'Level up your virtue', color: theme?.colors.success, route: 'VirtueQuizScreen', bestKey: 'virtue_quiz' },
-    { icon: Brain, title: 'Spiritual Career', subtitle: 'Craft your plan', color: theme?.colors.warning || theme?.colors.primary, route: 'SpiritualCareerScreen', bestKey: 'sp_career' },
   ];
 
   const isStatsLoading = leaderboardStore.state.isUserStatsLoading || gameStore.state.isLoading;
   const totalPoints = leaderboardStore.userStats?.totalPoints ?? 0;
   const verseBuilderPoints = gameStore.getPersonalBest('verse_builder') || 0;
   const nextUnlock = getNextUnlock(totalPoints, verseBuilderPoints);
+  const visibleGameIds = tiles.map(t => t.bestKey);
+  const displayNextUnlock = nextUnlock && visibleGameIds.includes(nextUnlock.game.gameId)
+    ? nextUnlock
+    : null;
 
   const mostPlayedGame = useMemo(() => {
     const entries = Object.entries(gameStore.state.personalBests) as Array<[GameId, number]>;
@@ -173,12 +176,12 @@ const GameScreen = () => {
         })}
       </View>
 
-      {nextUnlock && (
+      {displayNextUnlock && (
         <View style={styles.unlockCard}>
           <Text style={styles.unlockTitle}>🎯 Next Unlock</Text>
-          <Text style={styles.unlockGame}>{nextUnlock.game.title}</Text>
+          <Text style={styles.unlockGame}>{displayNextUnlock.game.title}</Text>
           <Text style={styles.unlockProgress}>
-            {nextUnlock.pointsNeeded} more points needed
+            {displayNextUnlock.pointsNeeded} more points needed
           </Text>
         </View>
       )}

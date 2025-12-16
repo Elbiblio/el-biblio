@@ -271,8 +271,12 @@ const AppContent = () => {
         await initializeWelcomeState();
         await registerChallengeReminderTask();
 
-        // Initialize push notifications
-        await PushNotificationService.initialize();
+        // Initialize push notifications (get token, but don't register until user is authenticated)
+        PushNotificationService.initialize().catch((error) => {
+          if (__DEV__) {
+            console.warn('[App] Push notification initialization failed:', error);
+          }
+        });
 
         // Load mobile runtime config (e.g. WebSocket host/port/appKey) from backend
         await loadMobileConfig();
@@ -321,24 +325,57 @@ const AppContent = () => {
   }, [authStoreObj, preferencesStore]);
 
   useEffect(() => {
+    // Only proceed if auth is fully initialized AND user is authenticated
+    // This ensures we don't try to register before auth is ready
+    if (!authInitialized || !user?.id || !token) {
+      return;
+    }
+
+    let isMounted = true;
+
     const initializePushNotifications = async () => {
+      // Defensive check: ensure user is still authenticated
       if (!user?.id || !token) {
         return;
       }
 
       try {
-        await PushNotificationService.updateToken();
+        if (__DEV__) {
+          console.log('[App] Registering push notifications for authenticated user:', user.id);
+        }
+
+        // updateToken will ensure initialization completes before registering
+        const tokenUpdated = await PushNotificationService.updateToken(true);
+        if (!isMounted) return;
+
+        if (tokenUpdated) {
+          if (__DEV__) {
+            console.log('[App] Push token registered successfully');
+          }
+        } else {
+          if (__DEV__) {
+            console.warn('[App] Push token registration failed - will retry on next auth');
+          }
+        }
+
         await ReminderSyncService.syncAllLocalReminders(String(user.id));
+        if (!isMounted) return;
+
+        if (__DEV__) {
+          console.log('[App] Reminder preferences synced');
+        }
       } catch (error) {
         if (__DEV__) {
-          console.warn('[App] Failed to initialize push notifications for user:', error);
+          console.error('[App] Failed to initialize push notifications for user:', error);
         }
       }
     };
 
-    if (authInitialized && user?.id) {
-      initializePushNotifications();
-    }
+    initializePushNotifications();
+
+    return () => {
+      isMounted = false;
+    };
   }, [authInitialized, user?.id, token]);
 
   useEffect(() => {

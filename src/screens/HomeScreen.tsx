@@ -97,6 +97,7 @@ interface TimeTracking {
 const CARD_WIDTH = SCREEN_DIMENSIONS.width * 0.9;
 const QUICK_MENU_STORAGE_KEY = 'home_quick_menu_usage';
 const HOME_WELCOME_KEY = 'home_welcome_note_seen';
+const CAREER_SHORTCUT_STORAGE_KEY = 'career_discovery_shortcut_seen_v1';
 const WHAT_YOU_MISSED_LAST_PROMPT_KEY = 'what_you_missed_last_prompt_v1';
 const getUsageStage = (usage: QuickMenuUsage) => {
   if (usage.unlockedItems.includes('coreTools')) return 2;
@@ -204,6 +205,7 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
   const [showChallengeFeedback, setShowChallengeFeedback] = useState(false);
   const [challengeFeedbackText, setChallengeFeedbackText] = useState('');
   const [feedbackTargetId, setFeedbackTargetId] = useState<string | null>(null);
+  const [showCareerDiscoveryShortcut, setShowCareerDiscoveryShortcut] = useState(false);
 
   const meditationComplete = route.params?.meditationComplete || false;
   // const challenge = route.params?.challenge;
@@ -533,6 +535,64 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
             activeOpacity={0.85}
           >
             <Text style={styles.revivePrimaryText}>Manage reminders</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  };
+
+  const handleDismissCareerDiscoveryShortcut = useCallback(async () => {
+    try {
+      await AsyncStorage.setItem(CAREER_SHORTCUT_STORAGE_KEY, 'seen');
+    } catch (error) {
+      console.error('Error saving career shortcut state:', error);
+    }
+    setShowCareerDiscoveryShortcut(false);
+  }, []);
+
+  const handleOpenCareerDiscovery = useCallback(async () => {
+    try {
+      await AsyncStorage.setItem(CAREER_SHORTCUT_STORAGE_KEY, 'seen');
+    } catch (error) {
+      console.error('Error saving career shortcut state:', error);
+    }
+    setShowCareerDiscoveryShortcut(false);
+    navigation.navigate('CareerDiscoveryScreen');
+  }, [navigation]);
+
+  const renderCareerDiscoveryShortcut = () => {
+    if (!showCareerDiscoveryShortcut) {
+      return null;
+    }
+
+    return (
+      <View style={styles.careerShortcutCard}>
+        <View style={styles.careerShortcutHeader}>
+          <View style={styles.careerShortcutIconWrap}>
+            <Brain size={20} color={theme?.colors.primary} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.careerShortcutTitle}>Discover your spiritual career</Text>
+            <Text style={styles.careerShortcutSubtitle}>
+              Take a short guide to see how your gifts and work fit into the Kingdom story.
+            </Text>
+          </View>
+        </View>
+        <View style={styles.careerShortcutActions}>
+          <TouchableOpacity
+            style={styles.careerShortcutPrimary}
+            activeOpacity={0.85}
+            onPress={handleOpenCareerDiscovery}
+          >
+            <Text style={styles.careerShortcutPrimaryText}>Start Career Guide</Text>
+            <ChevronRight size={16} color={'#fff'} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.careerShortcutSecondary}
+            activeOpacity={0.75}
+            onPress={handleDismissCareerDiscoveryShortcut}
+          >
+            <Text style={styles.careerShortcutSecondaryText}>Maybe later</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -901,6 +961,21 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
 
     return hasMinimumBreak && withinActiveTimeLimit;
   };
+
+  useEffect(() => {
+    const loadCareerShortcutState = async () => {
+      try {
+        const seen = await AsyncStorage.getItem(CAREER_SHORTCUT_STORAGE_KEY);
+        if (!seen && timeTracking.totalActiveTime <= MAX_ACTIVE_TIME) {
+          setShowCareerDiscoveryShortcut(true);
+        }
+      } catch (error) {
+        console.error('Error loading career shortcut state:', error);
+      }
+    };
+
+    loadCareerShortcutState();
+  }, [timeTracking.totalActiveTime]);
 
   const checkWhatYouMissed = useCallback(async () => {
     try {
@@ -1810,6 +1885,7 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
         {renderDailyJourneyCard()}
         {renderHabitConquestCapsule()}
         {renderReviveReminderBanner()}
+        {renderCareerDiscoveryShortcut()}
         {renderQuickTools()}
         {/* {renderTalkToGodSection()} */}
         {renderDailyChallenges()}
@@ -2321,6 +2397,72 @@ const createStyles = (theme: Theme) => StyleSheet.create({
   reviveBannerButtons: {
     flexDirection: 'row',
     gap: theme?.spacing.sm,
+  },
+  careerShortcutCard: {
+    marginHorizontal: theme?.spacing.md,
+    marginBottom: theme?.spacing.lg,
+    padding: theme?.spacing.md,
+    borderRadius: theme?.borderRadius.xl,
+    backgroundColor: `${theme?.colors.primary}08`,
+    borderWidth: 1,
+    borderColor: `${theme?.colors.primary}24`,
+    gap: theme?.spacing.sm,
+  },
+  careerShortcutHeader: {
+    flexDirection: 'row',
+    gap: theme?.spacing.sm,
+    alignItems: 'flex-start',
+  },
+  careerShortcutIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: `${theme?.colors.primary}16`,
+  },
+  careerShortcutTitle: {
+    ...theme?.typography.body.sans,
+    color: theme?.colors.text.primary,
+    fontWeight: '700',
+    marginBottom: 2,
+  },
+  careerShortcutSubtitle: {
+    ...theme?.typography.caption.secondary,
+    color: theme?.colors.text.secondary,
+  },
+  careerShortcutActions: {
+    flexDirection: 'row',
+    marginTop: theme?.spacing.sm,
+    gap: theme?.spacing.sm,
+  },
+  careerShortcutPrimary: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: theme?.spacing.xs,
+    paddingVertical: theme?.spacing.sm,
+    borderRadius: theme?.borderRadius.lg,
+    backgroundColor: theme?.colors.primary,
+  },
+  careerShortcutPrimaryText: {
+    ...theme?.typography.button,
+    color: theme?.colors.text.inverse,
+    fontWeight: '600',
+  },
+  careerShortcutSecondary: {
+    paddingHorizontal: theme?.spacing.md,
+    paddingVertical: theme?.spacing.sm,
+    borderRadius: theme?.borderRadius.lg,
+    borderWidth: 1,
+    borderColor: theme?.colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  careerShortcutSecondaryText: {
+    ...theme?.typography.button,
+    color: theme?.colors.text.secondary,
   },
   smartPickWrapper: {
     marginTop: theme?.spacing.md,

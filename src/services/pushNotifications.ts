@@ -26,8 +26,8 @@ export class PushNotificationService {
   private static isInitialized = false;
 
   static async initialize(): Promise<boolean> {
-    if (this.isInitialized) {
-      return !!this.token;
+    if (this.isInitialized && this.token) {
+      return true;
     }
 
     try {
@@ -51,6 +51,7 @@ export class PushNotificationService {
         if (__DEV__) {
           console.warn('[PushNotifications] Failed to get push notification permissions');
         }
+        this.isInitialized = true;
         return false;
       }
 
@@ -66,26 +67,55 @@ export class PushNotificationService {
 
         const tokenData = await Notifications.getExpoPushTokenAsync(tokenOptions);
 
+        if (!tokenData?.data) {
+          if (__DEV__) {
+            console.error('[PushNotifications] No token data received from Expo');
+          }
+          this.isInitialized = true;
+          return false;
+        }
+
         this.token = tokenData.data;
         this.isInitialized = true;
 
         await this.ensureNotificationChannel();
-        await this.registerWithBackend(this.token);
+        
+        if (__DEV__) {
+          console.log('[PushNotifications] Token obtained successfully');
+        }
+        
         return true;
-      } catch (error) {
-        console.error('[PushNotifications] Error getting push token:', error);
+      } catch (error: any) {
+        this.isInitialized = true;
+        if (__DEV__) {
+          console.error('[PushNotifications] Error getting push token:', error?.message || error);
+        }
         return false;
       }
-    } catch (error) {
-      console.error('[PushNotifications] Initialization error:', error);
+    } catch (error: any) {
+      this.isInitialized = true;
+      if (__DEV__) {
+        console.error('[PushNotifications] Initialization error:', error?.message || error);
+      }
       return false;
     }
   }
 
-  static async registerWithBackend(token: string): Promise<boolean> {
+  static async registerWithBackend(token: string, force: boolean = false): Promise<boolean> {
+    if (!token) {
+      if (__DEV__) {
+        console.warn('[PushNotifications] Cannot register: no token available');
+      }
+      return false;
+    }
+
     try {
       const registeredToken = await AsyncStorage.getItem(TOKEN_STORAGE_KEY);
-      if (registeredToken === token) {
+      
+      if (!force && registeredToken === token) {
+        if (__DEV__) {
+          console.log('[PushNotifications] Token already registered locally, skipping backend call');
+        }
         return true;
       }
 
@@ -97,13 +127,41 @@ export class PushNotificationService {
         device_id: deviceId,
       };
 
-      await apiClient.post(endpoints.notifications.registerDevice, payload);
-
-      await AsyncStorage.setItem(TOKEN_STORAGE_KEY, token);
-      if (__DEV__) {
-        console.log('[PushNotifications] Push token registered successfully');
+      try {
+        const response = await apiClient.post(endpoints.notifications.registerDevice, payload);
+        
+        if (response.success) {
+          await AsyncStorage.setItem(TOKEN_STORAGE_KEY, token);
+          if (__DEV__) {
+            console.log('[PushNotifications] Push token registered successfully with backend');
+          }
+          return true;
+        } else {
+          if (__DEV__) {
+            console.warn('[PushNotifications] Backend registration returned unsuccessful:', response.message);
+          }
+          return false;
+        }
+      } catch (apiError: any) {
+        const status = apiError?.response?.status;
+        
+        if (status === 401 || status === 403) {
+          if (__DEV__) {
+            console.warn('[PushNotifications] Not authenticated (401/403), will retry when user logs in');
+          }
+          return false;
+        }
+        
+        if (__DEV__) {
+          console.error('[PushNotifications] API error details:', {
+            status,
+            message: apiError?.response?.data?.message || apiError?.message,
+            url: apiError?.config?.url,
+          });
+        }
+        
+        return false;
       }
-      return true;
     } catch (error) {
       console.error('[PushNotifications] Failed to register push token:', error);
       return false;
@@ -124,12 +182,15 @@ export class PushNotificationService {
     }
   }
 
-  static async updateToken(): Promise<boolean> {
-    if (this.token) {
-      return await this.registerWithBackend(this.token);
-    } else {
-      return await this.initialize();
+  static async updateToken(force: boolean = false): Promise<boolean> {
+    if (!this.isInitialized || !this.token) {
+      const initialized = await this.initialize();
+      if (!initialized || !this.token) {
+        return false;
+      }
     }
+    
+    return await this.registerWithBackend(this.token, force);
   }
 
   static getCurrentToken(): string | null {

@@ -255,15 +255,15 @@ const ChallengeCompletionBanner: React.FC<ChallengeCompletionBannerProps> = ({ o
                   <View style={styles.countdownDisplay}>
                     <Text allowFontScaling={false} style={styles.countdownNumber}>{countdown}</Text>
                     <Text allowFontScaling={false} style={styles.countdownUnit}>sec</Text>
+                    <Animated.View
+                      style={[
+                        styles.sparkleEffect,
+                        { opacity: sparkleAnim }
+                      ]}
+                    >
+                      <Sparkle size={24} color={theme?.colors.primary} />
+                    </Animated.View>
                   </View>
-                  <Animated.View
-                    style={[
-                      styles.sparkleEffect,
-                      { opacity: sparkleAnim }
-                    ]}
-                  >
-                    <Sparkle size={24} color={theme?.colors.primary} />
-                  </Animated.View>
                 </View>
               ) : (
                 <View style={styles.readyContainer}>
@@ -554,9 +554,7 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     textAlignVertical: 'bottom',
   },
   sparkleEffect: {
-    position: 'absolute',
-    top: -10,
-    right: -10,
+    marginLeft: theme?.spacing.sm,
   },
   readyContainer: {
     alignItems: 'center',
