@@ -110,7 +110,7 @@ export class GameStore {
           await apiClient.post('/game/scores', {
             game_id: score.gameId,
             score: score.score,
-            submitted_at: score.submittedAt,
+            timestamp: score.submittedAt,
             meta: score.meta,
           });
         } catch (error) {

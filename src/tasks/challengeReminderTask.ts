@@ -2,10 +2,12 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
 import * as BackgroundTask from 'expo-background-task';
 import * as TaskManager from 'expo-task-manager';
+import { Platform } from 'react-native';
 
 export const TASK_NAME = 'challenge-reminder-task';
 export const CHALLENGE_REMINDER_PREFIX = 'challenge_reminder_';
 export const CHALLENGE_REMINDER_INDEX_KEY = 'challenge_reminder_index';
+export const CHALLENGE_REMINDER_CHANNEL_ID = 'challenge-reminders';
 
 type StoredReminder = {
   challengeId: string;
@@ -17,80 +19,21 @@ type StoredReminder = {
   lastReminderSentAt?: string;
 };
 
-const defineTaskOnce = () => {
-  const alreadyDefined = typeof TaskManager.isTaskDefined === 'function'
-    ? TaskManager.isTaskDefined(TASK_NAME)
-    : false;
-
-  if (alreadyDefined) {
+export const ensureChallengeReminderChannel = async () => {
+  if (Platform.OS !== 'android') {
     return;
   }
-
-  TaskManager.defineTask(TASK_NAME, async () => {
-    try {
-      const reminderKeys = await getReminderIndex();
-      if (!reminderKeys.length) {
-        return BackgroundTask.BackgroundTaskResult.Success;
-      }
-
-      const now = Date.now();
-      for (const reminderKey of reminderKeys) {
-        try {
-          const storedReminder = await AsyncStorage.getItem(reminderKey);
-          if (!storedReminder) {
-            continue;
-          }
-
-          const reminder: StoredReminder = JSON.parse(storedReminder);
-          if (!reminder?.nextReminderDue) {
-            continue;
-          }
-
-          const nextDue = Date.parse(reminder.nextReminderDue);
-          if (Number.isNaN(nextDue)) {
-            continue;
-          }
-
-          if (now < nextDue) {
-            continue;
-          }
-
-          const title = reminder.challengeTitle || 'Challenge check-in';
-          const body = `Hey friend! "${reminder.challengeTitle || 'Your challenge'}" is waiting for you.`;
-
-          await Notifications.scheduleNotificationAsync({
-            content: {
-              title,
-              body,
-              sound: true,
-              priority: Notifications.AndroidNotificationPriority.HIGH,
-            },
-            trigger: null,
-          });
-
-          const hours = reminder.reminderHours || 1;
-          const updatedDue = new Date(now + hours * 60 * 60 * 1000).toISOString();
-          const updated: StoredReminder = {
-            ...reminder,
-            nextReminderDue: updatedDue,
-            lastReminderSentAt: new Date(now).toISOString(),
-          };
-
-          await storeReminderPayload(reminderKey, updated);
-        } catch (innerError) {
-          console.error('[ChallengeReminderTask] Failed to process reminder', reminderKey, innerError);
-        }
-      }
-
-      return BackgroundTask.BackgroundTaskResult.Success;
-    } catch (error) {
-      console.error('[ChallengeReminderTask] Background task error', error);
-      return BackgroundTask.BackgroundTaskResult.Failed;
-    }
-  });
+  try {
+    await Notifications.setNotificationChannelAsync(CHALLENGE_REMINDER_CHANNEL_ID, {
+      name: 'Challenge reminders',
+      importance: Notifications.AndroidImportance.HIGH,
+      sound: 'default',
+      enableVibrate: true,
+    });
+  } catch (error) {
+    console.warn('[ChallengeReminderTask] Failed to configure challenge reminder channel', error);
+  }
 };
-
-defineTaskOnce();
 
 export const getReminderStorageKey = (challengeId: string) => `${CHALLENGE_REMINDER_PREFIX}${challengeId}`;
 
@@ -240,24 +183,10 @@ export const cancelChallengeReminder = async (challengeId: string) => {
 
 export const registerChallengeReminderTask = async () => {
   try {
-    const status = await BackgroundTask.getStatusAsync();
-
-    if (status !== BackgroundTask.BackgroundTaskStatus.Available) {
-      if (status === BackgroundTask.BackgroundTaskStatus.Restricted) {
-        console.warn('[ChallengeReminderTask] Background tasks restricted on this device');
-      } else {
-        console.warn('[ChallengeReminderTask] Background task status', status);
-      }
-      return false;
-    }
-
     const isRegistered = await TaskManager.isTaskRegisteredAsync(TASK_NAME);
-    if (!isRegistered) {
-      await BackgroundTask.registerTaskAsync(TASK_NAME, {
-        minimumInterval: 15 * 60,
-      });
+    if (isRegistered) {
+      await BackgroundTask.unregisterTaskAsync(TASK_NAME);
     }
-
     return true;
   } catch (error) {
     console.error('[ChallengeReminderTask] Failed to register task', error);

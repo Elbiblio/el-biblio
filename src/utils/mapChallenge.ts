@@ -3,10 +3,13 @@ import { BackendChallenge, BackendParticipant } from '@/types/challenges';
 import { User } from '@/types';
 
 export const mapChallenge = (b: BackendChallenge): Challenge => {
+  const anyB = b as any;
+  const challengeId = anyB?.challenge_id ?? anyB?.id;
+
   return {
-    id: String(b.id),
-    title: b.title,
-    description: b.description,
+    id: String(challengeId),
+    title: anyB?.title,
+    description: anyB?.description,
     type: (b.type as any) || 'virtue',
     category: (b.category as any) || 'personal',
     progress: typeof b.progress === 'number' ? b.progress : undefined,
@@ -15,7 +18,7 @@ export const mapChallenge = (b: BackendChallenge): Challenge => {
     expiresAt: b.expires_at || b.end_date || '',
     startDate: b.start_date,
     isCompleted: !!b.is_completed,
-    userId: b.user_id !== undefined ? String(b.user_id) : '',
+    userId: b.user_id !== undefined ? String(b.user_id) : (anyB?.user_id ? String(anyB.user_id) : ''),
 
     // New fields
     frequency: b.frequency,
@@ -23,10 +26,14 @@ export const mapChallenge = (b: BackendChallenge): Challenge => {
     points: typeof b.effective_points === 'number' ? b.effective_points : undefined,
     finalPoints: typeof b.final_points === 'number' ? b.final_points : undefined,
 
-    participants: typeof b.participants_count === 'number' ? b.participants_count : undefined,
+    participants: typeof anyB.participants_count === 'number'
+      ? anyB.participants_count
+      : (typeof anyB.participants === 'number' ? anyB.participants : undefined),
     hasJoined: typeof b.is_joined === 'boolean' ? b.is_joined : undefined,
 
-    upvotes: typeof b.upvotes_count === 'number' ? b.upvotes_count : undefined,
+    upvotes: typeof anyB.upvotes_count === 'number'
+      ? anyB.upvotes_count
+      : (typeof anyB.upvotes === 'number' ? anyB.upvotes : undefined),
     hasUpvoted: typeof b.has_upvoted === 'boolean' ? b.has_upvoted : undefined,
     isFeatured: typeof b.is_featured === 'boolean' ? b.is_featured : undefined,
 

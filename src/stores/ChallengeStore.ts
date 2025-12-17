@@ -209,26 +209,6 @@ export class ChallengeStore {
     return bestMatch;
   }
 
-  // Initialization
-  private async initialize() {
-    try {
-      this.setLoading(true);
-      const results = await Promise.allSettled([
-        this.fetchPersonalChallenges(),
-        this.fetchCommunityChallenges(),
-        this.fetchSuggestedChallenges(),
-      ]);
-      if (results.every(r => r.status === 'rejected')) {
-        this.setError('Failed to initialize challenge data');
-      }
-    } catch (error) {
-      console.error('Error initializing challenge store:', error);
-      this.setError('Failed to initialize challenge data');
-    } finally {
-      this.setLoading(false);
-    }
-  }
-
   async submitCompletionFeedback(challengeId: string, comment: string) {
     try {
       if (!comment?.trim()) return false;
@@ -813,23 +793,11 @@ export class ChallengeStore {
         throw new Error('Challenge not found');
       }
       
-      // Create a personal copy of the challenge
-      const personalChallenge = await this.createChallenge({
-        title: challenge.title,
-        description: challenge.description,
-        type: challenge.type,
-        category: 'personal',
-        endTime: challenge.endTime,
-        isPublic: false,
-      });
-      
-      // Remove from suggested challenges
-      runInAction(() => {
-        this.state.suggestedChallenges = this.state.suggestedChallenges.filter(c => c.id !== challengeId);
-      });
+      // Join the existing suggested challenge instead of creating a duplicate
+      const joinedChallenge = await this.joinChallenge(challengeId);
       
       await this.saveToStorage();
-      return personalChallenge;
+      return joinedChallenge;
     } catch (error) {
       console.error(`Error adding suggested challenge ${challengeId} to personal:`, error);
       this.setError('Failed to add challenge to personal');

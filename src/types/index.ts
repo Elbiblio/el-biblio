@@ -231,9 +231,11 @@ export interface WordHub {
   description: string;
   creator_id: number;
   is_private: boolean;
-  access_code: string;
+  access_code?: string | null;
   min_points?: number | null;
-  expires_at: string;
+  expires_at?: string | null;
+  member_count?: number;
+  message_count?: number;
   creator?: User;
   bookmarks?: Bookmark[];
   messages?: WordHubMessage[];

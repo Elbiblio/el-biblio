@@ -6,7 +6,6 @@ import {
   Text,
   TouchableOpacity,
   StyleSheet,
-  TextInput,
   FlatList,
   Modal,
   Alert,
@@ -26,14 +25,11 @@ import {
   GestureResponderEvent,
   PanResponderGestureState,
 } from 'react-native';
-import { BlurView } from 'expo-blur';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useNavigation, NavigationProp, RouteProp, useFocusEffect } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTheme } from '@/contexts/ThemeContext';
 import { Theme } from '@/theme';
-import BiblePicker from '@/components/BiblePicker';
-import BookSelector from '@/components/BookSelector';
 import HistoryModal, { HistoryModalEntry } from '@/components/HistoryModal';
 import FontSizeModal from '@/components/FontSizeModal';
 import VerseActionsSheet from '@/components/VerseActionsSheet';
@@ -41,7 +37,6 @@ import BibleDBService from '@/utils/database';
 import VerseComparisonModal from '@/components/VerseComparisonModal';
 import ReadingPlanSetupModal from '@/components/ReadingPlanSetupModal';
 import ReminderTimePicker from '@/components/ReminderTimePicker';
-import ReadingTimer from '@/components/ReadingTimer';
 import PlanSegmentChip from '@/components/PlanSegmentChip';
 import OverlayHost from '@/components/OverlayHost';
 import { Book, BibleVersion, BibleVerse } from '@/types';
@@ -64,76 +59,31 @@ import MeditationVerse from '@/components/MeditationVerse';
 import { appTimerStore } from '@/stores/AppTimerStore';
 import { useKeepAwake } from 'expo-keep-awake';
 
-const getLocalMidnightMs = (date: Date) => {
-  const d = new Date(date);
-  d.setHours(0, 0, 0, 0);
-  return d.getTime();
-};
+// Modular components
+import {
+  ScopedViewState,
+  TestamentFilter,
+  CreatePlanParams,
+  getLocalMidnightMs,
+  makeVerseKey,
+  parseVerseAddress,
+  makeSegmentRangeToken,
+  isNewTestamentAbbr,
+  TESTAMENT_FILTER_KEY,
+  formatSegmentLabel,
+  formatTime,
+  BibleHeader,
+  VerseItem,
+  SearchModal,
+  VersionsModal,
+  ScopedViewModal,
+  TimerModal,
+  AIInsightsModal,
+  AdvancedActionsModal,
+  createBibleStyles,
+} from './bible';
 
-const makeVerseKey = (chapter: number | string | null | undefined, verse: number | string | null | undefined) =>
-  `${chapter ?? ''}:${verse ?? ''}`;
-
-const parseVerseAddress = (verse: BibleVerse, fallbackChapter?: number) => {
-  try {
-    const { chapter, verse: verseNumber } = parseVPLId(verse.id);
-    return { chapter, verse: verseNumber };
-  } catch {
-    const ref = verse.reference ?? '';
-    const refMatch = ref.match(/(\d+):(\d+)/);
-    const chapter = refMatch ? Number(refMatch[1]) : fallbackChapter ?? NaN;
-    const verseNumber = refMatch ? Number(refMatch[2]) : NaN;
-    return { chapter, verse: verseNumber };
-  }
-};
-
-const makeSegmentRangeToken = (segment?: { chapterStart?: number | null; chapterEnd?: number | null; verseStart?: number | null; verseEnd?: number | null } | null) => {
-  if (!segment) return '';
-  const startChapter = segment.chapterStart ?? '';
-  const endChapter = segment.chapterEnd ?? segment.chapterStart ?? '';
-  const startVerse = segment.verseStart ?? '';
-  const endVerse = segment.verseEnd ?? '';
-  return `${startChapter}:${startVerse}-${endChapter}:${endVerse}`;
-};
-
-const NEW_TESTAMENT_ABBREVIATIONS = new Set([
-  'MAT',
-  'MRK',
-  'LUK',
-  'JHN',
-  'ACT',
-  'ROM',
-  '1CO',
-  '2CO',
-  'GAL',
-  'EPH',
-  'PHP',
-  'COL',
-  '1TH',
-  '2TH',
-  '1TI',
-  '2TI',
-  'TIT',
-  'PHM',
-  'HEB',
-  'JAS',
-  '1PE',
-  '2PE',
-  '1JN',
-  '2JN',
-  '3JN',
-  'JUD',
-  'REV',
-]);
-
-const TESTAMENT_FILTER_KEY = 'bible_testament_filter';
-
-const isNewTestamentAbbr = (abbreviation: string) => NEW_TESTAMENT_ABBREVIATIONS.has(abbreviation.toUpperCase());
-
-type ScopedViewState = {
-  title?: string | null;
-  subtitle?: string | null;
-  verses: ScopedVerseParam[];
-};
+// Utility functions and types are now imported from ./bible
 
 interface BibleScreenProps {
   route?: RouteProp<RootStackParamList, 'BibleScreen'>;
@@ -142,7 +92,7 @@ interface BibleScreenProps {
 const BibleScreen = ({ route }: BibleScreenProps) => {
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
   const theme = useTheme();
-  const styles = useMemo(() => createStyles(theme), [theme]);
+  const styles = useMemo(() => createBibleStyles(theme), [theme]);
   const isAdvancingSegmentRef = useRef(false);
   const verseListRef = useRef<FlatList<BibleVerse>>(null);
   const pendingScrollVerseRef = useRef<number | null>(null);
@@ -193,7 +143,7 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
             setTestamentFilter(stored as 'all' | 'ot' | 'nt');
           }
         }
-      } catch {}
+      } catch { }
     })();
     return () => {
       cancelled = true;
@@ -201,7 +151,7 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
   }, []);
 
   useEffect(() => {
-    AsyncStorage.setItem(TESTAMENT_FILTER_KEY, testamentFilter).catch(() => {});
+    AsyncStorage.setItem(TESTAMENT_FILTER_KEY, testamentFilter).catch(() => { });
   }, [testamentFilter]);
 
 
@@ -230,14 +180,14 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
   // Use exclusive audio only while Bible screen is focused
   useFocusEffect(
     React.useCallback(() => {
-      setExclusiveAudioMode().catch(() => {});
+      setExclusiveAudioMode().catch(() => { });
       return () => {
-        setMixingAudioMode().catch(() => {});
+        setMixingAudioMode().catch(() => { });
       };
     }, [])
   );
 
-  
+
 
   const resetIdleTimer = useCallback(() => {
     if (idleTimerRef.current) {
@@ -286,10 +236,12 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
     [phasesForToday]
   );
 
-const planRemainingSeconds = useMemo(() => {
-  const timerId = bibleStore.getTodayTimerIdPublic();
-  return timerId ? appTimerStore.totalRemaining(timerId) : null;
-}, [bibleStore]);
+  const planRemainingSeconds = useMemo(() => {
+    const timerId = bibleStore.getTodayTimerIdPublic();
+    // Access appTimerStore.timers to ensure reactivity when timer state changes
+    const _timers = appTimerStore.timers;
+    return timerId ? appTimerStore.totalRemaining(timerId) : null;
+  }, [bibleStore, appTimerStore.timers]);
 
   // Auto-hide header on scroll
   const scrollY = useRef(new Animated.Value(0)).current;
@@ -329,7 +281,7 @@ const planRemainingSeconds = useMemo(() => {
   useEffect(() => {
     try {
       (navigation as any).setOptions?.({ gestureEnabled: !atEnd });
-    } catch {}
+    } catch { }
   }, [atEnd, navigation]);
 
   useEffect(() => {
@@ -381,8 +333,8 @@ const planRemainingSeconds = useMemo(() => {
       const session = bibleStore.dailySession;
       // Only auto-open timer if session exists and has progress or active phases
       if (session && !session.completed) {
-        const hasProgress = session.phases.some(p => p.elapsedSeconds > 0) || 
-                           (session.secondsRemainingInPhase < ((phasesForToday[session.currentPhaseIndex]?.minutes ?? 0) * 60));
+        const hasProgress = session.phases.some(p => p.elapsedSeconds > 0) ||
+          (session.secondsRemainingInPhase < ((phasesForToday[session.currentPhaseIndex]?.minutes ?? 0) * 60));
         // Don't auto-open if user was in meditation/contemplation and minimized
         setShowTimerModal(hasProgress && session.currentPhaseIndex === 0);
       }
@@ -404,7 +356,7 @@ const planRemainingSeconds = useMemo(() => {
       }
       try {
         await BibleDBService.initialize?.();
-      } catch {}
+      } catch { }
       const verses: Array<{ text: string; reference: string }> = [];
       const start = Math.max(1, seg.chapterStart);
       const end = Math.max(start, seg.chapterEnd ?? seg.chapterStart);
@@ -449,11 +401,11 @@ const planRemainingSeconds = useMemo(() => {
           if (joined && joined.trim().length) {
             setInsightByKey(prev => ({ ...prev, [key]: joined.trim() }));
           }
-        } catch {}
+        } catch { }
       }
     };
     void run();
-  }, [showMeditationMode, bibleStore.dailySession?.pausedMeditationVerses?.length, phasesForToday, appTimerStore.now]);
+  }, [showMeditationMode, bibleStore.dailySession?.pausedMeditationVerses?.length, phasesForToday, tv?.currentPhaseIndex]);
 
   useEffect(() => {
     if (!totalPlanSeconds || planRemainingSeconds == null) {
@@ -515,7 +467,7 @@ const planRemainingSeconds = useMemo(() => {
               t.completed
             );
           }
-        } catch {}
+        } catch { }
       }
     }
   }, [bibleStore.isPlanMode, phasesForToday, appTimerStore.now, showTimerModal, showMeditationMode]);
@@ -567,7 +519,7 @@ const planRemainingSeconds = useMemo(() => {
     // Immediately collapse compact UI for the day
     setShowFloatingProgress(false);
     setShowCompactPlan(false);
-    try { dailyPathStore.markStepComplete('knowledge'); } catch {}
+    try { dailyPathStore.markStepComplete('knowledge'); } catch { }
   }, [bibleStore]);
 
   // React to timer completion from AppTimerStore
@@ -580,24 +532,24 @@ const planRemainingSeconds = useMemo(() => {
   }, [tv?.completed, bibleStore.isPlanMode, bibleStore.dailySession?.completed, handleAllPhasesComplete]);
 
   const completeCurrentPhase = useCallback(async () => {
-  const timerId = bibleStore.getTodayTimerIdPublic();
-  if (!timerId) return;
-  
-  const timer = appTimerStore.get(timerId);
-  if (!timer) return;
-  
-  const phase = phasesForToday[timer.currentPhaseIndex];
-  if (phase) {
-    try {
-      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    } catch {}
-    
-    // Fire-and-forget chime
-    void handlePhaseComplete(phase, timer.elapsedInCurrentPhase);
-  }
-  
-  appTimerStore.advancePhase(timerId);
-}, [phasesForToday, handlePhaseComplete, bibleStore]);
+    const timerId = bibleStore.getTodayTimerIdPublic();
+    if (!timerId) return;
+
+    const timer = appTimerStore.get(timerId);
+    if (!timer) return;
+
+    const phase = phasesForToday[timer.currentPhaseIndex];
+    if (phase) {
+      try {
+        await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      } catch { }
+
+      // Fire-and-forget chime
+      void handlePhaseComplete(phase, timer.elapsedInCurrentPhase);
+    }
+
+    appTimerStore.advancePhase(timerId);
+  }, [phasesForToday, handlePhaseComplete, bibleStore]);
 
   // Pause timer when app goes to background
   useEffect(() => {
@@ -656,22 +608,22 @@ const planRemainingSeconds = useMemo(() => {
     }
   }, [bibleStore]);
 
-const handleCompleteSegment = useCallback(async () => {
-  try {
-    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-  } catch {}
+  const handleCompleteSegment = useCallback(async () => {
+    try {
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    } catch { }
 
-  const timerId = bibleStore.getTodayTimerIdPublic();
-  const timer = timerId ? appTimerStore.get(timerId) : null;
-  
-  if (phasesForToday.length > 0 && timer && !timer.completed) {
-    setShowTimerModal(true);
-    void completeCurrentPhase();
-    return;
-  }
+    const timerId = bibleStore.getTodayTimerIdPublic();
+    const timer = timerId ? appTimerStore.get(timerId) : null;
 
-  await advanceToNextSegment();
-}, [phasesForToday.length, completeCurrentPhase, advanceToNextSegment, bibleStore]);
+    if (phasesForToday.length > 0 && timer && !timer.completed) {
+      setShowTimerModal(true);
+      void completeCurrentPhase();
+      return;
+    }
+
+    await advanceToNextSegment();
+  }, [phasesForToday.length, completeCurrentPhase, advanceToNextSegment, bibleStore]);
 
 
   const goToNextChapterWithinSegment = useCallback(async () => {
@@ -684,7 +636,7 @@ const handleCompleteSegment = useCallback(async () => {
   }, [bibleStore]);
 
   const handleRightSwipeToNext = useCallback(async () => {
-    try { await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+    try { await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch { }
     if (bibleStore.isPlanMode) {
       const seg = bibleStore.activeReadingSegment;
       const cur = bibleStore.currentChapter || 1;
@@ -714,7 +666,7 @@ const handleCompleteSegment = useCallback(async () => {
         }
       },
       onPanResponderTerminationRequest: () => true,
-      onPanResponderTerminate: () => {},
+      onPanResponderTerminate: () => { },
     })
   ).current;
 
@@ -724,7 +676,7 @@ const handleCompleteSegment = useCallback(async () => {
     if (openPlan && !bibleStore.readingPlan) {
       setIsPlanSetupVisible(true);
       // clear the flag to prevent reopening on re-render
-      try { (navigation as any).setParams?.({ openPlanSetup: undefined }); } catch {}
+      try { (navigation as any).setParams?.({ openPlanSetup: undefined }); } catch { }
     }
 
     console.log('[BibleScreen] route params changed', routeParams);
@@ -813,7 +765,7 @@ const handleCompleteSegment = useCallback(async () => {
 
   const routeVerseParam = routeParams?.verse;
 
-  
+
 
   useEffect(() => {
     if (!bibleStore.readingPlan) {
@@ -1183,90 +1135,90 @@ const handleCompleteSegment = useCallback(async () => {
     return bibleStore.verses.find(v => v.id === bibleStore.selectedVerseId) ?? null;
   }, [bibleStore.selectedVerseId, bibleStore.verses]);
 
-const handleEnterPlanMode = useCallback(async () => {
-  if (!bibleStore.readingPlan) {
-    return;
-  }
-  
-  await bibleStore.ensureDailySessionPrepared();
-  
-  if (bibleStore.isPlanMode) {
-    void bibleStore.focusPlanSegment();
-    setShowCompactPlan(true);
-    
-    if (bibleStore.dailySession?.completed) {
-      toast.success('All done for today — great job!');
+  const handleEnterPlanMode = useCallback(async () => {
+    if (!bibleStore.readingPlan) {
       return;
     }
-    
+
+    await bibleStore.ensureDailySessionPrepared();
+
+    if (bibleStore.isPlanMode) {
+      void bibleStore.focusPlanSegment();
+      setShowCompactPlan(true);
+
+      if (bibleStore.dailySession?.completed) {
+        toast.success('All done for today — great job!');
+        return;
+      }
+
+      const timerId = bibleStore.getTodayTimerIdPublic();
+      if (!timerId) return;
+
+      const timer = appTimerStore.get(timerId);
+      if (!timer) return;
+
+      const phase = phasesForToday[timer.currentPhaseIndex];
+
+      if (phase && phase.id !== 'reading') {
+        appTimerStore.resume(timer.id);
+        setShowMeditationMode(true);
+      } else {
+        setShowTimerModal(true);
+
+        // Play start chime
+        try {
+          const { sound } = await Audio.Sound.createAsync(
+            require('../../assets/sounds/bell.wav')
+          );
+          await sound.playAsync();
+          sound.setOnPlaybackStatusUpdate(status => {
+            if (status.isLoaded && status.didJustFinish) {
+              sound.unloadAsync();
+            }
+          });
+        } catch (error) {
+          console.warn('Could not play start chime', error);
+        }
+      }
+      return;
+    }
+
+    bibleStore.enablePlanMode();
+    await bibleStore.focusPlanSegment();
+    setShowCompactPlan(true);
+
+    await bibleStore.ensureDailySessionPrepared();
+
     const timerId = bibleStore.getTodayTimerIdPublic();
     if (!timerId) return;
-    
+
     const timer = appTimerStore.get(timerId);
     if (!timer) return;
-    
+
     const phase = phasesForToday[timer.currentPhaseIndex];
-    
+
     if (phase && phase.id !== 'reading') {
       appTimerStore.resume(timer.id);
       setShowMeditationMode(true);
     } else {
       setShowTimerModal(true);
-      
-      // Play start chime
-      try {
-        const { sound } = await Audio.Sound.createAsync(
-          require('../../assets/sounds/bell.wav')
-        );
-        await sound.playAsync();
-        sound.setOnPlaybackStatusUpdate(status => {
-          if (status.isLoaded && status.didJustFinish) {
-            sound.unloadAsync();
-          }
-        });
-      } catch (error) {
-        console.warn('Could not play start chime', error);
-      }
     }
-    return;
-  }
-  
-  bibleStore.enablePlanMode();
-  await bibleStore.focusPlanSegment();
-  setShowCompactPlan(true);
-  
-  await bibleStore.ensureDailySessionPrepared();
-  
-  const timerId = bibleStore.getTodayTimerIdPublic();
-  if (!timerId) return;
-  
-  const timer = appTimerStore.get(timerId);
-  if (!timer) return;
-  
-  const phase = phasesForToday[timer.currentPhaseIndex];
-  
-  if (phase && phase.id !== 'reading') {
-    appTimerStore.resume(timer.id);
-    setShowMeditationMode(true);
-  } else {
-    setShowTimerModal(true);
-  }
-  
-  // Play start chime
-  try {
-    const { sound } = await Audio.Sound.createAsync(
-      require('../../assets/sounds/bell.wav')
-    );
-    await sound.playAsync();
-    sound.setOnPlaybackStatusUpdate(status => {
-      if (status.isLoaded && status.didJustFinish) {
-        sound.unloadAsync();
-      }
-    });
-  } catch (error) {
-    console.warn('Could not play start chime', error);
-  }
-}, [bibleStore, phasesForToday]);
+
+    // Play start chime
+    try {
+      const { sound } = await Audio.Sound.createAsync(
+        require('../../assets/sounds/bell.wav')
+      );
+      await sound.playAsync();
+      sound.setOnPlaybackStatusUpdate(status => {
+        if (status.isLoaded && status.didJustFinish) {
+          sound.unloadAsync();
+        }
+      });
+    } catch (error) {
+      console.warn('Could not play start chime', error);
+    }
+  }, [bibleStore, phasesForToday]);
 
   const handleExitPlanMode = useCallback(() => {
     const cleanup = () => {
@@ -1334,13 +1286,13 @@ const handleEnterPlanMode = useCallback(async () => {
         maxChaptersPerDay,
         readingPaceWpm,
       });
-      
+
       setBuilderReminder(reminderTime?.trim?.() ?? reminderTime ?? '');
       setIsPlanSetupVisible(false);
-      
+
       setShowCompactPlan(true);
       toast.success('Bible Studio plan ready');
-      
+
       // Sync with journey store
       journeyStore.setBiblePlan({
         id: bibleStore.readingPlan?.id ?? '',
@@ -1377,24 +1329,6 @@ const handleEnterPlanMode = useCallback(async () => {
       console.error('Failed to update reminder', error);
       toast.error('Unable to update reminder.');
     }
-  }, [bibleStore, builderReminder, journeyStore]);
-
-  const handleClearPlan = useCallback(async () => {
-    const ok = await new Promise<boolean>(resolve => {
-      Alert.alert(
-        'Clear plan',
-        'This will remove your current reading plan. Continue?',
-        [
-          { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
-          { text: 'OK', style: 'destructive', onPress: () => resolve(true) },
-        ],
-        { cancelable: true }
-      );
-    });
-    if (!ok) return;
-    await bibleStore.clearReadingPlan();
-    toast.success('Reading plan cleared');
-    journeyStore.setBiblePlan(null);
   }, [bibleStore, builderReminder, journeyStore]);
 
   const handleToggleSegment = useCallback(async (segmentId: string) => {
@@ -1464,42 +1398,42 @@ const handleEnterPlanMode = useCallback(async () => {
                     {currentSegment ? formatSegmentLabel(currentSegment) : 'Next segment'}
                   </Text>
                   {bibleStore.isPlanMode && (() => {
-  const timerId = bibleStore.getTodayTimerIdPublic();
-  const remaining = timerId ? appTimerStore.totalRemaining(timerId) : null;
-  return (
-    <Text style={styles.planReminderHint}>
-      {remaining != null
-        ? `Time remaining: ${Math.floor(Math.max(0, remaining) / 60)}:${String(Math.max(0, remaining) % 60).padStart(2, '0')}`
-        : `Planned: ${phasesForToday.reduce((m, p) => m + p.minutes, 0)} min`}
-    </Text>
-  );
-})()}
+                    const timerId = bibleStore.getTodayTimerIdPublic();
+                    const remaining = timerId ? appTimerStore.totalRemaining(timerId) : null;
+                    return (
+                      <Text style={styles.planReminderHint}>
+                        {remaining != null
+                          ? `Time remaining: ${Math.floor(Math.max(0, remaining) / 60)}:${String(Math.max(0, remaining) % 60).padStart(2, '0')}`
+                          : `Planned: ${phasesForToday.reduce((m, p) => m + p.minutes, 0)} min`}
+                      </Text>
+                    );
+                  })()}
 
                 </View>
                 <View style={styles.planCompactActions}>
                   <TouchableOpacity
                     style={[styles.planSecondaryButton, styles.planCompactActionButton]}
                     onPress={() => {
-  if (bibleStore.isPlanMode) {
-    const timerId = bibleStore.getTodayTimerIdPublic();
-    const timer = timerId ? appTimerStore.get(timerId) : null;
-    
-    if (timer) {
-      const curPhase = phasesForToday[timer.currentPhaseIndex];
-      if (curPhase && curPhase.id !== 'reading') {
-        appTimerStore.resume(timer.id);
-        setShowMeditationMode(true);
-        setShowCompactPlan(false);
-      } else {
-        setPlanDetailsExpanded(true);
-        setShowCompactPlan(false);
-      }
-    }
-  } else {
-    handleEnterPlanMode();
-  }
-  resetIdleTimer();
-}}
+                      if (bibleStore.isPlanMode) {
+                        const timerId = bibleStore.getTodayTimerIdPublic();
+                        const timer = timerId ? appTimerStore.get(timerId) : null;
+
+                        if (timer) {
+                          const curPhase = phasesForToday[timer.currentPhaseIndex];
+                          if (curPhase && curPhase.id !== 'reading') {
+                            appTimerStore.resume(timer.id);
+                            setShowMeditationMode(true);
+                            setShowCompactPlan(false);
+                          } else {
+                            setPlanDetailsExpanded(true);
+                            setShowCompactPlan(false);
+                          }
+                        }
+                      } else {
+                        handleEnterPlanMode();
+                      }
+                      resetIdleTimer();
+                    }}
                   >
                     <MaterialIcons name="play-arrow" size={18} color={theme.colors.primary} />
                     <Text style={styles.planSecondaryButtonLabel}>
@@ -1609,7 +1543,7 @@ const handleEnterPlanMode = useCallback(async () => {
                     {(() => {
                       const startMs = getLocalMidnightMs(new Date(readingPlan.createdAt));
                       const nowMs = getLocalMidnightMs(new Date());
-                      const daysSinceStart = Math.max(1, Math.floor((nowMs - startMs) / (24*60*60*1000)) + 1);
+                      const daysSinceStart = Math.max(1, Math.floor((nowMs - startMs) / (24 * 60 * 60 * 1000)) + 1);
                       const expectedByToday = Math.min(total, daysSinceStart);
                       const delta = completed - expectedByToday;
                       if (delta > 0) return `Ahead by ${delta} ${delta === 1 ? 'session' : 'sessions'} for today`;
@@ -1617,7 +1551,7 @@ const handleEnterPlanMode = useCallback(async () => {
                       return 'On track for today';
                     })()}
                   </Text>
-                )}                
+                )}
               </View>
               <View style={styles.planCardControls}>
                 {bibleStore.isPlanMode && (
@@ -1731,7 +1665,7 @@ const handleEnterPlanMode = useCallback(async () => {
                       key={segment.id}
                       label={formatSegmentLabel(segment)}
                       completed={!!segment.completedAt}
-                      disabled={(function() {
+                      disabled={(function () {
                         const tid = bibleStore.getTodayTimerIdPublic();
                         const t = tid ? appTimerStore.get(tid) : null;
                         const curPhase = t ? phasesForToday[t.currentPhaseIndex] : null;
@@ -1809,23 +1743,6 @@ const handleEnterPlanMode = useCallback(async () => {
     );
   };
 
-  const handleSavedSearchSelect = useCallback((term: string) => {
-    bibleStore.setSearchQuery(term);
-    handleSearch(term);
-  }, [bibleStore, handleSearch]);
-
-  const handleRemoveSavedSearch = useCallback((term: string) => {
-    bibleStore.removeSavedSearch(term);
-  }, [bibleStore]);
-
-  const handleInlineBookSelect = useCallback((book: Book) => {
-    bibleStore.setCurrentBook(book as any);
-  }, [bibleStore]);
-
-  const handleInlineChapterSelect = useCallback((chapter: number) => {
-    bibleStore.setCurrentChapter(chapter);
-  }, [bibleStore]);
-
   const handleTestamentFilterChange = useCallback((next: 'all' | 'ot' | 'nt') => {
     if (next === testamentFilter) {
       return;
@@ -1864,166 +1781,28 @@ const handleEnterPlanMode = useCallback(async () => {
   }, [bibleStore]);
 
   // Enhanced header with activity panel
-  const currentVersionLabel = useMemo(() => {
-    const version = bibleStore.currentVersion;
-    if (!version) return 'Versions';
-    const candidate = (version as any).shortName ?? (version as any).code ?? version.englishName;
-    return typeof candidate === 'string' && candidate.trim().length > 0 ? candidate : 'Versions';
-  }, [bibleStore.currentVersion]);
   const renderHeader = () => {
-    const baseBooks = (bibleStore.filteredBooks as unknown as Book[]) || [];
-    const selectorBooks =
-      testamentFilter === 'all'
-        ? baseBooks
-        : baseBooks.filter(book =>
-            testamentFilter === 'nt'
-              ? isNewTestamentAbbr(book.abbreviation)
-              : !isNewTestamentAbbr(book.abbreviation)
-          );
-
-    const currentBookForSelector =
-      (bibleStore.currentBook as unknown as Book | null) ||
-      selectorBooks[0] ||
-      bibleBooks[0];
-
     return (
-      <View style={styles.headerContainer}>
-        <BlurView intensity={20} style={styles.header}>
-          <View style={styles.headerLeft}>
-            <TouchableOpacity
-              style={styles.headerButton}
-              onPress={() => setShowVersionsModal(true)}
-            >
-              <Text style={styles.headerButtonText}>
-                {currentVersionLabel}
-              </Text>
-              <MaterialIcons name="menu-book" size={20} color={theme.colors.text.primary} />
-            </TouchableOpacity>
-            
-            {isOffline && (
-              <View style={styles.offlineIndicator}>
-                <MaterialIcons name="wifi-off" size={12} color={theme.colors.warning} />
-                <Text style={styles.offlineText}>Offline</Text>
-              </View>
-            )}
-
-            <View style={styles.inlineSelectors}>
-              <View style={styles.testamentToggle}>
-                {(['all', 'ot', 'nt'] as const).map(key => (
-                  <TouchableOpacity
-                    key={key}
-                    style={[
-                      styles.testamentOption,
-                      testamentFilter === key && styles.testamentOptionActive,
-                    ]}
-                    onPress={() => {
-                      if (key !== 'all') {
-                        const baseBooks = (bibleStore.filteredBooks as unknown as Book[]) || [];
-                        const nextBooks = baseBooks.filter(book =>
-                          key === 'nt'
-                            ? isNewTestamentAbbr(book.abbreviation)
-                            : !isNewTestamentAbbr(book.abbreviation)
-                        );
-                        if (nextBooks.length > 0) {
-                          const target = nextBooks[0];
-                          bibleStore.setCurrentBook(target as any);
-                          bibleStore.setCurrentChapter(1);
-                        }
-                      }
-                      handleTestamentFilterChange(key);
-                    }}
-                  >
-                    <Text
-                      style={[
-                        styles.testamentOptionText,
-                        testamentFilter === key && styles.testamentOptionTextActive,
-                      ]}
-                    >
-                      {key === 'all' ? 'All' : key === 'ot' ? 'OT' : 'NT'}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-
-              <BookSelector
-                currentBook={currentBookForSelector}
-                onSelect={handleInlineBookSelect}
-                books={selectorBooks as any}
-              />
-              <BiblePicker
-                value={bibleStore.currentChapter}
-                items={Array.from({ length: bibleStore.getChapterCount() }, (_, i) => i + 1)}
-                onSelect={handleInlineChapterSelect}
-              />
-            </View>
-          </View>
-
-          <View style={styles.headerRight}>
-            <TouchableOpacity
-              style={styles.iconButton}
-              onPress={handleSearchPress}
-            >
-              <MaterialIcons name="search" size={24} color={theme.colors.text.primary} />
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.iconButton}
-              onPress={() => setShowHistoryModal(true)}
-              accessibilityLabel="Open history"
-              accessibilityRole="button"
-            >
-              <MaterialIcons name="history" size={24} color={theme.colors.text.primary} />
-            </TouchableOpacity>
-          </View>
-        </BlurView>
-      </View>
+      <BibleHeader
+        testamentFilter={testamentFilter}
+        onTestamentFilterChange={handleTestamentFilterChange}
+        onVersionsPress={() => setShowVersionsModal(true)}
+        onSearchPress={handleSearchPress}
+        onHistoryPress={() => setShowHistoryModal(true)}
+        isOffline={isOffline}
+      />
     );
   };
 
 
   // Update verse text style to use fontSize state
   const renderVerse = ({ item }: { item: BibleVerse }) => {
-    let verseNum = 0;
-    try {
-      verseNum = parseVPLId(item.id).verse;
-    } catch {
-      // Fallback: try to infer verse number from item.reference or default to 0
-      const match = item.reference?.match(/:(\d+)$/);
-      verseNum = match ? parseInt(match[1], 10) : 0;
-    }
-    const isHighlighted = bibleStore.highlightedVerses.has(item.id);
-    const isBookmarked = bibleStore.bookmarkedVerses.has(item.id);
-    const isLiked = bibleStore.likedVerses.has(item.id);
-    
     return (
-      <View style={[
-        styles.verseContainer,
-        isHighlighted && styles.highlightedVerse
-      ]}>
-        <TouchableOpacity 
-          style={styles.verseContent}
-          onLongPress={() => handleToggleHighlight(item.id)}
-          onPress={() => handleOpenVerseActions(item.id)}
-        >
-          {(isBookmarked || isLiked) && (
-            <View style={styles.verseMarkers}>
-              {isBookmarked && (
-                <MaterialIcons name="bookmark" size={14} color={theme.colors.primary} />
-              )}
-              {isLiked && (
-                <MaterialIcons name="favorite" size={14} color={theme.colors.error} />
-              )}
-            </View>
-          )}
-
-          <Text style={styles.verseNumber}>
-            {verseNum}
-          </Text>
-          <Text style={[styles.verseText, { fontSize: bibleStore.fontSize }]}>
-            {item.text}
-          </Text>
-        </TouchableOpacity>
-      </View>
+      <VerseItem
+        verse={item}
+        onLongPress={handleToggleHighlight}
+        onPress={handleOpenVerseActions}
+      />
     );
   };
 
@@ -2069,159 +1848,91 @@ const handleEnterPlanMode = useCallback(async () => {
   };
 
   const renderScopedView = () => {
-    if (!scopedView) {
-      return null;
-    }
-
-    console.log('[BibleScreen] rendering scoped view', scopedView);
-
-    return (
-      <Modal 
-        visible={!!scopedView} 
-        animationType="slide" 
-        presentationStyle="fullScreen"
-        onRequestClose={handleExitScopedView}
-      >
-        <SafeAreaView style={styles.scopedContainer}>
-          <View style={styles.scopedHeader}>
-            <View style={styles.scopedHeaderText}>
-              {scopedView.title ? (
-                <Text style={styles.scopedTitle}>{scopedView.title}</Text>
-              ) : null}
-              {scopedView.subtitle ? (
-                <Text style={styles.scopedSubtitle}>{scopedView.subtitle}</Text>
-              ) : null}
-            </View>
-            <TouchableOpacity style={styles.scopedDismissButton} onPress={handleExitScopedView}>
-              <MaterialIcons name="close" size={20} color={theme.colors.text.secondary} />
-              <Text style={styles.scopedDismissText}>Dismiss</Text>
-            </TouchableOpacity>
-          </View>
-
-          <ScrollView
-            style={styles.scopedScroll}
-            contentContainerStyle={styles.scopedScrollContent}
-            showsVerticalScrollIndicator={false}
-          >
-            {scopedView.verses.map((verse, index) => (
-              <View
-                key={`${verse.text}-${index}`}
-                style={[styles.scopedVerseCard, verse.isPrimary && styles.scopedVersePrimary]}
-              >
-                {verse.reference ? (
-                  <Text style={styles.scopedReference}>{verse.reference}</Text>
-                ) : null}
-                <Text style={styles.scopedVerseText}>{verse.text}</Text>
-              </View>
-            ))}
-          </ScrollView>
-        </SafeAreaView>
-      </Modal>
-    );
+    return <ScopedViewModal scopedView={scopedView} onClose={handleExitScopedView} />;
   };
 
   const renderTimerModal = () => {
-    const timerId = bibleStore.getTodayTimerIdPublic();
-    if (!timerId) return null;
-
     return (
-      <Modal visible={showTimerModal && !bibleStore.dailySession?.completed} animationType="slide" transparent>
-        <View style={styles.timerModalBackdrop}>
-          <View style={styles.timerModalCard}>
-            <View style={styles.timerModalHeader}>
-              <Text style={styles.timerModalTitle}>Todays' Focus</Text>
-              <TouchableOpacity onPress={() => setShowTimerModal(false)}>
-                <MaterialIcons name="close" size={22} color={theme.colors.text.secondary} />
-              </TouchableOpacity>
-            </View>
-            
-            <ReadingTimer
-              timerId={timerId}
-              phases={phasesForToday}
-              onPhaseComplete={handlePhaseComplete}
-              onAllPhasesComplete={handleAllPhasesComplete}
-              onStart={() => setShowTimerModal(false)}
-              passages={(() => {
-                const seg = bibleStore.activeReadingSegment;
-                if (!seg) return undefined;
-                return [formatSegmentLabel(seg)];
-              })()}
-            />
-          </View>
-        </View>
-      </Modal>
+      <TimerModal
+        visible={showTimerModal}
+        timerId={bibleStore.getTodayTimerIdPublic()}
+        phases={phasesForToday}
+        onClose={() => setShowTimerModal(false)}
+        onPhaseComplete={handlePhaseComplete}
+        onAllPhasesComplete={handleAllPhasesComplete}
+      />
     );
   };
 
-const renderMeditationModal = () => {
-  const timerId = bibleStore.getTodayTimerIdPublic();
-  const timer = timerId ? appTimerStore.get(timerId) : null;
-  
-  if (!timer) return null;
-  
-  const currentPhase = phasesForToday[timer.currentPhaseIndex];
-  if (!currentPhase || currentPhase.id === 'reading') {
-    return null;
-  }
+  const renderMeditationModal = () => {
+    const timerId = bibleStore.getTodayTimerIdPublic();
+    const timer = timerId ? appTimerStore.get(timerId) : null;
 
-  const readingMode = bibleStore.readingPlan?.readingMode;
-  const focusVirtueTerms = bibleStore.readingPlan?.focusVirtue?.matchTerms ?? null;
+    if (!timer) return null;
 
-  let versesForMeditation = meditationVerses.length
-    ? meditationVerses
-    : (bibleStore.verses || []).map(v => ({ text: v.text, reference: v.reference ?? v.id })).slice(0, 40);
-  
-  if (!versesForMeditation.length) {
-    const seg = bibleStore.activeReadingSegment;
-    if (seg) {
-      versesForMeditation.push({ 
-        text: formatSegmentLabel(seg), 
-        reference: `${seg.bookName} ${seg.chapterStart}${seg.chapterEnd && seg.chapterEnd !== seg.chapterStart ? '-' + seg.chapterEnd : ''}` 
-      });
+    const currentPhase = phasesForToday[timer.currentPhaseIndex];
+    if (!currentPhase || currentPhase.id === 'reading') {
+      return null;
     }
-  }
 
-  // During prayer/contemplation, prepend paused verses and de-duplicate
-  if (currentPhase.id === 'prayer' || currentPhase.id === 'contemplation') {
-    const dedup = new Map<string, { text: string; reference: string }>();
-    const keyOf = (v: { text: string; reference: string }) => `${v.reference}::${v.text}`;
-    const paused = bibleStore.dailySession?.pausedMeditationVerses ?? [];
-    paused.forEach(v => dedup.set(keyOf(v), v));
-    versesForMeditation.forEach(v => {
-      const k = keyOf(v);
-      if (!dedup.has(k)) dedup.set(k, v);
-    });
-    versesForMeditation = Array.from(dedup.values());
-  }
+    const readingMode = bibleStore.readingPlan?.readingMode;
+    const focusVirtueTerms = bibleStore.readingPlan?.focusVirtue?.matchTerms ?? null;
 
-  const remainingSeconds = appTimerStore.remainingInPhase(timer.id);
+    let versesForMeditation = meditationVerses.length
+      ? meditationVerses
+      : (bibleStore.verses || []).map(v => ({ text: v.text, reference: v.reference ?? v.id })).slice(0, 40);
 
-  return (
-    <Modal visible={showMeditationMode} animationType="fade" transparent onRequestClose={() => setShowMeditationMode(false)}>
-      <MeditationVerse
-        verses={versesForMeditation}
-        phase={currentPhase}
-        isActive={timer.isActive}
-        remainingSeconds={Math.max(0, remainingSeconds)}
-        readingMode={readingMode}
-        focusVirtueTerms={focusVirtueTerms}
-        pausedKeys={(bibleStore.getPausedMeditationVersesScoped?.() ?? []).map(v => `${v.reference}::${v.text}`)}
-        onPauseAtVerse={(v) => { bibleStore.addPausedMeditationVerse(v); }}
-        onDeletePausedVerse={(v) => { bibleStore.removePausedMeditationVerse(v); }}
-        insightByKey={insightByKey}
-        onReturn={() => {
-          setShowMeditationMode(false);
-          setPlanDetailsExpanded(true);
-          setShowCompactPlan(false);
-        }}
-        onCompletePhase={() => {
-          void completeCurrentPhase();
-          setShowMeditationMode(false);
-        }}
-      />
-    </Modal>
-  );
-};
+    if (!versesForMeditation.length) {
+      const seg = bibleStore.activeReadingSegment;
+      if (seg) {
+        versesForMeditation.push({
+          text: formatSegmentLabel(seg),
+          reference: `${seg.bookName} ${seg.chapterStart}${seg.chapterEnd && seg.chapterEnd !== seg.chapterStart ? '-' + seg.chapterEnd : ''}`
+        });
+      }
+    }
+
+    // During prayer/contemplation, prepend paused verses and de-duplicate
+    if (currentPhase.id === 'prayer' || currentPhase.id === 'contemplation') {
+      const dedup = new Map<string, { text: string; reference: string }>();
+      const keyOf = (v: { text: string; reference: string }) => `${v.reference}::${v.text}`;
+      const paused = bibleStore.dailySession?.pausedMeditationVerses ?? [];
+      paused.forEach(v => dedup.set(keyOf(v), v));
+      versesForMeditation.forEach(v => {
+        const k = keyOf(v);
+        if (!dedup.has(k)) dedup.set(k, v);
+      });
+      versesForMeditation = Array.from(dedup.values());
+    }
+
+    const remainingSeconds = appTimerStore.remainingInPhase(timer.id);
+
+    return (
+      <Modal visible={showMeditationMode} animationType="fade" transparent onRequestClose={() => setShowMeditationMode(false)}>
+        <MeditationVerse
+          verses={versesForMeditation}
+          phase={currentPhase}
+          isActive={timer.isActive}
+          remainingSeconds={Math.max(0, remainingSeconds)}
+          readingMode={readingMode}
+          focusVirtueTerms={focusVirtueTerms}
+          pausedKeys={(bibleStore.getPausedMeditationVersesScoped?.() ?? []).map(v => `${v.reference}::${v.text}`)}
+          onPauseAtVerse={(v) => { bibleStore.addPausedMeditationVerse(v); }}
+          onDeletePausedVerse={(v) => { bibleStore.removePausedMeditationVerse(v); }}
+          insightByKey={insightByKey}
+          onReturn={() => {
+            setShowMeditationMode(false);
+            setPlanDetailsExpanded(true);
+            setShowCompactPlan(false);
+          }}
+          onCompletePhase={() => {
+            void completeCurrentPhase();
+            setShowMeditationMode(false);
+          }}
+        />
+      </Modal>
+    );
+  };
 
   return (
     <View style={styles.container} {...panResponder.panHandlers}>
@@ -2291,111 +2002,31 @@ const renderMeditationModal = () => {
       />
 
       {/* Search Modal */}
-      <Modal
+      <SearchModal
         visible={bibleStore.showSearch}
-        animationType="slide"
-        onRequestClose={() => bibleStore.setShowSearch(false)}
-      >
-        <View style={styles.searchContainer}>
-          <View style={styles.searchHeader}>
-            <TextInput
-              style={styles.searchInput}
-              value={bibleStore.searchQuery}
-              onChangeText={handleSearch}
-              placeholder="Search Bible..."
-              autoFocus
-            />
-            <TouchableOpacity 
-              style={styles.closeButton}
-              onPress={() => {
-                bibleStore.setShowSearch(false);
-                bibleStore.clearSearch();
-              }}
-            >
-              <MaterialIcons name="close" size={24} color={theme.colors.text.secondary} />
-            </TouchableOpacity>
-          </View>
-
-          <FlatList
-            data={bibleStore.searchResults}
-            ListHeaderComponent={() => (
-              bibleStore.savedSearches.length ? (
-                <View style={styles.savedSearchContainer}>
-                  <View style={styles.savedSearchHeader}>
-                    <Text style={styles.savedSearchTitle}>Recent searches</Text>
-                    <TouchableOpacity onPress={() => bibleStore.clearSavedSearches()}>
-                      <Text style={styles.clearSavedSearchText}>Clear</Text>
-                    </TouchableOpacity>
-                  </View>
-                  <View style={styles.savedSearchChips}>
-                    {bibleStore.savedSearches.map(term => (
-                      <View key={term} style={styles.savedSearchChip}>
-                        <TouchableOpacity onPress={() => handleSavedSearchSelect(term)}>
-                          <Text style={styles.savedSearchText}>{term}</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity onPress={() => handleRemoveSavedSearch(term)}>
-                          <MaterialIcons name="close" size={14} color={theme.colors.text.secondary} />
-                        </TouchableOpacity>
-                      </View>
-                    ))}
-                  </View>
-                </View>
-              ) : null
-            )}
-            renderItem={({ item }) => (
-              <TouchableOpacity 
-                style={styles.searchResultItem}
-                onPress={() => {
-                  const { bookAbbr, chapter } = parseVPLId(item.id);
-                  const book = bibleBooks.find(b => b.abbreviation === bookAbbr);
-                  if (book) {
-                    bibleStore.setCurrentBook(book);
-                    bibleStore.setCurrentChapter(chapter);
-                    bibleStore.setShowSearch(false);
-                    bibleStore.clearSearch();
-                  }
-                }}
-              >
-                <Text style={styles.searchResultReference}>{item.reference}</Text>
-                <Text style={styles.searchResultText}>{item.text}</Text>
-              </TouchableOpacity>
-            )}
-            keyExtractor={item => item.id}
-            ListEmptyComponent={() => (
-              bibleStore.isSearchLoading ? (
-                <View style={styles.loadingContainer}>
-                  <ActivityIndicator size="large" color={theme.colors.primary} />
-                </View>
-              ) : (
-                <View style={styles.emptySearchContainer}>
-                  <MaterialIcons name="search" size={32} color={theme.colors.text.secondary} />
-                  <Text style={styles.emptySearchText}>Start typing to search across the Bible.</Text>
-                </View>
-              )
-            )}
-          />
-        </View>
-      </Modal>
+        onClose={() => bibleStore.setShowSearch(false)}
+        onSearch={handleSearch}
+      />
 
       <OverlayHost>
         {bibleStore.isPlanMode && showFloatingProgress && !showTimerModal && !bibleStore.dailySession?.completed && (() => {
-  const timerId = bibleStore.getTodayTimerIdPublic();
-  const timer = timerId ? appTimerStore.get(timerId) : null;
-  const remaining = timerId ? appTimerStore.totalRemaining(timerId) : null;
-  
-  if (!timer || !timer.isActive || remaining == null) return null;
-  
-  return (
-    <TouchableOpacity style={styles.floatingTimer} onPress={() => setShowTimerModal(true)}>
-      <View style={styles.floatingTimerCircle}>
-        <MaterialIcons name="timer" size={14} color={theme.colors.text.secondary} />
-      </View>
-      <Text style={styles.floatingTimerText}>
-        {`Time remaining: ${Math.floor(Math.max(0, remaining) / 60)}:${String(Math.max(0, remaining) % 60).padStart(2, '0')}`}
-      </Text>
-    </TouchableOpacity>
-  );
-})()}
+          const timerId = bibleStore.getTodayTimerIdPublic();
+          const timer = timerId ? appTimerStore.get(timerId) : null;
+          const remaining = timerId ? appTimerStore.totalRemaining(timerId) : null;
+
+          if (!timer || !timer.isActive || remaining == null) return null;
+
+          return (
+            <TouchableOpacity style={styles.floatingTimer} onPress={() => setShowTimerModal(true)}>
+              <View style={styles.floatingTimerCircle}>
+                <MaterialIcons name="timer" size={14} color={theme.colors.text.secondary} />
+              </View>
+              <Text style={styles.floatingTimerText}>
+                {`Time remaining: ${Math.floor(Math.max(0, remaining) / 60)}:${String(Math.max(0, remaining) % 60).padStart(2, '0')}`}
+              </Text>
+            </TouchableOpacity>
+          );
+        })()}
 
         {bibleStore.isPlanMode && showDoneOverlay && (
           <View style={styles.bottomOverlay}>
@@ -2404,7 +2035,7 @@ const renderMeditationModal = () => {
               <Text style={styles.bottomOverlayText}>All done for today — great job!</Text>
             </View>
           </View>
-        
+
         )}
 
         {bibleStore.isPlanMode && bibleStore.activeReadingSegment && !bibleStore.dailySession?.completed && !showTimerModal && (() => {
@@ -2414,139 +2045,40 @@ const renderMeditationModal = () => {
           const isReadingPhase = !curPhase || curPhase.id === 'reading';
           if (!isReadingPhase) return null;
           return (
-          (() => {
-            const seg = bibleStore.activeReadingSegment;
-            const lastChapter = seg.chapterEnd ?? seg.chapterStart;
-            const cur = bibleStore.currentChapter || 1;
-            return (
-              <View style={styles.bottomOverlay}>
-                {cur < lastChapter ? (
-                  <TouchableOpacity style={styles.bottomOverlayButton} onPress={async () => { await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); await goToNextChapterWithinSegment(); }}>
-                    <MaterialIcons name="arrow-forward" size={18} color={theme.colors.text.inverse} />
-                    <Text style={styles.bottomOverlayText}>Next</Text>
-                  </TouchableOpacity>
-                ) : (
-                  <TouchableOpacity style={styles.bottomOverlayButton} onPress={handleCompleteSegment}>
-                    <MaterialIcons name="check" size={18} color={theme.colors.text.inverse} />
-                    <Text style={styles.bottomOverlayText}>Complete segment</Text>
-                  </TouchableOpacity>
-                )}
-              </View>
-            );
-          })()
+            (() => {
+              const seg = bibleStore.activeReadingSegment;
+              const lastChapter = seg.chapterEnd ?? seg.chapterStart;
+              const cur = bibleStore.currentChapter || 1;
+              return (
+                <View style={styles.bottomOverlay}>
+                  {cur < lastChapter ? (
+                    <TouchableOpacity style={styles.bottomOverlayButton} onPress={async () => { await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); await goToNextChapterWithinSegment(); }}>
+                      <MaterialIcons name="arrow-forward" size={18} color={theme.colors.text.inverse} />
+                      <Text style={styles.bottomOverlayText}>Next</Text>
+                    </TouchableOpacity>
+                  ) : (
+                    <TouchableOpacity style={styles.bottomOverlayButton} onPress={handleCompleteSegment}>
+                      <MaterialIcons name="check" size={18} color={theme.colors.text.inverse} />
+                      <Text style={styles.bottomOverlayText}>Complete segment</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              );
+            })()
           );
         })()}
       </OverlayHost>
 
-      <Modal visible={showAdvancedActions} transparent animationType="fade" onRequestClose={() => setShowAdvancedActions(false)}>
-        <View style={styles.modalBackdrop}>
-          <View style={styles.modalCard}>
-            <TouchableOpacity
-              style={styles.dangerRow}
-              onPress={async () => {
-                const confirm = await new Promise<boolean>(resolve => {
-                  Alert.alert(
-                    'Start over',
-                    'This will reset your plan progress and set today as the new start date. Continue?',
-                    [
-                      { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
-                      { text: 'OK', style: 'destructive', onPress: () => resolve(true) },
-                    ],
-                    { cancelable: true }
-                  );
-                });
-                if (!confirm) return;
-                setShowAdvancedActions(false);
-                const ok = await bibleStore.startOverPlan();
-                if (ok) {
-                  await bibleStore.focusPlanSegment();
-                  await bibleStore.ensureDailySessionPrepared();
-                  if (!bibleStore.dailySession?.completed) setShowTimerModal(true);
-                  toast.success('Plan started over from today');
-                } else {
-                  toast.error('Unable to start over');
-                }
-              }}
-            >
-              <MaterialIcons name="restart-alt" size={18} color={theme.colors.error} />
-              <Text style={styles.dangerText}>Start over</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.dangerRow}
-              onPress={async () => {
-                setShowAdvancedActions(false);
-                await handleClearPlan();
-              }}
-            >
-              <MaterialIcons name="delete-outline" size={18} color={theme.colors.error} />
-              <Text style={styles.dangerText}>Clear plan</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.modalRow}
-              onPress={async () => {
-                const confirm = await new Promise<boolean>(resolve => {
-                  Alert.alert(
-                    'Reset start date',
-                    'This will set your plan start date to today. Your completions remain unchanged. Continue?',
-                    [
-                      { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
-                      { text: 'OK', onPress: () => resolve(true) },
-                    ],
-                    { cancelable: true }
-                  );
-                });
-                if (!confirm) return;
-                setShowAdvancedActions(false);
-                const ok = await bibleStore.resetPlanStartDateToToday();
-                if (ok) {
-                  await bibleStore.focusPlanSegment();
-                  await bibleStore.ensureDailySessionPrepared();
-                  toast.success('Plan start date set to today');
-                } else {
-                  toast.error('Unable to reset start date');
-                }
-              }}
-            >
-              <Text style={styles.modalText}>Reset start date to today</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.modalRow}
-              onPress={async () => {
-                const confirm = await new Promise<boolean>(resolve => {
-                  Alert.alert(
-                    'Repair plan to today',
-                    'This will mark segments as completed up to today’s expected pace. Continue?',
-                    [
-                      { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
-                      { text: 'OK', onPress: () => resolve(true) },
-                    ],
-                    { cancelable: true }
-                  );
-                });
-                if (!confirm) return;
-                setShowAdvancedActions(false);
-                const ok = await bibleStore.repairPlanToExpectedByToday();
-                if (ok) {
-                  await bibleStore.focusPlanSegment();
-                  await bibleStore.ensureDailySessionPrepared();
-                  toast.success('Plan repaired to expected by today');
-                } else {
-                  toast.error('Unable to repair plan');
-                }
-              }}
-            >
-              <Text style={styles.modalText}>Repair plan to expected by today</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.modalRow} onPress={() => setShowAdvancedActions(false)}>
-              <Text style={styles.modalText}>Cancel</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
+      <AdvancedActionsModal
+        visible={showAdvancedActions}
+        onClose={() => setShowAdvancedActions(false)}
+        onPlanCleared={() => {
+          journeyStore.setBiblePlan(null);
+        }}
+        onAfterStartOver={() => {
+          if (!bibleStore.dailySession?.completed) setShowTimerModal(true);
+        }}
+      />
 
       <HistoryModal
         visible={showHistoryModal}
@@ -2613,65 +2145,11 @@ const renderMeditationModal = () => {
         onClose={() => setShowFontModal(false)}
       />
 
-      <Modal visible={showVersionsModal} animationType="slide">
-      <View style={styles.modalContainer}>
-        <View style={styles.modalHeader}>
-          <Text style={styles.modalTitle}>Bible Versions</Text>
-          <TouchableOpacity onPress={() => setShowVersionsModal(false)}>
-            <MaterialIcons name="close" size={24} color={theme.colors.text.secondary} />
-          </TouchableOpacity>
-        </View>
-        
-        {bibleStore.isVersionsLoading ? (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color={theme.colors.primary} />
-          </View>
-        ) : (
-          <FlatList
-            data={bibleStore.availableVersions}
-            keyExtractor={(item) => item.shortName}
-            renderItem={({ item }) => (
-              <TouchableOpacity
-                style={styles.versionItem}
-                onPress={() => {
-                  bibleStore.setCurrentVersion(item);
-                  setShowVersionsModal(false);
-                }}
-              >
-                <View style={styles.versionInfo}>
-                  <Text style={styles.versionName}>
-                    {item.englishName} ({item.shortName})
-                  </Text>
-                  {item.preinstalled && (
-                    <Text style={styles.versionSubtext}>Pre-installed</Text>
-                  )}
-                </View>
-
-                {bibleStore.installedVersions.includes(item.shortName) ? (
-                  <MaterialIcons name="check-circle" size={24} color={theme.colors.primary} />
-                ) : bibleStore.isInstallingVersion && bibleStore.installingVersionId === item.shortName ? (
-                  <ActivityIndicator size="small" color={theme.colors.primary} />
-                ) : (
-                  <TouchableOpacity 
-                    onPress={(e) => {
-                      e.stopPropagation();
-                      handleInstallVersion(item);
-                    }}
-                    disabled={bibleStore.isInstallingVersion}
-                  >
-                    <MaterialIcons 
-                      name="download" 
-                      size={24} 
-                      color={bibleStore.isInstallingVersion ? theme.colors.text.secondary : theme.colors.primary} 
-                    />
-                  </TouchableOpacity>
-                )}
-              </TouchableOpacity>
-            )}
-          />
-        )}
-      </View>
-    </Modal>
+      <VersionsModal
+        visible={showVersionsModal}
+        onClose={() => setShowVersionsModal(false)}
+        onInstallVersion={handleInstallVersion}
+      />
 
       <VerseActionsSheet
         visible={showVerseActions && !!selectedVerse}
@@ -2714,51 +2192,7 @@ const renderMeditationModal = () => {
         offline={isOffline}
       />
 
-      <Modal
-        visible={showAIInsights}
-        animationType="slide"
-        presentationStyle="pageSheet"
-        onRequestClose={handleCloseAIInsights}
-      >
-        <View style={styles.aiModalContainer}>
-          <View style={styles.aiModalHeader}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.aiModalTitle}>AI Insights</Text>
-              {bibleStore.aiInsightReference ? (
-                <Text style={styles.aiModalReference}>{bibleStore.aiInsightReference}</Text>
-              ) : null}
-            </View>
-            <TouchableOpacity onPress={handleCloseAIInsights}>
-              <MaterialIcons name="close" size={24} color={theme.colors.text.secondary} />
-            </TouchableOpacity>
-          </View>
-
-          {bibleStore.isAIInsightLoading ? (
-            <View style={styles.aiModalLoading}>
-              <ActivityIndicator size="large" color={theme.colors.primary} />
-              <Text style={styles.aiModalLoadingText}>Gathering historical context...</Text>
-            </View>
-          ) : bibleStore.aiInsightError ? (
-            <View style={styles.aiModalError}>
-              <MaterialIcons name="error-outline" size={20} color={theme.colors.error} />
-              <Text style={styles.aiModalErrorText}>{bibleStore.aiInsightError}</Text>
-            </View>
-          ) : (
-            <ScrollView contentContainerStyle={styles.aiModalContent}>
-              {bibleStore.aiInsightSections.length ? (
-                bibleStore.aiInsightSections.map(section => (
-                  <View key={`${section.title}-${section.content.slice(0, 20)}`} style={styles.aiSection}>
-                    <Text style={styles.aiSectionTitle}>{section.title}</Text>
-                    <Text style={styles.aiSectionBody}>{section.content}</Text>
-                  </View>
-                ))
-              ) : (
-                <Text style={styles.aiModalPlaceholder}>No insights available for this verse yet.</Text>
-              )}
-            </ScrollView>
-          )}
-        </View>
-      </Modal>
+      <AIInsightsModal visible={showAIInsights} onClose={handleCloseAIInsights} />
 
 
       {renderScopedView()}
@@ -2774,1155 +2208,6 @@ const renderMeditationModal = () => {
   );
 };
 
-const createStyles = (theme: Theme) => StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: theme.colors.background,
-  },
-  headerContainer: {
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
-  },
-  header: {
-    height: 56,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: theme.spacing.md,
-  },
-  headerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: theme.spacing.sm,
-  },
-  headerRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: theme.spacing.xs,
-  },
-  headerButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: theme.spacing.sm,
-    padding: theme.spacing.sm,
-    borderRadius: theme.borderRadius.sm,
-    backgroundColor: theme.colors.surface,
-  },
-  headerButtonText: {
-    ...theme.typography.body.sans,
-    color: theme.colors.text.primary,
-  },
-  settingsOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.45)',
-    justifyContent: 'center',
-    padding: theme.spacing.lg,
-  },
-  settingsCard: {
-    backgroundColor: theme.colors.surface,
-    borderRadius: theme.borderRadius.xl,
-    paddingVertical: theme.spacing.lg,
-    paddingHorizontal: theme.spacing.lg,
-    maxHeight: '85%',
-    borderWidth: 1,
-    borderColor: `${theme.colors.primary}12`,
-    shadowColor: theme.colors.shadow,
-    shadowOpacity: 0.18,
-    shadowRadius: 18,
-    elevation: 8,
-  },
-  settingsHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: theme.spacing.md,
-  },
-  settingsTitle: {
-    ...theme.typography.heading.medium,
-    color: theme.colors.text.primary,
-  },
-  settingsCloseButton: {
-    padding: theme.spacing.xs,
-  },
-  settingsContent: {
-    gap: theme.spacing.lg,
-    paddingBottom: theme.spacing.md,
-  },
-  settingsSection: {
-    gap: theme.spacing.sm,
-  },
-  settingsSectionLabel: {
-    ...theme.typography.caption.primary,
-    color: theme.colors.text.secondary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.6,
-  },
-  settingsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: theme.spacing.sm,
-    flexWrap: 'wrap',
-  },
-  settingsItemText: {
-    flex: 1,
-    gap: theme.spacing.xs,
-  },
-  settingsItemTitle: {
-    ...theme.typography.body.sans,
-    color: theme.colors.text.primary,
-    fontWeight: '600',
-  },
-  settingsItemSubtitle: {
-    ...theme.typography.caption.secondary,
-    color: theme.colors.text.secondary,
-  },
-  settingsDivider: {
-    height: 1,
-    backgroundColor: `${theme.colors.border}60`,
-  },
-  settingsAction: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: theme.spacing.md,
-    paddingVertical: theme.spacing.sm,
-  },
-  settingsActionText: {
-    flex: 1,
-    gap: theme.spacing.xs,
-  },
-  settingsActionTitle: {
-    ...theme.typography.body.sans,
-    color: theme.colors.text.primary,
-    fontWeight: '600',
-  },
-  settingsActionSubtitle: {
-    ...theme.typography.caption.secondary,
-    color: theme.colors.text.secondary,
-  },
-  inlineSelectors: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: theme.spacing.sm,
-    marginLeft: theme.spacing.md,
-  },
-  testamentToggle: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderRadius: theme.borderRadius.full,
-    backgroundColor: `${theme.colors.surface}AA`,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: theme.colors.border,
-    paddingVertical: 2,
-    paddingHorizontal: 2,
-  },
-  testamentOption: {
-    paddingHorizontal: theme.spacing.sm,
-    paddingVertical: 2,
-    borderRadius: theme.borderRadius.full,
-  },
-  testamentOptionActive: {
-    backgroundColor: theme.colors.primary,
-  },
-  testamentOptionText: {
-    ...theme.typography.caption.secondary,
-    color: theme.colors.text.secondary,
-    fontWeight: '600',
-  },
-  testamentOptionTextActive: {
-    color: theme.colors.text.inverse,
-  },
-  controlsGroup: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: theme.spacing.sm,
-  },
-  apocryphaToggle: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: theme.spacing.xs,
-    paddingHorizontal: theme.spacing.sm,
-    paddingVertical: theme.spacing.xs,
-    borderRadius: theme.borderRadius.full,
-    backgroundColor: `${theme.colors.surface}AA`,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: theme.colors.border,
-  },
-  apocryphaLabel: {
-    ...theme.typography.caption.secondary,
-    color: theme.colors.text.secondary,
-    fontWeight: '600',
-  },
-  contentContainer: {
-    padding: theme.spacing.md,
-    paddingBottom: theme.spacing.xxl,
-  },
-  planHeader: {
-    paddingBottom: theme.spacing.lg,
-  },
-  planContainer: {
-    gap: theme.spacing.lg,
-    paddingTop: theme.spacing.lg,
-    paddingBottom: theme.spacing.md,
-  },
-  planTitle: {
-    ...theme.typography.heading.medium,
-    color: theme.colors.text.primary,
-  },
-  planSubtitle: {
-    ...theme.typography.body.sans,
-    color: theme.colors.text.secondary,
-    marginTop: theme.spacing.xs,
-  },
-  planCard: {
-    backgroundColor: theme.colors.surface,
-    borderRadius: theme.borderRadius.lg,
-    padding: theme.spacing.lg,
-    gap: theme.spacing.md,
-    shadowColor: theme.colors.shadow,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.06,
-    shadowRadius: 12,
-    elevation: 3,
-  },
-  planCardHeader: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-    gap: theme.spacing.md,
-    flexWrap: 'wrap',
-  },
-  planCompactToggle: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: theme.spacing.xs,
-    paddingVertical: theme.spacing.xs,
-    paddingHorizontal: theme.spacing.sm,
-    borderRadius: theme.borderRadius.sm,
-    backgroundColor: theme.colors.surface,
-  },
-  planCompactToggleText: {
-    ...theme.typography.caption.primary,
-    color: theme.colors.text.secondary,
-  },
-  planCardTitle: {
-    ...theme.typography.heading.small,
-    color: theme.colors.text.primary,
-  },
-  planCardSummary: {
-    ...theme.typography.caption.secondary,
-    color: theme.colors.text.secondary,
-    marginTop: theme.spacing.xs,
-  },
-  planCardMeta: {
-    ...theme.typography.caption.secondary,
-    color: theme.colors.text.tertiary,
-    marginTop: theme.spacing.xs,
-  },
-  planSessionSummaryCard: {
-    marginTop: theme.spacing.xs,
-    padding: theme.spacing.sm,
-    borderRadius: theme.borderRadius.md,
-    backgroundColor: `${theme.colors.surface}F2`,
-    borderWidth: 1,
-    borderColor: `${theme.colors.border}80`,
-    gap: theme.spacing.xs,
-  },
-  planSessionSummaryTitle: {
-    ...theme.typography.caption.primary,
-    color: theme.colors.text.secondary,
-    fontWeight: '600',
-    textTransform: 'uppercase',
-    letterSpacing: 0.4,
-  },
-  planSessionSummaryRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  planSessionSummaryLabel: {
-    ...theme.typography.caption.secondary,
-    color: theme.colors.text.secondary,
-  },
-  planSessionSummaryValue: {
-    ...theme.typography.caption.primary,
-    color: theme.colors.text.primary,
-    fontWeight: '600',
-  },
-  todayContainer: {
-    marginTop: theme.spacing.sm,
-    paddingTop: theme.spacing.xs,
-    borderTopWidth: 1,
-    borderTopColor: theme.colors.border,
-    gap: theme.spacing.xs,
-  },
-  todayRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 2,
-  },
-  todayLabel: {
-    ...theme.typography.caption.secondary,
-    color: theme.colors.text.secondary,
-  },
-  todayValue: {
-    ...theme.typography.caption.primary,
-    color: theme.colors.text.primary,
-    fontWeight: '600',
-    fontVariant: ['tabular-nums'],
-  },
-  modalBackdrop: {
-    flex: 1,
-    backgroundColor: '#00000066',
-    justifyContent: 'flex-end',
-  },
-  modalCard: {
-    backgroundColor: theme.colors.surface,
-    padding: theme.spacing.md,
-    borderTopLeftRadius: theme.borderRadius.lg,
-    borderTopRightRadius: theme.borderRadius.lg,
-  },
-  modalRow: {
-    paddingVertical: theme.spacing.md,
-    alignItems: 'center',
-  },
-  modalText: {
-    ...theme.typography.body.sans,
-    color: theme.colors.text.primary,
-  },
-  dangerRow: {
-    paddingVertical: theme.spacing.md,
-    alignItems: 'center',
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: theme.spacing.xs,
-  },
-  dangerText: {
-    ...theme.typography.body.sans,
-    color: theme.colors.error,
-    fontWeight: '600',
-  },
-  planClearButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: theme.spacing.xs,
-    paddingVertical: theme.spacing.xs,
-    paddingHorizontal: theme.spacing.sm,
-    backgroundColor: `${theme.colors.error}12`,
-    borderRadius: theme.borderRadius.sm,
-  },
-  planClearButtonText: {
-    ...theme.typography.caption.primary,
-    color: theme.colors.error,
-  },
-  planActiveSegment: {
-    gap: theme.spacing.xs,
-  },
-  planSectionTitle: {
-    ...theme.typography.caption.primary,
-    color: theme.colors.text.secondary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.6,
-  },
-  planSegmentChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: theme.spacing.xs,
-    paddingVertical: theme.spacing.xs,
-    paddingHorizontal: theme.spacing.sm,
-    borderRadius: theme.borderRadius.md,
-    backgroundColor: `${theme.colors.primary}12`,
-  },
-  planSegmentCompleted: {
-    backgroundColor: `${theme.colors.primary}22`,
-  },
-  planSegmentText: {
-    ...theme.typography.caption.primary,
-    color: theme.colors.text.primary,
-  },
-  planUpcomingSection: {
-    gap: theme.spacing.sm,
-  },
-  planSegmentList: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: theme.spacing.xs,
-  },
-  planReminderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: theme.spacing.md,
-  },
-  planReminderInfo: {
-    flex: 1,
-    gap: theme.spacing.xs,
-  },
-  planReminderHint: {
-    ...theme.typography.caption.secondary,
-    color: theme.colors.text.secondary,
-  },
-  planReminderControls: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: theme.spacing.xs,
-  },
-  planReminderInput: {
-    width: 76,
-    ...theme.typography.caption.primary,
-    color: theme.colors.text.primary,
-    paddingVertical: theme.spacing.xs,
-    paddingHorizontal: theme.spacing.sm,
-    borderRadius: theme.borderRadius.sm,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    backgroundColor: theme.colors.background,
-  },
-  planReminderButton: {
-    paddingVertical: theme.spacing.xs,
-    paddingHorizontal: theme.spacing.sm,
-    borderRadius: theme.borderRadius.sm,
-    backgroundColor: theme.colors.primary,
-  },
-  planReminderButtonText: {
-    ...theme.typography.caption.primary,
-    color: theme.colors.text.inverse,
-  },
-  planPresetList: {
-    gap: theme.spacing.sm,
-  },
-  planPresetItem: {
-    borderRadius: theme.borderRadius.md,
-    borderWidth: 1,
-    borderColor: `${theme.colors.primary}25`,
-    padding: theme.spacing.md,
-    gap: theme.spacing.xs,
-    backgroundColor: theme.colors.background,
-  },
-  planPresetItemActive: {
-    borderColor: theme.colors.primary,
-    backgroundColor: `${theme.colors.primary}12`,
-  },
-  planPresetHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  planPresetTitle: {
-    ...theme.typography.body.sans,
-    color: theme.colors.text.primary,
-  },
-  planPresetDescription: {
-    ...theme.typography.caption.secondary,
-    color: theme.colors.text.secondary,
-  },
-  planBooksRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  planActionLink: {
-    ...theme.typography.caption.primary,
-    color: theme.colors.primary,
-  },
-  planBookChips: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: theme.spacing.xs,
-  },
-  planBookChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: theme.spacing.xs,
-    paddingVertical: theme.spacing.xs,
-    paddingHorizontal: theme.spacing.sm,
-    borderRadius: theme.borderRadius.sm,
-    backgroundColor: `${theme.colors.primary}15`,
-  },
-  planBookChipText: {
-    ...theme.typography.caption.primary,
-    color: theme.colors.text.primary,
-  },
-  planEmptyText: {
-    ...theme.typography.caption.secondary,
-    color: theme.colors.text.secondary,
-  },
-  planControlsRow: {
-    flexDirection: 'row',
-    gap: theme.spacing.md,
-    flexWrap: 'wrap',
-  },
-  planChaptersGroup: {
-    flex: 1,
-    gap: theme.spacing.sm,
-  },
-  planChaptersOptions: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: theme.spacing.xs,
-  },
-  planChapterOption: {
-    paddingVertical: theme.spacing.xs,
-    paddingHorizontal: theme.spacing.sm,
-    borderRadius: theme.borderRadius.sm,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    backgroundColor: theme.colors.background,
-  },
-  planChapterOptionActive: {
-    borderColor: theme.colors.primary,
-    backgroundColor: `${theme.colors.primary}18`,
-  },
-  planChapterOptionText: {
-    ...theme.typography.caption.primary,
-    color: theme.colors.text.primary,
-  },
-  planReminderInline: {
-    flexBasis: 140,
-    gap: theme.spacing.xs,
-  },
-  planPrimaryButton: {
-    marginTop: theme.spacing.sm,
-    alignSelf: 'flex-start',
-    paddingVertical: theme.spacing.sm,
-    paddingHorizontal: theme.spacing.lg,
-    borderRadius: theme.borderRadius.md,
-    backgroundColor: theme.colors.primary,
-  },
-  planPrimaryButtonDisabled: {
-    backgroundColor: `${theme.colors.primary}40`,
-  },
-  planPrimaryButtonText: {
-    ...theme.typography.button.primary,
-    color: theme.colors.text.inverse,
-  },
-  planFooterActions: {
-    flexDirection: 'row',
-    gap: theme.spacing.sm,
-  },
-  planCompactRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: theme.spacing.sm,
-  },
-  planCardControls: {
-    flexDirection: 'row',
-    gap: theme.spacing.sm,
-    alignItems: 'center',
-    flexWrap: 'wrap',
-  },
-  planCompactActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: theme.spacing.xs,
-    flexShrink: 0,
-  },
-  planCompactActionButton: {
-    paddingHorizontal: theme.spacing.sm,
-  },
-  planCompactIconButton: {
-    height: 32,
-    width: 32,
-    borderRadius: theme.borderRadius.full,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: `${theme.colors.primary}10`,
-  },
-  planIconLauncher: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: theme.spacing.xs,
-    alignSelf: 'flex-start',
-    paddingVertical: theme.spacing.xs,
-    paddingHorizontal: theme.spacing.md,
-    borderRadius: theme.borderRadius.full,
-    backgroundColor: `${theme.colors.primary}12`,
-    borderWidth: 1,
-    borderColor: `${theme.colors.primary}30`,
-  },
-  planIconLauncherText: {
-    ...theme.typography.caption.primary,
-    color: theme.colors.primary,
-    fontWeight: '600',
-  },
-  compactPlanBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'flex-start',
-    backgroundColor: theme.colors.primary,
-    borderRadius: theme.borderRadius.md,
-    paddingVertical: theme.spacing.xs,
-    paddingHorizontal: theme.spacing.sm,
-    marginBottom: theme.spacing.sm,
-  },
-  compactPlanButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: theme.spacing.xs,
-  },
-  compactPlanText: {
-    ...theme.typography.caption.primary,
-    color: theme.colors.text.inverse,
-  },
-  planSecondaryButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: theme.spacing.xs,
-    paddingVertical: theme.spacing.xs,
-    paddingHorizontal: theme.spacing.md,
-  },
-  planSecondaryButtonLabel: {
-    ...theme.typography.caption.primary,
-    color: theme.colors.primary,
-  },
-  scopedContainer: {
-    flex: 1,
-    backgroundColor: theme.colors.background,
-    padding: theme.spacing.lg,
-    gap: theme.spacing.lg,
-  },
-  scopedHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: theme.spacing.md,
-  },
-  scopedHeaderText: {
-    flex: 1,
-    gap: theme.spacing.xs,
-  },
-  scopedTitle: {
-    ...theme.typography.heading.medium,
-    color: theme.colors.text.primary,
-  },
-  scopedSubtitle: {
-    ...theme.typography.body.sans,
-    color: theme.colors.text.secondary,
-  },
-  scopedDismissButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: theme.spacing.xs,
-    paddingVertical: theme.spacing.xs,
-    paddingHorizontal: theme.spacing.sm,
-    borderRadius: theme.borderRadius.sm,
-    backgroundColor: theme.colors.surface,
-  },
-  scopedDismissText: {
-    ...theme.typography.caption.primary,
-    color: theme.colors.text.secondary,
-  },
-  scopedScroll: {
-    flex: 1,
-  },
-  scopedScrollContent: {
-    gap: theme.spacing.md,
-    paddingBottom: theme.spacing.xl,
-  },
-  scopedVerseCard: {
-    gap: theme.spacing.xs,
-    padding: theme.spacing.lg,
-    borderRadius: theme.borderRadius.lg,
-    backgroundColor: theme.colors.surface,
-    shadowColor: theme.colors.shadow,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 2,
-  },
-  scopedVersePrimary: {
-    borderWidth: 1,
-    borderColor: `${theme.colors.primary}40`,
-    backgroundColor: `${theme.colors.primary}12`,
-  },
-  scopedReference: {
-    ...theme.typography.caption.primary,
-    color: theme.colors.text.secondary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.6,
-  },
-  scopedVerseText: {
-    ...theme.typography.verse.regular,
-    color: theme.colors.text.primary,
-    lineHeight: 26,
-  },
-  nextSegmentFooter: {
-    marginHorizontal: theme.spacing.lg,
-    marginVertical: theme.spacing.xl,
-    padding: theme.spacing.lg,
-    borderRadius: theme.borderRadius.lg,
-    backgroundColor: theme.colors.surface,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    alignItems: 'center',
-    gap: theme.spacing.sm,
-  },
-  nextSegmentTitle: {
-    ...theme.typography.body.sans,
-    color: theme.colors.text.primary,
-    fontWeight: '600',
-    textAlign: 'center',
-  },
-  nextSegmentSubtitle: {
-    ...theme.typography.caption.secondary,
-    color: theme.colors.text.secondary,
-    textAlign: 'center',
-  },
-  nextSegmentButton: {
-    marginTop: theme.spacing.sm,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: theme.spacing.xs,
-    backgroundColor: theme.colors.primary,
-    borderRadius: theme.borderRadius.full,
-    paddingHorizontal: theme.spacing.lg,
-    paddingVertical: theme.spacing.sm,
-  },
-  nextSegmentButtonText: {
-    ...theme.typography.button,
-    color: theme.colors.text.inverse,
-    fontWeight: '600',
-  },
-  // Floating compact timer pill
-  floatingTimer: {
-    position: 'absolute',
-    right: theme.spacing.md,
-    top: 56 + theme.spacing.md,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: theme.spacing.xs,
-    backgroundColor: `${theme.colors.surface}E6`,
-    borderRadius: theme.borderRadius.full,
-    paddingHorizontal: theme.spacing.md,
-    paddingVertical: theme.spacing.xs,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-  },
-  floatingTimerCircle: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: theme.colors.surfaceVariant,
-  },
-  floatingTimerText: {
-    ...theme.typography.caption.secondary,
-    color: theme.colors.text.secondary,
-  },
-  overlayHost: {
-    position: 'absolute',
-    top: 0,
-    right: 0,
-    bottom: 0,
-    left: 0,
-    zIndex: 35,
-    elevation: 5,
-  },
-  // Bottom overlay next chapter CTA
-  bottomOverlay: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: theme.spacing.lg,
-    alignItems: 'center',
-    zIndex: 40,
-    elevation: 6,
-  },
-  bottomOverlayButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: theme.spacing.xs,
-    backgroundColor: theme.colors.primary,
-    borderRadius: theme.borderRadius.full,
-    paddingHorizontal: theme.spacing.lg,
-    paddingVertical: theme.spacing.sm,
-    shadowColor: theme.colors.shadow,
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 3,
-  },
-  bottomOverlayText: {
-    ...theme.typography.button,
-    color: theme.colors.text.inverse,
-    fontWeight: '600',
-  },
-  // Timer modal
-  timerModalBackdrop: {
-    flex: 1,
-    backgroundColor: '#00000066',
-    justifyContent: 'flex-end',
-  },
-  timerModalCard: {
-    backgroundColor: theme.colors.surface,
-    borderTopLeftRadius: theme.borderRadius.xl,
-    borderTopRightRadius: theme.borderRadius.xl,
-    padding: theme.spacing.lg,
-    gap: theme.spacing.md,
-  },
-  timerModalHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: theme.spacing.sm,
-  },
-  timerModalTitle: {
-    ...theme.typography.body.sans,
-    color: theme.colors.text.primary,
-    fontWeight: '700',
-  },
-  resumeBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: theme.spacing.md,
-    paddingVertical: theme.spacing.sm,
-    backgroundColor: `${theme.colors.primary}10`,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
-  },
-  resumeText: {
-    ...theme.typography.body.sans,
-    color: theme.colors.text.primary,
-  },
-  resumeButton: {
-    paddingVertical: theme.spacing.xs,
-    paddingHorizontal: theme.spacing.md,
-    backgroundColor: theme.colors.primary,
-    borderRadius: theme.borderRadius.sm,
-  },
-  resumeButtonText: {
-    ...theme.typography.caption.primary,
-    color: theme.colors.text.inverse,
-  },
-  verseContainer: {
-    paddingVertical: theme.spacing.sm,
-    marginBottom: theme.spacing.sm,
-    borderRadius: theme.borderRadius.sm,
-  },
-  verseContent: {
-    flexDirection: 'row',
-    paddingHorizontal: theme.spacing.md,
-  },
-  verseNumber: {
-    ...theme.typography.caption.primary,
-    color: theme.colors.primary,
-    marginRight: theme.spacing.sm,
-    minWidth: 24,
-    textAlign: 'right',
-  },
-  verseText: {
-    flex: 1,
-    ...theme.typography.verse.regular,
-    color: theme.colors.text.primary,
-  },
-  verseMarkers: {
-    flexDirection: 'column',
-    alignItems: 'flex-start',
-    gap: theme.spacing.xs,
-    marginLeft: 0-theme.spacing.sm,
-    marginTop: theme.spacing.xs,
-  },
-  highlightedVerse: {
-    backgroundColor: `${theme.colors.primary}15`,
-  },
-  bookmarkButton: {
-    padding: theme.spacing.xs,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  searchContainer: {
-    flex: 1,
-    backgroundColor: theme.colors.background,
-  },
-  searchHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: theme.spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
-  },
-  searchInput: {
-    flex: 1,
-    ...theme.typography.body.sans,
-    padding: theme.spacing.sm,
-    backgroundColor: theme.colors.surface,
-    borderRadius: theme.borderRadius.md,
-    marginRight: theme.spacing.sm,
-  },
-  searchResultItem: {
-    padding: theme.spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
-  },
-  searchResultReference: {
-    ...theme.typography.caption.primary,
-    color: theme.colors.primary,
-    marginBottom: theme.spacing.xs,
-  },
-  searchResultText: {
-    ...theme.typography.body.sans,
-    color: theme.colors.text.primary,
-  },
-  modalContainer: {
-    flex: 1,
-    padding: theme.spacing.md,
-    backgroundColor: theme.colors.background,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingBottom: theme.spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
-  },
-  modalTitle: {
-    ...theme.typography.body.sans,
-    color: theme.colors.text.primary,
-  },
-  versionItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: theme.spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
-  },
-  versionInfo: {
-    flex: 1,
-  },
-  versionName: {
-    ...theme.typography.body.sans,
-    color: theme.colors.text.primary,
-  },
-  versionSubtext: {
-    ...theme.typography.caption.secondary,
-    color: theme.colors.text.secondary,
-  },
-  activityBar: {
-    height: 56,
-    paddingHorizontal: theme.spacing.md,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  activityContent: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  activityLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: theme.spacing.md,
-  },
-  activityButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: theme.spacing.xs,
-    paddingVertical: theme.spacing.xs,
-    paddingHorizontal: theme.spacing.sm,
-    borderRadius: theme.borderRadius.sm,
-    backgroundColor: `${theme.colors.primary}10`,
-  },
-  activityButtonText: {
-    ...theme.typography.caption.primary,
-    color: theme.colors.primary,
-  },
-  closeButton: {
-    padding: theme.spacing.xs,
-  },
-  iconButton: {
-    padding: theme.spacing.xs,
-    borderRadius: theme.borderRadius.sm,
-    backgroundColor: `${theme.colors.primary}10`,
-  },
-  loadingFooter: {
-    paddingVertical: theme.spacing.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: theme.spacing.xs,
-  },
-  loadingText: {
-    ...theme.typography.caption.secondary,
-    color: theme.colors.text.secondary,
-  },
-  savedSearchContainer: {
-    paddingHorizontal: theme.spacing.md,
-    paddingTop: theme.spacing.md,
-    paddingBottom: theme.spacing.sm,
-    gap: theme.spacing.sm,
-  },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingVertical: theme.spacing.lg,
-  },
-  savedSearchHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  savedSearchTitle: {
-    ...theme.typography.caption.secondary,
-    color: theme.colors.text.secondary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.4,
-  },
-  clearSavedSearchText: {
-    ...theme.typography.caption.primary,
-    color: theme.colors.text.secondary,
-  },
-  savedSearchChips: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: theme.spacing.sm,
-  },
-  savedSearchChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: theme.spacing.xs,
-    paddingVertical: theme.spacing.xs,
-    paddingHorizontal: theme.spacing.sm,
-    borderRadius: theme.borderRadius.md,
-    backgroundColor: `${theme.colors.primary}15`,
-  },
-  savedSearchText: {
-    ...theme.typography.caption.primary,
-    color: theme.colors.text.primary,
-  },
-  emptyText: {
-    ...theme.typography.body.sans,
-    color: theme.colors.text.secondary,
-    marginTop: theme.spacing.sm,
-  },
-  emptySearchContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: theme.spacing.xl,
-    gap: theme.spacing.sm,
-  },
-  emptySearchText: {
-    ...theme.typography.body.sans,
-    color: theme.colors.text.secondary,
-    textAlign: 'center',
-  },
-  errorText: {
-    ...theme.typography.body.sans,
-    color: theme.colors.error,
-    textAlign: 'center',
-    marginBottom: theme.spacing.sm,
-  },
-  retryButton: {
-    paddingVertical: theme.spacing.sm,
-    paddingHorizontal: theme.spacing.lg,
-    backgroundColor: theme.colors.primary,
-    borderRadius: theme.borderRadius.md,
-  },
-  retryButtonText: {
-    ...theme.typography.body.sans,
-    color: theme.colors.text.inverse,
-  },
-  offlineIndicator: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: theme.spacing.xs,
-    paddingHorizontal: theme.spacing.sm,
-    paddingVertical: theme.spacing.xs,
-    borderRadius: theme.borderRadius.sm,
-    backgroundColor: `${theme.colors.warning}15`,
-  },
-  offlineText: {
-    ...theme.typography.caption.secondary,
-    color: theme.colors.warning,
-    fontSize: 10,
-  },
-  aiModalContainer: {
-    flex: 1,
-    backgroundColor: theme.colors.background,
-    paddingTop: theme.spacing.xl,
-    paddingHorizontal: theme.spacing.lg,
-  },
-  aiModalHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: theme.spacing.lg,
-  },
-  aiModalTitle: {
-    ...theme.typography.heading.small,
-    color: theme.colors.text.primary,
-    fontWeight: '700',
-  },
-  aiModalReference: {
-    ...theme.typography.caption.secondary,
-    color: theme.colors.text.secondary,
-    marginTop: theme.spacing.xs,
-  },
-  aiModalLoading: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: theme.spacing.md,
-  },
-  aiModalLoadingText: {
-    ...theme.typography.caption.secondary,
-    color: theme.colors.text.secondary,
-  },
-  aiModalError: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: theme.spacing.sm,
-    borderRadius: theme.borderRadius.md,
-    padding: theme.spacing.md,
-    backgroundColor: `${theme.colors.error}10`,
-  },
-  aiModalErrorText: {
-    ...theme.typography.caption.primary,
-    color: theme.colors.error,
-    flex: 1,
-  },
-  aiModalContent: {
-    paddingBottom: theme.spacing.xxl,
-    gap: theme.spacing.lg,
-  },
-  aiSection: {
-    borderRadius: theme.borderRadius.lg,
-    borderWidth: 1,
-    ...theme.typography.caption.secondary,
-    color: theme.colors.text.secondary,
-    textAlign: 'center',
-    marginTop: theme.spacing.xl,
-  },
-  aiSectionTitle: {
-    ...theme.typography.body.sans,
-    color: theme.colors.text.primary,
-    fontWeight: '600',
-    marginBottom: theme.spacing.xs,
-    textAlign: 'center',
-  },
-  aiSectionBody: {
-    ...theme.typography.caption.secondary,
-    color: theme.colors.text.secondary,
-  },
-  aiModalPlaceholder: {
-    padding: theme.spacing.lg,
-    borderRadius: theme.borderRadius.md,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: theme.spacing.sm,
-  },
-});
+// Styles are now imported from ./bible/styles.ts via createBibleStyles
 
 export default observer(BibleScreen);

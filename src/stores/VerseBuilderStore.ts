@@ -92,6 +92,7 @@ export class VerseBuilderStore {
   private verseQueue: VerseGame[] = [];
   private saveTimeout: ReturnType<typeof setTimeout> | null = null;
   private hasPendingSave = false;
+  private successRoundTimeout: ReturnType<typeof setTimeout> | null = null;
 
   constructor(verseStore: VerseStore, gameStore: GameStore) {
     this.state = initialState;
@@ -480,7 +481,13 @@ export class VerseBuilderStore {
 
       this.state.showSuccess = true;
       this.state.hasPlayed = true;
-      setTimeout(() => {
+      
+      // Clear any existing timeout before setting a new one
+      if (this.successRoundTimeout) {
+        clearTimeout(this.successRoundTimeout);
+      }
+      this.successRoundTimeout = setTimeout(() => {
+        this.successRoundTimeout = null;
         this.startNewRound();
       }, 3500);
     });
@@ -583,5 +590,16 @@ export class VerseBuilderStore {
         this.startNewRound();
     });
     this.scheduleSave();
+  }
+
+  cleanup = () => {
+    if (this.successRoundTimeout) {
+      clearTimeout(this.successRoundTimeout);
+      this.successRoundTimeout = null;
+    }
+    if (this.saveTimeout) {
+      clearTimeout(this.saveTimeout);
+      this.saveTimeout = null;
+    }
   }
 }

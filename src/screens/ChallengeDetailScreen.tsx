@@ -11,9 +11,10 @@ import { LinearGradient } from 'expo-linear-gradient';
 import * as Notifications from 'expo-notifications';
 import {
   loadStoredReminder,
+  ensureChallengeReminderChannel,
   upsertStoredReminder,
-  updateReminderNextDue,
   cancelChallengeReminder,
+  CHALLENGE_REMINDER_CHANNEL_ID,
 } from '@/tasks/challengeReminderTask';
 
 
@@ -64,6 +65,10 @@ const ChallengeDetailScreen = observer(({ route, navigation }: Props) => {
       try {
         const storedReminder = await loadStoredReminder(challenge.id);
         if (!storedReminder?.nextReminderDue) {
+          return;
+        }
+
+        if (storedReminder?.notificationIds?.length) {
           return;
         }
 
@@ -130,6 +135,10 @@ const ChallengeDetailScreen = observer(({ route, navigation }: Props) => {
         }
       }
 
+      await ensureChallengeReminderChannel();
+
+      await cancelChallengeReminder(challenge.id);
+
       // Schedule periodic notifications every X hours until challenge is completed
       const now = new Date();
       let challengeEndTime: Date | null = null;
@@ -144,49 +153,50 @@ const ChallengeDetailScreen = observer(({ route, navigation }: Props) => {
         }
       }
 
-      // Schedule notifications every 'hours' interval, up to the challenge end time or max 24 hours
-      let maxNotifications = 24;
-      if (challengeEndTime) {
-        const msRemaining = challengeEndTime.getTime() - now.getTime();
-        if (msRemaining <= 0) {
-          maxNotifications = 0;
-        } else {
-          maxNotifications = Math.min(24, Math.floor(msRemaining / (hours * 60 * 60 * 1000)));
-        }
+      const notificationIds: string[] = [];
+      const intervalMs = hours * 60 * 60 * 1000;
+
+      const triggers: Date[] = [];
+      const first = new Date(now.getTime() + intervalMs);
+      if (!challengeEndTime || first <= challengeEndTime) {
+        triggers.push(first);
       }
 
-      const notificationIds: string[] = [];
+      for (let i = 2; i <= 24; i++) {
+        const triggerAt = new Date(now.getTime() + i * intervalMs);
+        if (challengeEndTime && triggerAt > challengeEndTime) break;
+        triggers.push(triggerAt);
+      }
 
-      for (let i = 1; i <= maxNotifications; i++) {
-        const trigger = new Date(now.getTime() + (i * hours * 60 * 60 * 1000));
+      if (triggers.length === 0) {
+        await cancelChallengeReminder(challenge.id);
+        return;
+      }
 
-        // Don't schedule past the challenge end time
-        if (challengeEndTime && trigger > challengeEndTime) break;
-
+      for (const triggerAt of triggers) {
         const notificationId = await Notifications.scheduleNotificationAsync({
           content: {
             title: 'Daily Challenge Reminder',
             body: `Don't forget to complete your "${challenge.title}" challenge! Every ${hours} hour${hours > 1 ? 's' : ''} reminder.`,
-            sound: true,
+            sound: 'default',
             priority: Notifications.AndroidNotificationPriority.HIGH,
           },
           trigger: {
             type: Notifications.SchedulableTriggerInputTypes.DATE,
-            date: trigger,
+            date: triggerAt,
+            channelId: CHALLENGE_REMINDER_CHANNEL_ID,
           },
         });
 
         notificationIds.push(notificationId);
       }
 
-      // Store reminder info locally
-      const nextReminderDue = new Date(now.getTime() + (hours * 60 * 60 * 1000));
       await upsertStoredReminder({
         challengeId: challenge.id,
         challengeTitle: challenge.title,
         reminderHours: hours,
         scheduledFor: now.toISOString(),
-        nextReminderDue: nextReminderDue.toISOString(),
+        nextReminderDue: triggers[0].toISOString(),
         notificationIds,
       });
 
@@ -217,7 +227,7 @@ const ChallengeDetailScreen = observer(({ route, navigation }: Props) => {
         const dismissedUntil = new Date(Date.now() + (reminderHours * 60 * 60 * 1000));
         setReminderDismissedUntil(dismissedUntil);
 
-        await updateReminderNextDue(challenge.id, dismissedUntil);
+        await scheduleChallengeReminder(challenge, reminderHours);
       }
 
       setShowReminderAlert(false);

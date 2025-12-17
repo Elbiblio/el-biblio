@@ -550,7 +550,7 @@ const WordHubDetailScreen = observer(({ navigation, route }: Props) => {
             </View>
             <View style={styles.stat}>
               <MessageCircle size={16} color={theme.colors.text.secondary} />
-              <Text style={styles.statText}>{hub.messages?.length ?? 0} messages</Text>
+              <Text style={styles.statText}>{hub.messageCount ?? (hub as any)?.message_count ?? 0} messages</Text>
             </View>
             <TouchableOpacity style={styles.stat} onPress={handleTimePress} disabled={!hub.expires_at || isExpired}>
             <Clock size={16} color={theme.colors.text.secondary} />

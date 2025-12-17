@@ -159,18 +159,16 @@ api.interceptors.response.use(
   (response) => {
     const transformed = transformResponse(response);
     try {
-      // Suppress points emission for all game endpoints; GameStore handles game score logic separately.
       const url = String(response?.config?.url || '');
-      if (url.includes('/game/')) {
-        return transformed;
-      }
       const headerPoints = Number(response.headers?.['x-points-earned'] || response.headers?.['X-Points-Earned']);
       const body: any = transformed.data;
       const directPoints = Number((body?.data as any)?.points_earned ?? body?.points_earned);
       const metaPoints = Number((body?.data as any)?.meta?.points_earned);
       const points = [headerPoints, directPoints, metaPoints].find((v) => typeof v === 'number' && !isNaN(v) && v > 0);
       if (typeof points === 'number' && points > 0) {
-        const title = (body?.data as any)?.challenge?.title || (body?.data as any)?.title;
+        const title = url.includes('/game/')
+          ? 'Game Score'
+          : (body?.data as any)?.challenge?.title || (body?.data as any)?.title;
         pointsTracker.emit(points, title);
       }
     } catch {}

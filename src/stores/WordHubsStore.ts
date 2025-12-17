@@ -610,10 +610,20 @@ export class WordHubsStore {
 
       if (!response.success) throw new Error(response.message || 'Failed to leave word hub');
 
+      runInAction(() => {
+        // Remove the hub from the local list
+        this.state.wordHubs = this.state.wordHubs.filter(hub => hub.id !== hubId);
+        // Clear current hub if it's the one being left
+        if (this.state.currentHub?.id === hubId) {
+          this.state.currentHub = null;
+        }
+      });
+
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       toast.success('Successfully left word hub!');
 
       this.clearLiveKitSession(hubId);
+      this.removeCachedLiveKitSession(hubId);
 
       return true;
     } catch (error: any) {
@@ -769,7 +779,7 @@ export class WordHubsStore {
 
   async searchHubs(query: string, limit = 20) {
     try {
-      const response = await apiClient.get<WordHub[]>(
+      const response = await apiClient.get<PaginatedResponse<WordHub>>(
         endpoints.wordHubs.list,
         {
           q: query,
@@ -781,7 +791,8 @@ export class WordHubsStore {
 
       if (!response.success) throw new Error(response.message || 'Failed to search word hubs');
 
-      return response.data;
+      const { items } = extractWordHubs(response.data);
+      return items;
     } catch (error) {
       console.error('Error searching word hubs:', error);
       return [];

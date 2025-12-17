@@ -10,6 +10,7 @@ import { bibleBooks } from '@/constants/bibleBooks';
 
 interface QuizQuestion {
   id: string;
+  qid?: number;
   question: string;
   type: 'true_false' | 'multiple_choice';
   options?: string[];
@@ -38,6 +39,8 @@ interface VirtueQuizStoreState {
   isAnswerCorrect: boolean | null;
   showExplanation: boolean;
 
+  answerMap: Record<number, string | number>;
+
   // Loading and error states
   isLoading: boolean;
   error: string | null;
@@ -56,6 +59,7 @@ export class VirtueQuizStore {
     selectedAnswer: null,
     isAnswerCorrect: null,
     showExplanation: false,
+    answerMap: {},
     isLoading: false,
     error: null,
   };
@@ -80,6 +84,7 @@ export class VirtueQuizStore {
       selectedAnswer: null,
       isAnswerCorrect: null,
       showExplanation: false,
+      answerMap: {},
       isLoading: false,
       error: null,
     };
@@ -387,6 +392,7 @@ export class VirtueQuizStore {
     runInAction(() => {
         this.state.selectedAnswer = answer;
         this.state.isAnswerCorrect = isCorrect;
+        this.state.answerMap[this.state.currentQuestionIndex] = answer;
         if (isCorrect) {
             this.state.score += 1;
         }
@@ -442,15 +448,24 @@ export class VirtueQuizStore {
 
         // Submit batch answers for analytics (optional - if backend needs detailed answer data)
         try {
+          const answers = questions
+            .map((q, idx) => {
+              const selected = this.state.answerMap[idx];
+              if (selected === undefined) {
+                return null;
+              }
+              return {
+                qid: (q as any)?.qid ?? null,
+                selectedAnswer: selected,
+              };
+            })
+            .filter(Boolean);
+
           await apiClient.post(
             `/virtues/${selectedVirtue.id}/quiz/answers`,
             {
               level: selectedLevel,
-              answers: questions.map((q, idx) => ({
-                questionId: q.id,
-                selectedAnswer: idx === this.state.currentQuestionIndex ? this.state.selectedAnswer : null,
-                isCorrect: String(this.state.selectedAnswer) === String(q.correctAnswer),
-              })),
+              answers,
             }
           );
         } catch (analyticsError) {
@@ -505,6 +520,7 @@ export class VirtueQuizStore {
     this.state.selectedAnswer = null;
     this.state.isAnswerCorrect = null;
     this.state.showExplanation = false;
+    this.state.answerMap = {};
     this.setError(null);
     this.setLoading(false);
     this.saveToStorage();
