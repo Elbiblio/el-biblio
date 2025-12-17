@@ -6,8 +6,9 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { Theme } from '@/theme';
 import { observer } from 'mobx-react-lite';
 import { useChallengeStore } from '@/stores/StoreProvider';
-import { ArrowLeft, ArrowUp, Users, Clock, Star, X, Calendar, Trophy } from '@/components/Icons';
+import { ArrowLeft, ArrowUp, Users, Clock, Star, X, Calendar, Trophy, Check } from '@/components/Icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import * as Haptics from 'expo-haptics';
 import * as Notifications from 'expo-notifications';
 import {
   loadStoredReminder,
@@ -293,10 +294,39 @@ const ChallengeDetailScreen = observer(({ route, navigation }: Props) => {
       return { percent: 0, remaining: 'Ongoing' };
     }
 
-    const startTime = new Date(startSource).getTime();
-    const endTime = new Date(endSource).getTime();
+    const toMillis = (source: string, baseDate?: string): number | null => {
+      const raw = (source || '').trim();
+      if (!raw) return null;
 
-    if (!Number.isFinite(startTime) || !Number.isFinite(endTime) || endTime <= startTime) {
+      if (/^\d{1,2}:\d{2}(:\d{2})?$/.test(raw)) {
+        const datePart = baseDate && /\d{4}-\d{2}-\d{2}/.test(baseDate) ? baseDate.slice(0, 10) : undefined;
+        if (datePart) {
+          const iso = `${datePart}T${raw.length === 5 ? raw + ':00' : raw}`;
+          const d = new Date(iso);
+          return Number.isNaN(d.getTime()) ? null : d.getTime();
+        }
+        const parts = raw.split(':').map(Number);
+        if (parts.length >= 2 && parts.every((p) => !Number.isNaN(p))) {
+          const t = new Date();
+          t.setHours(parts[0], parts[1], parts[2] ?? 0, 0);
+          return t.getTime();
+        }
+      }
+
+      if (raw.includes('-') && raw.includes(' ') && !raw.includes('T')) {
+        const iso = raw.replace(' ', 'T');
+        const d = new Date(iso);
+        return Number.isNaN(d.getTime()) ? null : d.getTime();
+      }
+
+      const d = new Date(raw);
+      return Number.isNaN(d.getTime()) ? null : d.getTime();
+    };
+
+    const startTime = toMillis(startSource, startSource);
+    const endTime = toMillis(endSource, startSource);
+
+    if (startTime === null || endTime === null || !Number.isFinite(startTime) || !Number.isFinite(endTime) || endTime <= startTime) {
       return { percent: 0, remaining: 'Ongoing' };
     }
 
@@ -332,6 +362,19 @@ const ChallengeDetailScreen = observer(({ route, navigation }: Props) => {
 
   const progressPercent = timeProgress.percent;
   const timeRemainingLabel = timeProgress.remaining;
+
+  const handleComplete = async () => {
+    if (!challenge?.hasJoined || challenge?.isCompleted) {
+      return;
+    }
+    try {
+      await store.completeChallenge(challenge.id, true);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setForceUpdate(prev => prev + 1);
+    } catch (e) {
+      Alert.alert('Error', 'Unable to complete challenge.');
+    }
+  };
 
   // Helper functions
   const getFrequencyLabel = (freq?: string) => {
@@ -480,6 +523,13 @@ const ChallengeDetailScreen = observer(({ route, navigation }: Props) => {
             <TouchableOpacity style={[styles.actionBtn, { backgroundColor: `${theme?.colors.primary}15` }]} onPress={handleUpvote}>
               <ArrowUp size={18} color={theme?.colors.primary} />
               <Text style={[styles.actionText, { color: theme?.colors.primary }]}>Upvote</Text>
+            </TouchableOpacity>
+          )}
+
+          {challenge.hasJoined && !challenge.isCompleted && timeRemainingLabel !== 'Expired' && (
+            <TouchableOpacity style={[styles.actionBtn, { backgroundColor: `${theme?.colors.success}15` }]} onPress={handleComplete}>
+              <Check size={18} color={theme?.colors.success} />
+              <Text style={[styles.actionText, { color: theme?.colors.success }]}>I Did It</Text>
             </TouchableOpacity>
           )}
 

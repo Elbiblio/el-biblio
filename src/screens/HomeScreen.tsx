@@ -37,6 +37,7 @@ import {
   Bible,
   Flame,
   Lightning,
+  Brain,
   Lock,
   X,
 } from './../components/Icons';

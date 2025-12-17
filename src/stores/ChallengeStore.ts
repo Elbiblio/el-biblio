@@ -8,6 +8,7 @@ import { engagementTracker } from '@/utils/engagementTracker';
 import { toast } from 'sonner-native';
 import { differenceInMinutes } from 'date-fns';
 import { cancelChallengeReminder } from '@/tasks/challengeReminderTask';
+import { pointsTracker } from '@/utils/pointsTracker';
 
 export type ChallengeCategory = 'personal' | 'community' | 'suggested';
 
@@ -74,7 +75,13 @@ export class ChallengeStore {
     AsyncStorage.getItem(this.storageKey).then(stored => {
       if (stored) {
         runInAction(() => {
-          this.state = { ...this.state, ...JSON.parse(stored) };
+          const parsed = JSON.parse(stored);
+          this.state = {
+            ...this.state,
+            ...parsed,
+            showNewChallengeForm: false,
+            refreshing: false,
+          };
         });
       }
     }).catch(error => {
@@ -98,7 +105,12 @@ export class ChallengeStore {
 
   private async saveToStorage() {
     try {
-      await AsyncStorage.setItem(this.storageKey, JSON.stringify(this.state));
+      const snapshot: ChallengeState = {
+        ...this.state,
+        showNewChallengeForm: false,
+        refreshing: false,
+      };
+      await AsyncStorage.setItem(this.storageKey, JSON.stringify(snapshot));
     } catch (error) {
       console.error(`Error saving ${this.storageKey} to storage:`, error);
       this.error = 'Failed to save data';
@@ -482,8 +494,11 @@ export class ChallengeStore {
         type: data.type,
         category: data.category,
         end_time: data.endTime,
-        is_public: data.isPublic ?? (data.category !== 'personal'),
       };
+
+      if (typeof data.isPublic === 'boolean') {
+        payload.is_published = data.isPublic;
+      }
       const response = await apiClient.post<BackendChallenge>(endpoints.challenges.create, payload);
       
       runInAction(() => {
@@ -610,6 +625,8 @@ export class ChallengeStore {
         } else {
           this.state.personalChallenges = [merged, ...this.state.personalChallenges];
         }
+
+        this.state.suggestedChallenges = this.state.suggestedChallenges.filter((c) => c.id !== merged.id);
       });
 
       await this.saveToStorage();
@@ -722,6 +739,9 @@ export class ChallengeStore {
   async completeChallenge(challengeId: string, isCompleted: boolean) {
     try {
       this.setLoading(true);
+
+      const before = this.getChallengeById(challengeId);
+      const wasCompleted = !!before?.isCompleted;
       const response = await apiClient.post<any>(
         endpoints.challenges.complete(challengeId)
       );
@@ -770,6 +790,17 @@ export class ChallengeStore {
       });
 
       await this.saveToStorage();
+
+      const msg = typeof response?.message === 'string' ? response.message.toLowerCase() : '';
+      const isAlreadyCompleted = msg.includes('already completed');
+      if (!wasCompleted && !isAlreadyCompleted) {
+        const after = this.getChallengeById(challengeId);
+        const points = Number(after?.points ?? 0);
+        if (Number.isFinite(points) && points > 0) {
+          pointsTracker.emit(points, after?.title);
+        }
+      }
+
       void cancelChallengeReminder(challengeId);
       toast.success(`Challenge marked as completed`);
       // Mark challenge engagement for "What you missed" flow
@@ -795,6 +826,10 @@ export class ChallengeStore {
       
       // Join the existing suggested challenge instead of creating a duplicate
       const joinedChallenge = await this.joinChallenge(challengeId);
+
+      runInAction(() => {
+        this.state.suggestedChallenges = this.state.suggestedChallenges.filter((c) => c.id !== challengeId);
+      });
       
       await this.saveToStorage();
       return joinedChallenge;

@@ -66,7 +66,7 @@ interface DOMElement {
   attributes: NamedNodeMap;
   children: HTMLCollectionOfDOMElements;
   getElementsByTagName: (tagName: string) => HTMLCollectionOfDOMElements;
-  textContent: string;
+  textContent: string | null;
   id: string;
 }
 
@@ -278,13 +278,24 @@ const AdvancedSvgUri: React.FC<SvgUriProps> = ({
     const svgElement = svgElements[0];
     
     // Parse styles from defs
-    const styleElements = Array.from(doc.getElementsByTagName('style'));
+    const styleCollection = doc.getElementsByTagName('style');
+    const styleElements: DOMElement[] = [];
+    for (let i = 0; i < styleCollection.length; i++) {
+      const el = styleCollection.item(i);
+      if (el) styleElements.push((el as unknown) as DOMElement);
+    }
     const styleDefinitions: StyleDefinition[] = styleElements
       .map(style => parseStylesheet(((style as unknown) as DOMElement).textContent || ''))
       .flat();
 
     // Parse defs
-    const defs: ParsedDef[] = Array.from(svgElement.getElementsByTagName('defs'))
+    const defsCollection = svgElement.getElementsByTagName('defs');
+    const defsElements: DOMElement[] = [];
+    for (let i = 0; i < defsCollection.length; i++) {
+      const el = defsCollection.item(i);
+      if (el) defsElements.push((el as unknown) as DOMElement);
+    }
+    const defs: ParsedDef[] = defsElements
       .map(def => Array.from(((def as unknown) as DOMElement).children)
         .map(child => {
           const dChild = (child as unknown) as DOMElement;
@@ -303,9 +314,17 @@ const AdvancedSvgUri: React.FC<SvgUriProps> = ({
       viewBox: svgElement.getAttribute('viewBox') || '',
       width: svgElement.getAttribute('width') || '',
       height: svgElement.getAttribute('height') || '',
-      elements: Array.from(svgElement.children)
-        .filter(child => ((child as unknown) as DOMElement).tagName.toLowerCase() !== 'defs')
-        .map(child => parseElement(((child as unknown) as DOMElement), styleDefinitions)),
+      elements: (() => {
+        const out: ParsedSvgElement[] = [];
+        const children = svgElement.children;
+        for (let i = 0; i < children.length; i++) {
+          const child = children.item(i);
+          if (!child) continue;
+          if (child.tagName.toLowerCase() === 'defs') continue;
+          out.push(parseElement(child as DOMElement, styleDefinitions));
+        }
+        return out;
+      })(),
       defs
     };
   }, [parseElement, parseStylesheet]);

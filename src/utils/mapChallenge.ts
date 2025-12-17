@@ -6,6 +6,25 @@ export const mapChallenge = (b: BackendChallenge): Challenge => {
   const anyB = b as any;
   const challengeId = anyB?.challenge_id ?? anyB?.id;
 
+  const normalizeDateTime = (value: any): string | undefined => {
+    if (value === undefined || value === null) {
+      return undefined;
+    }
+    const raw = String(value).trim();
+    if (!raw) {
+      return undefined;
+    }
+    if (raw.includes('-') && raw.includes(' ') && !raw.includes('T')) {
+      return raw.replace(' ', 'T');
+    }
+    return raw;
+  };
+
+  const endDate = typeof b.end_date === 'string' && b.end_date ? b.end_date : undefined;
+  const endDateAsEndOfDay = endDate ? `${endDate}T23:59:59` : undefined;
+  const normalizedEndTime = normalizeDateTime(b.end_time);
+  const normalizedExpiresAt = normalizeDateTime((b as any).expires_at) || normalizedEndTime || endDateAsEndOfDay || '';
+
   return {
     id: String(challengeId),
     title: anyB?.title,
@@ -13,9 +32,9 @@ export const mapChallenge = (b: BackendChallenge): Challenge => {
     type: (b.type as any) || 'virtue',
     category: (b.category as any) || 'personal',
     progress: typeof b.progress === 'number' ? b.progress : undefined,
-    endTime: b.end_time || '23:59:59',
-    createdAt: b.created_at || new Date().toISOString(),
-    expiresAt: b.expires_at || b.end_date || '',
+    endTime: normalizedEndTime || '23:59:59',
+    createdAt: normalizeDateTime(b.created_at) || new Date().toISOString(),
+    expiresAt: normalizedExpiresAt,
     startDate: b.start_date,
     isCompleted: !!b.is_completed,
     userId: b.user_id !== undefined ? String(b.user_id) : (anyB?.user_id ? String(anyB.user_id) : ''),

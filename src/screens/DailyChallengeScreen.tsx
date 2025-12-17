@@ -1,30 +1,16 @@
-import React, { useState, useEffect, useCallback, useMemo, memo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
-  StyleSheet,
-  ScrollView,
   FlatList,
   TouchableOpacity,
-  Platform,
-  TextInput,
   Alert,
   RefreshControl,
   ActivityIndicator
 } from 'react-native';
-import { Modal } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRoute } from '@react-navigation/native';
-import {
-  ArrowLeft,
-  X,
-  Clock,
-  Trophy,
-  Star,
-  Sparkle,
-  Check
-} from '@/components/Icons';
-import { LinearGradient } from 'expo-linear-gradient';
+import { ArrowLeft, Trophy, Plus, Sparkle } from '@/components/Icons';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -32,23 +18,38 @@ import Animated, {
   interpolate,
   Extrapolation
 } from 'react-native-reanimated';
-import { format, isToday, parseISO, differenceInHours, addDays } from 'date-fns';
-import AvatarStack from '@/components/AvatarStack';
 import { useTheme } from '@/contexts/ThemeContext';
 import {
   useAuthStore,
   useChallengeStore,
   useVirtueStore,
   useDailyPathStore,
+  useLeaderboardStore,
 } from '@/stores/StoreProvider';
-import { Theme } from '@/theme';
 import { Challenge, ChallengeType } from '@/types/challenges';
 import * as Haptics from 'expo-haptics';
+import * as Notifications from 'expo-notifications';
 import EmptyState from '@/components/EmptyState';
 import SmartPickCard from '@/components/SmartPickCard';
 import { observer } from 'mobx-react-lite';
 import { RouteProp } from '@react-navigation/native';
 import type { RootStackParamList } from '@/types';
+import {
+  ensureChallengeReminderChannel,
+  upsertStoredReminder,
+  cancelChallengeReminder,
+  CHALLENGE_REMINDER_CHANNEL_ID,
+} from '@/tasks/challengeReminderTask';
+import { validateEndTime } from '@/utils/challengeHelpers';
+import {
+  ChallengeCard,
+  CreateChallengeModal,
+  JoinReminderModal,
+  VoteModal,
+  SuggestChallengeModal,
+  ChallengeOnboardingOverlay,
+} from '@/components/challenges';
+import { createStyles } from '../components/challenges/DailyChallengeScreenStyles';
 
 type DailyChallengesProps = {
   navigation: any;
@@ -62,10 +63,6 @@ const CHALLENGE_CATEGORIES = [
   { id: 'suggested', label: 'Suggested' },
 ];
 
-const CHALLENGE_TYPES = [
-  { id: 'virtue', label: 'Develop Virtue', icon: Star, color: '#4CAF50' },
-  { id: 'vice', label: 'Reduce Vice', icon: X, color: '#F44336' },
-];
 
 const DailyChallengesScreen = observer(({ navigation }: DailyChallengesProps) => {
   const insets = useSafeAreaInsets();
@@ -75,9 +72,11 @@ const DailyChallengesScreen = observer(({ navigation }: DailyChallengesProps) =>
 
   const { currentGoalVirtueId, virtues: allVirtues } = useVirtueStore();
   const { user } = useAuthStore();
+  const leaderboardStore = useLeaderboardStore();
   const dailyPathStore = useDailyPathStore();
   const challengeStore = useChallengeStore();
-  const userPoints = user?.points ?? 0;
+  const optimisticDelta = Number((leaderboardStore as any)?.state?.optimisticPointsDelta ?? 0) || 0;
+  const userPoints = (leaderboardStore.userStats?.totalPoints ?? (Number(user?.points ?? 0) + optimisticDelta)) || 0;
   const canSuggestCommunity = userPoints >= 100;
 
   const {
@@ -112,7 +111,6 @@ const DailyChallengesScreen = observer(({ navigation }: DailyChallengesProps) =>
     leaveChallenge,
     upvoteChallenge,
     completeChallenge,
-    addSuggestedToPersonal,
     voteChallenge,
     
     // State management
@@ -145,6 +143,10 @@ const DailyChallengesScreen = observer(({ navigation }: DailyChallengesProps) =>
   const [voteSpiritual, setVoteSpiritual] = useState(3);
   const [voteEffort, setVoteEffort] = useState(3);
   const [smartPickDismissed, setSmartPickDismissed] = useState(false);
+
+  const [showJoinReminderModal, setShowJoinReminderModal] = useState(false);
+  const [joinTarget, setJoinTarget] = useState<Challenge | null>(null);
+  const [selectedJoinReminderHours, setSelectedJoinReminderHours] = useState<number>(6);
   
   // Animation values
   const headerHeight = useSharedValue(0);
@@ -202,13 +204,7 @@ const DailyChallengesScreen = observer(({ navigation }: DailyChallengesProps) =>
   }, [refreshAll]);
   
   const toggleNewChallengeForm = () => {
-    if (showNewChallengeForm) {
-      formHeight.value = withTiming(0, { duration: 300 });
-      setTimeout(() => setShowNewChallengeForm(false), 300);
-    } else {
-      setShowNewChallengeForm(true);
-      setTimeout(() => formHeight.value = withTiming(400, { duration: 300 }), 10);
-    }
+    setShowNewChallengeForm(!showNewChallengeForm);
   };
   
   const handleCreateChallenge = async () => {
@@ -216,9 +212,15 @@ const DailyChallengesScreen = observer(({ navigation }: DailyChallengesProps) =>
       Alert.alert('Error', 'Please enter a challenge title');
       return;
     }
+
+    const validation = validateEndTime(newChallenge.endTime);
+    if (!validation.valid) {
+      Alert.alert('Error', validation.error || 'Invalid end time');
+      return;
+    }
     
     // Determine category based on active tab
-    const category = activeCategory === 'community' ? 'community' : 'suggested';
+    const category = activeCategory === 'community' ? 'community' : 'personal';
     
     const result = await createChallenge({
       title: newChallenge.title,
@@ -226,10 +228,19 @@ const DailyChallengesScreen = observer(({ navigation }: DailyChallengesProps) =>
       type: newChallenge.type,
       category: category,
       endTime: newChallenge.endTime,
-      isPublic: category === 'community', // Community challenges are public
+      isPublic: category === 'community' ? true : undefined,
     });
     
     if (result) {
+      if (category !== 'community') {
+        setActiveCategory('personal');
+      }
+
+      if (category === 'personal') {
+        try {
+          await scheduleJoinReminder(result as any, 6);
+        } catch {}
+      }
       // Reset form
       setNewChallenge({
         title: '',
@@ -238,55 +249,10 @@ const DailyChallengesScreen = observer(({ navigation }: DailyChallengesProps) =>
         description: '',
       });
       
-      toggleNewChallengeForm();
+      setShowNewChallengeForm(false);
       Alert.alert('Success', 'Challenge created successfully!');
     }
   };
-  
-  // const handleCompleteChallenge = async (challenge: Challenge, isCompleted: boolean) => {
-  //   const success = await completeChallenge(challenge.id, isCompleted);
-    
-  //   if (success) {
-  //     Haptics.notificationAsync(
-  //       isCompleted 
-  //         ? Haptics.NotificationFeedbackType.Success 
-  //         : Haptics.NotificationFeedbackType.Warning
-  //     );
-  //   }
-  // };
-  
-  // const handleJoinChallenge = async (challenge: Challenge) => {
-  //   if (isJoiningLoading) return; // Prevent multiple clicks
-    
-  //   const success = await (challenge.hasJoined 
-  //     ? leaveChallenge(challenge.id)
-  //     : joinChallenge(challenge.id)
-  //   );
-    
-  //   if (success) {
-  //     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  //   }
-  // };
-  
-  // const handleUpvoteChallenge = async (challenge: Challenge) => {
-  //   if (isUpvotingLoading) return; // Prevent multiple clicks
-    
-  //   const success = await upvoteChallenge(challenge.id);
-    
-  //   if (success) {
-  //     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  //   }
-  // };
-  
-  // const handleAddSuggestedChallenge = async (challenge: Challenge) => {
-  //   if (isCreatingLoading) return; // Prevent multiple clicks
-    
-  //   const success = await addSuggestedToPersonal(challenge.id);
-    
-  //   if (success) {
-  //     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  //   }
-  // };
   
   const handleSuggestCommunityChallenge = () => {
     if (!canSuggestCommunity) {
@@ -301,7 +267,7 @@ const DailyChallengesScreen = observer(({ navigation }: DailyChallengesProps) =>
       return;
     }
     
-    if (!user || (user.points || 0) < 100) {
+    if (!user || userPoints < 100) {
       Alert.alert('Points Required', 'You need at least 100 points to suggest community challenges.');
       setShowSuggestModal(false);
       return;
@@ -321,7 +287,7 @@ const DailyChallengesScreen = observer(({ navigation }: DailyChallengesProps) =>
       setNewChallenge({ title: '', type: 'virtue', endTime: '21:00', description: '' });
       Alert.alert('Success', 'Community challenge suggested successfully!');
     }
-  }, [newChallenge, user, createChallenge]);
+  }, [newChallenge, user, userPoints, createChallenge]);
 
   const openVoteModal = useCallback((challengeId: string) => {
     setVoteTargetId(challengeId);
@@ -337,48 +303,99 @@ const DailyChallengesScreen = observer(({ navigation }: DailyChallengesProps) =>
     setVoteTargetId(null);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   }, [voteTargetId, voteSpiritual, voteEffort, voteChallenge]);
-  
-  const getTimeRemaining = (endTime: string) => {
+
+  const scheduleJoinReminder = useCallback(async (challenge: Challenge, hours: number) => {
     try {
-      const [hours, minutes] = endTime.split(':').map(Number);
+      const { status } = await Notifications.getPermissionsAsync();
+      if (status !== 'granted') {
+        const { status: nextStatus } = await Notifications.requestPermissionsAsync();
+        if (nextStatus !== 'granted') {
+          return;
+        }
+      }
+
+      await ensureChallengeReminderChannel();
+      await cancelChallengeReminder(challenge.id);
+
       const now = new Date();
-      const target = new Date();
-      target.setHours(hours, minutes, 0, 0);
-
-      if (target <= now) {
-        return 'Expired';
+      let challengeEndTime: Date | null = null;
+      if (challenge?.expiresAt) {
+        const parsed = new Date(String(challenge.expiresAt));
+        if (!Number.isNaN(parsed.getTime())) {
+          challengeEndTime = parsed;
+        }
       }
 
-      const minutesDiff = Math.max(0, Math.floor((target.getTime() - now.getTime()) / (1000 * 60)));
-      if (minutesDiff < 90) {
-        const displayMinutes = Math.max(1, minutesDiff);
-        return `Ends in ${displayMinutes} min`;
+      const intervalMs = Math.max(1, hours) * 60 * 60 * 1000;
+      const triggers: Date[] = [];
+      const first = new Date(now.getTime() + intervalMs);
+      if (!challengeEndTime || first <= challengeEndTime) {
+        triggers.push(first);
       }
 
-      if (minutesDiff < 12 * 60) {
-        const hoursLeft = Math.floor(minutesDiff / 60);
-        const remainingMinutes = minutesDiff % 60;
-        return `Ends in ${hoursLeft}h${remainingMinutes ? ` ${remainingMinutes}m` : ''}`;
+      for (let i = 2; i <= 24; i++) {
+        const triggerAt = new Date(now.getTime() + i * intervalMs);
+        if (challengeEndTime && triggerAt > challengeEndTime) break;
+        triggers.push(triggerAt);
       }
 
-      return `Ends at ${format(target, 'h:mm a')}`;
-    } catch {
-      return 'Ends soon';
+      if (triggers.length === 0) {
+        await cancelChallengeReminder(challenge.id);
+        return;
+      }
+
+      const notificationIds: string[] = [];
+      for (const triggerAt of triggers) {
+        const notificationId = await Notifications.scheduleNotificationAsync({
+          content: {
+            title: 'Daily Challenge Reminder',
+            body: `Don't forget to complete your "${challenge.title}" challenge!`,
+            sound: 'default',
+            priority: Notifications.AndroidNotificationPriority.HIGH,
+          },
+          trigger: {
+            type: Notifications.SchedulableTriggerInputTypes.DATE,
+            date: triggerAt,
+            channelId: CHALLENGE_REMINDER_CHANNEL_ID,
+          },
+        });
+        notificationIds.push(notificationId);
+      }
+
+      await upsertStoredReminder({
+        challengeId: challenge.id,
+        challengeTitle: challenge.title,
+        reminderHours: hours,
+        scheduledFor: now.toISOString(),
+        nextReminderDue: triggers[0].toISOString(),
+        notificationIds,
+      });
+    } catch (error) {
+      console.error('Error scheduling join reminder:', error);
     }
-  };
+  }, []);
+
+  const openJoinWithReminder = useCallback((challenge: Challenge) => {
+    setJoinTarget(challenge);
+    setSelectedJoinReminderHours(6);
+    setShowJoinReminderModal(true);
+  }, []);
+
+  const confirmJoinWithReminder = useCallback(async () => {
+    if (!joinTarget) return;
+    try {
+      setShowJoinReminderModal(false);
+      const joined = await joinChallenge(joinTarget.id);
+      const resolved = joined || joinTarget;
+      await scheduleJoinReminder(resolved as any, selectedJoinReminderHours);
+      if (activeCategory === 'suggested') {
+        setActiveCategory('personal');
+      }
+    } catch (error) {
+      setShowJoinReminderModal(false);
+    }
+  }, [joinTarget, joinChallenge, scheduleJoinReminder, selectedJoinReminderHours, activeCategory, setActiveCategory]);
   
-  const getFrequencyLabel = (freq?: string) => {
-    switch (freq) {
-      case 'd':
-        return 'Daily';
-      case 'w':
-        return 'Weekly';
-      case 'm':
-        return 'Monthly';
-      default:
-        return 'Daily';
-    }
-  };
   
   // Animated styles
   const headerAnimatedStyle = useAnimatedStyle(() => ({
@@ -394,131 +411,25 @@ const DailyChallengesScreen = observer(({ navigation }: DailyChallengesProps) =>
     transform: [{ scale: suggestScale.value }],
   }));
 
-  // Memoized challenge card component for better performance
-  const renderChallengeCard = useCallback((challenge: Challenge) => {
-    const isVirtue = challenge.type === 'virtue';
-    const color = isVirtue ? theme?.colors.success : theme?.colors.error;
-    const CIcon = isVirtue ? Star : X;
-    const timeRemaining = getTimeRemaining(challenge.endTime);
-    const isExpired = timeRemaining === 'Expired';
-    const isJoined = Boolean((challenge as any)?.hasJoined);
-    const actionInProgress = activeCategory === 'suggested' ? isCreatingLoading : isJoiningLoading;
-
-    const handlePrimaryAction = async () => {
-      if (actionInProgress) return;
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      if (activeCategory === 'suggested') {
-        await addSuggestedToPersonal(challenge.id);
-        return;
-      }
-
-      if (isJoined) {
-        await leaveChallenge(challenge.id);
-      } else {
-        await joinChallenge(challenge.id);
-      }
-    };
-
-    const primaryLabel = activeCategory === 'suggested'
-      ? 'Add to my challenges'
-      : isJoined
-        ? 'Leave'
-        : 'Join';
-
-    const createdAt = new Date(challenge.createdAt);
-    const now = new Date();
-    const ms3days = 3 * 24 * 60 * 60 * 1000;
-    const withinWindow = now.getTime() - createdAt.getTime() < ms3days;
-    const belowCap = (challenge.upvotes || 0) < 100;
-    const canVote = !challenge.hasUpvoted && withinWindow && belowCap;
-
-    return (
-      <TouchableOpacity style={styles.challengeCard} key={challenge.id} onPress={() => navigation.navigate('ChallengeDetail', { id: challenge.id })}>
-        <LinearGradient
-          colors={[`${color}10`, `${color}02`]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.cardGradient}
-        />
-
-        <View style={styles.challengeHeader}>
-          <View style={[styles.typeTag, { backgroundColor: `${color}15` }]}>
-            <CIcon size={14} color={color} />
-            <Text style={[styles.typeText, { color }]}>
-              {isVirtue ? 'Virtue' : 'Vice'}
-            </Text>
-          </View>
-          {challenge.hasJoined && (
-            <View style={[styles.badge, { backgroundColor: `${theme?.colors.success}15` }]}>
-              <Check size={12} color={theme?.colors.success} />
-              <Text style={[styles.badgeText, { color: theme?.colors.success }]}>Joined</Text>
-            </View>
-          )}
-          <View style={styles.timeContainer}>
-            <Clock size={14} color={isExpired ? theme?.colors.error : theme?.colors.text.secondary} />
-            <Text style={[
-              styles.timeText, 
-              isExpired && { color: theme?.colors.error }
-            ]}>
-              {timeRemaining}
-            </Text>
-          </View>
-        </View>
-
-        <Text style={styles.challengeTitle}>{challenge.title}</Text>
-        {!!challenge.description && (
-          <Text style={styles.challengeDescription} numberOfLines={2}>
-            {challenge.description}
-          </Text>
-        )}
-
-        {/* Community: show suggested tier/points if available and Vote button */}
-        <View style={styles.actionContainer}>
-          {(!!(challenge as any)?.tier || !!(challenge as any)?.points) && activeCategory === 'community' && (
-            <View style={[styles.badge, { backgroundColor: `${theme?.colors.primary}10`, marginRight: 'auto' }]}> 
-              <Star size={14} color={theme?.colors.primary} />
-              <Text style={[styles.badgeText, { color: theme?.colors.primary }]}>
-                {(challenge as any)?.tier ? `Tier ${(challenge as any).tier}` : `${(challenge as any).points} pts`}
-              </Text>
-            </View>
-          )}
-
-          <TouchableOpacity
-            style={[styles.primaryActionButton, { backgroundColor: `${theme?.colors.primary}12` }]}
-            onPress={handlePrimaryAction}
-            disabled={actionInProgress || (activeCategory === 'suggested' && isJoined)}
-            activeOpacity={0.8}
-          >
-            <Text style={[styles.primaryActionText, actionInProgress && { opacity: 0.6 }]}>
-              {actionInProgress ? 'Please wait…' : primaryLabel}
-            </Text>
-          </TouchableOpacity>
-
-          {activeCategory === 'community' && canVote ? (
-            <TouchableOpacity
-              style={[styles.actionButton, { backgroundColor: `${theme?.colors.primary}15` }]}
-              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); openVoteModal(challenge.id); }}
-              disabled={isUpvotingLoading}
-            >
-              <Star size={16} color={theme?.colors.primary} />
-              <Text style={[styles.actionText, { color: theme?.colors.primary }]}>Vote</Text>
-            </TouchableOpacity>
-          ) : null}
-        </View>
-
-        {/* Compact insights: time-left and vote cap progress */}
-        {activeCategory === 'community' && (
-          <View style={styles.compactInfoRow}>
-            <Text style={styles.compactInfoText}>
-              {getFrequencyLabel(challenge.frequency)} {(challenge.upvotes||0)}/100 votes
-            </Text>
-          </View>
-        )}
-      </TouchableOpacity>
-    );
-  }, [theme?.colors, activeCategory, navigation]);
-
-  const renderItem = useCallback(({ item }: { item: Challenge }) => renderChallengeCard(item), [renderChallengeCard]);
+  const renderItem = useCallback(({ item }: { item: Challenge }) => (
+    <ChallengeCard
+      challenge={item}
+      theme={theme}
+      activeCategory={activeCategory}
+      isCreatingLoading={isCreatingLoading}
+      isJoiningLoading={isJoiningLoading}
+      isUpvotingLoading={isUpvotingLoading}
+      onPress={() => navigation.navigate('ChallengeDetail', { id: item.id })}
+      onJoin={() => openJoinWithReminder(item)}
+      onLeave={() => leaveChallenge(item.id)}
+      onComplete={async () => {
+        try {
+          await completeChallenge(item.id, true);
+        } catch {}
+      }}
+      onVote={() => openVoteModal(item.id)}
+    />
+  ), [theme, activeCategory, isCreatingLoading, isJoiningLoading, isUpvotingLoading, navigation, openJoinWithReminder, leaveChallenge, completeChallenge, openVoteModal]);
 
   // No form for now (and hidden on Joined tab anyway)
   const renderNewChallengeForm = () => null;
@@ -563,12 +474,14 @@ const DailyChallengesScreen = observer(({ navigation }: DailyChallengesProps) =>
   }, [challengeStore, goalVirtueName, personalChallenges, smartPickDismissed]);
 
   const handleSmartPickJoin = useCallback(async (challenge: Challenge) => {
-    const success = await joinChallenge(challenge.id);
-    if (success) {
+    try {
+      const joined = await joinChallenge(challenge.id);
+      const resolved = (joined as any) || challenge;
+      await scheduleJoinReminder(resolved as any, 6);
       setSmartPickDismissed(true);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    }
-  }, [joinChallenge]);
+    } catch {}
+  }, [joinChallenge, scheduleJoinReminder]);
 
   const renderChallenges = () => {
     let challenges: Challenge[] = [];
@@ -714,50 +627,31 @@ const DailyChallengesScreen = observer(({ navigation }: DailyChallengesProps) =>
     );
   };
 
-  const renderOnboardingOverlay = () => {
-    if (!isOnboarding) {
-      return null;
+  const hasJoinedChallenge = useMemo(() => {
+    return (personalChallenges || []).some((challenge) => challenge.hasJoined);
+  }, [personalChallenges]);
+
+  const voteTargetChallenge = useMemo(() => {
+    if (!voteTargetId) return null;
+    const all = [...(personalChallenges||[]), ...(communityChallenges||[]), ...(suggestedChallenges||[])];
+    return all.find(c => c.id === voteTargetId) || null;
+  }, [voteTargetId, personalChallenges, communityChallenges, suggestedChallenges]);
+
+  const handleOnboardingBrowse = useCallback(() => {
+    if (hasJoinedChallenge) {
+      dailyPathStore.setChallengeOnboardingCompleted(true);
+      setActiveCategory('personal');
+      setIsOnboarding(false);
+      return;
     }
+    setActiveCategory('community');
+    setIsOnboarding(false);
+  }, [hasJoinedChallenge, dailyPathStore, setActiveCategory]);
 
-    const hasJoinedChallenge = (personalChallenges || []).some((challenge) => challenge.hasJoined);
-
-    return (
-      <View style={styles.onboardingOverlay} pointerEvents="auto">
-        <View style={styles.onboardingCard}>
-          <Text style={styles.onboardingTitle}>Join a Daily Challenge</Text>
-          <Text style={styles.onboardingBody}>
-            Pick a challenge to stay consistent. We’ll guide you with reminders and track your progress.
-          </Text>
-          <TouchableOpacity
-            style={styles.onboardingPrimary}
-            onPress={() => {
-              if (hasJoinedChallenge) {
-                dailyPathStore.setChallengeOnboardingCompleted(true);
-                setActiveCategory('personal');
-                setIsOnboarding(false);
-                return;
-              }
-              setActiveCategory('community');
-              setIsOnboarding(false);
-            }}
-          >
-            <Text style={styles.onboardingPrimaryText}>
-              {hasJoinedChallenge ? 'Go to my challenge' : 'Browse challenges'}
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.onboardingSecondary}
-            onPress={() => {
-              dailyPathStore.setChallengeOnboardingCompleted(true);
-              setIsOnboarding(false);
-            }}
-          >
-            <Text style={styles.onboardingSecondaryText}>Skip for now</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    );
-  };
+  const handleOnboardingSkip = useCallback(() => {
+    dailyPathStore.setChallengeOnboardingCompleted(true);
+    setIsOnboarding(false);
+  }, [dailyPathStore]);
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}> 
@@ -773,18 +667,32 @@ const DailyChallengesScreen = observer(({ navigation }: DailyChallengesProps) =>
           </TouchableOpacity>
         </Animated.View>
         <Text style={styles.headerTitle}>Daily Challenges</Text>
-        {user && canSuggestCommunity && activeCategory === 'community' && (
-          <Animated.View style={suggestAnimatedStyle}>
-            <TouchableOpacity 
-              style={styles.suggestButton}
-              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); handleSuggestCommunityChallenge(); }}
-              onPressIn={() => { suggestScale.value = withTiming(0.96, { duration: 80 }); }}
-              onPressOut={() => { suggestScale.value = withTiming(1, { duration: 120 }); }}
-            >
-              <Sparkle size={20} color={theme?.colors.primary} />
-            </TouchableOpacity>
-          </Animated.View>
-        )}
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          {activeCategory === 'personal' && (
+            <Animated.View style={suggestAnimatedStyle}>
+              <TouchableOpacity
+                style={styles.suggestButton}
+                onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); toggleNewChallengeForm(); }}
+                onPressIn={() => { suggestScale.value = withTiming(0.96, { duration: 80 }); }}
+                onPressOut={() => { suggestScale.value = withTiming(1, { duration: 120 }); }}
+              >
+                <Plus size={20} color={theme?.colors.primary} />
+              </TouchableOpacity>
+            </Animated.View>
+          )}
+          {user && canSuggestCommunity && activeCategory === 'community' && (
+            <Animated.View style={suggestAnimatedStyle}>
+              <TouchableOpacity 
+                style={styles.suggestButton}
+                onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); handleSuggestCommunityChallenge(); }}
+                onPressIn={() => { suggestScale.value = withTiming(0.96, { duration: 80 }); }}
+                onPressOut={() => { suggestScale.value = withTiming(1, { duration: 120 }); }}
+              >
+                <Sparkle size={20} color={theme?.colors.primary} />
+              </TouchableOpacity>
+            </Animated.View>
+          )}
+        </View>
       </Animated.View>
 
       <View style={styles.categoryTabs}>
@@ -834,681 +742,69 @@ const DailyChallengesScreen = observer(({ navigation }: DailyChallengesProps) =>
         </Animated.View>
       </View>
 
-      {/* Suggest Community Challenge Modal */}
-      <Modal visible={showSuggestModal} animationType="fade" transparent onRequestClose={() => setShowSuggestModal(false)}>
-        <View style={styles.modalBackdrop}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Suggest a Community Challenge</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Title"
-              value={newChallenge.title}
-              onChangeText={(t) => setNewChallenge({ ...newChallenge, title: t })}
-            />
-            <TextInput
-              style={[styles.input, styles.textArea]}
-              placeholder="Description (optional)"
-              value={newChallenge.description}
-              onChangeText={(t) => setNewChallenge({ ...newChallenge, description: t })}
-              multiline
-            />
-            <View style={styles.formActions}>
-              <TouchableOpacity style={[styles.formButton, styles.cancelButton]} onPress={() => setShowSuggestModal(false)}>
-                <Text style={styles.cancelButtonText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={[styles.formButton, styles.createButton]} onPress={handleSubmitSuggestion}>
-                <Text style={styles.createButtonText}>Submit</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
+      <SuggestChallengeModal
+        visible={showSuggestModal}
+        theme={theme}
+        title={newChallenge.title}
+        description={newChallenge.description}
+        isLoading={isCreatingLoading}
+        onChangeTitle={(t) => setNewChallenge({ ...newChallenge, title: t })}
+        onChangeDescription={(t) => setNewChallenge({ ...newChallenge, description: t })}
+        onSubmit={handleSubmitSuggestion}
+        onClose={() => setShowSuggestModal(false)}
+      />
 
-      {/* Vote Modal */}
-      <Modal visible={showVoteModal} animationType="fade" transparent onRequestClose={() => setShowVoteModal(false)}>
-        <View style={styles.modalBackdrop}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Rate this Suggestion</Text>
-            {/* Show existing suggested tier/points if present on the challenge */}
-            {(() => {
-              const all = [...(personalChallenges||[]), ...(communityChallenges||[]), ...(suggestedChallenges||[])];
-              const target = all.find(c => c.id === voteTargetId);
-              const tier = (target as any)?.tier;
-              const points = (target as any)?.points;
-              const createdAt = target ? new Date((target as any).createdAt || new Date()) : new Date();
-              const now = new Date();
-              const remainingMs = Math.max(0, (createdAt.getTime() + 3*24*60*60*1000) - now.getTime());
-              const remainingDays = Math.floor(remainingMs / (24*60*60*1000));
-              const remainingHours = Math.floor((remainingMs % (24*60*60*1000)) / (60*60*1000));
-              const votes = (target?.upvotes || 0);
-              if (!tier && !points) return (
-                <></>
-              );
-              return (
-                <View style={{ marginBottom: theme?.spacing.md }}>
-                  {!!tier && (
-                    <View style={[styles.badge, { alignSelf: 'flex-start', backgroundColor: `${theme?.colors.primary}10` }]}> 
-                      <Star size={14} color={theme?.colors.primary} />
-                      <Text style={[styles.badgeText, { color: theme?.colors.primary }]}>Community suggested tier: {tier}</Text>
-                    </View>
-                  )}
-                  {!!points && !tier && (
-                    <View style={[styles.badge, { alignSelf: 'flex-start', backgroundColor: `${theme?.colors.primary}10` }]}> 
-                      <Star size={14} color={theme?.colors.primary} />
-                      <Text style={[styles.badgeText, { color: theme?.colors.primary }]}>Community suggested points: {points}</Text>
-                    </View>
-                  )}
-                  <Text style={[styles.voteWindowText, { marginTop: theme?.spacing.sm }]}>
-                    Voting is open for 3 days or until 100 votes are reached · {votes}/100
-                  </Text>
-                  {!!remainingMs && (
-                    <Text style={[styles.voteWindowText, { opacity: 0.8 }]}>Time left: {remainingDays}d {remainingHours}h</Text>
-                  )}
-                </View>
-              );
-            })()}
-            <Text style={styles.voteLabel}>Spiritual Value / Growth</Text>
-            <View style={styles.pillRow}>
-              {[1,2,3,4,5].map((n) => (
-                <TouchableOpacity key={n} style={[styles.pill, voteSpiritual === n && styles.pillActive]} onPress={() => setVoteSpiritual(n)}>
-                  <Text style={[styles.pillText, voteSpiritual === n && styles.pillTextActive]}>{n}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-            <Text style={[styles.voteLabel, { marginTop: theme?.spacing.md }]}>Effort Required</Text>
-            <View style={styles.pillRow}>
-              {[1,2,3,4,5].map((n) => (
-                <TouchableOpacity key={n} style={[styles.pill, voteEffort === n && styles.pillActive]} onPress={() => setVoteEffort(n)}>
-                  <Text style={[styles.pillText, voteEffort === n && styles.pillTextActive]}>{n}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-            <View style={[styles.formActions, { marginTop: theme?.spacing.md }]}> 
-              <TouchableOpacity style={[styles.formButton, styles.cancelButton]} onPress={() => setShowVoteModal(false)}>
-                <Text style={styles.cancelButtonText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={[styles.formButton, styles.createButton]} onPress={submitVote}>
-                <Text style={styles.createButtonText}>Submit Vote</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
-      {renderOnboardingOverlay()}
+      <CreateChallengeModal
+        visible={showNewChallengeForm}
+        theme={theme}
+        title={newChallenge.title}
+        description={newChallenge.description}
+        type={newChallenge.type}
+        endTime={newChallenge.endTime}
+        isLoading={isCreatingLoading}
+        onChangeTitle={(t) => setNewChallenge({ ...newChallenge, title: t })}
+        onChangeDescription={(t) => setNewChallenge({ ...newChallenge, description: t })}
+        onChangeType={(type) => setNewChallenge({ ...newChallenge, type })}
+        onChangeEndTime={(t) => setNewChallenge({ ...newChallenge, endTime: t })}
+        onSubmit={handleCreateChallenge}
+        onClose={() => setShowNewChallengeForm(false)}
+      />
+
+      <JoinReminderModal
+        visible={showJoinReminderModal}
+        theme={theme}
+        selectedHours={selectedJoinReminderHours}
+        isLoading={isJoiningLoading}
+        onSelectHours={setSelectedJoinReminderHours}
+        onConfirm={confirmJoinWithReminder}
+        onClose={() => {
+          setShowJoinReminderModal(false);
+          setJoinTarget(null);
+        }}
+      />
+
+      <VoteModal
+        visible={showVoteModal}
+        theme={theme}
+        targetChallenge={voteTargetChallenge}
+        voteSpiritual={voteSpiritual}
+        voteEffort={voteEffort}
+        isLoading={isUpvotingLoading}
+        onChangeSpiritual={setVoteSpiritual}
+        onChangeEffort={setVoteEffort}
+        onSubmit={submitVote}
+        onClose={() => setShowVoteModal(false)}
+      />
+
+      <ChallengeOnboardingOverlay
+        visible={isOnboarding}
+        theme={theme}
+        hasJoinedChallenge={hasJoinedChallenge}
+        onBrowse={handleOnboardingBrowse}
+        onSkip={handleOnboardingSkip}
+      />
     </View>
   );
-});
-
-const createStyles = (theme: Theme) => StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: theme?.colors.background,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: theme?.spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: theme?.colors.border,
-    backgroundColor: theme?.colors.background,
-  },
-  backButton: {
-    padding: theme?.spacing.sm,
-    marginLeft: -theme?.spacing.sm,
-  },
-  headerTitle: {
-    ...theme?.typography.heading.medium,
-    color: theme?.colors.text.primary,
-  },
-  suggestButton: {
-    padding: theme?.spacing.sm,
-    marginRight: -theme?.spacing.sm,
-  },
-  categoryTabs: {
-    flexDirection: 'row',
-    paddingHorizontal: theme?.spacing.md,
-    paddingVertical: theme?.spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: theme?.colors.border,
-  },
-  categoryTab: {
-    paddingVertical: theme?.spacing.sm,
-    paddingHorizontal: theme?.spacing.md,
-    marginRight: theme?.spacing.sm,
-    borderRadius: theme?.borderRadius.full,
-  },
-  activeTab: {
-    backgroundColor: `${theme?.colors.primary}15`,
-  },
-  categoryText: {
-    ...theme?.typography.caption.primary,
-    color: theme?.colors.text.secondary,
-    fontWeight: '600',
-  },
-  activeTabText: {
-    color: theme?.colors.primary,
-  },
-  content: {
-    flex: 1,
-  },
-  scrollContent: {
-    padding: theme?.spacing.md,
-  },
-  listFooter: {
-    paddingVertical: theme?.spacing.lg,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: theme?.spacing.sm,
-  },
-  suggestYourOwnButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: theme?.spacing.sm,
-    paddingHorizontal: theme?.spacing.lg,
-    borderRadius: theme?.borderRadius.full,
-    backgroundColor: `${theme?.colors.primary}12`,
-    borderWidth: 1,
-    borderColor: `${theme?.colors.primary}25`,
-    gap: theme?.spacing.sm,
-  },
-  suggestYourOwnText: {
-    ...theme?.typography.body.sans,
-    color: theme?.colors.primary,
-    fontWeight: '600',
-  },
-  onboardingOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.4)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: theme?.spacing.lg,
-  },
-  onboardingCard: {
-    width: '100%',
-    borderRadius: theme?.borderRadius.xl,
-    backgroundColor: theme?.colors.surface,
-    padding: theme?.spacing.lg,
-    gap: theme?.spacing.md,
-    borderWidth: 1,
-    borderColor: `${theme?.colors.border}80`,
-  },
-  onboardingTitle: {
-    ...theme?.typography.heading.small,
-    color: theme?.colors.text.primary,
-  },
-  onboardingBody: {
-    ...theme?.typography.body.sans,
-    color: theme?.colors.text.secondary,
-  },
-  onboardingError: {
-    ...theme?.typography.caption.secondary,
-    color: theme?.colors.error,
-  },
-  onboardingSubtle: {
-    ...theme?.typography.caption.secondary,
-    color: theme?.colors.text.secondary,
-    opacity: 0.8,
-  },
-  onboardingPrimary: {
-    borderRadius: theme?.borderRadius.lg,
-    paddingVertical: theme?.spacing.sm,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: theme?.colors.primary,
-  },
-  onboardingPrimaryText: {
-    ...theme?.typography.button,
-    color: theme?.colors.text.inverse,
-  },
-  onboardingSecondary: {
-    borderRadius: theme?.borderRadius.lg,
-    paddingVertical: theme?.spacing.sm,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: theme?.colors.border,
-    backgroundColor: theme?.colors.surface,
-  },
-  onboardingSecondaryText: {
-    ...theme?.typography.button,
-    color: theme?.colors.text.primary,
-  },
-  addChallengeButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: theme?.spacing.md,
-    backgroundColor: `${theme?.colors.primary}10`,
-    borderRadius: theme?.borderRadius.lg,
-    marginBottom: theme?.spacing.md,
-    borderWidth: 1,
-    borderColor: `${theme?.colors.primary}20`,
-    borderStyle: 'dashed',
-  },
-  addChallengeText: {
-    ...theme?.typography.body.sans,
-    color: theme?.colors.primary,
-    fontWeight: '600',
-    marginLeft: theme?.spacing.sm,
-  },
-  formContainer: {
-    backgroundColor: theme?.colors.surface,
-    borderRadius: theme?.borderRadius.lg,
-    padding: theme?.spacing.md,
-    marginBottom: theme?.spacing.md,
-    borderWidth: 1,
-    borderColor: theme?.colors.border,
-    overflow: 'hidden',
-  },
-  formTitle: {
-    ...theme?.typography.heading.small,
-    color: theme?.colors.text.primary,
-    marginBottom: theme?.spacing.md,
-  },
-  typeSelector: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: theme?.spacing.md,
-  },
-  smartPickWrapper: {
-    marginBottom: theme?.spacing.lg,
-  },
-  typeButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: theme?.spacing.md,
-    borderRadius: theme?.borderRadius.lg,
-    borderWidth: 1,
-    borderColor: theme?.colors.border,
-    marginRight: theme?.spacing.sm,
-  },
-  typeButtonText: {
-    ...theme?.typography.body.sans,
-    color: theme?.colors.text.primary,
-    marginLeft: theme?.spacing.xs,
-  },
-  input: {
-    backgroundColor: theme?.colors.background,
-    borderRadius: theme?.borderRadius.md,
-    borderWidth: 1,
-    borderColor: theme?.colors.border,
-    padding: theme?.spacing.md,
-    marginBottom: theme?.spacing.md,
-    ...theme?.typography.body.sans,
-    color: theme?.colors.text.primary,
-  },
-  textArea: {
-    minHeight: 80,
-    textAlignVertical: 'top',
-  },
-  timePickerContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: theme?.spacing.md,
-  },
-  timePickerLabel: {
-    ...theme?.typography.body.sans,
-    color: theme?.colors.text.primary,
-    marginRight: theme?.spacing.md,
-  },
-  timePicker: {
-    flex: 1,
-    backgroundColor: theme?.colors.background,
-    borderRadius: theme?.borderRadius.md,
-    borderWidth: 1,
-    borderColor: theme?.colors.border,
-    padding: theme?.spacing.md,
-    ...theme?.typography.body.sans,
-    color: theme?.colors.text.primary,
-  },
-  formActions: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-  },
-  formButton: {
-    paddingVertical: theme?.spacing.sm,
-    paddingHorizontal: theme?.spacing.lg,
-    borderRadius: theme?.borderRadius.full,
-    marginLeft: theme?.spacing.sm,
-  },
-  cancelButton: {
-    backgroundColor: `${theme?.colors.text.secondary}10`,
-  },
-  cancelButtonText: {
-    ...theme?.typography.body.sans,
-    color: theme?.colors.text.secondary,
-    fontWeight: '600',
-  },
-  createButton: {
-    backgroundColor: theme?.colors.primary,
-  },
-  createButtonText: {
-    ...theme?.typography.body.sans,
-    color: '#FFF',
-    fontWeight: '600',
-  },
-  emptyContainer: {
-    padding: theme?.spacing.xl,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  emptyText: {
-    ...theme?.typography.body.sans,
-    color: theme?.colors.text.secondary,
-    textAlign: 'center',
-  },
-  challengeCard: {
-    backgroundColor: theme?.colors.surface,
-    borderRadius: theme?.borderRadius.lg,
-    marginBottom: theme?.spacing.md,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: theme?.colors.border,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 3,
-      },
-    }),
-  },
-  cardGradient: {
-    ...StyleSheet.absoluteFillObject,
-  },
-  challengeHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: theme?.spacing.md,
-  },
-  typeTag: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: theme?.spacing.xs,
-    paddingHorizontal: theme?.spacing.sm,
-    borderRadius: theme?.borderRadius.full,
-  },
-  typeText: {
-    ...theme?.typography.caption.primary,
-    fontWeight: '600',
-    marginLeft: theme?.spacing.xs,
-  },
-  timeContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  timeText: {
-    ...theme?.typography.caption.secondary,
-    color: theme?.colors.text.secondary,
-    marginLeft: theme?.spacing.xs,
-  },
-  challengeTitle: {
-    ...theme?.typography.heading.small,
-    color: theme?.colors.text.primary,
-    paddingHorizontal: theme?.spacing.md,
-    marginBottom: theme?.spacing.sm,
-  },
-  challengeDescription: {
-    ...theme?.typography.body.sans,
-    color: theme?.colors.text.secondary,
-    paddingHorizontal: theme?.spacing.md,
-    marginBottom: theme?.spacing.md,
-  },
-  progressContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: theme?.spacing.md,
-    marginBottom: theme?.spacing.md,
-  },
-  progressBar: {
-    flex: 1,
-    height: 8,
-    backgroundColor: `${theme?.colors.text.secondary}15`,
-    borderRadius: theme?.borderRadius.full,
-    marginRight: theme?.spacing.sm,
-    overflow: 'hidden',
-  },
-  progressFill: {
-    height: '100%',
-    borderRadius: theme?.borderRadius.full,
-  },
-  progressText: {
-    ...theme?.typography.caption.secondary,
-    color: theme?.colors.text.secondary,
-    fontWeight: '600',
-  },
-  actionContainer: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    padding: theme?.spacing.md,
-    borderTopWidth: 1,
-    borderTopColor: theme?.colors.border,
-  },
-  actionButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: theme?.spacing.sm,
-    paddingHorizontal: theme?.spacing.md,
-    borderRadius: theme?.borderRadius.full,
-    marginLeft: theme?.spacing.sm,
-  },
-  primaryActionButton: {
-    paddingVertical: theme?.spacing.sm,
-    paddingHorizontal: theme?.spacing.lg,
-    borderRadius: theme?.borderRadius.full,
-    marginLeft: theme?.spacing.sm,
-  },
-  actionText: {
-    ...theme?.typography.caption.primary,
-    fontWeight: '600',
-    marginLeft: theme?.spacing.xs,
-  },
-  primaryActionText: {
-    ...theme?.typography.caption.primary,
-    fontWeight: '600',
-    color: theme?.colors.primary,
-    textAlign: 'center',
-  },
-  communityContainer: {
-    padding: theme?.spacing.md,
-    borderTopWidth: 1,
-    borderTopColor: theme?.colors.border,
-  },
-  participantsContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: theme?.spacing.md,
-  },
-  participantsText: {
-    ...theme?.typography.caption.secondary,
-    color: theme?.colors.text.secondary,
-    marginLeft: theme?.spacing.sm,
-  },
-  communityActions: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-  },
-  communityButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: theme?.spacing.sm,
-    paddingHorizontal: theme?.spacing.md,
-    borderRadius: theme?.borderRadius.full,
-    marginLeft: theme?.spacing.sm,
-  },
-  communityButtonText: {
-    ...theme?.typography.caption.primary,
-    fontWeight: '600',
-  },
-  suggestedContainer: {
-    padding: theme?.spacing.md,
-    borderTopWidth: 1,
-    borderTopColor: theme?.colors.border,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  upvoteContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  upvoteButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: theme?.spacing.xs,
-    paddingHorizontal: theme?.spacing.sm,
-    borderRadius: theme?.borderRadius.full,
-  },
-  upvoteText: {
-    ...theme?.typography.caption.primary,
-    marginLeft: theme?.spacing.xs,
-  },
-  addButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: theme?.spacing.sm,
-    paddingHorizontal: theme?.spacing.md,
-    borderRadius: theme?.borderRadius.full,
-    backgroundColor: `${theme?.colors.primary}15`,
-  },
-  addButtonText: {
-    ...theme?.typography.caption.primary,
-    color: theme?.colors.primary,
-    fontWeight: '600',
-    marginLeft: theme?.spacing.xs,
-  },
-  
-  // Loading and error states
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingVertical: theme?.spacing.xl,
-  },
-  loadingText: {
-    ...theme?.typography.body.sans,
-    color: theme?.colors.text.secondary,
-    marginTop: theme?.spacing.md,
-  },
-  errorContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingVertical: theme?.spacing.xl,
-  },
-  errorText: {
-    ...theme?.typography.body.sans,
-    color: theme?.colors.error,
-    textAlign: 'center',
-    marginBottom: theme?.spacing.md,
-  },
-  retryButton: {
-    backgroundColor: theme?.colors.primary,
-    paddingHorizontal: theme?.spacing.lg,
-    paddingVertical: theme?.spacing.md,
-    borderRadius: 8,
-  },
-  retryButtonText: {
-    ...theme?.typography.body.sans,
-    color: theme?.colors.text.inverse,
-    fontWeight: '600',
-  },
-  modalBackdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.3)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: theme?.spacing.md,
-  },
-  modalCard: {
-    width: '100%',
-    maxWidth: 520,
-    backgroundColor: theme?.colors.surface,
-    borderRadius: theme?.borderRadius.lg,
-    padding: theme?.spacing.lg,
-    borderWidth: 1,
-    borderColor: theme?.colors.border,
-  },
-  modalTitle: {
-    ...theme?.typography.heading.small,
-    color: theme?.colors.text.primary,
-    marginBottom: theme?.spacing.md,
-  },
-  voteLabel: {
-    ...theme?.typography.caption.primary,
-    color: theme?.colors.text.secondary,
-    marginBottom: theme?.spacing.xs,
-  },
-  pillRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  pill: {
-    flex: 1,
-    marginHorizontal: 4,
-    paddingVertical: theme?.spacing.sm,
-    borderRadius: theme?.borderRadius.full,
-    borderWidth: 1,
-    borderColor: theme?.colors.border,
-    alignItems: 'center',
-  },
-  pillActive: {
-    backgroundColor: `${theme?.colors.primary}15`,
-    borderColor: `${theme?.colors.primary}40`,
-  },
-  pillText: {
-    ...theme?.typography.caption.primary,
-    color: theme?.colors.text.secondary,
-    fontWeight: '600',
-  },
-  pillTextActive: {
-    color: theme?.colors.primary,
-  },
-  voteWindowText: {
-    ...theme?.typography.caption.secondary,
-    color: theme?.colors.text.secondary,
-    fontSize: 12,
-  },
-  badge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: theme?.spacing.sm,
-    paddingVertical: 6,
-    borderRadius: theme?.borderRadius.full,
-    gap: 6,
-  },
-  badgeText: {
-    ...theme?.typography.caption.primary,
-    fontWeight: '600',
-  },
-  pendingText: {
-    ...theme?.typography.caption.secondary,
-    color: theme?.colors.text.secondary,
-    fontStyle: 'italic',
-    marginLeft: theme?.spacing.sm,
-  },
-  compactInfoRow: {
-    marginTop: 4,
-    paddingHorizontal: theme?.spacing.md,
-    paddingBottom: theme?.spacing.sm,
-  },
-  compactInfoText: {
-    ...theme?.typography.caption.secondary,
-    color: theme?.colors.text.secondary,
-    fontSize: 12,
-  },
 });
 
 export default DailyChallengesScreen;

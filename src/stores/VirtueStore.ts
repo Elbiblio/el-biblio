@@ -423,11 +423,15 @@ export class VirtueStore {
 
       if (!response.success) throw new Error(response.message || 'Failed to fetch user progress');
 
-      const raw = response.data as VirtueProgress[] | { data?: VirtueProgress[] } | undefined;
+      const raw = response.data as any;
       const progressList = Array.isArray(raw)
         ? raw
         : Array.isArray(raw?.data)
         ? raw.data ?? []
+        : (raw && typeof raw === 'object' && raw.data && typeof raw.data === 'object' && !Array.isArray(raw.data))
+        ? Object.values(raw.data)
+        : (raw && typeof raw === 'object' && !Array.isArray(raw) && !('success' in raw) && !('message' in raw))
+        ? Object.values(raw)
         : [];
 
       if (!Array.isArray(progressList)) {
@@ -437,7 +441,10 @@ export class VirtueStore {
       // Convert array to record for easier access
       const progressRecord: Record<string, VirtueProgress> = {};
       progressList.forEach(progress => {
-        progressRecord[progress.virtue] = progress;
+        const key = (progress as any)?.virtue ?? (progress as any)?.theme_id;
+        if (key) {
+          progressRecord[String(key)] = progress;
+        }
       });
 
       runInAction(() => {
