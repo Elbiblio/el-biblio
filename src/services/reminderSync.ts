@@ -34,6 +34,15 @@ export class ReminderSyncService {
     times: ReminderTime[]
   ): Promise<boolean> {
     try {
+      await AsyncStorage.setItem(
+        `${SYNC_STORAGE_PREFIX}_${reminderType}`,
+        JSON.stringify({
+          enabled,
+          times,
+          syncedAt: Date.now(),
+        })
+      );
+
       if (!userId) {
         if (__DEV__) {
           console.warn('[ReminderSync] Cannot sync reminders: user not authenticated');
@@ -50,19 +59,17 @@ export class ReminderSyncService {
         timezone,
       };
 
-      await apiClient.put(
+      const response = await apiClient.put(
         endpoints.users.reminderPreferences(userId),
         payload
       );
 
-      await AsyncStorage.setItem(
-        `${SYNC_STORAGE_PREFIX}_${reminderType}`,
-        JSON.stringify({
-          enabled,
-          times,
-          syncedAt: Date.now(),
-        })
-      );
+      if (!response.success) {
+        if (__DEV__) {
+          console.warn(`[ReminderSync] Backend rejected reminder preference for ${reminderType}:`, response.message);
+        }
+        return false;
+      }
 
       if (__DEV__) {
         console.log(`[ReminderSync] Reminder preferences synced for ${reminderType}`);
@@ -83,6 +90,10 @@ export class ReminderSyncService {
       const response = await apiClient.get<{ preferences: ReminderPreference[] }>(
         endpoints.users.reminderPreferences(userId)
       );
+
+      if (!response.success) {
+        return [];
+      }
 
       return response.data?.preferences || [];
     } catch (error) {

@@ -43,7 +43,8 @@ import { Book, BibleVersion, BibleVerse } from '@/types';
 import { ReadingPlanMode, ReadingPlanPhase } from '@/constants/readingPlanModes';
 import { bibleBooks } from '@/constants/bibleBooks';
 import { useBibleStore } from '@/stores/BibleStore';
-import { useJourneyStore, useDailyPathStore } from '@/stores/StoreProvider';
+import { useJourneyStore, useDailyPathStore, useAuthStore } from '@/stores/StoreProvider';
+import { ReminderSyncService } from '@/services/reminderSync';
 import { useSharedValue, withTiming } from 'react-native-reanimated';
 import { HistoryEntry, DailyPhaseProgress } from '@/stores/BibleStore';
 
@@ -110,6 +111,7 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
   const bibleStore = useBibleStore();
   const journeyStore = useJourneyStore();
   const dailyPathStore = useDailyPathStore();
+  const { user } = useAuthStore();
 
   // Local state for UI
   const [showVersionsModal, setShowVersionsModal] = useState(false);
@@ -1317,6 +1319,16 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
     try {
       await bibleStore.setReadingReminder(builderReminder.trim() || null);
       toast.success(builderReminder.trim() ? 'Reminder updated' : 'Reminder cleared');
+
+      const trimmed = builderReminder.trim();
+      const reminderTime = ReminderSyncService.convertTimeStringToReminderTime(trimmed || null);
+      await ReminderSyncService.syncToBackend(
+        String(user?.id ?? ''),
+        'daily_reminder',
+        !!reminderTime,
+        reminderTime ? [reminderTime] : []
+      );
+
       if (bibleStore.readingPlan) {
         journeyStore.setBiblePlan({
           id: bibleStore.readingPlan.id,
@@ -1329,7 +1341,7 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
       console.error('Failed to update reminder', error);
       toast.error('Unable to update reminder.');
     }
-  }, [bibleStore, builderReminder, journeyStore]);
+  }, [bibleStore, builderReminder, journeyStore, user?.id]);
 
   const handleToggleSegment = useCallback(async (segmentId: string) => {
     resetIdleTimer();

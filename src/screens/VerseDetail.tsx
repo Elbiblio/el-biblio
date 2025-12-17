@@ -580,56 +580,64 @@ const VerseDetail = ({ navigation, route }: VerseDetailProps) => {
       if (!presign.success) throw new Error(presign.message || 'Failed to prepare upload');
       const { uploadUrl, publicUrl } = presign.data;
 
-      const uploadToS3 = async (uploadUrl: string, fileUri: string, contentType: string) => {
-        return new Promise<void>(async (resolve, reject) => {
-          try {
-            // Read file into blob/binary
-            const fileInfo = await FileSystem.getInfoAsync(fileUri);
-            if (!fileInfo.exists) throw new Error('File not found');
+      const uploadToS3 = async (signedUrl: string, fileUri: string, mime: string) => {
+        const fileInfo = await FileSystem.getInfoAsync(fileUri);
+        if (!fileInfo.exists) {
+          throw new Error('File not found');
+        }
 
-            // Use XMLHttpRequest to get progress events
-            const xhr = new XMLHttpRequest();
-            xhr.open('PUT', uploadUrl);
-            xhr.setRequestHeader('Content-Type', contentType);
-            xhr.upload.onprogress = (evt: any) => {
-              if (evt && evt.total) {
-                setUploadProgress(Math.min(1, evt.loaded / evt.total));
+        setUploadProgress(0);
+
+        if (typeof (FileSystem as any).createUploadTask === 'function') {
+          const task = (FileSystem as any).createUploadTask(
+            signedUrl,
+            fileUri,
+            {
+              httpMethod: 'PUT',
+              uploadType: (FileSystem as any).FileSystemUploadType.BINARY_CONTENT,
+              headers: {
+                'Content-Type': mime,
+              },
+            },
+            ({ totalBytesSent, totalBytesExpectedToSend }: { totalBytesSent: number; totalBytesExpectedToSend: number }) => {
+              if (totalBytesExpectedToSend > 0) {
+                setUploadProgress(Math.min(1, totalBytesSent / totalBytesExpectedToSend));
               }
-            };
-            xhr.onload = function () {
-              if (xhr.status >= 200 && xhr.status < 300) {
-                setUploadProgress(1);
-                resolve();
-              } else {
-                reject(new Error(`Upload failed with status ${xhr.status}`));
-              }
-            };
-            xhr.onerror = function () {
-              reject(new Error('Upload failed'));
-            };
-            // Send file as binary
-            if (RNPlatform.OS === 'ios') {
-              // iOS requires fetching file as blob via fetch
-              const res = await fetch(fileUri);
-              const blob = await res.blob();
-              xhr.send(blob as any);
-            } else {
-              // Android can use RNFS-like path; fetch to blob for consistency
-              const res = await fetch(fileUri);
-              const blob = await res.blob();
-              xhr.send(blob as any);
             }
-          } catch (e) {
-            reject(e);
+          );
+
+          const res = await task.uploadAsync();
+          if (!res || res.status < 200 || res.status >= 300) {
+            throw new Error(`Upload failed with status ${res?.status ?? 'unknown'}`);
           }
+          setUploadProgress(1);
+          return;
+        }
+
+        const fallback = await FileSystem.uploadAsync(signedUrl, fileUri, {
+          httpMethod: 'PUT',
+          uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
+          headers: {
+            'Content-Type': mime,
+          },
         });
+
+        if (!fallback || fallback.status < 200 || fallback.status >= 300) {
+          throw new Error(`Upload failed with status ${fallback?.status ?? 'unknown'}`);
+        }
+
+        setUploadProgress(1);
       };
 
       await uploadToS3(uploadUrl, videoUri, contentType);
 
+      const caption = (reflectionText?.trim() || 'Face2Face');
+      const title = caption.length > 250 ? `${caption.slice(0, 247)}...` : caption;
+
       // 3) Create reflection pointing to uploaded media
       await createReflection({
-        content: (reflectionText?.trim() || 'Face2Face'),
+        title,
+        content: caption,
         type: 2,
         user_id: user.id,
         verse_id: currentVerse.id,
@@ -642,7 +650,8 @@ const VerseDetail = ({ navigation, route }: VerseDetailProps) => {
       setShowReflectionInput(false);
       toast.success('Face2Face uploaded');
     } catch (e) {
-      toast.error('Failed to save Face2Face');
+      const msg = e instanceof Error ? e.message : 'Failed to save Face2Face';
+      toast.error(msg);
     }
     finally {
       setIsUploading(false);

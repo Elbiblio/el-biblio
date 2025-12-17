@@ -513,6 +513,7 @@ export class VerseStore {
   }
 
   async createReflection(data: {
+    title?: string | null;
     content: string;
     type: number;
     user_id: string;

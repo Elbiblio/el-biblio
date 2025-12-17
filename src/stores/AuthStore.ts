@@ -2,6 +2,9 @@ import { makeAutoObservable, runInAction } from 'mobx';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 import { apiClient, endpoints, setUnauthorizedHandler, setTokenCache } from '@/api/client';
+import { PushNotificationService } from '@/services/pushNotifications';
+import { ReminderSyncService, ReminderTime } from '@/services/reminderSync';
+import { cancelDailyVerseReminders, scheduleDailyVerseReminders } from '@/tasks/dailyVerseReminderScheduler';
 import { User, UserRole, SignUpData } from '@/types';
 
 export type AuthPromptIntent = 'reauth' | 'guest_signup' | null;
@@ -72,7 +75,7 @@ export class AuthStore {
       if (!this.user?.id) throw new Error('User not found');
 
       const response = await apiClient.put<User>(
-        endpoints.users.avatar(this.user.id),
+        endpoints.users.update(this.user.id),
         { avatar: avatarUrl }
       );
 
@@ -171,6 +174,8 @@ export class AuthStore {
           this.isGuest = !!guestCreds;
           this.isInitialized = true;
         });
+
+        void this.bootstrapNotifications();
       } else if (!token && guestCreds) {
         // Attempt silent guest login to ensure app loads correctly for guest users
         try {
@@ -217,6 +222,8 @@ export class AuthStore {
         this.authRequired = false;
       });
 
+      void this.bootstrapNotifications();
+
       return true;
     } catch (error) {
       this.handleAuthError(error);
@@ -231,6 +238,7 @@ export class AuthStore {
       this.setLoading(true);
       // Optional: Call logout endpoint if needed
       // await apiClient.post(endpoints.auth.logout);
+      await cancelDailyVerseReminders();
     } catch (error) {
       console.error('Error during logout:', error);
     } finally {
@@ -264,6 +272,7 @@ export class AuthStore {
           this.setToken(response.data!.token!);
           this.setUser(response.data!.user!);
         });
+        void this.bootstrapNotifications();
         return true;
       }
 
@@ -341,6 +350,7 @@ export class AuthStore {
           });
           // Persist guest credentials for seamless re-login on 401
           await AsyncStorage.setItem(this.GUEST_CREDENTIALS_KEY, JSON.stringify({ email, password }));
+          void this.bootstrapNotifications();
           return true;
         }
 
@@ -433,6 +443,57 @@ export class AuthStore {
 
   // Called by API client's 401 interceptor
   private reauthInProgress = false;
+
+  private notificationsBootstrapInProgress = false;
+
+  private resolveDailyVerseReminderTimes = async (userId: string): Promise<ReminderTime[]> => {
+    try {
+      const remote = await ReminderSyncService.loadFromBackend(userId);
+      const daily = remote.find((pref) => pref.reminder_type === 'daily_reminder');
+      if (daily?.enabled && Array.isArray(daily.reminder_times) && daily.reminder_times.length) {
+        return daily.reminder_times;
+      }
+    } catch {
+      // ignore
+    }
+
+    const local = await ReminderSyncService.getLocalReminderState('daily_reminder');
+    if (local?.enabled && Array.isArray(local.times) && local.times.length) {
+      return local.times;
+    }
+
+    return [];
+  };
+
+  private bootstrapNotifications = async (): Promise<void> => {
+    if (this.notificationsBootstrapInProgress) return;
+
+    const userId = this.user?.id;
+    if (!userId) return;
+
+    this.notificationsBootstrapInProgress = true;
+    try {
+      const didRegisterPush = await PushNotificationService.updateToken(false);
+
+      await ReminderSyncService.syncAllLocalReminders(String(userId));
+
+      if (didRegisterPush) {
+        await cancelDailyVerseReminders();
+        return;
+      }
+
+      const times = await this.resolveDailyVerseReminderTimes(String(userId));
+      if (!times.length) {
+        return;
+      }
+
+      await scheduleDailyVerseReminders(times);
+    } catch (error) {
+      console.warn('[Auth] Notification bootstrap failed', error);
+    } finally {
+      this.notificationsBootstrapInProgress = false;
+    }
+  };
   private handleUnauthorized = async () => {
     if (this.reauthInProgress) return;
     this.reauthInProgress = true;
@@ -498,7 +559,7 @@ export class AuthStore {
       }
 
       const response = await apiClient.put<User>(
-        endpoints.users.profile(this.user.id),
+        endpoints.users.update(this.user.id),
         payload
       );
 

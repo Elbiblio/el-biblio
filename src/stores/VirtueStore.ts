@@ -348,7 +348,7 @@ export class VirtueStore {
       });
 
       // Use dedicated virtues endpoint
-      const response = await apiClient.get<{data: Virtue[]}>(
+      const response = await apiClient.get<Virtue[] | { data?: Virtue[] }>(
         '/virtues',
         {
           include: ['userProgress'],
@@ -359,10 +359,17 @@ export class VirtueStore {
       );
 
       if (!response.success) throw new Error(response.message || 'Failed to fetch virtues');
-      console.log('data', response)
+
+      const raw = response.data as any;
+      const virtuesList: Virtue[] = Array.isArray(raw)
+        ? raw
+        : Array.isArray(raw?.data)
+        ? raw.data
+        : [];
 
       runInAction(() => {
-        this.state.virtues = page === 1 ? response.data.data : [...this.state.virtues, ...response.data.data];
+        const current = Array.isArray(this.state.virtues) ? this.state.virtues : [];
+        this.state.virtues = page === 1 ? virtuesList : [...current, ...virtuesList];
         this.state.isVirtuesLoading = false;
         this.state.lastUpdate = new Date();
       });
@@ -386,8 +393,7 @@ export class VirtueStore {
       });
 
       const response = await apiClient.get<Virtue>(
-        endpoints.themes.show(id),
-        { include: ['userProgress'] }
+        `/virtues/${id}`
       );
 
       if (!response.success) throw new Error(response.message || 'Failed to fetch virtue');
@@ -468,23 +474,28 @@ export class VirtueStore {
     }
   }
 
-  async updateUserProgress(virtueId: string, progress: Partial<VirtueProgress>) {
+  async updateUserProgress(virtueId: string, progress: { points?: number; minutes?: number; challenges?: number }) {
     try {
       const currentProgress = this.state.userProgress[virtueId];
       if (!currentProgress) {
         throw new Error('No progress found for this virtue');
       }
 
-      const response = await apiClient.put(
-        endpoints.themes.update(virtueId),
-        { userProgress: progress }
+      const response = await apiClient.post<Partial<VirtueProgress>>(
+        `/virtues/${virtueId}/update-progress`,
+        progress
       );
 
       if (!response.success) throw new Error(response.message || 'Failed to update progress');
 
       // Update local state
       runInAction(() => {
-        this.state.userProgress[virtueId] = { ...currentProgress, ...progress };
+        this.state.userProgress[virtueId] = {
+          ...currentProgress,
+          ...(response.data as any),
+          theme_id: currentProgress.theme_id ?? virtueId,
+          virtue: currentProgress.virtue ?? virtueId,
+        } as any;
       });
 
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);

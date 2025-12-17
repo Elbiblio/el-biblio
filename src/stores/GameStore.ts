@@ -58,6 +58,31 @@ export class GameStore {
     this.error = message;
   }
 
+  private normalizeLeaderboardEntries(input: any): LeaderboardEntry[] {
+    if (Array.isArray(input)) {
+      return input as LeaderboardEntry[];
+    }
+
+    if (input && Array.isArray(input.data)) {
+      return input.data as LeaderboardEntry[];
+    }
+
+    if (input?.data && Array.isArray(input.data.data)) {
+      return input.data.data as LeaderboardEntry[];
+    }
+
+    return [];
+  }
+
+  private normalizeLeaderboardsMap(input: any): Record<GameId, LeaderboardEntry[]> {
+    const raw = input && typeof input === 'object' ? input : {};
+    const out: Record<GameId, LeaderboardEntry[]> = {};
+    Object.entries(raw).forEach(([key, value]) => {
+      out[key as GameId] = this.normalizeLeaderboardEntries(value);
+    });
+    return out;
+  }
+
   async initialize() {
     try {
       runInAction(() => {
@@ -77,7 +102,7 @@ export class GameStore {
         }
 
         if (leaderboardsResponse.success) {
-          this.state.leaderboards = leaderboardsResponse.data?.leaderboards || {};
+          this.state.leaderboards = this.normalizeLeaderboardsMap(leaderboardsResponse.data?.leaderboards);
         }
 
         this.state.lastSynced = new Date();
@@ -136,7 +161,9 @@ export class GameStore {
 
       runInAction(() => {
         const newPersonalBests = personalBestsResponse.success ? personalBestsResponse.data?.scores || {} : {};
-        const newLeaderboards = leaderboardsResponse.success ? leaderboardsResponse.data?.leaderboards || {} : {};
+        const newLeaderboards = leaderboardsResponse.success
+          ? this.normalizeLeaderboardsMap((leaderboardsResponse.data as any)?.leaderboards)
+          : {};
 
         this.state.personalBests = newPersonalBests;
         this.state.leaderboards = newLeaderboards;
@@ -209,7 +236,9 @@ export class GameStore {
         return;
       }
 
-      const { data, meta } = response.data;
+      const payload: any = response.data;
+      const data = this.normalizeLeaderboardEntries(payload?.data);
+      const meta = payload?.meta;
 
       runInAction(() => {
         this.state.leaderboards = {
