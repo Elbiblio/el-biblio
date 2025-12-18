@@ -18,8 +18,8 @@ export interface ReflectionComposeModalProps {
   canSubmit: boolean;
   submitLabel: string;
   onSubmit: () => void;
-  onOpenFaceTips: () => void;
-  onOpenFace2Face: () => void;
+  // onOpenFaceTips: () => void;
+  // onOpenFace2Face: () => void;
 }
 
 const ReflectionComposeModal: React.FC<ReflectionComposeModalProps> = ({

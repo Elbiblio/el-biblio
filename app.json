@@ -2,7 +2,7 @@
   "expo": {
     "name": "El-Biblio",
     "slug": "elbiblio",
-    "version": "1.0.15",
+    "version": "1.0.16",
     "orientation": "portrait",
     "icon": "./assets/penheart.png",
     "userInterfaceStyle": "light",
@@ -30,7 +30,6 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.elbiblio.app",
       "infoPlist": {
-        "NSCameraUsageDescription": "El-Biblio uses the camera to let you record Face2Face reflections and capture media to share with the community.",
         "NSMicrophoneUsageDescription": "El-Biblio uses the microphone to capture audio while recording Face2Face reflections.",
         "NSPhotoLibraryAddUsageDescription": "El-Biblio saves videos/photos to your library when you choose to export Face2Face reflections.",
         "NSPhotoLibraryUsageDescription": "El-Biblio reads photos and videos you select so you can attach and share them."
@@ -55,16 +54,6 @@
       "favicon": "./assets/penheart.png"
     },
     "jsEngine": "hermes",
-    "extra": {
-      "WS_HOST": "api.elbiblio.com",
-      "WS_PORT": "8080",
-      "WS_APP_KEY": "your-app-key",
-      "WS_SECURE": false,
-      "APP_VERSION_CHECK_URL": "https://api.elbiblio.com/public/mobile-version",
-      "MIN_SUPPORTED_ANDROID": "1.0.0",
-      "LATEST_ANDROID": "1.0.0",
-      "ANDROID_STORE_URL": "https://play.google.com/store/apps/details?id=com.elbiblio.app"
-    },
     "plugins": [
       [
         "@livekit/react-native-expo-plugin",
@@ -83,7 +72,6 @@
       ],
       "expo-sqlite",
       "expo-audio",
-      "expo-camera",
       "expo-background-task",
       [
         "expo-build-properties",

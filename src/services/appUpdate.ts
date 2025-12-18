@@ -18,10 +18,18 @@ export interface VersionCheckResult {
   message?: string;
 }
 
+const DEFAULT_EXTRAS = {
+  APP_VERSION_CHECK_URL: 'https://api.elbiblio.com/public/mobile-version',
+  MIN_SUPPORTED_ANDROID: '1.0.0',
+  LATEST_ANDROID: '1.0.0',
+  ANDROID_STORE_URL: 'https://play.google.com/store/apps/details?id=com.elbiblio.app',
+} as const;
+
 const getExtras = () => {
   const expoConfig = (Constants as any)?.expoConfig;
   const manifestExtra = (Constants as any)?.manifest?.extra;
-  return expoConfig?.extra ?? manifestExtra ?? {};
+  const raw = expoConfig?.extra ?? manifestExtra ?? {};
+  return { ...DEFAULT_EXTRAS, ...(raw || {}) };
 };
 
 const parseVersion = (value?: string): string => {

@@ -1,5 +1,4 @@
 import * as React from 'react';
-import Constants from 'expo-constants';
 import Pusher, { Channel, PresenceChannel } from 'pusher-js';
 import { useAuthStore, useVerseStore, useWordHubsStore } from '@/stores/StoreProvider';
 
@@ -52,14 +51,13 @@ class WebSocketService {
   // Optional runtime configuration (preferred) – typically provided from API
   private runtimeConfig: WebSocketRuntimeConfig | null = null;
 
-  // Configuration sourced from app.json extra as a fallback
+  // Configuration defaults (runtime config from API can override)
   private getDefaultConfig(): WebSocketRuntimeConfig {
-    const extra: any = (Constants as any)?.expoConfig?.extra || (Constants as any)?.manifest?.extra || {};
     return {
-      host: extra.WS_HOST || 'api.elbiblio.com',
-      port: String(extra.WS_PORT || '8080'),
-      appKey: extra.WS_APP_KEY || 'your-app-key',
-      secure: !!extra.WS_SECURE,
+      host: 'api.elbiblio.com',
+      port: '8080',
+      appKey: 'your-app-key',
+      secure: false,
     };
   }
 

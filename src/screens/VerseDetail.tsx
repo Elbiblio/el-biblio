@@ -22,7 +22,7 @@ import Animated, {
   Extrapolation,
 } from 'react-native-reanimated';
 import { BlurView } from 'expo-blur';
-import { CameraView, CameraType, Camera } from 'expo-camera';
+// import { CameraView, CameraType, Camera } from 'expo-camera';
 import { Video, ResizeMode } from 'expo-av';
 import * as FileSystem from 'expo-file-system';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -118,8 +118,8 @@ const VerseDetail = ({ navigation, route }: VerseDetailProps) => {
   const [retryingId, setRetryingId] = useState<string | null>(null);
   // Face2Face capture state
   const [showFace2Face, setShowFace2Face] = useState(false);
-  const [hasCameraPermission, setHasCameraPermission] = useState<boolean>(false);
-  const [cameraType, setCameraType] = useState<CameraType>('front');
+  // const [hasCameraPermission, setHasCameraPermission] = useState<boolean>(false);
+  // const [cameraType, setCameraType] = useState<CameraType>('front');
   const cameraRef = useRef<any>(null);
   const [isRecording, setIsRecording] = useState(false);
   const [videoUri, setVideoUri] = useState<string | null>(null);
@@ -473,194 +473,194 @@ const VerseDetail = ({ navigation, route }: VerseDetailProps) => {
   };
 
   // Face2Face helpers
-  const ensureCameraPermission = async () => {
-    try {
-      const existing = await Camera.getCameraPermissionsAsync();
-      if (existing.status === 'granted') {
-        setHasCameraPermission(true);
-        // Also ensure microphone permission for video recording
-        const mic = await Camera.getMicrophonePermissionsAsync();
-        if (mic.status !== 'granted') {
-          const micRes = await Camera.requestMicrophonePermissionsAsync();
-          if (micRes.status !== 'granted') {
-            toast.error('Microphone permission is required for Face2Face');
-            return false;
-          }
-        }
-        return true;
-      }
-      const res = await Camera.requestCameraPermissionsAsync();
-      const granted = res.status === 'granted';
-      setHasCameraPermission(granted);
-      if (!granted) toast.error('Camera permission is required for Face2Face');
-      if (!granted) return false;
-      // Request microphone permission after camera
-      const micRes = await Camera.requestMicrophonePermissionsAsync();
-      const micGranted = micRes.status === 'granted';
-      if (!micGranted) toast.error('Microphone permission is required for Face2Face');
-      return micGranted;
-    } catch {
-      toast.error('Unable to check camera permission');
-      return false;
-    }
-  };
+  // const ensureCameraPermission = async () => {
+  //   try {
+  //     const existing = await Camera.getCameraPermissionsAsync();
+  //     if (existing.status === 'granted') {
+  //       setHasCameraPermission(true);
+  //       // Also ensure microphone permission for video recording
+  //       const mic = await Camera.getMicrophonePermissionsAsync();
+  //       if (mic.status !== 'granted') {
+  //         const micRes = await Camera.requestMicrophonePermissionsAsync();
+  //         if (micRes.status !== 'granted') {
+  //           toast.error('Microphone permission is required for Face2Face');
+  //           return false;
+  //         }
+  //       }
+  //       return true;
+  //     }
+  //     const res = await Camera.requestCameraPermissionsAsync();
+  //     const granted = res.status === 'granted';
+  //     setHasCameraPermission(granted);
+  //     if (!granted) toast.error('Camera permission is required for Face2Face');
+  //     if (!granted) return false;
+  //     // Request microphone permission after camera
+  //     const micRes = await Camera.requestMicrophonePermissionsAsync();
+  //     const micGranted = micRes.status === 'granted';
+  //     if (!micGranted) toast.error('Microphone permission is required for Face2Face');
+  //     return micGranted;
+  //   } catch {
+  //     toast.error('Unable to check camera permission');
+  //     return false;
+  //   }
+  // };
 
-  const openFace2Face = async () => {
-    if (!FACE2FACE_ENABLED) return;
-    if (isGuest || !restrictions.canComment) {
-      toast.info('Please create an account to share Face2Face reflections');
-      return;
-    }
-    if (!(await ensureCameraPermission())) return;
-    setShowFace2Face(true);
-  };
+  // const openFace2Face = async () => {
+  //   if (!FACE2FACE_ENABLED) return;
+  //   if (isGuest || !restrictions.canComment) {
+  //     toast.info('Please create an account to share Face2Face reflections');
+  //     return;
+  //   }
+  //   if (!(await ensureCameraPermission())) return;
+  //   setShowFace2Face(true);
+  // };
 
-  const startRecording = async () => {
-    if (!cameraRef.current || isRecording) return;
-    try {
-      setIsRecording(true);
-      // Auto-stop after 90s
-      const t = setTimeout(stopRecording, 90_000);
-      setRecordTimer(t);
-      await (cameraRef.current as any).startRecording({
-        maxDuration: 90,
-        onRecordingFinished: (video: { uri?: string }) => {
-          if (video?.uri) setVideoUri(video.uri);
-          setIsRecording(false);
-        },
-        onRecordingError: () => {
-          toast.error('Recording error');
-          setIsRecording(false);
-        },
-      } as any);
-    } catch (e) {
-      toast.error('Unable to start recording');
-      setIsRecording(false);
-    }
-  };
+  // const startRecording = async () => {
+  //   if (!cameraRef.current || isRecording) return;
+  //   try {
+  //     setIsRecording(true);
+  //     // Auto-stop after 90s
+  //     const t = setTimeout(stopRecording, 90_000);
+  //     setRecordTimer(t);
+  //     await (cameraRef.current as any).startRecording({
+  //       maxDuration: 90,
+  //       onRecordingFinished: (video: { uri?: string }) => {
+  //         if (video?.uri) setVideoUri(video.uri);
+  //         setIsRecording(false);
+  //       },
+  //       onRecordingError: () => {
+  //         toast.error('Recording error');
+  //         setIsRecording(false);
+  //       },
+  //     } as any);
+  //   } catch (e) {
+  //     toast.error('Unable to start recording');
+  //     setIsRecording(false);
+  //   }
+  // };
 
-  const stopRecording = async () => {
-    if (recordTimer) clearTimeout(recordTimer);
-    setRecordTimer(null);
-    try {
-      (cameraRef.current as any)?.stopRecording();
-    } catch {}
-    setIsRecording(false);
-  };
+  // const stopRecording = async () => {
+  //   if (recordTimer) clearTimeout(recordTimer);
+  //   setRecordTimer(null);
+  //   try {
+  //     (cameraRef.current as any)?.stopRecording();
+  //   } catch {}
+  //   setIsRecording(false);
+  // };
 
-  useEffect(() => {
-    if (!showFace2Face && isRecording) {
-      stopRecording();
-    }
-  }, [showFace2Face, isRecording]);
+  // useEffect(() => {
+  //   if (!showFace2Face && isRecording) {
+  //     stopRecording();
+  //   }
+  // }, [showFace2Face, isRecording]);
 
-  const flipCamera = () => {
-    setCameraType((prev: CameraType) => (prev === 'front' ? 'back' : 'front'));
-  };
+  // const flipCamera = () => {
+  //   setCameraType((prev: CameraType) => (prev === 'front' ? 'back' : 'front'));
+  // };
 
-  const resetFace2Face = () => {
-    setVideoUri(null);
-    setIsRecording(false);
-  };
+  // const resetFace2Face = () => {
+  //   setVideoUri(null);
+  //   setIsRecording(false);
+  // };
 
-  const submitFace2Face = async () => {
-    if (!currentVerse || !user || !videoUri) return;
-    try {
-      setIsUploading(true);
+  // const submitFace2Face = async () => {
+  //   if (!currentVerse || !user || !videoUri) return;
+  //   try {
+  //     setIsUploading(true);
       
-      setShowFace2Face(false);
+  //     setShowFace2Face(false);
 
       
-      const fileName = videoUri.split('/').pop() || `face2face_${Date.now()}.mp4`;
-      const contentType = 'video/mp4';
-      const directory = `videos/user_${user.id}`;
-      const acl = 'public-read';
-      const presign = await apiClient.post<{ uploadUrl: string; publicUrl: string; key: string; expires_in: number; thumbnail?: { uploadUrl: string; publicUrl: string; key: string } | null }>(
-        endpoints.uploads.presign,
-        { fileName, contentType, directory, acl }
-      );
-      if (!presign.success) throw new Error(presign.message || 'Failed to prepare upload');
-      const { uploadUrl, publicUrl } = presign.data;
+  //     const fileName = videoUri.split('/').pop() || `face2face_${Date.now()}.mp4`;
+  //     const contentType = 'video/mp4';
+  //     const directory = `videos/user_${user.id}`;
+  //     const acl = 'public-read';
+  //     const presign = await apiClient.post<{ uploadUrl: string; publicUrl: string; key: string; expires_in: number; thumbnail?: { uploadUrl: string; publicUrl: string; key: string } | null }>(
+  //       endpoints.uploads.presign,
+  //       { fileName, contentType, directory, acl }
+  //     );
+  //     if (!presign.success) throw new Error(presign.message || 'Failed to prepare upload');
+  //     const { uploadUrl, publicUrl } = presign.data;
 
-      const uploadToS3 = async (signedUrl: string, fileUri: string, mime: string) => {
-        const fileInfo = await FileSystem.getInfoAsync(fileUri);
-        if (!fileInfo.exists) {
-          throw new Error('File not found');
-        }
+  //     const uploadToS3 = async (signedUrl: string, fileUri: string, mime: string) => {
+  //       const fileInfo = await FileSystem.getInfoAsync(fileUri);
+  //       if (!fileInfo.exists) {
+  //         throw new Error('File not found');
+  //       }
 
-        setUploadProgress(0);
+  //       setUploadProgress(0);
 
-        if (typeof (FileSystem as any).createUploadTask === 'function') {
-          const task = (FileSystem as any).createUploadTask(
-            signedUrl,
-            fileUri,
-            {
-              httpMethod: 'PUT',
-              uploadType: (FileSystem as any).FileSystemUploadType.BINARY_CONTENT,
-              headers: {
-                'Content-Type': mime,
-                'x-amz-acl': acl,
-              },
-            },
-            ({ totalBytesSent, totalBytesExpectedToSend }: { totalBytesSent: number; totalBytesExpectedToSend: number }) => {
-              if (totalBytesExpectedToSend > 0) {
-                setUploadProgress(Math.min(1, totalBytesSent / totalBytesExpectedToSend));
-              }
-            }
-          );
+  //       if (typeof (FileSystem as any).createUploadTask === 'function') {
+  //         const task = (FileSystem as any).createUploadTask(
+  //           signedUrl,
+  //           fileUri,
+  //           {
+  //             httpMethod: 'PUT',
+  //             uploadType: (FileSystem as any).FileSystemUploadType.BINARY_CONTENT,
+  //             headers: {
+  //               'Content-Type': mime,
+  //               'x-amz-acl': acl,
+  //             },
+  //           },
+  //           ({ totalBytesSent, totalBytesExpectedToSend }: { totalBytesSent: number; totalBytesExpectedToSend: number }) => {
+  //             if (totalBytesExpectedToSend > 0) {
+  //               setUploadProgress(Math.min(1, totalBytesSent / totalBytesExpectedToSend));
+  //             }
+  //           }
+  //         );
 
-          const res = await task.uploadAsync();
-          if (!res || res.status < 200 || res.status >= 300) {
-            throw new Error(`Upload failed with status ${res?.status ?? 'unknown'}`);
-          }
-          setUploadProgress(1);
-          return;
-        }
+  //         const res = await task.uploadAsync();
+  //         if (!res || res.status < 200 || res.status >= 300) {
+  //           throw new Error(`Upload failed with status ${res?.status ?? 'unknown'}`);
+  //         }
+  //         setUploadProgress(1);
+  //         return;
+  //       }
 
-        const fallback = await FileSystem.uploadAsync(signedUrl, fileUri, {
-          httpMethod: 'PUT',
-          uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
-          headers: {
-            'Content-Type': mime,
-            'x-amz-acl': acl,
-          },
-        });
+  //       const fallback = await FileSystem.uploadAsync(signedUrl, fileUri, {
+  //         httpMethod: 'PUT',
+  //         uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
+  //         headers: {
+  //           'Content-Type': mime,
+  //           'x-amz-acl': acl,
+  //         },
+  //       });
 
-        if (!fallback || fallback.status < 200 || fallback.status >= 300) {
-          throw new Error(`Upload failed with status ${fallback?.status ?? 'unknown'}`);
-        }
+  //       if (!fallback || fallback.status < 200 || fallback.status >= 300) {
+  //         throw new Error(`Upload failed with status ${fallback?.status ?? 'unknown'}`);
+  //       }
 
-        setUploadProgress(1);
-      };
+  //       setUploadProgress(1);
+  //     };
 
-      await uploadToS3(uploadUrl, videoUri, contentType);
+  //     await uploadToS3(uploadUrl, videoUri, contentType);
 
-      const caption = (reflectionText?.trim() || 'Face2Face');
-      const title = caption.length > 250 ? `${caption.slice(0, 247)}...` : caption;
+  //     const caption = (reflectionText?.trim() || 'Face2Face');
+  //     const title = caption.length > 250 ? `${caption.slice(0, 247)}...` : caption;
 
-      // 3) Create reflection pointing to uploaded media
-      await createReflection({
-        title,
-        content: caption,
-        type: 2,
-        user_id: user.id,
-        verse_id: currentVerse.id,
-        media_url: publicUrl,
-        media_provider: 's3',
-        // duration_seconds: could be extracted with a probe; omitted for now
-      });
-      setVideoUri(null);
-      setReflectionText('');
-      setShowReflectionInput(false);
-      toast.success('Face2Face uploaded');
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : 'Failed to save Face2Face';
-      toast.error(msg);
-    }
-    finally {
-      setIsUploading(false);
-    }
-  };
+  //     // 3) Create reflection pointing to uploaded media
+  //     await createReflection({
+  //       title,
+  //       content: caption,
+  //       type: 2,
+  //       user_id: user.id,
+  //       verse_id: currentVerse.id,
+  //       media_url: publicUrl,
+  //       media_provider: 's3',
+  //       // duration_seconds: could be extracted with a probe; omitted for now
+  //     });
+  //     setVideoUri(null);
+  //     setReflectionText('');
+  //     setShowReflectionInput(false);
+  //     toast.success('Face2Face uploaded');
+  //   } catch (e) {
+  //     const msg = e instanceof Error ? e.message : 'Failed to save Face2Face';
+  //     toast.error(msg);
+  //   }
+  //   finally {
+  //     setIsUploading(false);
+  //   }
+  // };
 
   // Animation styles
   const headerStyle = useAnimatedStyle(() => ({
@@ -1047,12 +1047,12 @@ const VerseDetail = ({ navigation, route }: VerseDetailProps) => {
         canSubmit={canSubmit}
         submitLabel={submitLabel}
         onSubmit={handleSubmitReflection}
-        onOpenFaceTips={() => {}}
-        onOpenFace2Face={FACE2FACE_ENABLED ? openFace2Face : () => {}}
+        // onOpenFaceTips={() => {}}
+        // onOpenFace2Face={FACE2FACE_ENABLED ? openFace2Face : () => {}}
       />
 
       {/* Face2Face Modal */}
-      {FACE2FACE_ENABLED && showFace2Face && (
+      {/* {FACE2FACE_ENABLED && showFace2Face && (
         <View style={styles.faceModalOverlay}>
           <View style={styles.faceModal}>
             {!videoUri ? (
@@ -1063,7 +1063,6 @@ const VerseDetail = ({ navigation, route }: VerseDetailProps) => {
                   facing={cameraType}
                   ratio="1:1"
                 />
-                {/* Uploading overlay */}
                 {isUploading && (
                   <View style={styles.overlayCenter}>
                     <ActivityIndicator color={theme.colors.primary} size="large" />
@@ -1106,7 +1105,6 @@ const VerseDetail = ({ navigation, route }: VerseDetailProps) => {
                     />
                   )}
                 </View>
-                {/* Uploading overlay */}
                 {isUploading && (
                   <View style={styles.overlayCenter}>
                     <ActivityIndicator color={theme.colors.primary} size="large" />
@@ -1125,7 +1123,7 @@ const VerseDetail = ({ navigation, route }: VerseDetailProps) => {
             )}
           </View>
         </View>
-      )}
+      )} */}
 
       {/* Background upload status */}
       {FACE2FACE_ENABLED && isUploading && !showFace2Face && (
