@@ -611,7 +611,7 @@ jobs:
           aws s3 cp "s3://$BUCKET/iosbuild/distribution.cer" ios/signing/distribution.cer --endpoint-url="$R2_ENDPOINT" || \
             { echo "Error: Failed to download distribution.cer"; exit 1; }
           
-          aws s3 cp "s3://$BUCKET/iosbuild/Venmail_Distribution.p12" ios/signing/ios_dist.p12 --endpoint-url="$R2_ENDPOINT" || \
+          aws s3 cp "s3://$BUCKET/iosbuild/Venmail_Distribution.new.p12" ios/signing/ios_dist.p12 --endpoint-url="$R2_ENDPOINT" || \
             { echo "Error: Failed to download p12 certificate"; exit 1; }
           
           aws s3 cp "s3://$BUCKET/iosbuild/Elbiblio.mobileprovision" ios/signing/Elbiblio.mobileprovision --endpoint-url="$R2_ENDPOINT" || \
@@ -635,6 +635,25 @@ jobs:
           done
           
           echo "✓ All required signing materials downloaded"
+
+      - name: Verify iOS P12 password decrypts
+        run: |
+          set -euo pipefail
+
+          P12="ios/signing/ios_dist.p12"
+          if [ ! -f "$P12" ]; then
+            echo "Error: P12 file not found at $P12"
+            exit 1
+          fi
+
+          if ! openssl pkcs12 -legacy -in "$P12" -nokeys -passin pass:"${IOS_P12_PASSWORD:-}" > /dev/null 2>&1; then
+            if ! openssl pkcs12 -legacy -in "$P12" -nokeys -passin pass: > /dev/null 2>&1; then
+              echo "Error: Unable to decrypt ios_dist.p12 with IOS_P12_PASSWORD or an empty password."
+              exit 1
+            fi
+          fi
+        env:
+          IOS_P12_PASSWORD: ${{ secrets.IOS_P12_PASSWORD }}
 
       - name: Setup Fastlane
         run: |
@@ -721,7 +740,7 @@ jobs:
               begin
                 import_certificate(
                   certificate_path: "signing/ios_dist.p12",
-                  certificate_password: ENV["IOS_KEYCHAIN_PASSWORD"],
+                  certificate_password: ENV["IOS_P12_PASSWORD"].to_s,
                   keychain_name: keychain_name,
                   keychain_password: keychain_password
                 )
@@ -813,6 +832,7 @@ jobs:
           fastlane build_release
         env:
           IOS_KEYCHAIN_PASSWORD: ${{ secrets.IOS_KEYCHAIN_PASSWORD }}
+          IOS_P12_PASSWORD: ${{ secrets.IOS_P12_PASSWORD }}
 
       - name: Verify IPA was created
         run: |
