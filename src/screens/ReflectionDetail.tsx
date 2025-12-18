@@ -65,13 +65,13 @@ const ReflectionDetail = observer(({ navigation, route }: ReflectionDetailProps)
 
   // Load comments on mount and clear errors on unmount
   useEffect(() => {
-    if (reflection?.id) {
+    if (reflection?.id && !reflection?.media_url) {
       fetchComments(reflection.id, 1);
     }
     return () => {
       clearErrors();
     };
-  }, [reflection?.id, fetchComments, clearErrors]);
+  }, [reflection?.id, reflection?.media_url, fetchComments, clearErrors]);
 
   // Handle refresh
   const handleRefresh = async () => {
@@ -138,6 +138,32 @@ const ReflectionDetail = observer(({ navigation, route }: ReflectionDetailProps)
         <TouchableOpacity style={styles.retryButton} onPress={handleRefresh}>
           <Text style={styles.retryText}>Retry</Text>
         </TouchableOpacity>
+      </View>
+    );
+  }
+
+  if (reflection?.media_url) {
+    return (
+      <View style={[styles.container, { paddingTop: insets.top }]}>
+        <Animated.View style={[styles.navigationHeader, headerStyle]}>
+          <TouchableOpacity 
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              navigation.goBack();
+            }}
+          >
+            <ArrowLeft size={24} color={theme.colors.text.primary} />
+          </TouchableOpacity>
+          <View style={styles.navigationTitle}>
+            <Text style={styles.navigationText}>Reflection</Text>
+          </View>
+        </Animated.View>
+        <ScrollView style={styles.mainContent} contentContainerStyle={styles.scrollContent}>
+          <EmptyState
+            title="Not available"
+            message="This reflection is not available."
+          />
+        </ScrollView>
       </View>
     );
   }

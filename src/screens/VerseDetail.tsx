@@ -25,7 +25,6 @@ import { BlurView } from 'expo-blur';
 import { CameraView, CameraType, Camera } from 'expo-camera';
 import { Video, ResizeMode } from 'expo-av';
 import * as FileSystem from 'expo-file-system';
-import { Platform as RNPlatform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
@@ -34,9 +33,7 @@ import {
   Share,
   BookmarkSimple,
   ArrowLeft,
-  Send,
   Copy,
-  Sparkle,
   X,
   Book,
 } from '@/components/Icons';
@@ -61,6 +58,8 @@ import { Share as NativeShare } from 'react-native';
 import { formatVerseShareMessage } from '@/utils/share';
 
 type VerseDetailProps = NativeStackScreenProps<RootStackParamList, 'VerseDetail'>;
+
+const FACE2FACE_ENABLED = false;
 
 const VerseDetail = ({ navigation, route }: VerseDetailProps) => {
   const theme = useTheme();
@@ -108,11 +107,10 @@ const VerseDetail = ({ navigation, route }: VerseDetailProps) => {
 
   // Local state
   const [currentReflectionIndex, setCurrentReflectionIndex] = useState(0);
-  const [reflectionFilter, setReflectionFilter] = useState<'all' | 'word' | 'face'>('all');
+  const [reflectionFilter, setReflectionFilter] = useState<'all' | 'word'>('all');
   const [reflectionSort, setReflectionSort] = useState<'new' | 'top'>('new');
   const [showReflectionInput, setShowReflectionInput] = useState(false);
   const [reflectionText, setReflectionText] = useState('');
-  const [reflectionType, setReflectionType] = useState<1 | 2>(1); // 1: story, 2: insight
   const [activeCommentReflectionId, setActiveCommentReflectionId] = useState<string | null>(null);
   const [pendingReflections, setPendingReflections] = useState<Reflection[]>([]);
   const [pendingPayloads, setPendingPayloads] = useState<Record<string, { content: string; type: number; user_id: string; verse_id: string }>>({});
@@ -182,7 +180,7 @@ const VerseDetail = ({ navigation, route }: VerseDetailProps) => {
           AsyncStorage.getItem('vd_reflection_filter'),
           AsyncStorage.getItem('vd_reflection_sort'),
         ]);
-        if (f === 'all' || f === 'word' || f === 'face') setReflectionFilter(f);
+        if (f === 'all' || f === 'word') setReflectionFilter(f);
         if (s === 'new' || s === 'top') setReflectionSort(s as any);
       } catch {}
     })();
@@ -400,11 +398,13 @@ const VerseDetail = ({ navigation, route }: VerseDetailProps) => {
     // Fire-and-forget for a smoother, non-blocking UX when posting text reflections
     const text = reflectionText.trim();
 
+    const type = 1 as const;
+
     // Create local pending placeholder
     const temp: Reflection = {
       id: `temp-${Date.now()}` as any,
       content: text,
-      type: reflectionType,
+      type: type,
       user: user as any,
       comments: [],
       likes: 0,
@@ -414,7 +414,7 @@ const VerseDetail = ({ navigation, route }: VerseDetailProps) => {
       media_url: null as any,
     } as unknown as Reflection;
     setPendingReflections((prev) => [temp, ...prev]);
-    setPendingPayloads((prev) => ({ ...prev, [temp.id]: { content: text, type: reflectionType, user_id: user.id, verse_id: currentVerse.id } }));
+    setPendingPayloads((prev) => ({ ...prev, [temp.id]: { content: text, type: type, user_id: user.id, verse_id: currentVerse.id } }));
     setFailedPendingIds((prev) => {
       const next = new Set(prev);
       next.delete(temp.id as any);
@@ -426,7 +426,7 @@ const VerseDetail = ({ navigation, route }: VerseDetailProps) => {
     toast.info('Sharing in background…');
 
     // Post in background; the store will enrich and insert the new reflection on success
-    createReflection({ content: text, type: reflectionType, user_id: user.id, verse_id: currentVerse.id })
+    createReflection({ content: text, type: type, user_id: user.id, verse_id: currentVerse.id })
       .then((res) => {
         if (res) {
           // Success: remove pending placeholder and payload
@@ -506,6 +506,7 @@ const VerseDetail = ({ navigation, route }: VerseDetailProps) => {
   };
 
   const openFace2Face = async () => {
+    if (!FACE2FACE_ENABLED) return;
     if (isGuest || !restrictions.canComment) {
       toast.info('Please create an account to share Face2Face reflections');
       return;
@@ -573,9 +574,10 @@ const VerseDetail = ({ navigation, route }: VerseDetailProps) => {
       const fileName = videoUri.split('/').pop() || `face2face_${Date.now()}.mp4`;
       const contentType = 'video/mp4';
       const directory = `videos/user_${user.id}`;
+      const acl = 'public-read';
       const presign = await apiClient.post<{ uploadUrl: string; publicUrl: string; key: string; expires_in: number; thumbnail?: { uploadUrl: string; publicUrl: string; key: string } | null }>(
         endpoints.uploads.presign,
-        { fileName, contentType, directory, acl: 'public-read' }
+        { fileName, contentType, directory, acl }
       );
       if (!presign.success) throw new Error(presign.message || 'Failed to prepare upload');
       const { uploadUrl, publicUrl } = presign.data;
@@ -597,6 +599,7 @@ const VerseDetail = ({ navigation, route }: VerseDetailProps) => {
               uploadType: (FileSystem as any).FileSystemUploadType.BINARY_CONTENT,
               headers: {
                 'Content-Type': mime,
+                'x-amz-acl': acl,
               },
             },
             ({ totalBytesSent, totalBytesExpectedToSend }: { totalBytesSent: number; totalBytesExpectedToSend: number }) => {
@@ -619,6 +622,7 @@ const VerseDetail = ({ navigation, route }: VerseDetailProps) => {
           uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
           headers: {
             'Content-Type': mime,
+            'x-amz-acl': acl,
           },
         });
 
@@ -732,10 +736,9 @@ const VerseDetail = ({ navigation, route }: VerseDetailProps) => {
 
   // Derived reflections (filter + sort)
   const filteredReflections = useMemo(() => {
-    const list = currentVerse?.reflections || [];
+    const list = (currentVerse?.reflections || []).filter((r: Reflection) => !r.media_url);
     const filtered = list.filter((r: Reflection) => {
       if (reflectionFilter === 'all') return true;
-      if (reflectionFilter === 'face') return !!r.media_url || r.type === 2;
       if (reflectionFilter === 'word') return !r.media_url && r.type === 1;
       return true;
     });
@@ -750,11 +753,10 @@ const VerseDetail = ({ navigation, route }: VerseDetailProps) => {
 
   // Chip counts
   const chipCounts = useMemo(() => {
-    const list = currentVerse?.reflections || [];
+    const list = (currentVerse?.reflections || []).filter((r: Reflection) => !r.media_url);
     const all = list.length;
-    const face = list.filter((r: Reflection) => !!r.media_url || r.type === 2).length;
-    const word = list.filter((r: Reflection) => !r.media_url && r.type === 1).length;
-    return { all, word, face };
+    const word = list.filter((r: Reflection) => r.type === 1).length;
+    return { all, word };
   }, [currentVerse?.reflections]);
 
   // Reflection rendering
@@ -814,18 +816,9 @@ const VerseDetail = ({ navigation, route }: VerseDetailProps) => {
 
   const trimmedReflection = reflectionText.trim();
   const wordCount = trimmedReflection ? trimmedReflection.split(/\s+/).filter(Boolean).length : 0;
-  const isWordBiteType = reflectionType === 1;
-  const isFace2FaceType = reflectionType === 2;
-  const exceedsWordLimit = isWordBiteType && wordCount > 50;
-  const canSubmit = !isUploading && (
-    (isWordBiteType && !!trimmedReflection && !exceedsWordLimit) ||
-    (isFace2FaceType && !!videoUri)
-  );
-  const submitLabel = isUploading
-    ? 'Uploading…'
-    : isFace2FaceType
-      ? (videoUri ? 'Share' : 'Add video to share')
-      : 'Share';
+  const exceedsWordLimit = wordCount > 50;
+  const canSubmit = !isUploading && !!trimmedReflection && !exceedsWordLimit;
+  const submitLabel = isUploading ? 'Uploading…' : 'Share';
 
   const stickyComposerStyle = useAnimatedStyle(() => ({
     opacity: composerOpacity.value,
@@ -893,7 +886,7 @@ const VerseDetail = ({ navigation, route }: VerseDetailProps) => {
                   >
                     <MessageCircle size={24} color={theme.colors.text.secondary} />
                     <Text style={styles.actionCount}>
-                      {currentVerse.reflections?.length || 0}
+                      {chipCounts.all}
                     </Text>
                   </TouchableOpacity>
 
@@ -980,12 +973,6 @@ const VerseDetail = ({ navigation, route }: VerseDetailProps) => {
                   >
                     <Text style={[styles.chipText, reflectionFilter === 'word' && styles.chipTextActive]}>Word Bites ({chipCounts.word})</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.chip, reflectionFilter === 'face' && styles.chipActive]}
-                    onPress={() => setReflectionFilter('face')}
-                  >
-                    <Text style={[styles.chipText, reflectionFilter === 'face' && styles.chipTextActive]}>Face2Face ({chipCounts.face})</Text>
-                  </TouchableOpacity>
                 </View>
               )}
               
@@ -1054,18 +1041,18 @@ const VerseDetail = ({ navigation, route }: VerseDetailProps) => {
         reflectionText={reflectionText}
         verseText={currentVerse?.text}
         onChangeText={setReflectionText}
-        reflectionType={reflectionType}
-        onChangeType={(t) => setReflectionType(t)}
+        reflectionType={1}
+        onChangeType={() => {}}
         isUploading={isUploading}
         canSubmit={canSubmit}
         submitLabel={submitLabel}
-        onSubmit={isFace2FaceType ? submitFace2Face : handleSubmitReflection}
-        onOpenFaceTips={() => setShowFaceTips(true)}
-        onOpenFace2Face={openFace2Face}
+        onSubmit={handleSubmitReflection}
+        onOpenFaceTips={() => {}}
+        onOpenFace2Face={FACE2FACE_ENABLED ? openFace2Face : () => {}}
       />
 
       {/* Face2Face Modal */}
-      {showFace2Face && (
+      {FACE2FACE_ENABLED && showFace2Face && (
         <View style={styles.faceModalOverlay}>
           <View style={styles.faceModal}>
             {!videoUri ? (
@@ -1141,7 +1128,7 @@ const VerseDetail = ({ navigation, route }: VerseDetailProps) => {
       )}
 
       {/* Background upload status */}
-      {isUploading && !showFace2Face && (
+      {FACE2FACE_ENABLED && isUploading && !showFace2Face && (
         <View style={styles.uploadBanner}>
           <Text style={styles.uploadBannerText}>{`Uploading Face2Face… ${Math.round((uploadProgress || 0) * 100)}%`}</Text>
           <View style={styles.progressBarWrap}>
@@ -1251,7 +1238,7 @@ const VerseDetail = ({ navigation, route }: VerseDetailProps) => {
       )}
 
       {/* Tips Modal */}
-      {showFaceTips && (
+      {FACE2FACE_ENABLED && showFaceTips && (
         <View style={styles.faceModalOverlay}>
           <View style={styles.tipsModal}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>

@@ -72,6 +72,10 @@ const ReflectionCard: React.FC<ReflectionCardProps> = ({
   const heartOpacity = useSharedValue(0);
   const [muted, setMuted] = useState<boolean>(true);
 
+  if (reflection?.media_url) {
+    return null;
+  }
+
   const topComment = (reflection.comments ?? [])[0];
 
   const { user } = useAuthStore();

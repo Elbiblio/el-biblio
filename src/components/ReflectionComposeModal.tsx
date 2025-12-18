@@ -4,7 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
 import { Theme } from '@/theme';
-import { X, Sparkle, Send } from '@/components/Icons';
+import { X, Send } from '@/components/Icons';
 
 export interface ReflectionComposeModalProps {
   visible: boolean;
@@ -28,14 +28,11 @@ const ReflectionComposeModal: React.FC<ReflectionComposeModalProps> = ({
   reflectionText,
   verseText,
   onChangeText,
-  reflectionType,
   onChangeType,
   isUploading,
   canSubmit,
   submitLabel,
   onSubmit,
-  onOpenFaceTips,
-  onOpenFace2Face,
 }) => {
   const insets = useSafeAreaInsets();
   const theme = useTheme();
@@ -81,8 +78,6 @@ const ReflectionComposeModal: React.FC<ReflectionComposeModalProps> = ({
 
   if (!visible) return null;
 
-  const isWordBiteType = reflectionType === 1;
-
   return (
     <View style={styles.container}>
       <KeyboardAvoidingView
@@ -126,24 +121,17 @@ Lord, open my eyes and mind to understand Your Word. Help me see what You are sa
 
             <View style={styles.typeSelector}>
               <TouchableOpacity
-                style={[styles.typeBtn, reflectionType === 1 && styles.typeBtnActive]}
+                style={[styles.typeBtn, styles.typeBtnActive]}
                 onPress={() => onChangeType(1)}
                 disabled={isUploading}
               >
-                <Text style={[styles.typeBtnText, reflectionType === 1 && styles.typeBtnTextActive]}>Word Bite</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.typeBtn, reflectionType === 2 && styles.typeBtnActive]}
-                onPress={() => onChangeType(2)}
-                disabled={isUploading}
-              >
-                <Text style={[styles.typeBtnText, reflectionType === 2 && styles.typeBtnTextActive]}>Face2Face</Text>
+                <Text style={[styles.typeBtnText, styles.typeBtnTextActive]}>Word Bite</Text>
               </TouchableOpacity>
             </View>
 
             <TextInput
               style={styles.input}
-              placeholder={reflectionType === 1 ? 'Share a Word Bite… (≤ 50 words)' : 'Face2Face caption (optional)'}
+              placeholder={'Share a Word Bite… (≤ 50 words)'}
               multiline
               maxLength={500}
               value={reflectionText}
@@ -154,21 +142,7 @@ Lord, open my eyes and mind to understand Your Word. Help me see what You are sa
               textAlignVertical="top"
             />
 
-            {reflectionType === 1 && (
-              <Text style={styles.wordCount}>Keep it concise and heartfelt. Max 50 words.</Text>
-            )}
-
-            {reflectionType === 2 && (
-              <View style={styles.faceRow}>
-                <TouchableOpacity style={styles.faceBtn} onPress={onOpenFaceTips} disabled={isUploading}>
-                  <Sparkle size={16} color={theme.colors.text.secondary} />
-                  <Text style={styles.faceBtnText}>Tips</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.faceBtn} onPress={onOpenFace2Face} disabled={isUploading}>
-                  <Text style={styles.faceBtnText}>Record Face2Face</Text>
-                </TouchableOpacity>
-              </View>
-            )}
+            <Text style={styles.wordCount}>Keep it concise and heartfelt. Max 50 words.</Text>
 
             <View style={styles.actions}>
               <TouchableOpacity style={styles.cancelBtn} onPress={() => !isUploading && onClose()} disabled={isUploading}>
