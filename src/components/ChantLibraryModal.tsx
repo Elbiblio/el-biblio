@@ -28,7 +28,7 @@ const CHANTS: Array<{
   {
     id: '10000-reasons-african',
     title: '10,000 Reasons (African)',
-    subtitle: 'Alternate vocal',
+    subtitle: 'Bless the Lord',
     voiceKey: 'db/10000_reasons_african.mp3',
     instrumentalKey: 'db/10000_reasons_instrumental.mp3',
   },

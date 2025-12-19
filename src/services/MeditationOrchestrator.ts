@@ -688,12 +688,22 @@ export class MeditationOrchestrator {
     if (selectedStyle === 'chant') {
       if (!this.chantFinalPromptSpoken && timeLeft === 60) {
         this.chantFinalPromptSpoken = true;
-        this.speakWithDuck('As we close, connect this chant with your day today.', 0.85).catch(() => {});
+        // Fade out chant first, then speak clearly without ducking
+        (async () => {
+          try {
+            this.chantCoordinator?.fadeOut(3000);
+            await new Promise(r => setTimeout(r, 2500));
+            await queueSpeak('As we close...', 0.75);
+            await new Promise(r => setTimeout(r, 1200));
+            await queueSpeak('reflect on the chant.', 0.75);
+            await new Promise(r => setTimeout(r, 1200));
+            await queueSpeak('listen, to Jesus.', 0.75);
+          } catch {}
+        })();
       }
-      // Fade out chant when under 60s
+      // Mark chant as faded when under 60s
       if (!this.chantFadedOut && timeLeft < 60) {
         this.chantFadedOut = true;
-        try { this.chantCoordinator?.fadeOut(4000); } catch {}
       }
     } else if (selectedStyle === 'parable') {
       const total = totalMeditationSeconds;

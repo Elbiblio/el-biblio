@@ -6,6 +6,7 @@ import { Theme } from '@/theme';
 import { type RootStackParamList, type PrayerRequest, PRAYER_CATEGORIES, type PrayerCategory } from '@/types';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { ArrowLeft, ChevronDown, Sparkle, Heart, MessageCircle } from '@/components/Icons';
+import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { observer } from 'mobx-react-lite';
 import { usePrayerRequestsStore, useAuthStore } from '@/stores/StoreProvider';
 import EmptyState from '@/components/EmptyState';
@@ -464,11 +465,34 @@ const PrayerRequestsScreen = ({ navigation }: PrayerRequestsScreenProps) => {
                 Encourage {item.comments_count ? `(${item.comments_count})` : ''}
               </Text>
             </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.communityButton, styles.reportButton]}
+              onPress={() => handleReport(item.id)}
+            >
+              <Icon name="flag-outline" size={16} color={theme.colors.error} />
+              {/* <Text style={[styles.communityButtonText, { color: theme.colors.error }]}>
+                Report
+              </Text> */}
+            </TouchableOpacity>
           </View>
         </View>
       </TouchableOpacity>
     );
   };
+
+  const handleReport = useCallback(async (requestId: string) => {
+    if (!userId) {
+      toast.error('Please sign in to report content');
+      return;
+    }
+    try {
+      await prayerRequestsStore.reportRequest(requestId);
+      toast.success('Content reported. Thank you for helping keep the community safe.');
+    } catch (error) {
+      console.error('Failed to report prayer request:', error);
+      toast.error('Failed to report content. Please try again.');
+    }
+  }, [userId, prayerRequestsStore]);
 
   const cycleCategory = useCallback(() => {
     const idx = categories.indexOf(currentCategory);
@@ -1194,6 +1218,10 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     ...theme.typography.caption.primary,
     color: theme.colors.text.secondary,
     fontWeight: '600',
+  },
+  reportButton: {
+    borderColor: `${theme.colors.error}30`,
+    backgroundColor: `${theme.colors.error}08`,
   },
   communityButtonActive: {
     backgroundColor: `${theme.colors.like}15`,

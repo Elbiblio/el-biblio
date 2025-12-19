@@ -317,3 +317,33 @@ export const setMusicVolume = async (
     await s.setVolumeAsync(Math.max(0, Math.min(1, vol * volumeMultiplier)));
   } catch {}
 };
+
+// Fade out music smoothly over duration, then stop
+export const fadeOutMusic = async (
+  cue: 'musicverse' | 'verseplay' | 'meditation' | 'heartbeat',
+  durationMs: number = 2000
+): Promise<void> => {
+  const key = CUE_ALIASES[cue];
+  if (!key) return;
+  try {
+    const s = cache.get(key);
+    if (!s) return;
+    
+    const status = await s.getStatusAsync();
+    if (!('isPlaying' in status) || !status.isPlaying) return;
+    
+    const steps = 20;
+    const stepDuration = durationMs / steps;
+    const vol = SoundManager.getVolume();
+    
+    for (let i = steps; i >= 0; i--) {
+      const volumeMultiplier = i / steps;
+      await s.setVolumeAsync(Math.max(0, vol * volumeMultiplier * 0.15));
+      if (i > 0) {
+        await new Promise(resolve => setTimeout(resolve, stepDuration));
+      }
+    }
+    
+    await s.stopAsync();
+  } catch {}
+};

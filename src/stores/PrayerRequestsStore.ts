@@ -419,6 +419,21 @@ export class PrayerRequestsStore {
     };
   };
 
+  async reportRequest(requestId: string): Promise<void> {
+    this.setLoading(true);
+    this.error = null;
+    try {
+      await apiClient.post(`${endpoints.prayerRequests}/${requestId}/report`);
+      toast.success('Content reported successfully');
+    } catch (error: any) {
+      this.error = error?.message || 'Failed to report content';
+      toast.error(this.error || 'Failed to report content');
+      throw error;
+    } finally {
+      this.setLoading(false);
+    }
+  };
+
   private updatePagination(meta: any, currentPage: number) {
     if (meta && typeof meta === 'object' &&
         (typeof meta.last_page !== 'undefined' || typeof meta.current_page !== 'undefined')) {

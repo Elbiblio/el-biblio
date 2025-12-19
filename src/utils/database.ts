@@ -826,6 +826,117 @@ class BibleDBService {
     }
   }
 
+  static async getPassageVerses(
+    version: string,
+    bookAbbr: string,
+    chapter: number,
+    startVerse: number,
+    verseCount: number
+  ): Promise<VerseResult[]> {
+    try {
+      const normalizedVersion = version.replace('.db', '');
+      const bookCode = bookCodeMap[bookAbbr.toUpperCase()];
+      if (!bookCode) {
+        throw new Error(`Invalid book abbreviation: ${bookAbbr}`);
+      }
+
+      return await this.executeWithRetry(async (db) => {
+        const verses: VerseResult[] = [];
+        for (let v = startVerse; v < startVerse + verseCount; v++) {
+          const vplId = `${bookCode}${chapter}_${v}`;
+          const result = await db.getFirstAsync<VerseResult>(
+            `SELECT verseID, verseText FROM ${normalizedVersion} WHERE verseID = ?`,
+            [vplId]
+          );
+          if (result) {
+            verses.push(result);
+          }
+        }
+        return verses;
+      }, version);
+    } catch (error) {
+      console.error('Error in getPassageVerses:', error);
+      throw error;
+    }
+  }
+
+  static async getRandomPassage(
+    version: string = 'eng_rv_vpl',
+    minVerses: number = 3,
+    maxVerses: number = 6
+  ): Promise<{ verses: VerseResult[]; bookName: string; chapter: number; startVerse: number; endVerse: number } | null> {
+    try {
+      const normalizedVersion = version.replace('.db', '');
+      const userProgressData = await AsyncStorage.getItem('userProgress');
+      const userProgress = userProgressData ? JSON.parse(userProgressData) : { level: 'beginner' };
+      const userLevel: UserLevel = userProgress.level || 'beginner';
+      const config = levelConfigurations[userLevel];
+
+      let bookCodes: string[] = [];
+      if (config.books.length > 0) {
+        bookCodes = config.books.map(abbr => bookCodeMap[abbr]).filter(Boolean);
+      }
+
+      return await this.executeWithRetry(async (db) => {
+        let query = `
+          SELECT verseID, verseText, book, chapter, startVerse
+          FROM ${normalizedVersion}
+          WHERE length(verseText) > 10 AND length(verseText) < 200
+        `;
+
+        if (bookCodes.length > 0) {
+          const bookPlaceholders = bookCodes.map(() => '?').join(',');
+          query += ` AND SUBSTR(verseID, 1, 2) IN (${bookPlaceholders})`;
+        }
+
+        query += ` ORDER BY RANDOM() LIMIT 1`;
+
+        const params = bookCodes.length > 0 ? bookCodes : [];
+        const startingVerse = await db.getFirstAsync<{
+          verseID: string;
+          verseText: string;
+          book: string;
+          chapter: string;
+          startVerse: string;
+        }>(query, params);
+
+        if (!startingVerse) return null;
+
+        const { bookAbbr, chapter, verse } = parseVPLId(startingVerse.verseID);
+        const verseCount = Math.floor(Math.random() * (maxVerses - minVerses + 1)) + minVerses;
+        const bookCode = bookCodeMap[bookAbbr];
+
+        const verses: VerseResult[] = [];
+        for (let v = verse; v < verse + verseCount; v++) {
+          const vplId = `${bookCode}${chapter}_${v}`;
+          const result = await db.getFirstAsync<VerseResult>(
+            `SELECT verseID, verseText FROM ${normalizedVersion} WHERE verseID = ?`,
+            [vplId]
+          );
+          if (result && result.verseText) {
+            verses.push(result);
+          } else {
+            break;
+          }
+        }
+
+        if (verses.length < minVerses) return null;
+
+        const bookMeta = bibleBooks.find(b => b.abbreviation === bookAbbr);
+        return {
+          verses,
+          bookName: bookMeta?.name || bookAbbr,
+          chapter,
+          startVerse: verse,
+          endVerse: verse + verses.length - 1,
+        };
+      }, version);
+    } catch (error) {
+      console.error('Error in getRandomPassage:', error);
+      return null;
+    }
+  }
+
   static async getRandomVerses(version: string = 'eng_rv_vpl', count: number = 40): Promise<VerseResult[]> {
     try {
       // Make sure the version doesn't have .db extension

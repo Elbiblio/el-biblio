@@ -9,7 +9,7 @@ import { VerseStore } from './VerseStore';
 import { GameStore } from './GameStore';
 
 const INITIAL_TIME = 16;
-const MIN_TIME = 5; // absolute minimum cap per requirement
+const MIN_TIME = 5;
 const WORDS_BY_LEVEL: Record<UserLevel, [number, number]> = {
   novice: [3, 3],
   beginner: [4, 5],
@@ -17,6 +17,16 @@ const WORDS_BY_LEVEL: Record<UserLevel, [number, number]> = {
   advanced: [7, 8],
   expert: [9, 10],
 };
+
+const LEVEL_THRESHOLDS = {
+  novice: 0,
+  beginner: 5,
+  intermediate: 15,
+  advanced: 30,
+  expert: 50,
+};
+
+const LEVEL_ORDER: UserLevel[] = ['novice', 'beginner', 'intermediate', 'advanced', 'expert'];
 
 export type VerseGame = {
   id: string;
@@ -27,6 +37,21 @@ export type VerseGame = {
   arrangedWords: string[];
   mastery: VerseMastery;
   prefilledCount: number;
+};
+
+export type PassageInfo = {
+  bookName: string;
+  chapter: number;
+  startVerse: number;
+  endVerse: number;
+  verses: Array<{ id: string; text: string; correct: boolean | null }>;
+};
+
+export type PassageSummary = {
+  passage: PassageInfo;
+  correctCount: number;
+  totalCount: number;
+  show: boolean;
 };
 
 
@@ -43,6 +68,7 @@ interface VerseBuilderState {
   streak: number;
   totalCorrectVerses: number;
   userLevel: UserLevel;
+  consecutiveCorrect: number;
   showSuccess: boolean;
   showCorrectAnswer: boolean;
   error: string | null;
@@ -52,6 +78,9 @@ interface VerseBuilderState {
   availableVersions: string[];
   recentVerseCacheKey?: string;
   hasPlayed?: boolean;
+  currentPassage: PassageInfo | null;
+  passageSummary: PassageSummary | null;
+  gameMode: 'random' | 'passage';
 }
 
 const initialState: VerseBuilderState = {
@@ -67,6 +96,7 @@ const initialState: VerseBuilderState = {
   streak: 0,
   totalCorrectVerses: 0,
   userLevel: 'novice',
+  consecutiveCorrect: 0,
   showSuccess: false,
   showCorrectAnswer: false,
   error: null,
@@ -76,6 +106,9 @@ const initialState: VerseBuilderState = {
   availableVersions: ['ASV', 'KJV', 'RV', 'AMP', 'WEB', 'BSB', 'YLT', 'DR'],
   recentVerseCacheKey: 'vb_recent_verses',
   hasPlayed: false,
+  currentPassage: null,
+  passageSummary: null,
+  gameMode: 'passage',
 };
 
 export class VerseBuilderStore {
@@ -176,6 +209,19 @@ export class VerseBuilderStore {
     }
   }
 
+  get potentialRoundPoints(): number {
+    if (!this.state.isPlaying || this.state.timeLeft <= 0) return 0;
+
+    const basePoints = 100;
+    const projectedStreak = this.state.streak + 1;
+    const streakMultiplier = 1 + projectedStreak * 0.1;
+    const timeBonus = Math.max(0, Math.floor(this.state.timeLeft * 3));
+    const difficultyBonus = this.calculateDifficultyBonus();
+
+    const raw = (basePoints + timeBonus) * streakMultiplier + difficultyBonus;
+    return Math.max(0, Math.floor(raw));
+  }
+
   // Resolve a display code like 'RV'/'KJV' to a DB table name like 'eng_rv_vpl'
   private async resolveTableName(code: string): Promise<string> {
     try {
@@ -197,9 +243,7 @@ export class VerseBuilderStore {
 
     try {
       const primaryTable = await this.resolveTableName(this.state.selectedVersion);
-      let verses = await BibleDBService.getRandomVerses(primaryTable, 40);
-
-      // Filter out verses seen within the last 30 days
+      
       const cacheKey = this.state.recentVerseCacheKey || 'vb_recent_verses';
       const cacheRaw = (await AsyncStorage.getItem(cacheKey)) || '{}';
       const cache: Record<string, number> = JSON.parse(cacheRaw);
@@ -211,26 +255,65 @@ export class VerseBuilderStore {
           .map(([id]) => id)
       );
 
-      let processedVerses = verses
-        .map(this.processVerse)
-        .filter((v): v is VerseGame => !!v)
-        .filter((v) => !recent.has(v.id));
+      const processedVerses: VerseGame[] = [];
 
-      // Fallback: if no verses found for current version, try common alternatives
+      if (this.state.gameMode === 'random') {
+        const randomVerses = await BibleDBService.getRandomVerses(primaryTable, 40);
+        const filtered = randomVerses
+          .map(this.processVerse)
+          .filter((v): v is VerseGame => !!v)
+          .filter((v) => !recent.has(v.id));
+        processedVerses.push(...filtered);
+      } else {
+        const passagesNeeded = 10;
+        for (let i = 0; i < passagesNeeded; i++) {
+          const passage = await BibleDBService.getRandomPassage(primaryTable, 3, 6);
+          if (passage) {
+            const passageVerses = passage.verses
+              .map(this.processVerse)
+              .filter((v): v is VerseGame => !!v)
+              .filter((v) => !recent.has(v.id));
+            
+            if (passageVerses.length >= 3) {
+              processedVerses.push(...passageVerses);
+            }
+          }
+        }
+      }
+
       if (processedVerses.length === 0) {
         const fallbacks = ['KJV', 'ASV', 'WEB', 'BSB', 'YLT', 'DR'];
         for (const v of fallbacks) {
           if (v === this.state.selectedVersion) continue;
           try {
             const altTable = await this.resolveTableName(v);
-            const alt = await BibleDBService.getRandomVerses(altTable, 40);
-            const proc = alt.map(this.processVerse).filter(Boolean) as VerseGame[];
-            if (proc.length > 0) {
-              runInAction(() => {
-                this.state.selectedVersion = v;
-              });
-              processedVerses = proc;
-              break;
+
+            if (this.state.gameMode === 'random') {
+              const randomVerses = await BibleDBService.getRandomVerses(altTable, 40);
+              const proc = randomVerses
+                .map(this.processVerse)
+                .filter((vv): vv is VerseGame => !!vv);
+              if (proc.length > 0) {
+                runInAction(() => {
+                  this.state.selectedVersion = v;
+                });
+                processedVerses.push(...proc);
+                break;
+              }
+            } else {
+              const passage = await BibleDBService.getRandomPassage(altTable, 3, 6);
+              if (passage) {
+                const proc = passage.verses
+                  .map(this.processVerse)
+                  .filter((vv): vv is VerseGame => !!vv);
+                if (proc.length > 0) {
+                  runInAction(() => {
+                    this.state.selectedVersion = v;
+                  });
+                  processedVerses.push(...proc);
+                  break;
+                }
+              }
             }
           } catch {}
         }
@@ -292,7 +375,6 @@ export class VerseBuilderStore {
     });
     this.scheduleSave();
 
-    // Prevent re-entrancy while a round is already active and not transitioning
     if (this.state.isPlaying && this.state.gameState && !this.state.isTransitioning) {
       if (__DEV__) {
         console.log('[VerseBuilder] Ignoring startNewRound because a round is active');
@@ -313,8 +395,33 @@ export class VerseBuilderStore {
       return;
     }
 
+    const { bookAbbr, chapter, verse: verseNum } = parseVPLId(verse.id);
+    const book = bibleBooks.find((b) => b.abbreviation === bookAbbr);
+
+    if (!this.state.currentPassage || 
+        this.state.currentPassage.bookName !== book?.name || 
+        this.state.currentPassage.chapter !== chapter) {
+      runInAction(() => {
+        this.state.currentPassage = {
+          bookName: book?.name || bookAbbr,
+          chapter,
+          startVerse: verseNum,
+          endVerse: verseNum,
+          verses: [{ id: verse.id, text: verse.text, correct: null }],
+        };
+      });
+    } else {
+      runInAction(() => {
+        if (this.state.currentPassage) {
+          this.state.currentPassage.endVerse = verseNum;
+          this.state.currentPassage.verses.push({ id: verse.id, text: verse.text, correct: null });
+        }
+      });
+    }
+
     const totalWords = verse.originalWords.length;
-    const leaveCount = Math.min(this.state.wordsToLeave, totalWords - 1);
+    const dynamicWordsToLeave = this.calculateWordsToLeave(totalWords);
+    const leaveCount = Math.min(dynamicWordsToLeave, totalWords - 1);
     const prefilledCount = totalWords - leaveCount;
     const arrangedWords = verse.originalWords.slice(0, prefilledCount);
     const poolWords = shuffleArray(verse.originalWords.slice(prefilledCount));
@@ -340,7 +447,7 @@ export class VerseBuilderStore {
       this.state.showSuccess = false;
       this.state.showCorrectAnswer = false;
     });
-    // Record this verse in recent cache
+    
     try {
       const cacheKey = this.state.recentVerseCacheKey || 'vb_recent_verses';
       const cacheRaw = (await AsyncStorage.getItem(cacheKey)) || '{}';
@@ -351,21 +458,50 @@ export class VerseBuilderStore {
     this.scheduleSave();
   }
 
-  // Determine initial countdown based on user level primarily, with streak influence when streak >= 10
+  private calculateWordsToLeave(totalWords: number): number {
+    const level = this.state.userLevel || 'novice';
+    const [minWords, maxWords] = WORDS_BY_LEVEL[level];
+    
+    const streakBonus = Math.floor(this.state.streak / 3);
+    const targetWords = Math.min(maxWords + streakBonus, totalWords - 1);
+    
+    return Math.max(minWords, Math.min(targetWords, totalWords - 1));
+  }
+
   private computeInitialTime(): number {
-    const level = this.state.userLevel || 'beginner';
-    // Baselines by level (seconds)
+    const level = this.state.userLevel || 'novice';
     const baselineByLevel: Record<UserLevel, number> = {
-      novice: 30,
-      beginner: 30,
-      intermediate: 20,
-      advanced: 12,
-      expert: 8,
+      novice: 25,
+      beginner: 22,
+      intermediate: 18,
+      advanced: 14,
+      expert: 10,
     };
-    const base = baselineByLevel[level] ?? 30;
-    const stepsOfFive = Math.floor(this.state.streak / 5);
-    const influenced = base - stepsOfFive;
+    const base = baselineByLevel[level] ?? 25;
+    
+    const streakPenalty = Math.floor(this.state.streak / 3);
+    const influenced = base - streakPenalty;
+    
     return Math.max(MIN_TIME, influenced);
+  }
+
+  private checkLevelUp() {
+    const currentLevel = this.state.userLevel;
+    const currentIndex = LEVEL_ORDER.indexOf(currentLevel);
+    
+    if (currentIndex < LEVEL_ORDER.length - 1) {
+      const nextLevel = LEVEL_ORDER[currentIndex + 1];
+      const threshold = LEVEL_THRESHOLDS[nextLevel];
+      
+      if (this.state.totalCorrectVerses >= threshold) {
+        runInAction(() => {
+          this.state.userLevel = nextLevel;
+          this.state.consecutiveCorrect = 0;
+        });
+        return true;
+      }
+    }
+    return false;
   }
 
   completeTransition = () => {
@@ -377,10 +513,13 @@ export class VerseBuilderStore {
     this.scheduleSave();
   }
 
-  // Add a bit of time, capped at initialGameTime, to keep rounds flowing
   addGraceTime = (seconds: number = 1) => {
+    const level = this.state.userLevel || 'novice';
+    const graceMultiplier = level === 'novice' ? 1.0 : level === 'beginner' ? 0.8 : level === 'intermediate' ? 0.6 : level === 'advanced' ? 0.4 : 0.3;
+    
     runInAction(() => {
-      const inc = Math.max(0, Math.floor(seconds));
+      const adjustedSeconds = Math.floor(seconds * graceMultiplier);
+      const inc = Math.max(0, adjustedSeconds);
       const cap = Math.max(0, this.state.initialGameTime || 0);
       const next = Math.min(cap > 0 ? cap : Number.MAX_SAFE_INTEGER, (this.state.timeLeft || 0) + inc);
       this.state.timeLeft = next;
@@ -465,14 +604,30 @@ export class VerseBuilderStore {
       this.state.isPlaying = false;
       const newStreak = this.state.streak + 1;
       this.state.streak = newStreak;
+      this.state.consecutiveCorrect += 1;
 
-      const timeBonus = Math.floor(this.state.timeLeft * 2);
-      const newScore = this.state.score + 100 + timeBonus;
+      if (this.state.currentPassage && this.state.gameState) {
+        const verseIndex = this.state.currentPassage.verses.findIndex(v => v.id === this.state.gameState?.id);
+        if (verseIndex !== -1) {
+          this.state.currentPassage.verses[verseIndex].correct = true;
+        }
+      }
+
+      const basePoints = 100;
+      const streakMultiplier = 1 + (newStreak * 0.1);
+      const timeBonus = Math.floor(this.state.timeLeft * 3);
+      const difficultyBonus = this.calculateDifficultyBonus();
+      
+      const roundPoints = Math.floor((basePoints + timeBonus) * streakMultiplier + difficultyBonus);
+      const newScore = this.state.score + roundPoints;
       this.state.score = newScore;
       this.state.totalCorrectVerses += 1;
 
+      const leveledUp = this.checkLevelUp();
+
       void this.gameStore.submitScore('verse_builder', newScore, {
         verses_correct: this.state.totalCorrectVerses,
+        level: this.state.userLevel,
       });
 
       if (newScore > this.state.highScore) {
@@ -482,21 +637,44 @@ export class VerseBuilderStore {
       this.state.showSuccess = true;
       this.state.hasPlayed = true;
       
-      // Clear any existing timeout before setting a new one
       if (this.successRoundTimeout) {
         clearTimeout(this.successRoundTimeout);
       }
       this.successRoundTimeout = setTimeout(() => {
         this.successRoundTimeout = null;
-        this.startNewRound();
+        this.checkAndShowPassageSummary();
       }, 3500);
     });
     this.scheduleSave();
   }
 
+  private calculateDifficultyBonus(): number {
+    const level = this.state.userLevel || 'novice';
+    const levelBonus: Record<UserLevel, number> = {
+      novice: 0,
+      beginner: 20,
+      intermediate: 50,
+      advanced: 100,
+      expert: 200,
+    };
+    
+    const wordsBonus = (this.state.gameState?.poolWords.length || 0) * 10;
+    
+    return levelBonus[level] + wordsBonus;
+  }
+
   private handleIncorrectAnswer = () => {
     runInAction(() => {
       this.state.streak = 0;
+      this.state.consecutiveCorrect = 0;
+      
+      if (this.state.currentPassage && this.state.gameState) {
+        const verseIndex = this.state.currentPassage.verses.findIndex(v => v.id === this.state.gameState?.id);
+        if (verseIndex !== -1) {
+          this.state.currentPassage.verses[verseIndex].correct = false;
+        }
+      }
+      
       this.state.showCorrectAnswer = true;
       this.state.isPlaying = false;
       this.state.hasPlayed = true;
@@ -587,9 +765,99 @@ export class VerseBuilderStore {
     runInAction(() => {
         this.state.score = 0;
         this.state.streak = 0;
+        this.state.consecutiveCorrect = 0;
         this.startNewRound();
     });
     this.scheduleSave();
+  }
+
+  private checkAndShowPassageSummary = () => {
+    const { currentPassage } = this.state;
+    if (!currentPassage) {
+      this.startNewRound();
+      return;
+    }
+
+    const nextVerseInQueue = this.verseQueue[0];
+    if (nextVerseInQueue) {
+      const { bookAbbr, chapter } = parseVPLId(nextVerseInQueue.id);
+      const book = bibleBooks.find((b) => b.abbreviation === bookAbbr);
+      
+      if (book?.name === currentPassage.bookName && chapter === currentPassage.chapter) {
+        this.startNewRound();
+        return;
+      }
+    }
+
+    const correctCount = currentPassage.verses.filter(v => v.correct === true).length;
+    const totalCount = currentPassage.verses.length;
+
+    runInAction(() => {
+      this.state.passageSummary = {
+        passage: currentPassage,
+        correctCount,
+        totalCount,
+        show: true,
+      };
+    });
+    this.scheduleSave();
+  }
+
+  dismissPassageSummary = () => {
+    runInAction(() => {
+      this.state.passageSummary = null;
+      this.state.currentPassage = null;
+    });
+    this.startNewRound();
+  }
+
+  toggleGameMode = async () => {
+    const newMode = this.state.gameMode === 'random' ? 'passage' : 'random';
+    runInAction(() => {
+      this.state.gameMode = newMode;
+      this.state.gameState = null;
+      this.state.nextGameState = null;
+      this.state.isTransitioning = false;
+      this.state.showSuccess = false;
+      this.state.showCorrectAnswer = false;
+      this.state.currentPassage = null;
+      this.state.passageSummary = null;
+      this.state.isPlaying = false;
+      this.state.timeLeft = INITIAL_TIME;
+      this.verseQueue = [];
+    });
+    this.scheduleSave();
+    this.setLoading(true);
+    try {
+      await this.loadVerseBatch();
+      await this.startNewRound();
+    } finally {
+      this.setLoading(false);
+      await this.flushSave();
+    }
+  }
+
+  get currentLevelProgress(): { current: number; next: number; percentage: number } {
+    const currentLevel = this.state.userLevel;
+    const currentIndex = LEVEL_ORDER.indexOf(currentLevel);
+    
+    if (currentIndex === LEVEL_ORDER.length - 1) {
+      return { current: this.state.totalCorrectVerses, next: this.state.totalCorrectVerses, percentage: 100 };
+    }
+    
+    const nextLevel = LEVEL_ORDER[currentIndex + 1];
+    const currentThreshold = LEVEL_THRESHOLDS[currentLevel];
+    const nextThreshold = LEVEL_THRESHOLDS[nextLevel];
+    
+    const progress = this.state.totalCorrectVerses - currentThreshold;
+    const range = nextThreshold - currentThreshold;
+    const percentage = Math.min(100, Math.floor((progress / range) * 100));
+    
+    return {
+      current: this.state.totalCorrectVerses,
+      next: nextThreshold,
+      percentage,
+    };
   }
 
   cleanup = () => {

@@ -39,6 +39,7 @@ import { PIConfetti } from 'react-native-fast-confetti';
 import * as Haptics from 'expo-haptics';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import SoundSettingsModal from '@/components/SoundSettingsModal';
+import { VerseBuilderPassageSummary } from '@/components/VerseBuilderPassageSummary';
 import { playCue, playMusic, stopMusic } from '@/services/audio';
 import { formatGameShareMessage, requestGameShareLink } from '@/utils/share';
 import { toast } from 'sonner-native';
@@ -70,6 +71,8 @@ const VerseBuilderScreen = observer(() => {
     completeTransition,
     undoLastWord,
     setVersion,
+    dismissPassageSummary,
+    toggleGameMode,
   } = verseBuilderStore;
 
   const {
@@ -87,6 +90,8 @@ const VerseBuilderScreen = observer(() => {
     isTransitioning,
     initialGameTime,
     hasPlayed,
+    passageSummary,
+    gameMode,
   } = verseBuilderStore.state;
 
   // Enhanced Animation Values
@@ -104,6 +109,7 @@ const VerseBuilderScreen = observer(() => {
   const flameScale = useSharedValue(1);
   const shineX = useSharedValue(-100);
   const wrongShake = useSharedValue(0);
+  const displayPotentialPoints = verseBuilderStore.potentialRoundPoints;
   const calmAmp = useSharedValue(1);
   const lastTapRef = useRef<number>(0);
 
@@ -121,7 +127,10 @@ const VerseBuilderScreen = observer(() => {
   const [sessionXp, setSessionXp] = useState(0);
   const sessionGoal = 100;
   const [showSoundSettings, setShowSoundSettings] = useState(false);
+  const [showArrangedWords, setShowArrangedWords] = useState(true);
   const [showAllWords, setShowAllWords] = useState(false);
+  const [showModeConfirm, setShowModeConfirm] = useState(false);
+  const [modeConfirmLoading, setModeConfirmLoading] = useState(false);
 
   const poolColumns = useMemo(() => {
     const spacing = theme.spacing?.md ?? 8;
@@ -520,6 +529,30 @@ const VerseBuilderScreen = observer(() => {
     returnWordToPool(word, index);
   };
 
+  const onRequestModeToggle = () => {
+    if (isLoading) return;
+    setIsPaused(true);
+    setShowModeConfirm(true);
+  };
+
+  const onCancelModeToggle = () => {
+    setShowModeConfirm(false);
+    setIsPaused(false);
+  };
+
+  const onConfirmModeToggle = async () => {
+    setModeConfirmLoading(true);
+    try {
+      await toggleGameMode();
+      // Ensure a fresh round starts immediately after mode switch
+      await verseBuilderStore.startNewRound();
+    } finally {
+      setModeConfirmLoading(false);
+      setShowModeConfirm(false);
+      setIsPaused(false);
+    }
+  };
+
   const handleRetry = () => {
     retry();
     play('retry');
@@ -710,6 +743,20 @@ const VerseBuilderScreen = observer(() => {
               <View style={styles.promptHeaderRow}>
                 <Icon name="script-text-outline" size={18} color={theme.colors.text.secondary} />
                 <Text style={styles.promptTitle}>Arrange the verse</Text>
+                <TouchableOpacity
+                  onPress={onRequestModeToggle}
+                  style={styles.modeToggle}
+                  disabled={isLoading}
+                >
+                  <Icon
+                    name={gameMode === 'passage' ? 'book-open-variant' : 'shuffle-variant'}
+                    size={16}
+                    color={theme.colors.primary}
+                  />
+                  <Text style={styles.modeToggleText}>
+                    {gameMode === 'passage' ? 'Passage' : 'Random'}
+                  </Text>
+                </TouchableOpacity>
               </View>
               <Text style={styles.promptReference}>{gameState.reference}</Text>
             </View>
@@ -789,7 +836,7 @@ const VerseBuilderScreen = observer(() => {
           </View>
 
           {/* Circular countdown: show only when verse displayed */}
-          {gameState && (
+          {gameState && isPlaying && (
             <View style={styles.circularTimerWrap}>
               <AnimatedCircularProgress
                 size={84}
@@ -800,7 +847,7 @@ const VerseBuilderScreen = observer(() => {
                 lineCap="round"
                 innerBackgroundColor={`${theme.colors.background}CC`}
               >
-                <Text style={styles.circularTimerText}>{timeLeft}s</Text>
+                <Text style={styles.circularTimerText}>+{displayPotentialPoints}</Text>
               </AnimatedCircularProgress>
             </View>
           )}
@@ -838,7 +885,8 @@ const VerseBuilderScreen = observer(() => {
                       initialNumToRender={12}
                       windowSize={5}
                       removeClippedSubviews
-                      scrollEnabled={showAllWords}
+                      scrollEnabled
+                      showsVerticalScrollIndicator={false}
                       contentContainerStyle={styles.poolListContent}
                       columnWrapperStyle={poolColumns > 1 ? styles.poolColumnWrapper : undefined}
                     />
@@ -943,7 +991,7 @@ const VerseBuilderScreen = observer(() => {
           )}
 
           {/* Pause Overlay */}
-          {isPaused && (
+          {isPaused && !showModeConfirm && (
             <BlurView intensity={25} style={styles.overlay} pointerEvents="box-none">
               <View style={styles.pauseContainer}>
                 <Text style={styles.pauseTitle}>Paused</Text>
@@ -951,6 +999,30 @@ const VerseBuilderScreen = observer(() => {
                 <TouchableOpacity style={styles.retryButton} onPress={() => setIsPaused(false)}>
                   <Text style={styles.retryButtonText}>Resume</Text>
                 </TouchableOpacity>
+              </View>
+            </BlurView>
+          )}
+
+          {/* Mode Confirm Modal */}
+          {showModeConfirm && (
+            <BlurView intensity={30} style={styles.overlay} pointerEvents="box-none">
+              <View style={styles.modeConfirmCard}>
+                <Text style={styles.modeConfirmTitle}>Switch mode?</Text>
+                <Text style={styles.modeConfirmText}>
+                  Switch to {gameMode === 'passage' ? 'Random' : 'Passage'} mode and start a fresh round.
+                </Text>
+                <View style={styles.modeConfirmActions}>
+                  <TouchableOpacity style={styles.modeConfirmButton} onPress={onCancelModeToggle} disabled={modeConfirmLoading}>
+                    <Text style={styles.modeConfirmButtonText}>Cancel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.modeConfirmButton, styles.modeConfirmPrimary]}
+                    onPress={onConfirmModeToggle}
+                    disabled={modeConfirmLoading}
+                  >
+                    <Text style={styles.modeConfirmPrimaryText}>{modeConfirmLoading ? 'Switching...' : 'Switch'}</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
             </BlurView>
           )}
@@ -989,6 +1061,12 @@ const VerseBuilderScreen = observer(() => {
         </View>
       </ImageBackground>
       <SoundSettingsModal visible={showSoundSettings} onClose={() => setShowSoundSettings(false)} />
+      {passageSummary?.show && (
+        <VerseBuilderPassageSummary
+          summary={passageSummary}
+          onDismiss={dismissPassageSummary}
+        />
+      )}
     </>
   );
 });
@@ -1288,6 +1366,65 @@ const createStyles = (theme: Theme) =>
       fontSize: 12,
       letterSpacing: 0.3,
       textTransform: 'uppercase',
+      flex: 1,
+    },
+    modeToggle: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      borderRadius: theme.borderRadius.md,
+      backgroundColor: `${theme.colors.primary}15`,
+    },
+    modeToggleText: {
+      color: theme.colors.primary,
+      fontWeight: '700',
+      fontSize: 11,
+      letterSpacing: 0.2,
+    },
+    modeConfirmCard: {
+      marginHorizontal: theme.spacing.lg,
+      padding: theme.spacing.lg,
+      borderRadius: theme.borderRadius.xl,
+      backgroundColor: `${theme.colors.surface}F0`,
+      borderWidth: 1,
+      borderColor: `${theme.colors.text.secondary}22`,
+      gap: theme.spacing.sm,
+    },
+    modeConfirmTitle: {
+      ...theme.typography.caption.primary,
+      color: theme.colors.text.primary,
+      fontWeight: '800',
+      fontSize: 16,
+    },
+    modeConfirmText: {
+      ...theme.typography.caption.secondary,
+      color: theme.colors.text.secondary,
+      lineHeight: 20,
+    },
+    modeConfirmActions: {
+      flexDirection: 'row',
+      justifyContent: 'flex-end',
+      gap: theme.spacing.sm,
+      marginTop: theme.spacing.xs,
+    },
+    modeConfirmButton: {
+      paddingHorizontal: theme.spacing.md,
+      paddingVertical: theme.spacing.sm,
+      borderRadius: theme.borderRadius.lg,
+      backgroundColor: `${theme.colors.text.secondary}12`,
+    },
+    modeConfirmButtonText: {
+      color: theme.colors.text.secondary,
+      fontWeight: '700',
+    },
+    modeConfirmPrimary: {
+      backgroundColor: theme.colors.primary,
+    },
+    modeConfirmPrimaryText: {
+      color: theme.colors.surface,
+      fontWeight: '800',
     },
     promptReference: {
       color: theme.colors.text.primary,
