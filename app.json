@@ -29,6 +29,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.elbiblio.app",
+      "googleServicesFile": "./GoogleService-Info.plist",
       "infoPlist": {
         "NSMicrophoneUsageDescription": "El-Biblio uses the microphone to capture audio while recording Face2Face reflections.",
         "NSPhotoLibraryAddUsageDescription": "El-Biblio saves videos/photos to your library when you choose to export Face2Face reflections.",
@@ -41,9 +42,11 @@
         "backgroundColor": "#ffffff"
       },
       "package": "com.elbiblio.app",
+      "googleServicesFile": "./google-services.json",
       "permissions": [
-        "CAMERA",
-        "RECORD_AUDIO"
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS"
       ],
       "blockedPermissions": [
         "android.permission.READ_MEDIA_IMAGES",
@@ -78,11 +81,24 @@
         {
           "android": {
             "compileSdkVersion": 35,
-            "targetSdkVersion": 35
+            "targetSdkVersion": 35,
+            "useLegacyPackaging": true,
+            "reactNativeArchitectures": [
+              "armeabi-v7a",
+              "arm64-v8a"
+            ],
+            "enableMinifyInReleaseBuilds": true,
+            "shrinkResources": true
           }
         }
       ],
       "./scripts/expo-config-plugins/withAndroidSigning.js"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "f004dfa1-4bc8-4a57-9eb6-9e76edf167f4"
+      }
+    },
+    "owner": "elbiblio"
   }
 }

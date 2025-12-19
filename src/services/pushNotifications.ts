@@ -10,6 +10,13 @@ try {
   Constants = null;
 }
 
+let Device: any;
+try {
+  Device = require('expo-device');
+} catch {
+  Device = null;
+}
+
 const TOKEN_STORAGE_KEY = 'push_token_registered';
 const DEVICE_ID_KEY = 'device_id';
 const PUSH_NOTIFICATION_CHANNEL_ID = 'push-notifications';
@@ -31,8 +38,8 @@ export class PushNotificationService {
     }
 
     try {
-      const isDevice = Platform.OS !== 'web';
-      if (!isDevice) {
+      const isPhysicalDevice = Device?.isDevice ?? Constants?.isDevice ?? Platform.OS !== 'web';
+      if (!isPhysicalDevice) {
         if (__DEV__) {
           console.warn('[PushNotifications] Push notifications only work on physical devices');
         }
@@ -58,14 +65,15 @@ export class PushNotificationService {
       try {
         const projectId = Constants?.expoConfig?.extra?.eas?.projectId || Constants?.easConfig?.projectId;
         
-        const tokenOptions: { projectId?: string } = {};
-        if (projectId) {
-          tokenOptions.projectId = projectId;
-        } else if (__DEV__) {
-          console.warn('[PushNotifications] No Expo project ID found. Push notifications may not work.');
+        if (!projectId) {
+          if (__DEV__) {
+            console.warn('[PushNotifications] No Expo project ID found. Skipping push token registration.');
+          }
+          this.isInitialized = true;
+          return false;
         }
 
-        const tokenData = await Notifications.getExpoPushTokenAsync(tokenOptions);
+        const tokenData = await Notifications.getExpoPushTokenAsync({ projectId });
 
         if (!tokenData?.data) {
           if (__DEV__) {
@@ -88,7 +96,12 @@ export class PushNotificationService {
       } catch (error: any) {
         this.isInitialized = true;
         if (__DEV__) {
-          console.error('[PushNotifications] Error getting push token:', error?.message || error);
+          const message = error?.message || String(error);
+          if (typeof message === 'string' && message.includes('Default FirebaseApp is not initialized')) {
+            console.warn('[PushNotifications] Push token unavailable: FCM is not configured in this build (missing Firebase initialization / google-services.json).');
+          } else {
+            console.error('[PushNotifications] Error getting push token:', message);
+          }
         }
         return false;
       }
