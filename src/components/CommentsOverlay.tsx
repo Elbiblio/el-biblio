@@ -19,6 +19,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { BlurView } from 'expo-blur';
 import { Comment, Reflection } from '../types';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
 import { X, Send } from './Icons';
 import CommentThread from './CommentThread';
@@ -38,6 +39,7 @@ const CommentsOverlay: React.FC<CommentsOverlayProps> = ({
   reflection,
 }) => {
   const theme = useTheme();
+  const insets = useSafeAreaInsets();
   const styles = React.useMemo(() => createStyles(theme), [theme]);
   const { user } = useAuthStore();
   const { createComment, likeComment } = useReflectionStore();
@@ -152,7 +154,7 @@ const CommentsOverlay: React.FC<CommentsOverlayProps> = ({
           keyboardShouldPersistTaps="handled"
         />
 
-        <View style={styles.inputContainer}>
+        <View style={[styles.inputContainer, { paddingBottom: (insets.bottom || 0) + theme.spacing.md }]}>
           {replyingTo && (
             <View style={styles.replyingTo}>
               <Text style={styles.replyingToText}>

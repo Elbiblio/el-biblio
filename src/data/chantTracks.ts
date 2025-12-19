@@ -1,4 +1,4 @@
-export type ChantId = '10000-reasons' | '10000-reasons-african' | 'be-still-my-soul' | 'soul-of-jesus-sanctify-me' | 'oceans';
+export type ChantId = '10000-reasons' | '10000-reasons-african' | 'soul-of-jesus-sanctify-me' | 'oceans';
 
 export type ChantTrack = {
   id: ChantId;
@@ -26,14 +26,14 @@ export const CHANT_TRACKS: Record<ChantId, ChantTrack> = {
     cues: ['Pause and thank God for today', 'Let praise echo with each breath'],
     pauseDurationMs: 12000,
   },
-  'be-still-my-soul': {
-    id: 'be-still-my-soul',
-    label: 'Be Still My Soul',
-    voiceKey: 'db/be_still_my_soul.mp3',
-    instrumentalKey: 'db/be_still_my_soul_instrumental.mp3',
-    cues: ['Rest your heart in God\'s care', 'Trust that Christ holds your future'],
-    pauseDurationMs: 14000,
-  },
+  // 'be-still-my-soul': {
+  //   id: 'be-still-my-soul',
+  //   label: 'Be Still My Soul',
+  //   voiceKey: 'db/be_still_my_soul.mp3',
+  //   instrumentalKey: 'db/be_still_my_soul_instrumental.mp3',
+  //   cues: ['Rest your heart in God\'s care', 'Trust that Christ holds your future'],
+  //   pauseDurationMs: 14000,
+  // },
   'soul-of-jesus-sanctify-me': {
     id: 'soul-of-jesus-sanctify-me',
     label: 'Soul of Jesus, Sanctify Me',

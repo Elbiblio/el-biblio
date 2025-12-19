@@ -17,6 +17,7 @@ import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import MeditationCompleteView from '@/components/MeditationCompleteView';
 import { observer } from 'mobx-react-lite';
 import * as Speech from 'expo-speech';
@@ -69,6 +70,7 @@ enum MeditationState {
 const MeditationScreen = () => {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const theme = useTheme();
+  const insets = useSafeAreaInsets();
   const auth = useAuthStore();
   const { user } = auth;
 
@@ -887,7 +889,7 @@ const MeditationScreen = () => {
     const chantNow = chosenChantId ? (getChantById(chosenChantId)?.label || 'Chant') : 'Chant';
 
     return (
-      <View style={styles.activeContainer}>
+      <View style={[styles.activeContainer, { paddingBottom: theme?.spacing.lg + (insets.bottom || 0) }]}>
         <AnimatedParticles
           count={25}
           color={currentVirtue?.color_code || theme?.colors.primary}
@@ -1144,7 +1146,7 @@ const MeditationScreen = () => {
       </Modal>
 
       {meditationState === MeditationState.SETUP && (
-        <View style={styles.header}>
+        <View style={[styles.header, { paddingTop: theme?.spacing.lg + (insets.top || 0) }]}>
           <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
             <ArrowLeft size={24} color={theme?.colors.text.primary} />
           </TouchableOpacity>

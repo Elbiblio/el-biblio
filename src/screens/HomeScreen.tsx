@@ -1870,7 +1870,10 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
       <ScrollView
         onScroll={handleScroll}
         scrollEventThrottle={16}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingBottom: theme?.spacing.xl + (insets.bottom || 0) },
+        ]}
         refreshControl={
           <RefreshControl
             refreshing={isRefreshing}

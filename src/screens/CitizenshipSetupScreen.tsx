@@ -233,7 +233,7 @@ const CitizenshipSetupScreen = observer(() => {
 
       </ScrollView>
 
-      <View style={styles.footer}>
+      <View style={[styles.footer, { paddingBottom: theme.spacing.xl + theme.spacing.sm + (insets.bottom || 0) }]}>
         <TouchableOpacity
           style={[styles.saveButton, (selectedFocuses.length === 0 || isSaving) && styles.saveButtonDisabled]}
           activeOpacity={0.85}

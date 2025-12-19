@@ -872,7 +872,7 @@ const MatchScreen = ({
         
         {matchStatus === 'searching' && (
         <TouchableOpacity
-          style={styles.stopSearchButton}
+          style={[styles.stopSearchButton, { bottom: (insets.bottom || 0) + theme.spacing.md }]}
           onPress={handleStopSearch}
         >
           <Text style={styles.stopSearchText}>Stop Search</Text>

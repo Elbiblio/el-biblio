@@ -629,7 +629,7 @@ const VirtueQuizScreen = observer(({ navigation, route }: NativeStackScreenProps
       </View>
       
       <ScrollView 
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: theme?.spacing.md + (insets.bottom || 0) }]}
         showsVerticalScrollIndicator={false}
       >
         {isQuizLoading ? (

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Animated, Platform, Modal, TextInput } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Animated, Platform, Modal, TextInput, KeyboardAvoidingView } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -10,6 +10,7 @@ import { RootStackParamList } from '@/types';
 import { Trophy, X, Check, Flame, Star, Sparkle } from '@/components/Icons';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface ChallengeCompletionBannerProps {
   onDismiss: () => void;
@@ -17,6 +18,7 @@ interface ChallengeCompletionBannerProps {
 
 const ChallengeCompletionBanner: React.FC<ChallengeCompletionBannerProps> = ({ onDismiss }) => {
   const theme = useTheme();
+  const insets = useSafeAreaInsets();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const store = useChallengeStore();
   const styles = useMemo(() => createStyles(theme), [theme]);
@@ -320,7 +322,10 @@ const ChallengeCompletionBanner: React.FC<ChallengeCompletionBannerProps> = ({ o
         </Animated.View>
       </LinearGradient>
       <Modal visible={showFeedback} transparent animationType="fade" onRequestClose={() => setShowFeedback(false)}>
-        <View style={styles.fbBackdrop}>
+        <KeyboardAvoidingView
+          style={[styles.fbBackdrop, { paddingBottom: (insets.bottom || 0) + 16 }]}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        >
           <View style={styles.fbCard}>
             <Text style={styles.fbTitle}>Share a quick feedback?</Text>
             <Text style={styles.fbHint}>A short note helps others stick with it.</Text>
@@ -377,7 +382,7 @@ const ChallengeCompletionBanner: React.FC<ChallengeCompletionBannerProps> = ({ o
               </TouchableOpacity>
             </View>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </Animated.View>
   );

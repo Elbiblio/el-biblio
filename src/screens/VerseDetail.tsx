@@ -1444,7 +1444,7 @@ const createStyles = (theme: Theme, safeAreaBottom: number = 0) => {
     position: 'absolute',
     left: theme.spacing.md,
     right: theme.spacing.md,
-    bottom: theme.spacing.md,
+    bottom: safeAreaBottom + theme.spacing.md,
     alignItems: 'flex-start',
   },
   pendingBadge: {

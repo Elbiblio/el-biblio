@@ -32,12 +32,12 @@ const CHANTS: Array<{
     voiceKey: 'db/10000_reasons_african.mp3',
     instrumentalKey: 'db/10000_reasons_instrumental.mp3',
   },
-  {
-    id: 'be-still-my-soul',
-    title: 'Be Still My Soul',
-    voiceKey: 'db/be_still_my_soul.mp3',
-    instrumentalKey: 'db/be_still_my_soul_instrumental.mp3',
-  },
+  // {
+  //   id: 'be-still-my-soul',
+  //   title: 'Be Still My Soul',
+  //   voiceKey: 'db/be_still_my_soul.mp3',
+  //   instrumentalKey: 'db/be_still_my_soul_instrumental.mp3',
+  // },
   {
     id: 'soul-of-jesus-sanctify-me',
     title: 'Soul of Jesus, Sanctify Me',

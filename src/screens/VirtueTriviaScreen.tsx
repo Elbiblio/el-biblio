@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -70,6 +71,7 @@ const timerSettings: Record<UserLevel, number> = {
 const VirtueTriviaScreen = () => {
   const theme = useTheme();
   const styles = createStyles(theme);
+  const insets = useSafeAreaInsets();
   const gameStore = useGameStore();
 
   // Virtue store
@@ -815,7 +817,15 @@ const VirtueTriviaScreen = () => {
 
   // Main Render
   return (
-    <View style={styles.container}>
+    <View
+      style={[
+        styles.container,
+        {
+          paddingTop: theme.spacing.md + (insets.top || 0),
+          paddingBottom: theme.spacing.md + (insets.bottom || 0),
+        },
+      ]}
+    >
       <LinearGradient
         colors={[`${theme.colors.primary}26`, `${theme.colors.background}`, `${theme.colors.secondary}18`]}
         start={{ x: 0, y: 0 }}

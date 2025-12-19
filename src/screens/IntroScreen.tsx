@@ -272,7 +272,7 @@ const IntroScreen = ({
       
       {/* Close Button */}
       <TouchableOpacity 
-        style={styles.closeButton}
+        style={[styles.closeButton, { top: 16 + (insets.top || 0) }]}
         onPress={onClose}
         disabled={isLoading}
       >
@@ -345,7 +345,7 @@ const createStyles = (theme: Theme) => StyleSheet.create({
   },
   closeButton: {
     position: 'absolute',
-    top: 16 + (Platform.OS === 'ios' ? 44 : 0),
+    top: 16,
     right: 16,
     zIndex: 1,
     padding: 8,

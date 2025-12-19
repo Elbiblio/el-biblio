@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput } from 
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '@/types';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useDailyPathStore } from '@/stores/StoreProvider';
 import { ChevronLeft, Plus, Check } from '@/components/Icons';
@@ -29,6 +30,7 @@ const PHASE_KEYS = ['affirmation','meditation','mercy','forgiveness','thanksgivi
 
 const HabitConquestSetupScreen: React.FC = () => {
   const theme = useTheme();
+  const insets = useSafeAreaInsets();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const dailyPathStore = useDailyPathStore();
@@ -90,8 +92,8 @@ const HabitConquestSetupScreen: React.FC = () => {
   }, [dailyPathStore, vice, minutes, split, phases, navigation]);
 
   return (
-    <View style={styles.container}>
-      <ScrollView contentContainerStyle={styles.content}>
+    <View style={[styles.container, { paddingTop: insets.top }]}>
+      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: 120 + (insets.bottom || 0) }]}> 
         <Text style={styles.title}>Conquer Harmful Habits</Text>
         <Text style={styles.subtitle}>Select the vice and your daily time commitment</Text>
 
@@ -168,7 +170,7 @@ const HabitConquestSetupScreen: React.FC = () => {
         </View>
       </ScrollView>
 
-      <View style={styles.footer}>
+      <View style={[styles.footer, { paddingBottom: 16 + (insets.bottom || 0) }]}>
         <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
           <Check size={18} color={theme.colors.text.inverse} />
           <Text style={styles.saveText}>Save & Begin</Text>

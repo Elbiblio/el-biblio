@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, FlatList, TextInput, Modal, Animated, useWindowDimensions, Pressable } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import FeatherIcon from 'react-native-vector-icons/Feather';
 import { Star } from '@/components/Icons';
 import { toast } from 'sonner-native';
@@ -13,6 +14,7 @@ type Props = NativeStackScreenProps<RootStackParamList, 'FeatureSuggestionsScree
 
 const FeatureSuggestionsScreen: React.FC<Props> = ({ navigation }) => {
   const theme = useTheme();
+  const insets = useSafeAreaInsets();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const { user } = useAuthStore();
   const store = useFeatureSuggestionsStore();
@@ -87,7 +89,7 @@ const FeatureSuggestionsScreen: React.FC<Props> = ({ navigation }) => {
   }, [store.items]);
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { paddingTop: insets.top }]}> 
       <View style={[styles.bgTop, { backgroundColor: pageBgColors[pageIndex] }]} />
       <View style={styles.headerRow}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}><Text style={styles.backText}>Back</Text></TouchableOpacity>
@@ -169,7 +171,7 @@ const FeatureSuggestionsScreen: React.FC<Props> = ({ navigation }) => {
                   <FlatList
                     data={data}
                     keyExtractor={(s) => s.id}
-                    contentContainerStyle={{ padding: 16, gap: 10, minHeight: 300, flexGrow: 1 }}
+                    contentContainerStyle={{ padding: 16, gap: 10, minHeight: 300, flexGrow: 1, paddingBottom: 16 + (canSubmit ? 96 : 32) + (insets.bottom || 0) }}
                     refreshing={refreshing}
                     onRefresh={async () => {
                       try {
@@ -344,7 +346,7 @@ const FeatureSuggestionsScreen: React.FC<Props> = ({ navigation }) => {
           </Modal>
 
           {canSubmit && (
-            <TouchableOpacity style={styles.fab} activeOpacity={0.9} onPress={() => setShowCreate(true)}>
+            <TouchableOpacity style={[styles.fab, { bottom: 24 + (insets.bottom || 0) }]} activeOpacity={0.9} onPress={() => setShowCreate(true)}>
               <Text style={styles.fabText}>＋</Text>
             </TouchableOpacity>
           )}

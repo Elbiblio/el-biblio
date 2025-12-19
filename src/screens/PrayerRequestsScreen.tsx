@@ -534,7 +534,12 @@ const PrayerRequestsScreen = ({ navigation }: PrayerRequestsScreenProps) => {
         <FlatList
           data={requests}
           keyExtractor={(i) => i.id}
-          contentContainerStyle={styles.listContent}
+          contentContainerStyle={[
+            styles.listContent,
+            selectedIds.size > 0
+              ? { paddingBottom: theme.spacing.xl + (insets.bottom || 0) + 72 }
+              : null,
+          ]}
           renderItem={renderItem}
           showsVerticalScrollIndicator={false}
           onEndReached={loadMore}

@@ -28,6 +28,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { observer } from 'mobx-react-lite';
 import { Theme } from '@/theme';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useVerseBuilderStore } from '@/stores/StoreProvider';
 import { useBibleStore } from '@/stores/BibleStore';
 import { useAuthStore } from '@/stores/StoreProvider';
@@ -49,6 +50,7 @@ const CRADLE_HEIGHT = Math.max(160, Math.min(220, Math.floor(SCREEN_HEIGHT * 0.2
 
 const VerseBuilderScreen = observer(() => {
   const theme = useTheme();
+  const insets = useSafeAreaInsets();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const verseBuilderStore = useVerseBuilderStore();
   const bibleStore = useBibleStore();
@@ -658,7 +660,15 @@ const VerseBuilderScreen = observer(() => {
           style={styles.gradientOverlay}
           pointerEvents="none"
         />
-        <View style={styles.container}>
+        <View
+          style={[
+            styles.container,
+            {
+              paddingTop: theme.spacing.md + (insets.top || 0),
+              paddingBottom: theme.spacing.md + (insets.bottom || 0),
+            },
+          ]}
+        >
           {/* Small confetti for correct answers */}
           <PIConfetti
             ref={confettiRef}

@@ -260,12 +260,15 @@ const ReflectionDetail = observer(({ navigation, route }: ReflectionDetailProps)
         </View>
 
         {/* Bottom Spacing */}
-        <View style={{ height: theme.spacing.xl * 2 }} />
+        <View style={{ height: theme.spacing.xl * 2 + (insets.bottom || 0) }} />
       </ScrollView>
 
       {/* Comment Input */}
       {showCommentInput && (
-        <BlurView intensity={20} style={styles.commentInputContainer}>
+        <BlurView
+          intensity={20}
+          style={[styles.commentInputContainer, { paddingBottom: theme.spacing.md + (insets.bottom || 0) }]}
+        >
           {replyingTo && (
             <View style={styles.replyingToContainer}>
               <Text style={styles.replyingToText}>
