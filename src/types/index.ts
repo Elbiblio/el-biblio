@@ -1,5 +1,10 @@
 import { BookOpenFeather, Cross, Flame, Heart, HomeLight, IconProps, Leaf, Lightbulb, Scales, Shield } from "@/components/Icons";
 import { SharedValue } from "react-native-reanimated";
+import type {
+  HabitConquestPrayerPayload,
+  HabitConquestPrayerScreenParams,
+  HabitConquestReflectionScreenParams,
+} from './habitConquest';
 
 export type FoundationalVirtue = 'knowledge' | 'humility' | 'faith' | 'love';
 
@@ -759,6 +764,8 @@ export type RootStackParamList = {
   DailyPathSetupScreen: undefined;
   HabitConquestSetupScreen: undefined;
   HabitConquestSessionScreen: undefined;
+  HabitConquestReflectionScreen: HabitConquestReflectionScreenParams | undefined;
+  HabitConquestPrayerScreen: HabitConquestPrayerScreenParams;
   HabitConquestProgressScreen: undefined;
   TalkToGodScreen: undefined;
   HowToPrayScreen: undefined;

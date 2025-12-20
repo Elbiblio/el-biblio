@@ -1,6 +1,8 @@
 import { makeAutoObservable, runInAction } from 'mobx';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { RootStackParamList } from '@/types';
+import type { HabitConquestJournalEntry } from '@/types/habitConquest';
+import { fetchHabitConquestSummary } from '@/api/habitConquest';
 
 const STORAGE_KEY = 'daily_path_state_v1';
 
@@ -94,6 +96,10 @@ interface DailyPathState {
     doorOfSin?: string | null;
     checkins?: Record<string, { clean: boolean; pledged: boolean }>;
     lastCheckinDate?: string | null;
+    journal?: HabitConquestJournalEntry[];
+    streakCurrent?: number;
+    streakLongest?: number;
+    cleanDays?: number;
   };
 }
 
@@ -555,6 +561,26 @@ export class DailyPathStore {
     void this.saveToStorage();
   }
 
+  recordHabitConquestReflection(entry: HabitConquestJournalEntry) {
+    runInAction(() => {
+      if (!this.state.habitConquest) this.state.habitConquest = { ...DEFAULT_STATE.habitConquest! } as any;
+      const journal = Array.isArray(this.state.habitConquest!.journal)
+        ? [...this.state.habitConquest!.journal]
+        : [];
+      const filtered = journal.filter((item) => item.date !== entry.date);
+      filtered.unshift({
+        date: entry.date,
+        mood: entry.mood,
+        note: entry.note ?? null,
+        clean: !!entry.clean,
+        pledged: !!entry.pledged,
+        prayerIntent: entry.prayerIntent ?? null,
+      });
+      this.state.habitConquest!.journal = filtered.slice(0, 60);
+    });
+    void this.saveToStorage();
+  }
+
   getMissingHabitConquestDates(): string[] {
     const today = this.getTodayKey();
     const hc = this.state.habitConquest;
@@ -671,5 +697,44 @@ export class DailyPathStore {
       this.state.hasSeenHabitConquestIntro = !!seen;
     });
     void this.saveToStorage();
+  }
+
+  async syncHabitConquestFromBackend(): Promise<void> {
+    try {
+      const summary = await fetchHabitConquestSummary();
+      if (summary.config) {
+        runInAction(() => {
+          if (!this.state.habitConquest) {
+            this.state.habitConquest = { ...DEFAULT_STATE.habitConquest! };
+          }
+          const hc = this.state.habitConquest!;
+          hc.vice = summary.config!.vice;
+          hc.dailyMinutes = summary.config!.dailyMinutes;
+          hc.split = summary.config!.split;
+          hc.phases = summary.config!.phases.map(p => ({
+            id: p.id as 'affirmation' | 'meditation' | 'mercy' | 'forgiveness' | 'thanksgiving',
+            label: p.label,
+            minutes: p.minutes,
+          }));
+          hc.pledgeGood = summary.config!.pledgeGood;
+          hc.doorOfSin = summary.config!.doorOfSin;
+          hc.lastCheckinDate = summary.config!.lastCheckinDate ?? null;
+          hc.streakCurrent = summary.config!.streak.current;
+          hc.streakLongest = summary.config!.streak.longest;
+          hc.cleanDays = summary.config!.streak.cleanDays;
+          
+          // Merge backend journal entries with local ones (prefer local for same date)
+          const localJournal = hc.journal ?? [];
+          const localDates = new Set(localJournal.map(e => e.date));
+          const backendEntries = summary.recentEntries.filter(e => !localDates.has(e.date));
+          hc.journal = [...localJournal, ...backendEntries]
+            .sort((a, b) => b.date.localeCompare(a.date))
+            .slice(0, 60);
+        });
+        void this.saveToStorage();
+      }
+    } catch (error) {
+      console.warn('[DailyPathStore] Failed to sync habit conquest from backend', error);
+    }
   }
 }

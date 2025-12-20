@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -6,12 +6,14 @@ import {
   StyleSheet,
   ScrollView,
   Modal,
+  useWindowDimensions,
 } from 'react-native';
 import { Brain, ChevronRight, Heart, Sparkle, X } from '@/components/Icons';
 import { useTheme } from '@/contexts/ThemeContext';
 import { ARCHETYPES } from '@/constants/spiritualCareer';
 import type { CareerGuideState } from '@/screens/SpiritualCareerGuideScreen';
 import * as Haptics from 'expo-haptics';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 type Props = {
   state: CareerGuideState;
@@ -24,6 +26,10 @@ type PrayerStep = 'gratitude' | 'reflection' | 'commitment' | 'complete';
 const ResultsStep: React.FC<Props> = ({ state, onBack, onViewChallenges }) => {
   const theme = useTheme();
   const styles = createStyles(theme);
+  const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+  const contentWidth = useMemo(() => Math.min(width - 32, 520), [width]);
+  const modalContentWidth = useMemo(() => Math.min(width * 0.9, 420), [width]);
   const [showPrayerModal, setShowPrayerModal] = useState(false);
   const [currentPrayerStep, setCurrentPrayerStep] = useState<PrayerStep>('gratitude');
   const [meditationTimer, setMeditationTimer] = useState(0);
@@ -85,7 +91,20 @@ const ResultsStep: React.FC<Props> = ({ state, onBack, onViewChallenges }) => {
             </TouchableOpacity>
           </View>
 
-          <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
+          <ScrollView
+            style={styles.modalContent}
+            contentContainerStyle={{
+              paddingBottom: Math.max(insets.bottom, 32),
+              minHeight: '100%',
+            }}
+            showsVerticalScrollIndicator={false}
+          >
+            <View
+              style={[
+                styles.prayerContent,
+                { maxWidth: modalContentWidth, alignSelf: 'center' },
+              ]}
+            >
             {currentPrayerStep === 'gratitude' && (
               <View style={styles.prayerStep}>
                 <Heart size={48} color={theme.colors.primary} style={styles.prayerIcon} />
@@ -168,6 +187,7 @@ const ResultsStep: React.FC<Props> = ({ state, onBack, onViewChallenges }) => {
                 </TouchableOpacity>
               </View>
             )}
+            </View>
           </ScrollView>
         </View>
       </Modal>
@@ -175,7 +195,18 @@ const ResultsStep: React.FC<Props> = ({ state, onBack, onViewChallenges }) => {
   };
 
   return (
-    <View style={styles.contentContainer}>
+    <ScrollView
+      style={styles.scrollContainer}
+      contentContainerStyle={[
+        styles.contentContainer,
+        {
+          paddingBottom: Math.max(insets.bottom, 32),
+          maxWidth: contentWidth,
+          alignSelf: 'center',
+        },
+      ]}
+      showsVerticalScrollIndicator={false}
+    >
       <View style={styles.headerSection}>
         <Brain size={48} color={theme.colors.primary} style={styles.headerIcon} />
         <Text style={styles.mainTitle}>Your Spiritual Career Profile</Text>
@@ -233,13 +264,16 @@ const ResultsStep: React.FC<Props> = ({ state, onBack, onViewChallenges }) => {
       </TouchableOpacity>
 
       {renderPrayerModal()}
-    </View>
+    </ScrollView>
   );
 };
 
 const createStyles = (theme: any) => StyleSheet.create({
-  contentContainer: {
+  scrollContainer: {
     flex: 1,
+  },
+  contentContainer: {
+    flexGrow: 1,
     padding: 20,
   },
   headerSection: {
@@ -360,6 +394,9 @@ const createStyles = (theme: any) => StyleSheet.create({
   modalContent: {
     flex: 1,
     padding: 20,
+  },
+  prayerContent: {
+    width: '100%',
   },
   prayerStep: {
     alignItems: 'center',

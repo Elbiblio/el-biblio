@@ -8,6 +8,8 @@ import {
   Animated,
   Dimensions,
   Platform,
+  ScrollView,
+  useWindowDimensions,
 } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { Share as RNShare } from 'react-native';
@@ -16,6 +18,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { Theme } from '@/theme';
 import * as Haptics from 'expo-haptics';
 import type { Reflection } from '@/types';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface ShareReflectionModalProps {
   visible: boolean;
@@ -30,6 +33,9 @@ const ShareReflectionModal: React.FC<ShareReflectionModalProps> = ({
 }) => {
   const theme = useTheme();
   const styles = React.useMemo(() => createStyles(theme), [theme]);
+  const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+  const sheetWidth = React.useMemo(() => Math.min(width, 480), [width]);
   const [selectedType, setSelectedType] = useState<'story' | 'insight' | null>(null);
   const slideAnim = React.useRef(new Animated.Value(0)).current;
   const fadeAnim = React.useRef(new Animated.Value(0)).current;
@@ -122,116 +128,128 @@ const ShareReflectionModal: React.FC<ShareReflectionModalProps> = ({
         <Animated.View style={[styles.modalContainer, slideStyle]}>
           <BlurView
             intensity={20}
-            style={styles.modal}
+            style={[
+              styles.modal,
+              {
+                paddingBottom: Math.max(theme.spacing.xl, insets.bottom + theme.spacing.md),
+                width: sheetWidth,
+                alignSelf: 'center',
+              },
+            ]}
           >
-            {/* Header */}
-            <View style={styles.header}>
-              <Text style={styles.title}>Share Reflection</Text>
-              <TouchableOpacity
-                style={styles.closeButton}
-                onPress={handleClose}
-              >
-                <X size={24} color={theme.colors.text.secondary} />
-              </TouchableOpacity>
-            </View>
-
-            {/* Reflection Preview */}
-            <View style={styles.previewContainer}>
-              {reflection.verse && (
-                <View style={styles.verseContext}>
-                  <Text style={styles.verseReference}>
-                    {reflection.verse.reference_display}
-                  </Text>
-                  {reflection.verse.theme && (
-                    <Text style={styles.verseTheme}>
-                      {reflection.verse.theme.display_name}
-                    </Text>
-                  )}
-                </View>
-              )}
-              <Text style={styles.previewText} numberOfLines={3}>
-                {reflection.content}
-              </Text>
-              <View style={styles.previewMeta}>
-                <Text style={styles.previewAuthor}>
-                  — {reflection.user?.first_name} {reflection.user?.last_name}
-                </Text>
+            <ScrollView
+              contentContainerStyle={{ paddingBottom: theme.spacing.md }}
+              showsVerticalScrollIndicator={false}
+            >
+              {/* Header */}
+              <View style={styles.header}>
+                <Text style={styles.title}>Share Reflection</Text>
+                <TouchableOpacity
+                  style={styles.closeButton}
+                  onPress={handleClose}
+                >
+                  <X size={24} color={theme.colors.text.secondary} />
+                </TouchableOpacity>
               </View>
-            </View>
 
-            {/* Share Type Selection */}
-            <View style={styles.typeSelection}>
-              <Text style={styles.selectionTitle}>How would you like to share this?</Text>
-              
-              <TouchableOpacity
-                style={[
-                  styles.typeOption,
-                  selectedType === 'story' && styles.typeOptionSelected,
-                ]}
-                onPress={() => {
-                  setSelectedType('story');
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                }}
-              >
-                <View style={[styles.typeIcon, { backgroundColor: `${theme.colors.primary}20` }]}>
-                  <BookOpen size={24} color={theme.colors.primary} />
-                </View>
-                <View style={styles.typeContent}>
-                  <Text style={styles.typeTitle}>Share as Story</Text>
-                  <Text style={styles.typeDescription}>
-                    Share a personal experience or testimony
-                  </Text>
-                </View>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[
-                  styles.typeOption,
-                  selectedType === 'insight' && styles.typeOptionSelected,
-                ]}
-                onPress={() => {
-                  setSelectedType('insight');
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                }}
-              >
-                <View style={[styles.typeIcon, { backgroundColor: `${theme.colors.secondary}20` }]}>
-                  <Lightbulb size={24} color={theme.colors.secondary} />
-                </View>
-                <View style={styles.typeContent}>
-                  <Text style={styles.typeTitle}>Share as Insight</Text>
-                  <Text style={styles.typeDescription}>
-                    Share a revelation or understanding
-                  </Text>
-                </View>
-              </TouchableOpacity>
-            </View>
-
-            {/* Action Buttons */}
-            <View style={styles.actions}>
-              <TouchableOpacity
-                style={[styles.actionButton, styles.cancelButton]}
-                onPress={handleClose}
-              >
-                <Text style={styles.cancelText}>Cancel</Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity
-                style={[
-                  styles.actionButton,
-                  styles.shareButton,
-                  !selectedType && styles.shareButtonDisabled,
-                ]}
-                onPress={() => selectedType && handleShare(selectedType)}
-                disabled={!selectedType}
-              >
-                <Text style={[
-                  styles.shareText,
-                  !selectedType && styles.shareTextDisabled,
-                ]}>
-                  Share as {selectedType === 'story' ? 'Story' : 'Insight'}
+              {/* Reflection Preview */}
+              <View style={styles.previewContainer}>
+                {reflection.verse && (
+                  <View style={styles.verseContext}>
+                    <Text style={styles.verseReference}>
+                      {reflection.verse.reference_display}
+                    </Text>
+                    {reflection.verse.theme && (
+                      <Text style={styles.verseTheme}>
+                        {reflection.verse.theme.display_name}
+                      </Text>
+                    )}
+                  </View>
+                )}
+                <Text style={styles.previewText} numberOfLines={3}>
+                  {reflection.content}
                 </Text>
-              </TouchableOpacity>
-            </View>
+                <View style={styles.previewMeta}>
+                  <Text style={styles.previewAuthor}>
+                    — {reflection.user?.first_name} {reflection.user?.last_name}
+                  </Text>
+                </View>
+              </View>
+
+              {/* Share Type Selection */}
+              <View style={styles.typeSelection}>
+                <Text style={styles.selectionTitle}>How would you like to share this?</Text>
+                
+                <TouchableOpacity
+                  style={[
+                    styles.typeOption,
+                    selectedType === 'story' && styles.typeOptionSelected,
+                  ]}
+                  onPress={() => {
+                    setSelectedType('story');
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  }}
+                >
+                  <View style={[styles.typeIcon, { backgroundColor: `${theme.colors.primary}20` }]}>
+                    <BookOpen size={24} color={theme.colors.primary} />
+                  </View>
+                  <View style={styles.typeContent}>
+                    <Text style={styles.typeTitle}>Share as Story</Text>
+                    <Text style={styles.typeDescription}>
+                      Share a personal experience or testimony
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.typeOption,
+                    selectedType === 'insight' && styles.typeOptionSelected,
+                  ]}
+                  onPress={() => {
+                    setSelectedType('insight');
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  }}
+                >
+                  <View style={[styles.typeIcon, { backgroundColor: `${theme.colors.secondary}20` }]}>
+                    <Lightbulb size={24} color={theme.colors.secondary} />
+                  </View>
+                  <View style={styles.typeContent}>
+                    <Text style={styles.typeTitle}>Share as Insight</Text>
+                    <Text style={styles.typeDescription}>
+                      Share a revelation or understanding
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              </View>
+
+              {/* Action Buttons */}
+              <View style={styles.actions}>
+                <TouchableOpacity
+                  style={[styles.actionButton, styles.cancelButton]}
+                  onPress={handleClose}
+                >
+                  <Text style={styles.cancelText}>Cancel</Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity
+                  style={[
+                    styles.actionButton,
+                    styles.shareButton,
+                    !selectedType && styles.shareButtonDisabled,
+                  ]}
+                  onPress={() => selectedType && handleShare(selectedType)}
+                  disabled={!selectedType}
+                >
+                  <Text style={[
+                    styles.shareText,
+                    !selectedType && styles.shareTextDisabled,
+                  ]}>
+                    Share as {selectedType === 'story' ? 'Story' : 'Insight'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
           </BlurView>
         </Animated.View>
       </Animated.View>
@@ -244,13 +262,15 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'flex-end',
+    alignItems: 'center',
   },
   backdrop: {
     flex: 1,
+    alignSelf: 'stretch',
   },
   modalContainer: {
     width: '100%',
-    maxHeight: '80%',
+    maxHeight: '85%',
   },
   modal: {
     backgroundColor: theme.colors.background,

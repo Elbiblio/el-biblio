@@ -1,5 +1,5 @@
-import React, { useMemo, useEffect, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Modal, ScrollView } from 'react-native';
+import React, { useMemo, useEffect, useState, useCallback, useRef } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Modal } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Speech from 'expo-speech';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -8,7 +8,8 @@ import { useDailyPathStore } from '@/stores/StoreProvider';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '@/types';
 import type { ReadingPlanPhase } from '@/constants/readingPlanModes';
-import { getVoicePromptsForPhase, getCelebrationMessage, getPhaseInstructions } from '@/modules/habitConquestVoicePrompts';
+import { getCelebrationMessage, getPhaseInstructions } from '@/modules/habitConquestVoicePrompts';
+import { HabitConquerOrchestrator } from '@/services/HabitConquerOrchestrator';
 
 // Minimal session runner for Habit Conquest
 // Uses configured per-session phases from DailyPathStore
@@ -52,51 +53,16 @@ const HabitConquestSessionScreen: React.FC<Props> = ({ navigation }) => {
     return next;
   }, [phases, targetPerSession]);
 
-  const timerPhases: ReadingPlanPhase[] = scaledPhasesRaw.map(p => {
-    let id: ReadingPlanPhase['id'];
-    switch (p.id) {
-      case 'meditation':
-        id = 'meditation';
-        break;
-      case 'mercy':
-      case 'forgiveness':
-      case 'thanksgiving':
-        id = 'prayer';
-        break;
-      case 'affirmation':
-      default:
-        id = 'contemplation';
-    }
-    const hint = (() => {
-      switch (p.id) {
-        case 'affirmation':
-          return 'Affirm your identity in Christ and your intention to heal. Speak your pledge aloud.';
-        case 'meditation':
-          return 'Sit with God. Notice thoughts and urges without judgment. Breathe and receive grace.';
-        case 'mercy':
-          return 'Ask for mercy. God delights to help you in weakness. Invite His strength.';
-        case 'forgiveness':
-          return 'Confess honestly. Receive forgiveness and release any shame back to the Cross.';
-        case 'thanksgiving':
-          return 'Give thanks for every small victory. Gratitude strengthens your new path.';
-        default:
-          return undefined;
-      }
-    })();
-    return { id, label: p.label, minutes: p.minutes, hint } as ReadingPlanPhase;
-  });
+  const timerPhases: ReadingPlanPhase[] = React.useMemo(
+    () => HabitConquerOrchestrator.toReadingTimerPhases(scaledPhasesRaw),
+    [scaledPhasesRaw],
+  );
 
-  const [checkinQueue, setCheckinQueue] = useState<string[]>([]);
-  const [checkinIndex, setCheckinIndex] = useState(0);
-  const [modalVisible, setModalVisible] = useState(false);
-  const [clean, setClean] = useState<boolean>(true);
-  const [pledged, setPledged] = useState<boolean>(true);
   const [showIntro, setShowIntro] = useState(false);
   const [introStep, setIntroStep] = useState(0);
   const [showGuide, setShowGuide] = useState(false);
   const [currentGuide, setCurrentGuide] = useState<{title: string; text: string} | null>(null);
   const [completedSessionsToday, setCompletedSessionsToday] = useState(0);
-  const [accountabilityTriggered, setAccountabilityTriggered] = useState(false);
   const [showCelebration, setShowCelebration] = useState(false);
   const [celebrationMessage, setCelebrationMessage] = useState('');
   const [isPaused, setIsPaused] = useState(false);
@@ -108,10 +74,9 @@ const HabitConquestSessionScreen: React.FC<Props> = ({ navigation }) => {
   const [initPhaseIndex, setInitPhaseIndex] = useState<number | undefined>(undefined);
   const [initSecondsRemaining, setInitSecondsRemaining] = useState<number | undefined>(undefined);
   const [initSummaries, setInitSummaries] = useState<any[] | undefined>(undefined);
-  const [showInlineAcc, setShowInlineAcc] = useState(false);
   const [promptText, setPromptText] = useState('');
   const [timeOfDay, setTimeOfDay] = useState<'morning'|'afternoon'|'evening'|'night'>('morning');
-  const promptTimersRef = React.useRef<number[]>([]);
+  const orchestratorRef = useRef<HabitConquerOrchestrator | null>(null);
 
   useEffect(() => {
     if (!dailyPathStore.state.hasSeenHabitConquestIntro) {
@@ -155,20 +120,33 @@ const HabitConquestSessionScreen: React.FC<Props> = ({ navigation }) => {
   }, []);
 
   useEffect(() => {
-    if (showIntro) return;
-    // Ensure accountability panel is hidden on fresh start
-    setShowInlineAcc(false);
-    // Do not show accountability on session start; handle after session completes.
-  }, [showIntro]);
+    orchestratorRef.current?.stop();
+    orchestratorRef.current = new HabitConquerOrchestrator({
+      getConfig: () => ({
+        phases: scaledPhasesRaw,
+        vice: hc?.vice ?? null,
+        doorOfSin: hc?.doorOfSin ?? null,
+        pledgeGood: hc?.pledgeGood ?? null,
+        voiceEnabled,
+      }),
+      callbacks: {
+        onPrompt: (text) => setPromptText(text),
+        onGuide: (guide) => {
+          if (!guide) return;
+          setCurrentGuide(guide);
+          setShowGuide(true);
+        },
+      },
+    });
+    return () => {
+      orchestratorRef.current?.stop();
+    };
+  }, [scaledPhasesRaw, hc?.vice, hc?.doorOfSin, hc?.pledgeGood, voiceEnabled]);
 
-  // Cleanup on unmount: stop all speech and timers
   useEffect(() => {
     return () => {
+      orchestratorRef.current?.stop();
       Speech.stop();
-      for (const id of promptTimersRef.current) {
-        try { clearTimeout(id as any); } catch {}
-      }
-      promptTimersRef.current = [];
     };
   }, []);
 
@@ -190,140 +168,25 @@ const HabitConquestSessionScreen: React.FC<Props> = ({ navigation }) => {
     }
   }, [timeOfDay, completedSessionsToday, sessionsCount]);
 
-  const getGuideForPhase = useCallback((phaseId: string) => {
-    switch (phaseId) {
-      case 'affirmation':
-        return {
-          title: 'Affirmation',
-          text: 'Speak your identity in Christ aloud. You are loved, forgiven, and empowered to change. Declare your pledge to radiate goodness today.'
-        };
-      case 'meditation':
-        return {
-          title: 'Meditation with God',
-          text: 'Sit quietly with God. Notice any thoughts or urges without judgment. Breathe deeply and receive His grace. Let Him renew your mind.'
-        };
-      case 'mercy':
-        return {
-          title: 'Prayer for Mercy',
-          text: 'Ask God for mercy. He delights to help you in your weakness. Invite His strength to fill the places where you feel powerless.'
-        };
-      case 'forgiveness':
-        return {
-          title: 'Prayer for Forgiveness',
-          text: 'Confess honestly to God. Receive His forgiveness fully. Release any shame back to the Cross—it has no hold on you.'
-        };
-      case 'thanksgiving':
-        return {
-          title: 'Prayer of Thanksgiving',
-          text: 'Give thanks for every small victory, for God\'s patience, and for the new path He is building in you. Gratitude strengthens your resolve.'
-        };
-      default:
-        return null;
-    }
-  }, []);
-
-  const speakPrompt = useCallback((text: string) => {
-    if (voiceEnabled) {
-      Speech.speak(text, {
-        language: 'en',
-        pitch: 1.0,
-        rate: 0.7,
-      });
-    }
-  }, [voiceEnabled]);
-
-  const clearPromptTimers = useCallback(() => {
-    for (const id of promptTimersRef.current) {
-      try { clearTimeout(id as any); } catch {}
-    }
-    promptTimersRef.current = [];
-  }, []);
-
-  const stagePromptsForPhase = useCallback((phase: { id: string; minutes: number }) => {
-    clearPromptTimers();
-    const prompts = getVoicePromptsForPhase(
-      phase.id,
-      phase.minutes * 60,
-      hc?.vice,
-      hc?.doorOfSin,
-      hc?.pledgeGood,
-    );
-    const startP = prompts.find(p => p.timing === 'start');
-    const midP = prompts.find(p => p.timing === 'middle');
-    const endP = prompts.find(p => p.timing === 'end');
-    
-    if (startP) {
-      const tid = setTimeout(() => setPromptText(startP.text), 0) as unknown as number;
-      promptTimersRef.current.push(tid);
-      const ts = setTimeout(() => speakPrompt(startP.text), 1200) as unknown as number;
-      promptTimersRef.current.push(ts);
-    }
-    if (midP) {
-      const tid = setTimeout(() => {
-        setPromptText(midP.text);
-        speakPrompt(midP.text);
-      }, Math.max(1000, (phase.minutes * 60 * 1000) / 2)) as unknown as number;
-      promptTimersRef.current.push(tid);
-    }
-    if (endP) {
-      const when = Math.max(1000, (phase.minutes * 60 - 15) * 1000);
-      const tid = setTimeout(() => setPromptText(endP.text), when) as unknown as number;
-      promptTimersRef.current.push(tid);
-    }
-  }, [hc, speakPrompt, clearPromptTimers]);
-
   const handlePhaseComplete = useCallback((phase: ReadingPlanPhase, elapsedSeconds: number) => {
     const phaseId = scaledPhasesRaw.find(p => p.label === phase.label)?.id;
     const phaseIdx = scaledPhasesRaw.findIndex(p => p.label === phase.label);
     if (phaseIdx >= 0 && phaseIdx + 1 < scaledPhasesRaw.length) {
       const nextPhase = scaledPhasesRaw[phaseIdx + 1];
       setCurrentPhaseLabel(nextPhase.label);
-      const guide = getGuideForPhase(nextPhase.id);
-      if (guide) {
-        setCurrentGuide(guide);
-        setShowGuide(true);
-      }
-      stagePromptsForPhase({ id: nextPhase.id, minutes: nextPhase.minutes });
+      orchestratorRef.current?.startPhaseByLabel(nextPhase.label);
+    } else {
+      orchestratorRef.current?.stop();
     }
-  }, [scaledPhasesRaw, getGuideForPhase, stagePromptsForPhase]);
+  }, [scaledPhasesRaw]);
 
   const handleStart = useCallback(() => {
     const first = scaledPhasesRaw[0];
     if (first) {
       setCurrentPhaseLabel(first.label);
-      const guide = getGuideForPhase(first.id);
-      if (guide) {
-        setCurrentGuide(guide);
-        setShowGuide(true);
-      }
-      stagePromptsForPhase({ id: first.id, minutes: first.minutes });
+      orchestratorRef.current?.startPhaseByLabel(first.label);
     }
-  }, [scaledPhasesRaw, getGuideForPhase, stagePromptsForPhase]);
-
-  const formatDate = useCallback((dateKey: string) => {
-    const d = new Date(dateKey);
-    return d.toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' });
-  }, []);
-
-  const handleSubmitCheckin = useCallback(() => {
-    const dateKey = checkinQueue[checkinIndex];
-    if (dateKey) {
-      dailyPathStore.recordHabitConquestCheckin(dateKey, { clean, pledged });
-      const nextIndex = checkinIndex + 1;
-      if (nextIndex < checkinQueue.length) {
-        setCheckinIndex(nextIndex);
-        setClean(true);
-        setPledged(true);
-      } else {
-        setModalVisible(false);
-        setCheckinQueue([]);
-      }
-    } else {
-      const today = null;
-      dailyPathStore.recordHabitConquestCheckin(today, { clean, pledged });
-      setModalVisible(false);
-    }
-  }, [checkinIndex, checkinQueue, clean, pledged, dailyPathStore]);
+  }, [scaledPhasesRaw]);
 
   return (
     <View style={styles.container}>
@@ -350,7 +213,7 @@ const HabitConquestSessionScreen: React.FC<Props> = ({ navigation }) => {
         </View>
       )}
 
-      {!showIntro && !startNow && !showResumePrompt && !showInlineAcc && (
+      {!showIntro && !startNow && !showResumePrompt && (
         <View style={{ paddingHorizontal: 16, gap: 12 }}>
           <View style={styles.welcomeCard}>
             <Text style={styles.welcomeText}>{getContextualWelcome()}</Text>
@@ -366,7 +229,7 @@ const HabitConquestSessionScreen: React.FC<Props> = ({ navigation }) => {
         </View>
       )}
 
-      {startNow && !showInlineAcc && (
+      {startNow && (
         <View style={styles.promptCard}>
           <Text style={styles.promptTitle}>Current Guidance</Text>
           <Text style={styles.promptText}>{promptText || 'Preparing your guidance...'}</Text>
@@ -447,7 +310,7 @@ const HabitConquestSessionScreen: React.FC<Props> = ({ navigation }) => {
         onAllPhasesComplete={async () => {
           // Stop all voice prompts and timers immediately
           Speech.stop();
-          clearPromptTimers();
+          orchestratorRef.current?.stop();
           
           const newCount = completedSessionsToday + 1;
           setCompletedSessionsToday(newCount);
@@ -460,11 +323,9 @@ const HabitConquestSessionScreen: React.FC<Props> = ({ navigation }) => {
           const isLastSession = newCount >= sessionsCount;
           if (isLastSession) {
             const missing = dailyPathStore.getMissingHabitConquestDates();
-            setCheckinQueue([...(Array.isArray(missing) ? missing : []), 'today']);
-            setCheckinIndex(0);
-            setClean(true);
-            setPledged(true);
-            setModalVisible(true);
+            const todayKey = new Date().toISOString().slice(0, 10);
+            const pendingDates = Array.from(new Set([...(Array.isArray(missing) ? missing : []), todayKey]));
+            navigation.navigate('HabitConquestReflectionScreen', { pendingDates });
           } else {
             const message = getCelebrationMessage(false, newCount, sessionsCount, true, true);
             setCelebrationMessage(message);
@@ -491,62 +352,6 @@ const HabitConquestSessionScreen: React.FC<Props> = ({ navigation }) => {
           </View>
         </View>
       </Modal>
-
-      {showInlineAcc ? (
-        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 16 }}>
-          <View style={styles.accCard}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.accTitle}>Daily accountability</Text>
-              {(() => {
-                const key = (checkinQueue.length && checkinQueue[checkinIndex] && checkinQueue[checkinIndex] !== 'today') ? checkinQueue[checkinIndex] : null;
-                const d = key ? new Date(key) : new Date();
-                const day = d.toLocaleDateString(undefined, { weekday: 'long' });
-                const date = d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
-                const count = checkinQueue.length > 1 ? ` • ${checkinIndex + 1}/${checkinQueue.length}` : '';
-                return (
-                  <Text style={styles.accSubtitle}>{day} • {date}{count}</Text>
-                );
-              })()}
-            </View>
-            <View style={[styles.checkRow, { marginTop: 16 }]}>
-              <TouchableOpacity
-                style={[styles.checkBox, clean && styles.checkBoxChecked]}
-                onPress={() => setClean(!clean)}
-                activeOpacity={0.85}
-              >
-                {clean ? <Text style={styles.checkTick}>✓</Text> : null}
-              </TouchableOpacity>
-              <Text style={styles.checkLabelLarge}>Kept my door to temptation shut</Text>
-            </View>
-            <View style={[styles.checkRow, { marginTop: 16 }]}>
-              <TouchableOpacity
-                style={[styles.checkBox, pledged && styles.checkBoxChecked]}
-                onPress={() => setPledged(!pledged)}
-                activeOpacity={0.85}
-              >
-                {pledged ? <Text style={styles.checkTick}>✓</Text> : null}
-              </TouchableOpacity>
-              <Text style={styles.checkLabelLarge}>Did something nice today to help myself grow</Text>
-            </View>
-            <View style={[styles.modalActions, { marginTop: 28 }]}>
-              <TouchableOpacity style={styles.accPrimary} onPress={() => {
-                if (checkinQueue.length && checkinQueue[checkinIndex] === 'today') {
-                  dailyPathStore.recordHabitConquestCheckin(null, { clean, pledged });
-                  dailyPathStore.markStepComplete('habit_conquest');
-                  setShowInlineAcc(false);
-                  const message = getCelebrationMessage(true, completedSessionsToday + 1, sessionsCount, clean, pledged);
-                  setCelebrationMessage(message);
-                  setShowCelebration(true);
-                  return;
-                }
-                handleSubmitCheckin();
-              }}>
-                <Text style={styles.accPrimaryText}>{checkinIndex < checkinQueue.length - 1 ? 'Save & Next' : 'Save'}</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      ) : null}
 
       <Modal visible={showCelebration} transparent animationType="fade" onRequestClose={() => setShowCelebration(false)}>
         <View style={styles.celebrationOverlay}>

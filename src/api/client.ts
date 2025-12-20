@@ -561,6 +561,14 @@ export const endpoints = {
     vote: (id: string) => `/feature-suggestions/${id}/vote`,
     unvote: (id: string) => `/feature-suggestions/${id}/vote`,
   },
+
+  habitConquest: {
+    base: '/habit-conquest',
+    checkins: '/habit-conquest/checkins',
+    entries: '/habit-conquest/entries',
+    history: '/habit-conquest/history',
+    reminders: '/habit-conquest/reminders/sync',
+  },
 };
 
 export const apiClient = {

@@ -68,6 +68,8 @@ const DynamicIcon = ({
 };
 
 const FoundationalVirtueKeys: readonly string[] = ['knowledge', 'humility', 'faith', 'love'];
+const COMMUNITY_SPOTLIGHT_ENABLED = false;
+const NOTES_REQUIRE_AUTH = true;
 
 function getThemeInfo(key: string): ThemeInfo | undefined {
   if (FoundationalVirtueKeys.includes(key)) {
@@ -131,6 +133,7 @@ const VirtueScreen = ({ navigation, route }: VirtueScreenProps) => {
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [challengeParticipants, setChallengeParticipants] = useState<any[]>([]);
   const [isLoadingParticipants, setIsLoadingParticipants] = useState(false);
+  const notesTabLocked = NOTES_REQUIRE_AUTH && !user;
 
   // Animation values
   const tabIndicatorPosition = useSharedValue(0);
@@ -161,13 +164,18 @@ const VirtueScreen = ({ navigation, route }: VirtueScreenProps) => {
 
   // Fetch challenge participants on mount
   useEffect(() => {
-    fetchChallengeParticipants();
+    if (COMMUNITY_SPOTLIGHT_ENABLED) {
+      fetchChallengeParticipants();
+    }
   }, []);
 
   // Fetch notes when selectedVirtue or selectedDenomination changes
   useEffect(() => {
+    if (notesTabLocked) {
+      return;
+    }
     fetchVirtueNotes(selectedVirtue?.id);
-  }, [selectedVirtue]);
+  }, [selectedVirtue, notesTabLocked]);
 
   // Filter notes by denomination
   const filteredNotes = useMemo(() => {
@@ -179,6 +187,10 @@ const VirtueScreen = ({ navigation, route }: VirtueScreenProps) => {
   }, [virtueNotes, selectedDenomination]);
   
   const handleTabChange = (tab: TabType) => {
+    if (tab === 'notes' && notesTabLocked) {
+      setShowAuthModal(true);
+      return;
+    }
     const tabPositions = {
       explore: 0,
       learn: 1,
@@ -191,6 +203,12 @@ const VirtueScreen = ({ navigation, route }: VirtueScreenProps) => {
     
     setActiveTab(tab);
   };
+
+  useEffect(() => {
+    if (activeTab === 'notes' && notesTabLocked) {
+      handleTabChange('explore');
+    }
+  }, [notesTabLocked]);
   
   const handleVirtuePress = (virtue: AppVirtue) => {
     if (!user) {
@@ -392,46 +410,48 @@ const VirtueScreen = ({ navigation, route }: VirtueScreenProps) => {
     </View>
     
     {/* Community Spotlight */}
-    <View style={styles.section}>
-      <Text style={styles.sectionTitle}>COMMUNITY SPOTLIGHT</Text>
-      
-      <View style={styles.communityCard}>
-        <View style={styles.communityHeader}>
-          <Text style={styles.communityTitle}>Weekly Challenge</Text>
-          {challengeParticipants.length > 0 && (
-            <AvatarStack 
-              users={challengeParticipants.slice(0, 5)}
-              size={32}
-              maxAvatars={5}
-              showRemaining={true}
-            />
-          )}
-        </View>
+    {COMMUNITY_SPOTLIGHT_ENABLED && (
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>COMMUNITY SPOTLIGHT</Text>
         
-        <Text style={styles.challengeText}>
-          Practice patience in daily interactions and journal your experiences
-        </Text>
-        
-        <View style={styles.communityStats}>
-          <View style={styles.statItem}>
-            <Users size={16} color={theme?.colors.text.secondary} />
-            <Text style={styles.statText}>{challengeParticipants.length} participants</Text>
+        <View style={styles.communityCard}>
+          <View style={styles.communityHeader}>
+            <Text style={styles.communityTitle}>Weekly Challenge</Text>
+            {challengeParticipants.length > 0 && (
+              <AvatarStack 
+                users={challengeParticipants.slice(0, 5)}
+                size={32}
+                maxAvatars={5}
+                showRemaining={true}
+              />
+            )}
           </View>
           
-          <View style={styles.statItem}>
-            <Sparkle size={16} color={theme?.colors.primary} />
-            <Text style={styles.statText}>Earn 50 points</Text>
+          <Text style={styles.challengeText}>
+            Practice patience in daily interactions and journal your experiences
+          </Text>
+          
+          <View style={styles.communityStats}>
+            <View style={styles.statItem}>
+              <Users size={16} color={theme?.colors.text.secondary} />
+              <Text style={styles.statText}>{challengeParticipants.length} participants</Text>
+            </View>
+            
+            <View style={styles.statItem}>
+              <Sparkle size={16} color={theme?.colors.primary} />
+              <Text style={styles.statText}>Earn 50 points</Text>
+            </View>
           </View>
+          
+          <TouchableOpacity
+            style={styles.joinChallengeButton}
+            onPress={joinChallenge}
+          >
+            <Text style={styles.joinChallengeText}>Join Challenge</Text>
+          </TouchableOpacity>
         </View>
-        
-        <TouchableOpacity
-          style={styles.joinChallengeButton}
-          onPress={joinChallenge}
-        >
-          <Text style={styles.joinChallengeText}>Join Challenge</Text>
-        </TouchableOpacity>
       </View>
-    </View>
+    )}
   </View>
 );
   
@@ -772,6 +792,13 @@ const VirtueScreen = ({ navigation, route }: VirtueScreenProps) => {
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color={theme?.colors.primary} />
             <Text style={styles.loadingText}>Loading notes...</Text>
+          </View>
+        ) : notesError ? (
+          <View style={styles.loadingContainer}>
+            <Text style={styles.loadingText}>{notesError}</Text>
+            <TouchableOpacity style={styles.retryButton} onPress={() => fetchVirtueNotes(selectedVirtue?.id)}>
+              <Text style={styles.retryButtonText}>Retry</Text>
+            </TouchableOpacity>
           </View>
         ) : filteredNotes.length === 0 ? (
           <EmptyState
@@ -1422,6 +1449,19 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     ...theme?.typography.body.sans,
     color: theme?.colors.text.secondary,
     marginTop: theme?.spacing.md,
+  },
+  retryButton: {
+    marginTop: theme?.spacing.md,
+    paddingHorizontal: theme?.spacing.lg,
+    paddingVertical: theme?.spacing.sm,
+    borderRadius: theme?.borderRadius.full,
+    borderWidth: 1,
+    borderColor: theme?.colors.primary,
+  },
+  retryButtonText: {
+    ...theme?.typography.caption.primary,
+    color: theme?.colors.primary,
+    fontWeight: '600',
   },
   emptyContainer: {
     padding: theme?.spacing.xl,

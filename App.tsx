@@ -48,9 +48,13 @@ import PrayerRequestsScreen from './src/screens/PrayerRequestsScreen';
 import MyJourneyScreen from './src/screens/MyJourneyScreen';
 import JourneyQuizScreen from './src/screens/JourneyQuizScreen';
 import CitizenshipSetupScreen from './src/screens/CitizenshipSetupScreen';
+import { BiometricLock } from './src/components/BiometricLock';
+import { ErrorBoundary as AppErrorBoundary } from './src/components/ErrorBoundary';
 import DailyPathSetupScreen from './src/screens/DailyPathSetupScreen';
 import HabitConquestSetupScreen from './src/screens/HabitConquestSetupScreen';
 import HabitConquestSessionScreen from './src/screens/HabitConquestSessionScreen';
+import HabitConquestReflectionScreen from './src/screens/HabitConquestReflectionScreen';
+import HabitConquestPrayerScreen from './src/screens/HabitConquestPrayerScreen';
 import HabitConquestProgressScreen from './src/screens/HabitConquestProgressScreen';
 import TalkToGodScreen from './src/screens/TalkToGodScreen';
 import HowToPrayScreen from './src/screens/HowToPrayScreen';
@@ -137,10 +141,20 @@ type NavigationContentProps = {
 };
 
 const NavigationContent: React.FC<NavigationContentProps> = ({ showChallengeBanner, onDismissChallengeBanner }) => {
-  // Bind WebSocket verse handlers to provider-based verse store
-  useWebSocketVerseSync();
   const { isInitialized: authInitialized, user, token } = useAuthStore();
   const { hasCompletedWelcome } = appStore;
+  
+  // Only sync WebSocket when authenticated - moved after auth check
+  useEffect(() => {
+    if (authInitialized && user && token) {
+      // WebSocket sync will be handled by useWebSocketVerseSync hook when ready
+    }
+  }, [authInitialized, user, token]);
+  
+  // Bind WebSocket verse handlers to provider-based verse store (only when authenticated)
+  if (authInitialized && user && token) {
+    useWebSocketVerseSync();
+  }
 
   const getInitialRoute = () => {
     if (user && token && hasCompletedWelcome) return 'Home';
@@ -167,9 +181,23 @@ const NavigationContent: React.FC<NavigationContentProps> = ({ showChallengeBann
       >
         <Stack.Screen name="IntroScreen" component={IntroScreen} />
         <Stack.Screen name="RegistrationScreen" component={RegistrationScreen} />
-        <Stack.Screen name="Home" component={HomeScreen} />
+        <Stack.Screen 
+          name="Home" 
+          component={(props: any) => (
+            <AppErrorBoundary>
+              <HomeScreen {...props} />
+            </AppErrorBoundary>
+          )} 
+        />
         <Stack.Screen name="WhatYouMissedScreen" component={WhatYouMissedScreen} />
-        <Stack.Screen name="VerseDetail" component={VerseDetail} />
+        <Stack.Screen 
+          name="VerseDetail" 
+          component={(props: any) => (
+            <AppErrorBoundary>
+              <VerseDetail {...props} />
+            </AppErrorBoundary>
+          )} 
+        />
         <Stack.Screen name="ReflectionDetail" component={ReflectionDetail} />
         <Stack.Screen name="DailyVersesScreen" component={DailyVersesScreen} />
         <Stack.Screen name="DailyChallengeScreen" component={DailyChallengeScreen} />
@@ -177,6 +205,7 @@ const NavigationContent: React.FC<NavigationContentProps> = ({ showChallengeBann
         <Stack.Screen name="WordHubsScreen" component={WordHubsScreen} />
         <Stack.Screen name="WordHubDetailScreen" component={WordHubDetailScreen} />
         <Stack.Screen name="MatchScreen" component={MatchScreen} />
+        <Stack.Screen name="IntroScreen" component={IntroScreen} />
         <Stack.Screen name="SavedItemsScreen" component={SavedItemsScreen} />
         <Stack.Screen name="NotesScreen" component={NotesScreen} />
         <Stack.Screen name="CommunityScreen" component={CommunityScreen} />
@@ -188,7 +217,14 @@ const NavigationContent: React.FC<NavigationContentProps> = ({ showChallengeBann
         <Stack.Screen name="VirtueQuizScreen" component={VirtueQuizScreen} />
         <Stack.Screen name="VerseBuilderScreen" component={VerseBuilderScreen} />
         <Stack.Screen name="BibleScreen" component={BibleScreen} />
-        <Stack.Screen name="ProfileScreen" component={ProfileScreen} />
+        <Stack.Screen 
+          name="ProfileScreen" 
+          component={(props: any) => (
+            <AppErrorBoundary>
+              <ProfileScreen {...props} />
+            </AppErrorBoundary>
+          )} 
+        />
         <Stack.Screen name="DonateScreen" component={DonateScreen} />
         <Stack.Screen name="LeaderboardScreen" component={LeaderboardScreen} />
         <Stack.Screen name="GameScreen" component={GameScreen} />
@@ -206,6 +242,8 @@ const NavigationContent: React.FC<NavigationContentProps> = ({ showChallengeBann
         <Stack.Screen name="DailyPathSetupScreen" component={DailyPathSetupScreen} />
         <Stack.Screen name="HabitConquestSetupScreen" component={HabitConquestSetupScreen} />
         <Stack.Screen name="HabitConquestSessionScreen" component={HabitConquestSessionScreen} />
+        <Stack.Screen name="HabitConquestReflectionScreen" component={HabitConquestReflectionScreen} />
+        <Stack.Screen name="HabitConquestPrayerScreen" component={HabitConquestPrayerScreen} />
         <Stack.Screen name="HabitConquestProgressScreen" component={HabitConquestProgressScreen} />
         <Stack.Screen name="TalkToGodScreen" component={TalkToGodScreen} />
         <Stack.Screen name="HowToPrayScreen" component={HowToPrayScreen} />
@@ -260,28 +298,45 @@ const AppContent = () => {
 
   useEffect(() => {
     const initialize = async () => {
+      const errors: string[] = [];
       try {
         // Configure audio session once
-        await initAudio();
+        await initAudio().catch((error) => {
+          errors.push('audio');
+          if (__DEV__) console.warn('[App] Audio init failed', error);
+        });
+        
         const savedThemeVariant = await AsyncStorage.getItem(STORAGE_KEYS.THEME);
         if (savedThemeVariant) {
           setInitialTheme(getTheme(savedThemeVariant as ThemeVariant));
         } else {
           setShowThemeSelector(true);
         }
+        
         // Initialize welcome state
-        await initializeWelcomeState();
-        await registerChallengeReminderTask();
+        await initializeWelcomeState().catch((error) => {
+          errors.push('welcome');
+          if (__DEV__) console.warn('[App] Welcome state init failed', error);
+        });
+        
+        await registerChallengeReminderTask().catch((error) => {
+          errors.push('challenge_reminder');
+          if (__DEV__) console.warn('[App] Challenge reminder task failed', error);
+        });
 
         // Initialize push notifications (get token, but don't register until user is authenticated)
         PushNotificationService.initialize().catch((error) => {
+          errors.push('push_notifications');
           if (__DEV__) {
             console.warn('[App] Push notification initialization failed:', error);
           }
         });
 
         // Load mobile runtime config (e.g. WebSocket host/port/appKey) from backend
-        await loadMobileConfig();
+        await loadMobileConfig().catch((error) => {
+          errors.push('mobile_config');
+          if (__DEV__) console.warn('[App] Mobile config load failed', error);
+        });
         if (Platform.OS === 'android') {
           checkForAppUpdate()
             .then(result => {
@@ -299,8 +354,12 @@ const AppContent = () => {
               }
             });
         }
+        
+        if (errors.length > 0 && __DEV__) {
+          console.warn('[App] Initialization completed with errors:', errors);
+        }
       } catch (error) {
-        if (__DEV__) console.warn('Error loading theme:', error);
+        console.error('[App] Critical initialization error', error);
         setShowThemeSelector(true);
       } finally {
         setIsLoading(false);
@@ -428,12 +487,18 @@ const AppContent = () => {
 
   const checkForUncompletedChallenges = () => {
     try {
-      const list = (challengeStore?.personalChallenges || []) as any[];
+      // Guard: Only check if challenge store is initialized
+      if (!challengeStore || !Array.isArray(challengeStore.personalChallenges)) {
+        return;
+      }
+      const list = challengeStore.personalChallenges as any[];
       const uncompleted = list.filter((c: any) => !c?.isCompleted && c?.hasJoined);
       if (uncompleted.length > 0) {
         setShowChallengeBanner(true);
       }
-    } catch {}
+    } catch (error) {
+      console.warn('[App] Failed to check uncompleted challenges', error);
+    }
   };
 
   // Subscribe to global points earned events emitted by the API interceptor
@@ -616,13 +681,15 @@ const App = () => {
 
   return (
     <SafeAreaProvider>
-      <AppInitializationProvider>
-        <StoreProvider>
-          <WebSocketProvider>
-            <AppContent />
-          </WebSocketProvider>
-        </StoreProvider>
-      </AppInitializationProvider>
+      <BiometricLock>
+        <AppInitializationProvider>
+          <StoreProvider>
+            <WebSocketProvider>
+              <AppContent />
+            </WebSocketProvider>
+          </StoreProvider>
+        </AppInitializationProvider>
+      </BiometricLock>
     </SafeAreaProvider>
   );
 };

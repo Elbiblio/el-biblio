@@ -31,12 +31,14 @@ export const AvatarStack: React.FC<AvatarStackProps> = ({
   showRemaining = true,
 }) => {
   // Convert MobX observables to plain JS to avoid freeze errors
-  // Do NOT use useMemo here - MobX observables maintain the same reference
   const safeUsers = toJS(users || []);
   const displayUsers = safeUsers.slice(0, maxAvatars);
   const remainingCount = Math.max(0, safeUsers.length - maxAvatars);
   const theme = useTheme();
   const styles = React.useMemo(() => createStyles(theme), [theme]);
+  const handleStackPress = React.useCallback(() => {
+    onPress?.();
+  }, [onPress]);
 
   // Shared values for hover animations
   const hoveredIndex = useSharedValue(-1);
@@ -88,6 +90,9 @@ export const AvatarStack: React.FC<AvatarStackProps> = ({
       <Pressable 
         onPressIn={handlePressIn}
         onPressOut={handlePressOut}
+        onPress={handleStackPress}
+        accessibilityRole={onPress ? 'button' : undefined}
+        accessibilityLabel={onPress ? 'View participants' : undefined}
       >
         <Animated.View style={[styles.avatarContainer, animatedStyle]}>
           {uri ? (

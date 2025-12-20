@@ -378,6 +378,7 @@ const WordHubDetailScreen = observer(({ navigation, route }: Props) => {
     return (
       <View style={[styles.container, { paddingTop: insets.top }]}>
         <ActivityIndicator color={theme.colors.primary} />
+        <Text style={styles.loadingCopy}>Loading Word Hub…</Text>
       </View>
     );
   }
@@ -386,6 +387,9 @@ const WordHubDetailScreen = observer(({ navigation, route }: Props) => {
     return (
       <View style={[styles.container, { paddingTop: insets.top }]}>
         <Text style={styles.errorText}>Failed to load hub</Text>
+        <TouchableOpacity style={styles.retryButtonInline} onPress={() => wordHubsStoreRef.current.fetchHubById(hubIdRef.current)}>
+          <Text style={styles.retryButtonText}>Try again</Text>
+        </TouchableOpacity>
       </View>
     );
   }
@@ -1060,6 +1064,23 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     ...theme.typography.body.sans,
     color: theme.colors.error,
     textAlign: 'center',
+  },
+  loadingCopy: {
+    ...theme.typography.body.sans,
+    color: theme.colors.text.secondary,
+    marginTop: theme.spacing.sm,
+  },
+  retryButtonInline: {
+    marginTop: theme.spacing.md,
+    paddingHorizontal: theme.spacing.lg,
+    paddingVertical: theme.spacing.sm,
+    borderRadius: theme.borderRadius.full,
+    backgroundColor: `${theme.colors.primary}15`,
+  },
+  retryButtonText: {
+    ...theme.typography.caption.primary,
+    color: theme.colors.primary,
+    fontWeight: '600',
   },
 });
 

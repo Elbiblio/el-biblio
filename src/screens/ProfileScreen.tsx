@@ -36,6 +36,7 @@ import { toast } from 'sonner-native';
 import { syncDailyNuggets, disableDailyNuggets } from '@/tasks/dailyNuggetOrchestrator';
 import { RefreshControl } from 'react-native';
 import { apiClient, endpoints } from '@/api/client';
+import { enableBiometric, disableBiometric, isBiometricEnabled } from '@/components/BiometricLock';
 
 const ProfileScreen = () => {
   const theme = useTheme();
@@ -48,6 +49,8 @@ const ProfileScreen = () => {
   const [isUpgradeSubmitting, setIsUpgradeSubmitting] = useState(false);
   const [upgradeError, setUpgradeError] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [biometricEnabled, setBiometricEnabled] = useState(false);
+  const [isBiometricLoading, setIsBiometricLoading] = useState(false);
 
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   
@@ -237,6 +240,39 @@ const ProfileScreen = () => {
       toast.error('Unable to update daily nuggets preference');
     }
   };
+
+  const handleToggleBiometric = async (enabled: boolean) => {
+    setIsBiometricLoading(true);
+    try {
+      if (enabled) {
+        const success = await enableBiometric();
+        if (success) {
+          setBiometricEnabled(true);
+          toast.success('Biometric authentication enabled');
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        } else {
+          toast.error('Biometric authentication not available on this device');
+          setBiometricEnabled(false);
+        }
+      } else {
+        await disableBiometric();
+        setBiometricEnabled(false);
+        toast.success('Biometric authentication disabled');
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
+    } catch (error) {
+      console.error('Failed to toggle biometric preference', error);
+      toast.error('Unable to update biometric preference');
+      setBiometricEnabled(false);
+    } finally {
+      setIsBiometricLoading(false);
+    }
+  };
+
+  // Load biometric preference on component mount
+  React.useEffect(() => {
+    isBiometricEnabled().then(setBiometricEnabled);
+  }, []);
 
   // Load user data on component mount
   React.useEffect(() => {
@@ -568,21 +604,6 @@ const ProfileScreen = () => {
           <ArrowRight size={18} color={theme.colors.text.secondary} />
         </TouchableOpacity>
 
-        {/* Habit Conquest Progress */}
-        <TouchableOpacity 
-          style={styles.leaderboardButton}
-          onPress={() => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            navigation.navigate('HabitConquestProgressScreen');
-          }}
-        >
-          <View style={styles.leaderboardIconContainer}>
-            <Shield size={20} color={theme.colors.text.inverse} />
-          </View>
-          <Text style={styles.leaderboardText}>Habit Conquest progress</Text>
-          <ArrowRight size={18} color={theme.colors.text.secondary} />
-        </TouchableOpacity>
-
         {/* Stats */}
         <View style={styles.sectionContainer}>
           <Text style={styles.sectionTitle}>Activity</Text>
@@ -659,6 +680,31 @@ const ProfileScreen = () => {
               thumbColor={showDailyNuggets ? theme.colors.text.inverse : theme.colors.text.secondary}
             />
           </View>
+        </View>
+
+        {/* Biometric Authentication */}
+        <View style={styles.sectionContainer}>
+          <View style={styles.switchRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.sectionTitle}>Biometric Authentication</Text>
+              <Text style={styles.sectionSubtitle}>
+                Require fingerprint or Face ID to access the app
+              </Text>
+            </View>
+            <Switch
+              value={biometricEnabled}
+              onValueChange={handleToggleBiometric}
+              trackColor={{ false: theme.colors.surfaceVariant, true: theme.colors.primary }}
+              thumbColor={biometricEnabled ? theme.colors.text.inverse : theme.colors.text.secondary}
+              disabled={isBiometricLoading}
+            />
+          </View>
+          {isBiometricLoading && (
+            <View style={styles.switchRow}>
+              <ActivityIndicator size="small" color={theme.colors.primary} />
+              <Text style={styles.sectionSubtitle}>Setting up biometric authentication...</Text>
+            </View>
+          )}
         </View>
 
         <View style={styles.sectionContainer}>
