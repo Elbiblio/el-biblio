@@ -99,7 +99,26 @@ const CARD_WIDTH = SCREEN_DIMENSIONS.width * 0.9;
 const QUICK_MENU_STORAGE_KEY = 'home_quick_menu_usage';
 const HOME_WELCOME_KEY = 'home_welcome_note_seen';
 const CAREER_SHORTCUT_STORAGE_KEY = 'career_discovery_shortcut_seen_v1';
+const SPIRITUAL_GUIDE_PROGRESS_KEY = 'spiritual_career_guide_progress';
 const WHAT_YOU_MISSED_LAST_PROMPT_KEY = 'what_you_missed_last_prompt_v1';
+
+type SpiritualCareerGuideStep = 'welcome' | 'archetypes' | 'distortions' | 'context' | 'tasks' | 'results';
+
+type SpiritualCareerProgress = {
+  currentStep?: SpiritualCareerGuideStep;
+  selectedArchetypes?: string[];
+  selectedIndustry?: string | null;
+  selectedRoleType?: string | null;
+};
+
+const CAREER_GUIDE_STEP_LABELS: Record<SpiritualCareerGuideStep, string> = {
+  welcome: 'Welcome',
+  distortions: 'Distortion Discovery',
+  archetypes: 'Archetype Wheel',
+  context: 'Work Context',
+  tasks: 'Challenge Recommendations',
+  results: 'Profile Summary',
+};
 const getUsageStage = (usage: QuickMenuUsage) => {
   if (usage.unlockedItems.includes('coreTools')) return 2;
   if (usage.meditationCount > 0 && usage.bibleCount > 0) return 1;
@@ -207,6 +226,8 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
   const [challengeFeedbackText, setChallengeFeedbackText] = useState('');
   const [feedbackTargetId, setFeedbackTargetId] = useState<string | null>(null);
   const [showCareerDiscoveryShortcut, setShowCareerDiscoveryShortcut] = useState(false);
+  const [guideProgress, setGuideProgress] = useState<SpiritualCareerProgress | null>(null);
+  const [isGuideProgressLoading, setIsGuideProgressLoading] = useState(true);
 
   const meditationComplete = route.params?.meditationComplete || false;
   // const challenge = route.params?.challenge;
@@ -557,14 +578,50 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
     } catch (error) {
       console.error('Error saving career shortcut state:', error);
     }
+    if (!guideProgress?.currentStep || guideProgress.currentStep === 'results') {
+      setGuideProgress(null);
+    }
     setShowCareerDiscoveryShortcut(false);
-    navigation.navigate('CareerDiscoveryScreen');
-  }, [navigation]);
+    navigation.navigate('SpiritualCareerGuideScreen');
+  }, [guideProgress?.currentStep, navigation]);
+
+  const refreshGuideProgress = useCallback(async () => {
+    try {
+      setIsGuideProgressLoading(true);
+      const saved = await AsyncStorage.getItem(SPIRITUAL_GUIDE_PROGRESS_KEY);
+      if (saved) {
+        setGuideProgress(JSON.parse(saved));
+      } else {
+        setGuideProgress(null);
+      }
+    } catch (error) {
+      console.warn('[HomeScreen] Failed to load guide progress', error);
+    } finally {
+      setIsGuideProgressLoading(false);
+    }
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      refreshGuideProgress();
+    }, [refreshGuideProgress])
+  );
 
   const renderCareerDiscoveryShortcut = () => {
-    if (!showCareerDiscoveryShortcut) {
+    const hasIncompleteProgress =
+      !!guideProgress?.currentStep && guideProgress.currentStep !== 'results';
+    if (!showCareerDiscoveryShortcut && !hasIncompleteProgress) {
       return null;
     }
+
+    const nextStepLabel = guideProgress?.currentStep
+      ? CAREER_GUIDE_STEP_LABELS[guideProgress.currentStep]
+      : CAREER_GUIDE_STEP_LABELS.welcome;
+    const primaryCta = hasIncompleteProgress ? 'Continue Guide' : 'Start Career Guide';
+    const subtitle = hasIncompleteProgress
+      ? `Pick up where you left off — next up: ${nextStepLabel}.`
+      : 'Take a short guide to see how your gifts and work fit into the Kingdom story.';
+    const archetypePreview = guideProgress?.selectedArchetypes?.slice(0, 3) ?? [];
 
     return (
       <View style={styles.careerShortcutCard}>
@@ -575,17 +632,49 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
           <View style={{ flex: 1 }}>
             <Text style={styles.careerShortcutTitle}>Discover your spiritual career</Text>
             <Text style={styles.careerShortcutSubtitle}>
-              Take a short guide to see how your gifts and work fit into the Kingdom story.
+              {subtitle}
             </Text>
           </View>
         </View>
+
+        {!isGuideProgressLoading && guideProgress && (
+          <View style={styles.careerProgressBlock}>
+            <View style={styles.careerProgressRow}>
+              <Text style={styles.careerProgressLabel}>Next step</Text>
+              <Text style={styles.careerProgressValue}>{nextStepLabel}</Text>
+            </View>
+
+            {archetypePreview.length > 0 && (
+              <View style={styles.careerProgressRow}>
+                <Text style={styles.careerProgressLabel}>Archetypes</Text>
+                <View style={styles.careerProgressArchetypes}>
+                  {archetypePreview.map(name => (
+                    <View key={name} style={styles.careerArchetypeChip}>
+                      <Text style={styles.careerArchetypeChipText}>{name}</Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            )}
+
+            {guideProgress?.selectedIndustry && guideProgress?.selectedRoleType && (
+              <View style={styles.careerProgressRow}>
+                <Text style={styles.careerProgressLabel}>Context</Text>
+                <Text style={styles.careerProgressValue}>
+                  {guideProgress.selectedRoleType} in {guideProgress.selectedIndustry}
+                </Text>
+              </View>
+            )}
+          </View>
+        )}
+
         <View style={styles.careerShortcutActions}>
           <TouchableOpacity
             style={styles.careerShortcutPrimary}
             activeOpacity={0.85}
             onPress={handleOpenCareerDiscovery}
           >
-            <Text style={styles.careerShortcutPrimaryText}>Start Career Guide</Text>
+            <Text style={styles.careerShortcutPrimaryText}>{primaryCta}</Text>
             <ChevronRight size={16} color={'#fff'} />
           </TouchableOpacity>
           <TouchableOpacity
@@ -2439,6 +2528,48 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     flexDirection: 'row',
     marginTop: theme?.spacing.sm,
     gap: theme?.spacing.sm,
+  },
+  careerProgressBlock: {
+    marginTop: theme?.spacing.md,
+    padding: theme?.spacing.md,
+    borderRadius: theme?.borderRadius.lg,
+    backgroundColor: `${theme?.colors.primary}0F`,
+    borderWidth: 1,
+    borderColor: `${theme?.colors.primary}2A`,
+    gap: theme?.spacing.sm,
+  },
+  careerProgressRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  careerProgressLabel: {
+    ...theme?.typography.caption.secondary,
+    color: theme?.colors.text.secondary,
+  },
+  careerProgressValue: {
+    ...theme?.typography.body.sans,
+    fontWeight: '600',
+    color: theme?.colors.text.primary,
+  },
+  careerProgressArchetypes: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: theme?.spacing.xs,
+    justifyContent: 'flex-end',
+    maxWidth: '65%',
+  },
+  careerArchetypeChip: {
+    paddingHorizontal: theme?.spacing.sm,
+    paddingVertical: 4,
+    borderRadius: theme?.borderRadius.full,
+    backgroundColor: `${theme?.colors.primary}08`,
+    borderWidth: 1,
+    borderColor: `${theme?.colors.primary}26`,
+  },
+  careerArchetypeChipText: {
+    ...theme?.typography.caption.primary,
+    color: theme?.colors.text.primary,
   },
   careerShortcutPrimary: {
     flex: 1,

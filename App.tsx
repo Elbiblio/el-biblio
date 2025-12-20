@@ -40,6 +40,7 @@ import LeaderboardScreen from './src/screens/LeaderboardScreen';
 import GameScreen from './src/screens/GameScreen';
 import SpiritualCareerScreen from './src/screens/SpiritualCareerScreen';
 import CareerDiscoveryScreen from './src/screens/CareerDiscoveryScreen';
+import SpiritualCareerGuideScreen from './src/screens/SpiritualCareerGuideScreen';
 import CareerHistoricMeditationScreen from './src/screens/CareerHistoricMeditationScreen';
 import RegistrationScreen from './src/screens/RegistrationScreen';
 import CommunityScreen from './src/screens/CommunityScreen';
@@ -193,6 +194,7 @@ const NavigationContent: React.FC<NavigationContentProps> = ({ showChallengeBann
         <Stack.Screen name="GameScreen" component={GameScreen} />
         <Stack.Screen name="SpiritualCareerScreen" component={SpiritualCareerScreen} />
         <Stack.Screen name="CareerDiscoveryScreen" component={CareerDiscoveryScreen} />
+        <Stack.Screen name="SpiritualCareerGuideScreen" component={SpiritualCareerGuideScreen} />
         <Stack.Screen
           name="CareerHistoricMeditationScreen"
           component={CareerHistoricMeditationScreen}

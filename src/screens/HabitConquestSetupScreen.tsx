@@ -8,6 +8,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useDailyPathStore } from '@/stores/StoreProvider';
 import { ChevronLeft, Plus, Check } from '@/components/Icons';
 import { scheduleHabitConquestReminders } from '@/tasks/habitConquestReminderScheduler';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const VICES = [
   'Laziness & neglect',
@@ -82,6 +83,15 @@ const HabitConquestSetupScreen: React.FC = () => {
     dailyPathStore.setHabitConquestDoor(door?.trim() ? door.trim() : null);
     dailyPathStore.setHabitConquestPledge(pledge?.trim() ? pledge.trim() : null);
 
+    // Reset any existing session state to ensure fresh start
+    try {
+      const today = new Date().toISOString().slice(0, 10);
+      await AsyncStorage.removeItem(`hc_session_state_${today}`);
+      await AsyncStorage.removeItem(`hc_sessions_${today}`);
+    } catch (e) {
+      console.warn('[HabitConquestSetup] Failed to reset session state:', e);
+    }
+
     try {
       await scheduleHabitConquestReminders(split, vice, minutes, 30);
     } catch (e) {
@@ -89,7 +99,7 @@ const HabitConquestSetupScreen: React.FC = () => {
     }
 
     navigation.navigate('HabitConquestSessionScreen' as any);
-  }, [dailyPathStore, vice, minutes, split, phases, navigation]);
+  }, [dailyPathStore, vice, minutes, split, phases, door, pledge, navigation]);
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>

@@ -20,13 +20,15 @@ import { BlurView } from 'expo-blur';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { observer } from 'mobx-react-lite';
-import { ArrowLeft, MessageCircle, Send } from '../components/Icons';
+import { ArrowLeft, MessageCircle, Send, Share } from '../components/Icons';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { Comment, RootStackParamList } from '../types';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuthStore, useReflectionStore } from '@/stores/StoreProvider';
 import ReflectionCard from '../components/ReflectionCard';
 import CommentThread from '../components/CommentThread';
+import ShareReflectionModal from '../components/ShareReflectionModal';
+import VerseContext from '../components/VerseContext';
 import { Theme } from '@/theme';
 import EmptyState from '@/components/EmptyState';
 
@@ -43,6 +45,7 @@ const ReflectionDetail = observer(({ navigation, route }: ReflectionDetailProps)
   const [showCommentInput, setShowCommentInput] = useState(false);
   const [commentText, setCommentText] = useState('');
   const [replyingTo, setReplyingTo] = useState<Comment | null>(null);
+  const [showShareModal, setShowShareModal] = useState(false);
 
   // Destructure from MobX store
   const {
@@ -65,13 +68,13 @@ const ReflectionDetail = observer(({ navigation, route }: ReflectionDetailProps)
 
   // Load comments on mount and clear errors on unmount
   useEffect(() => {
-    if (reflection?.id && !reflection?.media_url) {
+    if (reflection?.id) {
       fetchComments(reflection.id, 1);
     }
     return () => {
       clearErrors();
     };
-  }, [reflection?.id, reflection?.media_url, fetchComments, clearErrors]);
+  }, [reflection?.id, fetchComments, clearErrors]);
 
   // Handle refresh
   const handleRefresh = async () => {
@@ -84,6 +87,8 @@ const ReflectionDetail = observer(({ navigation, route }: ReflectionDetailProps)
   const handleSubmitComment = async () => {
     if (!commentText.trim() || !reflection?.id || !user?.id) return;
 
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    
     const success = await createComment({
       reflection_id: reflection.id,
       content: commentText.trim(),
@@ -95,11 +100,15 @@ const ReflectionDetail = observer(({ navigation, route }: ReflectionDetailProps)
       setCommentText('');
       setReplyingTo(null);
       setShowCommentInput(false);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } else {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     }
   };
 
   // Handle like comment
   const handleLikeComment = async (commentId: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     await likeComment(commentId);
   };
 
@@ -142,7 +151,7 @@ const ReflectionDetail = observer(({ navigation, route }: ReflectionDetailProps)
     );
   }
 
-  if (reflection?.media_url) {
+  if (reflection?.media_url && !reflection.content) {
     return (
       <View style={[styles.container, { paddingTop: insets.top }]}>
         <Animated.View style={[styles.navigationHeader, headerStyle]}>
@@ -160,8 +169,8 @@ const ReflectionDetail = observer(({ navigation, route }: ReflectionDetailProps)
         </Animated.View>
         <ScrollView style={styles.mainContent} contentContainerStyle={styles.scrollContent}>
           <EmptyState
-            title="Not available"
-            message="This reflection is not available."
+            title="Media reflection"
+            message="This reflection contains media content only."
           />
         </ScrollView>
       </View>
@@ -183,6 +192,15 @@ const ReflectionDetail = observer(({ navigation, route }: ReflectionDetailProps)
         <View style={styles.navigationTitle}>
           <Text style={styles.navigationText}>Reflection</Text>
         </View>
+        <TouchableOpacity
+          style={styles.shareButton}
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            setShowShareModal(true);
+          }}
+        >
+          <Share size={20} color={theme.colors.text.secondary} />
+        </TouchableOpacity>
       </Animated.View>
 
       {/* Main Content */}
@@ -196,6 +214,9 @@ const ReflectionDetail = observer(({ navigation, route }: ReflectionDetailProps)
       >
         {/* Reflection Card */}
         <View style={styles.headerContainer}>
+          {/* Verse Context */}
+          <VerseContext verse={reflection.verse || null} />
+          
           <ReflectionCard
             reflection={reflection}
             scrollX={scrollX}
@@ -210,9 +231,16 @@ const ReflectionDetail = observer(({ navigation, route }: ReflectionDetailProps)
         {/* Comments Section */}
         <View style={styles.commentsSection}>
           <View style={styles.commentsHeader}>
-            <Text style={styles.commentsTitle}>
-              Comments {comments.length > 0 && `(${comments.length})`}
-            </Text>
+            <View style={styles.commentsTitleContainer}>
+              <Text style={styles.commentsTitle}>
+                Comments {comments.length > 0 && `(${comments.length})`}
+              </Text>
+              {reflection.verse?.theme && (
+                <Text style={styles.commentsGuidance}>
+                  How does {reflection.verse.reference_display} speak to you?
+                </Text>
+              )}
+            </View>
             <TouchableOpacity
               style={styles.addCommentButton}
               onPress={() => {
@@ -238,12 +266,21 @@ const ReflectionDetail = observer(({ navigation, route }: ReflectionDetailProps)
               </TouchableOpacity>
             </View>
           ) : comments.length === 0 ? (
-            <EmptyState
-              title="No comments yet"
-              message="Be the first to share your thoughts."
-              ctaText="Add a comment"
-              onPressCTA={() => setShowCommentInput(true)}
-            />
+            <View style={styles.emptyComments}>
+              <EmptyState
+                title="No comments yet"
+                message={
+                  reflection.verse?.theme 
+                    ? `Share how ${reflection.verse.reference_display} resonates with your spiritual journey.`
+                    : "Be the first to share your thoughts on this reflection."
+                }
+                ctaText="Add a comment"
+                onPressCTA={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  setShowCommentInput(true);
+                }}
+              />
+            </View>
           ) : (
             <View style={styles.commentsList}>
               {comments.map((comment: Comment) => (
@@ -262,6 +299,13 @@ const ReflectionDetail = observer(({ navigation, route }: ReflectionDetailProps)
         {/* Bottom Spacing */}
         <View style={{ height: theme.spacing.xl * 2 + (insets.bottom || 0) }} />
       </ScrollView>
+
+      {/* Share Modal */}
+      <ShareReflectionModal
+        visible={showShareModal}
+        reflection={reflection}
+        onClose={() => setShowShareModal(false)}
+      />
 
       {/* Comment Input */}
       {showCommentInput && (
@@ -356,11 +400,15 @@ const createStyles = (theme: Theme) => StyleSheet.create({
   navigationTitle: {
     flex: 1,
     alignItems: 'center',
-    marginRight: 40, // To center the title accounting for the back button
+    marginRight: 80, // To center the title accounting for back button and share button
   },
   navigationText: {
     ...theme.typography.heading.small,
     color: theme.colors.text.primary,
+  },
+  shareButton: {
+    padding: theme.spacing.sm,
+    borderRadius: theme.borderRadius.full,
   },
   mainContent: {
     flex: 1,
@@ -381,18 +429,29 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     backgroundColor: theme.colors.surface,
     borderTopLeftRadius: theme.borderRadius.xl,
     borderTopRightRadius: theme.borderRadius.xl,
-    paddingTop: theme.spacing.lg,
+    paddingTop: theme.spacing.xl,
+    marginTop: theme.spacing.sm,
   },
   commentsHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: theme.spacing.md,
-    marginBottom: theme.spacing.md,
+    alignItems: 'flex-start',
+    paddingHorizontal: theme.spacing.lg,
+    marginBottom: theme.spacing.lg,
+  },
+  commentsTitleContainer: {
+    flex: 1,
+    marginRight: theme.spacing.md,
   },
   commentsTitle: {
     ...theme.typography.heading.medium,
     color: theme.colors.text.primary,
+    marginBottom: 2,
+  },
+  commentsGuidance: {
+    ...theme.typography.caption.secondary,
+    color: theme.colors.text.secondary,
+    fontStyle: 'italic',
   },
   addCommentButton: {
     flexDirection: 'row',
@@ -424,7 +483,7 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     color: theme.colors.text.secondary,
   },
   commentsList: {
-    paddingHorizontal: theme.spacing.md,
+    paddingHorizontal: theme.spacing.lg,
   },
   commentInputContainer: {
     position: 'absolute',

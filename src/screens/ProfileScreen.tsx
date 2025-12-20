@@ -134,14 +134,9 @@ const ProfileScreen = () => {
         endpoints.users.activity(user.id),
         { include: ['subject'], per_page: 10 }
       );
+      // Standard API response format: {success: true, data: Activity[], message: string}
       const payload: any = response.data;
-      const list: Activity[] = Array.isArray(payload)
-        ? payload
-        : Array.isArray(payload?.data)
-        ? payload.data
-        : Array.isArray(payload?.data?.data)
-        ? payload.data.data
-        : [];
+      const list: Activity[] = Array.isArray(payload?.data) ? payload.data : [];
       setRecentActivity(list);
     } catch (error) {
       console.error('Error fetching recent activity:', error);

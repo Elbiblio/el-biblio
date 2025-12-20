@@ -110,6 +110,7 @@ const HabitConquestSessionScreen: React.FC<Props> = ({ navigation }) => {
   const [initSummaries, setInitSummaries] = useState<any[] | undefined>(undefined);
   const [showInlineAcc, setShowInlineAcc] = useState(false);
   const [promptText, setPromptText] = useState('');
+  const [timeOfDay, setTimeOfDay] = useState<'morning'|'afternoon'|'evening'|'night'>('morning');
   const promptTimersRef = React.useRef<number[]>([]);
 
   useEffect(() => {
@@ -117,6 +118,15 @@ const HabitConquestSessionScreen: React.FC<Props> = ({ navigation }) => {
       setShowIntro(true);
     }
   }, [dailyPathStore.state.hasSeenHabitConquestIntro]);
+
+  // Determine time of day for contextual messaging
+  useEffect(() => {
+    const hour = new Date().getHours();
+    if (hour >= 5 && hour < 12) setTimeOfDay('morning');
+    else if (hour >= 12 && hour < 17) setTimeOfDay('afternoon');
+    else if (hour >= 17 && hour < 21) setTimeOfDay('evening');
+    else setTimeOfDay('night');
+  }, []);
 
   useEffect(() => {
     const loadSessionData = async () => {
@@ -150,6 +160,35 @@ const HabitConquestSessionScreen: React.FC<Props> = ({ navigation }) => {
     setShowInlineAcc(false);
     // Do not show accountability on session start; handle after session completes.
   }, [showIntro]);
+
+  // Cleanup on unmount: stop all speech and timers
+  useEffect(() => {
+    return () => {
+      Speech.stop();
+      for (const id of promptTimersRef.current) {
+        try { clearTimeout(id as any); } catch {}
+      }
+      promptTimersRef.current = [];
+    };
+  }, []);
+
+  const getContextualWelcome = useCallback(() => {
+    const greetings = {
+      morning: 'Good morning',
+      afternoon: 'Good afternoon',
+      evening: 'Good evening',
+      night: 'Welcome back'
+    };
+    const greeting = greetings[timeOfDay];
+    
+    if (completedSessionsToday === 0) {
+      return `${greeting}. Ready to begin your healing journey today?`;
+    } else if (completedSessionsToday < sessionsCount) {
+      return `${greeting}. You've completed ${completedSessionsToday} of ${sessionsCount} sessions today. Keep going!`;
+    } else {
+      return `${greeting}. You've completed all sessions for today. Well done!`;
+    }
+  }, [timeOfDay, completedSessionsToday, sessionsCount]);
 
   const getGuideForPhase = useCallback((phaseId: string) => {
     switch (phaseId) {
@@ -188,7 +227,7 @@ const HabitConquestSessionScreen: React.FC<Props> = ({ navigation }) => {
       Speech.speak(text, {
         language: 'en',
         pitch: 1.0,
-        rate: 0.85,
+        rate: 0.7,
       });
     }
   }, [voiceEnabled]);
@@ -212,6 +251,7 @@ const HabitConquestSessionScreen: React.FC<Props> = ({ navigation }) => {
     const startP = prompts.find(p => p.timing === 'start');
     const midP = prompts.find(p => p.timing === 'middle');
     const endP = prompts.find(p => p.timing === 'end');
+    
     if (startP) {
       const tid = setTimeout(() => setPromptText(startP.text), 0) as unknown as number;
       promptTimersRef.current.push(tid);
@@ -306,12 +346,20 @@ const HabitConquestSessionScreen: React.FC<Props> = ({ navigation }) => {
       {currentPhaseLabel && (
         <View style={styles.phaseIndicator}>
           <Text style={styles.phaseLabel}>{currentPhaseLabel}</Text>
-          <Text style={styles.phaseInstruction}>{getPhaseInstructions(scaledPhasesRaw.find(p => p.label === currentPhaseLabel)?.id || '')}</Text>
+          <Text style={styles.phaseInstruction}>{promptText || getPhaseInstructions(scaledPhasesRaw.find(p => p.label === currentPhaseLabel)?.id || '')}</Text>
         </View>
       )}
 
       {!showIntro && !startNow && !showResumePrompt && !showInlineAcc && (
-        <View style={{ paddingHorizontal: 16 }}>
+        <View style={{ paddingHorizontal: 16, gap: 12 }}>
+          <View style={styles.welcomeCard}>
+            <Text style={styles.welcomeText}>{getContextualWelcome()}</Text>
+            {completedSessionsToday > 0 && (
+              <Text style={styles.sessionProgressText}>
+                Session {completedSessionsToday + 1} of {sessionsCount}
+              </Text>
+            )}
+          </View>
           <TouchableOpacity style={styles.accPrimary} onPress={() => setStartNow(true)}>
             <Text style={styles.accPrimaryText}>Begin Session</Text>
           </TouchableOpacity>
@@ -320,38 +368,8 @@ const HabitConquestSessionScreen: React.FC<Props> = ({ navigation }) => {
 
       {startNow && !showInlineAcc && (
         <View style={styles.promptCard}>
-          <Text style={styles.promptTitle}>Guide</Text>
-          <Text style={styles.promptText}>{promptText}</Text>
-          <View style={styles.suggestionList}>
-            {(() => {
-              const id = scaledPhasesRaw.find(p => p.label === currentPhaseLabel)?.id;
-              const v = hc?.vice || '';
-              const door = hc?.doorOfSin || '';
-              const pledge = hc?.pledgeGood || '';
-              const items: string[] = [];
-              if (id === 'affirmation') {
-                if (v) items.push(`I am not my ${v.toLowerCase()}; I belong to Christ.`);
-                if (pledge) items.push(`Today I will ${pledge.toLowerCase()}.`);
-                items.push('I am a beloved child of God.');
-              } else if (id === 'meditation') {
-                items.push('Breathe in 4, out 6.');
-                if (door) items.push(`If thoughts of ${door.toLowerCase()} arise, notice and release.`);
-                items.push('Return attention gently without judgment.');
-              } else if (id === 'mercy') {
-                items.push('Lord, have mercy on me in my weakness.');
-                if (v) items.push(`Strengthen me where ${v.toLowerCase()} tempts me.`);
-              } else if (id === 'forgiveness') {
-                if (v) items.push(`Father, I confess ${v.toLowerCase()}. I receive Your forgiveness.`);
-                items.push('I release all shame to the Cross.');
-              } else if (id === 'thanksgiving') {
-                items.push('Thank You for today’s small victories.');
-                if (pledge) items.push(`Thank You for the grace to ${pledge.toLowerCase()}.`);
-              }
-              return items.map((t, i) => (
-                <Text key={i} style={styles.suggestionItem}>• {t}</Text>
-              ));
-            })()}
-          </View>
+          <Text style={styles.promptTitle}>Current Guidance</Text>
+          <Text style={styles.promptText}>{promptText || 'Preparing your guidance...'}</Text>
         </View>
       )}
 
@@ -386,7 +404,7 @@ const HabitConquestSessionScreen: React.FC<Props> = ({ navigation }) => {
               {introStep < 2 ? (
                 <>
                   <TouchableOpacity onPress={() => setShowIntro(false)} style={styles.introSkip}>
-                    <Text style={styles.modalPrimaryText}>Skip</Text>
+                    <Text style={styles.introSkipText}>Skip</Text>
                   </TouchableOpacity>
                   <TouchableOpacity onPress={() => setIntroStep(s => s + 1)} style={styles.introNext}>
                     <Text style={styles.modalPrimaryText}>Next</Text>
@@ -427,6 +445,10 @@ const HabitConquestSessionScreen: React.FC<Props> = ({ navigation }) => {
         onStart={handleStart}
         onPhaseComplete={handlePhaseComplete}
         onAllPhasesComplete={async () => {
+          // Stop all voice prompts and timers immediately
+          Speech.stop();
+          clearPromptTimers();
+          
           const newCount = completedSessionsToday + 1;
           setCompletedSessionsToday(newCount);
           try {
@@ -614,6 +636,7 @@ const createStyles = (theme: ReturnType<typeof useTheme>) => StyleSheet.create({
   modalActions: { marginTop: 16 },
   modalPrimary: { backgroundColor: theme.colors.primary, borderRadius: 12, paddingVertical: 10, alignItems: 'center' },
   modalPrimaryText: { color: theme.colors.text.inverse, fontWeight: '700' },
+  introSkipText: { color: theme.colors.text.primary, fontWeight: '700' },
   introTitle: { color: theme.colors.text.primary, fontWeight: '800', fontSize: 18, marginBottom: 8 },
   introText: { color: theme.colors.text.secondary, marginBottom: 12 },
   introActions: { flexDirection: 'row', gap: 12, justifyContent: 'flex-end', marginTop: 8 },
@@ -650,8 +673,9 @@ const createStyles = (theme: ReturnType<typeof useTheme>) => StyleSheet.create({
   promptCard: { marginHorizontal: 16, marginBottom: 12, padding: 14, borderRadius: 12, backgroundColor: theme.colors.surface, borderWidth: StyleSheet.hairlineWidth, borderColor: theme.colors.border },
   promptTitle: { color: theme.colors.text.primary, fontWeight: '700', marginBottom: 6 },
   promptText: { color: theme.colors.text.secondary },
-  suggestionList: { marginTop: 8, gap: 4 },
-  suggestionItem: { color: theme.colors.text.secondary },
+  welcomeCard: { padding: 16, borderRadius: 12, backgroundColor: theme.colors.surface, borderWidth: StyleSheet.hairlineWidth, borderColor: theme.colors.border },
+  welcomeText: { color: theme.colors.text.primary, fontSize: 16, lineHeight: 22, marginBottom: 8 },
+  sessionProgressText: { color: theme.colors.text.secondary, fontSize: 14, fontWeight: '600' },
 });
 
 export default HabitConquestSessionScreen;

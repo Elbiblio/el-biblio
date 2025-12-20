@@ -1,5 +1,5 @@
-import React, { useCallback, useMemo } from 'react';
-import { View, Text, TouchableOpacity } from 'react-native';
+import React, { useCallback, useMemo, useState, useRef } from 'react';
+import { View, Text, TouchableOpacity, Modal, Dimensions } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { MaterialIcons } from '@expo/vector-icons';
 import { observer } from 'mobx-react-lite';
@@ -30,6 +30,9 @@ export const BibleHeader = observer(({
   onHistoryPress,
   isOffline,
 }: BibleHeaderProps) => {
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
+  const [menuPosition, setMenuPosition] = useState({ x: 0, y: 0 });
+  const moreButtonRef = useRef<View>(null);
   const theme = useTheme();
   const styles = useMemo(() => createBibleStyles(theme), [theme]);
   const bibleStore = useBibleStore();
@@ -48,6 +51,29 @@ export const BibleHeader = observer(({
   const handleInlineChapterSelect = useCallback((chapter: number) => {
     bibleStore.setCurrentChapter(chapter);
   }, [bibleStore]);
+
+  const openMoreMenu = useCallback(() => {
+    moreButtonRef.current?.measure((x, y, width, height, pageX, pageY) => {
+      const screenWidth = Dimensions.get('window').width;
+      const menuWidth = 160;
+      const menuHeight = 100;
+      
+      // Position menu below the button, aligned to the right edge
+      let menuX = pageX + width - menuWidth;
+      let menuY = pageY + height + 8;
+      
+      // Ensure menu doesn't go off screen edges
+      if (menuX < theme.spacing.md) {
+        menuX = theme.spacing.md;
+      }
+      if (menuX + menuWidth > screenWidth - theme.spacing.md) {
+        menuX = screenWidth - menuWidth - theme.spacing.md;
+      }
+      
+      setMenuPosition({ x: menuX, y: menuY });
+      setShowMoreMenu(true);
+    });
+  }, [theme.spacing.md]);
 
   const baseBooks = (bibleStore.filteredBooks as unknown as Book[]) || [];
   const selectorBooks =
@@ -86,41 +112,29 @@ export const BibleHeader = observer(({
           )}
 
           <View style={styles.inlineSelectors}>
-            <View style={styles.testamentToggle}>
-              {(['all', 'ot', 'nt'] as const).map(key => (
-                <TouchableOpacity
-                  key={key}
-                  style={[
-                    styles.testamentOption,
-                    testamentFilter === key && styles.testamentOptionActive,
-                  ]}
-                  onPress={() => {
-                    if (key !== 'all') {
-                      const nextBooks = baseBooks.filter(book =>
-                        key === 'nt'
-                          ? isNewTestamentAbbr(book.abbreviation)
-                          : !isNewTestamentAbbr(book.abbreviation)
-                      );
-                      if (nextBooks.length > 0) {
-                        const target = nextBooks[0];
-                        bibleStore.setCurrentBook(target as any);
-                        bibleStore.setCurrentChapter(1);
-                      }
-                    }
-                    onTestamentFilterChange(key);
-                  }}
-                >
-                  <Text
-                    style={[
-                      styles.testamentOptionText,
-                      testamentFilter === key && styles.testamentOptionTextActive,
-                    ]}
-                  >
-                    {key === 'all' ? 'All' : key === 'ot' ? 'OT' : 'NT'}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
+            <TouchableOpacity
+              style={styles.testamentToggle}
+              onPress={() => {
+                const next = testamentFilter === 'all' ? 'ot' : testamentFilter === 'ot' ? 'nt' : 'all';
+                if (next !== 'all') {
+                  const nextBooks = baseBooks.filter(book =>
+                    next === 'nt'
+                      ? isNewTestamentAbbr(book.abbreviation)
+                      : !isNewTestamentAbbr(book.abbreviation)
+                  );
+                  if (nextBooks.length > 0) {
+                    const target = nextBooks[0];
+                    bibleStore.setCurrentBook(target as any);
+                    bibleStore.setCurrentChapter(1);
+                  }
+                }
+                onTestamentFilterChange(next);
+              }}
+            >
+              <Text style={styles.testamentOptionText}>
+                {testamentFilter === 'all' ? 'All' : testamentFilter === 'ot' ? 'OT' : 'NT'}
+              </Text>
+            </TouchableOpacity>
 
             <BookSelector
               currentBook={currentBookForSelector}
@@ -137,22 +151,60 @@ export const BibleHeader = observer(({
 
         <View style={styles.headerRight}>
           <TouchableOpacity
+            ref={moreButtonRef}
             style={styles.iconButton}
-            onPress={onSearchPress}
-          >
-            <MaterialIcons name="search" size={24} color={theme.colors.text.primary} />
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.iconButton}
-            onPress={onHistoryPress}
-            accessibilityLabel="Open history"
+            onPress={openMoreMenu}
+            accessibilityLabel="More options"
             accessibilityRole="button"
           >
-            <MaterialIcons name="history" size={24} color={theme.colors.text.primary} />
+            <MaterialIcons name="more-vert" size={24} color={theme.colors.text.primary} />
           </TouchableOpacity>
         </View>
       </BlurView>
+
+      <Modal
+        visible={showMoreMenu}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowMoreMenu(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowMoreMenu(false)}
+        >
+          <View style={[
+            styles.moreMenu,
+            {
+              backgroundColor: theme.colors.surface,
+              position: 'absolute',
+              left: menuPosition.x,
+              top: menuPosition.y,
+            }
+          ]}>
+            <TouchableOpacity
+              style={styles.moreMenuItem}
+              onPress={() => {
+                setShowMoreMenu(false);
+                onSearchPress();
+              }}
+            >
+              <MaterialIcons name="search" size={20} color={theme.colors.text.primary} />
+              <Text style={styles.moreMenuItemText}>Search</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.moreMenuItem}
+              onPress={() => {
+                setShowMoreMenu(false);
+                onHistoryPress();
+              }}
+            >
+              <MaterialIcons name="history" size={20} color={theme.colors.text.primary} />
+              <Text style={styles.moreMenuItemText}>History</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </View>
   );
 });

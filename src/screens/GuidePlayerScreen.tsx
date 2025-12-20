@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions, Linking, Image } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions, Linking, Image, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { observer } from 'mobx-react-lite';
@@ -341,16 +341,26 @@ const GuidePlayerScreen = ({ navigation, route }: GuidePlayerScreenProps) => {
     return (
       <View>
         {renderBlocks(cfg.blocks)}
-        {(cfg.sections || []).map((s) => (
-          <View key={s.id} style={styles.card}>
-            <Text style={styles.cardTitle}>{s.title}</Text>
-            <Text style={styles.cardBody}>{s.body}</Text>
+        {(cfg.sections || []).map((s, index) => (
+          <View key={s.id} style={styles.sectionCard}>
+            <View style={styles.sectionHeader}>
+              <View style={styles.sectionNumber}>
+                <Text style={styles.sectionNumberText}>{index + 1}</Text>
+              </View>
+              <Text style={styles.sectionTitle}>{s.title}</Text>
+            </View>
+            <Text style={styles.sectionBody}>{s.body}</Text>
           </View>
         ))}
         {cfg.reflectionPrompt ? (
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Reflect</Text>
-            <Text style={styles.cardBody}>{cfg.reflectionPrompt}</Text>
+          <View style={styles.reflectionCard}>
+            <View style={styles.reflectionHeader}>
+              <View style={styles.reflectionIcon}>
+                <Text style={styles.reflectionIconText}>💭</Text>
+              </View>
+              <Text style={styles.reflectionTitle}>Take a moment to reflect</Text>
+            </View>
+            <Text style={styles.reflectionPrompt}>{cfg.reflectionPrompt}</Text>
           </View>
         ) : null}
       </View>
@@ -701,6 +711,95 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     height: 1,
     backgroundColor: theme.colors.border,
     marginVertical: theme.spacing.xs,
+  },
+  sectionCard: {
+    padding: theme.spacing.lg,
+    borderRadius: theme.borderRadius.xl,
+    backgroundColor: theme.colors.surface,
+    borderWidth: 1,
+    borderColor: `${theme.colors.border}90`,
+    marginBottom: theme.spacing.lg,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: {
+          width: 0,
+          height: 2,
+        },
+        shadowOpacity: 0.08,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: theme.spacing.md,
+    gap: theme.spacing.sm,
+  },
+  sectionNumber: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: theme.colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sectionNumberText: {
+    ...theme.typography.caption.primary,
+    color: theme.colors.text.inverse,
+    fontWeight: '700',
+    fontSize: 14,
+  },
+  sectionTitle: {
+    ...theme.typography.heading.small,
+    color: theme.colors.text.primary,
+    flex: 1,
+    fontWeight: '700',
+  },
+  sectionBody: {
+    ...theme.typography.body.sans,
+    color: theme.colors.text.secondary,
+    lineHeight: 22,
+  },
+  reflectionCard: {
+    padding: theme.spacing.lg,
+    borderRadius: theme.borderRadius.xl,
+    backgroundColor: `${theme.colors.primary}08`,
+    borderWidth: 1,
+    borderColor: `${theme.colors.primary}20`,
+    marginBottom: theme.spacing.lg,
+  },
+  reflectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: theme.spacing.md,
+    gap: theme.spacing.sm,
+  },
+  reflectionIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: `${theme.colors.primary}15`,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  reflectionIconText: {
+    fontSize: 20,
+  },
+  reflectionTitle: {
+    ...theme.typography.heading.small,
+    color: theme.colors.text.primary,
+    fontWeight: '700',
+  },
+  reflectionPrompt: {
+    ...theme.typography.body.sans,
+    color: theme.colors.text.secondary,
+    lineHeight: 22,
+    fontStyle: 'italic',
   },
 });
 

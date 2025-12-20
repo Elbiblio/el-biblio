@@ -336,8 +336,22 @@ const MyJourneyScreen = observer(() => {
 
 const formatActivityTitle = (activity: JourneyActivity): string => {
   if (!activity) return "Activity"
-  const typeText = activity.type ? String(activity.type) : "Activity"
-  const subject = activity.metadata?.title || activity.subject_type || ""
+  const typeText = activity.type?.name || activity.type?.headline || "Activity"
+  
+  // Handle different subject types properly
+  let subject = ""
+  if (activity.metadata?.title) {
+    subject = activity.metadata.title
+  } else if (activity.subject_type) {
+    // Convert backend model names to readable format
+    if (activity.subject_type === "App\\Models\\GameScore") {
+      subject = "Game Score"
+    } else {
+      // Remove App\Models\ prefix and convert to title case
+      subject = activity.subject_type.replace("App\\Models\\", "").replace(/([A-Z])/g, ' $1').trim()
+    }
+  }
+  
   return subject ? `${typeText}: ${subject}` : typeText
 }
 

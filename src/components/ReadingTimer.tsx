@@ -176,12 +176,41 @@ const ReadingTimer: React.FC<ReadingTimerProps> = ({
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     } catch {}
 
+    // If we're on the last phase, trigger completion instead of advancing
+    if (currentPhaseIndex >= phases.length - 1) {
+      if (timerId) {
+        appTimerStore.completeAll(timerId);
+        // Ensure completion callback is triggered immediately
+        const totalElapsed = phaseSummaries.reduce((sum, s) => sum + s.elapsedSeconds, 0);
+        const phaseSummariesCopy = phaseSummaries.map(s => ({
+          id: s.id as PhaseProgress['id'],
+          label: s.label,
+          plannedSeconds: Math.max(0, s.plannedSeconds),
+          elapsedSeconds: Math.max(0, s.elapsedSeconds),
+        }));
+        // Small delay to ensure state is updated before calling callback
+        setTimeout(() => onAllPhasesComplete?.(totalElapsed, phaseSummariesCopy), 100);
+      } else {
+        // For non-timerId mode, trigger completion callback directly
+        const totalElapsed = phaseSummaries.reduce((sum, s) => sum + s.elapsedSeconds, 0);
+        const phaseSummariesCopy = phaseSummaries.map(s => ({
+          id: s.id as PhaseProgress['id'],
+          label: s.label,
+          plannedSeconds: Math.max(0, s.plannedSeconds),
+          elapsedSeconds: Math.max(0, s.elapsedSeconds),
+        }));
+        onAllPhasesComplete?.(totalElapsed, phaseSummariesCopy);
+      }
+      return;
+    }
+
+    // Normal phase advancement
     if (timerId) {
       appTimerStore.advancePhase(timerId);
     } else {
       setCurrentPhaseIndex(prev => prev + 1);
     }
-  }, [timerId]);
+  }, [timerId, currentPhaseIndex, phases.length, phaseSummaries, onAllPhasesComplete]);
 
   const handleStart = useCallback(async () => {
     try {

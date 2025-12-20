@@ -176,7 +176,7 @@ export class ReflectionStore {
       });
 
       const response = await apiClient.get<Reflection>(endpoints.reflections.show(id), {
-        include: ['user', 'verse', 'comments.user', 'comments.replies.user'],
+        include: ['user', 'verse', 'verse.theme', 'comments.user', 'comments.replies.user'],
       });
       if (!response || !response.success || !response.data) {
         const err: any = new Error(response?.message || 'Failed to fetch reflection');

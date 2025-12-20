@@ -397,6 +397,7 @@ export interface Reflection {
   user_id: string;
   user: User;
   verse_id: string;
+  verse?: Verse; // Include verse data when loaded
   content: string;
   type: ReflectionType;
   icon?: string;
@@ -514,11 +515,32 @@ export interface Activity {
   user_id: string;
   subject_type: string;
   subject_id: string;
-  type: ActivityType;
-  points_earned: number;
+  type: {
+    value: number;
+    name: string;
+    headline: string;
+    icon: string;
+    tone: string;
+  };
+  points: {
+    value: number;
+    label: string;
+  };
   metadata?: any;
   created_at: string;
   updated_at: string;
+  user?: User;
+  subject?: any;
+  bookmarks?: any[];
+  notifications?: any[];
+  userInteractions?: any[];
+  meta?: {
+    created_at_formatted: string;
+    updated_at_formatted: string;
+    summary?: any;
+    headline: string;
+    actor: string;
+  };
 }
 
 export interface Bookmark {
@@ -743,6 +765,7 @@ export type RootStackParamList = {
   ForgivenessScreen: undefined;
   HolySpiritScreen: undefined;
   CareerDiscoveryScreen: undefined;
+  SpiritualCareerGuideScreen: undefined;
   CareerHistoricMeditationScreen: undefined;
   GuidePlayerScreen: { guideId: string; startAtStepId?: string };
   FeatureSuggestionsScreen: undefined;

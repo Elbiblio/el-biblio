@@ -42,6 +42,32 @@ export const createBibleStyles = (theme: Theme) => StyleSheet.create({
   iconButton: {
     padding: theme.spacing.sm,
   },
+  modalOverlay: {
+    flex: 1,
+  },
+  moreMenu: {
+    borderRadius: theme.borderRadius.lg,
+    padding: theme.spacing.xs,
+    minWidth: 160,
+    shadowColor: theme.colors.shadow,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  moreMenuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
+    paddingVertical: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.md,
+    borderRadius: theme.borderRadius.sm,
+  },
+  moreMenuItemText: {
+    ...theme.typography.body.sans,
+    color: theme.colors.text.primary,
+    fontSize: 16,
+  },
   offlineIndicator: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -64,12 +90,14 @@ export const createBibleStyles = (theme: Theme) => StyleSheet.create({
   testamentToggle: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     borderRadius: theme.borderRadius.full,
     backgroundColor: `${theme.colors.surface}AA`,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: theme.colors.border,
-    paddingVertical: 2,
-    paddingHorizontal: 2,
+    paddingVertical: 6,
+    paddingHorizontal: theme.spacing.sm,
+    minWidth: 50,
   },
   testamentOption: {
     paddingHorizontal: theme.spacing.sm,
@@ -80,9 +108,10 @@ export const createBibleStyles = (theme: Theme) => StyleSheet.create({
     backgroundColor: theme.colors.primary,
   },
   testamentOptionText: {
-    ...theme.typography.caption.secondary,
-    color: theme.colors.text.secondary,
+    ...theme.typography.caption.primary,
+    color: theme.colors.text.primary,
     fontWeight: '600',
+    fontSize: 12,
   },
   testamentOptionTextActive: {
     color: theme.colors.text.inverse,

@@ -239,7 +239,7 @@ const LOCAL_GUIDES: GuideDefinition[] = [
           id: 'cd2',
           title: 'Co‑creating with God',
           body:
-            'In the Kingdom, every vocation is ultimately about co‑creating with God – bringing forth justice, beauty, healing, and wisdom. Some do this directly through ministry, others through work, family, or craft, but all true careers share the same foundation: partnering with God to bring His Kingdom near.',
+            'In the Kingdom, every vocation is ultimately about co‑creating with God – bringing forth justice, beauty, healing, and wisdom. Some do this directly through ministry, others through work, family, or craft, but all true careers share the same foundation: submitting to God to help bring His Kingdom near.',
         },
       ],
       reflectionPrompt:
