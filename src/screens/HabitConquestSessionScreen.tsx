@@ -259,7 +259,7 @@ const HabitConquestSessionScreen: React.FC<Props> = ({ navigation }) => {
               <>
                 <Text style={styles.introTitle}>Accountability that supports</Text>
                 <Text style={styles.introText}>
-                  At the end of each day, you will check in: Did you keep your door to temptation shut? Did you do something nice towards being better? This keeps you honest and hopeful.
+                  At the end of each day, you will check in: Did you keep your door shut to temptation? Did you do something nice towards being better? This keeps you honest and hopeful.
                 </Text>
               </>
             )}

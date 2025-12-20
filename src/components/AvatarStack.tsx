@@ -30,8 +30,20 @@ export const AvatarStack: React.FC<AvatarStackProps> = ({
   onPress,
   showRemaining = true,
 }) => {
-  // Convert MobX observables to plain JS to avoid freeze errors
-  const safeUsers = toJS(users || []);
+  // Convert MobX observables to plain JS to avoid freeze errors with reanimated
+  // Create plain objects with only the properties we need
+  const safeUsers = React.useMemo(() => {
+    return (users || []).map(user => {
+      const plain = toJS(user);
+      // Create a completely plain object to avoid any observable references
+      return {
+        id: plain?.id,
+        avatar: plain?.avatar,
+        first_name: plain?.first_name,
+        last_name: plain?.last_name,
+      } as User;
+    });
+  }, [users]);
   const displayUsers = safeUsers.slice(0, maxAvatars);
   const remainingCount = Math.max(0, safeUsers.length - maxAvatars);
   const theme = useTheme();
@@ -44,7 +56,15 @@ export const AvatarStack: React.FC<AvatarStackProps> = ({
   const hoveredIndex = useSharedValue(-1);
   const pressed = useSharedValue(-1);
 
-  const Avatar = ({ user, index }: { user: User; index: number }) => {
+  const Avatar = React.memo(({ user, index }: { user: User; index: number }) => {
+    // Extract all needed values into plain variables to avoid observable access
+    const userId = user?.id;
+    const userAvatar = user?.avatar;
+    const userFirstName = user?.first_name;
+    const userLastName = user?.last_name;
+    const uri = typeof userAvatar === 'string' && userAvatar.trim().length > 0 ? userAvatar : undefined;
+    const initials = (userFirstName?.[0] || userLastName?.[0] || String(userId || '?')[0] || '?').toUpperCase();
+
     const scale = useSharedValue(1);
     const translateX = useSharedValue(0);
 
@@ -83,8 +103,6 @@ export const AvatarStack: React.FC<AvatarStackProps> = ({
       pressed.value = -1;
       hoveredIndex.value = -1;
     };
-
-    const uri = typeof user.avatar === 'string' && user.avatar.trim().length > 0 ? user.avatar : undefined;
 
     return (
       <Pressable 
@@ -127,14 +145,14 @@ export const AvatarStack: React.FC<AvatarStackProps> = ({
                 fontWeight: '700',
                 fontSize: Math.max(10, Math.round(size / 3))
               }}>
-                {(user.first_name?.[0] || user.last_name?.[0] || String(user.id || '?')[0] || '?').toUpperCase()}
+                {initials}
               </Text>
             </View>
           )}
         </Animated.View>
       </Pressable>
     );
-  };
+  });
 
   // Stack container width calculation
   const containerWidth = displayUsers.length * offset + size - offset;

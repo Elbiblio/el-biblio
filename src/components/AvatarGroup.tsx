@@ -4,6 +4,7 @@ import Animated, {
   useAnimatedStyle,
   withSpring 
 } from 'react-native-reanimated';
+import { toJS } from 'mobx';
 import { User } from '../types';
 import { useTheme } from '@/contexts/ThemeContext';
 
@@ -23,8 +24,10 @@ export const AvatarGroup: React.FC<AvatarGroupProps> = ({
   onPress,
 }) => {
   const theme = useTheme();
-  const displayUsers = users.slice(0, maxAvatars);
-  const remainingCount = Math.max(0, users.length - maxAvatars);
+  // Convert MobX observables to plain JS to avoid freeze errors with reanimated
+  const safeUsers = toJS(users || []);
+  const displayUsers = safeUsers.slice(0, maxAvatars);
+  const remainingCount = Math.max(0, safeUsers.length - maxAvatars);
 
   const AnimatedImage = Animated.createAnimatedComponent(Image);
 

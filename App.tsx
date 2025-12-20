@@ -72,7 +72,6 @@ import PointsEarnedModal from './src/components/PointsEarnedModal';
 import { pointsTracker } from './src/utils/pointsTracker';
 import { registerGlobals, AudioSession } from '@livekit/react-native';
 import ChallengeCompletionBanner from './src/components/ChallengeCompletionBanner';
-import type { Challenge } from './src/types/challenges';
 import { registerChallengeReminderTask } from './src/tasks/challengeReminderTask';
 import { initAudio } from './src/services/audio';
 import { usePreferencesStore, useChallengeStore, useGameStore, useLeaderboardStore } from './src/stores/StoreProvider';
@@ -144,17 +143,9 @@ const NavigationContent: React.FC<NavigationContentProps> = ({ showChallengeBann
   const { isInitialized: authInitialized, user, token } = useAuthStore();
   const { hasCompletedWelcome } = appStore;
   
-  // Only sync WebSocket when authenticated - moved after auth check
-  useEffect(() => {
-    if (authInitialized && user && token) {
-      // WebSocket sync will be handled by useWebSocketVerseSync hook when ready
-    }
-  }, [authInitialized, user, token]);
-  
-  // Bind WebSocket verse handlers to provider-based verse store (only when authenticated)
-  if (authInitialized && user && token) {
-    useWebSocketVerseSync();
-  }
+  // Always call hook unconditionally (React hooks rule)
+  // The hook's internal effect will handle conditional logic
+  useWebSocketVerseSync();
 
   const getInitialRoute = () => {
     if (user && token && hasCompletedWelcome) return 'Home';
@@ -170,7 +161,14 @@ const NavigationContent: React.FC<NavigationContentProps> = ({ showChallengeBann
       hasToken: !!token,
     });
   }
-  const navigatorKey = `${user?.id || 'no-user'}-${hasCompletedWelcome ? 'welcome-completed' : 'welcome-pending'}`;
+  // Stable key that changes only when auth state meaningfully changes
+  // Prevents unnecessary remounts while ensuring proper navigation on auth changes
+  const navigatorKey = React.useMemo(() => {
+    const userId = user?.id ? String(user.id) : 'no-user';
+    const welcomeState = hasCompletedWelcome ? 'welcome-completed' : 'welcome-pending';
+    const authState = (user && token) ? 'authenticated' : 'unauthenticated';
+    return `${userId}-${welcomeState}-${authState}`;
+  }, [user?.id, hasCompletedWelcome, !!user, !!token]);
 
   return (
     <NavigationContainer onReady={() => { if (__DEV__) console.log('[App] NavigationContainer onReady'); }}>
@@ -181,23 +179,21 @@ const NavigationContent: React.FC<NavigationContentProps> = ({ showChallengeBann
       >
         <Stack.Screen name="IntroScreen" component={IntroScreen} />
         <Stack.Screen name="RegistrationScreen" component={RegistrationScreen} />
-        <Stack.Screen 
-          name="Home" 
-          component={(props: any) => (
+        <Stack.Screen name="Home">
+          {(props: any) => (
             <AppErrorBoundary>
               <HomeScreen {...props} />
             </AppErrorBoundary>
-          )} 
-        />
+          )}
+        </Stack.Screen>
         <Stack.Screen name="WhatYouMissedScreen" component={WhatYouMissedScreen} />
-        <Stack.Screen 
-          name="VerseDetail" 
-          component={(props: any) => (
+        <Stack.Screen name="VerseDetail">
+          {(props: any) => (
             <AppErrorBoundary>
               <VerseDetail {...props} />
             </AppErrorBoundary>
-          )} 
-        />
+          )}
+        </Stack.Screen>
         <Stack.Screen name="ReflectionDetail" component={ReflectionDetail} />
         <Stack.Screen name="DailyVersesScreen" component={DailyVersesScreen} />
         <Stack.Screen name="DailyChallengeScreen" component={DailyChallengeScreen} />
@@ -205,7 +201,6 @@ const NavigationContent: React.FC<NavigationContentProps> = ({ showChallengeBann
         <Stack.Screen name="WordHubsScreen" component={WordHubsScreen} />
         <Stack.Screen name="WordHubDetailScreen" component={WordHubDetailScreen} />
         <Stack.Screen name="MatchScreen" component={MatchScreen} />
-        <Stack.Screen name="IntroScreen" component={IntroScreen} />
         <Stack.Screen name="SavedItemsScreen" component={SavedItemsScreen} />
         <Stack.Screen name="NotesScreen" component={NotesScreen} />
         <Stack.Screen name="CommunityScreen" component={CommunityScreen} />
@@ -217,14 +212,13 @@ const NavigationContent: React.FC<NavigationContentProps> = ({ showChallengeBann
         <Stack.Screen name="VirtueQuizScreen" component={VirtueQuizScreen} />
         <Stack.Screen name="VerseBuilderScreen" component={VerseBuilderScreen} />
         <Stack.Screen name="BibleScreen" component={BibleScreen} />
-        <Stack.Screen 
-          name="ProfileScreen" 
-          component={(props: any) => (
+        <Stack.Screen name="ProfileScreen">
+          {(props: any) => (
             <AppErrorBoundary>
               <ProfileScreen {...props} />
             </AppErrorBoundary>
-          )} 
-        />
+          )}
+        </Stack.Screen>
         <Stack.Screen name="DonateScreen" component={DonateScreen} />
         <Stack.Screen name="LeaderboardScreen" component={LeaderboardScreen} />
         <Stack.Screen name="GameScreen" component={GameScreen} />
@@ -275,8 +269,8 @@ const AppContent = () => {
   const [showChallengeBanner, setShowChallengeBanner] = useState(false);
   const { setInitialized } = useAppInitialization();
   const fontsLoaded = useAppFonts();
-  const { isInitialized: authInitialized, user, token } = useAuthStore();
-  const authStoreObj = useAuthStore();
+  const authStore = useAuthStore();
+  const { isInitialized: authInitialized, user, token } = authStore;
   const preferencesStore = usePreferencesStore();
   const challengeStore = useChallengeStore();
   const gameStore = useGameStore();
@@ -382,8 +376,8 @@ const AppContent = () => {
   }, []);
 
   useEffect(() => {
-    setDailyNuggetStores({ authStore: authStoreObj as any, preferencesStore: preferencesStore as any });
-  }, [authStoreObj, preferencesStore]);
+    setDailyNuggetStores({ authStore: authStore as any, preferencesStore: preferencesStore as any });
+  }, [authStore, preferencesStore]);
 
   useEffect(() => {
     // Only proceed if auth is fully initialized AND user is authenticated
@@ -393,16 +387,18 @@ const AppContent = () => {
     }
 
     let isMounted = true;
+    const currentUserId = user.id;
+    const currentToken = token;
 
     const initializePushNotifications = async () => {
-      // Defensive check: ensure user is still authenticated
-      if (!user?.id || !token) {
+      // Defensive check: ensure user is still authenticated and values haven't changed
+      if (!isMounted || !currentUserId || !currentToken) {
         return;
       }
 
       try {
         if (__DEV__) {
-          console.log('[App] Registering push notifications for authenticated user:', user.id);
+          console.log('[App] Registering push notifications for authenticated user:', currentUserId);
         }
 
         // updateToken will ensure initialization completes before registering
@@ -419,7 +415,7 @@ const AppContent = () => {
           }
         }
 
-        await ReminderSyncService.syncAllLocalReminders(String(user.id));
+        await ReminderSyncService.syncAllLocalReminders(String(currentUserId));
         if (!isMounted) return;
 
         if (__DEV__) {
@@ -462,7 +458,17 @@ const AppContent = () => {
         setInitialized(true);
         
         // Check for uncompleted challenges after initialization
-        checkForUncompletedChallenges();
+        try {
+          if (challengeStore && Array.isArray(challengeStore.personalChallenges)) {
+            const list = challengeStore.personalChallenges as any[];
+            const uncompleted = list.filter((c: any) => !c?.isCompleted && c?.hasJoined);
+            if (uncompleted.length > 0) {
+              setShowChallengeBanner(true);
+            }
+          }
+        } catch (error) {
+          console.warn('[App] Failed to check uncompleted challenges', error);
+        }
 
         // Kick off daily nugget sync once everything is ready
         if (preferencesStore.showDailyNuggets) {
@@ -472,7 +478,7 @@ const AppContent = () => {
       
       return () => clearTimeout(timer);
     }
-  }, [fontsLoaded, isLoading, isSplashComplete, authInitialized, setInitialized, preferencesStore.showDailyNuggets]);
+  }, [fontsLoaded, isLoading, isSplashComplete, authInitialized, setInitialized, preferencesStore.showDailyNuggets, challengeStore]);
 
   // Reschedule nuggets when preference toggles while app is mounted
   useEffect(() => {
@@ -485,33 +491,22 @@ const AppContent = () => {
     return () => clearTimeout(timer);
   }, [authInitialized, preferencesStore.showDailyNuggets]);
 
-  const checkForUncompletedChallenges = () => {
-    try {
-      // Guard: Only check if challenge store is initialized
-      if (!challengeStore || !Array.isArray(challengeStore.personalChallenges)) {
-        return;
-      }
-      const list = challengeStore.personalChallenges as any[];
-      const uncompleted = list.filter((c: any) => !c?.isCompleted && c?.hasJoined);
-      if (uncompleted.length > 0) {
-        setShowChallengeBanner(true);
-      }
-    } catch (error) {
-      console.warn('[App] Failed to check uncompleted challenges', error);
-    }
-  };
 
   // Subscribe to global points earned events emitted by the API interceptor
   useEffect(() => {
     const unsubscribe = pointsTracker.subscribe(({ points, title }) => {
+      // Read current values at callback execution time
+      // Stores are stable references, but state values need to be current
+      const currentSuppress = suppressGenericPointsUntil;
       const now = Date.now();
-      const suppressActive = suppressGenericPointsUntil != null && now < suppressGenericPointsUntil;
-      const totalBefore = leaderboardStore.userStats?.totalPoints ?? authStoreObj?.user?.points ?? 0;
+      const suppressActive = currentSuppress != null && now < currentSuppress;
+      const totalBefore = leaderboardStore.userStats?.totalPoints ?? authStore?.user?.points ?? 0;
       const vbBest = gameStore.getPersonalBest('verse_builder') || 0;
       const nextBefore = getNextUnlock(totalBefore, vbBest);
       const totalAfter = totalBefore + (points || 0);
       const nextAfter = getNextUnlock(totalAfter, vbBest);
       const unlockedNow = !!nextBefore && !nextAfter;
+      
       if (unlockedNow) {
         const endOfDay = (() => { const d = new Date(); d.setHours(23,59,59,999); return d.getTime(); })();
         setSuppressGenericPointsUntil(endOfDay);
@@ -524,16 +519,16 @@ const AppContent = () => {
       // Only show the global points modal for non-game-score awards
       if (!shouldSuppress && !isGameScore) {
         setPointsQueue(prev => [...prev, { points, title }]);
-        setIsPointsVisible(v => v || true);
+        setIsPointsVisible(true);
       }
 
       // Still always update the user's points balance
-      if (authStoreObj?.user?.id) {
-        authStoreObj.updateUserPoints(points).catch(() => undefined);
+      if (authStore?.user?.id) {
+        authStore.updateUserPoints(points).catch(() => undefined);
       }
     });
     return () => { unsubscribe(); };
-  }, []);
+  }, [suppressGenericPointsUntil, leaderboardStore, authStore, gameStore]);
 
   // If queue emptied, hide modal
   useEffect(() => {
