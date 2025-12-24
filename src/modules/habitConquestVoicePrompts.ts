@@ -21,19 +21,19 @@ export const getVoicePromptsForPhase = (
         {
           phase: 'affirmation',
           timing: 'start',
-          text: `Take a deep breath. You are a beloved child of God. ${vice ? `Today, you are choosing freedom from ${vice.toLowerCase()}.` : ''} ${pledge ? `You will ${pledge.toLowerCase()}.` : ''} Speak this truth aloud with confidence.`,
+          text: `Take a deep breath. You are a beloved child of God. ${vice ? `Remember: ${vice.toLowerCase()} is a worldly distortion, not your true nature. You have God-given strengths that are being made fruitless by this vice.` : ''} ${pledge ? `Today, you commit to ${pledge.toLowerCase()}.` : ''} Speak this truth aloud with confidence.`,
           duration: 0
         },
         {
           phase: 'affirmation',
           timing: 'middle',
-          text: 'God sees you. He knows your struggle and He is with you. You are not defined by your past. Declare your new identity in Christ.',
+          text: 'God sees you. He knows your struggle and He is with you. Your strengths are not weaknesses—they are gifts to be harnessed for His Kingdom. Declare your commitment to use them well.',
           duration: middleTime
         },
         {
           phase: 'affirmation',
           timing: 'end',
-          text: 'Well done. You have spoken truth over yourself. Carry this identity with you today.',
+          text: 'Well done. You have spoken truth over yourself and reaffirmed your commitment. Carry this identity with you today.',
           duration: endTime
         }
       ];
@@ -49,7 +49,7 @@ export const getVoicePromptsForPhase = (
         {
           phase: 'meditation',
           timing: 'middle',
-          text: 'You are sitting in the presence of God. He is not angry. He is not disappointed. He is here with you, offering grace and strength. Just breathe and receive.',
+          text: `${vice ? `As you sit with God, meditate on your actual strengths. ${vice.toLowerCase()} is a distortion of the good gifts He has given you.` : ''} You are sitting in the presence of God. He is not angry. He is not disappointed. He is here with you, offering grace and strength. Just breathe and receive.`,
           duration: middleTime
         },
         {
@@ -65,13 +65,13 @@ export const getVoicePromptsForPhase = (
         {
           phase: 'mercy',
           timing: 'start',
-          text: 'Now, speak to God honestly. Tell Him where you feel weak. Ask Him for mercy. He delights to help you in your weakness.',
+          text: `Now, speak to God honestly. ${vice ? `Pray for the new Kingdom. Ask God to show you how your strengths can be channels for His work, not reasons to retreat into ${vice.toLowerCase()}.` : 'Tell Him where you feel weak. Ask Him for mercy. He delights to help you in your weakness.'}`,
           duration: 0
         },
         {
           phase: 'mercy',
           timing: 'middle',
-          text: 'God is not waiting for you to be strong enough. He is offering His strength right now. Invite Him into the places where you feel powerless.',
+          text: 'God is not waiting for you to be strong enough. He is offering His strength right now. Invite Him into the places where you feel powerless. Ask Him to help you harness your gifts for His Kingdom.',
           duration: middleTime
         },
         {
@@ -151,14 +151,20 @@ export const getCelebrationMessage = (
   }
 };
 
-export const getPhaseInstructions = (phaseId: string): string => {
+export const getPhaseInstructions = (phaseId: string, vice?: string | null): string => {
   switch (phaseId) {
     case 'affirmation':
-      return 'Speak your identity in Christ aloud. Declare your pledge. Stand firm in who God says you are.';
+      return vice 
+        ? `Remember: ${vice.toLowerCase()} is a worldly distortion. Reaffirm your God-given strengths and your commitment to use them for His Kingdom.`
+        : 'Speak your identity in Christ aloud. Declare your pledge. Stand firm in who God says you are.';
     case 'meditation':
-      return 'Sit quietly. Notice thoughts without judgment. Breathe deeply. Let God renew your mind in the silence.';
+      return vice
+        ? `Meditate on your actual strengths. ${vice.toLowerCase()} distorts the good gifts God has given you. Let Him renew your mind to see your gifts clearly.`
+        : 'Sit quietly. Notice thoughts without judgment. Breathe deeply. Let God renew your mind in the silence.';
     case 'mercy':
-      return 'Pray honestly. Tell God where you feel weak. Ask for His strength. He delights to help you.';
+      return vice
+        ? `Pray for the new Kingdom. Ask God to show you how your strengths can be channels for His work, not reasons to retreat.`
+        : 'Pray honestly. Tell God where you feel weak. Ask for His strength. He delights to help you.';
     case 'forgiveness':
       return 'Confess what you have done. Receive His complete forgiveness. Release all shame to the Cross.';
     case 'thanksgiving':

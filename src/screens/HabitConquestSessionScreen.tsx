@@ -10,6 +10,7 @@ import type { RootStackParamList } from '@/types';
 import type { ReadingPlanPhase } from '@/constants/readingPlanModes';
 import { getCelebrationMessage, getPhaseInstructions } from '@/modules/habitConquestVoicePrompts';
 import { HabitConquerOrchestrator } from '@/services/HabitConquerOrchestrator';
+import { HabitConquestTruthSerumQuiz } from '@/components/HabitConquestTruthSerumQuiz';
 
 // Minimal session runner for Habit Conquest
 // Uses configured per-session phases from DailyPathStore
@@ -76,6 +77,8 @@ const HabitConquestSessionScreen: React.FC<Props> = ({ navigation }) => {
   const [initSummaries, setInitSummaries] = useState<any[] | undefined>(undefined);
   const [promptText, setPromptText] = useState('');
   const [timeOfDay, setTimeOfDay] = useState<'morning'|'afternoon'|'evening'|'night'>('morning');
+  const [showTruthSerumQuiz, setShowTruthSerumQuiz] = useState(false);
+  const [truthSerumCompleted, setTruthSerumCompleted] = useState(false);
   const orchestratorRef = useRef<HabitConquerOrchestrator | null>(null);
 
   useEffect(() => {
@@ -83,6 +86,20 @@ const HabitConquestSessionScreen: React.FC<Props> = ({ navigation }) => {
       setShowIntro(true);
     }
   }, [dailyPathStore.state.hasSeenHabitConquestIntro]);
+
+  useEffect(() => {
+    const checkTruthSerumStatus = async () => {
+      try {
+        const today = new Date().toISOString().slice(0, 10);
+        const key = `hc_truth_serum_${today}`;
+        const completed = await AsyncStorage.getItem(key);
+        if (completed === 'true') {
+          setTruthSerumCompleted(true);
+        }
+      } catch {}
+    };
+    void checkTruthSerumStatus();
+  }, []);
 
   // Determine time of day for contextual messaging
   useEffect(() => {
@@ -209,7 +226,7 @@ const HabitConquestSessionScreen: React.FC<Props> = ({ navigation }) => {
       {currentPhaseLabel && (
         <View style={styles.phaseIndicator}>
           <Text style={styles.phaseLabel}>{currentPhaseLabel}</Text>
-          <Text style={styles.phaseInstruction}>{promptText || getPhaseInstructions(scaledPhasesRaw.find(p => p.label === currentPhaseLabel)?.id || '')}</Text>
+          <Text style={styles.phaseInstruction}>{promptText || getPhaseInstructions(scaledPhasesRaw.find(p => p.label === currentPhaseLabel)?.id || '', hc?.vice ?? null)}</Text>
         </View>
       )}
 
@@ -223,13 +240,19 @@ const HabitConquestSessionScreen: React.FC<Props> = ({ navigation }) => {
               </Text>
             )}
           </View>
-          <TouchableOpacity style={styles.accPrimary} onPress={() => setStartNow(true)}>
+          <TouchableOpacity style={styles.accPrimary} onPress={() => {
+            if (!truthSerumCompleted && hc?.vice) {
+              setShowTruthSerumQuiz(true);
+            } else {
+              setStartNow(true);
+            }
+          }}>
             <Text style={styles.accPrimaryText}>Begin Session</Text>
           </TouchableOpacity>
         </View>
       )}
 
-      {startNow && (
+      {startNow && currentPhaseLabel !== 'Meditation' && (
         <View style={styles.promptCard}>
           <Text style={styles.promptTitle}>Current Guidance</Text>
           <Text style={styles.promptText}>{promptText || 'Preparing your guidance...'}</Text>
@@ -406,6 +429,27 @@ const HabitConquestSessionScreen: React.FC<Props> = ({ navigation }) => {
               </TouchableOpacity>
             </View>
           </View>
+        </View>
+      </Modal>
+
+      <Modal visible={showTruthSerumQuiz} transparent={false} animationType="slide" onRequestClose={() => {}}>
+        <View style={styles.modalOverlay}>
+          <HabitConquestTruthSerumQuiz
+            vice={hc?.vice ?? null}
+            onComplete={async (answers) => {
+              try {
+                const today = new Date().toISOString().slice(0, 10);
+                const key = `hc_truth_serum_${today}`;
+                await AsyncStorage.setItem(key, 'true');
+                setTruthSerumCompleted(true);
+                setShowTruthSerumQuiz(false);
+                setStartNow(true);
+              } catch {
+                setShowTruthSerumQuiz(false);
+                setStartNow(true);
+              }
+            }}
+          />
         </View>
       </Modal>
     </View>

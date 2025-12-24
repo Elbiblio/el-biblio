@@ -101,22 +101,28 @@ export class HabitConquerOrchestrator {
     }
   }
 
-  static buildGuideForPhase(phaseId: HabitConquerPhaseId): HabitConquerGuide | null {
+  static buildGuideForPhase(phaseId: HabitConquerPhaseId, vice?: string | null): HabitConquerGuide | null {
     switch (phaseId) {
       case 'affirmation':
         return {
           title: 'Affirmation',
-          text: 'Speak your identity in Christ aloud. Declare your pledge and remember why you are choosing healing today.',
+          text: vice
+            ? `Remember: ${vice.toLowerCase()} is a worldly distortion, not your true nature. Reaffirm your God-given strengths and your commitment to use them for His Kingdom.`
+            : 'Speak your identity in Christ aloud. Declare your pledge and remember why you are choosing healing today.',
         };
       case 'meditation':
         return {
           title: 'Meditation with God',
-          text: 'Sit quietly with God. Notice thoughts and urges without judgment. Breathe deeply and allow Him to renew your mind.',
+          text: vice
+            ? `Meditate on your actual strengths. ${vice.toLowerCase()} distorts the good gifts God has given you. Let Him renew your mind to see your gifts clearly and how they can serve His Kingdom.`
+            : 'Sit quietly with God. Notice thoughts and urges without judgment. Breathe deeply and allow Him to renew your mind.',
         };
       case 'mercy':
         return {
           title: 'Prayer for Mercy',
-          text: 'Ask God for mercy. Invite His strength to meet you in weakness and to steady every wavering place.',
+          text: vice
+            ? `Pray for the new Kingdom. Ask God to show you how your strengths can be channels for His work, not reasons to retreat into ${vice.toLowerCase()}. Invite His strength to meet you in weakness.`
+            : 'Ask God for mercy. Invite His strength to meet you in weakness and to steady every wavering place.',
         };
       case 'forgiveness':
         return {
@@ -169,7 +175,7 @@ export class HabitConquerOrchestrator {
   }
 
   private stagePhase(phase: HabitConquerPhase, cfg: HabitConquerConfig) {
-    const guide = HabitConquerOrchestrator.buildGuideForPhase(phase.id);
+    const guide = HabitConquerOrchestrator.buildGuideForPhase(phase.id, cfg.vice);
     if (guide) {
       this.callbacks.onGuide?.(guide);
     }
