@@ -479,9 +479,9 @@ export class VirtueStore {
       console.error('Error fetching user progress:', error);
       runInAction(() => {
         this.state.isProgressLoading = false;
-        this.state.progressError = error instanceof Error ? error.message : 'Failed to fetch user progress';
+        // Don't treat network errors as critical for progress
+        this.state.progressError = null;
       });
-      this.setError(this.state.progressError);
       // On failure, still ensure local overlay present for offline
       this.ensureVirtuesPresent();
       this.mergeLocalIntoUserProgress();

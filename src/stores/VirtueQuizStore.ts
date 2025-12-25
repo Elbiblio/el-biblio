@@ -288,11 +288,12 @@ export class VirtueQuizStore {
         const built = await this.buildLocalQuestions(virtueId, level as number);
         runInAction(() => { this.state.questions = built; });
         await this.saveToStorage();
+        toast.info('Using offline quiz questions');
         return;
       } catch (fallbackErr) {
         const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
         this.setError(errorMessage);
-        toast.error(errorMessage);
+        toast.error('Failed to load quiz questions. Please check your connection.');
       }
     } finally {
       this.setLoading(false);

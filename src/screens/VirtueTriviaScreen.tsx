@@ -473,50 +473,19 @@ const VirtueTriviaScreen = () => {
 
         void gameStore.submitScore('virtue_trivia', newScore);
         
-        // Update virtues progress
-        // This logic needs to be adapted to use userProgress from the store
-        // For now, we'll just update the local state, which will be persisted by the store
-        // The store will handle the actual progress update and level up logic
-        // setVirtuesProgress(prev => {
-        //   const updated = { 
-        //     ...prev, 
-        //     [selectedVirtue]: {
-        //       completed: virtuePassed || prev[selectedVirtue]?.completed || false,
-        //       highScore: Math.max(newScore, prev[selectedVirtue]?.highScore || 0),
-        //       attempts: prev[selectedVirtue]?.attempts || 1
-        //     }
-        //   };
-          
-        //   AsyncStorage.setItem('VirtueTriviaProgress', JSON.stringify(updated));
-          
-        //   // Check if ready to level up (4 or more virtues completed)
-        //   const completedVirtues = Object.values(updated).filter(v => v.completed).length;
-          
-        //   if (completedVirtues >= VIRTUES_TO_LEVEL_UP) {
-        //     // Level up
-        //     const nextLevels: Record<UserLevel, UserLevel> = {
-        //       novice: 'beginner',
-        //       beginner: 'intermediate',
-        //       intermediate: 'advanced',
-        //       advanced: 'expert',
-        //       expert: 'expert'
-        //     };
-            
-        //     const nextLevel = nextLevels[userLevel];
-            
-        //     if (nextLevel !== userLevel) {
-        //       AsyncStorage.getItem('userProgress').then(data => {
-        //         const userData = data ? JSON.parse(data) : {};
-        //         userData.level = nextLevel;
-        //         AsyncStorage.setItem('userProgress', JSON.stringify(userData));
-        //         setUserLevel(nextLevel);
-        //       });
-              
-        //       // Reset virtues progress for next level
-        //       const resetProgress = virtues.reduce((acc, virtue) => {
-        //         acc[virtue] = { completed: false, highScore: 0, attempts: 0 };
-        //         return acc;
-        //       }, {} as VirtueProgress);
+        // Update virtue progress via API
+        const virtueStore = useVirtueStore();
+        if (virtuePassed && selectedVirtue) {
+          try {
+            await virtueStore.updateUserProgress(selectedVirtue, {
+              points: Math.floor(newScore / 10), // Convert score to points
+              minutes: 0,
+              challenges: 1
+            });
+          } catch (error) {
+            console.warn('Failed to update virtue progress:', error);
+          }
+        }
               
 
         
@@ -634,7 +603,7 @@ const VirtueTriviaScreen = () => {
     // Get actual completed count from API
     const virtueProgress = userProgress || {};
     const completedCount = Object.values(virtueProgress).filter(
-      (progress: any) => progress.current_level > 0
+      (progress: any) => progress.current_level >= 3 // Completed means max level (3)
     ).length;
     return completedCount;
   };
