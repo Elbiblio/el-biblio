@@ -1,4 +1,4 @@
-import { makeAutoObservable, runInAction } from 'mobx';
+import { makeAutoObservable, runInAction, reaction } from 'mobx';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { RootStackParamList } from '@/types';
 import type { HabitConquestJournalEntry } from '@/types/habitConquest';
@@ -157,11 +157,26 @@ const normalizeFocusKey = (key?: string | null): DailyFocusKey | null => {
 
 export class DailyPathStore {
   state: DailyPathState = { ...DEFAULT_STATE };
+  private disposeDailyReset?: () => void;
 
   constructor() {
     makeAutoObservable(this, {}, { autoBind: true });
-    this.resetDailyCompletionIfNeeded();
     void this.loadFromStorage();
+
+    // Schedule daily reset at midnight using reaction to date changes
+    this.disposeDailyReset = reaction(
+      () => this.getTodayKey(),
+      (today) => {
+        if (this.state.lastCompletedDate !== today) {
+          runInAction(() => {
+            this.state.completedToday = [];
+            this.state.lastCompletedDate = today;
+          });
+          void this.saveToStorage();
+        }
+      },
+      { fireImmediately: true }
+    );
   }
 
   get isReady() {
@@ -201,7 +216,6 @@ export class DailyPathStore {
   }
 
   get completedToday() {
-    this.resetDailyCompletionIfNeeded();
     return this.state.completedToday;
   }
 
@@ -218,7 +232,6 @@ export class DailyPathStore {
   }
 
   get todaysSteps(): DailyStep[] {
-    this.resetDailyCompletionIfNeeded();
     const sequence = this.getFocusSequence();
     if (!sequence.length) {
       return [];
@@ -228,10 +241,6 @@ export class DailyPathStore {
     sequence.slice(0, 3).forEach((focus) => {
       const base = this.stepLibrary[focus];
       if (base) {
-        if (focus === 'habit_conquest') {
-          // Hidden: do not include Habit Conquest in today's steps for now
-          return;
-        }
         steps.push({ ...base, id: focus });
       }
     });
@@ -254,7 +263,6 @@ export class DailyPathStore {
   }
 
   markStepComplete(stepId: string) {
-    this.resetDailyCompletionIfNeeded();
     if (this.state.completedToday.includes(stepId)) {
       return;
     }
@@ -268,7 +276,6 @@ export class DailyPathStore {
   }
 
   clearStepCompletion(stepId: string) {
-    this.resetDailyCompletionIfNeeded();
     if (!this.state.completedToday.includes(stepId)) {
       return;
     }
@@ -451,7 +458,6 @@ export class DailyPathStore {
       console.warn('[DailyPathStore] Failed to load state', error);
     } finally {
       runInAction(() => {
-        this.resetDailyCompletionIfNeeded();
         this.state.isReady = true;
       });
     }
@@ -606,12 +612,10 @@ export class DailyPathStore {
   private getFocusSequence(): DailyFocusKey[] {
     const sequence = [...this.state.focusOrder];
     const unique = sequence.filter((focus, index) => sequence.indexOf(focus) === index);
-    // Hidden: remove Habit Conquest from sequence temporarily
-    const filtered = unique.filter(f => f !== 'habit_conquest');
-    if (this.state.enableChallenges && !filtered.includes('challenge')) {
-      filtered.push('challenge');
+    if (this.state.enableChallenges && !unique.includes('challenge')) {
+      unique.push('challenge');
     }
-    return filtered;
+    return unique;
   }
 
   private stepLibrary: Record<DailyFocusKey, DailyStep> = {
@@ -672,18 +676,7 @@ export class DailyPathStore {
     },
   };
 
-  private resetDailyCompletionIfNeeded() {
-    const today = this.getTodayKey();
-    if (this.state.lastCompletedDate === today) {
-      return;
-    }
-
-    runInAction(() => {
-      this.state.completedToday = [];
-      this.state.lastCompletedDate = today;
-    });
-  }
-
+  
   private getTodayKey(): string {
     const now = new Date();
     const y = now.getFullYear();

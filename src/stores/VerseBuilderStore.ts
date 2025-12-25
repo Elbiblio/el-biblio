@@ -480,7 +480,9 @@ export class VerseBuilderStore {
     const base = baselineByLevel[level] ?? 25;
     
     const streakPenalty = Math.floor(this.state.streak / 3);
-    const influenced = base - streakPenalty;
+    const consecutivePairs = Math.floor(this.state.consecutiveCorrect / 2);
+    const consecutivePenalty = Math.min(consecutivePairs * 0.5, 5);
+    const influenced = base - streakPenalty - consecutivePenalty;
     
     return Math.max(MIN_TIME, influenced);
   }

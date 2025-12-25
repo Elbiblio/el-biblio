@@ -63,7 +63,7 @@ const TalkToGodScreen = ({ navigation }: TalkToGodScreenProps) => {
             <TouchableOpacity
               style={styles.primaryButton}
               activeOpacity={0.9}
-              onPress={() => navigation.navigate(guide.routeName as any)}
+              onPress={() => navigation.navigate('GuidePlayerScreen', { guideId: guide.id })}
             >
               <Text style={styles.primaryButtonText}>{guide.ctaLabel}</Text>
             </TouchableOpacity>

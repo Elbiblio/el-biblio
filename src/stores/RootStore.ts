@@ -1,4 +1,4 @@
-import { authStore } from './AuthStore';
+import { AuthStore } from './AuthStore';
 import { MeditationStore } from './MeditationStore';
 import { matchStore } from './MatchStore';
 import { preferencesStore } from './PreferencesStore';
@@ -22,7 +22,7 @@ import { GuideStore } from './GuideStore';
 import { FeatureSuggestionsStore } from './FeatureSuggestionsStore';
 
 export class RootStore {
-  authStore = authStore;
+  authStore: AuthStore;
   meditationStore: MeditationStore;
   matchStore = matchStore;
   preferencesStore = preferencesStore;
@@ -46,6 +46,7 @@ export class RootStore {
   guideStore: GuideStore;
 
   constructor() {
+    this.authStore = new AuthStore();
     this.reflectionStore = new ReflectionStore();
     this.leaderboardStore = new LeaderboardStore();
     this.virtueStore = new VirtueStore();

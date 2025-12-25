@@ -1,5 +1,4 @@
 import { apiClient, endpoints } from '@/api/client';
-import { authStore } from '@/stores/AuthStore';
 import { preferencesStore } from '@/stores/PreferencesStore';
 import {
   buildNuggetContext,
@@ -115,7 +114,7 @@ export const syncDailyNuggets = async (
   options: DailyNuggetSyncOptions = {},
 ): Promise<DailyNuggetSyncResult> => {
   try {
-    const { user } = (injectedAuth || authStore);
+    const { user } = injectedAuth || {};
     if (!user?.id) {
       await cancelDailyNuggetSchedule();
       return { scheduled: false, reason: 'no_user' };

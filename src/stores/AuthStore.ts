@@ -600,8 +600,3 @@ export class AuthStore {
   };
 }
 
-// Create a singleton instance
-export const authStore = new AuthStore();
-
-// For backward compatibility
-export const useAuthStore = () => authStore;

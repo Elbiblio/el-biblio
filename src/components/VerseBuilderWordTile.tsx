@@ -23,6 +23,7 @@ export interface WordTileProps {
   variant?: WordTileVariant;
   highlightSuccess?: boolean;
   compact?: boolean;
+  displayWord?: string;
 }
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
@@ -50,7 +51,7 @@ export const getWordColor = (word: string) => {
   return color;
 };
 
-const VerseBuilderWordTile: React.FC<WordTileProps> = memo(({ word, onPress, disabled, isPrefilled, variant = 'pool', highlightSuccess, compact = false }) => {
+const VerseBuilderWordTile: React.FC<WordTileProps> = memo(({ word, onPress, disabled, isPrefilled, variant = 'pool', highlightSuccess, compact = false, displayWord }) => {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
 
@@ -159,7 +160,7 @@ const VerseBuilderWordTile: React.FC<WordTileProps> = memo(({ word, onPress, dis
           adjustsFontSizeToFit
           minimumFontScale={compact && variant === 'pool' ? 0.75 : 0.9}
         >
-          {word}
+          {displayWord ?? word}
         </Text>
       </AnimatedPressable>
     </Animated.View>

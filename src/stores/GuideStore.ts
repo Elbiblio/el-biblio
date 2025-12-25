@@ -44,16 +44,31 @@ export class GuideStore {
 
   async fetchGuide(id: string): Promise<GuideDefinition | null> {
     try {
+      if (!id || typeof id !== 'string') {
+        throw new Error('Invalid guide ID provided');
+      }
+
       const cached = this.definitions[id] || null;
       if (cached) return cached;
+      
       const def = await getGuideById(id);
       if (def) {
         runInAction(() => {
           this.definitions[id] = def;
         });
+        return def;
       }
-      return def;
-    } catch {
+      
+      // If guide not found, set a helpful error message
+      runInAction(() => {
+        this.error = `Guide "${id}" not found`;
+      });
+      return null;
+    } catch (e: any) {
+      console.error('Error fetching guide:', e);
+      runInAction(() => {
+        this.error = e.message || 'Failed to load guide';
+      });
       return null;
     }
   }

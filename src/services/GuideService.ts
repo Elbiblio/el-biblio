@@ -11,10 +11,16 @@ export type GuideRouteName = keyof RootStackParamList;
 export interface GuideSummary {
   id: string;
   title: string;
-  subtitle: string;
+  subtitle?: string;
   mode: GuideMode;
-  routeName: GuideRouteName;
-  ctaLabel: string;
+  routeName?: GuideRouteName;
+  ctaLabel?: string;
+  // Optional backend fields
+  contentVersion?: number;
+  isPublished?: boolean;
+  publishedAt?: string;
+  tags?: string[];
+  meta?: Record<string, any>;
 }
 
 export interface MeditationPassageConfig {
@@ -97,6 +103,22 @@ export type GuideContentConfig =
 
 export interface GuideDefinition extends GuideSummary {
   content: GuideContentConfig;
+}
+
+export interface GuideProgressPayload {
+  current_step_index?: number;
+  presentation_mode?: 'guided' | 'flow';
+  bookmarked_step_index?: number | null;
+  meta?: Record<string, any> | null;
+}
+
+export interface GuideProgressState {
+  user_id: number;
+  guide_id: number;
+  current_step_index: number;
+  presentation_mode: 'guided' | 'flow';
+  bookmarked_step_index: number | null;
+  meta: Record<string, any> | null;
 }
 
 const GUIDE_CACHE_KEY = 'GUIDE_DEFINITIONS_V3';
@@ -252,12 +274,31 @@ async function fetchGuidesFromApi(): Promise<GuideDefinition[] | null> {
   try {
     const res = await apiClient.get<GuideDefinition[]>(endpoints.guides.list, undefined, { headers: { 'X-Anonymous': 'true' } });
     const data = res?.data as unknown;
-    if (!res?.success || !Array.isArray(data)) {
+    
+    // Handle Laravel paginated response format
+    let guidesArray: any[] = [];
+    if (res?.success) {
+      if (Array.isArray(data)) {
+        guidesArray = data;
+      } else if (data && typeof data === 'object' && 'data' in data && Array.isArray((data as any).data)) {
+        // Handle paginated response: { data: [...], meta: {...} }
+        guidesArray = (data as any).data;
+      } else if (data && typeof data === 'object' && 'meta' in data && 'data' in data) {
+        // Alternative Laravel pagination format
+        guidesArray = Array.isArray((data as any).data) ? (data as any).data : [];
+      }
+    }
+    
+    if (guidesArray.length === 0) {
+      console.warn('Guides API response invalid or empty, falling back to cache/local');
       return null;
     }
-    const valid = data.filter(g => g && typeof g === 'object' && typeof (g as any).id === 'string' && (g as any).content);
+    
+    // Validate and filter guides
+    const valid = guidesArray.filter(g => g && typeof g === 'object' && typeof (g as any).id === 'string' && (g as any).content);
     return valid as GuideDefinition[];
-  } catch {
+  } catch (error) {
+    console.warn('Failed to fetch guides from API:', error);
     return null;
   }
 }
@@ -300,11 +341,31 @@ async function resolveGuides(): Promise<GuideDefinition[]> {
 
 async function fetchGuideByIdFromApi(id: string): Promise<GuideDefinition | null> {
   try {
+    if (!id || typeof id !== 'string') {
+      console.warn('Invalid guide ID provided to fetchGuideByIdFromApi');
+      return null;
+    }
+
     const res = await apiClient.get<GuideDefinition>(endpoints.guides.show(id), undefined, { headers: { 'X-Anonymous': 'true' } });
     const data = res?.data as unknown;
-    if (!res?.success || !data || typeof data !== 'object') return null;
-    const g = data as GuideDefinition;
-    if (!g?.id || !g?.content) return null;
+    
+    if (!res?.success || !data || typeof data !== 'object') {
+      console.warn(`Invalid API response for guide ${id}, falling back to cache/local`);
+      return null;
+    }
+    
+    // Handle both direct guide object and wrapped response formats
+    let guideData: any = data;
+    if (data && typeof data === 'object' && 'data' in data && (data as any).data) {
+      guideData = (data as any).data;
+    }
+    
+    const g = guideData as GuideDefinition;
+    if (!g?.id || !g?.content) {
+      console.warn(`Invalid guide structure for ${id}, missing required fields`);
+      return null;
+    }
+    
     try {
       const existing = (await loadCachedGuides()) || [];
       const idx = existing.findIndex(x => x.id === g.id);
@@ -314,9 +375,12 @@ async function fetchGuideByIdFromApi(id: string): Promise<GuideDefinition | null
         existing[idx] = g;
       }
       await saveCachedGuides(existing);
-    } catch {}
+    } catch (cacheError) {
+      console.warn('Failed to cache guide:', cacheError);
+    }
     return g;
-  } catch {
+  } catch (error) {
+    console.warn(`Failed to fetch guide ${id} from API:`, error);
     return null;
   }
 }
@@ -332,4 +396,35 @@ export async function getGuideById(id: string): Promise<GuideDefinition | null> 
   const guides = await resolveGuides();
   const found = guides.find(guide => guide.id === id);
   return found || null;
+}
+
+export async function getGuideProgress(guideId: string): Promise<GuideProgressState | null> {
+  try {
+    const response = await apiClient.get<GuideProgressState | null>(endpoints.guides.progress(guideId));
+    if (!response.success) return null;
+    return response.data;
+  } catch (error) {
+    if (__DEV__) {
+      console.warn('Failed to load guide progress', error);
+    }
+    return null;
+  }
+}
+
+export async function saveGuideProgress(
+  guideId: string,
+  payload: GuideProgressPayload,
+): Promise<GuideProgressState | null> {
+  try {
+    const response = await apiClient.post<GuideProgressState>(
+      endpoints.guides.progress(guideId),
+      payload,
+    );
+    return response.success ? response.data : null;
+  } catch (error) {
+    if (__DEV__) {
+      console.warn('Failed to save guide progress', error);
+    }
+    return null;
+  }
 }

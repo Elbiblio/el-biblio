@@ -1,4 +1,4 @@
-import { makeObservable, runInAction, observable, action, computed } from 'mobx';
+import { makeObservable, runInAction, observable, action, computed, reaction } from 'mobx';
 import { Activity } from '@/types';
 import { apiClient, endpoints } from '@/api/client';
 import { AuthStore } from './AuthStore';
@@ -94,6 +94,14 @@ export class JourneyStore {
     }, { autoBind: true });
     
     this.initializePhaseState();
+
+    reaction(
+      () => this.authStore.user?.phase,
+      (phaseOrder) => {
+        this.hydratePhaseProgress(phaseOrder);
+      },
+      { fireImmediately: true }
+    );
   }
 
   biblePlan: Record<string, unknown> | null = null;
@@ -271,6 +279,33 @@ export class JourneyStore {
     });
   }
 
+  private hydratePhaseProgress(phaseOrder?: number | null) {
+    const ordered = this.orderedPhases;
+    if (ordered.length === 0) return;
+
+    const normalizedPhase = typeof phaseOrder === 'number' && phaseOrder > 0 ? phaseOrder : 1;
+
+    runInAction(() => {
+      ordered.forEach((phase) => {
+        if (phase.order < normalizedPhase) {
+          this.phaseStatus[phase.id] = 'completed';
+        } else if (phase.order === normalizedPhase) {
+          this.phaseStatus[phase.id] = 'available';
+        } else {
+          this.phaseStatus[phase.id] = 'locked';
+        }
+      });
+
+      // If user phase exceeds last defined phase, mark all as completed
+      const lastPhase = ordered[ordered.length - 1];
+      if (lastPhase && normalizedPhase > lastPhase.order) {
+        ordered.forEach((phase) => {
+          this.phaseStatus[phase.id] = 'completed';
+        });
+      }
+    });
+  }
+
   async fetchActivities() {
     const userId = this.authStore.user?.id;
     if (!userId) {
@@ -293,16 +328,18 @@ export class JourneyStore {
       });
 
       runInAction(() => {
-        if (response.success) {
-          this.activities = Array.isArray(response.data) ? response.data : [];
+        if (response?.success && Array.isArray(response.data)) {
+          this.activities = response.data;
         } else {
-          this.activityError = response.message || 'Failed to load activity feed';
+          this.activities = [];
+          this.activityError = response?.message || 'Invalid response format';
         }
         this.isActivitiesLoading = false;
       });
     } catch (error) {
       console.error('JourneyStore.fetchActivities error', error);
       runInAction(() => {
+        this.activities = [];
         this.activityError = 'Failed to load activity feed';
         this.isActivitiesLoading = false;
       });
@@ -347,14 +384,24 @@ export class JourneyStore {
       }
     }
 
+    const existingState = this.quizState;
     const questions = this.buildPlaceholderQuestions(phaseId);
+    const isResumingSamePhase =
+      existingState.activePhaseId === phaseId && !existingState.isComplete;
 
     runInAction(() => {
+      const nextCurrentIndex = isResumingSamePhase
+        ? Math.min(existingState.currentIndex, questions.length)
+        : 0;
+      const nextCorrectCount = isResumingSamePhase
+        ? Math.min(existingState.correctCount, questions.length)
+        : 0;
+
       this.quizState = {
         activePhaseId: phaseId,
         questions,
-        currentIndex: 0,
-        correctCount: 0,
+        currentIndex: nextCurrentIndex,
+        correctCount: nextCorrectCount,
         isComplete: false,
         result: null,
       };

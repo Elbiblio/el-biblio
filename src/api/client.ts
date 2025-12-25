@@ -548,6 +548,7 @@ export const endpoints = {
   guides: {
     list: '/guides',
     show: (id: string) => `/guides/${id}`,
+    progress: (id: string) => `/guides/${id}/progress`,
   },
  
   readingProgress: {

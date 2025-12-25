@@ -427,7 +427,21 @@ export class VirtueStore {
         '/virtues/progress'
       );
 
-      if (!response.success) throw new Error(response.message || 'Failed to fetch user progress');
+      if (!response.success) {
+        // Handle 404 and other HTTP errors gracefully
+        if (response.message?.includes('Virtue not found') || response.message?.includes('Resource not found')) {
+          console.warn('Virtues progress endpoint not available, using local progress only');
+          runInAction(() => {
+            this.state.isProgressLoading = false;
+            this.state.progressError = null; // Don't treat as error for missing endpoint
+          });
+          // Still ensure local overlay present for offline
+          this.ensureVirtuesPresent();
+          this.mergeLocalIntoUserProgress();
+          return;
+        }
+        throw new Error(response.message || 'Failed to fetch user progress');
+      }
 
       const raw = response.data as any;
       const progressList = Array.isArray(raw)

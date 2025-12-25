@@ -8,7 +8,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '@/types';
 import { useDailyPathStore } from '@/stores/StoreProvider';
 import { useBibleStore } from '@/stores/BibleStore';
-import { CheckCircle, BookOpen, Clock } from '@/components/Icons';
+import { CheckCircle, BookOpen, Clock, ArrowLeft } from '@/components/Icons';
 
 const SetupCompleteScreen = () => {
   const insets = useSafeAreaInsets();
@@ -23,7 +23,16 @@ const SetupCompleteScreen = () => {
   const plan = bibleStore.readingPlan;
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top + theme.spacing.lg }]}> 
+    <View style={[styles.container, { paddingTop: insets.top }]}>
+      <View style={styles.header}>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => navigation.navigate('Home')}
+          activeOpacity={0.7}
+        >
+          <ArrowLeft size={24} color={theme.colors.text.primary} />
+        </TouchableOpacity>
+      </View>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.headerIconWrap}>
           <CheckCircle size={56} color={theme.colors.success} />
@@ -77,6 +86,16 @@ const SetupCompleteScreen = () => {
 
 const createStyles = (theme: Theme) => StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.colors.background },
+  header: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    paddingHorizontal: theme.spacing.lg, 
+    paddingBottom: theme.spacing.md 
+  },
+  backButton: { 
+    padding: theme.spacing.xs, 
+    borderRadius: theme.borderRadius.md 
+  },
   content: { paddingHorizontal: theme.spacing.lg, paddingBottom: theme.spacing.xl, gap: theme.spacing.lg },
   headerIconWrap: { alignItems: 'center', justifyContent: 'center', marginBottom: theme.spacing.sm },
   title: { ...theme.typography.heading.medium, color: theme.colors.text.primary, textAlign: 'center', fontWeight: '700' },

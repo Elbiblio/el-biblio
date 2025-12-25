@@ -1,6 +1,6 @@
 import { makeAutoObservable, runInAction } from 'mobx';
 import { SignUpData } from '@/types';
-import { AuthStore, authStore } from './AuthStore';
+import { AuthStore } from './AuthStore';
 
 interface RegistrationState {
   formData: Omit<SignUpData, 'avatar'>;

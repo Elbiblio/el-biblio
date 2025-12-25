@@ -48,6 +48,7 @@ const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const WORD_SIZE = Math.max(56, Math.floor(SCREEN_WIDTH / 7));
 // Cradle should be prominent; scale with screen height but clamp sensibly
 const CRADLE_HEIGHT = Math.max(160, Math.min(220, Math.floor(SCREEN_HEIGHT * 0.22)));
+const MAX_VISIBLE_ARRANGED = 12;
 
 const VerseBuilderScreen = observer(() => {
   const theme = useTheme();
@@ -109,7 +110,7 @@ const VerseBuilderScreen = observer(() => {
   const flameScale = useSharedValue(1);
   const shineX = useSharedValue(-100);
   const wrongShake = useSharedValue(0);
-  const displayPotentialPoints = verseBuilderStore.potentialRoundPoints;
+  const displayTimeLeft = Math.max(0, Math.ceil(timeLeft));
   const calmAmp = useSharedValue(1);
   const lastTapRef = useRef<number>(0);
 
@@ -149,6 +150,20 @@ const VerseBuilderScreen = observer(() => {
     const threshold = SCREEN_WIDTH * (showAllWords ? 1.4 : 1.05);
     return estimatedWidth > threshold || gameState.poolWords.length > poolColumns * 2;
   }, [gameState, poolColumns, showAllWords, theme]);
+
+  const shortenWord = useCallback((word: string) => {
+    if (word.length <= 8) {
+      return word;
+    }
+    const lower = word.toLowerCase();
+    const suffixes = ['ing', 'ed', 'eth', 'est'];
+    const suffix = suffixes.find((s) => lower.endsWith(s));
+    const base = suffix ? word.slice(0, -suffix.length) : word;
+    if (base.length <= 6) {
+      return `${base}${suffix ? suffix.charAt(0) : ''}.`;
+    }
+    return `${word.slice(0, 5)}…`;
+  }, []);
 
   // Circular timer fill shared value for AnimatedCircularProgress (0..1)
   const circularFill = useSharedValue(1);
@@ -573,25 +588,34 @@ const VerseBuilderScreen = observer(() => {
 
   // Enhanced Word Tile Component (memoized)
   const renderPoolWord = useCallback(
-    ({ item, index }: { item: string; index: number }) => (
-      <View style={styles.poolItem}>
-        <VerseBuilderWordTile
-          word={item}
-          onPress={handleSelectWord}
-          disabled={isTransitioning || showCorrectAnswer}
-          variant="pool"
-          compact={useCompactPoolTiles}
-        />
-      </View>
-    ),
-    [handleSelectWord, isTransitioning, showCorrectAnswer, styles.poolItem, useCompactPoolTiles]
+    ({ item }: { item: string; index: number }) => {
+      const shouldShorten = useCompactPoolTiles || item.length > 10;
+      const displayWord = shouldShorten ? shortenWord(item) : item;
+      return (
+        <View style={styles.poolItem}>
+          <VerseBuilderWordTile
+            word={item}
+            displayWord={displayWord}
+            onPress={handleSelectWord}
+            disabled={isTransitioning || showCorrectAnswer}
+            variant="pool"
+            compact={useCompactPoolTiles}
+          />
+        </View>
+      );
+    },
+    [handleSelectWord, isTransitioning, showCorrectAnswer, styles.poolItem, useCompactPoolTiles, shortenWord]
   );
 
   const poolKeyExtractor = useCallback((item: string, index: number) => `${item}-${index}`, []);
 
   const renderArrangedWords = useCallback(() => {
     if (!gameState) return null;
-    const canUndo = gameState.arrangedWords.length > gameState.prefilledCount && isPlaying;
+    const totalArranged = gameState.arrangedWords.length;
+    const canUndo = totalArranged > gameState.prefilledCount && isPlaying;
+    const visibleStart = Math.max(0, totalArranged - MAX_VISIBLE_ARRANGED);
+    const visibleWords = gameState.arrangedWords.slice(visibleStart);
+    const hiddenCount = totalArranged - visibleWords.length;
 
     return (
       <Animated.View style={[styles.arrangementContainer, wrongShakeStyle, showSuccess && correctBounceStyle]}>
@@ -618,26 +642,36 @@ const VerseBuilderScreen = observer(() => {
             ))}
           </View>
           <View style={styles.arrangementContent}>
-            {gameState.arrangedWords.length === 0 ? (
+            {totalArranged === 0 ? (
               <Text style={styles.emptyText}>Start arranging words here</Text>
             ) : (
-              gameState.arrangedWords.map((word: string, index: number) => (
-                <View
-                  key={`arranged-${word}-${index}`}
-                  style={{
-                    transform: [{ rotate: `${(index % 5 - 2) * 0.8}deg` }],
-                  }}
-                >
-                  <VerseBuilderWordTile
-                    word={word}
-                    onPress={(selectedWord) => index >= gameState.prefilledCount && handleReturnWord(selectedWord, index)}
-                    disabled={index < gameState.prefilledCount || !isPlaying}
-                    isPrefilled={index < gameState.prefilledCount}
-                    variant="arranged"
-                    highlightSuccess={showSuccess}
-                  />
-                </View>
-              ))
+              <>
+                {hiddenCount > 0 && (
+                  <View style={styles.hiddenWordsPill}>
+                    <Text style={styles.hiddenWordsPillText}>{hiddenCount}+ earlier words hidden</Text>
+                  </View>
+                )}
+                {visibleWords.map((word: string, sliceIndex: number) => {
+                  const actualIndex = visibleStart + sliceIndex;
+                  return (
+                    <View
+                      key={`arranged-${word}-${actualIndex}`}
+                      style={{
+                        transform: [{ rotate: `${(actualIndex % 5 - 2) * 0.8}deg` }],
+                      }}
+                    >
+                      <VerseBuilderWordTile
+                        word={word}
+                        onPress={(selectedWord) => actualIndex >= gameState.prefilledCount && handleReturnWord(selectedWord, actualIndex)}
+                        disabled={actualIndex < gameState.prefilledCount || !isPlaying}
+                        isPrefilled={actualIndex < gameState.prefilledCount}
+                        variant="arranged"
+                        highlightSuccess={showSuccess}
+                      />
+                    </View>
+                  );
+                })}
+              </>
             )}
             {gameState.poolWords.map((_, idx) => (
               <View key={`ph-${idx}`} style={[styles.placeholderTile, idx === 0 && styles.nextSlotHighlight]} />
@@ -847,7 +881,7 @@ const VerseBuilderScreen = observer(() => {
                 lineCap="round"
                 innerBackgroundColor={`${theme.colors.background}CC`}
               >
-                <Text style={styles.circularTimerText}>+{displayPotentialPoints}</Text>
+                <Text style={styles.circularTimerText}>{displayTimeLeft}s</Text>
               </AnimatedCircularProgress>
             </View>
           )}
@@ -1556,6 +1590,21 @@ const createStyles = (theme: Theme) =>
       alignItems: 'center',
       paddingVertical: theme.spacing.sm,
       minHeight: CRADLE_HEIGHT,
+    },
+    hiddenWordsPill: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: theme.spacing.md,
+      paddingVertical: theme.spacing.xs,
+      borderRadius: theme.borderRadius.full,
+      backgroundColor: `${theme.colors.text.secondary}1C`,
+      borderWidth: 1,
+      borderColor: `${theme.colors.text.secondary}30`,
+    },
+    hiddenWordsPillText: {
+      color: theme.colors.text.secondary,
+      fontSize: 12,
+      fontWeight: '700',
     },
     woodSlotsBg: {
       position: 'absolute',

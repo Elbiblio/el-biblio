@@ -472,6 +472,8 @@ export interface User {
   email?: string;
   total_active_time?: number;
   last_seen?: string;
+  level?: number;
+  phase?: number;
   activeChallenges?: Challenge[];
   created_at: string;
   updated_at: string;
