@@ -107,26 +107,18 @@ const DailyVersesScreen = ({ navigation }: NativeStackScreenProps<RootStackParam
     }
 
     try {
-      // Optimistic update for better UX
-      const voteCount = verse.votes ?? 0;
-      const newVotes = voteCount + 1;
-      const isVoted = true;
-      updateVerseVotes(verse.id, newVotes, isVoted);
-
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      toast.success('Vote recorded!');
-
-      // Send to API
-      await createInteraction({
-        interactable_id: verse.id,
-        interactable_type: 'App\\Models\\Verse',
-        type: 3, // Vote type
-        user_id: user.id
-      });
-
+      
+      // Use the new voteVerse method which handles optimistic updates and server sync
+      const success = await verseStore.voteVerse(verse.id);
+      
+      if (success) {
+        toast.success('Vote recorded!');
+      } else {
+        toast.error('Failed to record vote');
+      }
     } catch (error) {
-      // Revert optimistic update on error
-      updateVerseVotes(verse.id, verse.votes ?? 0, false);
+      console.error('Vote error:', error);
       toast.error('Failed to record vote');
     }
   };

@@ -699,7 +699,7 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
 
   const handleOpenCitizenshipSetup = useCallback(() => {
     setShowSetupPrompt(false);
-    navigation.navigate('DailyPathSetupScreen');
+    navigation.navigate('CitizenshipSetupScreen');
   }, [navigation]);
 
   const handleDismissCitizenshipPrompt = useCallback(() => {

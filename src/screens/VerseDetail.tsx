@@ -397,12 +397,12 @@ const VerseDetail = ({ navigation, route }: VerseDetailProps) => {
     
     // Fire-and-forget for a smoother, non-blocking UX when posting text reflections
     const text = reflectionText.trim();
-
     const type = 1 as const;
 
-    // Create local pending placeholder
+    // Create local pending placeholder with unique ID
+    const tempId = `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     const temp: Reflection = {
-      id: `temp-${Date.now()}` as any,
+      id: tempId as any,
       content: text,
       type: type,
       user: user as any,
@@ -413,6 +413,7 @@ const VerseDetail = ({ navigation, route }: VerseDetailProps) => {
       created_at: new Date().toISOString() as any,
       media_url: null as any,
     } as unknown as Reflection;
+    
     setPendingReflections((prev) => [temp, ...prev]);
     setPendingPayloads((prev) => ({ ...prev, [temp.id]: { content: text, type: type, user_id: user.id, verse_id: currentVerse.id } }));
     setFailedPendingIds((prev) => {
@@ -439,7 +440,8 @@ const VerseDetail = ({ navigation, route }: VerseDetailProps) => {
           toast.error('Failed to share reflection');
         }
       })
-      .catch(() => {
+      .catch((error) => {
+        console.error('Reflection creation error:', error);
         setFailedPendingIds((prev) => new Set(prev).add(temp.id as any));
         toast.error('Failed to share reflection');
       });

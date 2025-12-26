@@ -1,4 +1,4 @@
-import React, { useMemo } from "react"
+import React, { useMemo, useState, useCallback } from "react"
 import {
   View,
   Text,
@@ -8,12 +8,14 @@ import {
   FlatList,
   ActivityIndicator,
   useWindowDimensions,
+  Modal,
 } from "react-native"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 import { observer } from "mobx-react-lite"
 import { useTheme } from "@/contexts/ThemeContext"
 import type { Theme } from "@/theme"
 import { useJourneyStore, useDailyPathStore } from "@/stores/StoreProvider"
+import { useBibleStore } from "@/stores/BibleStore"
 import { useNavigation } from "@react-navigation/native"
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack"
 import type { RootStackParamList, Activity as JourneyActivity } from "@/types"
@@ -38,9 +40,16 @@ import {
   HeartHandshake,
   Eye,
   BookIcon,
+  Settings,
+  BookOpen,
+  NotePencil,
+  Shield,
 } from "@/components/Icons"
 import JourneyHero from "@/components/JourneyHero"
 import { Animated } from 'react-native';
+import ReadingPlanSetupModal from '@/components/ReadingPlanSetupModal';
+import { ReadingPlanMode, ReadingPlanPhase } from '@/constants/readingPlanModes';
+import type { DailyFocusKey } from '@/stores/DailyPathStore';
 
 const MyJourneyScreen = observer(() => {
   const insets = useSafeAreaInsets()
@@ -48,9 +57,12 @@ const MyJourneyScreen = observer(() => {
   const styles = useMemo(() => createStyles(theme), [theme])
   const journeyStore = useJourneyStore()
   const dailyPathStore = useDailyPathStore()
+  const bibleStore = useBibleStore()
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>()
   const { width } = useWindowDimensions()
   const isCompact = width < 360
+  const [showConfigurationModal, setShowConfigurationModal] = useState(false)
+  const [showReadingPlanModal, setShowReadingPlanModal] = useState(false)
 
   React.useEffect(() => {
     journeyStore.fetchActivities()
@@ -89,6 +101,136 @@ const MyJourneyScreen = observer(() => {
         return <BookIcon {...iconProps} />
     }
   }
+
+  // Configuration module options
+  const focusOptions: {
+    key: DailyFocusKey;
+    title: string;
+    short: string;
+    description: string;
+    icon: React.ComponentType<{ size?: number; color?: string }>;
+  }[] = [
+    {
+      key: 'revive',
+      title: 'Revive My Spiritual Life',
+      short: 'Develop a working personal relationship with God',
+      description: 'Receive gentle guidance to rekindle devotion, prayer, and personal time with God.',
+      icon: Flame,
+    },
+    {
+      key: 'meditation',
+      title: 'Relax & Meditate with God',
+      short: 'Tame the mind and refresh the spirit',
+      description: 'Use breathing, reflection, and scripture meditation to slow down with the Spirit.',
+      icon: Heart,
+    },
+    {
+      key: 'knowledge',
+      title: 'Deepen My Faith Knowledge',
+      short: 'Study scripture daily',
+      description: 'Explore curated Bible readings and insights to strengthen your understanding.',
+      icon: BookOpen,
+    },
+    {
+      key: 'habits',
+      title: 'Discipleship',
+      short: 'Daily challenges',
+      description: 'Set daily challenges to help others, grow your faith and gain spiritual wealth.',
+      icon: NotePencil,
+    },
+    {
+      key: 'habit_conquest',
+      title: 'Conquer Harmful Habits',
+      short: 'Break patterns stealing your devotion',
+      description: 'Engage daily precepts that expose worldly distortions and align with God\'s design.',
+      icon: Shield,
+    },
+  ]
+
+  const [selectedFocuses, setSelectedFocuses] = useState<DailyFocusKey[]>(
+    dailyPathStore.primaryFocus ? [dailyPathStore.primaryFocus, ...dailyPathStore.secondaryFocus.filter(item => item !== dailyPathStore.primaryFocus)] : dailyPathStore.secondaryFocus
+  )
+  const [enableChallenges, setEnableChallenges] = useState<boolean>(dailyPathStore.isChallengesEnabled)
+  const [isSaving, setIsSaving] = useState(false)
+
+  const toggleFocusSelection = useCallback((focus: DailyFocusKey) => {
+    setSelectedFocuses(prev => {
+      const exists = prev.includes(focus);
+      if (exists) {
+        const next = prev.filter(item => item !== focus);
+        if (focus === 'habits') {
+          setEnableChallenges(false);
+        }
+        return next;
+      }
+      const next = prev.length >= 4 ? [prev[1], prev[2], prev[3], focus] : [...prev, focus];
+      if (focus === 'habits') {
+        setEnableChallenges(true);
+      }
+      return next;
+    });
+  }, []);
+
+  const handleSaveConfiguration = useCallback(async () => {
+    if (isSaving) return;
+    setIsSaving(true);
+    try {
+      const [firstFocus, secondFocus] = selectedFocuses;
+      const remaining = selectedFocuses.slice(1);
+      dailyPathStore.setFocuses(firstFocus ?? 'revive', remaining);
+
+      if (selectedFocuses.includes('habits')) {
+        dailyPathStore.setChallengesEnabled(true);
+        dailyPathStore.setViewedChallengeSelection(true);
+        dailyPathStore.setChallengeOnboardingCompleted(false);
+        setEnableChallenges(true);
+      } else {
+        dailyPathStore.setChallengesEnabled(enableChallenges);
+      }
+
+      dailyPathStore.markSetupComplete();
+      setShowConfigurationModal(false);
+    } finally {
+      setIsSaving(false);
+    }
+  }, [dailyPathStore, enableChallenges, selectedFocuses]);
+
+  const handleCreatePlan = useCallback(async ({ books, timePerDay, readingMode, phases, reminderTime, presetIds, minChaptersPerDay, maxChaptersPerDay, readingPaceWpm }: { books: string[]; timePerDay: number; readingMode: ReadingPlanMode; phases: ReadingPlanPhase[]; reminderTime?: string; presetIds?: string[]; minChaptersPerDay?: number; maxChaptersPerDay?: number; readingPaceWpm?: number }) => {
+    try {
+      await bibleStore.createReadingPlan({
+        books,
+        timePerDay,
+        readingMode,
+        phases,
+        reminderTime: reminderTime ?? null,
+        presetIds,
+        minChaptersPerDay,
+        maxChaptersPerDay,
+        readingPaceWpm,
+      });
+      journeyStore.setBiblePlan({
+        id: bibleStore.readingPlan?.id ?? '',
+        books,
+        timePerDay,
+        readingMode,
+        phases,
+        reminderTime: reminderTime ?? null,
+        presetIds: presetIds ?? [],
+        focusVirtue: bibleStore.readingPlan?.focusVirtue ?? null,
+      } as any);
+    } finally {
+      setShowReadingPlanModal(false);
+    }
+  }, [bibleStore, journeyStore]);
+
+  const readingPlan = bibleStore.readingPlan;
+  const readingModeLabel = useMemo(() => {
+    const id = readingPlan?.readingMode;
+    if (id === 'lectio_divina') return 'Lectio Divina';
+    if (id === 'reading_meditation') return 'Reading + Meditation';
+    return id ? 'Reading' : '';
+  }, [readingPlan?.readingMode]);
+  const habit = dailyPathStore.state.habitConquest;
   
   // Celebration component for when a phase is completed
   const PhaseCompleteCelebration = React.memo(() => {
@@ -135,14 +277,23 @@ const MyJourneyScreen = observer(() => {
         <TouchableOpacity onPress={() => navigation.goBack()}>
           <ArrowLeft size={24} color={theme.colors.text.primary} />
         </TouchableOpacity>
-        <Text style={styles.title}>My Journey</Text>
-        <TouchableOpacity
-          onPress={() => navigation.navigate("ProfileScreen")}
-          style={styles.profileButton}
-          accessibilityLabel="View profile"
-        >
-          <User size={22} color={theme.colors.text.primary} />
-        </TouchableOpacity>
+        <Text style={styles.title}>My Kingdom Journey</Text>
+        <View style={styles.headerButtons}>
+          <TouchableOpacity
+            onPress={() => setShowConfigurationModal(true)}
+            style={styles.configButton}
+            accessibilityLabel="Configure daily path"
+          >
+            <Settings size={22} color={theme.colors.text.primary} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => navigation.navigate("ProfileScreen")}
+            style={styles.profileButton}
+            accessibilityLabel="View profile"
+          >
+            <User size={22} color={theme.colors.text.primary} />
+          </TouchableOpacity>
+        </View>
       </View>
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
@@ -151,29 +302,39 @@ const MyJourneyScreen = observer(() => {
             <JourneyHero progress={overallProgress} />
           </View>
           
-          <Text style={styles.heroTitle}>Your Spiritual Journey</Text>
+          <Text style={styles.heroTitle}>Your Kingdom Citizenship Journey</Text>
           <Text style={styles.heroSubtitle}>
             {completedPhases < 2 
-              ? "The journey of a thousand miles begins with one step."
+              ? "The journey to becoming a true citizen of God's kingdom begins with understanding your inheritance."
               : completedPhases === totalPhases 
-              ? "Luke 10:20"
+              ? "You have inherited the rights and responsibilities of Kingdom citizenship."
               : completedPhases > 5 
-              ? "Fight the good fight of the faith"
-              : `Forge on and do not look back.`
+              ? "Your purpose is blossoming as you unite your will with God's plan."
+              : `Continue submitting and uniting your will with God for your purpose to fully blossom.`
             }
           </Text>
           
           <Text style={styles.progressText}>
-            {Math.round(overallProgress)}% Complete • {completedPhases} of {totalPhases} phases
+            {Math.round(overallProgress)}% Ready for Kingdom Citizenship • {completedPhases} of {totalPhases} phases completed
           </Text>
 
           {!dailyPathStore.isSetupComplete && (
             <TouchableOpacity
               style={styles.reconfigureButton}
-              onPress={() => navigation.navigate('DailyPathSetupScreen')}
+              onPress={() => setShowConfigurationModal(true)}
               accessibilityLabel="Set up daily path"
             >
               <Text style={styles.reconfigureButtonText}>Set up daily path</Text>
+            </TouchableOpacity>
+          )}
+          
+          {dailyPathStore.isSetupComplete && (
+            <TouchableOpacity
+              style={styles.reconfigureButton}
+              onPress={() => setShowConfigurationModal(true)}
+              accessibilityLabel="Reconfigure daily path"
+            >
+              <Text style={styles.reconfigureButtonText}>Configure daily path</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -209,7 +370,7 @@ const MyJourneyScreen = observer(() => {
 
         {/* Enhanced Phase Details */}
         <View style={styles.phasesSection}>
-          <Text style={styles.sectionTitle}>Your Journey Phases</Text>
+          <Text style={styles.sectionTitle}>Kingdom Citizenship Phases</Text>
           <View style={styles.phasesGrid}>
             {journeyStore.journeyPhases.map((phase) => {
               const status = phase.status
@@ -301,6 +462,36 @@ const MyJourneyScreen = observer(() => {
           </View>
         </View>
 
+        {/* Career Integration Section */}
+        <View style={styles.careerSection}>
+          <Text style={styles.sectionTitle}>Sanctify Your Work</Text>
+          <View style={styles.careerCard}>
+            <View style={styles.careerHeader}>
+              <Award size={24} color={theme.colors.info} />
+              <Text style={styles.careerTitle}>Work as Kingdom Service</Text>
+            </View>
+            <Text style={styles.careerDescription}>
+              Your career is a vital part of your Kingdom citizenship journey. As you progress through the phases, consider how your God-given talents can be sanctified for His purpose.
+            </Text>
+            <View style={styles.careerProgress}>
+              <Text style={styles.careerProgressText}>
+                {completedPhases < 3 
+                  ? "Focus on building your spiritual foundation first."
+                  : completedPhases < 6 
+                  ? "Begin aligning your work with your growing spiritual understanding."
+                  : "Your work is becoming an expression of your Kingdom citizenship."
+                }
+              </Text>
+            </View>
+            <TouchableOpacity 
+              style={styles.careerButton}
+              onPress={() => navigation.navigate("ProfileScreen")}
+            >
+              <Text style={styles.careerButtonText}>Review Career Alignment</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
         {/* Activity Section */}
         <Text style={styles.sectionTitle}>Your activity</Text>
         {journeyStore.isActivitiesLoading ? (
@@ -330,6 +521,130 @@ const MyJourneyScreen = observer(() => {
           />
         )}
       </ScrollView>
+
+      {/* Configuration Modal */}
+      <Modal visible={showConfigurationModal} transparent animationType="slide" onRequestClose={() => setShowConfigurationModal(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Configure Daily Path</Text>
+              <TouchableOpacity onPress={() => setShowConfigurationModal(false)}>
+                <CrossIcon size={20} color={theme.colors.text.secondary} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
+              <View style={styles.modalSection}>
+                <Text style={styles.modalSectionTitle}>Growth Areas</Text>
+                <Text style={styles.modalSectionDescription}>
+                  Choose your focus areas for spiritual development and daily practice.
+                </Text>
+                <View style={styles.modalOptionGrid}>
+                  {focusOptions.map(option => {
+                    const Icon = option.icon;
+                    const isSelected = selectedFocuses.includes(option.key);
+                    return (
+                      <TouchableOpacity
+                        key={option.key}
+                        style={[styles.modalOptionCard, isSelected && styles.modalOptionCardSelected]}
+                        activeOpacity={0.85}
+                        onPress={() => toggleFocusSelection(option.key)}
+                      >
+                        <View style={[styles.modalIconBadge, { backgroundColor: isSelected ? `${theme.colors.primary}16` : `${theme.colors.primary}10` }]}>
+                          <Icon size={18} color={isSelected ? theme.colors.primary : theme.colors.text.secondary} />
+                        </View>
+                        <Text style={styles.modalOptionTitle}>{option.title}</Text>
+                        <Text style={styles.modalOptionSubtitle}>{option.short}</Text>
+                        {isSelected && (
+                          <View style={[styles.modalCheckBadge, { backgroundColor: theme.colors.primary }]}>
+                            <Check size={14} color={theme.colors.text.inverse} />
+                          </View>
+                        )}
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
+
+              <View style={styles.modalSection}>
+                <Text style={styles.modalSectionTitle}>Current Configuration</Text>
+                
+                <View style={styles.summaryCard}>
+                  <Text style={styles.sectionTitle}>Modules enabled</Text>
+                  <Text style={styles.summaryValue}>
+                    {['revive']
+                      .concat(selectedFocuses.includes('habit_conquest') ? ['habit conquest'] : [])
+                      .concat(selectedFocuses.includes('knowledge') ? ['Bible reading'] : [])
+                      .concat(selectedFocuses.includes('meditation') ? ['meditation'] : [])
+                      .concat(selectedFocuses.includes('habits') ? ['habits'] : [])
+                      .concat(selectedFocuses.includes('habits') && enableChallenges ? ['challenges'] : [])
+                      .join(', ') || 'None selected'}
+                  </Text>
+                </View>
+
+                {selectedFocuses.includes('knowledge') && (
+                  <View style={styles.summaryCard}>
+                    <Text style={styles.sectionTitle}>Bible Reading</Text>
+                    {readingPlan ? (
+                      <>
+                        <View style={styles.summaryRow}><Text style={styles.summaryLabel}>Daily time</Text><Text style={styles.summaryValue}>{readingPlan.timePerDay} mins</Text></View>
+                        <View style={styles.summaryRow}><Text style={styles.summaryLabel}>Mode</Text><Text style={styles.summaryValue}>{readingModeLabel}</Text></View>
+                        <View style={styles.summaryRow}><Text style={styles.summaryLabel}>Books selected</Text><Text style={styles.summaryValue}>{readingPlan.books.length}</Text></View>
+                        <View style={styles.summaryRow}><Text style={styles.summaryLabel}>Reminder</Text><Text style={styles.summaryValue}>{readingPlan.reminderTime || 'None'}</Text></View>
+                      </>
+                    ) : (
+                      <TouchableOpacity style={styles.configBtn} onPress={() => setShowReadingPlanModal(true)}>
+                        <Text style={styles.configText}>Configure reading plan</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                )}
+
+                {selectedFocuses.includes('habit_conquest') && (
+                  <View style={styles.summaryCard}>
+                    <Text style={styles.sectionTitle}>Habit Conquest</Text>
+                    {habit?.vice ? (
+                      <>
+                        <View style={styles.summaryRow}><Text style={styles.summaryLabel}>Focus</Text><Text style={styles.summaryValue}>{habit.vice}</Text></View>
+                        <View style={styles.summaryRow}><Text style={styles.summaryLabel}>Door shut</Text><Text style={styles.summaryValue}>{habit.doorOfSin || 'Not set'}</Text></View>
+                        <View style={styles.summaryRow}><Text style={styles.summaryLabel}>Pledge good</Text><Text style={styles.summaryValue}>{habit.pledgeGood || 'Not set'}</Text></View>
+                        <View style={styles.summaryRow}><Text style={styles.summaryLabel}>Daily minutes</Text><Text style={styles.summaryValue}>{habit.dailyMinutes} mins</Text></View>
+                      </>
+                    ) : (
+                      <TouchableOpacity style={styles.configBtn} onPress={() => navigation.navigate('HabitConquestSetupScreen')}>
+                        <Text style={styles.configText}>Configure habit conquest</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                )}
+              </View>
+            </ScrollView>
+
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={[styles.modalSecondary, { marginRight: theme.spacing.sm }]}
+                onPress={() => setShowConfigurationModal(false)}
+              >
+                <Text style={styles.modalSecondaryText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalPrimary, (selectedFocuses.length === 0 || isSaving) && styles.modalPrimaryDisabled]}
+                activeOpacity={0.85}
+                onPress={handleSaveConfiguration}
+                disabled={selectedFocuses.length === 0 || isSaving}
+              >
+                <Text style={styles.modalPrimaryText}>{isSaving ? 'Saving...' : 'Save Configuration'}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <ReadingPlanSetupModal
+        visible={showReadingPlanModal}
+        onClose={() => setShowReadingPlanModal(false)}
+        onCreatePlan={handleCreatePlan}
+      />
     </View>
   )
 })
@@ -436,6 +751,18 @@ const createStyles = (theme: Theme) =>
       justifyContent: "space-between",
       paddingHorizontal: theme.spacing.md,
       paddingVertical: theme.spacing.sm,
+    },
+    headerButtons: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing.sm,
+    },
+    configButton: {
+      width: 32,
+      height: 32,
+      borderRadius: 16,
+      alignItems: "center",
+      justifyContent: "center",
     },
     title: {
       ...theme.typography.heading.small,
@@ -813,6 +1140,56 @@ const createStyles = (theme: Theme) =>
       color: theme.colors.text.inverse,
     },
 
+    // Career Integration Styles
+    careerSection: {
+      gap: theme.spacing.md,
+    },
+    careerCard: {
+      backgroundColor: `${theme.colors.info}08`,
+      borderRadius: theme.borderRadius.lg,
+      padding: theme.spacing.lg,
+      borderWidth: 1,
+      borderColor: `${theme.colors.info}20`,
+      gap: theme.spacing.md,
+    },
+    careerHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: theme.spacing.sm,
+    },
+    careerTitle: {
+      ...theme.typography.body.sans,
+      color: theme.colors.info,
+      fontWeight: '600',
+    },
+    careerDescription: {
+      ...theme.typography.caption.secondary,
+      color: theme.colors.text.secondary,
+      lineHeight: 18,
+    },
+    careerProgress: {
+      backgroundColor: `${theme.colors.info}10`,
+      borderRadius: theme.borderRadius.md,
+      padding: theme.spacing.md,
+    },
+    careerProgressText: {
+      ...theme.typography.caption.primary,
+      color: theme.colors.info,
+      lineHeight: 16,
+    },
+    careerButton: {
+      backgroundColor: theme.colors.info,
+      paddingVertical: theme.spacing.sm,
+      paddingHorizontal: theme.spacing.md,
+      borderRadius: theme.borderRadius.lg,
+      alignItems: 'center',
+      alignSelf: 'flex-start',
+    },
+    careerButtonText: {
+      ...theme.typography.button,
+      color: theme.colors.text.inverse,
+    },
+
     // Activity Styles
     sectionTitle: {
       ...theme.typography.heading.small,
@@ -881,6 +1258,170 @@ const createStyles = (theme: Theme) =>
       color: theme.colors.primary,
       textAlign: 'center',
       fontWeight: '600',
+    },
+
+    // Configuration Modal Styles
+    modalOverlay: {
+      flex: 1,
+      backgroundColor: 'rgba(0,0,0,0.5)',
+      justifyContent: 'center',
+      alignItems: 'center',
+      padding: theme.spacing.lg,
+    },
+    modalCard: {
+      backgroundColor: theme.colors.background,
+      borderRadius: theme.borderRadius.xl,
+      width: '100%',
+      maxWidth: 500,
+      maxHeight: '90%',
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      overflow: 'hidden',
+    },
+    modalHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      padding: theme.spacing.lg,
+      borderBottomWidth: 1,
+      borderBottomColor: theme.colors.border,
+    },
+    modalTitle: {
+      ...theme.typography.heading.small,
+      color: theme.colors.text.primary,
+    },
+    modalContent: {
+      flex: 1,
+      padding: theme.spacing.lg,
+    },
+    modalSection: {
+      marginBottom: theme.spacing.xl,
+    },
+    modalSectionTitle: {
+      ...theme.typography.heading.small,
+      color: theme.colors.text.primary,
+      marginBottom: theme.spacing.sm,
+    },
+    modalSectionDescription: {
+      ...theme.typography.caption.secondary,
+      color: theme.colors.text.secondary,
+      marginBottom: theme.spacing.md,
+      lineHeight: 18,
+    },
+    modalOptionGrid: {
+      flexDirection: 'column',
+      gap: theme.spacing.sm,
+    },
+    modalOptionCard: {
+      position: 'relative',
+      borderRadius: theme.borderRadius.lg,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      padding: theme.spacing.md,
+      backgroundColor: theme.colors.surface,
+    },
+    modalOptionCardSelected: {
+      borderColor: theme.colors.primary,
+      backgroundColor: `${theme.colors.primary}05`,
+    },
+    modalIconBadge: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: theme.spacing.sm,
+    },
+    modalOptionTitle: {
+      ...theme.typography.body.sans,
+      color: theme.colors.text.primary,
+      fontWeight: '600',
+      marginBottom: theme.spacing.xs,
+    },
+    modalOptionSubtitle: {
+      ...theme.typography.caption.primary,
+      color: theme.colors.text.secondary,
+    },
+    modalCheckBadge: {
+      position: 'absolute',
+      top: theme.spacing.md,
+      right: theme.spacing.md,
+      width: 20,
+      height: 20,
+      borderRadius: 10,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    summaryCard: {
+      backgroundColor: theme.colors.surface,
+      borderRadius: theme.borderRadius.lg,
+      padding: theme.spacing.md,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: theme.colors.border,
+      gap: theme.spacing.sm,
+      marginBottom: theme.spacing.md,
+    },
+    configBtn: {
+      paddingHorizontal: theme.spacing.md,
+      paddingVertical: theme.spacing.sm,
+      borderRadius: theme.borderRadius.md,
+      backgroundColor: theme.colors.background,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: theme.colors.border,
+      alignItems: 'center',
+    },
+    configText: {
+      ...theme.typography.caption.primary,
+      color: theme.colors.primary,
+      fontWeight: '600',
+    },
+    summaryRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+    },
+    summaryLabel: {
+      ...theme.typography.caption.secondary,
+      color: theme.colors.text.secondary,
+    },
+    summaryValue: {
+      ...theme.typography.caption.primary,
+      color: theme.colors.text.primary,
+      fontWeight: '600',
+    },
+    modalActions: {
+      flexDirection: 'row',
+      padding: theme.spacing.lg,
+      borderTopWidth: 1,
+      borderTopColor: theme.colors.border,
+      gap: theme.spacing.sm,
+    },
+    modalSecondary: {
+      flex: 1,
+      paddingVertical: theme.spacing.md,
+      borderRadius: theme.borderRadius.lg,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      alignItems: 'center',
+      backgroundColor: theme.colors.surface,
+    },
+    modalSecondaryText: {
+      ...theme.typography.button,
+      color: theme.colors.text.primary,
+    },
+    modalPrimary: {
+      flex: 2,
+      paddingVertical: theme.spacing.md,
+      borderRadius: theme.borderRadius.lg,
+      backgroundColor: theme.colors.primary,
+      alignItems: 'center',
+    },
+    modalPrimaryDisabled: {
+      opacity: 0.6,
+    },
+    modalPrimaryText: {
+      ...theme.typography.button,
+      color: theme.colors.text.inverse,
     },
   })
 

@@ -763,7 +763,6 @@ export type RootStackParamList = {
   MyJourneyScreen: undefined;
   JourneyQuizScreen: { phaseId: string };
   SetupCompleteScreen: undefined;
-  DailyPathSetupScreen: undefined;
   HabitConquestSetupScreen: undefined;
   HabitConquestSessionScreen: undefined;
   HabitConquestReflectionScreen: HabitConquestReflectionScreenParams | undefined;

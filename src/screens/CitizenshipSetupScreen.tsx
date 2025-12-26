@@ -87,6 +87,8 @@ const CitizenshipSetupScreen = observer(() => {
   const [isSaving, setIsSaving] = useState(false);
   const [isPlanSetupVisible, setIsPlanSetupVisible] = useState(false);
   const [isSchedulingRevive, setIsSchedulingRevive] = useState(false);
+  const [currentStep, setCurrentStep] = useState(0);
+  const [showCareerSection, setShowCareerSection] = useState(false);
   const primaryOption = useMemo(() => focusOptions.find(option => option.key === selectedFocuses[0]), [selectedFocuses]);
 
   const toggleSelection = useCallback((focus: DailyFocusKey) => {
@@ -134,7 +136,7 @@ const CitizenshipSetupScreen = observer(() => {
       if (includesKnowledge) {
         setIsPlanSetupVisible(true);
       } else {
-        navigation.navigate('SetupCompleteScreen');
+        navigation.navigate('MyJourneyScreen');
       }
     } finally {
       setIsSaving(false);
@@ -166,7 +168,7 @@ const CitizenshipSetupScreen = observer(() => {
       } as any);
     } finally {
       setIsPlanSetupVisible(false);
-      navigation.navigate('SetupCompleteScreen');
+      navigation.navigate('MyJourneyScreen');
     }
   }, [bibleStore, journeyStore, navigation]);
 
@@ -177,17 +179,26 @@ const CitizenshipSetupScreen = observer(() => {
           <ArrowLeft size={22} color={theme.colors.text.primary} />
         </TouchableOpacity>
         <View style={styles.headerTextGroup}>
-          <Text style={styles.heading}>Shape Your Daily Path</Text>
+          <Text style={styles.heading}>Kingdom Citizenship</Text>
           {
-            selectedFocuses.length == 0 ?
+            currentStep === 0 ?
           <Text style={styles.subheading}>
-            Choose where you want to grow so we can guide your kingdom citizenship journey.
+            Seek ye first the Kingdom of God and his righteousness and everything will be added unto you.
+          </Text>:
+          currentStep === 1 ?
+          <Text style={styles.subheading}>
+            Understanding your spiritual inheritance and responsibility
+          </Text>:
+          currentStep === 2 ?
+          <Text style={styles.subheading}>
+            Aligning your work with God's purpose
           </Text>:
           <Text style={styles.subheading}>
-            {selectedFocuses.length == 1 ? 'Great, select one more' :
+            {selectedFocuses.length == 0 ? 'Choose your first focus area' :
+             selectedFocuses.length == 1 ? 'Great, select one more' :
              (selectedFocuses.length == 2 ? "Perfect let's get started" :
              (selectedFocuses.length == 3 ? "Getting excited are you?..." : 
-             "Are you a spiritual entrepereneur?..."))
+             "Is your earthly role sanctified?..."))
             }.
           </Text>
           }
@@ -195,11 +206,83 @@ const CitizenshipSetupScreen = observer(() => {
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Choose what you need most</Text>
-          <Text style={styles.sectionDescription}>
-            Pick up to two areas. We will tailor readings, prompts, and challenges around them.
-          </Text>
+        {/* Step 0: Spiritual Foundation */}
+        {currentStep === 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Your Spiritual Foundation</Text>
+            <Text style={styles.sectionDescription}>
+              We perish because of lack of knowledge. Once we truly know God a little, all our anxiety and worries will take a back seat.
+            </Text>
+            <View style={styles.guidanceCard}>
+              <Text style={styles.guidanceText}>
+                The only anxiety that remains is the anxiety of a lucky child that has a rich and kind generous dad—they don't know the type of discipline or kindness they would be shown next but they know it would be a good one and from the best of the best.
+              </Text>
+            </View>
+            <TouchableOpacity style={styles.nextButton} onPress={() => setCurrentStep(1)}>
+              <Text style={styles.nextButtonText}>Continue</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* Step 1: Kingdom Citizenship */}
+        {currentStep === 1 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Your Kingdom Inheritance</Text>
+            <Text style={styles.sectionDescription}>
+              By becoming a true citizen of God's kingdom, we inherit spiritual rights and authority to proclaim words over our own life in union with God and extend prayers to others.
+            </Text>
+            <View style={styles.warningCard}>
+              <Text style={styles.warningTitle}>A Sacred Responsibility</Text>
+              <Text style={styles.warningText}>
+                This citizenship must be sought with discipline and firmness of mind. It's a position that is also dangerous because you don't throw pearls to swines.
+              </Text>
+            </View>
+            <View style={styles.benefitsCard}>
+              <Text style={styles.benefitsTitle}>Your Spiritual Rights</Text>
+              <Text style={styles.benefitsText}>
+                • Authority to proclaim words over your life in union with God{'\n'}
+                • Ability to extend prayers to others effectively{'\n'}
+                • Physical well-being: health, mental state, confidence{'\n'}
+                • Inner peace and joy that transcends circumstances
+              </Text>
+            </View>
+            <View style={styles.stepActions}>
+              <TouchableOpacity style={styles.stepBackButton} onPress={() => setCurrentStep(0)}>
+                <Text style={styles.backButtonText}>Back</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.nextButton} onPress={() => setCurrentStep(2)}>
+                <Text style={styles.nextButtonText}>Continue</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
+        {/* Step 2: Career Sanctification */}
+        {currentStep === 2 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Sanctify Your Work</Text>
+            <Text style={styles.sectionDescription}>
+              Career wise, you should make adjustments to put your God-given gifts and talents first, essentially ensuring your work is sanctified within God's plan.
+            </Text>
+            <View style={styles.careerCard}>
+              <Text style={styles.careerTitle}>Work as Worship</Text>
+              <Text style={styles.careerText}>
+                Your career is not separate from your spiritual journey. When you align your work with God's purpose, it becomes an act of worship and a channel for His blessings to flow through you.
+              </Text>
+            </View>
+            <TouchableOpacity style={styles.nextButton} onPress={() => setCurrentStep(3)}>
+              <Text style={styles.nextButtonText}>Choose Your Path</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* Step 3: Choose Focus Areas */}
+        {currentStep === 3 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Choose Your Growth Areas</Text>
+            <Text style={styles.sectionDescription}>
+              Select the areas where you want to focus your spiritual development. Each area will help you submit and unite your will with God for your purpose to fully blossom.
+            </Text>
           <View style={styles.optionGrid}>
             {focusOptions.map(option => {
               const Icon = option.icon;
@@ -229,10 +312,18 @@ const CitizenshipSetupScreen = observer(() => {
               );
             })}
           </View>
+          <View style={styles.stepActions}>
+            <TouchableOpacity style={styles.stepBackButton} onPress={() => setCurrentStep(2)}>
+              <Text style={styles.backButtonText}>Back</Text>
+            </TouchableOpacity>
+          </View>
         </View>
+        )}
 
       </ScrollView>
 
+      {/* Only show footer on step 3 */}
+      {currentStep === 3 && (
       <View style={[styles.footer, { paddingBottom: theme.spacing.xl + theme.spacing.sm + (insets.bottom || 0) }]}>
         <TouchableOpacity
           style={[styles.saveButton, (selectedFocuses.length === 0 || isSaving) && styles.saveButtonDisabled]}
@@ -243,6 +334,7 @@ const CitizenshipSetupScreen = observer(() => {
           <Text style={styles.saveButtonText}>{selectedFocuses.length === 0 ? 'Select an area' : isSaving ? 'Saving...' : 'Get Started'}</Text>
         </TouchableOpacity>
       </View>
+      )}
 
       {/* Revive checklist modal */}
       {showReviveChecklist && (
@@ -305,7 +397,7 @@ const CitizenshipSetupScreen = observer(() => {
       )}
       <ReadingPlanSetupModal
         visible={isPlanSetupVisible}
-        onClose={() => { setIsPlanSetupVisible(false); navigation.navigate('SetupCompleteScreen'); }}
+        onClose={() => { setIsPlanSetupVisible(false); navigation.navigate('MyJourneyScreen'); }}
         onCreatePlan={handleCreatePlan}
       />
     </View>
@@ -353,6 +445,20 @@ const createStyles = (theme: Theme) => StyleSheet.create({
   },
   section: {
     gap: theme.spacing.sm,
+  },
+  guidanceCard: {
+    backgroundColor: `${theme.colors.primary}08`,
+    borderRadius: theme.borderRadius.lg,
+    padding: theme.spacing.md,
+    borderLeftWidth: 4,
+    borderLeftColor: theme.colors.primary,
+    marginTop: theme.spacing.sm,
+  },
+  guidanceText: {
+    ...theme.typography.body.sans,
+    color: theme.colors.text.primary,
+    lineHeight: 22,
+    fontStyle: 'italic',
   },
   sectionTitle: {
     ...theme.typography.heading.small,
@@ -523,6 +629,97 @@ const createStyles = (theme: Theme) => StyleSheet.create({
   modalPrimaryText: {
     ...theme.typography.button,
     color: theme.colors.text.inverse,
+  },
+  // Step navigation styles
+  nextButton: {
+    backgroundColor: theme.colors.primary,
+    paddingVertical: theme.spacing.md,
+    paddingHorizontal: theme.spacing.xl,
+    borderRadius: theme.borderRadius.lg,
+    alignItems: 'center',
+    marginTop: theme.spacing.md,
+  },
+  nextButtonText: {
+    ...theme.typography.button,
+    color: theme.colors.text.inverse,
+  },
+  stepActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: theme.spacing.sm,
+    marginTop: theme.spacing.lg,
+  },
+  stepBackButton: {
+    backgroundColor: theme.colors.surface,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    paddingVertical: theme.spacing.md,
+    paddingHorizontal: theme.spacing.lg,
+    borderRadius: theme.borderRadius.lg,
+    alignItems: 'center',
+  },
+  backButtonText: {
+    ...theme.typography.button,
+    color: theme.colors.text.primary,
+  },
+  // Warning and benefits cards
+  warningCard: {
+    backgroundColor: `${theme.colors.warning}10`,
+    borderRadius: theme.borderRadius.lg,
+    padding: theme.spacing.md,
+    borderLeftWidth: 4,
+    borderLeftColor: theme.colors.warning,
+    marginTop: theme.spacing.sm,
+  },
+  warningTitle: {
+    ...theme.typography.body.sans,
+    color: theme.colors.warning,
+    fontWeight: '600',
+    marginBottom: theme.spacing.xs,
+  },
+  warningText: {
+    ...theme.typography.caption.secondary,
+    color: theme.colors.text.secondary,
+    lineHeight: 18,
+  },
+  benefitsCard: {
+    backgroundColor: `${theme.colors.success}10`,
+    borderRadius: theme.borderRadius.lg,
+    padding: theme.spacing.md,
+    borderLeftWidth: 4,
+    borderLeftColor: theme.colors.success,
+    marginTop: theme.spacing.sm,
+  },
+  benefitsTitle: {
+    ...theme.typography.body.sans,
+    color: theme.colors.success,
+    fontWeight: '600',
+    marginBottom: theme.spacing.xs,
+  },
+  benefitsText: {
+    ...theme.typography.caption.secondary,
+    color: theme.colors.text.secondary,
+    lineHeight: 18,
+  },
+  // Career card
+  careerCard: {
+    backgroundColor: `${theme.colors.info}10`,
+    borderRadius: theme.borderRadius.lg,
+    padding: theme.spacing.md,
+    borderLeftWidth: 4,
+    borderLeftColor: theme.colors.info,
+    marginTop: theme.spacing.sm,
+  },
+  careerTitle: {
+    ...theme.typography.body.sans,
+    color: theme.colors.info,
+    fontWeight: '600',
+    marginBottom: theme.spacing.xs,
+  },
+  careerText: {
+    ...theme.typography.caption.secondary,
+    color: theme.colors.text.secondary,
+    lineHeight: 18,
   },
 });
 

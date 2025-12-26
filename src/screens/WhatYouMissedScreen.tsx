@@ -34,6 +34,19 @@ const WhatYouMissedScreen = ({ navigation, route }: Props) => {
     [personalChallenges]
   );
 
+  // Validation checks
+  const hasValidData = useMemo(() => {
+    return user && Array.isArray(dailyVerses) && dailyPathStore;
+  }, [user, dailyVerses, dailyPathStore]);
+
+  if (!hasValidData) {
+    return (
+      <View style={[styles.container, { paddingTop: insets.top }]}>
+        <Text style={styles.loadingText}>Loading...</Text>
+      </View>
+    );
+  }
+
   const handleDismiss = () => {
     navigation.goBack();
   };
@@ -43,8 +56,13 @@ const WhatYouMissedScreen = ({ navigation, route }: Props) => {
   };
 
   const handleOpenVerse = () => {
-    const verse = dailyVerses && dailyVerses.length > 0 ? dailyVerses[0] : null;
-    if (verse) {
+    if (!dailyVerses || dailyVerses.length === 0) {
+      navigation.navigate('DailyVersesScreen');
+      return;
+    }
+    
+    const verse = dailyVerses[0];
+    if (verse && verse.id) {
       navigation.navigate('VerseDetail', { verse });
     } else {
       navigation.navigate('DailyVersesScreen');
@@ -85,7 +103,7 @@ const WhatYouMissedScreen = ({ navigation, route }: Props) => {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.heroCard}>
-          <Text style={styles.heroTitle}>{greetingTitle}{user ? `, ${user.first_name}` : ''}</Text>
+          <Text style={styles.heroTitle}>{greetingTitle}{user?.first_name ? `, ${user.first_name}` : ''}</Text>
           <Text style={styles.heroGap}>{gapLabel}</Text>
           <Text style={styles.heroSubtitle}>{heroSubtitle}</Text>
         </View>
@@ -160,7 +178,7 @@ const WhatYouMissedScreen = ({ navigation, route }: Props) => {
             <Text style={styles.footerNoteText}>
               When you’re ready, we can help you create a simple daily rhythm.
             </Text>
-            <TouchableOpacity onPress={() => navigation.navigate('DailyPathSetupScreen')}>
+            <TouchableOpacity onPress={() => navigation.navigate('CitizenshipSetupScreen')}>
               <Text style={styles.footerLink}>Set up my daily path</Text>
             </TouchableOpacity>
           </View>
@@ -300,5 +318,11 @@ const createStyles = (theme: Theme) => StyleSheet.create({
   skipButtonText: {
     ...theme.typography.button,
     color: theme.colors.text.secondary,
+  },
+  loadingText: {
+    ...theme.typography.body.sans,
+    color: theme.colors.text.secondary,
+    textAlign: 'center',
+    marginTop: theme.spacing.xl,
   },
 });

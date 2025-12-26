@@ -4,6 +4,15 @@ import { apiClient, endpoints } from '@/api/client';
 import { Verse, Reflection, UserInteraction, Bookmark } from '@/types';
 import { engagementTracker } from '@/utils/engagementTracker';
 
+// Debounce utility
+const debounce = <T extends (...args: any[]) => void>(func: T, wait: number): T => {
+  let timeout: ReturnType<typeof setTimeout>;
+  return ((...args: any[]) => {
+    clearTimeout(timeout);
+    timeout = setTimeout(() => func(...args), wait);
+  }) as T;
+};
+
 interface VerseStoreState {
   // Daily verses
   dailyVerses: Verse[];
@@ -58,10 +67,14 @@ export class VerseStore {
   isLoading = false;
   error: string | null = null;
   private storageKey = 'verse_store';
+  private debouncedSaveToStorage: () => Promise<void>;
 
   constructor() {
     this.storageKey = 'verse_store';
     makeAutoObservable(this, {}, { autoBind: true });
+    
+    // Create debounced save method
+    this.debouncedSaveToStorage = debounce(this.saveToStorage.bind(this), 1000);
     
     // Load from storage asynchronously
     AsyncStorage.getItem(this.storageKey).then(stored => {
@@ -146,7 +159,8 @@ export class VerseStore {
         {
           include: ['theme', 'reflections.user', 'reflections.comments.user'],
           sort: '-created_at',
-          per_page: 10
+          per_page: 10,
+          date_range: 'both' // Get both today and tomorrow's verses
         }
       );
 
@@ -440,18 +454,28 @@ export class VerseStore {
 
       if (!response.success) throw new Error(response.message || 'Failed to vote for verse');
 
-      // Update local verse state
+      // Update local verse state with server response
+      const responseData = response.data as { voted: boolean; votes: number };
+      const { voted, votes } = responseData;
       runInAction(() => {
+        const updater = (v: Verse) => {
+          if (v.id === verseId) {
+            return { ...v, votes: votes, isVoted: voted };
+          }
+          return v;
+        };
+
+        this.state.dailyVerses = this.state.dailyVerses.map(updater);
+        this.state.trendingVerses = this.state.trendingVerses.map(updater);
+        this.state.featuredVerses = this.state.featuredVerses.map(updater);
         if (this.state.currentVerse?.id === verseId) {
-          this.state.currentVerse = {
-            ...this.state.currentVerse,
-            votes: this.state.currentVerse.votes + 1,
-            isVoted: true
-          };
+          this.state.currentVerse = updater(this.state.currentVerse);
         }
+        this.state.lastUpdate = new Date();
       });
       
-      await this.saveToStorage();
+      // Use debounced save for frequent updates
+      this.debouncedSaveToStorage();
 
       return true;
     } catch (error) {
@@ -462,7 +486,9 @@ export class VerseStore {
 
   async likeVerse(verseId: string) {
     try {
-      const response = await apiClient.post(endpoints.verses.like(verseId));
+      const response = await apiClient.post(endpoints.verses.like(verseId), {
+        action: 'like'
+      });
 
       if (!response.success) throw new Error(response.message || 'Failed to like verse');
 
@@ -478,7 +504,8 @@ export class VerseStore {
         this.state.lastUpdate = new Date();
       });
       
-      await this.saveToStorage();
+      // Use debounced save for frequent updates
+      this.debouncedSaveToStorage();
 
       return true;
     } catch (error) {
