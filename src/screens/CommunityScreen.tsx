@@ -114,41 +114,115 @@ const CommunityScreen = ({ navigation }: CommunityScreenProps) => {
   const loadUsageStage = useCallback(async () => {
     try {
       const stored = await AsyncStorage.getItem('home_quick_menu_usage');
-      const parsed = stored ? (JSON.parse(stored) as QuickMenuUsage) : null;
-      setUsageStage(getUsageStage(parsed));
-    } catch {
+      
+      if (!stored) {
+        setUsageStage(0);
+        return;
+      }
+      
+      // Validate JSON structure before parsing
+      let parsed;
+      try {
+        parsed = JSON.parse(stored);
+      } catch (parseError) {
+        console.warn('Invalid JSON in usage stage data, resetting to default:', parseError);
+        await AsyncStorage.removeItem('home_quick_menu_usage');
+        setUsageStage(0);
+        return;
+      }
+      
+      // Validate parsed data structure
+      if (!parsed || typeof parsed !== 'object') {
+        console.warn('Invalid usage stage data structure, resetting to default');
+        await AsyncStorage.removeItem('home_quick_menu_usage');
+        setUsageStage(0);
+        return;
+      }
+      
+      const usage = parsed as QuickMenuUsage;
+      setUsageStage(getUsageStage(usage));
+    } catch (error) {
+      console.error('Failed to load usage stage:', error);
       setUsageStage(0);
+      // Clear corrupted data
+      try {
+        await AsyncStorage.removeItem('home_quick_menu_usage');
+      } catch (clearError) {
+        console.error('Failed to clear corrupted usage stage data:', clearError);
+      }
     }
-    //temporary testing
-    setUsageStage(2)
   }, []);
 
   const cards = useMemo(() => COMMUNITY_CARDS(theme.colors), [theme.colors]);
   const availableCards = useMemo(() => {
     return cards.filter(card => {
-      if (card.key === 'prayer_requests' && dailyPathStore?.state?.communityUnlocked) return true;
+      // Standardize unlock logic: prayer requests unlock at stage 2 like other features
+      // or if community is specifically unlocked
+      if (card.key === 'prayer_requests') {
+        return card.stage <= usageStage || dailyPathStore?.state?.communityUnlocked;
+      }
       return card.stage <= usageStage;
     });
   }, [cards, usageStage, dailyPathStore?.state?.communityUnlocked]);
 
+  // Define available routes for validation - ensure all routes actually exist
+  const AVAILABLE_ROUTES: CommunityRoute[] = [
+    'DailyChallengeScreen',
+    'DailyVersesScreen', 
+    'NotesScreen',
+    'WordHubsScreen',
+    'PrayerRequestsScreen',
+  ];
+
   const handleNavigate = useCallback((route: CommunityRoute) => {
-    navigation.navigate(route);
+    try {
+      // Validate route against available routes
+      if (!AVAILABLE_ROUTES.includes(route)) {
+        console.warn(`Navigation route "${route}" is not implemented`);
+        toast.error('This feature is not available yet');
+        return;
+      }
+      
+      // Additional validation: ensure route exists in navigation
+      const navigationState = navigation.getState();
+      const routeExists = navigationState?.routes.some((r: any) => r.name === route) || 
+                         navigationState?.history?.some((h: any) => h.key === route);
+      
+      if (!routeExists) {
+        console.warn(`Navigation route "${route}" not found in navigation state`);
+        toast.error('Unable to navigate to this feature');
+        return;
+      }
+      
+      navigation.navigate(route);
+    } catch (error) {
+      console.error('Navigation error:', error);
+      toast.error('Unable to navigate to this feature');
+    }
   }, [navigation]);
 
   // Reset unread count and set last opened when this screen gains focus
   useFocusEffect(
     React.useCallback(() => {
-      markOpened();
-      loadUsageStage();
-      try {
-        const unlocked = dailyPathStore?.state?.communityUnlocked;
-        if (!unlocked) {
-          const stage = getUsageStage(null);
-          toast.info('Community features unlock as you engage with Bible reading and meditation. Keep going!');
+      // Sequential operations to prevent race conditions
+      const initializeScreen = async () => {
+        try {
+          await markOpened();
+          await loadUsageStage();
+          
+          const unlocked = dailyPathStore?.state?.communityUnlocked;
+          if (!unlocked) {
+            const stage = getUsageStage(null);
+            toast.info('Community features unlock as you engage with Bible reading and meditation. Keep going!');
+          }
+        } catch (error) {
+          console.error('Error initializing CommunityScreen:', error);
         }
-      } catch {}
+      };
+      
+      initializeScreen();
       return () => {};
-    }, [markOpened, loadUsageStage])
+    }, [markOpened, loadUsageStage, dailyPathStore?.state?.communityUnlocked])
   );
 
   return (

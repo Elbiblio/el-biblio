@@ -10,6 +10,18 @@ import { differenceInMinutes } from 'date-fns';
 import { cancelChallengeReminder } from '@/tasks/challengeReminderTask';
 import { pointsTracker } from '@/utils/pointsTracker';
 
+// Debounce utility
+const debounce = <T extends (...args: any[]) => any>(
+  func: T,
+  wait: number
+): ((...args: Parameters<T>) => void) => {
+  let timeout: ReturnType<typeof setTimeout>;
+  return (...args: Parameters<T>) => {
+    clearTimeout(timeout);
+    timeout = setTimeout(() => func(...args), wait);
+  };
+};
+
 export type ChallengeCategory = 'personal' | 'community' | 'suggested';
 
 export interface ChallengeState {
@@ -736,7 +748,14 @@ export class ChallengeStore {
     }
   }
 
+  // Debounced completion to prevent duplicates
+  private debouncedCompleteChallenge = debounce(this.completeChallengeInternal, 1000);
+
   async completeChallenge(challengeId: string, isCompleted: boolean) {
+    return this.debouncedCompleteChallenge(challengeId, isCompleted);
+  }
+
+  private async completeChallengeInternal(challengeId: string, isCompleted: boolean) {
     try {
       this.setLoading(true);
 

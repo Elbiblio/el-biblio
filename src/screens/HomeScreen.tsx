@@ -131,11 +131,11 @@ type QuickMenuUsage = {
   unlockedItems: string[];
 };
 
-const QuickActionCard = ({ action, index, actionStyles, onPress }: { 
-  action: any; 
-  index: number, 
-  actionStyles: any, 
-  onPress: (route: keyof RootStackParamList) => void 
+const QuickActionCard = ({ action, index, actionStyles, onPress }: {
+  action: any;
+  index: number,
+  actionStyles: any,
+  onPress: (route: keyof RootStackParamList) => void
 }) => {
   return (
     <TouchableOpacity
@@ -246,6 +246,8 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
     lastSyncedTime: 0,
     dayStartTimestamp: new Date().setHours(0, 0, 0, 0),
   });
+  
+  // Store hooks
   const { user, updateUserTime, authRequired, logout, authPromptIntent, pendingAuthEmail, dismissAuthPrompt } = useAuthStore();
   const { completeChallenge } = useMeditationStore();
   const { isConnected } = useWebSocket();
@@ -253,12 +255,14 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
   const { shouldShowBadge, updateRank } = useGameBadgeStore();
   const dailyPathStore = useDailyPathStore();
   const journeyStore = useJourneyStore();
-  const [timeTracking, setTimeTracking] = useState<TimeTracking>({
+  
+  // Consolidated time tracking state
+  const [timeTracking, setTimeTracking] = useState<TimeTracking>(() => ({
     lastActiveTimestamp: Date.now(),
     totalActiveTime: user?.total_active_time || 0,
     lastSyncedTime: user?.total_active_time || 0,
     dayStartTimestamp: new Date().setHours(0, 0, 0, 0),
-  });
+  }));
 
   const handleDailyJourneyAction = useCallback(
     (step: DailyStep) => {
@@ -316,7 +320,7 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
         ensureHabitConquestRemindersActive(hc.split as any, hc.vice ?? null, hc.dailyMinutes ?? null, 30)
           .catch((e) => console.warn('[HomeScreen] ensure HC reminders failed', e));
       }
-      return () => {};
+      return () => { };
     }, [dailyPathStore.primaryFocus, dailyPathStore.secondaryFocus, dailyPathStore.state.habitConquest])
   );
 
@@ -727,7 +731,7 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
           >
             <Text style={styles.citizenshipPrimaryText}>Set up daily path</Text>
           </TouchableOpacity>
-          
+
           <TouchableOpacity
             style={styles.citizenshipSecondary}
             onPress={handleDismissCitizenshipPrompt}
@@ -763,100 +767,33 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
   const pointsAnimatedStyle = useAnimatedStyle(() => ({
     transform: [{ scale: pointsScale.value }],
   }));
-  useEffect(() => {
-    loadTimeTracking();
-    const subscription = AppState.addEventListener('change', (nextAppState) => {
-      const prev = appStateRef.current;
-      appStateRef.current = nextAppState;
-      if (prev === 'active' && nextAppState.match(/inactive|background/)) {
-        handleAppInactive();
-      } else if (prev.match(/inactive|background/) && nextAppState === 'active') {
-        handleAppActive();
-      }
-      setAppState(nextAppState);
-    });
-
-    const syncInterval = setInterval(() => {
-      if (appStateRef.current === 'active') {
-        handleTimeSync();
-      }
-    }, SYNC_INTERVAL);
-
-    verseTranslateY.value = withTiming(0, { duration: 600 });
-    challengeOpacity.value = withTiming(1, { duration: 600 });
-
-    return () => {
-      subscription.remove();
-      clearInterval(syncInterval);
-    };
-  }, []);
-
-
-  // If an API call returns 401, the global unauthorized handler sets authRequired=true.
-  // When that happens, present the AuthModal. If the user logs in successfully, close it.
-  useEffect(() => {
-    if (authRequired) {
-      setShowAuthModal(true);
-    }
-  }, [authRequired]);
-
-  useEffect(() => {
-    if (user) {
-      dismissAuthPrompt();
-      setShowAuthModal(false);
-    }
-  }, [user, dismissAuthPrompt]);
-
-  const loadTimeTracking = async () => {
+  const loadTimeTracking = useCallback(async () => {
     try {
-      // Load time tracking from user store instead of AsyncStorage
-      const savedTracking: TimeTracking = {
+      // Initialize time tracking from user data
+      const initialTracking: TimeTracking = {
         lastActiveTimestamp: Date.now(),
         totalActiveTime: user?.total_active_time || 0,
         lastSyncedTime: user?.total_active_time || 0,
         dayStartTimestamp: new Date().setHours(0, 0, 0, 0),
       };
-      
-      setTimeTracking(savedTracking);
-      timeTrackingRef.current = savedTracking;
+
+      setTimeTracking(initialTracking);
+      timeTrackingRef.current = initialTracking;
     } catch (error) {
       console.error('Failed to load time tracking:', error);
+      // Set default values on error
+      const fallbackTracking: TimeTracking = {
+        lastActiveTimestamp: Date.now(),
+        totalActiveTime: 0,
+        lastSyncedTime: 0,
+        dayStartTimestamp: new Date().setHours(0, 0, 0, 0),
+      };
+      setTimeTracking(fallbackTracking);
+      timeTrackingRef.current = fallbackTracking;
     }
-  };
+  }, [user?.total_active_time]);
 
-  const handleAuthModalClose = useCallback(() => {
-    dismissAuthPrompt();
-    setShowAuthModal(false);
-  }, [dismissAuthPrompt]);
-
-  const handleOpenHomeWelcome = useCallback(() => {
-    setShowHomeWelcomeNote(true);
-  }, []);
-
-  const handleDismissHomeWelcome = useCallback(async () => {
-    setShowHomeWelcomeNote(false);
-    setHasSeenHomeWelcome(true);
-    toast.success('Welcome, and thank you for choosing to walk in this spirit of oneness.');
-    try {
-      await AsyncStorage.setItem(HOME_WELCOME_KEY, 'seen');
-    } catch (error) {
-      console.error('Error saving home welcome state:', error);
-    }
-  }, []);
-
-  const saveTimeTracking = async (tracking: TimeTracking) => {
-    try {
-      // Update time tracking through user store instead of AsyncStorage
-      // The user store will handle the API call to update total_active_time
-      if (user) {
-        await updateUserTime(tracking.totalActiveTime);
-      }
-    } catch (error) {
-      console.error('Failed to save time tracking:', error);
-    }
-  };
-
-  const handleTimeSync = async () => {
+  const handleTimeSync = useCallback(async () => {
     const tt = timeTrackingRef.current;
     if (!user || !tt || tt.totalActiveTime <= tt.lastSyncedTime) {
       return;
@@ -864,6 +801,12 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
     if (syncingRef.current) {
       return;
     }
+    
+    // Prevent race conditions with additional check
+    if (Date.now() - tt.lastSyncedTime < SYNC_INTERVAL / 2) {
+      return;
+    }
+    
     syncingRef.current = true;
     try {
       await updateUserTime(tt.totalActiveTime);
@@ -874,14 +817,14 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
       });
     } catch (error) {
       console.error('Error syncing time:', error);
+      // Reset sync flag on error to allow retry
+      syncingRef.current = false;
     } finally {
       syncingRef.current = false;
     }
-  };
+  }, [user, updateUserTime]);
 
-  
-
-  const handleAppActive = () => {
+  const handleAppActive = useCallback(() => {
     const now = Date.now();
     setTimeTracking(prev => ({
       ...prev,
@@ -911,15 +854,20 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
         dailyPathStore.recordRevivePrompt(new Date(now).toISOString());
       }
     }
-  };
+  }, [dailyPathStore]);
 
-  const handleAppInactive = async () => {
+  const handleAppInactive = useCallback(async () => {
     const now = Date.now();
     const prev = timeTrackingRef.current;
     const rawDuration = now - prev.lastActiveTimestamp;
     // Clamp a single session chunk to avoid massively over-counting
     // when the app has been backgrounded for a long time.
     const sessionDuration = Math.max(0, Math.min(rawDuration, MAX_ACTIVE_TIME));
+
+    // Only proceed if there's meaningful time to track
+    if (sessionDuration < 1000) { // Less than 1 second
+      return;
+    }
 
     const newTracking = {
       ...prev,
@@ -929,10 +877,125 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
 
     setTimeTracking(newTracking);
     timeTrackingRef.current = newTracking;
-    await saveTimeTracking(newTracking);
-    await handleTimeSync();
+    
+    // Save and sync in parallel to avoid blocking
+    await Promise.all([
+      saveTimeTracking(newTracking),
+      handleTimeSync()
+    ]).catch(error => {
+      console.error('Error in app inactive cleanup:', error);
+    });
+  }, [handleTimeSync]);
+
+  const handleCompleteChallenge = async (challengeId: string) => {
+    try {
+      await completeChallenge(challengeId);
+      // Clear feedback state after successful completion
+      setFeedbackTargetId(null);
+      setChallengeFeedbackText('');
+      setShowChallengeFeedback(false);
+    } catch (error) {
+      console.error('Failed to complete challenge:', error);
+      // Don't clear feedback state on error to allow retry
+      toast.error('Failed to complete challenge. Please try again.');
+    }
   };
 
+  const saveTimeTracking = useCallback(async (tracking: TimeTracking) => {
+    try {
+      // Update time tracking through user store instead of AsyncStorage
+      // The user store will handle the API call to update total_active_time
+      if (user) {
+        await updateUserTime(tracking.totalActiveTime);
+      }
+    } catch (error) {
+      console.error('Failed to save time tracking:', error);
+    }
+  }, [user, updateUserTime]);
+
+  useEffect(() => {
+    loadTimeTracking();
+    
+    // Debounced app state change handler to prevent rapid state changes
+    let appStateTimeout: ReturnType<typeof setTimeout>;
+    
+    const handleAppStateChange = (nextAppState: AppStateStatus) => {
+      const prev = appStateRef.current;
+      
+      // Clear any pending timeout
+      if (appStateTimeout) {
+        clearTimeout(appStateTimeout);
+      }
+      
+      // Debounce rapid state changes
+      appStateTimeout = setTimeout(() => {
+        appStateRef.current = nextAppState;
+        
+        if (prev === 'active' && nextAppState.match(/inactive|background/)) {
+          handleAppInactive();
+        } else if (prev.match(/inactive|background/) && nextAppState === 'active') {
+          handleAppActive();
+        }
+        
+        setAppState(nextAppState);
+      }, 100); // 100ms debounce
+    };
+
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+
+    const syncInterval = setInterval(() => {
+      if (appStateRef.current === 'active' && !syncingRef.current) {
+        handleTimeSync();
+      }
+    }, SYNC_INTERVAL);
+
+    // Initialize animations
+    verseTranslateY.value = withTiming(0, { duration: 600 });
+    challengeOpacity.value = withTiming(1, { duration: 600 });
+
+    return () => {
+      subscription.remove();
+      clearInterval(syncInterval);
+      if (appStateTimeout) {
+        clearTimeout(appStateTimeout);
+      }
+    };
+  }, [loadTimeTracking, handleTimeSync, handleAppActive, handleAppInactive]);
+
+
+  // Consolidated auth modal state management
+  useEffect(() => {
+    try {
+      if (authRequired && !showAuthModal && !user) {
+        setShowAuthModal(true);
+      } else if (user && authRequired) {
+        dismissAuthPrompt();
+        setShowAuthModal(false);
+      }
+    } catch (error) {
+      console.error('Auth modal state error:', error);
+    }
+  }, [authRequired, showAuthModal, user, dismissAuthPrompt]);
+
+  const handleAuthModalClose = useCallback(() => {
+    dismissAuthPrompt();
+    setShowAuthModal(false);
+  }, [dismissAuthPrompt]);
+
+  const handleOpenHomeWelcome = useCallback(() => {
+    setShowHomeWelcomeNote(true);
+  }, []);
+
+  const handleDismissHomeWelcome = useCallback(async () => {
+    setShowHomeWelcomeNote(false);
+    setHasSeenHomeWelcome(true);
+    toast.success('Welcome, and thank you for choosing to walk in this spirit of oneness.');
+    try {
+      await AsyncStorage.setItem(HOME_WELCOME_KEY, 'seen');
+    } catch (error) {
+      console.error('Error saving home welcome state:', error);
+    }
+  }, []);
 
   const verseStore = useVerseStore();
   const { dailyVerses, isDailyVersesLoading } = verseStore.state;
@@ -968,7 +1031,7 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
 
       refreshChallenges();
 
-      return () => {};
+      return () => { };
     }, [fetchPersonalChallenges, fetchCommunityChallenges, handleAuthHttpError])
   );
 
@@ -1014,7 +1077,7 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
     const id = setInterval(() => {
       fetchUserRank(user.id!, 'all').then((res) => {
         if (res?.rank) updateRank('all', res.rank);
-      }).catch(() => {});
+      }).catch(() => { });
     }, 2 * 60 * 1000); // every 2 minutes
     return () => clearInterval(id);
   }, [user?.id, fetchUserRank, updateRank]);
@@ -1205,13 +1268,51 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
     scrollY.value = event.nativeEvent.contentOffset.y;
   };
 
-  const handleVersePress = (verse: Verse) => {
+  const handleVersePress = (verse: ModalVerse) => {
+    // Build learnContext similar to VersePreviewModal scoped params
+    const primaryText = verse.text?.trim();
+    const baseReference = verse.reference?.replace(/:\d+.*$/, '') ?? null;
+    const primaryReference = (verse as any).reference_display || verse.reference || undefined;
+    const scopedVerses: { text: string; reference?: string | null; isPrimary?: boolean }[] = [];
+    const addVerse = (entry: { text: string; reference?: string | null; isPrimary?: boolean }) => {
+      const key = `${entry.reference ?? ''}|${entry.text}`;
+      if (scopedVerses.some(existing => `${existing.reference ?? ''}|${existing.text}` === key)) return;
+      scopedVerses.push(entry);
+    };
+    const mainVerseNumber = typeof (verse as any).verse === 'number' ? (verse as any).verse : null;
+    const contextLines = (verse.context_text ?? '')
+      .split(/\n+/)
+      .map(line => line.trim())
+      .filter(Boolean);
+    contextLines.forEach(line => {
+      const match = line.match(/^(\d+)[\s.:\-]*\s*(.*)$/);
+      const candidateNumber = match ? Number(match[1]) : null;
+      const text = (match ? match[2] : line).trim();
+      if (!text) return;
+      const isPrimary = candidateNumber != null && mainVerseNumber != null
+        ? candidateNumber === mainVerseNumber
+        : (!!primaryText && text === primaryText);
+      const reference = candidateNumber != null
+        ? (baseReference ? `${baseReference}:${candidateNumber}` : `${(verse as any).book ?? ''} ${(verse as any).chapter ?? ''}:${candidateNumber}`.trim())
+        : (verse as any).context_reference ?? primaryReference;
+      addVerse({ text, reference, isPrimary });
+    });
+    if (!scopedVerses.some(item => item.isPrimary) && primaryText) {
+      addVerse({ text: primaryText, reference: primaryReference, isPrimary: true });
+    }
+    const learnContext = {
+      scopedTitle: (verse as any).context_reference ?? primaryReference ?? null,
+      scopedSubtitle: (verse as any).translation ?? null,
+      scopedVerses: scopedVerses.length ? scopedVerses : null,
+    } as const;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     cardScale.value = withSequence(
       withTiming(0.95, { duration: 100 }),
       withTiming(1, { duration: 100 })
     );
-    navigation.navigate("VerseDetail", { verse });
+
+    navigation.navigate('VerseDetail', { verse, learnContext });
+    setSelectedVerse(null);
   };
 
   // const handleVerseScroll = useCallback((event: { nativeEvent: { contentOffset: { x: number } } }) => {
@@ -1347,7 +1448,7 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
               );
             }}
           >
-            <Animated.View style={[styles.points, pointsAnimatedStyle]}> 
+            <Animated.View style={[styles.points, pointsAnimatedStyle]}>
               <LinearGradient
                 colors={[theme?.colors.primary, theme?.colors.primaryLight]}
                 start={{ x: 0, y: 0 }}
@@ -1398,19 +1499,19 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
 
     const tools = acceptedJesusCompleted
       ? [
-          baseTools[0],
-          baseTools[1],
-          {
-            icon: Lightning,
-            label: 'Guides',
-            route: 'TalkToGodScreen',
-            badge: null,
-            color: theme?.colors.primary,
-            requiresUnlock: false,
-            stage: 0,
-          },
-          ...baseTools.slice(2),
-        ]
+        baseTools[0],
+        baseTools[1],
+        {
+          icon: Lightning,
+          label: 'Guides',
+          route: 'TalkToGodScreen',
+          badge: null,
+          color: theme?.colors.primary,
+          requiresUnlock: false,
+          stage: 0,
+        },
+        ...baseTools.slice(2),
+      ]
       : baseTools;
 
     return (
@@ -1425,52 +1526,52 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
             if (!isStageUnlocked) {
               return null;
             }
-            
+
             return (
-            <TouchableOpacity
-              key={tool.label}
-              style={[styles.toolButton, !isUnlocked && { opacity: 0.6 }]}
-              onPress={() => {
-                if (!isUnlocked) {
-                  const totalPoints = leaderboardStore.userStats?.totalPoints ?? user?.points ?? 0;
-                  const remaining = Math.max(0, SOUL_FORGE_UNLOCK_POINTS - totalPoints);
-                  toast.info(`Earn ${remaining} more points to unlock SoulForge.`);
-                  Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-                  return;
-                }
-                // Add press animation
-                toolsScale.value = withSequence(
-                  withTiming(0.97, { duration: 100 }),
-                  withTiming(1, { duration: 100 })
-                );
-                handleQuickActionPress(tool.route);
-              }}
-              disabled={!isUnlocked}
-            >
-              <LinearGradient
-                colors={[`${tool.color}15`, `${tool.color}05`]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.toolGradient}
-              />
-              <View style={[styles.toolIconContainer, { backgroundColor: isUnlocked ? `${tool.color}15` : '#00000010' }]}>
-                {isUnlocked ? (
-                  <tool.icon size={24} color={tool.color} strokeWidth={2} />
-                ) : (
-                  <Lock size={24} color={theme?.colors.text.secondary} />
-                )}
-                {tool.badge && isUnlocked && (
-                  <View style={styles.badgeContainer}>
-                    <Text style={styles.badgeText}>{tool.badge}</Text>
-                  </View>
-                )}
-              </View>
-              <Text style={[styles.toolLabel, !isUnlocked && { opacity: 0.5 }]}>
-                {tool.label}
-                {!isUnlocked && ' 🔒'}
-              </Text>
-            </TouchableOpacity>
-          );
+              <TouchableOpacity
+                key={tool.label}
+                style={[styles.toolButton, !isUnlocked && { opacity: 0.6 }]}
+                onPress={() => {
+                  if (!isUnlocked) {
+                    const totalPoints = leaderboardStore.userStats?.totalPoints ?? user?.points ?? 0;
+                    const remaining = Math.max(0, SOUL_FORGE_UNLOCK_POINTS - totalPoints);
+                    toast.info(`Earn ${remaining} more points to unlock SoulForge.`);
+                    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+                    return;
+                  }
+                  // Add press animation
+                  toolsScale.value = withSequence(
+                    withTiming(0.97, { duration: 100 }),
+                    withTiming(1, { duration: 100 })
+                  );
+                  handleQuickActionPress(tool.route);
+                }}
+                disabled={!isUnlocked}
+              >
+                <LinearGradient
+                  colors={[`${tool.color}15`, `${tool.color}05`]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.toolGradient}
+                />
+                <View style={[styles.toolIconContainer, { backgroundColor: isUnlocked ? `${tool.color}15` : '#00000010' }]}>
+                  {isUnlocked ? (
+                    <tool.icon size={24} color={tool.color} strokeWidth={2} />
+                  ) : (
+                    <Lock size={24} color={theme?.colors.text.secondary} />
+                  )}
+                  {tool.badge && isUnlocked && (
+                    <View style={styles.badgeContainer}>
+                      <Text style={styles.badgeText}>{tool.badge}</Text>
+                    </View>
+                  )}
+                </View>
+                <Text style={[styles.toolLabel, !isUnlocked && { opacity: 0.5 }]}>
+                  {tool.label}
+                  {!isUnlocked && ' 🔒'}
+                </Text>
+              </TouchableOpacity>
+            );
           })}
         </View>
         {getUsageStage(quickMenuUsage) === 0 && (
@@ -1484,33 +1585,22 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
   // Calculate challenge progress based on time
   const calculateChallengeProgress = (challenge: Challenge): number => {
     if (!challenge.createdAt || !challenge.expiresAt) return 0;
-    
+
     const now = new Date().getTime();
     const startTime = new Date(challenge.createdAt).getTime();
     const endTime = new Date(challenge.expiresAt).getTime();
-    
+
     // If challenge is completed or time has passed
     if (now >= endTime) return 100;
-    
+
     // If challenge hasn't started yet
     if (now < startTime) return 0;
-    
+
     // Calculate progress percentage
     const totalDuration = endTime - startTime;
     const elapsed = now - startTime;
     return Math.min(Math.round((elapsed / totalDuration) * 100), 100);
   };
-  
-  // Handle challenge completion
-  const handleCompleteChallenge = async (challengeId: string) => {
-    try {
-      await completeChallenge(challengeId);
-      // Points are awarded by backend and surfaced via global PointsEarnedModal; no local updates
-    } catch (error) {
-      console.error('Failed to complete challenge:', error);
-    }
-  };
-  
   // Render Daily Challenges Section with real API data
   const challengesUnlockedByPoints = useMemo(() => {
     if (!user) return false;
@@ -1569,7 +1659,7 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
         <Animated.View style={[styles.section, challengeStyle]}>
           <View style={styles.sectionHeaderWithAction}>
             <Text style={styles.sectionTitle}>DAILY CHALLENGES</Text>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.viewAllButton}
               onPress={() => navigation.navigate('DailyChallengeScreen')}
             >
@@ -1583,7 +1673,7 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
         </Animated.View>
       );
     }
-    
+
     // Use real API data from challenge store only
     const personalChallenge = activePersonalChallenges && activePersonalChallenges.length > 0
       ? activePersonalChallenges[0]
@@ -1593,7 +1683,7 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
       if (challenge.hasJoined) return false;
       return true;
     });
-    
+
 
     // Calculate progress for personal challenge
     const personalProgress = personalChallenge ? calculateChallengeProgress(personalChallenge as any) : 0;
@@ -1625,7 +1715,7 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
       <Animated.View style={[styles.section, challengeAnimatedStyle]}>
         <View style={styles.sectionHeaderWithAction}>
           <Text style={styles.sectionTitle}>DAILY CHALLENGES</Text>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.viewAllButton}
             onPress={() => navigation.navigate('DailyChallengeScreen')}
           >
@@ -1665,9 +1755,9 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
                 <Text style={completionBadgeStyles.text}>{personalCompletionLabel}</Text>
               </View>
             )}
-            <TouchableOpacity 
-              style={[styles.completeButton, 
-                isPersonalChallengeComplete ? styles.completeButtonActive : {}]}
+            <TouchableOpacity
+              style={[styles.completeButton,
+              isPersonalChallengeComplete ? styles.completeButtonActive : {}]}
               onPress={() => {
                 if (personalChallenge.id && isPersonalChallengeComplete) {
                   setFeedbackTargetId(personalChallenge.id);
@@ -1694,7 +1784,7 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
             <Text style={styles.challengeText}>
               You have not joined any challenges yet.
             </Text>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.joinChallengeButton}
               onPress={() => navigation.navigate('DailyChallengeScreen')}
             >
@@ -1702,7 +1792,7 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
             </TouchableOpacity>
           </View>
         )}
-        
+
         {/* Community Challenge */}
         {communityChallenge ? (
           <View style={styles.challengeCard}>
@@ -1726,7 +1816,7 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
                 </Text>
               </View>
             )}
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.joinChallengeButton}
               onPress={() => {
                 challengeOpacity.value = withSequence(
@@ -1747,7 +1837,7 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
             <Text style={styles.challengeText}>
               No community challenges available right now.
             </Text>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.joinChallengeButton}
               onPress={() => navigation.navigate('DailyChallengeScreen')}
             >
@@ -1864,7 +1954,7 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
     return (
       <Animated.View style={[styles.section, spotlightStyle]}>
         <Text style={styles.sectionTitle}>LEARNING SPOTLIGHT</Text>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.spotlightCard}
           onPress={() => {
             spotlightTranslateX.value = withSequence(
@@ -1911,8 +2001,8 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
               <Text style={styles.closeButton}>✕</Text>
             </TouchableOpacity>
           </View>
-          
-          <TouchableOpacity 
+
+          <TouchableOpacity
             style={styles.gameOption}
             onPress={() => {
               setShowGamesModal(false);
@@ -1928,8 +2018,8 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
             </View>
             <ChevronRight size={18} color={theme?.colors.text.secondary} />
           </TouchableOpacity>
-          
-          <TouchableOpacity 
+
+          <TouchableOpacity
             style={styles.gameOption}
             onPress={() => {
               setShowGamesModal(false);
@@ -1986,54 +2076,15 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
         {renderLearningSpotlight()}
       </ScrollView>
 
-      <VersePreviewModal 
-        verse={selectedVerse} 
+      <VersePreviewModal
+        verse={selectedVerse}
         onClose={() => setSelectedVerse(null)}
         context="home"
-        onVersePress={(verse: ModalVerse) => {
-          // Build learnContext similar to VersePreviewModal scoped params
-          const primaryText = verse.text?.trim();
-          const baseReference = verse.reference?.replace(/:\d+.*$/, '') ?? null;
-          const primaryReference = (verse as any).reference_display || verse.reference || undefined;
-          const scopedVerses: { text: string; reference?: string | null; isPrimary?: boolean }[] = [];
-          const addVerse = (entry: { text: string; reference?: string | null; isPrimary?: boolean }) => {
-            const key = `${entry.reference ?? ''}|${entry.text}`;
-            if (scopedVerses.some(existing => `${existing.reference ?? ''}|${existing.text}` === key)) return;
-            scopedVerses.push(entry);
-          };
-          const mainVerseNumber = typeof (verse as any).verse === 'number' ? (verse as any).verse : null;
-          const contextLines = (verse.context_text ?? '')
-            .split(/\n+/)
-            .map(line => line.trim())
-            .filter(Boolean);
-          contextLines.forEach(line => {
-            const match = line.match(/^(\d+)[\s.:\-]*\s*(.*)$/);
-            const candidateNumber = match ? Number(match[1]) : null;
-            const text = (match ? match[2] : line).trim();
-            if (!text) return;
-            const isPrimary = candidateNumber != null && mainVerseNumber != null
-              ? candidateNumber === mainVerseNumber
-              : (!!primaryText && text === primaryText);
-            const reference = candidateNumber != null
-              ? (baseReference ? `${baseReference}:${candidateNumber}` : `${(verse as any).book ?? ''} ${(verse as any).chapter ?? ''}:${candidateNumber}`.trim())
-              : (verse as any).context_reference ?? primaryReference;
-            addVerse({ text, reference, isPrimary });
-          });
-          if (!scopedVerses.some(item => item.isPrimary) && primaryText) {
-            addVerse({ text: primaryText, reference: primaryReference, isPrimary: true });
-          }
-          const learnContext = {
-            scopedTitle: (verse as any).context_reference ?? primaryReference ?? null,
-            scopedSubtitle: (verse as any).translation ?? null,
-            scopedVerses: scopedVerses.length ? scopedVerses : null,
-          } as const;
-          navigation.navigate('VerseDetail', { verse, learnContext });
-          setSelectedVerse(null);
-        }}
+        onVersePress={handleVersePress}
       />
 
       {renderGamesModal()}
-      
+
       {/* Points Earned Modal */}
       {/* PointsEarnedModal is now shown globally in App.tsx via pointsTracker */}
 
@@ -2068,30 +2119,30 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
 
               <Text style={styles.homeWelcomeItem}>
                 <Text style={styles.homeWelcomeItemNumber}>1.&nbsp;</Text>
-                <Text style={{fontWeight: 'bold'}}>Our Unity is in Christ, Not in Uniformity.</Text> Jesus foresaw many branches (John 15:5) but prayed for one vine. The apostles dealt with disputes (Acts 15:1-29) but maintained fellowship. We are a non-denominational family that embraces all who confess Jesus as the sovereign Lord (Romans 10:9), recognizing that our unity is a testament to the world of God's love (John 13:35). Divisive agendas and "casting stones" at other believers have no place here, for they directly oppose the heart of Christ.
+                <Text style={{ fontWeight: 'bold' }}>Our Unity is in Christ, Not in Uniformity.</Text> Jesus foresaw many branches (John 15:5) but prayed for one vine. The apostles dealt with disputes (Acts 15:1-29) but maintained fellowship. We are a non-denominational family that embraces all who confess Jesus as the sovereign Lord (Romans 10:9), recognizing that our unity is a testament to the world of God's love (John 13:35). Divisive agendas and "casting stones" at other believers have no place here, for they directly oppose the heart of Christ.
               </Text>
 
               <Text style={styles.homeWelcomeItem}>
                 <Text style={styles.homeWelcomeItemNumber}>2.&nbsp;</Text>
-                <Text style={{fontWeight: 'bold'}}>The Supreme Doctrine is God's Nature: Love and Grace.</Text> "God is love" (1 John 4:8). The ultimate evidence of knowing Him is not perfect doctrine, but a life transformed by His love (1 John 4:20-21). Jesus declared that the entire Law and Prophets hang on two commandments: to love God and to love our neighbor (Matthew 22:37-40). Any teaching that does not produce in us the fruits of the Spirit—"love, joy, peace, patience, kindness, goodness, faithfulness, gentleness, self-control" (Galatians 5:22-23)—has missed the point of the Gospel.
+                <Text style={{ fontWeight: 'bold' }}>The Supreme Doctrine is God's Nature: Love and Grace.</Text> "God is love" (1 John 4:8). The ultimate evidence of knowing Him is not perfect doctrine, but a life transformed by His love (1 John 4:20-21). Jesus declared that the entire Law and Prophets hang on two commandments: to love God and to love our neighbor (Matthew 22:37-40). Any teaching that does not produce in us the fruits of the Spirit—"love, joy, peace, patience, kindness, goodness, faithfulness, gentleness, self-control" (Galatians 5:22-23)—has missed the point of the Gospel.
               </Text>
 
               <Text style={styles.homeWelcomeItem}>
                 <Text style={styles.homeWelcomeItemNumber}>3.&nbsp;</Text>
-                <Text style={{fontWeight: 'bold'}}>We Judge by Christ's Standard: Fruit, Not Faction.</Text> Jesus was explicit: "You will recognize them by their fruits" (Matthew 7:16-20). His depiction of the final judgment in Matthew 25:31-46 focuses entirely on acts of mercy—feeding the hungry, clothing the naked, visiting the prisoner—not on liturgical precision. Therefore, we extend grace on matters where sincere Christians have historically disagreed, such as:
-                {"\n\n"}• <Text style={{fontStyle: 'italic'}}>Intercessory Prayer:</Text> We affirm Christ as the one mediator between God and man (1 Timothy 2:5). We also recognize that asking a fellow believer for prayer is biblical (James 5:16) and that some Christians extend this practice to include those who have died in Christ, believing they are alive in Him (Luke 20:38) and part of the same spiritual family. We view this as a matter of personal faith and conscience, not a cause for division.
-                {"\n\n"}• <Text style={{fontStyle: 'italic'}}>Scripture:</Text> We include the Apocrypha for edification and historical context, as did Jerome and Luther. We trust the Holy Spirit to guide all believers into truth, and our focus is not to judge how people worship but to ensure our worship bears the fruits expected of true Christians.
+                <Text style={{ fontWeight: 'bold' }}>We Judge by Christ's Standard: Fruit, Not Faction.</Text> Jesus was explicit: "You will recognize them by their fruits" (Matthew 7:16-20). His depiction of the final judgment in Matthew 25:31-46 focuses entirely on acts of mercy—feeding the hungry, clothing the naked, visiting the prisoner—not on liturgical precision. Therefore, we extend grace on matters where sincere Christians have historically disagreed, such as:
+                {"\n\n"}• <Text style={{ fontStyle: 'italic' }}>Intercessory Prayer:</Text> We affirm Christ as the one mediator between God and man (1 Timothy 2:5). We also recognize that asking a fellow believer for prayer is biblical (James 5:16) and that some Christians extend this practice to include those who have died in Christ, believing they are alive in Him (Luke 20:38) and part of the same spiritual family. We view this as a matter of personal faith and conscience, not a cause for division.
+                {"\n\n"}• <Text style={{ fontStyle: 'italic' }}>Scripture:</Text> We include the Apocrypha for edification and historical context, as did Jerome and Luther. We trust the Holy Spirit to guide all believers into truth, and our focus is not to judge how people worship but to ensure our worship bears the fruits expected of true Christians.
                 {"\n\n"}However, we draw a clear line against any teaching that denies the divinity of Jesus (1 John 4:2-3), distorts God's design for humanity (1 Corinthians 6:9-11), or promotes sexual immorality, greed, or slander (1 Corinthians 5:11). Such doctrines are not a matter of perspective but of truth, and they will not be tolerated.
               </Text>
 
               <Text style={styles.homeWelcomeItem}>
                 <Text style={styles.homeWelcomeItemNumber}>4.&nbsp;</Text>
-                <Text style={{fontWeight: 'bold'}}>We Focus on the Weightier Matters of the Law.</Text> Jesus condemned the Pharisees for neglecting "the weightier matters of the law: justice and mercy and faithfulness" (Matthew 23:23). We humbly acknowledge that the Church has often done the same, majoring in minors and minoring in majors and as such often have something to learn from one another. Our call is to pursue the character of Christ as outlined in the Beatitudes (Matthew 5:1-12)—to be poor in spirit, meek, pure in heart, and peacemakers. This is the identity we are called to above all else as Christians, especially as it becomes increasingly difficult to be true citizens of God's Kingdom in today's world.
+                <Text style={{ fontWeight: 'bold' }}>We Focus on the Weightier Matters of the Law.</Text> Jesus condemned the Pharisees for neglecting "the weightier matters of the law: justice and mercy and faithfulness" (Matthew 23:23). We humbly acknowledge that the Church has often done the same, majoring in minors and minoring in majors and as such often have something to learn from one another. Our call is to pursue the character of Christ as outlined in the Beatitudes (Matthew 5:1-12)—to be poor in spirit, meek, pure in heart, and peacemakers. This is the identity we are called to above all else as Christians, especially as it becomes increasingly difficult to be true citizens of God's Kingdom in today's world.
               </Text>
 
               <Text style={styles.homeWelcomeItem}>
                 <Text style={styles.homeWelcomeItemNumber}>5.&nbsp;</Text>
-                <Text style={{fontWeight: 'bold'}}>Our Mission is Your Restoration and Growth.</Text> By joining, you pledge to walk in this spirit of grace and truth. You affirm that you are a follower of Christ, or are sincerely seeking Him. Elbiblio is a tool for your spiritual maturity (Ephesians 4:13-15), a place for rest and renewal in the spirit of truth and the love of God. We commit to nurturing one another, speaking the truth in love, and together building a community that pleases Jesus our Savior.
+                <Text style={{ fontWeight: 'bold' }}>Our Mission is Your Restoration and Growth.</Text> By joining, you pledge to walk in this spirit of grace and truth. You affirm that you are a follower of Christ, or are sincerely seeking Him. Elbiblio is a tool for your spiritual maturity (Ephesians 4:13-15), a place for rest and renewal in the spirit of truth and the love of God. We commit to nurturing one another, speaking the truth in love, and together building a community that pleases Jesus our Savior.
               </Text>
             </ScrollView>
             <View style={styles.homeWelcomeButtonContainer}>
@@ -2149,7 +2200,7 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
                   if (feedbackTargetId) {
                     const text = challengeFeedbackText.trim();
                     if (text) {
-                      try { await challengeStore.submitCompletionFeedback(feedbackTargetId, text); } catch {}
+                      try { await challengeStore.submitCompletionFeedback(feedbackTargetId, text); } catch { }
                     }
                     await handleCompleteChallenge(feedbackTargetId);
                   }
