@@ -87,6 +87,7 @@ const WELCOME_BACK_THRESHOLD = 10 * 60 * 1000; // 10 minutes in milliseconds
 const MAX_ACTIVE_TIME = 30 * 60 * 1000; // 30 minutes in milliseconds
 const SYNC_INTERVAL = 5 * 60 * 1000; // Sync every 5 minutes
 const REVIVE_REMINDER_INTERVAL = 3 * 60 * 60 * 1000; // 3 hours in milliseconds
+const TIME_TRACKING_STORAGE_KEY = 'home_time_tracking_v1';
 
 interface TimeTracking {
   lastActiveTimestamp: number;
@@ -239,7 +240,7 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
 
   const [appState, setAppState] = useState(AppState.currentState);
   const appStateRef = useRef(AppState.currentState);
-  const syncingRef = useRef(false);
+  const syncingRef = useRef<number | false>(false);
   const timeTrackingRef = useRef<TimeTracking>({
     lastActiveTimestamp: Date.now(),
     totalActiveTime: 0,
@@ -248,7 +249,17 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
   });
   
   // Store hooks
-  const { user, updateUserTime, authRequired, logout, authPromptIntent, pendingAuthEmail, dismissAuthPrompt } = useAuthStore();
+  const {
+    user,
+    updateUserTime,
+    authRequired,
+    logout,
+    authPromptIntent,
+    pendingAuthEmail,
+    dismissAuthPrompt,
+    isGuest,
+    requestAuthPrompt,
+  } = useAuthStore();
   const { completeChallenge } = useMeditationStore();
   const { isConnected } = useWebSocket();
   const { unreadCount, computeUnreadFromReflections } = useCommunityStore();
@@ -767,27 +778,48 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
   const pointsAnimatedStyle = useAnimatedStyle(() => ({
     transform: [{ scale: pointsScale.value }],
   }));
-  const loadTimeTracking = useCallback(async () => {
-    try {
-      // Initialize time tracking from user data
-      const initialTracking: TimeTracking = {
-        lastActiveTimestamp: Date.now(),
-        totalActiveTime: user?.total_active_time || 0,
-        lastSyncedTime: user?.total_active_time || 0,
-        dayStartTimestamp: new Date().setHours(0, 0, 0, 0),
-      };
+    const loadTimeTracking = useCallback(async () => {
+    const buildFallbackTracking = (): TimeTracking => ({
+      lastActiveTimestamp: Date.now(),
+      totalActiveTime: user?.total_active_time || 0,
+      lastSyncedTime: user?.total_active_time || 0,
+      dayStartTimestamp: new Date().setHours(0, 0, 0, 0),
+    });
 
-      setTimeTracking(initialTracking);
-      timeTrackingRef.current = initialTracking;
+    try {
+      const stored = await AsyncStorage.getItem(TIME_TRACKING_STORAGE_KEY);
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored);
+          if (
+            parsed &&
+            typeof parsed === 'object' &&
+            typeof parsed.lastActiveTimestamp === 'number' &&
+            typeof parsed.totalActiveTime === 'number' &&
+            typeof parsed.lastSyncedTime === 'number'
+          ) {
+            const hydrated: TimeTracking = {
+              lastActiveTimestamp: parsed.lastActiveTimestamp,
+              totalActiveTime: parsed.totalActiveTime,
+              lastSyncedTime: parsed.lastSyncedTime,
+              dayStartTimestamp: parsed.dayStartTimestamp ?? new Date().setHours(0, 0, 0, 0),
+            };
+            setTimeTracking(hydrated);
+            timeTrackingRef.current = hydrated;
+            return;
+          }
+        } catch (parseError) {
+          console.warn('[HomeScreen] invalid stored time tracking payload, clearing', parseError);
+          await AsyncStorage.removeItem(TIME_TRACKING_STORAGE_KEY);
+        }
+      }
+
+      const fallbackTracking = buildFallbackTracking();
+      setTimeTracking(fallbackTracking);
+      timeTrackingRef.current = fallbackTracking;
     } catch (error) {
       console.error('Failed to load time tracking:', error);
-      // Set default values on error
-      const fallbackTracking: TimeTracking = {
-        lastActiveTimestamp: Date.now(),
-        totalActiveTime: 0,
-        lastSyncedTime: 0,
-        dayStartTimestamp: new Date().setHours(0, 0, 0, 0),
-      };
+      const fallbackTracking = buildFallbackTracking();
       setTimeTracking(fallbackTracking);
       timeTrackingRef.current = fallbackTracking;
     }
@@ -798,16 +830,13 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
     if (!user || !tt || tt.totalActiveTime <= tt.lastSyncedTime) {
       return;
     }
-    if (syncingRef.current) {
+    if (syncingRef.current !== false) {
       return;
     }
+
+    const syncToken = Date.now();
+    syncingRef.current = syncToken;
     
-    // Prevent race conditions with additional check
-    if (Date.now() - tt.lastSyncedTime < SYNC_INTERVAL / 2) {
-      return;
-    }
-    
-    syncingRef.current = true;
     try {
       await updateUserTime(tt.totalActiveTime);
       setTimeTracking(prev => {
@@ -817,10 +846,10 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
       });
     } catch (error) {
       console.error('Error syncing time:', error);
-      // Reset sync flag on error to allow retry
-      syncingRef.current = false;
     } finally {
-      syncingRef.current = false;
+      if (syncingRef.current === syncToken) {
+        syncingRef.current = false;
+      }
     }
   }, [user, updateUserTime]);
 
@@ -856,6 +885,15 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
     }
   }, [dailyPathStore]);
 
+  const saveTimeTracking = useCallback(async (tracking: TimeTracking) => {
+    try {
+      await AsyncStorage.setItem(TIME_TRACKING_STORAGE_KEY, JSON.stringify(tracking));
+    } catch (error) {
+      console.error('Failed to persist time tracking locally:', error);
+      throw error;
+    }
+  }, []);
+
   const handleAppInactive = useCallback(async () => {
     const now = Date.now();
     const prev = timeTrackingRef.current;
@@ -879,13 +917,18 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
     timeTrackingRef.current = newTracking;
     
     // Save and sync in parallel to avoid blocking
-    await Promise.all([
-      saveTimeTracking(newTracking),
-      handleTimeSync()
-    ]).catch(error => {
-      console.error('Error in app inactive cleanup:', error);
-    });
-  }, [handleTimeSync]);
+    try {
+      await saveTimeTracking(newTracking);
+    } catch (error) {
+      console.error('Error saving time tracking locally:', error);
+    }
+
+    try {
+      await handleTimeSync();
+    } catch (error) {
+      console.error('Error syncing time after backgrounding:', error);
+    }
+  }, [handleTimeSync, saveTimeTracking]);
 
   const handleCompleteChallenge = async (challengeId: string) => {
     try {
@@ -900,18 +943,6 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
       toast.error('Failed to complete challenge. Please try again.');
     }
   };
-
-  const saveTimeTracking = useCallback(async (tracking: TimeTracking) => {
-    try {
-      // Update time tracking through user store instead of AsyncStorage
-      // The user store will handle the API call to update total_active_time
-      if (user) {
-        await updateUserTime(tracking.totalActiveTime);
-      }
-    } catch (error) {
-      console.error('Failed to save time tracking:', error);
-    }
-  }, [user, updateUserTime]);
 
   useEffect(() => {
     loadTimeTracking();
@@ -965,17 +996,14 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
 
   // Consolidated auth modal state management
   useEffect(() => {
-    try {
-      if (authRequired && !showAuthModal && !user) {
-        setShowAuthModal(true);
-      } else if (user && authRequired) {
-        dismissAuthPrompt();
-        setShowAuthModal(false);
-      }
-    } catch (error) {
-      console.error('Auth modal state error:', error);
+    if (authRequired && !showAuthModal) {
+      setShowAuthModal(true);
+      return;
     }
-  }, [authRequired, showAuthModal, user, dismissAuthPrompt]);
+    if (!authRequired && showAuthModal) {
+      setShowAuthModal(false);
+    }
+  }, [authRequired, showAuthModal]);
 
   const handleAuthModalClose = useCallback(() => {
     dismissAuthPrompt();
@@ -1363,12 +1391,20 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
     void loadHomeWelcomeState();
   }, []);
 
+  const promptCommunitySignup = useCallback(() => {
+    const intent = isGuest ? 'guest_signup' : null;
+    requestAuthPrompt(intent, user?.email ?? null);
+    setShowAuthModal(true);
+    toast.info('Create a free account to access Community features.');
+  }, [isGuest, requestAuthPrompt, user?.email]);
+
   const handleQuickActionPress = (route: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if ((!user || isGuest) && route === 'CommunityScreen') {
+      promptCommunitySignup();
+      return;
+    }
     if (!user && route !== 'BibleScreen') {
-      if (route === 'CommunityScreen') {
-        toast.info('Create a free account to access Community features.');
-      }
       setShowAuthModal(true);
       return;
     }

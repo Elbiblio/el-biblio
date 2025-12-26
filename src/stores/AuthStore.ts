@@ -598,5 +598,13 @@ export class AuthStore {
       this.pendingAuthEmail = null;
     });
   };
+
+  requestAuthPrompt = (intent: AuthPromptIntent = null, pendingEmail?: string | null) => {
+    runInAction(() => {
+      this.authPromptIntent = intent;
+      this.pendingAuthEmail = pendingEmail ?? null;
+      this.authRequired = true;
+    });
+  };
 }
 
