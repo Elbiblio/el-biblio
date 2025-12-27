@@ -50,7 +50,6 @@ import JourneyQuizScreen from './src/screens/JourneyQuizScreen';
 import CitizenshipSetupScreen from './src/screens/CitizenshipSetupScreen';
 import { BiometricLock } from './src/components/BiometricLock';
 import { ErrorBoundary as AppErrorBoundary } from './src/components/ErrorBoundary';
-import DailyPathSetupScreen from './src/screens/DailyPathSetupScreen';
 import HabitConquestSetupScreen from './src/screens/HabitConquestSetupScreen';
 import HabitConquestSessionScreen from './src/screens/HabitConquestSessionScreen';
 import HabitConquestReflectionScreen from './src/screens/HabitConquestReflectionScreen';
@@ -232,7 +231,6 @@ const NavigationContent: React.FC<NavigationContentProps> = ({ showChallengeBann
         <Stack.Screen name="JourneyQuizScreen" component={JourneyQuizScreen} />
         <Stack.Screen name="SetupCompleteScreen" component={SetupCompleteScreen} />
         <Stack.Screen name="CitizenshipSetupScreen" component={CitizenshipSetupScreen} />
-        <Stack.Screen name="DailyPathSetupScreen" component={DailyPathSetupScreen} />
         <Stack.Screen name="HabitConquestSetupScreen" component={HabitConquestSetupScreen} />
         <Stack.Screen name="HabitConquestSessionScreen" component={HabitConquestSessionScreen} />
         <Stack.Screen name="HabitConquestReflectionScreen" component={HabitConquestReflectionScreen} />
