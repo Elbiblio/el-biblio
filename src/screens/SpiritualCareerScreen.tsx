@@ -65,8 +65,13 @@ const SpiritualCareerScreen = () => {
 
   // Calculate comprehensive score (percentage mastery)
   const overallScore = useMemo(() => {
+    const strengthEntries = Object.entries(strengths);
+    if (!strengthEntries.length) {
+      return { percentage: 0, byTalent: {} as Record<string, number> };
+    }
+
     // Convert 1-10 ratings to percentages (10 = 100%)
-    const percentages = Object.values(strengths).map(rating => (rating / 10) * 100);
+    const percentages = strengthEntries.map(([, rating]) => (rating / 10) * 100);
     const avgPercentage = percentages.reduce((sum, val) => sum + val, 0) / percentages.length;
     
     // Apply status multiplier
@@ -75,8 +80,8 @@ const SpiritualCareerScreen = () => {
     
     return {
       percentage: Math.min(finalScore, 100),
-      byTalent: Object.keys(strengths).reduce((acc, key) => {
-        acc[key] = Math.round((strengths[key] / 10) * 100);
+      byTalent: strengthEntries.reduce((acc, [key, rating]) => {
+        acc[key] = Math.round((rating / 10) * 100);
         return acc;
       }, {} as Record<string, number>),
     };
@@ -86,7 +91,8 @@ const SpiritualCareerScreen = () => {
   
   // Calculate growth for each gift based on monthly consistency
   const calculateGrowthRate = (giftKey: string) => {
-    const tasksForGift = monthlyTaskHistory[giftKey] || [];
+    const giftCategory = STRENGTH_KEYS.find(def => def.key === giftKey)?.category;
+    const tasksForGift = giftCategory ? (monthlyTaskHistory[giftCategory] || []) : [];
     const daysInMonth = 30;
     const consistencyRate = tasksForGift.length / daysInMonth;
     
@@ -540,6 +546,7 @@ const SpiritualCareerScreen = () => {
     const newCompleted = new Set(completedTasks);
     let newPoints = dailyPoints;
     const today = new Date().toISOString().split('T')[0];
+    let updatedHistory = monthlyTaskHistory;
     
     if (newCompleted.has(taskId)) {
       newCompleted.delete(taskId);
@@ -549,12 +556,12 @@ const SpiritualCareerScreen = () => {
       newCompleted.add(taskId);
       newPoints += weight;
       
-      // Track task completion for growth calculation
       const newHistory = { ...monthlyTaskHistory };
       if (!newHistory[category]) newHistory[category] = [];
       if (!newHistory[category].includes(today)) {
         newHistory[category].push(today);
       }
+      updatedHistory = newHistory;
       setMonthlyTaskHistory(newHistory);
       
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -577,7 +584,7 @@ const SpiritualCareerScreen = () => {
       },
       completedTasks: Array.from(newCompleted),
       dailyPoints: newPoints,
-      monthlyTaskHistory,
+      monthlyTaskHistory: updatedHistory,
       consistencyStreak,
       giftScores: overallScore.byTalent,
       completedAt: new Date().toISOString(),
