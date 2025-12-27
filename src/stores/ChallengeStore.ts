@@ -6,7 +6,7 @@ import { mapChallenge } from '@/utils/mapChallenge';
 import { PaginatedResponse } from '@/types';
 import { engagementTracker } from '@/utils/engagementTracker';
 import { toast } from 'sonner-native';
-import { differenceInMinutes } from 'date-fns';
+import { differenceInMinutes, differenceInCalendarDays } from 'date-fns';
 import { cancelChallengeReminder } from '@/tasks/challengeReminderTask';
 import { pointsTracker } from '@/utils/pointsTracker';
 
@@ -45,6 +45,11 @@ export interface ChallengeState {
   };
 }
 
+type ChallengeCompletionMeta = {
+  dates: string[];
+  lastFeedbackPromptAt: string | null;
+};
+
 const initialState: ChallengeState = {
   personalChallenges: [],
   communityChallenges: [],
@@ -63,6 +68,9 @@ const initialState: ChallengeState = {
 
 export class ChallengeStore {
   state: ChallengeState = initialState;
+  private completionMeta: ChallengeCompletionMeta = { dates: [], lastFeedbackPromptAt: null };
+  private pendingFeedbackPromptChallengeId: string | null = null;
+  private completionMetaKey = 'challenge_completion_meta_v1';
 
   // Common store props
   isLoading = false; // legacy/global
@@ -98,6 +106,24 @@ export class ChallengeStore {
       }
     }).catch(error => {
       console.error('Error loading challenge store from storage:', error);
+    });
+
+    AsyncStorage.getItem(this.completionMetaKey).then((stored) => {
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored);
+          runInAction(() => {
+            this.completionMeta = {
+              dates: Array.isArray(parsed?.dates) ? parsed.dates : [],
+              lastFeedbackPromptAt: typeof parsed?.lastFeedbackPromptAt === 'string' ? parsed.lastFeedbackPromptAt : null,
+            };
+          });
+        } catch (error) {
+          console.warn('Error parsing challenge completion meta:', error);
+        }
+      }
+    }).catch(error => {
+      console.error('Error loading completion meta from storage:', error);
     });
   }
 
@@ -238,7 +264,6 @@ export class ChallengeStore {
       if (!comment?.trim()) return false;
       this.setLoading(true);
       await apiClient.post(endpoints.challenges.feedback(challengeId), { comment: comment.trim() });
-      toast.success('Thanks for the feedback!');
       return true;
     } catch (error) {
       console.error(`Error submitting feedback for challenge ${challengeId}:`, error);
@@ -812,16 +837,23 @@ export class ChallengeStore {
 
       const msg = typeof response?.message === 'string' ? response.message.toLowerCase() : '';
       const isAlreadyCompleted = msg.includes('already completed');
+      const after = this.getChallengeById(challengeId);
+      let shouldPromptFeedback = false;
       if (!wasCompleted && !isAlreadyCompleted) {
-        const after = this.getChallengeById(challengeId);
         const points = Number(after?.points ?? 0);
         if (Number.isFinite(points) && points > 0) {
           pointsTracker.emit(points, after?.title);
         }
+        const isDailyChallenge = (after?.frequency ?? before?.frequency)?.toLowerCase() === 'd';
+        if (isDailyChallenge) {
+          shouldPromptFeedback = this.recordCompletionMeta(challengeId);
+        }
       }
 
       void cancelChallengeReminder(challengeId);
-      toast.success(`Challenge marked as completed`);
+      if (!shouldPromptFeedback) {
+        toast.success(`Challenge marked as completed`);
+      }
       // Mark challenge engagement for "What you missed" flow
       void engagementTracker.record('challenge');
       return this.getChallengeById(challengeId);
@@ -831,6 +863,94 @@ export class ChallengeStore {
       throw error;
     } finally {
       this.setLoading(false);
+    }
+  }
+
+  claimFeedbackPrompt(challengeId: string) {
+    if (this.pendingFeedbackPromptChallengeId === challengeId) {
+      this.pendingFeedbackPromptChallengeId = null;
+      return true;
+    }
+    return false;
+  }
+
+  private recordCompletionMeta(challengeId: string) {
+    const todayKey = this.getTodayKey();
+    this.completionMeta.dates = this.normalizeDates([todayKey, ...this.completionMeta.dates]);
+    const shouldPrompt = this.maybeTriggerFeedbackPrompt(challengeId);
+    void this.saveCompletionMeta();
+    return shouldPrompt;
+  }
+
+  private maybeTriggerFeedbackPrompt(challengeId: string) {
+    const streak = this.calculateCurrentStreak();
+    if (streak < 3) {
+      return false;
+    }
+
+    const lastPromptAt = this.completionMeta.lastFeedbackPromptAt
+      ? new Date(this.completionMeta.lastFeedbackPromptAt)
+      : null;
+    const daysSincePrompt = lastPromptAt
+      ? differenceInCalendarDays(new Date(), lastPromptAt)
+      : Number.POSITIVE_INFINITY;
+
+    if (daysSincePrompt < 7) {
+      return false;
+    }
+
+    this.pendingFeedbackPromptChallengeId = challengeId;
+    this.completionMeta.lastFeedbackPromptAt = new Date().toISOString();
+    return true;
+  }
+
+  private calculateCurrentStreak() {
+    if (!this.completionMeta.dates.length) {
+      return 0;
+    }
+
+    const normalized = this.normalizeDates(this.completionMeta.dates);
+    const dateSet = new Set(normalized);
+    let streak = 0;
+    let cursor = this.getTodayKey();
+
+    while (dateSet.has(cursor)) {
+      streak += 1;
+      cursor = this.getPreviousDayKey(cursor);
+    }
+
+    return streak;
+  }
+
+  private normalizeDates(dates: string[]) {
+    const seen = new Set<string>();
+    return dates
+      .map((value) => (typeof value === 'string' ? value.slice(0, 10) : ''))
+      .filter(Boolean)
+      .filter((value) => {
+        if (seen.has(value)) return false;
+        seen.add(value);
+        return true;
+      })
+      .sort((a, b) => (a > b ? -1 : 1))
+      .slice(0, 60);
+  }
+
+  private getTodayKey(seed: Date = new Date()) {
+    return seed.toISOString().slice(0, 10);
+  }
+
+  private getPreviousDayKey(key: string) {
+    const date = new Date(`${key}T00:00:00Z`);
+    date.setUTCDate(date.getUTCDate() - 1);
+    return date.toISOString().slice(0, 10);
+  }
+
+  private async saveCompletionMeta() {
+    try {
+      await AsyncStorage.setItem(this.completionMetaKey, JSON.stringify(this.completionMeta));
+    } catch (error) {
+      console.error('Error saving challenge completion meta:', error);
     }
   }
 

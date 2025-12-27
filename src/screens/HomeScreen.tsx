@@ -933,10 +933,16 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
   const handleCompleteChallenge = async (challengeId: string) => {
     try {
       await completeChallenge(challengeId);
-      // Clear feedback state after successful completion
-      setFeedbackTargetId(null);
-      setChallengeFeedbackText('');
-      setShowChallengeFeedback(false);
+      const shouldPromptFeedback = challengeStore.claimFeedbackPrompt(challengeId);
+      if (shouldPromptFeedback) {
+        setFeedbackTargetId(challengeId);
+        setChallengeFeedbackText('');
+        setShowChallengeFeedback(true);
+      } else {
+        setFeedbackTargetId(null);
+        setChallengeFeedbackText('');
+        setShowChallengeFeedback(false);
+      }
     } catch (error) {
       console.error('Failed to complete challenge:', error);
       // Don't clear feedback state on error to allow retry
@@ -1200,6 +1206,15 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
     () => (personalChallenges || []).filter((c: any) => c && c.hasJoined && !c.isCompleted),
     [personalChallenges]
   );
+
+  const joinedPersonalChallenge = useMemo(
+    () => (personalChallenges || []).find((c: any) => c && c.hasJoined),
+    [personalChallenges]
+  );
+
+  const personalChallenge = activePersonalChallenges.length > 0
+    ? activePersonalChallenges[0]
+    : joinedPersonalChallenge;
 
   // const { mainGreeting, subGreeting } = useMemo(() => {
   //   if (!user) {
@@ -1662,8 +1677,10 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
   }, [dailyPathStore.isSetupComplete, dailyPathStore.isChallengesEnabled, challengesUnlockedByPoints]);
 
   const joinedChallengeIds = useMemo(
-    () => new Set((activePersonalChallenges || []).map((challenge: any) => challenge.id)),
-    [activePersonalChallenges]
+    () => new Set((personalChallenges || [])
+      .filter((challenge: any) => challenge && challenge.hasJoined)
+      .map((challenge: any) => challenge.id)),
+    [personalChallenges]
   );
   // Use only active (joined & not-completed) challenges for Home logic
   const smartPickChallenge = useMemo(() => {
@@ -1710,10 +1727,7 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
       );
     }
 
-    // Use real API data from challenge store only
-    const personalChallenge = activePersonalChallenges && activePersonalChallenges.length > 0
-      ? activePersonalChallenges[0]
-      : undefined;
+    const currentPersonalChallenge = personalChallenge;
     const communityChallenge = (communityChallenges || []).find(challenge => {
       if (joinedChallengeIds.has(challenge.id)) return false;
       if (challenge.hasJoined) return false;
@@ -1772,13 +1786,13 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
         )}
 
         {/* Joined Challenge (Personal) */}
-        {personalChallenge ? (
+        {currentPersonalChallenge ? (
           <View style={styles.challengeCard}>
             <View style={styles.challengeHeader}>
               <Text style={styles.challengeType}>Joined:</Text>
             </View>
             <Text style={styles.challengeText}>
-              <Text style={styles.challengeIcon}>🌱</Text> {personalChallenge.title}
+              <Text style={styles.challengeIcon}>🌱</Text> {currentPersonalChallenge.title}
             </Text>
             <View style={styles.progressContainer}>
               <View style={styles.progressBar}>
@@ -1795,10 +1809,8 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
               style={[styles.completeButton,
               isPersonalChallengeComplete ? styles.completeButtonActive : {}]}
               onPress={() => {
-                if (personalChallenge.id && isPersonalChallengeComplete) {
-                  setFeedbackTargetId(personalChallenge.id);
-                  setChallengeFeedbackText('');
-                  setShowChallengeFeedback(true);
+                if (currentPersonalChallenge.id && isPersonalChallengeComplete) {
+                  void handleCompleteChallenge(currentPersonalChallenge.id);
                 } else {
                   challengeOpacity.value = withSequence(
                     withTiming(0.7, { duration: 100 }),
@@ -2221,9 +2233,8 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
               <TouchableOpacity
                 style={styles.reviveModalDisable}
                 onPress={async () => {
-                  if (feedbackTargetId) {
-                    await handleCompleteChallenge(feedbackTargetId);
-                  }
+                  setFeedbackTargetId(null);
+                  setChallengeFeedbackText('');
                   setShowChallengeFeedback(false);
                 }}
                 activeOpacity={0.85}
@@ -2238,8 +2249,9 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
                     if (text) {
                       try { await challengeStore.submitCompletionFeedback(feedbackTargetId, text); } catch { }
                     }
-                    await handleCompleteChallenge(feedbackTargetId);
                   }
+                  setFeedbackTargetId(null);
+                  setChallengeFeedbackText('');
                   setShowChallengeFeedback(false);
                 }}
                 activeOpacity={0.85}
