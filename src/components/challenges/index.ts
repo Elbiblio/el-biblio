@@ -4,6 +4,7 @@ export { default as JoinReminderModal } from './JoinReminderModal';
 export { default as VoteModal } from './VoteModal';
 export { default as SuggestChallengeModal } from './SuggestChallengeModal';
 export { default as ChallengeOnboardingOverlay } from './ChallengeOnboardingOverlay';
+export { default as ChallengeFeedbackModal } from './ChallengeFeedbackModal';
 
 export type { ChallengeCardProps } from './ChallengeCard';
 export type { CreateChallengeModalProps } from './CreateChallengeModal';
