@@ -634,7 +634,9 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
     const nextChapter = (bibleStore.currentChapter || 1) + 1;
     const lastChapter = seg.chapterEnd ?? seg.chapterStart;
     if (nextChapter > lastChapter) return;
+    pendingScrollVerseRef.current = 1;
     await bibleStore.fetchVerses(bibleStore.currentBook, nextChapter, bibleStore.currentVersion, 1);
+    verseListRef.current?.scrollToOffset({ offset: 0, animated: true });
   }, [bibleStore]);
 
   const handleRightSwipeToNext = useCallback(async () => {
