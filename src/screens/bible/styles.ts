@@ -81,6 +81,22 @@ export const createBibleStyles = (theme: Theme) => StyleSheet.create({
     ...theme.typography.caption.secondary,
     color: theme.colors.warning,
   },
+  offlinePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: theme.spacing.xs,
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: theme.spacing.xs,
+    borderRadius: theme.borderRadius.full,
+    backgroundColor: `${theme.colors.warning}15`,
+    marginBottom: theme.spacing.sm,
+  },
+  offlinePillText: {
+    ...theme.typography.caption.secondary,
+    color: theme.colors.warning,
+    fontWeight: '600',
+  },
   inlineSelectors: {
     flexDirection: 'row',
     alignItems: 'center',

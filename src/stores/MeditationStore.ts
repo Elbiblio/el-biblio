@@ -88,6 +88,7 @@ export class MeditationStore {
   private disposeAuthReaction?: () => void;
   private authStore: AuthStore;
   private challengeStore: ChallengeStore;
+  private isOffline = false;
 
   private setLoading = (value: boolean) => {
     this.isLoading = value;
@@ -103,6 +104,14 @@ export class MeditationStore {
     } catch (error) {
       console.error(`Error saving ${this.storageKey} to storage:`, error);
       this.error = 'Failed to save data';
+    }
+  }
+
+  setOfflineStatus(offline: boolean) {
+    const wasOffline = this.isOffline;
+    this.isOffline = offline;
+    if (wasOffline && !offline) {
+      void this.sync();
     }
   }
   private countdownInterval: number | null = null;
@@ -201,7 +210,7 @@ export class MeditationStore {
   }
 
   async sync() {
-    if (this.state.unsyncedSessions.length === 0) return;
+    if (this.isOffline || this.state.unsyncedSessions.length === 0) return;
     
     try {
       this.setLoading(true);
@@ -238,6 +247,14 @@ export class MeditationStore {
   }
 
   async recordSession(session: MeditationSession, isRetry = false) {
+    if (this.isOffline && !isRetry) {
+      runInAction(() => {
+        this.state.unsyncedSessions = [session, ...this.state.unsyncedSessions];
+        this.saveUnsyncedSessions();
+      });
+      return false;
+    }
+
     try {
       const response = await apiClient.post<{ data: MeditationSession }>('/meditation_sessions', session);
       if (!response.success || !response.data) {

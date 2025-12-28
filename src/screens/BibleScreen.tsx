@@ -1089,21 +1089,36 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
     const success = await bibleStore.toggleHighlight(verseId);
     if (success) {
       await bibleStore.saveUserPreferences();
+      if (!isOffline) {
+        toast.success('Verse highlighted');
+      }
+    } else if (!isOffline) {
+      toast.error('Failed to highlight verse');
     }
-  }, []);
+  }, [isOffline]);
 
   const handleToggleBookmark = useCallback(async (verseId: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     const success = await bibleStore.toggleBookmark(verseId);
     if (success) {
       await bibleStore.saveUserPreferences();
+      if (!isOffline) {
+        toast.success('Verse bookmarked');
+      }
+    } else if (!isOffline) {
+      toast.error('Failed to bookmark verse');
     }
-  }, []);
+  }, [isOffline]);
 
   const handleLikeVerse = useCallback(async (verseId: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    await bibleStore.likeVerse(verseId);
-  }, []);
+    const success = await bibleStore.likeVerse(verseId);
+    if (success && !isOffline) {
+      toast.success('Verse liked');
+    } else if (!success && !isOffline) {
+      toast.error('Failed to like verse');
+    }
+  }, [isOffline]);
 
   const handleShareVerse = useCallback(async (verseId: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -1149,7 +1164,9 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
       setShowCompactPlan(true);
 
       if (bibleStore.dailySession?.completed) {
-        toast.success('All done for today — great job!');
+        if (!isOffline) {
+          toast.success('All done for today — great job!');
+        }
         return;
       }
 
@@ -1293,7 +1310,9 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
       setIsPlanSetupVisible(false);
 
       setShowCompactPlan(true);
-      toast.success('Bible Studio plan ready');
+      if (!isOffline) {
+        toast.success('Bible Studio plan ready');
+      }
 
       // Sync with journey store
       journeyStore.setBiblePlan({
@@ -1311,14 +1330,18 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
       dailyPathStore.setReadingPlanSetupCompleted(true);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unable to create plan.';
-      toast.error(message);
+      if (!isOffline) {
+        toast.error(message);
+      }
     }
   }, [bibleStore, dailyPathStore, journeyStore]);
 
   const handleApplyReminder = useCallback(async () => {
     try {
       await bibleStore.setReadingReminder(builderReminder.trim() || null);
-      toast.success(builderReminder.trim() ? 'Reminder updated' : 'Reminder cleared');
+      if (!isOffline) {
+        toast.success(builderReminder.trim() ? 'Reminder updated' : 'Reminder cleared');
+      }
 
       const trimmed = builderReminder.trim();
       const reminderTime = ReminderSyncService.convertTimeStringToReminderTime(trimmed || null);
@@ -1339,7 +1362,9 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
       }
     } catch (error) {
       console.error('Failed to update reminder', error);
-      toast.error('Unable to update reminder.');
+      if (!isOffline) {
+        toast.error('Unable to update reminder.');
+      }
     }
   }, [bibleStore, builderReminder, journeyStore, user?.id]);
 
@@ -1350,7 +1375,9 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     } catch (error) {
       console.error('Failed to update segment', error);
-      toast.error('Unable to update segment progress.');
+      if (!isOffline) {
+        toast.error('Unable to update segment progress.');
+      }
     }
   }, [bibleStore, resetIdleTimer]);
 
@@ -1693,7 +1720,10 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
                         if (!bibleStore.dailySession?.completed) {
                           setShowTimerModal(true);
                         } else {
-                          toast.success('All done for today — previewing next session');
+                          setShowTimerModal(true);
+                          if (!isOffline) {
+                            toast.success('All done for today — previewing next session');
+                          }
                         }
                       }}
                       onLongPress={() => handleToggleSegment(segment.id)}
@@ -1957,11 +1987,17 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
           <Text style={styles.resumeText}>
             Resume {resumeTarget.bookName || bibleBooks.find(b => b.abbreviation === resumeTarget.book)?.name || resumeTarget.book} {resumeTarget.chapter}
           </Text>
+          {isOffline && (
+            <View style={styles.offlinePill}>
+              <MaterialIcons name="wifi-off" size={14} color={theme.colors.warning} />
+              <Text style={styles.offlinePillText}>Offline — actions sync later</Text>
+            </View>
+          )}
           <TouchableOpacity
             style={styles.resumeButton}
             onPress={async () => {
               const resumed = await bibleStore.resumeLastRead(true);
-              if (!resumed) {
+              if (!resumed && !isOffline) {
                 toast.error('Unable to resume last reading position.');
               }
             }}

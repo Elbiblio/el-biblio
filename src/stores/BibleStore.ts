@@ -220,6 +220,7 @@ const STORAGE_KEYS = {
   PLAN_MODE: 'bible_plan_mode',
   SHOW_APOCRYPHA: 'bible_show_apocrypha',
   DAILY_SESSION_PREFIX: 'bible_daily_session_',
+  PENDING_SYNC: 'bible_pending_sync',
 } as const;
 
 type LastReadPosition = {
@@ -2351,7 +2352,7 @@ async markTodaySessionCompleted() {
       );
 
       // Add to sync queue
-      this.addToPendingSync('highlight', {
+      await this.addToPendingSync(newSet.has(verseId) ? 'highlight' : 'unhighlight', {
         verseId,
         highlighted: newSet.has(verseId)
       });
@@ -2384,7 +2385,7 @@ async markTodaySessionCompleted() {
       );
 
       // Add to sync queue
-      this.addToPendingSync('bookmark', {
+      await this.addToPendingSync(newSet.has(verseId) ? 'bookmark' : 'unbookmark', {
         verseId,
         bookmarked: newSet.has(verseId)
       });
@@ -2417,9 +2418,9 @@ async markTodaySessionCompleted() {
       );
 
       // Add to sync queue
-      this.addToPendingSync('like', {
+      await this.addToPendingSync(this.likedVerses.has(verseId) ? 'unlike' : 'like', {
         verseId,
-        liked: newSet.has(verseId)
+        liked: this.likedVerses.has(verseId)
       });
 
       return newSet.has(verseId);
@@ -2469,10 +2470,23 @@ async markTodaySessionCompleted() {
   }
 
   // Sync Helpers
-  private addToPendingSync(action: string, data: any) {
-    // In a real app, this would add to a queue for syncing with the server
-    // For now, we'll just log it
-    console.log(`[Sync] ${action}:`, data);
+  private async addToPendingSync(action: string, data: any) {
+    try {
+      const existing = await AsyncStorage.getItem(STORAGE_KEYS.PENDING_SYNC);
+      const pending = existing ? JSON.parse(existing) : [];
+      
+      pending.push({
+        id: Date.now().toString(),
+        action,
+        data,
+        timestamp: Date.now(),
+      });
+      
+      await AsyncStorage.setItem(STORAGE_KEYS.PENDING_SYNC, JSON.stringify(pending));
+      console.log(`[Sync] Queued ${action}:`, data);
+    } catch (error) {
+      console.error('[Sync] Failed to queue interaction:', error);
+    }
   }
 
   // Cleanup method to clear all data
@@ -2814,10 +2828,84 @@ async markTodaySessionCompleted() {
     }
   }
 
-  // Placeholder for syncing interactions when online
+  // Sync pending interactions when online
   async syncUserInteractions() {
-    // This app currently logs interactions locally; implement server sync here if needed
-    return true;
+    if (this.isOffline) {
+      console.log('[Sync] Skipping sync - offline');
+      return false;
+    }
+
+    try {
+      const pending = await AsyncStorage.getItem(STORAGE_KEYS.PENDING_SYNC);
+      if (!pending) {
+        return true; // Nothing to sync
+      }
+
+      const pendingActions = JSON.parse(pending);
+      if (pendingActions.length === 0) {
+        return true;
+      }
+
+      console.log(`[Sync] Processing ${pendingActions.length} pending actions`);
+
+      // Process actions in order
+      for (const actionItem of pendingActions) {
+        try {
+          await this.processPendingAction(actionItem);
+          console.log(`[Sync] Synced ${actionItem.action}:`, actionItem.data);
+        } catch (error) {
+          console.error(`[Sync] Failed to sync ${actionItem.action}:`, error);
+          // Continue with other actions even if one fails
+        }
+      }
+
+      // Clear the queue after processing
+      await AsyncStorage.removeItem(STORAGE_KEYS.PENDING_SYNC);
+      console.log('[Sync] All pending actions processed');
+      return true;
+    } catch (error) {
+      console.error('[Sync] Error during sync:', error);
+      return false;
+    }
+  }
+
+  private async processPendingAction(actionItem: any) {
+    const { action, data } = actionItem;
+    
+    switch (action) {
+      case 'highlight':
+      case 'unhighlight':
+        await this.syncHighlightToServer(data.verseId, action === 'highlight');
+        break;
+      case 'bookmark':
+      case 'unbookmark':
+        await this.syncBookmarkToServer(data.verseId, action === 'bookmark');
+        break;
+      case 'like':
+      case 'unlike':
+        await this.syncLikeToServer(data.verseId, action === 'like');
+        break;
+      default:
+        console.warn(`[Sync] Unknown action: ${action}`);
+    }
+  }
+
+  private async syncHighlightToServer(verseId: string, isHighlighted: boolean) {
+    // This would make an API call to sync the highlight
+    // For now, we'll just log it
+    console.log(`[Sync] Highlight ${verseId}: ${isHighlighted}`);
+  }
+
+  private async syncBookmarkToServer(verseId: string, isBookmarked: boolean) {
+    // This would make an API call to sync the bookmark
+    // For now, we'll just log it
+    console.log(`[Sync] Bookmark ${verseId}: ${isBookmarked}`);
+  }
+
+  private async syncLikeToServer(verseId: string, isLiked: boolean) {
+    // This would make an API call to sync the like
+    // For now, we'll just log it
+    console.log(`[Sync] Like ${verseId}: ${isLiked}`);
   }
   
   private async loadInstalledVersions() {

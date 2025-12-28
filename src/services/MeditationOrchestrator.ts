@@ -237,12 +237,15 @@ export class MeditationOrchestrator {
     // Accumulate elapsed time
     if (this.activeStartMs) {
       this.accumulatedMs += Date.now() - this.activeStartMs;
-      this.activeStartMs = Date.now();
+      this.activeStartMs = 0;
     }
 
     // Stop all loops
+    this.clearTimer('main');
     this.stopBreathingLoop();
     this.clearTimer('centering');
+    this.clearClosingWatchdog();
+    this.clearFinalCountdown();
 
     // Pause background audio
     const channel = this.getBackgroundChannel();
@@ -279,6 +282,10 @@ export class MeditationOrchestrator {
     if (cfg.selectedStyle === 'chant') {
       this.chantCoordinator?.resume().catch(() => {});
     }
+
+    // Resume ticking/closing guards
+    this.mainInterval = setInterval(() => this.tick(), 1000) as unknown as number;
+    this.scheduleClosingWatchdog();
   }
 
   stop() {
@@ -513,9 +520,9 @@ export class MeditationOrchestrator {
     }
   }
 
-  private maybePlayBell() {
+  private maybePlayBell(minGapMs = 30000) {
     const now = Date.now();
-    if (now - this.lastBellMs >= 30000) {
+    if (now - this.lastBellMs >= minGapMs) {
       this.lastBellMs = now;
       playCue('meditationBell');
     }
@@ -943,16 +950,16 @@ export class MeditationOrchestrator {
 
   private startCenteringInterval() {
     const { centeringWord, centeringReadMode, centeringRepeatIntervalSec } = this.cfg();
-    const intervalMs = Math.max(30, Math.min(60, centeringRepeatIntervalSec)) * 1000;
+    const intervalMs = Math.max(60, Math.min(120, centeringRepeatIntervalSec)) * 1000;
 
     this.centeringInterval = setInterval(() => {
       const word = (centeringWord || 'Jesus').trim();
       if (centeringReadMode === 'aloud') {
         this.speakWithDuck(word, 0.85)
-          .then(() => this.maybePlayBell())
-          .catch(() => this.maybePlayBell());
+          .then(() => this.maybePlayBell(60000))
+          .catch(() => this.maybePlayBell(60000));
       } else {
-        this.maybePlayBell();
+        this.maybePlayBell(60000);
       }
     }, intervalMs) as unknown as number;
   }
