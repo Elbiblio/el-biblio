@@ -553,15 +553,29 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
     appTimerStore.advancePhase(timerId);
   }, [phasesForToday, handlePhaseComplete, bibleStore]);
 
-  // Pause timer when app goes to background
+  // Robust pause/resume across app background/foreground
+  const wasActiveBeforeBackgroundRef = useRef(false);
   useEffect(() => {
-    const sub = AppState.addEventListener('change', (state) => {
+    const sub = AppState.addEventListener('change', async (state) => {
+      const timerId = bibleStore.getTodayTimerIdPublic();
+      if (!timerId) return;
+
       if (state !== 'active') {
-        const timerId = bibleStore.getTodayTimerIdPublic();
-        if (timerId) {
-          appTimerStore.pause(timerId);
-        }
+        const timer = appTimerStore.get(timerId);
+        wasActiveBeforeBackgroundRef.current = !!(timer?.isActive && !timer?.completed);
+        try { await bibleStore.syncFromTimer(); } catch { }
+        appTimerStore.pause(timerId);
+        return;
       }
+
+      // On resume: reload persisted timer and resume if it was active
+      try { await appTimerStore.load(timerId); } catch { }
+      const timer = appTimerStore.get(timerId);
+      if (wasActiveBeforeBackgroundRef.current && timer && !timer.completed) {
+        appTimerStore.resume(timerId);
+      }
+      try { await bibleStore.syncFromTimer(); } catch { }
+      wasActiveBeforeBackgroundRef.current = false;
     });
     return () => sub.remove();
   }, [bibleStore]);
