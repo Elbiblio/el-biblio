@@ -43,6 +43,7 @@
         "backgroundColor": "#ffffff"
       },
       "package": "com.elbiblio.app",
+      "versionCode": 10018,
       "googleServicesFile": "./google-services.json",
       "permissions": [
         "android.permission.CAMERA",
