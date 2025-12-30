@@ -2,7 +2,7 @@
   "expo": {
     "name": "El-Biblio",
     "slug": "elbiblio",
-    "version": "1.0.20",
+    "version": "1.0.21",
     "orientation": "portrait",
     "icon": "./assets/penheart.png",
     "userInterfaceStyle": "light",
@@ -43,7 +43,7 @@
         "backgroundColor": "#ffffff"
       },
       "package": "com.elbiblio.app",
-      "versionCode": 10020,
+      "versionCode": 10021,
       "googleServicesFile": "./google-services.json",
       "permissions": [
         "android.permission.CAMERA",
@@ -84,9 +84,8 @@
           "android": {
             "compileSdkVersion": 35,
             "targetSdkVersion": 35,
-            "useLegacyPackaging": true,
+            "useLegacyPackaging": false,
             "reactNativeArchitectures": [
-              "armeabi-v7a",
               "arm64-v8a"
             ],
             "enableMinifyInReleaseBuilds": true,
@@ -94,7 +93,6 @@
             "ndk": {
               "version": "26.1.10909125",
               "abiFilters": [
-                "armeabi-v7a",
                 "arm64-v8a"
               ]
             }
