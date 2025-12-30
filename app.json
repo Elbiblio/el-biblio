@@ -90,7 +90,14 @@
               "arm64-v8a"
             ],
             "enableMinifyInReleaseBuilds": true,
-            "shrinkResources": true
+            "shrinkResources": true,
+            "ndk": {
+              "version": "26.1.10909125",
+              "abiFilters": [
+                "armeabi-v7a",
+                "arm64-v8a"
+              ]
+            }
           }
         }
       ],
