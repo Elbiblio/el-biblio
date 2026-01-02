@@ -299,6 +299,27 @@ jobs:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
 
+      - name: Download Play Store service account JSON
+        run: |
+          set -euo pipefail
+
+          mkdir -p android/credentials
+          SERVICE_PATH="s3://${{ secrets.R2_KEYSTORE_BUCKET }}/pc-api-8544579711642974481-790-f1fa1d5f9f3c.json"
+          R2_ENDPOINT="https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com"
+          DEST_PATH="android/credentials/google-play-service.json"
+
+          echo "Downloading service account from $SERVICE_PATH"
+          aws s3 cp "$SERVICE_PATH" "$DEST_PATH" --endpoint-url="$R2_ENDPOINT"
+
+          if [ ! -s "$DEST_PATH" ]; then
+            echo "Error: Service account JSON missing or empty at $DEST_PATH"
+            exit 1
+          fi
+
+          ABS_PATH="$PWD/$DEST_PATH"
+          echo "Service account saved to $ABS_PATH"
+          echo "GOOGLE_PLAY_SERVICE_ACCOUNT_JSON=$ABS_PATH" >> "$GITHUB_ENV"
+
       - name: Setup Fastlane
         run: |
           cd android
@@ -467,6 +488,36 @@ jobs:
           path: ${{ steps.find-files.outputs.aab_path }}
           retention-days: 30
           compression-level: 0
+
+      - name: Upload AAB to Play Console (internal track)
+        if: steps.find-files.outputs.aab_path
+        env:
+          PACKAGE_NAME: com.elbiblio.app
+        run: |
+          set -euo pipefail
+
+          if [ -z "${GOOGLE_PLAY_SERVICE_ACCOUNT_JSON:-}" ] || [ ! -f "$GOOGLE_PLAY_SERVICE_ACCOUNT_JSON" ]; then
+            echo "Error: GOOGLE_PLAY_SERVICE_ACCOUNT_JSON is not set or file missing."
+            exit 1
+          fi
+
+          if [ ! -f "${{ steps.find-files.outputs.aab_path }}" ]; then
+            echo "Error: AAB path not found: ${{ steps.find-files.outputs.aab_path }}"
+            exit 1
+          fi
+
+          echo "Uploading ${{ steps.find-files.outputs.aab_path }} to Google Play (track: internal)"
+
+          fastlane supply \
+            --aab "${{ steps.find-files.outputs.aab_path }}" \
+            --json_key "$GOOGLE_PLAY_SERVICE_ACCOUNT_JSON" \
+            --package_name "$PACKAGE_NAME" \
+            --track "internal" \
+            --skip_upload_metadata true \
+            --skip_upload_changelogs true \
+            --skip_upload_images true \
+            --skip_upload_screenshots true \
+            --release_status "draft"
 
       - name: Cleanup
         if: always()
