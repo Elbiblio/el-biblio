@@ -14,6 +14,7 @@ import { Shield } from '@/components/Icons';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '@/types';
 import type { HabitConquestJournalEntry, HabitConquestMood } from '@/types/habitConquest';
+import type { Theme, ThemeColors } from '@/theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'HabitConquestProgressScreen'>;
 
@@ -216,12 +217,13 @@ const InsightCard = ({ label, value, caption }: { label: string; value: string; 
   );
 };
 
-const createStyles = (theme: ReturnType<typeof useTheme>) => {
-  const highlight = theme.colors.warning ?? theme.colors.secondary ?? theme.colors.primary;
+const createStyles = (theme: Theme) => {
+  const colors: ThemeColors = theme.colors;
+  const highlight: string = colors.warning;
   return StyleSheet.create({
     container: {
       flex: 1,
-      backgroundColor: theme.colors.background,
+      backgroundColor: colors.background,
     },
     content: {
       paddingHorizontal: 20,
@@ -237,20 +239,20 @@ const createStyles = (theme: ReturnType<typeof useTheme>) => {
       paddingHorizontal: 14,
       paddingVertical: 8,
       borderRadius: theme.borderRadius.full,
-      backgroundColor: theme.colors.surface,
+      backgroundColor: colors.surface,
     },
     backText: {
-      color: theme.colors.text.primary,
+      color: colors.text.primary,
       fontWeight: '600',
     },
     screenTitle: {
       ...theme.typography.heading.medium,
-      color: theme.colors.text.primary,
+      color: colors.text.primary,
     },
     heroCard: {
       borderRadius: theme.borderRadius.xl,
       padding: 20,
-      backgroundColor: theme.colors.primary,
+      backgroundColor: colors.primary,
     },
     heroHeader: {
       flexDirection: 'row',
@@ -258,13 +260,13 @@ const createStyles = (theme: ReturnType<typeof useTheme>) => {
       gap: 16,
     },
     heroEyebrow: {
-      color: `${theme.colors.text.inverse}AA`,
+      color: `${colors.text.inverse}AA`,
       fontSize: 13,
       textTransform: 'uppercase',
       letterSpacing: 0.5,
     },
     heroTitle: {
-      color: theme.colors.text.inverse,
+      color: colors.text.inverse,
       fontSize: 28,
       fontWeight: '800',
     },
@@ -289,15 +291,15 @@ const createStyles = (theme: ReturnType<typeof useTheme>) => {
     },
     primaryBtnText: {
       fontWeight: '700',
-      color: theme.colors.text.inverse,
+      color: colors.text.inverse,
     },
     heroPrimary: {
-      backgroundColor: theme.colors.text.inverse,
+      backgroundColor: colors.text.inverse,
     },
     heroSecondary: {
-      backgroundColor: `${theme.colors.text.inverse}22`,
+      backgroundColor: `${colors.text.inverse}22`,
       borderWidth: StyleSheet.hairlineWidth,
-      borderColor: `${theme.colors.text.inverse}44`,
+      borderColor: `${colors.text.inverse}44`,
     },
     catchUpCard: {
       borderRadius: theme.borderRadius.lg,
@@ -311,10 +313,10 @@ const createStyles = (theme: ReturnType<typeof useTheme>) => {
     },
     catchUpTitle: {
       ...theme.typography.heading.small,
-      color: theme.colors.text.primary,
+      color: colors.text.primary,
     },
     catchUpSubtitle: {
-      color: theme.colors.text.secondary,
+      color: colors.text.secondary,
       fontSize: 13,
       marginTop: 4,
     },
@@ -322,10 +324,10 @@ const createStyles = (theme: ReturnType<typeof useTheme>) => {
       paddingHorizontal: 14,
       paddingVertical: 10,
       borderRadius: theme.borderRadius.full,
-      backgroundColor: theme.colors.primary,
+      backgroundColor: colors.primary,
     },
     catchUpBtnText: {
-      color: theme.colors.text.inverse,
+      color: colors.text.inverse,
       fontWeight: '600',
     },
     metricsRow: {
@@ -340,32 +342,32 @@ const createStyles = (theme: ReturnType<typeof useTheme>) => {
     },
     sectionTitle: {
       ...theme.typography.heading.small,
-      color: theme.colors.text.primary,
+      color: colors.text.primary,
     },
     sectionLink: {
-      color: theme.colors.primary,
+      color: colors.primary,
       fontWeight: '600',
     },
     emptyState: {
       borderRadius: theme.borderRadius.lg,
       borderWidth: StyleSheet.hairlineWidth,
-      borderColor: theme.colors.border,
+      borderColor: colors.border,
       padding: 20,
       gap: 12,
-      backgroundColor: theme.colors.surface,
+      backgroundColor: colors.surface,
     },
     emptyTitle: {
       ...theme.typography.heading.small,
-      color: theme.colors.text.primary,
+      color: colors.text.primary,
     },
     emptySubtitle: {
-      color: theme.colors.text.secondary,
+      color: colors.text.secondary,
       lineHeight: 20,
     },
   });
 };
 
-const journalStyles = (theme: ReturnType<typeof useTheme>) =>
+const journalStyles = (theme: Theme) =>
   StyleSheet.create({
     card: {
       borderRadius: theme.borderRadius.lg,
@@ -413,7 +415,7 @@ const journalStyles = (theme: ReturnType<typeof useTheme>) =>
   });
 
 const chipStyles = (
-  theme: ReturnType<typeof useTheme>,
+  theme: Theme,
   tone: 'primary' | 'secondary',
   active: boolean,
 ) =>
@@ -443,7 +445,7 @@ const chipStyles = (
     },
   });
 
-const statStyles = (theme: ReturnType<typeof useTheme>) =>
+const statStyles = (theme: Theme) =>
   StyleSheet.create({
     container: {
       flex: 1,
@@ -464,7 +466,7 @@ const statStyles = (theme: ReturnType<typeof useTheme>) =>
     },
   });
 
-const insightStyles = (theme: ReturnType<typeof useTheme>) =>
+const insightStyles = (theme: Theme) =>
   StyleSheet.create({
     card: {
       flex: 1,

@@ -5,7 +5,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { PIConfetti } from 'react-native-fast-confetti';
 import { Theme } from '@/theme';
 import { useTheme } from '@/contexts/ThemeContext';
-import { Trophy, Star } from '@/components/Icons';
+import { ArrowLeft, Trophy, Star } from '@/components/Icons';
 
 export type VirtueTriviaCompleteProps = {
   virtueName: string;
@@ -16,6 +16,7 @@ export type VirtueTriviaCompleteProps = {
   userLevelLabel: string;
   remainingToLevelUp: number;
   onPlayAgain: () => void;
+  onGoBack?: () => void;
 };
 
 const VirtueTriviaComplete: React.FC<VirtueTriviaCompleteProps> = ({
@@ -27,6 +28,7 @@ const VirtueTriviaComplete: React.FC<VirtueTriviaCompleteProps> = ({
   userLevelLabel,
   remainingToLevelUp,
   onPlayAgain,
+  onGoBack,
 }) => {
   const theme = useTheme();
   const styles = createStyles(theme);
@@ -57,6 +59,12 @@ const VirtueTriviaComplete: React.FC<VirtueTriviaCompleteProps> = ({
 
   return (
     <View style={styles.container}>
+      {onGoBack && (
+        <TouchableOpacity style={styles.backButton} onPress={onGoBack}>
+          <ArrowLeft size={18} color={theme.colors.text.primary} />
+          <Text style={styles.backButtonText}>Back</Text>
+        </TouchableOpacity>
+      )}
       <PIConfetti ref={confettiRef} count={passed ? 220 : 140} fadeOutOnEnd colors={['#FFD700','#FF8C00','#00BCD4','#8BC34A','#FF69B4','#BA55D3']} />
 
       <Animated.View style={[styles.banner, bannerStyle]}>
@@ -116,8 +124,25 @@ export default VirtueTriviaComplete;
 const createStyles = (theme: Theme) => StyleSheet.create({
   container: {
     flex: 1,
+    justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: theme.spacing.lg,
+    padding: theme.spacing.lg,
+  },
+  backButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.xs,
+    backgroundColor: `${theme.colors.text.primary}10`,
+    borderRadius: theme.borderRadius.full,
+    marginBottom: theme.spacing.sm,
+  },
+  backButtonText: {
+    marginLeft: theme.spacing.xs,
+    color: theme.colors.text.primary,
+    fontWeight: '600',
+    fontSize: 14,
   },
   banner: {
     width: '100%',

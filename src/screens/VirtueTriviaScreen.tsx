@@ -1,5 +1,7 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+
+import { View, Text, TouchableOpacity } from 'react-native';
+
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, {
   useSharedValue,
@@ -11,9 +13,11 @@ import Animated, {
   Extrapolation,
 } from 'react-native-reanimated';
 import { ActivityIndicator } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Star, Trophy, Sparkle, Clock } from '../components/Icons';
-import { UserLevel, VerseResult, VirtueGroups as VirtueGroupsConst } from '@/types';
-import { Theme } from '@/theme';
+import { UserLevel, VerseResult, VirtueGroups as VirtueGroupsConst, RootStackParamList } from '@/types';
+
 import { useTheme } from '@/contexts/ThemeContext';
 import { observer } from 'mobx-react-lite';
 import { useVirtueStore, useGameStore } from '@/stores/StoreProvider';
@@ -29,6 +33,8 @@ import BibleDBService, { parseVPLId } from '@/utils/database';
 import { bibleBooks } from '@/constants/bibleBooks';
 import { ScrollView } from 'react-native-gesture-handler';
 import { LinearGradient } from 'expo-linear-gradient';
+import createStyles from './VirtueTriviaScreen.styles';
+
 // game store now comes from StoreProvider
 
 // Constants
@@ -59,25 +65,34 @@ interface GameState {
   correctAnswersCount: number;
 }
 
+type AdvanceOptions = {
+  isCorrect?: boolean;
+  latestScore?: number;
+  correctAnswers?: number;
+};
+
 // Timer settings by level
 const timerSettings: Record<UserLevel, number> = {
   novice: 35,
   beginner: 30,
-  intermediate: 25,
-  advanced: 20,
-  expert: 15
+  intermediate: 20,
+  advanced: 15,
+  expert: 10
 };
 
 const VirtueTriviaScreen = () => {
   const theme = useTheme();
-  const styles = createStyles(theme);
+  const styles = useMemo(() => createStyles(theme), [theme]);
   const insets = useSafeAreaInsets();
   const gameStore = useGameStore();
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
 
   // Virtue store
-  const { virtues, userProgress, fetchVirtues, fetchUserProgress } = useVirtueStore();
+  const virtueStore = useVirtueStore();
+  const { virtues, userProgress, fetchVirtues, fetchUserProgress } = virtueStore;
+
   // Build a local fallback list of virtues for offline-first UX
-  const fallbackVirtues = React.useMemo(() => {
+  const fallbackVirtues = useMemo(() => {
     const groups = VirtueGroupsConst;
     const ids = [
       ...groups.foundational.virtues,
@@ -115,10 +130,10 @@ const VirtueTriviaScreen = () => {
   const progressWidth = useSharedValue(100);
   const timerColorAnim = useSharedValue(0);
   const successOpacity = useSharedValue(0);
-  const optionPressScale = useSharedValue(1);
-  const scorePulse = useSharedValue(1);
-  const bestPulse = useSharedValue(1);
-  const streakPulse = useSharedValue(1);
+  const optionPressScale = useSharedValue(0.9);
+  const scorePulse = useSharedValue(0.9);
+  const bestPulse = useSharedValue(0.9);
+  const streakPulse = useSharedValue(0.9);
 
   const optionPressStyle = useAnimatedStyle(() => ({
     transform: [{ scale: optionPressScale.value }],
@@ -141,16 +156,29 @@ const VirtueTriviaScreen = () => {
   const confettiRef = useRef<any>(null);
   const hasInitialized = useRef(false);
   const autoAdvanceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const gameStateRef = useRef(gameState);
   const minimumQuestionsToPass = 7; // 70% correct answers to complete a virtue
 
   const personalBest = gameStore.getPersonalBest('virtue_trivia');
   const displayedHighScore = Math.max(personalBest, gameState.score);
   const isNewHighScore = gameState.score > personalBest;
 
-  // Update timeLeftRef when timeLeft changes
+  // Keep refs synced with latest values
   useEffect(() => {
     timeLeftRef.current = timeLeft;
   }, [timeLeft]);
+
+  useEffect(() => {
+    gameStateRef.current = gameState;
+  }, [gameState]);
+
+  useEffect(() => {
+    return () => {
+      if (autoAdvanceRef.current) {
+        clearTimeout(autoAdvanceRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (!gameStore.state.lastSynced && !gameStore.state.isLoading) {
@@ -362,253 +390,6 @@ const VirtueTriviaScreen = () => {
     );
   }, [gameState.score, scorePulse]);
 
-  useEffect(() => {
-    if (isNewHighScore) {
-      bestPulse.value = withSequence(
-        withTiming(1.1, { duration: 160 }),
-        withSpring(1, { damping: 5, stiffness: 240 })
-      );
-    }
-  }, [isNewHighScore, bestPulse]);
-
-  useEffect(() => {
-    if (gameState.streak > 1) {
-      streakPulse.value = withSequence(
-        withTiming(1.08, { duration: 150 }),
-        withTiming(1.02, { duration: 120 }),
-        withSpring(1, { damping: 6, stiffness: 220 })
-      );
-    } else {
-      streakPulse.value = withTiming(1, { duration: 180 });
-    }
-  }, [gameState.streak, streakPulse]);
-
-  // Handle answer selection
-  const handleAnswerSelect = useCallback(async (answer: string) => {
-    if (gameState.answered) return;
-    
-    const isCorrect = answer === gameState.correctAnswer;
-    // const currentQuestion = gameState.questions[gameState.currentQuestionIndex];
-
-
-    
-    // Micro interaction
-    optionPressScale.value = withTiming(0.97, { duration: 80 }, () => {
-      optionPressScale.value = withTiming(1, { duration: 120 });
-    });
-
-    // Haptics and sound
-    if (isCorrect) {
-      // Confetti micro-burst
-      confettiRef.current?.restart?.();
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      play('correct');
-    } else {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      play('wrong');
-    }
-    
-    // Update streak
-    const newStreak = isCorrect ? gameState.streak + 1 : 0;
-    
-    // Play streak sound on multiples of 5
-    if (isCorrect && newStreak > 1 && newStreak % 5 === 0) {
-      play('streak');
-    }
-    
-    // Calculate score
-    const timeBonus = Math.floor(timeLeft * 2);
-    const streakBonus = isCorrect ? Math.max(0, newStreak - 1) * 10 : 0; // small streak multiplier
-    const questionScore = isCorrect ? 100 + timeBonus + streakBonus : 0;
-    const newScore = gameState.score + questionScore;
-    
-    // Update high score if needed
-    // Update correctAnswersCount if answer is correct
-    const newCorrectAnswersCount = isCorrect ? 
-      gameState.correctAnswersCount + 1 : 
-      gameState.correctAnswersCount;
-    
-    // Update game state
-    setGameState(prev => ({
-      ...prev,
-      answered: true,
-      selectedAnswer: answer,
-      score: newScore,
-      streak: newStreak,
-      correctAnswersCount: newCorrectAnswersCount
-    }));
-    
-    // Show success animation for correct answers
-    if (isCorrect) {
-      setShowSuccess(true);
-      successOpacity.value = withTiming(1, { duration: 300 });
-      setTimeout(() => {
-        setShowSuccess(false);
-        successOpacity.value = withTiming(0, { duration: 300 });
-      }, 1000);
-    }
-    
-    // Move to next question after delay (can be overridden by Next button)
-    if (autoAdvanceRef.current) clearTimeout(autoAdvanceRef.current);
-    autoAdvanceRef.current = setTimeout(async () => {
-      const nextIndex = gameState.currentQuestionIndex + 1;
-      
-      if (nextIndex >= gameState.questions.length) {
-        // Game over logic
-        const correctAnswers = isCorrect ? 
-          gameState.correctAnswersCount + 1 : 
-          gameState.correctAnswersCount;
-        
-        const virtuePassed = correctAnswers >= minimumQuestionsToPass;
-        
-        // Check for perfect score and play cheers
-        if (correctAnswers === gameState.questions.length) {
-          play('cheers');
-          // Perfect score celebration
-          confettiRef.current?.restart?.();
-        } else {
-          // Play regular game over sound
-          play('gameOver');
-        }
-
-        void gameStore.submitScore('virtue_trivia', newScore);
-        
-        // Update virtue progress via API
-        const virtueStore = useVirtueStore();
-        if (virtuePassed && selectedVirtue) {
-          try {
-            await virtueStore.updateUserProgress(selectedVirtue, {
-              points: Math.floor(newScore / 10), // Convert score to points
-              minutes: 0,
-              challenges: 1
-            });
-          } catch (error) {
-            console.warn('Failed to update virtue progress:', error);
-          }
-        }
-              
-
-        
-        setGameState(prev => ({ 
-          ...prev, 
-          gameOver: true,
-          correctAnswersCount: correctAnswers // ensure final value is set
-        }));
-      } else {
-        // Next question
-        setGameState(prev => ({
-          ...prev,
-          currentQuestionIndex: nextIndex,
-          answered: false,
-          selectedAnswer: null,
-          correctAnswer: prev.questions[nextIndex].correctAnswer
-        }));
-        
-        // Reset timer
-        setTimeLeft(timerSettings[userLevel]);
-        progressWidth.value = 100;
-        timerColorAnim.value = 0;
-      }
-    }, 1500);
-  }, [gameState, timeLeft, userLevel, successOpacity, selectedVirtue, minimumQuestionsToPass, gameStore]);
-
-  const goToNext = useCallback(() => {
-    if (autoAdvanceRef.current) {
-      clearTimeout(autoAdvanceRef.current);
-      autoAdvanceRef.current = null;
-    }
-    // replicate the advance logic
-    const isCorrect = gameState.selectedAnswer === gameState.correctAnswer;
-    const nextIndex = gameState.currentQuestionIndex + 1;
-    if (nextIndex >= gameState.questions.length) {
-      const correctAnswers = isCorrect ? gameState.correctAnswersCount + 1 : gameState.correctAnswersCount;
-      const newScore = gameState.score; // already computed on selection
-      if (correctAnswers === gameState.questions.length) {
-        play('cheers');
-        confettiRef.current?.restart?.();
-      } else {
-        play('gameOver');
-      }
-      void gameStore.submitScore('virtue_trivia', newScore);
-      setGameState(prev => ({ ...prev, gameOver: true, correctAnswersCount: correctAnswers }));
-    } else {
-      setGameState(prev => ({
-        ...prev,
-        currentQuestionIndex: nextIndex,
-        answered: false,
-        selectedAnswer: null,
-        correctAnswer: prev.questions[nextIndex].correctAnswer
-      }));
-      setTimeLeft(timerSettings[userLevel]);
-      progressWidth.value = 100;
-      timerColorAnim.value = 0;
-    }
-  }, [gameState, userLevel, gameStore]);
-
-  // Timer logic
-  useEffect(() => {
-    if (showVirtueSelector || gameState.answered || gameState.gameOver || showSoundSettings) return;
-    
-    const interval = setInterval(() => {
-      const newTime = timeLeftRef.current - 1;
-      progressWidth.value = withTiming((newTime / timerSettings[userLevel]) * 100, { duration: 1000 });
-      timerColorAnim.value = withTiming(1 - newTime / timerSettings[userLevel], { duration: 1000 });
-      setTimeLeft(newTime);
-      
-      if (newTime <= 3) {
-        play('tickTock');
-      }
-      
-      if (newTime <= 0) {
-        clearInterval(interval);
-        handleAnswerSelect(''); // Force incorrect answer
-        play('timeout');
-      }
-    }, 1000);
-    
-    return () => clearInterval(interval);
-  }, [showVirtueSelector, gameState.answered, gameState.gameOver, userLevel, handleAnswerSelect, showSoundSettings]);
-
-  // Start new game
-  const startNewGame = useCallback(() => {
-    setShowVirtueSelector(true);
-    setSelectedVirtue('');
-    setGameState({
-      questions: [],
-      currentQuestionIndex: 0,
-      score: 0,
-      streak: 0,
-      answered: false,
-      selectedAnswer: null,
-      correctAnswer: '',
-      gameOver: false,
-      correctAnswersCount: 0
-    });
-  }, []);
-
-  // Calculate progress and remaining virtues for level up
-  const calculateLevelProgress = useCallback(() => {
-    const completedCount = getCompletedCount();
-    const remainingCount = VIRTUES_TO_LEVEL_UP - completedCount;
-    const progressPercent = Math.min(100, (completedCount / VIRTUES_TO_LEVEL_UP) * 100);
-    
-    return {
-      completedCount,
-      remainingCount: Math.max(0, remainingCount),
-      progressPercent
-    };
-  }, [userProgress]);
-
-  const getCompletedCount = () => {
-    // Get actual completed count from API
-    const virtueProgress = userProgress || {};
-    const completedCount = Object.values(virtueProgress).filter(
-      (progress: any) => progress.current_level >= 3 // Completed means max level (3)
-    ).length;
-    return completedCount;
-  };
-
-  // Animated Styles
   const timerStyle = useAnimatedStyle(() => {
     const color = interpolate(timerColorAnim.value, [0, 0.6, 1], [0, 1, 2], Extrapolation.CLAMP);
     return {
@@ -632,15 +413,243 @@ const VirtueTriviaScreen = () => {
     opacity: successOpacity.value,
   }));
 
+  // Calculate progress and remaining virtues for level up
+  const calculateLevelProgress = useCallback(() => {
+    const completedCount = getCompletedCount();
+    const remainingCount = VIRTUES_TO_LEVEL_UP - completedCount;
+    const progressPercent = Math.min(100, (completedCount / VIRTUES_TO_LEVEL_UP) * 100);
+    
+    return {
+      completedCount,
+      remainingCount: Math.max(0, remainingCount),
+      progressPercent
+    };
+  }, [userProgress]);
+
+  const getCompletedCount = () => {
+    // Get actual completed count from API
+    const virtueProgress = userProgress || {};
+    const completedCount = Object.values(virtueProgress).filter(
+      (progress: any) => progress.current_level >= 3 // Completed means max level (3)
+    ).length;
+    return completedCount;
+  };
+
+  const advanceToNext = useCallback((options?: AdvanceOptions) => {
+    const current = gameStateRef.current;
+    const isCorrect = options?.isCorrect ?? (current.selectedAnswer === current.correctAnswer);
+    const latestScore = options?.latestScore ?? current.score;
+    const correctAnswers = options?.correctAnswers ?? current.correctAnswersCount;
+    const nextIndex = current.currentQuestionIndex + 1;
+
+    if (nextIndex >= current.questions.length) {
+      const computedCorrectAnswers = isCorrect ? correctAnswers + 1 : correctAnswers;
+      if (computedCorrectAnswers === current.questions.length) {
+        play('cheers');
+        confettiRef.current?.restart?.();
+      } else {
+        play('gameOver');
+      }
+      void gameStore.submitScore('virtue_trivia', latestScore);
+
+      if (isCorrect && selectedVirtue) {
+        const virtuePassed = computedCorrectAnswers >= minimumQuestionsToPass;
+        if (virtuePassed) {
+          virtueStore
+            .updateUserProgress(selectedVirtue, {
+              points: Math.floor(latestScore / 10),
+              minutes: 0,
+              challenges: 1,
+            })
+            .catch(error => {
+              console.warn('Failed to update virtue progress:', error);
+            });
+        }
+      }
+
+      setGameState(prev => ({
+        ...prev,
+        gameOver: true,
+        correctAnswersCount: computedCorrectAnswers,
+      }));
+    } else {
+      setGameState(prev => ({
+        ...prev,
+        currentQuestionIndex: nextIndex,
+        answered: false,
+        selectedAnswer: null,
+        correctAnswer: prev.questions[nextIndex].correctAnswer,
+      }));
+      setTimeLeft(timerSettings[userLevel]);
+      progressWidth.value = 100;
+      timerColorAnim.value = 0;
+    }
+  }, [gameStore, minimumQuestionsToPass, progressWidth, selectedVirtue, timerColorAnim, timerSettings, userLevel, virtueStore]);
+
+  const scheduleAdvance = useCallback((options?: AdvanceOptions) => {
+    if (autoAdvanceRef.current) {
+      clearTimeout(autoAdvanceRef.current);
+    }
+    autoAdvanceRef.current = setTimeout(() => {
+      advanceToNext(options);
+    }, 1500);
+  }, [advanceToNext]);
+
+  const handleAnswerSelect = useCallback(async (answer: string) => {
+    const current = gameStateRef.current;
+    if (current.answered) return;
+
+    const isCorrect = answer === current.correctAnswer;
+
+    // Micro interaction
+    optionPressScale.value = withTiming(0.97, { duration: 80 }, () => {
+      optionPressScale.value = withTiming(1, { duration: 120 });
+    });
+
+    // Haptics and sound
+    if (isCorrect) {
+      // Confetti micro-burst
+      confettiRef.current?.restart?.();
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      play('correct');
+    } else {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      play('wrong');
+    }
+
+    // Update streak
+    const newStreak = isCorrect ? current.streak + 1 : 0;
+
+    // Play streak sound on multiples of 5
+    if (isCorrect && newStreak > 1 && newStreak % 5 === 0) {
+      play('streak');
+    }
+
+    // Calculate score
+    const remainingTime = timeLeftRef.current;
+    const timeBonus = Math.floor(remainingTime * 2);
+    const streakBonus = isCorrect ? Math.max(0, newStreak - 1) * 10 : 0; // small streak multiplier
+    const questionScore = isCorrect ? 100 + timeBonus + streakBonus : 0;
+    const newScore = current.score + questionScore;
+
+    // Update correctAnswersCount if answer is correct
+    const newCorrectAnswersCount = isCorrect ? 
+      current.correctAnswersCount + 1 : 
+      current.correctAnswersCount;
+
+    // Update game state
+    setGameState(prev => ({
+      ...prev,
+      answered: true,
+      selectedAnswer: answer,
+      score: newScore,
+      streak: newStreak,
+      correctAnswersCount: newCorrectAnswersCount
+    }));
+
+    // Show success animation for correct answers
+    if (isCorrect) {
+      setShowSuccess(true);
+      successOpacity.value = withTiming(1, { duration: 300 });
+      setTimeout(() => {
+        setShowSuccess(false);
+        successOpacity.value = withTiming(0, { duration: 300 });
+      }, 1000);
+    }
+
+    scheduleAdvance({
+      isCorrect,
+      latestScore: newScore,
+      correctAnswers: newCorrectAnswersCount
+    });
+  }, [scheduleAdvance, successOpacity]);
+
+  const handleManualAdvance = useCallback(() => {
+    const current = gameStateRef.current;
+    if (!current.answered) return;
+
+    if (autoAdvanceRef.current) {
+      clearTimeout(autoAdvanceRef.current);
+      autoAdvanceRef.current = null;
+    }
+
+    advanceToNext({
+      isCorrect: current.selectedAnswer === current.correctAnswer,
+      latestScore: current.score,
+      correctAnswers: current.correctAnswersCount,
+    });
+  }, [advanceToNext]);
+
+  // Start new game
+  const startNewGame = useCallback(() => {
+    setShowVirtueSelector(true);
+    setSelectedVirtue('');
+    setGameState({
+      questions: [],
+      currentQuestionIndex: 0,
+      score: 0,
+      streak: 0,
+      answered: false,
+      selectedAnswer: null,
+      correctAnswer: '',
+      gameOver: false,
+      correctAnswersCount: 0
+    });
+  }, []);
+
+  // Timer logic
+  useEffect(() => {
+    if (showVirtueSelector || gameState.answered || gameState.gameOver || showSoundSettings) return;
+
+    const interval = setInterval(() => {
+      const newTime = timeLeftRef.current - 1;
+      progressWidth.value = withTiming((newTime / timerSettings[userLevel]) * 100, { duration: 1000 });
+      timerColorAnim.value = withTiming(1 - newTime / timerSettings[userLevel], { duration: 1000 });
+      setTimeLeft(newTime);
+      
+      if (newTime <= 3) {
+        play('tickTock');
+      }
+      
+      if (newTime <= 0) {
+        clearInterval(interval);
+        handleAnswerSelect(''); // Force incorrect answer
+        play('timeout');
+      }
+    }, 1000);
+    
+    return () => clearInterval(interval);
+  }, [showVirtueSelector, gameState.answered, gameState.gameOver, userLevel, handleAnswerSelect, showSoundSettings]);
+
+  useEffect(() => {
+    if (isNewHighScore) {
+      bestPulse.value = withSequence(
+        withTiming(1.1, { duration: 160 }),
+        withSpring(1, { damping: 5, stiffness: 240 })
+      );
+    }
+  }, [isNewHighScore, bestPulse]);
+
+  useEffect(() => {
+    if (gameState.streak > 1) {
+      streakPulse.value = withSequence(
+        withTiming(1.1, { duration: 160 }),
+        withSpring(1, { damping: 5, stiffness: 240 })
+      );
+    } else {
+      streakPulse.value = withTiming(1);
+    }
+  }, [gameState.streak, streakPulse]);
+
   // Render virtue selector
   const renderVirtueSelector = useCallback(() => {
-    const { completedCount, remainingCount, progressPercent } = calculateLevelProgress();
-    
+    const { remainingCount, progressPercent } = calculateLevelProgress();
+
     return (
       <ScrollView contentContainerStyle={styles.virtueSelectorContainer}>
         <Text style={styles.title}>Choose a Virtue</Text>
         <Text style={styles.subtitle}>Select a virtue to find related Bible verses</Text>
-        
+
         <View style={styles.levelInfoContainer}>
           <Text style={styles.levelText}>Current Level: {userLevel.charAt(0).toUpperCase() + userLevel.slice(1)}</Text>
           {remainingCount > 0 && (
@@ -648,36 +657,32 @@ const VirtueTriviaScreen = () => {
               Complete {remainingCount} more {remainingCount === 1 ? 'virtue' : 'virtues'} to level up
             </Text>
           )}
-          
+
           <View style={styles.levelProgressBarContainer}>
             <View style={[styles.levelProgressBar, { width: `${progressPercent}%` }]} />
           </View>
-
-        {gameState.answered && (
-          <TouchableOpacity style={styles.nextButton} onPress={goToNext}>
-            <Text style={styles.nextButtonText}>Next</Text>
-          </TouchableOpacity>
-        )}
         </View>
-        
+
         <View style={styles.virtueGrid}>
           {displayedVirtues.map(virtue => {
             const virtueData = userProgress[virtue.id] || { current_level: 0, total_levels: 3 };
             const isCompleted = virtueData.current_level >= virtueData.total_levels;
-            
+
             return (
               <TouchableOpacity
                 key={virtue.id}
                 style={[
                   styles.virtueButton,
-                  isCompleted && styles.completedVirtueButton
+                  isCompleted && styles.completedVirtueButton,
                 ]}
                 onPress={() => searchVirtueVerses(virtue.id)}
               >
-                <Text style={[
-                  styles.virtueButtonText,
-                  isCompleted && styles.completedVirtueText
-                ]}>
+                <Text
+                  style={[
+                    styles.virtueButtonText,
+                    isCompleted && styles.completedVirtueText,
+                  ]}
+                >
                   {virtue.name.charAt(0).toUpperCase() + virtue.name.slice(1)}
                 </Text>
                 {isCompleted && (
@@ -685,50 +690,48 @@ const VirtueTriviaScreen = () => {
                     <Text style={styles.completedBadgeText}>✓</Text>
                   </View>
                 )}
-                {/* Removed virtueScoreText as it's not in VirtueProgress type */}
               </TouchableOpacity>
             );
           })}
         </View>
       </ScrollView>
     );
-  }, [searchVirtueVerses, styles, userLevel, userProgress, calculateLevelProgress]);
+  }, [calculateLevelProgress, displayedVirtues, searchVirtueVerses, styles, userLevel, userProgress]);
 
   // Render current question
   const renderQuestion = useCallback(() => {
     if (!gameState.questions.length) return null;
-    
+
     const currentQuestion = gameState.questions[gameState.currentQuestionIndex];
     const questionNumber = gameState.currentQuestionIndex + 1;
     const totalQuestions = gameState.questions.length;
-    
+
     return (
       <View style={styles.questionContainer}>
         <View style={styles.progressHeader}>
           <Text style={styles.progressText}>Question {questionNumber}/{totalQuestions}</Text>
           <Text style={styles.scoreText}>Score: {gameState.score}</Text>
         </View>
-        
+
         <Text style={styles.questionText}>
           Which {userLevel === 'expert' ? 'book and chapter' : 'book'} contains this verse?
         </Text>
-        
+
         <View style={styles.verseContainer}>
           <Text style={styles.verseText}>"{currentQuestion.verseText}"</Text>
         </View>
-        
+
         <View style={styles.optionsContainer}>
           {currentQuestion.options.map((option, index) => (
             <Animated.View key={index} style={optionPressStyle}>
               <TouchableOpacity
-                key={index}
                 style={[
                   styles.optionButton,
                   gameState.answered && option === currentQuestion.correctAnswer && styles.correctOption,
-                  gameState.answered && 
-                  option === gameState.selectedAnswer && 
-                  option !== currentQuestion.correctAnswer && 
-                  styles.incorrectOption
+                  gameState.answered &&
+                  option === gameState.selectedAnswer &&
+                  option !== currentQuestion.correctAnswer &&
+                  styles.incorrectOption,
                 ]}
                 onPress={() => {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -736,14 +739,14 @@ const VirtueTriviaScreen = () => {
                 }}
                 disabled={gameState.answered}
               >
-                <Text 
+                <Text
                   style={[
                     styles.optionText,
                     gameState.answered && option === currentQuestion.correctAnswer && styles.correctOptionText,
-                    gameState.answered && 
-                    option === gameState.selectedAnswer && 
-                    option !== currentQuestion.correctAnswer && 
-                    styles.incorrectOptionText
+                    gameState.answered &&
+                    option === gameState.selectedAnswer &&
+                    option !== currentQuestion.correctAnswer &&
+                    styles.incorrectOptionText,
                   ]}
                 >
                   {option}
@@ -752,15 +755,25 @@ const VirtueTriviaScreen = () => {
             </Animated.View>
           ))}
         </View>
-        
+
         {gameState.answered && gameState.selectedAnswer !== currentQuestion.correctAnswer && (
           <Text style={styles.correctAnswerText}>
             Correct answer: {currentQuestion.correctAnswer}
           </Text>
         )}
+
+        {gameState.answered && (
+          <View style={styles.nextButtonRow}>
+            <TouchableOpacity style={styles.nextButton} onPress={handleManualAdvance}>
+              <Text style={styles.nextButtonText}>
+                {gameState.currentQuestionIndex === gameState.questions.length - 1 ? 'Finish' : 'Next'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )}
       </View>
     );
-  }, [gameState, userLevel, handleAnswerSelect, styles]);
+  }, [gameState, userLevel, handleAnswerSelect, handleManualAdvance, styles]);
 
   // Render game over screen
   const renderGameOver = useCallback(() => {
@@ -780,9 +793,10 @@ const VirtueTriviaScreen = () => {
         userLevelLabel={userLevel.charAt(0).toUpperCase() + userLevel.slice(1)}
         remainingToLevelUp={remainingCount}
         onPlayAgain={startNewGame}
+        onGoBack={() => navigation.goBack()}
       />
     );
-  }, [gameState, personalBest, startNewGame, selectedVirtue, userProgress, userLevel, calculateLevelProgress]);
+  }, [gameState, personalBest, startNewGame, selectedVirtue, userProgress, userLevel, calculateLevelProgress, navigation]);
 
   // Main Render
   return (
@@ -900,489 +914,5 @@ const VirtueTriviaScreen = () => {
   );
 };
 
-// Styles
-const createStyles = (theme: Theme) => StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: theme.colors.background,
-    padding: theme.spacing.md,
-  },
-  gradientBg: {
-    ...StyleSheet.absoluteFillObject,
-  },
-  
-  // Loading and Error
-  loadingOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 10,
-  },
-  loadingText: {
-    color: theme.colors.primary,
-    marginTop: theme.spacing.sm,
-  },
-  errorContainer: {
-    padding: theme.spacing.md,
-    backgroundColor: `${theme.colors.error}20`,
-    borderRadius: theme.borderRadius.md,
-    marginVertical: theme.spacing.lg,
-    alignItems: 'center',
-  },
-  errorText: {
-    color: theme.colors.error,
-    marginBottom: theme.spacing.md,
-    textAlign: 'center',
-  },
-  
-  // Virtue Selector
-  virtueSelectorContainer: {
-    padding: theme.spacing.md,
-    alignItems: 'center',
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: theme.colors.text.primary,
-    marginBottom: theme.spacing.xs,
-    textAlign: 'center',
-  },
-  subtitle: {
-    fontSize: 16,
-    color: theme.colors.text.secondary,
-    marginBottom: theme.spacing.lg,
-    textAlign: 'center',
-  },
-  virtueGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'center',
-    gap: theme.spacing.sm,
-  },
-  virtueButton: {
-    backgroundColor: theme.colors.surface,
-    paddingVertical: theme.spacing.md,
-    paddingHorizontal: theme.spacing.lg,
-    borderRadius: theme.borderRadius.md,
-    margin: theme.spacing.xs,
-    minWidth: 120,
-    alignItems: 'center',
-    position: 'relative',
-  },
-  virtueButtonText: {
-    color: theme.colors.text.primary,
-    fontSize: 16,
-    fontWeight: '500',
-  },
-  completedVirtueButton: {
-    backgroundColor: `${theme.colors.success}20`,
-  },
-  completedVirtueText: {
-    color: theme.colors.success,
-  },
-  completedBadge: {
-    position: 'absolute',
-    top: -5,
-    right: -5,
-    backgroundColor: theme.colors.success,
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  completedBadgeText: {
-    color: '#FFF',
-    fontSize: 12,
-    fontWeight: 'bold',
-  },
-  virtueScoreText: {
-    fontSize: 12,
-    color: theme.colors.text.secondary,
-    marginTop: 4,
-  },
-  
-  // Level Info
-  levelInfoContainer: {
-    width: '100%',
-    padding: theme.spacing.md,
-    marginBottom: theme.spacing.lg,
-    backgroundColor: `${theme.colors.primary}10`,
-    borderRadius: theme.borderRadius.md,
-    alignItems: 'center',
-  },
-  levelText: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: theme.colors.primary,
-    marginBottom: theme.spacing.sm,
-  },
-  levelProgressText: {
-    fontSize: 14,
-    color: theme.colors.text.secondary,
-    marginBottom: theme.spacing.sm,
-  },
-  levelProgressBarContainer: {
-    width: '100%',
-    height: 8,
-    backgroundColor: `${theme.colors.primary}20`,
-    borderRadius: 4,
-    overflow: 'hidden',
-  },
-  levelProgressBar: {
-    height: '100%',
-    backgroundColor: theme.colors.primary,
-  },
-  
-  // Header
-  header: {
-    marginBottom: theme.spacing.lg,
-  },
-  headerTopRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: theme.spacing.sm,
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: theme.colors.text.primary,
-  },
-  soundButton: {
-    paddingVertical: 6,
-    paddingHorizontal: theme.spacing.sm,
-    borderRadius: theme.borderRadius.full,
-    backgroundColor: `${theme.colors.primary}20`,
-  },
-  soundButtonText: {
-    color: theme.colors.primary,
-    fontWeight: '600',
-  },
-  metricRow: {
-    flexDirection: 'row',
-    gap: theme.spacing.sm,
-  },
-  metricCard: {
-    flex: 1,
-    backgroundColor: `${theme.colors.surface}D0`,
-    borderRadius: theme.borderRadius.lg,
-    paddingVertical: theme.spacing.md,
-    paddingHorizontal: theme.spacing.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: `${theme.colors.primary}20`,
-  },
-  metricGradient: {
-    ...StyleSheet.absoluteFillObject,
-  },
-  metricLabel: {
-    fontSize: 12,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-    marginTop: theme.spacing.xs,
-    color: 'rgba(255,255,255,0.9)',
-  },
-  metricValue: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: '#FFF',
-    marginTop: 4,
-  },
-  newBadge: {
-    position: 'absolute',
-    top: 8,
-    right: 8,
-    backgroundColor: 'rgba(255,255,255,0.15)',
-    borderRadius: theme.borderRadius.full,
-    paddingVertical: 2,
-    paddingHorizontal: 8,
-  },
-  newBadgeText: {
-    fontSize: 10,
-    letterSpacing: 0.8,
-    color: '#FFF',
-    fontWeight: '700',
-  },
-  
-  // Timer
-  timerContainer: {
-    marginBottom: theme.spacing.md,
-  },
-  timerLabel: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: theme.spacing.xs,
-  },
-  timerText: {
-    marginLeft: theme.spacing.xs,
-    color: theme.colors.text.primary,
-    fontWeight: '600',
-  },
-  progressBarContainer: {
-    height: 4,
-    width: '100%',
-    backgroundColor: `${theme.colors.text.secondary}20`,
-    borderRadius: theme.borderRadius.full,
-    overflow: 'hidden',
-  },
-  progressBar: {
-    height: '100%',
-    borderRadius: theme.borderRadius.full,
-  },
-  
-  // Question
-  progressHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: theme.spacing.md,
-  },
-  progressText: {
-    color: theme.colors.text.secondary,
-    fontSize: 14,
-  },
-  scoreText: {
-    color: theme.colors.primary,
-    fontWeight: '500',
-    fontSize: 14,
-  },
-  questionContainer: {
-    backgroundColor: theme.colors.surface,
-    borderRadius: theme.borderRadius.lg,
-    padding: theme.spacing.md,
-    marginBottom: theme.spacing.md,
-    ...theme.shadows.md,
-  },
-  questionText: {
-    fontSize: 18,
-    fontWeight: '500',
-    color: theme.colors.text.primary,
-    marginBottom: theme.spacing.md,
-    textAlign: 'center',
-  },
-  verseContainer: {
-    backgroundColor: `${theme.colors.primary}08`,
-    borderRadius: theme.borderRadius.md,
-    padding: theme.spacing.md,
-    marginBottom: theme.spacing.lg,
-  },
-  verseText: {
-    fontSize: 16,
-    lineHeight: 24,
-    color: theme.colors.text.primary,
-    fontStyle: 'italic',
-    textAlign: 'center',
-  },
-  optionsContainer: {
-    gap: theme.spacing.sm,
-  },
-  nextButton: {
-    marginTop: theme.spacing.sm,
-    alignSelf: 'center',
-    paddingVertical: theme.spacing.sm,
-    paddingHorizontal: theme.spacing.lg,
-    borderRadius: theme.borderRadius.full,
-    backgroundColor: theme.colors.primary,
-  },
-  nextButtonText: {
-    ...theme.typography.body.sans,
-    color: '#FFF',
-    fontWeight: '700',
-  },
-  optionButton: {
-    backgroundColor: `${theme.colors.surface}80`,
-    borderWidth: 1,
-    borderColor: `${theme.colors.primary}30`,
-    borderRadius: theme.borderRadius.md,
-    padding: theme.spacing.md,
-    alignItems: 'center',
-  },
-  optionText: {
-    fontSize: 16,
-    color: theme.colors.text.primary,
-    fontWeight: '500',
-  },
-  correctOption: {
-    backgroundColor: `${theme.colors.success}20`,
-    borderColor: theme.colors.success,
-  },
-  correctOptionText: {
-    color: theme.colors.success,
-    fontWeight: 'bold',
-  },
-  incorrectOption: {
-    backgroundColor: `${theme.colors.error}20`,
-    borderColor: theme.colors.error,
-  },
-  incorrectOptionText: {
-    color: theme.colors.error,
-    fontWeight: 'bold',
-  },
-  correctAnswerText: {
-    marginTop: theme.spacing.md,
-    color: theme.colors.success,
-    fontWeight: '500',
-    textAlign: 'center',
-  },
-  
-  // Success Overlay
-  successOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.3)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 5,
-  },
-  successContent: {
-    ...theme.shadows.md,
-    backgroundColor: 'rgba(255,255,255,0.9)',
-    paddingVertical: theme.spacing.md,
-    paddingHorizontal: theme.spacing.lg,
-    borderRadius: theme.borderRadius.lg,    
-    elevation: 5,
-  },
-  successText: {
-    color: theme.colors.success,
-    fontSize: 24,
-    fontWeight: 'bold',
-  },
-  
-  // Game Over
-  gameOverContainer: {
-    flex: 1,
-    backgroundColor: theme.colors.surface,
-    borderRadius: theme.borderRadius.lg,
-    padding: theme.spacing.lg,
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    shadowColor: theme.colors.shadow,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  gameOverTitle: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: theme.colors.primary,
-    marginBottom: theme.spacing.lg,
-  },
-  resultsSummary: {
-    width: '100%',
-    alignItems: 'center',
-    backgroundColor: `${theme.colors.background}80`,
-    borderRadius: theme.borderRadius.md,
-    padding: theme.spacing.md,
-    marginBottom: theme.spacing.lg,
-  },
-  virtueResultText: {
-    fontSize: 18,
-    color: theme.colors.text.primary,
-    marginBottom: theme.spacing.md,
-  },
-  highlightText: {
-    color: theme.colors.primary,
-    fontWeight: '600',
-  },
-  finalScoreText: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: theme.colors.primary,
-    marginBottom: theme.spacing.md,
-  },
-  correctnessContainer: {
-    width: '100%',
-    marginBottom: theme.spacing.md,
-  },
-  correctnessText: {
-    fontSize: 16,
-    color: theme.colors.text.secondary,
-    marginBottom: theme.spacing.sm,
-    textAlign: 'center',
-  },
-  correctnessBar: {
-    width: '100%',
-    height: 8,
-    backgroundColor: `${theme.colors.text.secondary}20`,
-    borderRadius: 4,
-    overflow: 'hidden',
-  },
-  correctnessProgress: {
-    height: '100%',
-    backgroundColor: theme.colors.primary,
-  },
-  passedContainer: {
-    padding: theme.spacing.sm,
-    backgroundColor: `${theme.colors.success}20`,
-    borderRadius: theme.borderRadius.md,
-    alignItems: 'center',
-    width: '100%',
-  },
-  passedText: {
-    color: theme.colors.success,
-    fontWeight: '600',
-  },
-  failedContainer: {
-    padding: theme.spacing.sm,
-    backgroundColor: `${theme.colors.warning}20`,
-    borderRadius: theme.borderRadius.md,
-    alignItems: 'center',
-    width: '100%',
-  },
-  failedText: {
-    color: theme.colors.warning,
-    fontWeight: '600',
-  },
-  statsContainer: {
-    width: '100%',
-    marginVertical: theme.spacing.md,
-    alignItems: 'center',
-  },
-  statsText: {
-    fontSize: 16,
-    color: theme.colors.text.secondary,
-    marginBottom: theme.spacing.xs,
-  },
-  levelProgressInfoContainer: {
-    width: '100%',
-    padding: theme.spacing.md,
-    backgroundColor: `${theme.colors.primary}10`,
-    borderRadius: theme.borderRadius.md,
-    marginBottom: theme.spacing.md,
-    alignItems: 'center',
-  },
-  levelProgressInfoText: {
-    color: theme.colors.text.primary,
-    marginBottom: theme.spacing.xs,
-    textAlign: 'center',
-  },
-  levelMaxText: {
-    color: theme.colors.primary,
-    fontWeight: '600',
-    textAlign: 'center',
-  },
-  retryButton: {
-    backgroundColor: theme.colors.primary,
-    paddingVertical: theme.spacing.md,
-    paddingHorizontal: theme.spacing.lg,
-    borderRadius: theme.borderRadius.full,
-    marginTop: theme.spacing.md,
-  },
-  retryButtonText: {
-    color: '#FFF',
-  },
-});
 
 export default observer(VirtueTriviaScreen);

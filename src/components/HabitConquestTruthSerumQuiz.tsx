@@ -139,7 +139,7 @@ export const HabitConquestTruthSerumQuiz: React.FC<TruthSerumQuizProps> = ({ vic
         <View style={styles.summaryCard}>
           <View style={styles.scoreSection}>
             <Text style={styles.scoreLabel}>Overall Score</Text>
-            <Text style={styles.scoreValue}>{summary.overallScore.toFixed(1)}/10</Text>
+            <Text style={styles.scoreValueText}>{summary.overallScore.toFixed(1)}/10</Text>
           </View>
 
           {summary.categoryScores && Object.keys(summary.categoryScores).length > 0 && (
@@ -269,7 +269,7 @@ export const HabitConquestTruthSerumQuiz: React.FC<TruthSerumQuizProps> = ({ vic
         {answers[currentQuestion.id] !== undefined && (
           <View style={styles.scoreInfo}>
             <Text style={styles.scoreText}>
-              Your answer: <Text style={styles.scoreValue}>{answers[currentQuestion.id]}/10</Text>
+              Your answer: <Text style={styles.scoreValueTextSmall}>{answers[currentQuestion.id]}/10</Text>
             </Text>
             {getPreviousScore(currentQuestion.id) !== null && (
               <Text style={styles.comparisonText}>
@@ -488,7 +488,7 @@ const createStyles = (theme: ReturnType<typeof useTheme>) => StyleSheet.create({
     fontSize: 14,
     color: theme.colors.text.secondary,
   },
-  scoreValue: {
+  scoreValueTextSmall: {
     fontWeight: '700',
     color: theme.colors.primary,
   },
@@ -596,7 +596,7 @@ const createStyles = (theme: ReturnType<typeof useTheme>) => StyleSheet.create({
     color: theme.colors.text.secondary,
     marginBottom: 8,
   },
-  scoreValue: {
+  scoreValueText: {
     fontSize: 36,
     fontWeight: '800',
     color: theme.colors.primary,

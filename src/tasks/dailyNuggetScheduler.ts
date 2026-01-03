@@ -354,10 +354,14 @@ const mapActivitiesToSignals = (
     if (subjectMoments) {
       subjectMoments.forEach((moment) => momentSignals.add(moment));
     }
-    if (activity.type === ActivityType.Like) {
+    const activityType =
+      typeof activity.type === 'number'
+        ? activity.type
+        : activity.type?.value;
+    if (activityType === ActivityType.Like) {
       momentSignals.add('community_like_integrity');
     }
-    if (activity.type === ActivityType.Comment) {
+    if (activityType === ActivityType.Comment) {
       momentSignals.add('comment_submitted');
     }
   });
