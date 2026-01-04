@@ -53,7 +53,6 @@ const ChallengeCompletionBanner: React.FC<ChallengeCompletionBannerProps> = ({ o
   const slideAnim = useRef(new Animated.Value(-300)).current;
   const scaleAnim = useRef(new Animated.Value(0.8)).current;
   const pulseAnim = useRef(new Animated.Value(1)).current;
-  const sparkleAnim = useRef(new Animated.Value(0)).current;
 
   // Mount animations and countdown - runs once
   useEffect(() => {
@@ -96,12 +95,6 @@ const ChallengeCompletionBanner: React.FC<ChallengeCompletionBannerProps> = ({ o
       setCountdown(prev => {
         if (prev <= 1) {
           setCanDismiss(true);
-          Animated.spring(sparkleAnim, {
-            toValue: 1,
-            useNativeDriver: true,
-            tension: 200,
-            friction: 5,
-          }).start();
           return 0;
         }
         return prev - 1;
@@ -115,7 +108,7 @@ const ChallengeCompletionBanner: React.FC<ChallengeCompletionBannerProps> = ({ o
       clearTimeout(pulseTimeout);
       pulseAnimation.stop();
     };
-  }, [slideAnim, scaleAnim, pulseAnim, sparkleAnim]);
+  }, [slideAnim, scaleAnim, pulseAnim]);
 
   const handleComplete = useCallback(async () => {
     if (!selectedChallenge || isCompleting) return;
@@ -209,6 +202,11 @@ const ChallengeCompletionBanner: React.FC<ChallengeCompletionBannerProps> = ({ o
                 <Text style={styles.mainTitle} numberOfLines={1} ellipsizeMode="tail">Challenge Time! 👋</Text>
                 <Text style={styles.subtitle}>You asked for a reminder, Let's crush this challenge now shall we? 💪</Text>
               </View>
+              {!canDismiss && (
+                <View style={styles.headerCountdown}>
+                  <Text style={styles.headerCountdownText}>{countdown}s</Text>
+                </View>
+              )}
               {canDismiss && (
                 <TouchableOpacity style={styles.closeButton} onPress={handleDismiss}>
                   <X size={20} color={theme?.colors.text.secondary} />
@@ -250,29 +248,11 @@ const ChallengeCompletionBanner: React.FC<ChallengeCompletionBannerProps> = ({ o
             </Animated.View>
 
             {/* Progress indicator */}
-            <View style={styles.progressSection}>
-              {!canDismiss ? (
-                <View style={styles.countdownContainer}>
-                  <Text style={styles.countdownLabel}>⏰ Just {countdown} more seconds...</Text>
-                  <View style={styles.countdownDisplay}>
-                    <Text allowFontScaling={false} style={styles.countdownNumber}>{countdown}</Text>
-                    <Text allowFontScaling={false} style={styles.countdownUnit}>sec</Text>
-                    <Animated.View
-                      style={[
-                        styles.sparkleEffect,
-                        { opacity: sparkleAnim }
-                      ]}
-                    >
-                      <Sparkle size={24} color={theme?.colors.primary} />
-                    </Animated.View>
-                  </View>
-                </View>
-              ) : (
-                <View style={styles.readyContainer}>
-                  <Text style={styles.readyText}>✨ Alright, your choice now! Let's do this!</Text>
-                </View>
-              )}
-            </View>
+            {canDismiss && (
+              <View style={styles.readyContainer}>
+                <Text style={styles.readyText}>✨ Alright, your choice now! Let's do this!</Text>
+              </View>
+            )}
 
             {/* Action buttons */}
             <View style={styles.actionsContainer}>
@@ -461,6 +441,18 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
+  headerCountdown: {
+    backgroundColor: `${theme?.colors.primary}15`,
+    paddingHorizontal: theme?.spacing.sm,
+    paddingVertical: 6,
+    borderRadius: theme?.borderRadius.full,
+    marginLeft: theme?.spacing.sm,
+  },
+  headerCountdownText: {
+    ...theme?.typography.caption.primary,
+    color: theme?.colors.primary,
+    fontWeight: '700',
+  },
   closeButton: {
     padding: theme?.spacing.sm,
   },
@@ -516,46 +508,6 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     flex: 1,
     marginBottom: theme?.spacing.md,
     alignItems: 'center',
-  },
-  countdownContainer: {
-    alignItems: 'center',
-    gap: theme?.spacing.xs,
-    paddingVertical: theme?.spacing.sm,
-    overflow: 'visible',
-    position: 'relative',
-    zIndex: 1,
-  },
-  countdownLabel: {
-    ...theme?.typography.body.sans,
-    color: theme?.colors.text.secondary,
-    fontSize: 14,
-    marginBottom: theme?.spacing.sm,
-  },
-  countdownDisplay: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: theme?.spacing.sm,
-    minHeight: 56,
-  },
-  countdownNumber: {
-    ...theme?.typography.heading.large,
-    color: theme?.colors.primary,
-    fontSize: 40,
-    lineHeight: 40,
-    fontWeight: '800',
-    includeFontPadding: false,
-  },
-  countdownUnit: {
-    ...theme?.typography.body.sans,
-    color: theme?.colors.primary,
-    fontSize: 16,
-    fontWeight: '600',
-    includeFontPadding: false,
-  },
-  sparkleEffect: {
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   readyContainer: {
     alignItems: 'center',

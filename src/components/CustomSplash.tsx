@@ -48,14 +48,19 @@ const CustomSplash = ({ onAnimationComplete }: { onAnimationComplete?: () => voi
     },
     title: {
       ...theme.typography.heading.large,
+      fontSize: 22,
       color: theme.colors.primary,
       marginBottom: theme.spacing.sm,
-      paddingHorizontal: theme.spacing.xs,
+      paddingHorizontal: theme.spacing.md,
       textAlign: 'center',
+      overflow: 'visible',
     },
     subtitle: {
       ...theme.typography.body.sans,
       color: theme.colors.text.secondary,
+      paddingHorizontal: theme.spacing.md,
+      textAlign: 'center',
+      overflow: 'visible',
     },
   });
 
