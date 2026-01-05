@@ -188,7 +188,7 @@ api.interceptors.response.use(
     };
 
     if (axios.isAxiosError(error)) {
-      const { response, config } = error;
+      const { response, request, config, message: axiosMessage } = error;
       const status = response?.status;
       errorResponse.status = status;
       if (__DEV__) console.log('Response:', response);
@@ -256,10 +256,20 @@ api.interceptors.response.use(
         return Promise.reject(errorResponse);
       }
 
-      errorResponse.message = response?.data?.message || 'An error occurred';
-      errorResponse.data = response?.data?.data || null;
-    } else if (axios.isAxiosError(error) && error.request) {
-      errorResponse.message = 'Network error. Please check your connection.';
+      if (status) {
+        errorResponse.message = response?.data?.message || 'An error occurred';
+        errorResponse.data = response?.data?.data || null;
+      } else if (request) {
+        if (__DEV__) {
+          console.warn('[API] Network error (no response received)', {
+            url: config?.url,
+            method: config?.method,
+          });
+        }
+        errorResponse.message = 'Network error. Please check your connection.';
+      } else {
+        errorResponse.message = axiosMessage || 'An error occurred';
+      }
     } else {
       errorResponse.message = (error as Error).message || 'An error occurred';
     }

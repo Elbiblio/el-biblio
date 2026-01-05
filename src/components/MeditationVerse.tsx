@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Animated } from 'react-native';
+import { MaterialIcons } from '@expo/vector-icons';
 import { formatVerseReference } from '@/utils/verseReference';
 import { useMeditationStore } from '@/stores/StoreProvider';
 import { useTheme } from '@/contexts/ThemeContext';
