@@ -334,7 +334,11 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
   return (
     <>
       <Animated.View style={[styles.modalContainer, containerStyle]}>
-        <AnimatedBlurView intensity={20} style={[StyleSheet.absoluteFill, styles.blurBackground]} />
+        <AnimatedBlurView
+          intensity={20}
+          style={[StyleSheet.absoluteFill, styles.blurBackground]}
+          pointerEvents="none"
+        />
 
         <KeyboardAvoidingView
           style={[styles.container, { paddingTop: insets.top }]}

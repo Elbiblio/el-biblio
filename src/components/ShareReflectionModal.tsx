@@ -136,6 +136,7 @@ const ShareReflectionModal: React.FC<ShareReflectionModalProps> = ({
                 alignSelf: 'center',
               },
             ]}
+            pointerEvents="none"
           >
             <ScrollView
               contentContainerStyle={{ paddingBottom: theme.spacing.md }}

@@ -214,7 +214,7 @@ const VerseTooltip: React.FC<VerseTooltipProps> = ({
         onLayout={handleLayout}
         style={[styles.container, animatedStyle]}
       >
-        <BlurView intensity={15} style={StyleSheet.absoluteFill} />
+        <BlurView intensity={15} style={StyleSheet.absoluteFill} pointerEvents="none" />
         <View style={styles.content}>
           {/* Header */}
           <View style={styles.header}>

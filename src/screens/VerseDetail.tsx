@@ -1140,9 +1140,8 @@ const VerseDetail = ({ navigation, route }: VerseDetailProps) => {
       {/* Learn more bottom sheet */}
       {showLearnMore && (
         <View style={styles.learnOverlay}>
-          <BlurView intensity={20} style={StyleSheet.absoluteFill}>
-            <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={() => setShowLearnMore(false)} />
-          </BlurView>
+          <BlurView intensity={20} style={StyleSheet.absoluteFill} pointerEvents="none" />
+          <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={() => setShowLearnMore(false)} />
           <Animated.View style={[styles.learnContainer, learnMoreStyle]}>
             <View style={styles.learnHeader}>
               <Text style={styles.learnTitle}>Learn more</Text>

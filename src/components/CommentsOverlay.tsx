@@ -120,13 +120,12 @@ const CommentsOverlay: React.FC<CommentsOverlayProps> = ({
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={[styles.overlay, !visible && styles.hidden]}
     >
-      <BlurView intensity={20} style={StyleSheet.absoluteFill}>
-        <TouchableOpacity
-          style={styles.backdrop}
-          onPress={handleClose}
-          activeOpacity={1}
-        />
-      </BlurView>
+      <BlurView intensity={20} style={StyleSheet.absoluteFill} pointerEvents="none" />
+      <TouchableOpacity
+        style={styles.backdrop}
+        onPress={handleClose}
+        activeOpacity={1}
+      />
 
       <Animated.View style={[styles.commentsContainer, overlayStyle]}>
         <View style={styles.header}>

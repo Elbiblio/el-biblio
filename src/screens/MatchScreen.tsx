@@ -567,7 +567,8 @@ const MatchScreen = ({
       style={styles.collapsedContainer}
       onPress={onPress}
     >
-      <BlurView intensity={10} style={StyleSheet.absoluteFill} />
+      <BlurView intensity={10} style={StyleSheet.absoluteFill} pointerEvents="none" />
+
       <View style={styles.collapsedContent}>
         <View style={styles.collapsedLeft}>
           <Text style={styles.collapsedTitle}>{title}</Text>
@@ -660,7 +661,7 @@ const MatchScreen = ({
       <View style={styles.content}>
         {/* Intro Card - Only show when not searching */}
         {matchStatus === 'idle' && (
-          <BlurView intensity={10} style={styles.introCard}>
+          <BlurView intensity={10} style={styles.introCard} pointerEvents="none">
             <View style={styles.iconContainer}>
               <LinearGradient
                 colors={[`${theme.colors.primary}20`, `${theme.colors.primary}05`]}
@@ -779,7 +780,7 @@ const MatchScreen = ({
         {/* Match Found */}
         {matchStatus === 'found' && matchedUser && (
           <View style={styles.matchFoundContainer}>
-            <BlurView intensity={10} style={StyleSheet.absoluteFill} />
+            <BlurView intensity={10} style={StyleSheet.absoluteFill} pointerEvents="none" />
 
             {/* Profile Preview */}
             <View style={styles.profilePreview}>
@@ -814,7 +815,7 @@ const MatchScreen = ({
                 style={[styles.sliderKnob, sliderAnimatedStyle]}
                 onTouchMove={handleSliderMove}
               >
-                <BlurView intensity={20} style={StyleSheet.absoluteFill} />
+                <BlurView intensity={20} style={StyleSheet.absoluteFill} pointerEvents="none" />
                 <View style={styles.knobContent}>
                   <ChevronLeft size={20} color={theme.colors.text.primary} />
                   <ChevronRight size={20} color={theme.colors.text.primary} />

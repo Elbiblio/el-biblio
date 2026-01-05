@@ -39,7 +39,7 @@ const SoundSettingsModal: React.FC<Props> = ({ visible, onClose }) => {
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.container}>
-        <BlurView intensity={30} style={StyleSheet.absoluteFill} />
+        <BlurView intensity={30} style={StyleSheet.absoluteFill} pointerEvents="none" />
         <View style={styles.card}>
           <Text style={styles.title}>Sound Settings</Text>
 

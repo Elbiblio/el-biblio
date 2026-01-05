@@ -148,10 +148,10 @@ const GuestUpgradeModal: React.FC<GuestUpgradeModalProps> = ({
         style={styles.container}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        <BlurView intensity={30} style={StyleSheet.absoluteFill} />
+        <BlurView intensity={30} style={StyleSheet.absoluteFill} pointerEvents="none" />
         <View style={styles.overlay}>
           <View style={styles.modalContainer}>
-            <BlurView intensity={10} style={styles.contentWrapper}>
+            <BlurView intensity={10} style={styles.contentWrapper} pointerEvents="none">
               <View style={styles.header}>
                 <TouchableOpacity onPress={onClose} style={styles.closeButton}>
                   <Text style={styles.closeText}>×</Text>

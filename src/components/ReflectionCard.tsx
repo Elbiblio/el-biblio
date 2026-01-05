@@ -356,7 +356,7 @@ const ReflectionCard: React.FC<ReflectionCardProps> = ({
           style={styles.topCommentPreview}
           onPress={onPress}
         >
-          <BlurView intensity={5} style={StyleSheet.absoluteFill} />
+          <BlurView intensity={5} style={StyleSheet.absoluteFill} pointerEvents="none" />
           <View style={styles.topCommentHeader}>
             <Image 
               source={{ uri: topComment.user?.avatar }} 
@@ -455,7 +455,7 @@ const ReflectionCard: React.FC<ReflectionCardProps> = ({
         cardAnimatedStyle,
         style
       ]}>
-        <BlurView intensity={10} style={StyleSheet.absoluteFill} />
+        <BlurView intensity={10} style={StyleSheet.absoluteFill} pointerEvents="none" />
         <View style={[
           styles.card,
           { padding: theme.spacing.xs }

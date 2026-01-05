@@ -140,6 +140,7 @@ const PointsEarnedModal: React.FC<PointsEarnedModalProps> = ({
           intensity={Platform.OS === 'ios' ? 60 : 80}
           tint={theme?.colors.isDark ? 'dark' : 'light'}
           style={StyleSheet.absoluteFillObject}
+          pointerEvents="none"
         />
 
         <Animated.View

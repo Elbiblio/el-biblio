@@ -175,7 +175,8 @@ const IntroScreen = ({
         key={step.id}
         style={[styles.stepContainer, { width: SCREEN_WIDTH }]}
       >
-        <BlurView intensity={10} style={StyleSheet.absoluteFill} />
+        <BlurView intensity={10} style={StyleSheet.absoluteFill} pointerEvents="none" />
+
         <View style={styles.stepContent}>
           {/* Icon */}
           <View 
@@ -263,7 +264,8 @@ const IntroScreen = ({
       {/* Loading Overlay */}
       {isLoading && !showGuestFailure && (
         <View style={styles.loadingOverlay}>
-          <BlurView intensity={20} style={StyleSheet.absoluteFill} />
+          <BlurView intensity={20} style={StyleSheet.absoluteFill} pointerEvents="none" />
+
           <View style={styles.loadingContent}>
             <Text style={styles.loadingText}>Setting up your account...</Text>
           </View>
@@ -302,7 +304,8 @@ const IntroScreen = ({
       {/* Guest Failure Modal */}
       {showGuestFailure && (
         <View style={styles.failureOverlay}>
-          <BlurView intensity={20} style={StyleSheet.absoluteFill} />
+          <BlurView intensity={20} style={StyleSheet.absoluteFill} pointerEvents="none" />
+          
           <View style={styles.failureCard}>
             <Text style={styles.failureTitle}>We couldn't sign you in</Text>
             {!!guestFailureMessage && (

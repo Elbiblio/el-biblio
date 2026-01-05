@@ -156,7 +156,7 @@ const VirtuePicker: React.FC<VirtuePickerProps> = ({
   };
 
   return (
-    <BlurView intensity={20} style={StyleSheet.absoluteFill}>
+    <BlurView intensity={20} style={StyleSheet.absoluteFill} pointerEvents="box-none">
       <View style={styles.content}>
         <View style={styles.header}>
           <Text style={styles.title}>Select Virtues</Text>
