@@ -10,6 +10,10 @@ import { GameStore } from './GameStore';
 
 const INITIAL_TIME = 16;
 const MIN_TIME = 5;
+const MIN_POOL_WORDS = 3;
+const MIN_TOTAL_WORDS = MIN_POOL_WORDS + 1;
+const MAX_PREFILLED_WORDS = 16;
+const MAX_VERSE_SELECTION_ATTEMPTS = 10;
 const WORDS_BY_LEVEL: Record<UserLevel, [number, number]> = {
   novice: [3, 3],
   beginner: [4, 5],
@@ -369,6 +373,46 @@ export class VerseBuilderStore {
   };
 
   // Gameplay Actions
+  private prepareGameState = (verse: VerseGame): VerseGame | null => {
+    const totalWords = verse.originalWords.length;
+    if (totalWords < MIN_TOTAL_WORDS) {
+      return null;
+    }
+
+    const maxPoolWords = Math.max(1, totalWords - 1);
+    const dynamicWordsToLeave = this.calculateWordsToLeave(totalWords);
+    let poolWordsCount = Math.min(
+      maxPoolWords,
+      Math.max(MIN_POOL_WORDS, dynamicWordsToLeave),
+    );
+
+    let prefilledCount = totalWords - poolWordsCount;
+    const maxPrefillAllowed = Math.min(MAX_PREFILLED_WORDS, totalWords - MIN_POOL_WORDS);
+    if (prefilledCount > maxPrefillAllowed) {
+      const shift = prefilledCount - maxPrefillAllowed;
+      prefilledCount -= shift;
+      poolWordsCount += shift;
+    }
+
+    if (poolWordsCount < MIN_POOL_WORDS || prefilledCount < 0) {
+      return null;
+    }
+
+    const arrangedWords = verse.originalWords.slice(0, prefilledCount);
+    const poolWords = shuffleArray(verse.originalWords.slice(prefilledCount));
+
+    if (poolWords.length < MIN_POOL_WORDS) {
+      return null;
+    }
+
+    return {
+      ...verse,
+      arrangedWords,
+      poolWords,
+      prefilledCount,
+    };
+  };
+
   startNewRound = async () => {
     runInAction(() => {
       this.state.error = null;
@@ -382,14 +426,34 @@ export class VerseBuilderStore {
       return;
     }
 
-    if (this.verseQueue.length === 0) {
-      await this.loadVerseBatch();
+    let attempts = 0;
+    let verse: VerseGame | null = null;
+    let newGameState: VerseGame | null = null;
+
+    while (attempts < MAX_VERSE_SELECTION_ATTEMPTS && !newGameState) {
+      if (this.verseQueue.length === 0) {
+        await this.loadVerseBatch();
+      }
+
+      const candidate = this.verseQueue.shift();
+      if (!candidate) {
+        break;
+      }
+
+      const prepared = this.prepareGameState(candidate);
+      if (prepared) {
+        verse = candidate;
+        newGameState = prepared;
+        break;
+      }
+
+      attempts += 1;
     }
 
-    const verse = this.verseQueue.shift();
-    if (!verse) {
+    if (!verse || !newGameState) {
       runInAction(() => {
-        this.state.error = 'Failed to get next verse';
+        this.state.error = 'Failed to get a playable verse. Please try again.';
+        this.state.isPlaying = false;
       });
       await this.flushSave();
       return;
@@ -418,20 +482,6 @@ export class VerseBuilderStore {
         }
       });
     }
-
-    const totalWords = verse.originalWords.length;
-    const dynamicWordsToLeave = this.calculateWordsToLeave(totalWords);
-    const leaveCount = Math.min(dynamicWordsToLeave, totalWords - 1);
-    const prefilledCount = totalWords - leaveCount;
-    const arrangedWords = verse.originalWords.slice(0, prefilledCount);
-    const poolWords = shuffleArray(verse.originalWords.slice(prefilledCount));
-
-    const newGameState: VerseGame = {
-      ...verse,
-      poolWords,
-      arrangedWords,
-      prefilledCount,
-    };
 
     const nextInitial = this.computeInitialTime();
     runInAction(() => {

@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Animated } from 'react-native';
-import { MaterialIcons } from '@expo/vector-icons';
+import { formatVerseReference } from '@/utils/verseReference';
+import { useMeditationStore } from '@/stores/StoreProvider';
 import { useTheme } from '@/contexts/ThemeContext';
 import { ReadingPlanPhase, ReadingPlanMode } from '@/constants/readingPlanModes';
 import * as Haptics from 'expo-haptics';
@@ -319,7 +320,7 @@ const MeditationVerse: React.FC<MeditationVerseProps> = ({ verses, phase, isActi
           {!(isLectioPrayer || (phase.id === 'contemplation' && Math.max(0, remainingSecondsRef.current) <= 120)) && (
             <>
               {renderHighlightedText(currentVerse.text)}
-              <Text style={styles.referenceText}>{currentVerse.reference}</Text>
+              <Text style={styles.referenceText}>{formatVerseReference(currentVerse.reference)}</Text>
             </>
           )}
         </Animated.View>

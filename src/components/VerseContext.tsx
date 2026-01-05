@@ -6,7 +6,9 @@ import {
 } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { BookOpen, Sparkle } from './Icons';
+import { formatVerseReference } from '@/utils/verseReference';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useVerseStore, useAuthStore } from '@/stores/StoreProvider';
 import { Theme } from '@/theme';
 import type { Verse } from '@/types';
 
@@ -30,7 +32,7 @@ const VerseContext: React.FC<VerseContextProps> = ({ verse, style }) => {
         <View style={styles.iconContainer}>
           <BookOpen size={16} color={theme.colors.primary} />
         </View>
-        <Text style={styles.reference}>{verse.reference_display}</Text>
+        <Text style={styles.reference}>{formatVerseReference(verse.reference_display)}</Text>
         {verse.theme && (
           <View style={styles.themeBadge}>
             <Sparkle size={12} color={theme.colors.secondary} />

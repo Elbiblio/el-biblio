@@ -82,6 +82,7 @@ import { useCommunityStore } from '@/stores/CommunityStore';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from '@react-navigation/native';
 import { engagementTracker } from '@/utils/engagementTracker';
+import { formatVerseReference } from '@/utils/verseReference';
 
 const WELCOME_BACK_THRESHOLD = 10 * 60 * 1000; // 10 minutes in milliseconds
 const MAX_ACTIVE_TIME = 30 * 60 * 1000; // 30 minutes in milliseconds
@@ -1315,7 +1316,7 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
     // Build learnContext similar to VersePreviewModal scoped params
     const primaryText = verse.text?.trim();
     const baseReference = verse.reference?.replace(/:\d+.*$/, '') ?? null;
-    const primaryReference = (verse as any).reference_display || verse.reference || undefined;
+    const primaryReference = formatVerseReference((verse as any).reference_display) || verse.reference || undefined;
     const scopedVerses: { text: string; reference?: string | null; isPrimary?: boolean }[] = [];
     const addVerse = (entry: { text: string; reference?: string | null; isPrimary?: boolean }) => {
       const key = `${entry.reference ?? ''}|${entry.text}`;
@@ -1938,7 +1939,7 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
             end={{ x: 1, y: 1 }}
             style={styles.cardGradient}
           />
-          <Text style={styles.verseReference}>{verse.reference_display || verse.reference}</Text>
+          <Text style={styles.verseReference}>{formatVerseReference(verse.reference_display) || verse.reference}</Text>
           {verse.context_reference && (
             <Text style={styles.verseContextReference}>
               {verse.context_reference}

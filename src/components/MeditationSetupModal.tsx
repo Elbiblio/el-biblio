@@ -436,7 +436,6 @@ const MeditationSetupModal: React.FC<MeditationSetupModalProps> = ({ visible, on
             }}
           />
         </View>
-      </View>
       </KeyboardAvoidingView>
     </Modal>
   );

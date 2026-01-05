@@ -1,5 +1,5 @@
 import { SQLiteDatabase, openDatabaseAsync, deleteDatabaseAsync } from 'expo-sqlite';
-import * as FileSystem from 'expo-file-system';
+import { Directory, File, Paths } from 'expo-file-system';
 import { Platform } from 'react-native';
 import { BibleVersion, Book, UserLevel, VerseResult } from '@/types';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -139,6 +139,10 @@ export function parseVPLId(vplId: string): { bookAbbr: string, chapter: number, 
 const DB_PREFIX = 'bible_';
 const CDN_BASE = 'https://api.elbiblio.com/dbs/';
 const DEFAULT_BIBLE_ASSET = require('../../assets/bibles/rv.db');
+
+const getSqliteDirectory = () => new Directory(Paths.document, 'SQLite');
+const getDbFile = (version: string) => new File(Paths.document, 'SQLite', `${DB_PREFIX}${version}.db`);
+
 const DEFAULT_VERSION_METADATA = (versionsList as unknown as BibleVersion[]).find(
   version => version.tableName === 'eng_rv_vpl'
 );
@@ -219,7 +223,7 @@ class BibleDBService {
     this.isInitializing = true;
     try {
       if (__DEV__) console.log('Initializing Bible database service...');
-      const sqliteDir = `${FileSystem.documentDirectory}SQLite`;
+      const sqliteDir = getSqliteDirectory();
       await this.ensureDirectory(sqliteDir);
       await this.ensureDefaultBible(sqliteDir);
       await this.ensureVersionsMetadata();
@@ -238,19 +242,19 @@ class BibleDBService {
     }
   }
 
-  private static async ensureDirectory(dir: string): Promise<void> {
-    const dirInfo = await FileSystem.getInfoAsync(dir);
-    if (!dirInfo.exists) {
-      if (__DEV__) console.log(`Creating SQLite directory at: ${dir}`);
-      await FileSystem.makeDirectoryAsync(dir, { intermediates: true });
+  private static async ensureDirectory(dir: Directory): Promise<void> {
+    if (!dir.exists) {
+      if (__DEV__) console.log(`Creating SQLite directory at: ${dir.uri}`);
+      dir.create({ intermediates: true, idempotent: true });
     }
   }
 
-  private static async ensureDefaultBible(sqliteDir: string): Promise<void> {
-    const defaultDbPath = `${sqliteDir}/${DB_PREFIX}${this.DEFAULT_VERSION}.db`;
-    const dbExists = await FileSystem.getInfoAsync(defaultDbPath);
+  private static async ensureDefaultBible(sqliteDir: Directory): Promise<void> {
+    const defaultDbFile = getDbFile(this.DEFAULT_VERSION);
+    const defaultDbPath = defaultDbFile.uri;
+    const dbExists = defaultDbFile.exists;
 
-    if (!dbExists.exists) {
+    if (!dbExists) {
       if (__DEV__) console.log(`Default Bible database not found. Copying from assets to: ${defaultDbPath}`);
       let copied = false;
 
@@ -268,10 +272,12 @@ class BibleDBService {
             throw new Error('Bundled Bible asset missing local URI');
           }
           if (__DEV__) console.log(`Copying bundled Bible from ${sourceUri} to ${defaultDbPath}`);
-          await FileSystem.copyAsync({ from: sourceUri, to: defaultDbPath });
+          const sourceFile = new File(sourceUri);
+          sourceFile.copy(defaultDbFile);
           return true;
         } catch (assetError) {
           if (__DEV__) console.warn('Bundled Bible copy failed; will try CDN fallback', assetError);
+
           return false;
         }
       };
@@ -280,13 +286,11 @@ class BibleDBService {
         const downloadUrl = DEFAULT_VERSION_METADATA?.downloadUrl || `${CDN_BASE}rv.db`;
         try {
           if (__DEV__) console.log(`Downloading default Bible from ${downloadUrl}`);
-          const result = await FileSystem.downloadAsync(downloadUrl, defaultDbPath);
-          if (!result?.uri) {
-            throw new Error('Download returned empty result');
-          }
+          await File.downloadFileAsync(downloadUrl, defaultDbFile, { idempotent: true });
           return true;
         } catch (downloadError) {
           if (__DEV__) console.error('Failed to download Bible from CDN', downloadError);
+
           return false;
         }
       };
@@ -300,8 +304,7 @@ class BibleDBService {
         throw new Error('Failed to provision default Bible database from all sources');
       }
 
-      const verifyDbExists = await FileSystem.getInfoAsync(defaultDbPath);
-      if (!verifyDbExists.exists) {
+      if (!defaultDbFile.exists) {
         throw new Error(`Default Bible database missing after copy: ${defaultDbPath}`);
       }
 
@@ -396,51 +399,34 @@ class BibleDBService {
       await this.initialize();
     }
 
-    // Normalize the version string to remove .db if erroneously included
     const normalizedVersion = version.replace('.db', '');
-    
-    // Check if we have a cached instance
+
     if (this.instances.has(normalizedVersion)) {
-      const db = this.instances.get(normalizedVersion)!;
-      
-      // Validate the existing connection before returning it
+      const cached = this.instances.get(normalizedVersion)!;
       try {
-        const isValid = await this.validateConnection(normalizedVersion, db);
+        const isValid = await this.validateConnection(normalizedVersion, cached);
         if (isValid) {
-          return db;
+          return cached;
         }
-        // If invalid, it was removed from instances, and we'll continue to create a new one
-      } catch (error) {
-        if (__DEV__) console.log(`Error validating connection for ${normalizedVersion}, creating new connection`);
-        this.instances.delete(normalizedVersion);
-        // Continue to create a new connection
+      } catch {
+        // Cached connection invalid; fall through to open a new one
       }
+      this.instances.delete(normalizedVersion);
     }
 
-    // Need to create a new connection
     let retries = 0;
     while (retries <= maxRetries) {
       try {
         const dbName = `${DB_PREFIX}${normalizedVersion}.db`;
-        const dbPath = `${FileSystem.documentDirectory}SQLite/${dbName}`;
+        let dbFile = getDbFile(normalizedVersion);
 
-        // Verify database exists
-        const dbInfo = await FileSystem.getInfoAsync(dbPath);
-        if (!dbInfo.exists) {
-          // Try to initialize the default version if it's the one being requested
+        if (!dbFile.exists) {
           if (normalizedVersion === this.DEFAULT_VERSION) {
-            try {
-              if (__DEV__) console.log(`Attempting to initialize default Bible database at: ${dbPath}`);
-              await this.initialize();
-
-              // Check again after initialization attempt
-              const dbInfoRetry = await FileSystem.getInfoAsync(dbPath);
-              if (!dbInfoRetry.exists) {
-                throw new Error(`Default Bible database could not be initialized at: ${dbPath}`);
-              }
-            } catch (error) {
-              if (__DEV__) console.error('Error during database initialization:', error);
-              throw new Error('Default Bible database initialization failed');
+            if (__DEV__) console.log(`Attempting to initialize default Bible database at: ${dbFile.uri}`);
+            await this.initialize();
+            dbFile = getDbFile(normalizedVersion);
+            if (!dbFile.exists) {
+              throw new Error(`Default Bible database could not be initialized at: ${dbFile.uri}`);
             }
           } else {
             throw new Error(`Bible version ${normalizedVersion} is not installed`);
@@ -450,82 +436,43 @@ class BibleDBService {
         if (__DEV__) console.log(`Opening database: ${dbName}`);
         const db = await openDatabaseAsync(dbName);
 
-        // Verify database integrity with better error handling
         try {
           await db.execAsync('SELECT count(*) FROM sqlite_master');
         } catch (integrityError) {
           if (__DEV__) console.error(`Database integrity check failed for ${normalizedVersion}:`, integrityError);
-
-          // Attempt to recover by deleting and reinstalling
           if (normalizedVersion === this.DEFAULT_VERSION) {
             await db.closeAsync();
-            await FileSystem.deleteAsync(dbPath);
+            try {
+              dbFile.delete();
+            } catch (deleteError) {
+              if (__DEV__) console.warn('Failed to delete corrupted default database file', deleteError);
+            }
             await this.initialize();
-            // Try opening again
             return this.getDatabase(normalizedVersion);
           } else {
             throw new Error(`Bible database ${normalizedVersion} is corrupted`);
           }
         }
 
-        // Store the valid connection
         this.instances.set(normalizedVersion, db);
         return db;
       } catch (error) {
         retries++;
         if (__DEV__) console.error(`Attempt ${retries} failed to open database ${normalizedVersion}:`, error);
-        
+
         if (retries > maxRetries) {
-          // If we've exhausted retries, try the default version as a last resort
           if (normalizedVersion !== this.DEFAULT_VERSION) {
-            if (__DEV__) console.log(`All attempts failed, trying default version instead`);
+            if (__DEV__) console.log('All attempts failed, trying default version instead');
             return this.getDatabase(this.DEFAULT_VERSION);
-          } else {
-            throw new Error(`Failed to open Bible version ${normalizedVersion} after multiple attempts`);
           }
+          throw new Error(`Failed to open Bible version ${normalizedVersion} after multiple attempts`);
         }
-        
-        // Wait a bit before retrying
+
         await new Promise(resolve => setTimeout(resolve, 200 * retries));
       }
     }
 
-    // This should never be reached due to the throws above, but TypeScript needs it
-    throw new Error(`Failed to open Bible version ${normalizedVersion}`);
-  }
-
-  // Execute database operation with retry logic
-  static async executeWithRetry<T>(
-    operation: (db: SQLiteDatabase) => Promise<T>,
-    version: string,
-    maxRetries = 2
-  ): Promise<T> {
-    let retries = 0;
-    
-    while (true) {
-      try {
-        const db = await this.getDatabase(version);
-        return await operation(db);
-      } catch (error) {
-        retries++;
-        const errorMessage = (error as Error).message || 'Unknown error';
-        
-        // If it's a "closed resource" error, clear the instance and retry
-        if (errorMessage.includes('closed resource') && retries <= maxRetries) {
-          if (__DEV__) console.log(`Database closed, retrying operation (attempt ${retries}/${maxRetries})`);
-          this.instances.delete(version.replace('.db', ''));
-          await new Promise(resolve => setTimeout(resolve, 200 * retries));
-          continue;
-        }
-        
-        // For other errors or if we've exhausted retries, throw
-        if (retries > maxRetries) {
-          throw new Error(`Failed after ${maxRetries} attempts: ${errorMessage}`);
-        } else {
-          throw error;
-        }
-      }
-    }
+    throw new Error(`Failed to open Bible version ${version}`);
   }
 
   static async recordHistory(entry: {
@@ -571,30 +518,53 @@ class BibleDBService {
     await AsyncStorage.setItem('bibleHistory', JSON.stringify(updatedHistory));
   }
 
+  static async executeWithRetry<T>(
+    operation: (db: SQLiteDatabase) => Promise<T>,
+    version: string,
+    maxRetries = 2
+  ): Promise<T> {
+    let retries = 0;
+    
+    while (true) {
+      try {
+        const db = await this.getDatabase(version);
+        return await operation(db);
+      } catch (error) {
+        retries++;
+        const errorMessage = (error as Error).message || 'Unknown error';
+        
+        // If it's a "closed resource" error, clear the instance and retry
+        if (errorMessage.includes('closed resource') && retries <= maxRetries) {
+          if (__DEV__) console.log(`Database closed, retrying operation (attempt ${retries}/${maxRetries})`);
+          this.instances.delete(version.replace('.db', ''));
+          await new Promise(resolve => setTimeout(resolve, 200 * retries));
+          continue;
+        }
+        
+        // For other errors or if we've exhausted retries, throw
+        if (retries > maxRetries) {
+          throw new Error(`Failed after ${maxRetries} attempts: ${errorMessage}`);
+        } else {
+          throw error;
+        }
+      }
+    }
+  }
+
   static async installVersion(version: BibleVersion): Promise<void> {
     const dbName = `${DB_PREFIX}${version.tableName}.db`;
-    const localUri = `${FileSystem.documentDirectory}SQLite/${dbName}`;
+    const targetFile = getDbFile(version.tableName);
 
     try {
       // Check if already installed
-      const fileInfo = await FileSystem.getInfoAsync(localUri);
-      if (fileInfo.exists) return;
+      if (targetFile.exists) return;
 
       // Download database with progress tracking
-      const downloadResumable = FileSystem.createDownloadResumable(
+      const downloadedFile = await File.downloadFileAsync(
         version.downloadUrl,
-        localUri,
-        {},
-        (downloadProgress) => {
-          const progress = downloadProgress.totalBytesWritten / downloadProgress.totalBytesExpectedToWrite;
-          console.log(`Downloading ${version.englishName}: ${Math.round(progress * 100)}%`);
-        }
+        targetFile,
+        { idempotent: true }
       );
-
-      const result = await downloadResumable.downloadAsync();
-      if (!result?.uri) {
-        throw new Error('Download failed');
-      }
 
       // Verify database integrity
       const db = await openDatabaseAsync(dbName);
@@ -608,9 +578,12 @@ class BibleDBService {
 
     } catch (error) {
       // Cleanup on failure
-      const fileInfo = await FileSystem.getInfoAsync(localUri);
-      if (fileInfo.exists) {
-        await FileSystem.deleteAsync(localUri);
+      if (targetFile.exists) {
+        try {
+          targetFile.delete();
+        } catch (deleteError) {
+          console.warn('Failed to delete corrupted database file during cleanup', deleteError);
+        }
       }
       console.error(`Failed to install Bible version ${version.englishName}:`, error);
       throw new Error(`Failed to install Bible version ${version.englishName}`);
@@ -776,53 +749,6 @@ class BibleDBService {
     } catch (error) {
       console.error(`Error fetching verses for virtue ${virtue}:`, error);
       throw error;
-    }
-  }
-
-  static async getInstalledVersions(): Promise<string[]> {
-    try {
-      const dir = `${FileSystem.documentDirectory}SQLite/`;
-
-      // Ensure the directory exists first
-      const dirInfo = await FileSystem.getInfoAsync(dir);
-      if (!dirInfo.exists) {
-        return [];
-      }
-
-      // Get all files in the directory
-      const files = await FileSystem.readDirectoryAsync(dir);
-      const dbFiles = files.filter(f => f.startsWith(DB_PREFIX) && f.endsWith('.db'));
-
-      // Validate each database file
-      const validVersions: string[] = [];
-
-      for (const dbFile of dbFiles) {
-        try {
-          // Extract version name from filename
-          const versionName = dbFile.replace(DB_PREFIX, '').replace('.db', '');
-
-          // Try opening the database to verify it works
-          const db = await openDatabaseAsync(dbFile);
-
-          // Perform a simple query to verify database integrity
-          await db.execAsync('SELECT count(*) FROM sqlite_master');
-
-          // Close the database
-          await db.closeAsync();
-
-          // Add to valid versions if no errors
-          validVersions.push(versionName);
-        } catch (error) {
-          console.log(`Skipping invalid database file: ${dbFile}`, error);
-          // Skip this file as it's not a valid database
-          continue;
-        }
-      }
-
-      return validVersions;
-    } catch (error) {
-      console.error('Error getting installed versions:', error);
-      return []; // Return empty array on error
     }
   }
 
@@ -1049,6 +975,54 @@ class BibleDBService {
       }
       
       throw error;
+    }
+  }
+  
+  static async getInstalledVersions(): Promise<string[]> {
+    try {
+      const sqliteDir = getSqliteDirectory();
+
+      // Ensure the directory exists first
+      if (!sqliteDir.exists) {
+        return [];
+      }
+
+      // Get all files in the directory
+      const files = sqliteDir.list();
+      const dbFiles = files
+        .filter(f => f instanceof File)
+        .filter(f => f.name.startsWith(DB_PREFIX) && f.name.endsWith('.db'));
+
+      // Validate each database file
+      const validVersions: string[] = [];
+
+      for (const dbFile of dbFiles) {
+        try {
+          // Extract version name from filename
+          const versionName = dbFile.name.replace(DB_PREFIX, '').replace('.db', '');
+
+          // Try opening the database to verify it works
+          const db = await openDatabaseAsync(dbFile.name);
+
+          // Perform a simple query to verify database integrity
+          await db.execAsync('SELECT count(*) FROM sqlite_master');
+
+          // Close the database
+          await db.closeAsync();
+
+          // Add to valid versions if no errors
+          validVersions.push(versionName);
+        } catch (error) {
+          console.log(`Skipping invalid database file: ${dbFile.name}`, error);
+          // Skip this file as it's not a valid database
+          continue;
+        }
+      }
+
+      return validVersions;
+    } catch (error) {
+      console.error('Error getting installed versions:', error);
+      return []; // Return empty array on error
     }
   }
   

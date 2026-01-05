@@ -9,6 +9,8 @@ import type { Verse as AppVerse } from '@/types';
 import { useVerseStore, useAuthStore } from '@/stores/StoreProvider';
 import { toast } from 'sonner-native';
 
+import { formatVerseReference } from '@/utils/verseReference';
+
 type Verse = AppVerse;
 
 type VersePreviewContext = 'default' | 'daily-verses' | 'home';
@@ -161,7 +163,7 @@ const VersePreviewModal: React.FC<VersePreviewModalProps> = ({ verse, onClose, o
           <View style={styles.header}>
             <View style={styles.headerTextContainer}>
               <Text style={styles.reference} numberOfLines={2}>
-                {contextData?.heading || verse.reference_display || verse.reference}
+                {contextData?.heading || formatVerseReference(verse.reference_display) || verse.reference}
               </Text>
               {contextData?.subheading ? (
                 <Text style={styles.translation}>{contextData.subheading}</Text>

@@ -35,7 +35,7 @@ import { observer } from 'mobx-react-lite';
 import EmptyState from '@/components/EmptyState';
 import VersePreviewModal from "@/components/VersePreviewModal"
 import type { Verse } from "@/types"
-
+import { formatVerseReference } from '@/utils/verseReference';
 
 const DailyVersesScreen = ({ navigation }: NativeStackScreenProps<RootStackParamList, 'DailyVersesScreen'>) => {
   const theme = useTheme();
@@ -205,7 +205,7 @@ const DailyVersesScreen = ({ navigation }: NativeStackScreenProps<RootStackParam
                 styles.verseReference,
                 { color: themeInfo.color }
               ]}>
-                {verse.reference}
+                {formatVerseReference(verse.reference_display || verse.reference)}
               </Text>
               <Text style={styles.translation}>{verse.translation}</Text>
             </View>

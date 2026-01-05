@@ -20,6 +20,7 @@ import { BlurView } from 'expo-blur';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { observer } from 'mobx-react-lite';
+import { formatVerseReference } from '@/utils/verseReference';
 import { ArrowLeft, MessageCircle, Send, Share } from '../components/Icons';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { Comment, RootStackParamList } from '../types';
@@ -237,7 +238,7 @@ const ReflectionDetail = observer(({ navigation, route }: ReflectionDetailProps)
               </Text>
               {reflection.verse?.theme && (
                 <Text style={styles.commentsGuidance}>
-                  How does {reflection.verse.reference_display} speak to you?
+                  How does {formatVerseReference(reflection.verse.reference_display)} speak to you?
                 </Text>
               )}
             </View>
@@ -271,7 +272,7 @@ const ReflectionDetail = observer(({ navigation, route }: ReflectionDetailProps)
                 title="No comments yet"
                 message={
                   reflection.verse?.theme 
-                    ? `Share how ${reflection.verse.reference_display} resonates with your spiritual journey.`
+                    ? `Share how ${formatVerseReference(reflection.verse.reference_display)} resonates with your spiritual journey.`
                     : "Be the first to share your thoughts on this reflection."
                 }
                 ctaText="Add a comment"

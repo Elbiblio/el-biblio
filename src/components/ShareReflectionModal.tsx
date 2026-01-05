@@ -12,10 +12,12 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { BlurView } from 'expo-blur';
-import { Share as RNShare } from 'react-native';
+import { formatVerseReference } from '@/utils/verseReference';
+import { useNavigation, NavigationProp } from '@react-navigation/native';
 import { Heart, MessageCircle, X, BookOpen, Lightbulb } from './Icons';
 import { useTheme } from '@/contexts/ThemeContext';
 import { Theme } from '@/theme';
+import { Share as RNShare } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import type { Reflection } from '@/types';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -158,7 +160,7 @@ const ShareReflectionModal: React.FC<ShareReflectionModalProps> = ({
                 {reflection.verse && (
                   <View style={styles.verseContext}>
                     <Text style={styles.verseReference}>
-                      {reflection.verse.reference_display}
+                      {formatVerseReference(reflection.verse.reference_display)}
                     </Text>
                     {reflection.verse.theme && (
                       <Text style={styles.verseTheme}>

@@ -1027,7 +1027,6 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
   }, [bibleStore.currentBook, bibleStore.currentChapter, bibleStore.currentVersion]);
 
   // Handle errors - use refs to prevent duplicate toasts
-  const errorShownRef = useRef<Set<string>>(new Set());
   useEffect(() => {
     if (bibleStore.versesError && !errorShownRef.current.has('verses')) {
       toast.error(bibleStore.versesError);

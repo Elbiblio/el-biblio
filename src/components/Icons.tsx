@@ -248,7 +248,7 @@ export const ChevronRight = ({ size = 24, color = theme.colors.text.secondary, s
 
 export const Star = ({ size = 24, color = theme.colors.text.secondary, style, filled }: IconProps) => (
   <View style={style}>
-    <AntDesign name={filled ? "star" : "staro"} size={size} color={color} />
+    <AntDesign name={filled ? "star" : "star"} size={size} color={color} />
   </View>
 );
 
@@ -571,7 +571,7 @@ export const HeartHandshake = ({ size = 24, color = theme.colors.text.secondary,
 
 export const Upvote: React.FC<IconProps> = ({ 
   size = 24, 
-  color = "currentColor",
+  color = theme.colors.text.secondary,
   style,
   strokeWidth = 1.5,
   filled = false,

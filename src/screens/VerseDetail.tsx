@@ -56,6 +56,7 @@ import EmptyState from '@/components/EmptyState';
 import ReflectionComposeModal from '@/components/ReflectionComposeModal';
 import { Share as NativeShare } from 'react-native';
 import { formatVerseShareMessage } from '@/utils/share';
+import { formatVerseReference } from '@/utils/verseReference';
 
 type VerseDetailProps = NativeStackScreenProps<RootStackParamList, 'VerseDetail'>;
 
@@ -363,7 +364,7 @@ const VerseDetail = ({ navigation, route }: VerseDetailProps) => {
 
   const handleCopyVerse = async () => {
     try {
-      await Clipboard.setStringAsync(`${currentVerse?.text} (${currentVerse?.reference_display})`);
+      await Clipboard.setStringAsync(`${currentVerse?.text} (${formatVerseReference(currentVerse?.reference_display)})`);
       toast.success('Verse copied to clipboard');
     } catch (e) {
       toast.error('Failed to copy');
@@ -376,7 +377,7 @@ const VerseDetail = ({ navigation, route }: VerseDetailProps) => {
       const message = formatVerseShareMessage({
         text: currentVerse.text,
         reference: currentVerse.reference,
-        reference_display: (currentVerse as any).reference_display ?? currentVerse.reference,
+        reference_display: formatVerseReference((currentVerse as any).reference_display ?? currentVerse.reference),
         book: (currentVerse as any).book ?? undefined,
         chapter: (currentVerse as any).chapter ?? undefined,
         verse: (currentVerse as any).verse ?? undefined,
@@ -837,7 +838,7 @@ const VerseDetail = ({ navigation, route }: VerseDetailProps) => {
         >
           <ArrowLeft size={24} color={theme.colors.text.primary} />
         </TouchableOpacity>
-        <Text style={styles.navigationTitle}>{currentVerse?.reference_display}</Text>
+        <Text style={styles.navigationTitle}>{formatVerseReference(currentVerse?.reference_display)}</Text>
         <View style={styles.navigationRight} />
       </Animated.View>
 
@@ -862,7 +863,7 @@ const VerseDetail = ({ navigation, route }: VerseDetailProps) => {
             {/* Verse Content */}
             <Animated.View style={[styles.verseContent, headerStyle]}>
               <Text style={styles.verseTitle}>
-                {currentVerse.reference_display}
+                {formatVerseReference(currentVerse.reference_display)}
                 <Text style={styles.translation}> · {currentVerse.translation}</Text>
               </Text>
               <Text style={styles.verseText}>{currentVerse.text}</Text>
