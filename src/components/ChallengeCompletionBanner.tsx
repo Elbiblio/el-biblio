@@ -375,8 +375,8 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    zIndex: 10000,
-    ...Platform.select({ android: { elevation: 10000 }, ios: {} }),
+    zIndex: 9999,
+    ...Platform.select({ android: { elevation: 9999 }, ios: {} }),
   },
   overlayGradient: {
     flex: 1,
@@ -391,7 +391,7 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     borderRadius: theme?.borderRadius.xl,
     overflow: 'hidden',
     backgroundColor: theme?.colors.surface,
-    zIndex: 10001,
+    zIndex: 10000,
     ...Platform.select({
       ios: {
         shadowColor: '#000',

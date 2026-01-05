@@ -230,11 +230,16 @@ api.interceptors.response.use(
         errorResponse.message = response.data.message || 'Validation failed';
 
         if (appState.isInitialized && errorResponse.errors) {
+          const errorMessages: string[] = [];
           Object.values(errorResponse.errors).forEach((messages) => {
             if (Array.isArray(messages)) {
-              messages.forEach((message) => toast.error(message));
+              errorMessages.push(...messages);
             }
           });
+          // Show only the first validation error to avoid toast spam
+          if (errorMessages.length > 0) {
+            toast.error(errorMessages[0]);
+          }
         }
 
         return Promise.reject(errorResponse);

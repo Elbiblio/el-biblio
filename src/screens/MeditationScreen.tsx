@@ -841,9 +841,9 @@ const MeditationScreen = () => {
         )}
 
         {isOffline && (
-          <View style={styles.offlinePill}>
-            <MaterialIcons name="wifi-off" size={14} color={theme.colors.warning} />
-            <Text style={styles.offlinePillText}>Offline — sessions sync later</Text>
+          <View style={styles.offlineIndicator}>
+            <MaterialIcons name="wifi-off" size={12} color={theme.colors.warning} />
+            <Text style={styles.offlineIndicatorText}>Offline — sessions will sync when connected</Text>
           </View>
         )}
 
@@ -986,9 +986,9 @@ const MeditationScreen = () => {
         )}
 
         {isOffline && (
-          <View style={styles.offlineBanner}>
-            <MaterialIcons name="wifi-off" size={16} color={theme.colors.warning} />
-            <Text style={styles.offlineBannerText}>Offline mode — your progress will sync once reconnected.</Text>
+          <View style={styles.offlineIndicatorCompact}>
+            <MaterialIcons name="wifi-off" size={12} color={theme.colors.warning} />
+            <Text style={styles.offlineIndicatorCompactText}>Offline</Text>
           </View>
         )}
 
@@ -1182,12 +1182,6 @@ const MeditationScreen = () => {
       {meditationState === MeditationState.ACTIVE && renderActiveScreen()}
       {meditationState === MeditationState.PAUSED && renderPausedScreen()}
       {meditationState === MeditationState.COMPLETE && renderCompleteScreen()}
-      {isOffline && (
-        <View style={styles.offlinePill}>
-          <MaterialIcons name="wifi-off" size={16} color={theme.colors.warning} />
-          <Text style={styles.offlinePillText}>Offline mode — your progress will sync once reconnected.</Text>
-        </View>
-      )}
     </View>
   );
 };

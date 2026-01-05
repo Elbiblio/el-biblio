@@ -840,7 +840,7 @@ export const createStyles = (theme: Theme, currentVirtue: Virtue | undefined) =>
     fontWeight: '600',
     fontSize: 15,
   },
-  offlinePill: {
+  offlineIndicator: {
     flexDirection: 'row',
     alignItems: 'center',
     alignSelf: 'flex-start',
@@ -848,26 +848,32 @@ export const createStyles = (theme: Theme, currentVirtue: Virtue | undefined) =>
     paddingHorizontal: theme?.spacing.sm,
     paddingVertical: theme?.spacing.xs,
     borderRadius: theme?.borderRadius.full,
-    backgroundColor: `${theme?.colors.warning}15`,
+    backgroundColor: `${theme?.colors.warning}12`,
+    marginTop: theme?.spacing.xs,
     marginBottom: theme?.spacing.sm,
   },
-  offlinePillText: {
+  offlineIndicatorText: {
     ...theme?.typography.caption.secondary,
     color: theme?.colors.warning,
-    fontWeight: '600',
+    fontWeight: '500',
+    fontSize: 12,
   },
-  offlineBanner: {
+  offlineIndicatorCompact: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: theme?.spacing.xs,
-    padding: theme?.spacing.sm,
-    borderRadius: theme?.borderRadius.md,
-    backgroundColor: `${theme?.colors.warning}12`,
-    marginBottom: theme?.spacing.md,
+    paddingHorizontal: theme?.spacing.sm,
+    paddingVertical: theme?.spacing.xs,
+    borderRadius: theme?.borderRadius.full,
+    backgroundColor: `${theme?.colors.warning}10`,
+    alignSelf: 'center',
+    marginBottom: theme?.spacing.sm,
   },
-  offlineBannerText: {
-    ...theme?.typography.body.sans,
-    color: theme?.colors.text.secondary,
-    flex: 1,
+  offlineIndicatorCompactText: {
+    ...theme?.typography.caption.secondary,
+    color: theme?.colors.warning,
+    fontWeight: '500',
+    fontSize: 11,
   },
 });

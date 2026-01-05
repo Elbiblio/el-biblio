@@ -103,6 +103,7 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
   const viewabilityConfigRef = useRef({ itemVisiblePercentThreshold: 25 });
   const listDimensionsRef = useRef({ height: 0 });
   const lastAppliedParamsRef = useRef<string | null>(null);
+  const errorShownRef = useRef<Set<string>>(new Set());
 
   // Network status
   const { isOffline } = useNetworkStatus();
@@ -1025,19 +1026,26 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
     bibleStore.fetchVerses(bibleStore.currentBook, bibleStore.currentChapter, bibleStore.currentVersion);
   }, [bibleStore.currentBook, bibleStore.currentChapter, bibleStore.currentVersion]);
 
-  // Handle errors
+  // Handle errors - use refs to prevent duplicate toasts
+  const errorShownRef = useRef<Set<string>>(new Set());
   useEffect(() => {
-    if (bibleStore.versesError) {
+    if (bibleStore.versesError && !errorShownRef.current.has('verses')) {
       toast.error(bibleStore.versesError);
+      errorShownRef.current.add('verses');
       bibleStore.clearErrors();
+      setTimeout(() => errorShownRef.current.delete('verses'), 3000);
     }
-    if (bibleStore.searchError) {
+    if (bibleStore.searchError && !errorShownRef.current.has('search')) {
       toast.error(bibleStore.searchError);
+      errorShownRef.current.add('search');
       bibleStore.clearErrors();
+      setTimeout(() => errorShownRef.current.delete('search'), 3000);
     }
-    if (bibleStore.installError) {
+    if (bibleStore.installError && !errorShownRef.current.has('install')) {
       toast.error(bibleStore.installError);
+      errorShownRef.current.add('install');
       bibleStore.clearErrors();
+      setTimeout(() => errorShownRef.current.delete('install'), 3000);
     }
   }, [bibleStore.versesError, bibleStore.searchError, bibleStore.installError]);
 
@@ -2005,8 +2013,8 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
           </Text>
           {isOffline && (
             <View style={styles.offlinePill}>
-              <MaterialIcons name="wifi-off" size={14} color={theme.colors.warning} />
-              <Text style={styles.offlinePillText}>Offline — actions sync later</Text>
+              <MaterialIcons name="wifi-off" size={12} color={theme.colors.warning} />
+              <Text style={styles.offlinePillText}>Offline — will sync when connected</Text>
             </View>
           )}
           <TouchableOpacity

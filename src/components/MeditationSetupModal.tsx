@@ -1,6 +1,7 @@
 import React, { useMemo, useState, useCallback, useEffect } from 'react';
-import { Modal, View, Text, TouchableOpacity, StyleSheet, ScrollView, TextInput } from 'react-native';
+import { Modal, View, Text, TouchableOpacity, StyleSheet, ScrollView, TextInput, KeyboardAvoidingView, Platform } from 'react-native';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Check, X, Heart, Bell, Flame } from '@/components/Icons';
 import ChantLibraryModal from './ChantLibraryModal';
@@ -46,7 +47,8 @@ interface MeditationSetupModalProps {
 
 const MeditationSetupModal: React.FC<MeditationSetupModalProps> = ({ visible, onClose, onStart, initialValues, virtues = [] }) => {
   const theme = useTheme();
-  const styles = useMemo(() => createStyles(theme), [theme]);
+  const insets = useSafeAreaInsets();
+  const styles = useMemo(() => createStyles(theme, insets), [theme, insets]);
   const meditationStore = useMeditationStore();
 
   const [currentStep, setCurrentStep] = useState<'style' | 'details' | 'sound' | 'summary'>('style');
@@ -157,8 +159,12 @@ const MeditationSetupModal: React.FC<MeditationSetupModalProps> = ({ visible, on
   if (!visible) return null;
 
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={handleCloseModal}>
-      <View style={styles.overlay}>
+    <Modal visible={visible} animationType="slide" transparent onRequestClose={handleCloseModal} statusBarTranslucent>
+      <KeyboardAvoidingView
+        style={styles.overlay}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+      >
         <View style={styles.container}>
           <View style={styles.header}>
             {currentStep !== 'style' && (
@@ -431,13 +437,25 @@ const MeditationSetupModal: React.FC<MeditationSetupModalProps> = ({ visible, on
           />
         </View>
       </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 };
 
-const createStyles = (theme: any) => StyleSheet.create({
-  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 20 },
-  container: { backgroundColor: theme.colors.background, borderRadius: 12, maxHeight: '92%' },
+const createStyles = (theme: any, insets: { top: number; bottom: number }) => StyleSheet.create({
+  overlay: { 
+    flex: 1, 
+    backgroundColor: 'rgba(0,0,0,0.5)', 
+    justifyContent: 'center', 
+    padding: 20,
+    paddingTop: Math.max(20, insets.top),
+    paddingBottom: Math.max(20, insets.bottom),
+  },
+  container: { 
+    backgroundColor: theme.colors.background, 
+    borderRadius: 12, 
+    maxHeight: '92%',
+  },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: theme.colors.border },
   title: { ...theme.typography.h6, color: theme.colors.text.primary },
   closeButton: { padding: 4 },

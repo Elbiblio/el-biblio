@@ -75,11 +75,13 @@ export const createBibleStyles = (theme: Theme) => StyleSheet.create({
     paddingHorizontal: theme.spacing.sm,
     paddingVertical: theme.spacing.xs,
     borderRadius: theme.borderRadius.sm,
-    backgroundColor: `${theme.colors.warning}15`,
+    backgroundColor: `${theme.colors.warning}12`,
   },
   offlineText: {
     ...theme.typography.caption.secondary,
     color: theme.colors.warning,
+    fontWeight: '500',
+    fontSize: 11,
   },
   offlinePill: {
     flexDirection: 'row',
@@ -89,13 +91,14 @@ export const createBibleStyles = (theme: Theme) => StyleSheet.create({
     paddingHorizontal: theme.spacing.sm,
     paddingVertical: theme.spacing.xs,
     borderRadius: theme.borderRadius.full,
-    backgroundColor: `${theme.colors.warning}15`,
+    backgroundColor: `${theme.colors.warning}12`,
     marginBottom: theme.spacing.sm,
   },
   offlinePillText: {
     ...theme.typography.caption.secondary,
     color: theme.colors.warning,
-    fontWeight: '600',
+    fontWeight: '500',
+    fontSize: 12,
   },
   inlineSelectors: {
     flexDirection: 'row',

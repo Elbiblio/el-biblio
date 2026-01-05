@@ -112,8 +112,8 @@ const VerseComparisonModal: React.FC<VerseComparisonModalProps> = ({
 
           {offline ? (
             <View style={styles.offlineBanner}>
-              <MaterialIcons name="wifi-off" size={16} color={theme.colors.warning} />
-              <Text style={styles.offlineLabel}>Some versions may be unavailable offline.</Text>
+              <MaterialIcons name="wifi-off" size={12} color={theme.colors.warning} />
+              <Text style={styles.offlineLabel}>Some versions may be unavailable offline</Text>
             </View>
           ) : null}
 
@@ -161,11 +161,13 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     gap: theme.spacing.xs,
     padding: theme.spacing.sm,
     borderRadius: theme.borderRadius.md,
-    backgroundColor: `${theme.colors.warning}18`,
+    backgroundColor: `${theme.colors.warning}12`,
   },
   offlineLabel: {
     ...theme.typography.caption.secondary,
     color: theme.colors.warning,
+    fontWeight: '500',
+    fontSize: 12,
   },
   loadingContainer: {
     alignItems: 'center',

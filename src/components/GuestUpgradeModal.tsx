@@ -17,6 +17,7 @@ import * as Haptics from 'expo-haptics';
 
 import { useTheme } from '@/contexts/ThemeContext';
 import { Theme } from '@/theme';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Eye, EyeOff, Sparkle } from '@/components/Icons';
 
 interface GuestUpgradeModalProps {
@@ -52,7 +53,8 @@ const GuestUpgradeModal: React.FC<GuestUpgradeModalProps> = ({
   initialValues,
 }) => {
   const theme = useTheme();
-  const styles = useMemo(() => createStyles(theme), [theme]);
+  const insets = useSafeAreaInsets();
+  const styles = useMemo(() => createStyles(theme, insets), [theme, insets]);
 
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
@@ -140,6 +142,7 @@ const GuestUpgradeModal: React.FC<GuestUpgradeModalProps> = ({
       transparent
       animationType="fade"
       onRequestClose={onClose}
+      statusBarTranslucent
     >
       <KeyboardAvoidingView
         style={styles.container}
@@ -317,11 +320,13 @@ const GuestUpgradeModal: React.FC<GuestUpgradeModalProps> = ({
   );
 };
 
-const createStyles = (theme: Theme) => StyleSheet.create({
+const createStyles = (theme: Theme, insets: { top: number; bottom: number }) => StyleSheet.create({
   container: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    paddingTop: Math.max(theme.spacing.md, insets.top),
+    paddingBottom: Math.max(theme.spacing.md, insets.bottom),
   },
   overlay: {
     width: '100%',
