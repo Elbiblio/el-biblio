@@ -226,7 +226,8 @@ const WordHubsScreen = ({
     }
   };
 
-  const handleJoinHub = async (hub: WordHub) => {
+  const handleJoinHub = async (hub: WordHub, code?: string) => {
+
     // Check guest restrictions
     if (restrictions.canJoinCommunityChallenges === false) {
       setShowRestrictionModal(true);
@@ -249,9 +250,10 @@ const WordHubsScreen = ({
             { text: 'Cancel', style: 'cancel' },
             {
               text: 'Join',
-              onPress: async (code) => {
-                if (code) {
-                  await performJoinHub(hub.id, code);
+              onPress: (codeInput?: string) => {
+                const trimmedCode = codeInput?.trim();
+                if (trimmedCode) {
+                  performJoinHub(hub.id, trimmedCode).catch((err) => console.error('Join hub failed:', err));
                 }
               }
             }
@@ -584,7 +586,7 @@ const WordHubsScreen = ({
 
       {/* Create Hub Modal */}
       {showCreateHub && (
-        <BlurView intensity={20} style={styles.modalOverlay}>
+        <BlurView intensity={20} style={styles.modalOverlay} pointerEvents="none">
           <View style={styles.modal}>
             <Text style={styles.modalTitle}>Create Word Hub</Text>
 
@@ -662,7 +664,7 @@ const WordHubsScreen = ({
 
       {/* Android Private Hub Access Code Modal */}
       {showAccessCodeModal && (
-        <BlurView intensity={20} style={styles.modalOverlay}>
+        <BlurView intensity={20} style={styles.modalOverlay} pointerEvents="none">
           <View style={styles.modal}>
             <Text style={styles.modalTitle}>Join Private Hub</Text>
             <TextInput

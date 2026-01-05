@@ -707,7 +707,8 @@ const WordHubDetailScreen = observer(({ navigation, route }: Props) => {
       >
         <View style={styles.verseModalOverlay}>
           <View style={styles.verseModalContainer}>
-            <BlurView intensity={20} style={StyleSheet.absoluteFill} />
+            <BlurView intensity={20} style={StyleSheet.absoluteFill} pointerEvents="none" />
+
             <View style={styles.verseModalContent}>
               <View style={styles.verseModalHeader}>
                 <Text style={styles.verseModalTitle}>{verseReference}</Text>

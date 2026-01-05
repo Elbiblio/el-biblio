@@ -99,10 +99,10 @@ const AvatarSelectionModal: React.FC<AvatarSelectionModalProps> = ({
         statusBarTranslucent
       >
         <View style={styles.container}>
-          <BlurView intensity={20} style={StyleSheet.absoluteFill} />
+          <BlurView intensity={20} style={StyleSheet.absoluteFill} pointerEvents="none" />
           <View style={styles.overlay}>
             <View style={styles.modalContainer}>
-              <BlurView intensity={10} style={styles.modalBlur}>
+              <BlurView intensity={10} style={styles.modalBlur} pointerEvents="none">
                 {/* Close Button */}
                 <TouchableOpacity 
                   style={styles.closeButton}

@@ -1,5 +1,6 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, StatusBar } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { themeColors, ThemeVariant } from '../theme';
 import { useTheme, useThemeVariant } from '../contexts/ThemeContext';
 import { usePreferences } from '@/stores/PreferencesStore';
@@ -36,7 +37,14 @@ const ThemeSelector: React.FC<ThemeSelectorProps> = ({
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: theme.colors.background }]}
+      edges={['top', 'left', 'right']}
+    >
+      <StatusBar
+        barStyle={theme.colors.isDark ? 'light-content' : 'dark-content'}
+        backgroundColor={theme.colors.background}
+      />
       <Text style={[styles.title, { color: theme.colors.text.primary }]}>
         Choose your theme
       </Text>
@@ -92,7 +100,7 @@ const ThemeSelector: React.FC<ThemeSelectorProps> = ({
           </Text>
         </TouchableOpacity>
       )}
-    </View>
+    </SafeAreaView>
   );
 };
 

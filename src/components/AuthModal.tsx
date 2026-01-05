@@ -228,14 +228,14 @@ const AuthModal: React.FC<AuthModalProps> = ({ visible, onClose, intent = null, 
         statusBarTranslucent
       >
         <View style={styles.container}>
-          <BlurView intensity={50} style={StyleSheet.absoluteFill} />
+          <BlurView intensity={50} style={StyleSheet.absoluteFill} pointerEvents="none" />
           <Pressable style={styles.overlay} onPress={handleClose}>
             <KeyboardAvoidingView
               behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
               style={styles.keyboardView}
             >
               <Pressable style={styles.modalContainer} onPress={e => e.stopPropagation()}>
-                <BlurView intensity={50} style={styles.modalBlur}>
+                <BlurView intensity={50} style={styles.modalBlur} pointerEvents="none">
                   <TouchableOpacity
                     style={styles.closeButton}
                     onPress={handleClose}

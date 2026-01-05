@@ -283,11 +283,7 @@ const SavedItemsScreen = ({
       </View>
 
       {/* Type Tabs */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={styles.tabsContainer}
-      >
+      <View style={styles.tabsContainer}>
         {TYPE_TABS.map(tab => (
           <TouchableOpacity
             key={tab.value}
@@ -315,7 +311,7 @@ const SavedItemsScreen = ({
             </Text>
           </TouchableOpacity>
         ))}
-      </ScrollView>
+      </View>
 
       {/* Main Content */}
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
@@ -370,7 +366,7 @@ const SavedItemsScreen = ({
         animationType="slide"
         onRequestClose={() => setShowFilters(false)}
       >
-        <BlurView intensity={20} style={styles.modalOverlay}>
+        <BlurView intensity={20} style={styles.modalOverlay} pointerEvents="none">
           <View style={styles.filterModal}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Filters</Text>
