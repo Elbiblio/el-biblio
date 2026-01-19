@@ -159,24 +159,60 @@ export class AuthStore {
 
     try {
       this.setLoading(true);
-      const [token, userData, guestCreds] = await Promise.all([
+      const [storedToken, storedUserData, guestCreds] = await Promise.all([
         AsyncStorage.getItem(this.TOKEN_KEY),
         AsyncStorage.getItem(this.USER_KEY),
         AsyncStorage.getItem(this.GUEST_CREDENTIALS_KEY),
       ]);
 
-      if (token && userData) {
-        const user = JSON.parse(userData);
-        runInAction(() => {
-          this.setToken(token);
-          this.setUser(user);
-          // Infer guest status from stored credentials
-          this.isGuest = !!guestCreds;
-          this.isInitialized = true;
-        });
+      let token = storedToken;
+      let userData = storedUserData;
 
-        void this.bootstrapNotifications();
-      } else if (!token && guestCreds) {
+      if (token && !userData) {
+        console.warn('[Auth] Found token without user data. Clearing stale auth cache.');
+        runInAction(() => {
+          this.setToken(null);
+          this.setUser(null);
+        });
+        token = null;
+      }
+
+      if (userData && !token) {
+        console.warn('[Auth] Found user data without token. Clearing stale user cache.');
+        runInAction(() => {
+          this.setUser(null);
+        });
+        userData = null;
+      }
+
+      if (token && userData) {
+        let user: User | null = null;
+        try {
+          user = JSON.parse(userData);
+        } catch (parseError) {
+          console.warn('[Auth] Failed to parse stored user data. Clearing auth cache.');
+          runInAction(() => {
+            this.setToken(null);
+            this.setUser(null);
+          });
+          token = null;
+        }
+
+        if (user) {
+          runInAction(() => {
+            this.setToken(token!);
+            this.setUser(user);
+            // Infer guest status from stored credentials
+            this.isGuest = !!guestCreds;
+            this.isInitialized = true;
+          });
+
+          void this.bootstrapNotifications();
+          return;
+        }
+      }
+
+      if (!token && guestCreds) {
         // Attempt silent guest login to ensure app loads correctly for guest users
         try {
           const { email, password } = JSON.parse(guestCreds);

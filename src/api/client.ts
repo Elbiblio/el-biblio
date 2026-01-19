@@ -92,8 +92,58 @@ export const setUnauthorizedHandler = (handler: (() => Promise<void> | void) | n
 let reauthPromise: Promise<boolean> | null = null;
 
 let cachedToken: string | null = null;
+let tokenCacheInitialized = false;
 export const setTokenCache = (token: string | null) => {
   cachedToken = token;
+  tokenCacheInitialized = true;
+};
+
+const AUTH_HEADER_EXEMPT_PATHS = new Set([
+  '/auth/login',
+  '/auth/forgot-password',
+  '/auth/reset-password',
+  '/auth/verify-email',
+  '/users',
+]);
+
+const AUTH_REAUTH_EXEMPT_PATHS = new Set([
+  ...AUTH_HEADER_EXEMPT_PATHS,
+  '/auth/refresh',
+  '/auth/logout',
+]);
+
+const getRequestPath = (url?: string): string => {
+  if (!url) return '';
+  const raw = url.split('?')[0];
+  let path = raw;
+  try {
+    path = new URL(raw, 'http://localhost').pathname;
+  } catch {
+    path = raw;
+  }
+  if (path.startsWith('/api/')) {
+    return path.slice(4);
+  }
+  if (path === '/api') {
+    return '/';
+  }
+  return path;
+};
+
+const isAuthHeaderExemptPath = (url?: string) => AUTH_HEADER_EXEMPT_PATHS.has(getRequestPath(url));
+const isAuthReauthExemptPath = (url?: string) => AUTH_REAUTH_EXEMPT_PATHS.has(getRequestPath(url));
+
+const resolveCachedToken = async (): Promise<string | null> => {
+  if (cachedToken != null) {
+    return cachedToken;
+  }
+  if (tokenCacheInitialized) {
+    return null;
+  }
+  const token = await AsyncStorage.getItem('auth_token');
+  cachedToken = token;
+  tokenCacheInitialized = true;
+  return token;
 };
 
 const reauthenticateOnce = async (): Promise<boolean> => {
@@ -103,7 +153,7 @@ const reauthenticateOnce = async (): Promise<boolean> => {
     try {
       if (unauthorizedHandler) {
         await unauthorizedHandler();
-        const token = await AsyncStorage.getItem('auth_token');
+        const token = await resolveCachedToken();
         return !!token;
       }
       return false;
@@ -122,12 +172,9 @@ const enqueueAndReauthenticate = () => reauthenticateOnce();
 api.interceptors.request.use(
   async (config) => {
     const isAnonymous = config?.headers && (config.headers as any)['X-Anonymous'] === 'true';
-    if (!isAnonymous) {
-      let token = cachedToken;
-      if (token == null) {
-        token = await AsyncStorage.getItem('auth_token');
-        cachedToken = token;
-      }
+    const isAuthHeaderExempt = isAuthHeaderExemptPath(String(config.url || ''));
+    if (!isAnonymous && !isAuthHeaderExempt) {
+      const token = await resolveCachedToken();
       if (token) {
         config.headers.Authorization = `Bearer ${token}`;
       }
@@ -195,6 +242,17 @@ api.interceptors.response.use(
 
       if (status === 401) {
         const originalRequest: any = config || {};
+        const requestPath = getRequestPath(String(originalRequest.url || ''));
+        const isAnonymousRequest =
+          originalRequest?.headers && (originalRequest.headers as any)['X-Anonymous'] === 'true';
+        const isReauthExempt = isAnonymousRequest || isAuthReauthExemptPath(requestPath);
+
+        if (isReauthExempt) {
+          errorResponse.message = response?.data?.message || 'Unauthorized';
+          errorResponse.errors = response?.data?.errors || {};
+          return Promise.reject(errorResponse);
+        }
+
         if (originalRequest && originalRequest._retry) {
           errorResponse.message = 'Unauthorized';
           return Promise.reject(errorResponse);

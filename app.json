@@ -2,13 +2,13 @@
   "expo": {
     "name": "El-Biblio",
     "slug": "elbiblio",
-    "version": "1.0.25",
+    "version": "1.0.26",
     "orientation": "portrait",
     "icon": "./assets/penheart.png",
     "userInterfaceStyle": "light",
     "splash": {
       "image": "./assets/splash.png",
-      "resizeMode": "center",
+      "resizeMode": "contain",
       "backgroundColor": "#ecefef"
     },
     "assetBundlePatterns": [
