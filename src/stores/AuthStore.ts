@@ -1,7 +1,7 @@
 import { makeAutoObservable, runInAction } from 'mobx';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
-import { apiClient, endpoints, setUnauthorizedHandler, setTokenCache } from '@/api/client';
+import { apiClient, endpoints, setUnauthorizedHandler, setTokenCache, setAuthState } from '@/api/client';
 import { PushNotificationService } from '@/services/pushNotifications';
 import { ReminderSyncService, ReminderTime } from '@/services/reminderSync';
 import { cancelDailyVerseReminders, scheduleDailyVerseReminders } from '@/tasks/dailyVerseReminderScheduler';
@@ -142,6 +142,10 @@ export class AuthStore {
     } else {
       AsyncStorage.removeItem(this.USER_KEY);
     }
+    // Sync auth state with API client
+    if (this.isInitialized) {
+      setAuthState(this.isInitialized, user);
+    }
   };
 
   private setToken = (token: string | null) => {
@@ -151,6 +155,10 @@ export class AuthStore {
       AsyncStorage.setItem(this.TOKEN_KEY, token);
     } else {
       AsyncStorage.removeItem(this.TOKEN_KEY);
+    }
+    // Sync auth state with API client when token is cleared
+    if (!token && this.isInitialized) {
+      setAuthState(this.isInitialized, null);
     }
   };
 
@@ -207,6 +215,8 @@ export class AuthStore {
             this.isInitialized = true;
           });
 
+          setTokenCache(token!);
+          setAuthState(true, user);
           void this.bootstrapNotifications();
           return;
         }
@@ -235,6 +245,8 @@ export class AuthStore {
         this.isLoading = false;
         this.isInitialized = true;
       });
+      // Notify API client that auth initialization is complete (even if no user)
+      setAuthState(true, this.user);
     }
   };
 
@@ -258,6 +270,8 @@ export class AuthStore {
         this.authRequired = false;
       });
 
+      setTokenCache(response.data!.token!);
+      setAuthState(true, response.data!.user!);
       void this.bootstrapNotifications();
 
       return true;

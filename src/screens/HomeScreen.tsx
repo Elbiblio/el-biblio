@@ -252,6 +252,7 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
   // Store hooks
   const {
     user,
+    token,
     updateUserTime,
     authRequired,
     logout,
@@ -260,6 +261,7 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
     dismissAuthPrompt,
     isGuest,
     requestAuthPrompt,
+    isInitialized: authInitialized,
   } = useAuthStore();
   const { completeChallenge } = useMeditationStore();
   const { isConnected } = useWebSocket();
@@ -1083,6 +1085,11 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
   const acceptedJesusCompleted = journeyStore.getPhaseStatus('accept-jesus') === 'completed';
 
   useEffect(() => {
+    // Architectural fix: Only make authenticated requests after auth is initialized and user is available
+    if (!authInitialized || !user || !token) {
+      return;
+    }
+
     const load = async () => {
       try { await fetchDailyVerses(); } catch (e) { /* Not auth-critical */ }
       try { await fetchPersonalChallenges(1); } catch (e) { handleAuthHttpError(e); }
@@ -1104,7 +1111,7 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
     };
 
     load();
-  }, [fetchDailyVerses, fetchPersonalChallenges, fetchCommunityChallenges, fetchReflections, fetchGlobalLeaderboard, user?.id, handleAuthHttpError, logout]);
+  }, [authInitialized, user, token, fetchDailyVerses, fetchPersonalChallenges, fetchCommunityChallenges, fetchReflections, fetchGlobalLeaderboard, handleAuthHttpError, logout]);
 
   // Poll user rank periodically to detect changes and toggle Games badge
   useEffect(() => {
