@@ -1,11 +1,11 @@
-import React, { useState, useCallback, useRef, useEffect } from 'react';
+import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  ScrollView,
+  FlatList,
   Platform,
   ActivityIndicator,
   Switch,
@@ -325,18 +325,16 @@ const WordHubsScreen = ({
 
   const safeWordHubs = normalizeWordHubs(wordHubs);
 
-  const renderHubCard = (hub: WordHub) => {
+  const renderHubCard = useCallback((hub: WordHub) => {
     const isJoined = hub.members?.some((member) => member.user_id === user?.id);
 
     return (
     <TouchableOpacity
-      key={hub.id}
       style={styles.hubCard}
       onPress={() => navigation.navigate('WordHubDetailScreen', { hubId: hub.id })}
     >
       <BlurView intensity={10} style={StyleSheet.absoluteFill} />
       <View style={styles.hubContent}>
-        {/* Status Badge */}
         <View style={styles.statusRow}>
           {hub.min_points && (
             <View style={[
@@ -360,7 +358,6 @@ const WordHubsScreen = ({
           </View>
         </View>
 
-        {/* Hub Info */}
         <View style={styles.hubHeader}>
           <View style={styles.hubInfo}>
             <View style={styles.titleRow}>
@@ -385,7 +382,6 @@ const WordHubsScreen = ({
           </TouchableOpacity>
         </View>
 
-        {/* Activity Section */}
         <View style={styles.activityContainer}>
           <LinearGradient
             colors={[`${theme.colors.surface}00`, theme.colors.surface]}
@@ -394,7 +390,6 @@ const WordHubsScreen = ({
             end={{ x: 1, y: 0 }}
           />
 
-          {/* Authors Preview */}
           <View style={styles.authorSection}>
             <View style={styles.authorInfo}>
               <AvatarStack
@@ -421,7 +416,6 @@ const WordHubsScreen = ({
           </View>
         </View>
 
-        {/* Footer */}
         <View style={styles.hubFooter}>
           <View style={styles.timeInfo}>
             <Clock size={14} color={theme.colors.text.secondary} />
@@ -442,7 +436,57 @@ const WordHubsScreen = ({
       </View>
     </TouchableOpacity>
     );
-  };
+  }, [theme, styles, user?.id, navigation, handleBookmark, handleJoinHub]);
+
+  const flatListRenderItem = useCallback(
+    ({ item }: { item: WordHub }) => renderHubCard(item),
+    [renderHubCard]
+  );
+
+  const keyExtractor = useCallback((item: WordHub) => item.id, []);
+
+  const listEmptyContent = useMemo(() => {
+    if (isLoading && !isRefreshing) {
+      return (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={theme.colors.primary} />
+          <Text style={styles.loadingText}>Loading Word Hubs...</Text>
+        </View>
+      );
+    }
+    if (error) {
+      return (
+        <View style={styles.errorContainer}>
+          <InfoCircle size={48} color={theme.colors.error} />
+          <Text style={styles.errorTitle}>Unable to load Word Hubs</Text>
+          <Text style={styles.errorMessage}>{error}</Text>
+          <TouchableOpacity style={styles.retryButton} onPress={loadData}>
+            <Text style={styles.retryButtonText}>Try Again</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+    return (
+      <EmptyState
+        title={tabConfig[activeTab].emptyTitle}
+        message={tabConfig[activeTab].emptyMessage}
+        ctaText={activeTab === 'discover' ? 'Create a Word Hub' : 'Browse Word Hubs'}
+        onPressCTA={activeTab === 'discover' ? () => setShowCreateHub(true) : () => handleTabChange('discover')}
+        IconComponent={Users as any}
+      />
+    );
+  }, [isLoading, isRefreshing, error, theme.colors.primary, theme.colors.error, styles.loadingContainer, styles.loadingText, styles.errorContainer, styles.errorTitle, styles.errorMessage, styles.retryButton, styles.retryButtonText, activeTab, loadData]);
+
+  const ListEmpty = useCallback(() => listEmptyContent, [listEmptyContent]);
+
+  const ListFooter = useMemo(() => {
+    if (!lastUpdate || safeWordHubs.length === 0) return null;
+    return (
+      <Text style={styles.lastUpdateText}>
+        Last updated: {lastUpdate.toLocaleTimeString()}
+      </Text>
+    );
+  }, [lastUpdate, safeWordHubs.length, styles.lastUpdateText]);
 
   const renderConnectionStatus = () => {
     if (safeWordHubs.length === 0) return null;
@@ -550,9 +594,14 @@ const WordHubsScreen = ({
       </View>
 
       {/* Hub List */}
-      <ScrollView
+      <FlatList
+        data={safeWordHubs}
+        renderItem={flatListRenderItem}
+        keyExtractor={keyExtractor}
+        ListEmptyComponent={ListEmpty}
+        ListFooterComponent={ListFooter}
         style={styles.content}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={safeWordHubs.length === 0 ? [styles.scrollContent, { flexGrow: 1 }] : styles.scrollContent}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
@@ -562,27 +611,9 @@ const WordHubsScreen = ({
             colors={[theme.colors.primary]}
           />
         }
-      >
-        {isLoading && !isRefreshing ? (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color={theme.colors.primary} />
-            <Text style={styles.loadingText}>Loading Word Hubs...</Text>
-          </View>
-        ) : error ? (
-          renderErrorState()
-        ) : safeWordHubs.length === 0 ? (
-          renderEmptyState()
-        ) : (
-          <>
-            {safeWordHubs.map(renderHubCard)}
-            {lastUpdate && (
-              <Text style={styles.lastUpdateText}>
-                Last updated: {lastUpdate.toLocaleTimeString()}
-              </Text>
-            )}
-          </>
-        )}
-      </ScrollView>
+        windowSize={7}
+        maxToRenderPerBatch={10}
+      />
 
       {/* Create Hub Modal */}
       {showCreateHub && (

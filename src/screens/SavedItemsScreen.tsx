@@ -5,8 +5,8 @@ import { User, RootStackParamList, SavedItemType, FoundationalVirtue, SavedItem,
 import { formatRelativeTime } from "@/utils/schedule";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { BlurView } from "expo-blur";
-import React, { useState, useEffect, useMemo } from "react";
-import { View, StyleSheet, Text, Image, TouchableOpacity, TextInput, ScrollView, Modal } from "react-native";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
+import { View, StyleSheet, Text, Image, TouchableOpacity, TextInput, SectionList, Modal } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useBookmarkStore, useVerseStore, useReflectionStore } from '@/stores/StoreProvider';
 import { observer } from 'mobx-react-lite';
@@ -51,31 +51,24 @@ const SavedItemsScreen = ({
     loadBookmarks();
   }, []);
 
+  useEffect(() => {
+    setPinnedItems(safeBookmarks.filter(item => item.is_pinned));
+  }, [safeBookmarks]);
+
   const loadBookmarks = async () => {
     await fetchBookmarks({
       include: ['bookmarkable', 'bookmarkable.author'],
       sort: '-created_at',
       per_page: 50
     });
-    updatePinnedItems();
-  };
-
-  const updatePinnedItems = () => {
-    setPinnedItems(safeBookmarks.filter(item => item.is_pinned));
   };
 
   const handlePin = async (id: number) => {
-    const success = await togglePin(id);
-    if (success) {
-      updatePinnedItems();
-    }
+    await togglePin(id);
   };
 
   const handleDelete = async (id: number) => {
-    const success = await deleteBookmark(id);
-    if (success) {
-      updatePinnedItems();
-    }
+    await deleteBookmark(id);
   };
 
   const handleSearch = (text: string) => {
@@ -143,7 +136,19 @@ const SavedItemsScreen = ({
     });
   }, [safeBookmarks, activeTab, filters]);
 
-  const renderItem = ({ item }: { item: Bookmark }) => {
+  const sections = useMemo(() => {
+    const out: { title: string; data: Bookmark[] }[] = [];
+    if (!activeTab && pinnedItems.length > 0) {
+      out.push({ title: 'Pinned', data: pinnedItems });
+    }
+    if (filteredItems.length > 0) {
+      const title = activeTab ? activeTab.charAt(0).toUpperCase() + activeTab.slice(1) + 's' : 'Saved Items';
+      out.push({ title, data: filteredItems });
+    }
+    return out;
+  }, [activeTab, pinnedItems, filteredItems]);
+
+  const renderItem = useCallback(({ item }: { item: Bookmark }) => {
     const bookmarkable = item.bookmarkable;
     if (!bookmarkable) return null;
 
@@ -254,7 +259,46 @@ const SavedItemsScreen = ({
         </View>
       </TouchableOpacity>
     );
-  };
+  }, [theme, styles, handleItemPress, handlePin, THEME_OPTIONS, TYPE_TABS]);
+
+  const keyExtractor = useCallback((item: Bookmark) => String(item.id), []);
+
+  const renderSectionHeader = useCallback(
+    ({ section }: { section: { title: string } }) => (
+      <View style={styles.pinnedSection}>
+        <Text style={styles.sectionTitle}>{section.title}</Text>
+      </View>
+    ),
+    [styles]
+  );
+
+  const ListEmpty = useCallback(() => {
+    if (isLoading) {
+      return (
+        <View style={[styles.pinnedSection, { alignItems: 'center' }]}>
+          <Text style={styles.sectionTitle}>Loading saved items...</Text>
+        </View>
+      );
+    }
+    if (safeBookmarks.length === 0) {
+      return (
+        <EmptyState
+          title="No saved items yet"
+          message="Bookmark verses, reflections, and notes to see them here."
+          ctaText="Browse community"
+          onPressCTA={() => navigation.navigate('CommunityScreen')}
+        />
+      );
+    }
+    return (
+      <EmptyState
+        title="No results"
+        message="Try clearing filters or selecting a different type."
+        ctaText="Reset filters"
+        onPressCTA={() => setFilters({})}
+      />
+    );
+  }, [isLoading, safeBookmarks.length, styles, navigation]);
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -314,50 +358,19 @@ const SavedItemsScreen = ({
       </View>
 
       {/* Main Content */}
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Loading State */}
-        {isLoading && (
-          <View style={[styles.pinnedSection, { alignItems: 'center' }]}> 
-            <Text style={styles.sectionTitle}>Loading saved items...</Text>
-          </View>
-        )}
-
-        {/* Empty State (no bookmarks at all) */}
-        {!isLoading && safeBookmarks.length === 0 && (
-          <EmptyState
-            title="No saved items yet"
-            message="Bookmark verses, reflections, and notes to see them here."
-            ctaText="Browse community"
-            onPressCTA={() => navigation.navigate('CommunityScreen')}
-          />
-        )}
-
-        {/* No results for current filters/tabs */}
-        {!isLoading && safeBookmarks.length > 0 && filteredItems.length === 0 && (
-          <EmptyState
-            title="No results"
-            message="Try clearing filters or selecting a different type."
-            ctaText="Reset filters"
-            onPressCTA={() => setFilters({})}
-          />
-        )}
-
-        {/* Pinned Items */}
-        {!isLoading && !activeTab && pinnedItems.length > 0 && (
-          <View style={styles.pinnedSection}>
-            <Text style={styles.sectionTitle}>Pinned</Text>
-            {pinnedItems.map(item => renderItem({ item }))}
-          </View>
-        )}
-
-        {/* All Items (has results) */}
-        {!isLoading && filteredItems.length > 0 && (
-          <View style={styles.allItemsSection}>
-            <Text style={styles.sectionTitle}>{activeTab ? activeTab.charAt(0).toUpperCase() + activeTab.slice(1) + 's' : 'Saved Items'}</Text>
-            {filteredItems.map((item: Bookmark) => renderItem({ item }))}
-          </View>
-        )}
-      </ScrollView>
+      <SectionList
+        sections={sections}
+        renderItem={renderItem}
+        renderSectionHeader={renderSectionHeader}
+        keyExtractor={keyExtractor}
+        ListEmptyComponent={ListEmpty}
+        stickySectionHeadersEnabled={false}
+        style={styles.content}
+        contentContainerStyle={sections.length === 0 ? { flexGrow: 1 } : undefined}
+        showsVerticalScrollIndicator={false}
+        windowSize={7}
+        maxToRenderPerBatch={10}
+      />
 
       {/* Filter Modal */}
       <Modal

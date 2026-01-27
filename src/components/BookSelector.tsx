@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Modal, FlatList } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Theme } from '@/theme';
@@ -18,6 +18,23 @@ const BookSelector: React.FC<BookSelectorProps> = ({ currentBook, onSelect, book
   const [modalVisible, setModalVisible] = useState(false);
   const data = books && books.length > 0 ? books : bibleBooks;
 
+  const renderItem = useCallback(
+    ({ item }: { item: Book }) => (
+      <TouchableOpacity
+        style={styles.pickerItem}
+        onPress={() => {
+          onSelect(item);
+          setModalVisible(false);
+        }}
+      >
+        <Text style={styles.pickerItemText}>{item.name}</Text>
+      </TouchableOpacity>
+    ),
+    [styles.pickerItem, styles.pickerItemText, onSelect]
+  );
+
+  const keyExtractor = useCallback((item: Book) => item.abbreviation, []);
+
   return (
     <>
       <TouchableOpacity style={styles.pickerButton} onPress={() => setModalVisible(true)}>
@@ -30,18 +47,8 @@ const BookSelector: React.FC<BookSelectorProps> = ({ currentBook, onSelect, book
           <View style={styles.modalContent}>
             <FlatList
               data={data}
-              keyExtractor={(item) => item.abbreviation}
-              renderItem={({ item }) => (
-                <TouchableOpacity
-                  style={styles.pickerItem}
-                  onPress={() => {
-                    onSelect(item);
-                    setModalVisible(false);
-                  }}
-                >
-                  <Text style={styles.pickerItemText}>{item.name}</Text>
-                </TouchableOpacity>
-              )}
+              keyExtractor={keyExtractor}
+              renderItem={renderItem}
               initialNumToRender={20}
               maxToRenderPerBatch={20}
               windowSize={11}

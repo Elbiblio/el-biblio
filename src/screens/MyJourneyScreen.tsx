@@ -271,6 +271,20 @@ const MyJourneyScreen = observer(() => {
   const totalPhases = journeyStore.journeyPhases.length
   const overallProgress = totalPhases > 0 ? (completedPhases / totalPhases) * 100 : 0
 
+  const renderActivityItem = useCallback(
+    ({ item }: { item: JourneyActivity }) => (
+      <View style={styles.activityItem}>
+        <View style={styles.activityDot} />
+        <View style={styles.activityContent}>
+          <Text style={styles.activityTitle}>{formatActivityTitle(item)}</Text>
+          <Text style={styles.activityMeta}>{formatRelativeDate(item.created_at)}</Text>
+        </View>
+      </View>
+    ),
+    [styles.activityItem, styles.activityDot, styles.activityContent, styles.activityTitle, styles.activityMeta]
+  )
+  const activityKeyExtractor = useCallback((item: JourneyActivity) => item.id, [])
+
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
@@ -506,18 +520,10 @@ const MyJourneyScreen = observer(() => {
         ) : (
           <FlatList
             data={activities}
-            keyExtractor={(item) => item.id}
+            keyExtractor={activityKeyExtractor}
             scrollEnabled={false}
             contentContainerStyle={styles.activityList}
-            renderItem={({ item }) => (
-              <View style={styles.activityItem}>
-                <View style={styles.activityDot} />
-                <View style={styles.activityContent}>
-                  <Text style={styles.activityTitle}>{formatActivityTitle(item)}</Text>
-                  <Text style={styles.activityMeta}>{formatRelativeDate(item.created_at)}</Text>
-                </View>
-              </View>
-            )}
+            renderItem={renderActivityItem}
           />
         )}
       </ScrollView>

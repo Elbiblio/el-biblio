@@ -1061,7 +1061,7 @@ const VerseDetail = ({ navigation, route }: VerseDetailProps) => {
             {!videoUri ? (
               <>
                 <CameraView
-                  ref={(r) => (cameraRef.current = r)}
+                  ref={r => { cameraRef.current = r }}
                   style={styles.camera}
                   facing={cameraType}
                   ratio="1:1"

@@ -404,82 +404,6 @@ const PrayerRequestsScreen = ({ navigation }: PrayerRequestsScreenProps) => {
     return 0;
   };
 
-  const renderItem = ({ item }: { item: PrayerRequest }) => {
-    const isSelected = selectedIds.has(item.id);
-    const displayContent = item.content || item.detail || 'No content';
-    const displayAuthor = item.user 
-      ? `${item.user.first_name || ''} ${item.user.last_name || ''}`.trim() || 'Anonymous'
-      : 'Anonymous';
-    const alreadyPrayed = hasUserPrayed(item, userId) || prayedIdSet.has(item.id);
-    const prayedCount = getPrayedCount(item);
-    const amened = hasUserAmen(item, userId);
-    const amenTotal = amenCount(item);
-    const prayButtonLabel = alreadyPrayed ? 'Prayed 🙏' : 'Pray now 🙏';
-
-    return (
-      <TouchableOpacity activeOpacity={0.9} onPress={() => toggleSelect(item.id)}>
-        <View style={[styles.card, isSelected && { borderColor: theme.colors.primary }]}>
-          <View style={styles.cardHeaderRow}>
-            <Text style={styles.cardAuthor}>{displayAuthor}</Text>
-            <View style={[styles.checkbox, isSelected && { backgroundColor: theme.colors.primary }]} />
-          </View>
-          <View style={styles.cardMetaRow}>
-            <View style={[styles.typeBadge, item.type === 'testimony' && { backgroundColor: `${theme.colors.like}20` }]}>
-              <Text style={[styles.typeBadgeText, item.type === 'testimony' && { color: theme.colors.like }]}>
-                {item.type === 'testimony' ? 'Testimony' : 'Prayer'}
-              </Text>
-            </View>
-            <Text style={styles.cardTime}>{new Date(item.created_at).toLocaleString()}</Text>
-          </View>
-          <Text style={styles.cardContent}>{displayContent}</Text>
-          <View style={styles.cardActions}>
-            <PrayButton
-              count={prayedCount}
-              onPress={() => handlePray(item.id, alreadyPrayed)}
-              disabled={alreadyPrayed}
-              label={prayButtonLabel}
-            />
-          </View>
-          {prayedCount > 0 && (
-            <Text style={styles.prayerCountText}>
-              {prayedCount} prayed so far
-            </Text>
-          )}
-          <View style={styles.communityActions}>
-            <TouchableOpacity
-              style={[styles.communityButton, amened && styles.communityButtonActive]}
-              onPress={() => handleAmen(item.id)}
-              disabled={amenLoadingId === item.id}
-            >
-              <Heart size={16} color={amened ? theme.colors.like : theme.colors.text.secondary} filled={amened} />
-              <Text style={[styles.communityButtonText, amened && { color: theme.colors.like }]}>
-                Amen {amenTotal ? `(${amenTotal})` : ''}
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.communityButton}
-              onPress={() => openDetail(item.id)}
-            >
-              <MessageCircle size={16} color={theme.colors.primary} />
-              <Text style={styles.communityButtonText}>
-                Encourage {item.comments_count ? `(${item.comments_count})` : ''}
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.communityButton, styles.reportButton]}
-              onPress={() => handleReport(item.id)}
-            >
-              <Icon name="flag-outline" size={16} color={theme.colors.error} />
-              {/* <Text style={[styles.communityButtonText, { color: theme.colors.error }]}>
-                Report
-              </Text> */}
-            </TouchableOpacity>
-          </View>
-        </View>
-      </TouchableOpacity>
-    );
-  };
-
   const handleReport = useCallback(async (requestId: string) => {
     if (!userId) {
       toast.error('Please sign in to report content');
@@ -489,10 +413,126 @@ const PrayerRequestsScreen = ({ navigation }: PrayerRequestsScreenProps) => {
       await prayerRequestsStore.reportRequest(requestId);
       toast.success('Content reported. Thank you for helping keep the community safe.');
     } catch (error) {
-      console.error('Failed to report prayer request:', error);
+      console.error('Failed to report prayer request', error);
       toast.error('Failed to report content. Please try again.');
     }
   }, [userId, prayerRequestsStore]);
+
+  const renderItem = useCallback(
+    ({ item }: { item: PrayerRequest }) => {
+      const isSelected = selectedIds.has(item.id);
+      const displayContent = item.content || item.detail || 'No content';
+      const displayAuthor = item.user 
+        ? `${item.user.first_name || ''} ${item.user.last_name || ''}`.trim() || 'Anonymous'
+        : 'Anonymous';
+      const alreadyPrayed = hasUserPrayed(item, userId) || prayedIdSet.has(item.id);
+      const prayedCount = getPrayedCount(item);
+      const amened = hasUserAmen(item, userId);
+      const amenTotal = amenCount(item);
+      const prayButtonLabel = alreadyPrayed ? 'Prayed 🙏' : 'Pray now 🙏';
+
+      return (
+        <TouchableOpacity activeOpacity={0.9} onPress={() => toggleSelect(item.id)}>
+          <View style={[styles.card, isSelected && { borderColor: theme.colors.primary }]}>
+            <View style={styles.cardHeaderRow}>
+              <Text style={styles.cardAuthor}>{displayAuthor}</Text>
+              <View style={[styles.checkbox, isSelected && { backgroundColor: theme.colors.primary }]} />
+            </View>
+            <View style={styles.cardMetaRow}>
+              <View style={[styles.typeBadge, item.type === 'testimony' && { backgroundColor: `${theme.colors.like}20` }]}>
+                <Text style={[styles.typeBadgeText, item.type === 'testimony' && { color: theme.colors.like }]}>
+                  {item.type === 'testimony' ? 'Testimony' : 'Prayer'}
+                </Text>
+              </View>
+              <Text style={styles.cardTime}>{new Date(item.created_at).toLocaleString()}</Text>
+            </View>
+            <Text style={styles.cardContent}>{displayContent}</Text>
+            <View style={styles.cardActions}>
+              <PrayButton
+                count={prayedCount}
+                onPress={() => handlePray(item.id, alreadyPrayed)}
+                disabled={alreadyPrayed}
+                label={prayButtonLabel}
+              />
+            </View>
+            {prayedCount > 0 && (
+              <Text style={styles.prayerCountText}>
+                {prayedCount} prayed so far
+              </Text>
+            )}
+            <View style={styles.communityActions}>
+              <TouchableOpacity
+                style={[styles.communityButton, amened && styles.communityButtonActive]}
+                onPress={() => handleAmen(item.id)}
+                disabled={amenLoadingId === item.id}
+              >
+                <Heart size={16} color={amened ? theme.colors.like : theme.colors.text.secondary} filled={amened} />
+                <Text style={[styles.communityButtonText, amened && { color: theme.colors.like }]}>
+                  Amen {amenTotal ? `(${amenTotal})` : ''}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.communityButton}
+                onPress={() => openDetail(item.id)}
+              >
+                <MessageCircle size={16} color={theme.colors.primary} />
+                <Text style={styles.communityButtonText}>
+                  Encourage {item.comments_count ? `(${item.comments_count})` : ''}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.communityButton, styles.reportButton]}
+                onPress={() => handleReport(item.id)}
+              >
+                <Icon name="flag-outline" size={16} color={theme.colors.error} />
+              </TouchableOpacity>
+            </View>
+          </View>
+        </TouchableOpacity>
+      );
+    },
+    [
+      selectedIds,
+      userId,
+      prayedIdSet,
+      theme.colors.primary,
+      theme.colors.like,
+      theme.colors.text.secondary,
+      theme.colors.error,
+      styles.card,
+      styles.cardHeaderRow,
+      styles.cardAuthor,
+      styles.checkbox,
+      styles.cardMetaRow,
+      styles.typeBadge,
+      styles.typeBadgeText,
+      styles.cardTime,
+      styles.cardContent,
+      styles.cardActions,
+      styles.prayerCountText,
+      styles.communityActions,
+      styles.communityButton,
+      styles.communityButtonActive,
+      styles.communityButtonText,
+      styles.reportButton,
+      toggleSelect,
+      handlePray,
+      handleAmen,
+      openDetail,
+      handleReport,
+      amenLoadingId,
+    ]
+  );
+
+  const listFooterComponent = useMemo(
+    () =>
+      isLoading && requests.length > 0 ? (
+        <View style={{ paddingVertical: theme.spacing.md }}>
+          <ActivityIndicator color={theme.colors.primary} />
+        </View>
+      ) : null,
+    [isLoading, requests.length, theme.spacing.md, theme.colors.primary]
+  );
 
   const cycleCategory = useCallback(() => {
     const idx = categories.indexOf(currentCategory);
@@ -575,14 +615,10 @@ const PrayerRequestsScreen = ({ navigation }: PrayerRequestsScreenProps) => {
               tintColor={theme.colors.primary}
             />
           )}
-          ListFooterComponent={isLoading && requests.length > 0 ? (
-            <View style={{ paddingVertical: theme.spacing.md }}>
-              <ActivityIndicator color={theme.colors.primary} />
-            </View>
-          ) : null}
+          ListFooterComponent={listFooterComponent}
           ListEmptyComponent={(
             <EmptyState
-              title={`No ${currentCategory ?? '' + ' '}requests yet`}
+              title={`No ${currentCategory ? currentCategory + ' ' : ''}requests yet`}
               message={'Be the first to share a prayer request and invite others to pray.'}
               ctaText={'Create a request'}
               onPressCTA={() => openComposeModal('')}

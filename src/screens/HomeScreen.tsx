@@ -690,6 +690,7 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
           <TouchableOpacity
             style={styles.careerShortcutPrimary}
             activeOpacity={0.85}
+            hitSlop={Platform.OS === 'ios' ? { top: 10, bottom: 10, left: 10, right: 10 } : undefined}
             onPress={handleOpenCareerDiscovery}
           >
             <Text style={styles.careerShortcutPrimaryText}>{primaryCta}</Text>
@@ -698,6 +699,7 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
           <TouchableOpacity
             style={styles.careerShortcutSecondary}
             activeOpacity={0.75}
+            hitSlop={Platform.OS === 'ios' ? { top: 10, bottom: 10, left: 10, right: 10 } : undefined}
             onPress={handleDismissCareerDiscoveryShortcut}
           >
             <Text style={styles.careerShortcutSecondaryText}>Maybe later</Text>
@@ -1523,6 +1525,8 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
           <TouchableOpacity
             style={styles.joinButton}
             onPress={() => setShowAuthModal(true)}
+            activeOpacity={0.8}
+            hitSlop={Platform.OS === 'ios' ? { top: 12, bottom: 12, left: 12, right: 12 } : undefined}
           >
             <Text style={styles.joinButtonText}>Join Now</Text>
           </TouchableOpacity>
@@ -1532,6 +1536,7 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
         style={styles.welcomePrompt}
         onPress={handleOpenHomeWelcome}
         activeOpacity={0.85}
+        hitSlop={Platform.OS === 'ios' ? { top: 10, bottom: 10, left: 10, right: 10 } : undefined}
       >
         <Text style={styles.welcomePromptText}>🤝 Read Welcome Note</Text>
         {!hasSeenHomeWelcome && (
@@ -1590,6 +1595,8 @@ const HomeScreen = observer(({ navigation, route }: HomeProps) => {
               <TouchableOpacity
                 key={tool.label}
                 style={[styles.toolButton, !isUnlocked && { opacity: 0.6 }]}
+                activeOpacity={0.7}
+                hitSlop={Platform.OS === 'ios' ? { top: 8, bottom: 8, left: 8, right: 8 } : undefined}
                 onPress={() => {
                   if (!isUnlocked) {
                     const totalPoints = leaderboardStore.userStats?.totalPoints ?? user?.points ?? 0;

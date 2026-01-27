@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Modal, FlatList } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Theme } from '@/theme';
@@ -68,6 +68,33 @@ const BiblePicker: React.FC<BiblePickerProps> = ({
     }
   }, [modalVisible]);
 
+  const renderItem = useCallback(
+    ({ item }: { item: NormalizedItem }) => {
+      const isSelected = item.value === value;
+      return (
+        <TouchableOpacity
+          style={[styles.pickerItem, isSelected && styles.pickerItemSelected]}
+          onPress={() => {
+            onSelect(item.value);
+            setModalVisible(false);
+          }}
+        >
+          <Text
+            style={[styles.pickerItemText, isSelected && styles.pickerItemTextSelected]}
+          >
+            {item.label}
+          </Text>
+        </TouchableOpacity>
+      );
+    },
+    [value, styles.pickerItem, styles.pickerItemSelected, styles.pickerItemText, styles.pickerItemTextSelected, onSelect]
+  );
+
+  const keyExtractor = useCallback(
+    (item: NormalizedItem) => `${item.canonicalIndex}-${item.value}`,
+    []
+  );
+
   return (
     <>
       <TouchableOpacity style={styles.pickerButton} onPress={() => setModalVisible(true)}>
@@ -117,25 +144,8 @@ const BiblePicker: React.FC<BiblePickerProps> = ({
             )}
             <FlatList
               data={sortedItems}
-              keyExtractor={(item) => `${item.canonicalIndex}-${item.value}`}
-              renderItem={({ item }) => {
-                const isSelected = item.value === value;
-                return (
-                  <TouchableOpacity
-                    style={[styles.pickerItem, isSelected && styles.pickerItemSelected]}
-                    onPress={() => {
-                      onSelect(item.value);
-                      setModalVisible(false);
-                    }}
-                  >
-                    <Text
-                      style={[styles.pickerItemText, isSelected && styles.pickerItemTextSelected]}
-                    >
-                      {item.label}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              }}
+              keyExtractor={keyExtractor}
+              renderItem={renderItem}
               initialNumToRender={12}
               maxToRenderPerBatch={12}
               windowSize={11}

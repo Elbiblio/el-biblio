@@ -24,8 +24,8 @@ const SimpleCradle: React.FC<SimpleCradleProps> = ({
   useEffect(() => {
     Animated.loop(
       Animated.sequence([
-        Animated.timing(pulse, { toValue: 0.5, duration: 900, useNativeDriver: false }),
-        Animated.timing(pulse, { toValue: 0.2, duration: 900, useNativeDriver: false }),
+        Animated.timing(pulse, { toValue: 0.5, duration: 900, useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 0.2, duration: 900, useNativeDriver: true }),
       ])
     ).start();
   }, [pulse]);

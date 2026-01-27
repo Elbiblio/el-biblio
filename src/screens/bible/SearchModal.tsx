@@ -39,6 +39,82 @@ export const SearchModal = observer(({ visible, onClose, onSearch }: SearchModal
     }
   }, [bibleStore]);
 
+  const renderItem = useCallback(
+    ({ item }: { item: { id: string; reference: string; text: string } }) => (
+      <TouchableOpacity style={styles.searchResultItem} onPress={() => handleResultPress(item)}>
+        <Text style={styles.searchResultReference}>{item.reference}</Text>
+        <Text style={styles.searchResultText}>{item.text}</Text>
+      </TouchableOpacity>
+    ),
+    [styles.searchResultItem, styles.searchResultReference, styles.searchResultText, handleResultPress]
+  );
+
+  const ListHeader = useMemo(
+    () =>
+      bibleStore.savedSearches.length
+        ? (
+          <View style={styles.savedSearchContainer}>
+            <View style={styles.savedSearchHeader}>
+              <Text style={styles.savedSearchTitle}>Recent searches</Text>
+              <TouchableOpacity onPress={() => bibleStore.clearSavedSearches()}>
+                <Text style={styles.clearSavedSearchText}>Clear</Text>
+              </TouchableOpacity>
+            </View>
+            <View style={styles.savedSearchChips}>
+              {bibleStore.savedSearches.map(term => (
+                <View key={term} style={styles.savedSearchChip}>
+                  <TouchableOpacity onPress={() => handleSavedSearchSelect(term)}>
+                    <Text style={styles.savedSearchText}>{term}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => handleRemoveSavedSearch(term)}>
+                    <MaterialIcons name="close" size={14} color={theme.colors.text.secondary} />
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </View>
+          </View>
+        )
+        : null,
+    [
+      bibleStore.savedSearches,
+      bibleStore.clearSavedSearches,
+      theme.colors.text.secondary,
+      styles.savedSearchContainer,
+      styles.savedSearchHeader,
+      styles.savedSearchTitle,
+      styles.clearSavedSearchText,
+      styles.savedSearchChips,
+      styles.savedSearchChip,
+      styles.savedSearchText,
+      handleSavedSearchSelect,
+      handleRemoveSavedSearch,
+    ]
+  );
+
+  const ListEmpty = useMemo(
+    () =>
+      bibleStore.isSearchLoading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={theme.colors.primary} />
+        </View>
+      ) : (
+        <View style={styles.emptySearchContainer}>
+          <MaterialIcons name="search" size={32} color={theme.colors.text.secondary} />
+          <Text style={styles.emptySearchText}>Start typing to search across the Bible.</Text>
+        </View>
+      ),
+    [
+      bibleStore.isSearchLoading,
+      theme.colors.primary,
+      theme.colors.text.secondary,
+      styles.loadingContainer,
+      styles.emptySearchContainer,
+      styles.emptySearchText,
+    ]
+  );
+
+  const keyExtractor = useCallback((item: { id: string }) => item.id, []);
+
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
       <View style={styles.searchContainer}>
@@ -63,49 +139,10 @@ export const SearchModal = observer(({ visible, onClose, onSearch }: SearchModal
 
         <FlatList
           data={bibleStore.searchResults}
-          ListHeaderComponent={() =>
-            bibleStore.savedSearches.length ? (
-              <View style={styles.savedSearchContainer}>
-                <View style={styles.savedSearchHeader}>
-                  <Text style={styles.savedSearchTitle}>Recent searches</Text>
-                  <TouchableOpacity onPress={() => bibleStore.clearSavedSearches()}>
-                    <Text style={styles.clearSavedSearchText}>Clear</Text>
-                  </TouchableOpacity>
-                </View>
-                <View style={styles.savedSearchChips}>
-                  {bibleStore.savedSearches.map(term => (
-                    <View key={term} style={styles.savedSearchChip}>
-                      <TouchableOpacity onPress={() => handleSavedSearchSelect(term)}>
-                        <Text style={styles.savedSearchText}>{term}</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity onPress={() => handleRemoveSavedSearch(term)}>
-                        <MaterialIcons name="close" size={14} color={theme.colors.text.secondary} />
-                      </TouchableOpacity>
-                    </View>
-                  ))}
-                </View>
-              </View>
-            ) : null
-          }
-          renderItem={({ item }) => (
-            <TouchableOpacity style={styles.searchResultItem} onPress={() => handleResultPress(item)}>
-              <Text style={styles.searchResultReference}>{item.reference}</Text>
-              <Text style={styles.searchResultText}>{item.text}</Text>
-            </TouchableOpacity>
-          )}
-          keyExtractor={item => item.id}
-          ListEmptyComponent={() =>
-            bibleStore.isSearchLoading ? (
-              <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color={theme.colors.primary} />
-              </View>
-            ) : (
-              <View style={styles.emptySearchContainer}>
-                <MaterialIcons name="search" size={32} color={theme.colors.text.secondary} />
-                <Text style={styles.emptySearchText}>Start typing to search across the Bible.</Text>
-              </View>
-            )
-          }
+          ListHeaderComponent={ListHeader}
+          renderItem={renderItem}
+          keyExtractor={keyExtractor}
+          ListEmptyComponent={ListEmpty}
         />
       </View>
     </Modal>

@@ -88,6 +88,176 @@ const FeatureSuggestionsScreen: React.FC<Props> = ({ navigation }) => {
     return items;
   }, [store.items]);
 
+  const listFooterForSuggestions = useMemo(
+    () =>
+      (!canSubmit || !canVote) ? (
+        <View style={{ paddingHorizontal: 16, paddingTop: 8, paddingBottom: 24 }}>
+          <Text style={styles.gateHint}>
+            {!canVote ? 'Voting unlocks at 100 pts. ' : ''}
+            {!canSubmit ? 'Suggesting unlocks at 1000 pts.' : ''}
+          </Text>
+        </View>
+      ) : <View style={{ height: 12 }} />,
+    [canSubmit, canVote, styles.gateHint]
+  );
+
+  const renderSuggestionItem = useCallback(
+    ({ item: sug }: { item: { id: string; title: string; createdAt: string; status: string; eta?: string; votesCount?: number; tags?: string[] } }) => (
+      <Pressable
+        style={({ pressed }) => [
+          styles.card,
+          pressed && { transform: [{ scale: 0.98 }] },
+        ]}
+        onPress={() => navigation.navigate('FeatureSuggestionDetailScreen', { id: sug.id })}
+      >
+        <View style={{ flex: 1 }}>
+          <Text style={styles.cardTitle}>{sug.title}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6, flexWrap: 'wrap' }}>
+            <Text style={styles.cardMeta}>{new Date(sug.createdAt).toLocaleDateString()}</Text>
+            {sug.status === 'planned' && !!sug.eta && (
+              <View style={styles.badgeDate}>
+                <Text style={styles.badgeDateText}>{new Date(sug.eta).toLocaleDateString()}</Text>
+              </View>
+            )}
+            {(sug.status === 'planned' || sug.status === 'accepted') && (
+              <View style={[styles.badge, sug.status === 'planned' ? styles.badgePlanned : styles.badgeAccepted]}>
+                <Text style={styles.badgeText}>{sug.status === 'planned' ? 'Planned' : 'Accepted'}</Text>
+              </View>
+            )}
+            {!!(sug as any).tags?.length && (
+              <View style={styles.tagsRow}>
+                {(() => {
+                  const tags = (sug as any).tags as string[];
+                  const shown = tags.slice(0, 2);
+                  const extra = Math.max(0, tags.length - 2);
+                  return (
+                    <>
+                      {shown.map((t: string) => (
+                        <View key={t} style={styles.tag}><Text style={styles.tagText}>{t}</Text></View>
+                      ))}
+                      {extra > 0 && (<View style={styles.tag}><Text style={styles.tagText}>+{extra}</Text></View>)}
+                    </>
+                  );
+                })()}
+              </View>
+            )}
+          </View>
+        </View>
+        <View style={styles.voteGroup}>
+          {(() => {
+            const countScale = new Animated.Value(1);
+            const bump = () => {
+              countScale.setValue(1);
+              Animated.sequence([
+                Animated.timing(countScale, { toValue: 1.2, duration: 90, useNativeDriver: true }),
+                Animated.spring(countScale, { toValue: 1, friction: 6, tension: 120, useNativeDriver: true }),
+              ]).start();
+            };
+            return (
+              <>
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.voteBtn,
+                    store.myVotes.has(sug.id) && styles.voteBtnActive,
+                    pressed && { transform: [{ scale: 0.97 }] },
+                  ]}
+                  onPress={() => {
+                    if (!canVote) {
+                      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+                      toast.error('Voting unlocks at 100 points. Keep engaging to vote.');
+                      return;
+                    }
+                    Haptics.selectionAsync();
+                    if (store.myVotes.has(sug.id)) {
+                      store.unvote(user, sug.id);
+                    } else {
+                      store.vote(user, sug.id);
+                    }
+                    bump();
+                  }}
+                >
+                  <Text style={[styles.voteText, store.myVotes.has(sug.id) && styles.voteTextActive]}>{store.myVotes.has(sug.id) ? 'Voted' : 'Vote'}</Text>
+                </Pressable>
+                <Animated.Text style={[styles.votesCount, { transform: [{ scale: countScale }] }]}>{sug.votesCount}</Animated.Text>
+              </>
+            );
+          })()}
+        </View>
+      </Pressable>
+    ),
+    [navigation, styles.card, styles.cardTitle, styles.cardMeta, styles.badgeDate, styles.badgeDateText, styles.badge, styles.badgePlanned, styles.badgeAccepted, styles.badgeText, styles.tagsRow, styles.tag, styles.tagText, styles.voteGroup, styles.voteBtn, styles.voteBtnActive, styles.voteText, styles.voteTextActive, styles.votesCount, store, user, canVote]
+  );
+
+  const renderPageItem = useCallback(
+    ({ item }: { item: { key: string; label: string; status: 'all' | 'proposed' | 'planned' } }) => {
+      const data = getItemsFor(item.status, sortMode);
+      return (
+        <Animated.View
+          style={{
+            width: pageWidth,
+            opacity: contentAnim,
+            transform: [{
+              translateY: contentAnim.interpolate({ inputRange: [0, 1], outputRange: [6, 0] }),
+            }],
+          }}
+        >
+          <FlatList
+            data={data}
+            keyExtractor={(s: { id: string }) => s.id}
+            contentContainerStyle={{ padding: 16, gap: 10, minHeight: 300, flexGrow: 1, paddingBottom: 16 + (canSubmit ? 96 : 32) + (insets.bottom || 0) }}
+            refreshing={refreshing}
+            onRefresh={async () => {
+              try {
+                setRefreshing(true);
+                await store.fetchSuggestions();
+              } finally {
+                setRefreshing(false);
+              }
+            }}
+            onScroll={(e) => {
+              const y = e.nativeEvent.contentOffset.y;
+              const target = y > 8 ? 0 : 1;
+              Animated.timing(headerContentOpacity, { toValue: target, duration: 120, useNativeDriver: true }).start();
+            }}
+            scrollEventThrottle={16}
+            ListEmptyComponent={
+              <View style={styles.emptyWrap}>
+                {isBoot || refreshing ? (
+                  <>
+                    <View style={styles.skelCard} />
+                    <View style={styles.skelCard} />
+                    <View style={styles.skelCard} />
+                  </>
+                ) : (
+                  <>
+                    <Text style={styles.emptyTitle}>No {item.label.toLowerCase()} items</Text>
+                    <Text style={styles.emptyText}>We haven't got anything in {item.label} yet. Check back soon or start the conversation.</Text>
+                    {!canSubmit && (
+                      <Text style={[styles.emptyText, { marginTop: 6 }]}>Earn 1000 points to suggest features. Voting unlocks at 100 points.</Text>
+                    )}
+                    <View style={{ flexDirection: 'row', gap: 10, marginTop: 12 }}>
+                      <TouchableOpacity style={[styles.action, styles.secondary]} onPress={() => store.fetchSuggestions()}>
+                        <Text style={styles.secondaryText}>Refresh</Text>
+                      </TouchableOpacity>
+                      {canSubmit ? (
+                        <TouchableOpacity style={[styles.primary]} onPress={() => setShowCreate(true)}>
+                          <Text style={styles.primaryText}>Suggest a feature</Text>
+                        </TouchableOpacity>
+                      ) : null}
+                    </View>
+                  </>
+                )}
+              </View>
+            }
+            renderItem={renderSuggestionItem}
+            ListFooterComponent={listFooterForSuggestions}
+          />
+        </Animated.View>
+      );
+    },
+    [getItemsFor, sortMode, contentAnim, pageWidth, insets.bottom, canSubmit, isBoot, refreshing, styles.emptyWrap, styles.skelCard, styles.emptyTitle, styles.emptyText, styles.action, styles.secondary, styles.primary, styles.primaryText, styles.secondaryText, renderSuggestionItem, listFooterForSuggestions, store, setShowCreate]
+  );
+
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}> 
       <View style={[styles.bgTop, { backgroundColor: pageBgColors[pageIndex] }]} />
@@ -156,163 +326,7 @@ const FeatureSuggestionsScreen: React.FC<Props> = ({ navigation }) => {
                 Haptics.selectionAsync();
               }
             }}
-            renderItem={({ item }) => {
-              const data = getItemsFor(item.status, sortMode);
-              return (
-                <Animated.View
-                  style={{
-                    width: pageWidth,
-                    opacity: contentAnim,
-                    transform: [{
-                      translateY: contentAnim.interpolate({ inputRange: [0, 1], outputRange: [6, 0] }),
-                    }],
-                  }}
-                >
-                  <FlatList
-                    data={data}
-                    keyExtractor={(s) => s.id}
-                    contentContainerStyle={{ padding: 16, gap: 10, minHeight: 300, flexGrow: 1, paddingBottom: 16 + (canSubmit ? 96 : 32) + (insets.bottom || 0) }}
-                    refreshing={refreshing}
-                    onRefresh={async () => {
-                      try {
-                        setRefreshing(true);
-                        await store.fetchSuggestions();
-                      } finally {
-                        setRefreshing(false);
-                      }
-                    }}
-                    onScroll={(e) => {
-                      const y = e.nativeEvent.contentOffset.y;
-                      const target = y > 8 ? 0 : 1;
-                      Animated.timing(headerContentOpacity, { toValue: target, duration: 120, useNativeDriver: true }).start();
-                    }}
-                    scrollEventThrottle={16}
-                    ListEmptyComponent={
-                      <View style={styles.emptyWrap}>
-                        {isBoot || refreshing ? (
-                          <>
-                            <View style={styles.skelCard} />
-                            <View style={styles.skelCard} />
-                            <View style={styles.skelCard} />
-                          </>
-                        ) : (
-                          <>
-                            <Text style={styles.emptyTitle}>No {item.label.toLowerCase()} items</Text>
-                            <Text style={styles.emptyText}>We haven't got anything in {item.label} yet. Check back soon or start the conversation.</Text>
-                            {!canSubmit && (
-                              <Text style={[styles.emptyText, { marginTop: 6 }]}>Earn 1000 points to suggest features. Voting unlocks at 100 points.</Text>
-                            )}
-                            <View style={{ flexDirection: 'row', gap: 10, marginTop: 12 }}>
-                              <TouchableOpacity style={[styles.action, styles.secondary]} onPress={() => store.fetchSuggestions()}>
-                                <Text style={styles.secondaryText}>Refresh</Text>
-                              </TouchableOpacity>
-                              {canSubmit ? (
-                                <TouchableOpacity style={[styles.primary]} onPress={() => setShowCreate(true)}>
-                                  <Text style={styles.primaryText}>Suggest a feature</Text>
-                                </TouchableOpacity>
-                              ) : null}
-                            </View>
-                          </>
-                        )}
-                      </View>
-                    }
-                    renderItem={({ item: sug }) => (
-                      <Pressable
-                        style={({ pressed }) => [
-                          styles.card,
-                          pressed && { transform: [{ scale: 0.98 }] },
-                        ]}
-                        onPress={() => navigation.navigate('FeatureSuggestionDetailScreen', { id: sug.id })}
-                      >
-                        <View style={{ flex: 1 }}>
-                          <Text style={styles.cardTitle}>{sug.title}</Text>
-                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6, flexWrap: 'wrap' }}>
-                            <Text style={styles.cardMeta}>{new Date(sug.createdAt).toLocaleDateString()}</Text>
-                            {sug.status === 'planned' && !!sug.eta && (
-                              <View style={styles.badgeDate}>
-                                <Text style={styles.badgeDateText}>{new Date(sug.eta).toLocaleDateString()}</Text>
-                              </View>
-                            )}
-                            {(sug.status === 'planned' || sug.status === 'accepted') && (
-                              <View style={[styles.badge, sug.status==='planned' ? styles.badgePlanned : styles.badgeAccepted]}>
-                                <Text style={styles.badgeText}>{sug.status === 'planned' ? 'Planned' : 'Accepted'}</Text>
-                              </View>
-                            )}
-                            {!!(sug as any).tags?.length && (
-                              <View style={styles.tagsRow}>
-                                {(() => {
-                                  const tags = (sug as any).tags as string[];
-                                  const shown = tags.slice(0, 2);
-                                  const extra = Math.max(0, tags.length - 2);
-                                  return (
-                                    <>
-                                      {shown.map((t: string) => (
-                                        <View key={t} style={styles.tag}><Text style={styles.tagText}>{t}</Text></View>
-                                      ))}
-                                      {extra > 0 && (<View style={styles.tag}><Text style={styles.tagText}>+{extra}</Text></View>)}
-                                    </>
-                                  );
-                                })()}
-                              </View>
-                            )}
-                          </View>
-                        </View>
-                        <View style={styles.voteGroup}>
-                          {(() => {
-                            const countScale = new Animated.Value(1);
-                            const bump = () => {
-                              countScale.setValue(1);
-                              Animated.sequence([
-                                Animated.timing(countScale, { toValue: 1.2, duration: 90, useNativeDriver: true }),
-                                Animated.spring(countScale, { toValue: 1, friction: 6, tension: 120, useNativeDriver: true }),
-                              ]).start();
-                            };
-                            return (
-                              <>
-                                <Pressable
-                                  style={({ pressed }) => [
-                                    styles.voteBtn,
-                                    store.myVotes.has(sug.id) && styles.voteBtnActive,
-                                    pressed && { transform: [{ scale: 0.97 }] },
-                                  ]}
-                                  onPress={() => {
-                                    if (!canVote) {
-                                      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-                                      toast.error('Voting unlocks at 100 points. Keep engaging to vote.');
-                                      return;
-                                    }
-                                    Haptics.selectionAsync();
-                                    if (store.myVotes.has(sug.id)) {
-                                      store.unvote(user, sug.id);
-                                    } else {
-                                      store.vote(user, sug.id);
-                                    }
-                                    bump();
-                                  }}
-                                >
-                                  <Text style={[styles.voteText, store.myVotes.has(sug.id) && styles.voteTextActive]}>{store.myVotes.has(sug.id) ? 'Voted' : 'Vote'}</Text>
-                                </Pressable>
-                                <Animated.Text style={[styles.votesCount, { transform: [{ scale: countScale }] }]}>{sug.votesCount}</Animated.Text>
-                              </>
-                            );
-                          })()}
-                        </View>
-                      </Pressable>
-                    )}
-                    ListFooterComponent={
-                      (!canSubmit || !canVote) ? (
-                        <View style={{ paddingHorizontal: 16, paddingTop: 8, paddingBottom: 24 }}>
-                          <Text style={styles.gateHint}>
-                            {!canVote ? 'Voting unlocks at 100 pts. ' : ''}
-                            {!canSubmit ? 'Suggesting unlocks at 1000 pts.' : ''}
-                          </Text>
-                        </View>
-                      ) : <View style={{ height: 12 }} />
-                    }
-                  />
-                </Animated.View>
-              );
-            }}
+            renderItem={renderPageItem}
           />
 
           <Modal visible={showCreate} animationType="slide" transparent onRequestClose={() => setShowCreate(false)}>

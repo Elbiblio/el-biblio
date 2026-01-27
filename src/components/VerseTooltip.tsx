@@ -38,7 +38,7 @@ interface BibleVerse {
 
 interface VerseTooltipProps {
   verseRef: string; // Format: "John 3:16"
-  targetRef: React.RefObject<View | null> | React.MutableRefObject<View | null>;
+  targetRef: React.RefObject<View | null>;
   onClose: () => void;
 }
 
@@ -51,7 +51,7 @@ type TranslationType = typeof TRANSLATIONS[number]['id'];
 
 // Helper to measure a component's position on screen
 const measureComponent = (
-  ref: React.RefObject<View | null> | React.MutableRefObject<View | null>
+  ref: React.RefObject<View | null>
 ): Promise<LayoutRectangle> => {
   return new Promise((resolve) => {
     const node = findNodeHandle(ref.current);

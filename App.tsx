@@ -88,6 +88,12 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
 // Separate untyped stack for debug mode to avoid param list type errors
 const DebugStack = createNativeStackNavigator();
 
+const ToasterTouchThroughWrapper = ({ children }: { children: React.ReactNode }) => (
+  <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
+    {children}
+  </View>
+);
+
 // Toggle this to quickly isolate routing/render problems
 const DEBUG_MINIMAL = false;
 
@@ -201,15 +207,39 @@ const NavigationContent: React.FC<NavigationContentProps> = ({ showChallengeBann
         <Stack.Screen name="MatchScreen" component={MatchScreen} />
         <Stack.Screen name="SavedItemsScreen" component={SavedItemsScreen} />
         <Stack.Screen name="NotesScreen" component={NotesScreen} />
-        <Stack.Screen name="CommunityScreen" component={CommunityScreen} />
+        <Stack.Screen name="CommunityScreen">
+          {(props: any) => (
+            <AppErrorBoundary>
+              <CommunityScreen {...props} />
+            </AppErrorBoundary>
+          )}
+        </Stack.Screen>
         <Stack.Screen name="PrayerRequestsScreen" component={PrayerRequestsScreen} />
         <Stack.Screen name="NoteDetail" component={NoteDetailScreen} />
-        <Stack.Screen name="MeditationScreen" component={MeditationScreen} />
+        <Stack.Screen name="MeditationScreen">
+          {(props: any) => (
+            <AppErrorBoundary>
+              <MeditationScreen {...props} />
+            </AppErrorBoundary>
+          )}
+        </Stack.Screen>
         <Stack.Screen name="VirtueScreen" component={VirtueScreen} />
         <Stack.Screen name="VirtueTriviaScreen" component={VirtueTriviaScreen} />
         <Stack.Screen name="VirtueQuizScreen" component={VirtueQuizScreen} />
-        <Stack.Screen name="VerseBuilderScreen" component={VerseBuilderScreen} />
-        <Stack.Screen name="BibleScreen" component={BibleScreen} />
+        <Stack.Screen name="VerseBuilderScreen">
+          {(props: any) => (
+            <AppErrorBoundary>
+              <VerseBuilderScreen {...props} />
+            </AppErrorBoundary>
+          )}
+        </Stack.Screen>
+        <Stack.Screen name="BibleScreen">
+          {(props: any) => (
+            <AppErrorBoundary>
+              <BibleScreen {...props} />
+            </AppErrorBoundary>
+          )}
+        </Stack.Screen>
         <Stack.Screen name="ProfileScreen">
           {(props: any) => (
             <AppErrorBoundary>
@@ -220,7 +250,13 @@ const NavigationContent: React.FC<NavigationContentProps> = ({ showChallengeBann
         <Stack.Screen name="DonateScreen" component={DonateScreen} />
         <Stack.Screen name="LeaderboardScreen" component={LeaderboardScreen} />
         <Stack.Screen name="GameScreen" component={GameScreen} />
-        <Stack.Screen name="SpiritualCareerScreen" component={SpiritualCareerScreen} />
+        <Stack.Screen name="SpiritualCareerScreen">
+          {(props: any) => (
+            <AppErrorBoundary>
+              <SpiritualCareerScreen {...props} />
+            </AppErrorBoundary>
+          )}
+        </Stack.Screen>
         <Stack.Screen name="CareerDiscoveryScreen" component={CareerDiscoveryScreen} />
         <Stack.Screen name="SpiritualCareerGuideScreen" component={SpiritualCareerGuideScreen} />
         <Stack.Screen
@@ -585,7 +621,7 @@ const AppContent = () => {
             />
           )}
         </ErrorBoundary>
-        <Toaster />
+        <Toaster ToasterOverlayWrapper={Platform.OS === 'ios' ? ToasterTouchThroughWrapper : undefined} />
         <Modal
           transparent
           animationType="fade"

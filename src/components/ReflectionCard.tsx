@@ -285,7 +285,7 @@ const ReflectionCard: React.FC<ReflectionCardProps> = ({
               posterSource={reflection.thumbnail_url ? { uri: reflection.thumbnail_url } : undefined}
               posterStyle={styles.video}
               resizeMode={ResizeMode.COVER}
-              ref={(r) => (videoRef.current = r)}
+              ref={r => { videoRef.current = r }}
               onLoad={onVideoLoad}
               onPlaybackStatusUpdate={onPlaybackUpdate}
             />

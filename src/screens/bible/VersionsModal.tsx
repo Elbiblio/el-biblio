@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useCallback } from 'react';
 import { View, Text, TouchableOpacity, Modal, FlatList, ActivityIndicator } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { observer } from 'mobx-react-lite';
@@ -18,6 +18,50 @@ export const VersionsModal = observer(({ visible, onClose, onInstallVersion }: V
   const styles = useMemo(() => createBibleStyles(theme), [theme]);
   const bibleStore = useBibleStore();
 
+  const renderItem = useCallback(
+    ({ item }: { item: BibleVersion }) => (
+      <TouchableOpacity
+        style={styles.versionItem}
+        onPress={() => {
+          bibleStore.setCurrentVersion(item);
+          onClose();
+        }}
+      >
+        <View style={styles.versionInfo}>
+          <Text style={styles.versionName}>
+            {item.englishName} ({item.shortName})
+          </Text>
+          {item.preinstalled && (
+            <Text style={styles.versionSubtext}>Pre-installed</Text>
+          )}
+        </View>
+
+        {bibleStore.installedVersions.includes(item.shortName) ? (
+          <MaterialIcons name="check-circle" size={24} color={theme.colors.primary} />
+        ) : bibleStore.isInstallingVersion && bibleStore.installingVersionId === item.shortName ? (
+          <ActivityIndicator size="small" color={theme.colors.primary} />
+        ) : (
+          <TouchableOpacity
+            onPress={(e) => {
+              e.stopPropagation();
+              onInstallVersion(item);
+            }}
+            disabled={bibleStore.isInstallingVersion}
+          >
+            <MaterialIcons
+              name="download"
+              size={24}
+              color={bibleStore.isInstallingVersion ? theme.colors.text.secondary : theme.colors.primary}
+            />
+          </TouchableOpacity>
+        )}
+      </TouchableOpacity>
+    ),
+    [theme.colors.primary, theme.colors.text.secondary, styles.versionItem, styles.versionInfo, styles.versionName, styles.versionSubtext, bibleStore, onClose, onInstallVersion]
+  );
+
+  const keyExtractor = useCallback((item: BibleVersion) => item.shortName, []);
+
   return (
     <Modal visible={visible} animationType="slide">
       <View style={styles.modalContainer}>
@@ -35,45 +79,8 @@ export const VersionsModal = observer(({ visible, onClose, onInstallVersion }: V
         ) : (
           <FlatList
             data={bibleStore.availableVersions}
-            keyExtractor={(item) => item.shortName}
-            renderItem={({ item }) => (
-              <TouchableOpacity
-                style={styles.versionItem}
-                onPress={() => {
-                  bibleStore.setCurrentVersion(item);
-                  onClose();
-                }}
-              >
-                <View style={styles.versionInfo}>
-                  <Text style={styles.versionName}>
-                    {item.englishName} ({item.shortName})
-                  </Text>
-                  {item.preinstalled && (
-                    <Text style={styles.versionSubtext}>Pre-installed</Text>
-                  )}
-                </View>
-
-                {bibleStore.installedVersions.includes(item.shortName) ? (
-                  <MaterialIcons name="check-circle" size={24} color={theme.colors.primary} />
-                ) : bibleStore.isInstallingVersion && bibleStore.installingVersionId === item.shortName ? (
-                  <ActivityIndicator size="small" color={theme.colors.primary} />
-                ) : (
-                  <TouchableOpacity
-                    onPress={(e) => {
-                      e.stopPropagation();
-                      onInstallVersion(item);
-                    }}
-                    disabled={bibleStore.isInstallingVersion}
-                  >
-                    <MaterialIcons
-                      name="download"
-                      size={24}
-                      color={bibleStore.isInstallingVersion ? theme.colors.text.secondary : theme.colors.primary}
-                    />
-                  </TouchableOpacity>
-                )}
-              </TouchableOpacity>
-            )}
+            keyExtractor={keyExtractor}
+            renderItem={renderItem}
           />
         )}
       </View>

@@ -235,7 +235,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ visible, onClose, intent = null, 
               style={styles.keyboardView}
             >
               <Pressable style={styles.modalContainer} onPress={e => e.stopPropagation()}>
-                <BlurView intensity={50} style={styles.modalBlur} pointerEvents="none">
+                <BlurView intensity={50} style={styles.modalBlur} pointerEvents="box-none">
                   <TouchableOpacity
                     style={styles.closeButton}
                     onPress={handleClose}

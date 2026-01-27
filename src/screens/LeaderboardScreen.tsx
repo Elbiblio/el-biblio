@@ -403,7 +403,7 @@ const LeaderboardScreen = observer(({ navigation }: any) => {
       <FlatList
         data={currentLeaderboard}
         renderItem={renderLeaderboardItem}
-        keyExtractor={(item, index) => item.user?.id ?? item.rank?.toString() ?? `row-${index}`}
+        keyExtractor={(item, index) => item.user?.id ?? (item.rank != null ? String(item.rank) : `row-${index}`)}
         ListHeaderComponent={ListHeader}
         ListFooterComponent={ListFooter}
         ListEmptyComponent={ListEmpty}
