@@ -10,6 +10,7 @@ import {
   Modal,
   AppState,
   AppStateStatus,
+  InteractionManager,
 } from 'react-native';
 
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
@@ -142,9 +143,12 @@ const MeditationScreen = () => {
   const breathPhaseIndex = useSharedValue(0);
   const breatheTextOpacity = useSharedValue(0);
 
-  // Load virtues on mount
+  // Defer virtue fetch so first paint is not blocked (iOS performance)
   useEffect(() => {
-    virtueStore.fetchVirtues();
+    const task = InteractionManager.runAfterInteractions(() => {
+      virtueStore.fetchVirtues();
+    });
+    return () => task.cancel();
   }, [virtueStore]);
 
   // Computed values - only calculate when needed
@@ -693,14 +697,24 @@ const MeditationScreen = () => {
             ) : null}
           </View>
           <View style={styles.idleRow}>
-            <TouchableOpacity style={[styles.idleBtn, styles.idleBtnPrimary]} onPress={() => {
-              progressAnim.value = 0;
-              meditationStore.startMeditation();
-              Haptics.selectionAsync();
-            }}>
+            <TouchableOpacity
+              style={[styles.idleBtn, styles.idleBtnPrimary]}
+              onPress={() => {
+                progressAnim.value = 0;
+                meditationStore.startMeditation();
+                Haptics.selectionAsync();
+              }}
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              accessibilityLabel="Start meditation again"
+            >
               <Text style={[styles.idleBtnText, styles.idleBtnTextPrimary]}>Start Again</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.idleBtn} onPress={() => setShowSetupModal(true)}>
+            <TouchableOpacity
+              style={styles.idleBtn}
+              onPress={() => setShowSetupModal(true)}
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              accessibilityLabel="Open setup options"
+            >
               <Text style={styles.idleBtnText}>Setup Options</Text>
             </TouchableOpacity>
           </View>
@@ -741,6 +755,8 @@ const MeditationScreen = () => {
               setShowSetupModal(true);
               Haptics.selectionAsync();
             }}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+            accessibilityLabel="Customize meditation"
           >
             <Text style={styles.changeVirtueText}>Customize</Text>
           </TouchableOpacity>
@@ -965,12 +981,16 @@ const MeditationScreen = () => {
             <TouchableOpacity
               style={[styles.controlBtn, styles.pauseBtn]}
               onPress={() => meditationStore.pause()}
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              accessibilityLabel="Pause meditation"
             >
               <Text style={[styles.controlBtnText, styles.pauseBtnText]}>Pause</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.controlBtn, styles.endBtn]}
               onPress={endMeditation}
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              accessibilityLabel="End meditation session"
             >
               <Text style={[styles.controlBtnText, styles.endBtnText]}>End</Text>
             </TouchableOpacity>
@@ -1023,13 +1043,17 @@ const MeditationScreen = () => {
               style={[styles.pausedResumeButton, { backgroundColor: currentVirtue?.color_code || theme?.colors.primary }]}
               onPress={resumeMeditation}
               activeOpacity={0.8}
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              accessibilityLabel="Resume meditation"
             >
               <Text style={styles.pausedResumeText}>Resume Meditation</Text>
             </TouchableOpacity>
-            <TouchableOpacity 
-              style={styles.pausedEndButton} 
+            <TouchableOpacity
+              style={styles.pausedEndButton}
               onPress={endMeditation}
               activeOpacity={0.7}
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              accessibilityLabel="End session"
             >
               <Text style={styles.pausedEndText}>End Session</Text>
             </TouchableOpacity>

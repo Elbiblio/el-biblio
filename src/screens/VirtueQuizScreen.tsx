@@ -165,9 +165,7 @@ const VirtueQuizScreen = observer(({ navigation, route }: NativeStackScreenProps
 
   useEffect(() => {
     if (showConfetti) {
-      confettiRef.current?.restart();
-      // The confetti is triggered by the store, and this effect just starts it.
-      // The store should be responsible for turning it off if needed.
+      requestAnimationFrame(() => { confettiRef.current?.restart(); });
     }
   }, [showConfetti]);
 
@@ -223,10 +221,8 @@ const VirtueQuizScreen = observer(({ navigation, route }: NativeStackScreenProps
   // Completion sound
   useEffect(() => {
     if (!quizCompleted) return;
-    // Celebrate on completion
     play('cheers');
-    // Trigger confetti only on level completion
-    confettiRef.current?.restart?.();
+    requestAnimationFrame(() => { confettiRef.current?.restart?.(); });
   }, [quizCompleted]);
 
   // Render functions
@@ -249,6 +245,8 @@ const VirtueQuizScreen = observer(({ navigation, route }: NativeStackScreenProps
                 { borderColor: appVirtue.color_code }
               ]}
               onPress={() => store.selectVirtue(appVirtue)}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              accessibilityLabel={`Select virtue: ${appVirtue.name}`}
             >
               <LinearGradient
                 colors={[
@@ -316,6 +314,8 @@ const VirtueQuizScreen = observer(({ navigation, route }: NativeStackScreenProps
                   withTiming(1, { duration: 200 })
                 );
               }}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              accessibilityLabel={level > (virtueProgress[selectedVirtue.id]?.current_level || 0) + 1 ? `Level ${level} locked` : `Select level ${level}`}
             >
               <LinearGradient
                 colors={[
@@ -419,11 +419,13 @@ const VirtueQuizScreen = observer(({ navigation, route }: NativeStackScreenProps
                     store.handleAnswerSelection('true');
                   }}
                   disabled={selectedAnswer !== null}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  accessibilityLabel="Answer: True"
                 >
                   <Text style={styles.optionText}>True</Text>
                 </TouchableOpacity>
                 </Animated.View>
-                
+
                 <Animated.View style={optionPressStyle}>
                   <TouchableOpacity
                   style={[
@@ -440,6 +442,8 @@ const VirtueQuizScreen = observer(({ navigation, route }: NativeStackScreenProps
                     store.handleAnswerSelection('false');
                   }}
                   disabled={selectedAnswer !== null}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  accessibilityLabel="Answer: False"
                 >
                   <Text style={styles.optionText}>False</Text>
                 </TouchableOpacity>
@@ -447,9 +451,8 @@ const VirtueQuizScreen = observer(({ navigation, route }: NativeStackScreenProps
               </>
             ) : (
               currentQuestion.options?.map((option, index) => (
-                <Animated.View style={optionPressStyle}>
+                <Animated.View style={optionPressStyle} key={index}>
                   <TouchableOpacity
-                  key={index}
                   style={[
                     styles.optionButton,
                     selectedAnswer === index && styles.selectedOptionButton,
@@ -464,6 +467,8 @@ const VirtueQuizScreen = observer(({ navigation, route }: NativeStackScreenProps
                     store.handleAnswerSelection(index);
                   }}
                   disabled={selectedAnswer !== null}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  accessibilityLabel={`Answer ${String.fromCharCode(65 + index)}: ${option}`}
                 >
                   <Text style={styles.optionText}>{option}</Text>
                 </TouchableOpacity>
@@ -633,9 +638,9 @@ const VirtueQuizScreen = observer(({ navigation, route }: NativeStackScreenProps
         showsVerticalScrollIndicator={false}
       >
         {isQuizLoading ? (
-          <View style={styles.loadingContainer}>
+          <View style={styles.loadingContainer} accessibilityLabel="Preparing your questions">
             <ActivityIndicator size="large" color={theme?.colors.primary} />
-            <Text style={styles.loadingText}>Loading questions...</Text>
+            <Text style={styles.loadingText}>Preparing your questions...</Text>
           </View>
         ) : (
           <>

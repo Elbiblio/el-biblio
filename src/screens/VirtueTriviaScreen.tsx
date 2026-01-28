@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 
-import { View, Text, TouchableOpacity } from 'react-native';
+import { View, Text, TouchableOpacity, InteractionManager } from 'react-native';
 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, {
@@ -192,29 +192,26 @@ const VirtueTriviaScreen = () => {
     fetchUserProgress();
   }, [fetchVirtues, fetchUserProgress]);
 
-  // Initialize App
+  // Defer init so first frame paints (iOS performance)
   useEffect(() => {
-    const initializeApp = async () => {
+    setIsLoading(true);
+    const task = InteractionManager.runAfterInteractions(() => {
       if (hasInitialized.current) return;
       hasInitialized.current = true;
-      setIsLoading(true);
-
-      try {
-        await SoundManager.init();
-        
-        // Set default timer
-        setTimeLeft(timerSettings.novice);
-      } catch (err) {
-        console.error('Initialization error:', err);
-        setError('Failed to initialize app. Please restart.');
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    
-    initializeApp();
-
-    return () => {};
+      const run = async () => {
+        try {
+          await SoundManager.init();
+          setTimeLeft(timerSettings.novice);
+        } catch (err) {
+          console.error('Initialization error:', err);
+          setError('Failed to initialize app. Please restart.');
+        } finally {
+          setIsLoading(false);
+        }
+      };
+      run();
+    });
+    return () => task.cancel();
   }, []);
 
   // Generate wrong options for book-only quiz
@@ -446,7 +443,7 @@ const VirtueTriviaScreen = () => {
       const computedCorrectAnswers = isCorrect ? correctAnswers + 1 : correctAnswers;
       if (computedCorrectAnswers === current.questions.length) {
         play('cheers');
-        confettiRef.current?.restart?.();
+        requestAnimationFrame(() => { confettiRef.current?.restart?.(); });
       } else {
         play('gameOver');
       }
@@ -508,8 +505,7 @@ const VirtueTriviaScreen = () => {
 
     // Haptics and sound
     if (isCorrect) {
-      // Confetti micro-burst
-      confettiRef.current?.restart?.();
+      requestAnimationFrame(() => { confettiRef.current?.restart?.(); });
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       play('correct');
     } else {
@@ -676,6 +672,8 @@ const VirtueTriviaScreen = () => {
                   isCompleted && styles.completedVirtueButton,
                 ]}
                 onPress={() => searchVirtueVerses(virtue.id)}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                accessibilityLabel={`Play trivia for ${virtue.name}`}
               >
                 <Text
                   style={[
@@ -738,6 +736,8 @@ const VirtueTriviaScreen = () => {
                   handleAnswerSelect(option);
                 }}
                 disabled={gameState.answered}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                accessibilityLabel={`Answer ${String.fromCharCode(65 + index)}: ${option}`}
               >
                 <Text
                   style={[
@@ -764,7 +764,12 @@ const VirtueTriviaScreen = () => {
 
         {gameState.answered && (
           <View style={styles.nextButtonRow}>
-            <TouchableOpacity style={styles.nextButton} onPress={handleManualAdvance}>
+            <TouchableOpacity
+              style={styles.nextButton}
+              onPress={handleManualAdvance}
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              accessibilityLabel={gameState.currentQuestionIndex === gameState.questions.length - 1 ? 'Finish quiz' : 'Next question'}
+            >
               <Text style={styles.nextButtonText}>
                 {gameState.currentQuestionIndex === gameState.questions.length - 1 ? 'Finish' : 'Next'}
               </Text>
@@ -817,16 +822,21 @@ const VirtueTriviaScreen = () => {
         pointerEvents="none"
       />
       {isLoading && (
-        <View style={styles.loadingOverlay}>
+        <View style={styles.loadingOverlay} accessibilityLabel="Preparing your questions">
           <ActivityIndicator size="large" color={theme.colors.primary} />
-          <Text style={styles.loadingText}>Loading...</Text>
+          <Text style={styles.loadingText}>Preparing your questions...</Text>
         </View>
       )}
-      
+
       {error && (
         <View style={styles.errorContainer}>
           <Text style={styles.errorText}>{error}</Text>
-          <TouchableOpacity style={styles.retryButton} onPress={startNewGame}>
+          <TouchableOpacity
+            style={styles.retryButton}
+            onPress={startNewGame}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+            accessibilityLabel="Try again"
+          >
             <Text style={styles.retryButtonText}>Try Again</Text>
           </TouchableOpacity>
         </View>
@@ -839,7 +849,12 @@ const VirtueTriviaScreen = () => {
           <View style={styles.header}>
             <View style={styles.headerTopRow}>
               <Text style={styles.headerTitle}>Virtue Trivia</Text>
-              <TouchableOpacity style={styles.soundButton} onPress={() => setShowSoundSettings(true)}>
+              <TouchableOpacity
+                style={styles.soundButton}
+                onPress={() => setShowSoundSettings(true)}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                accessibilityLabel="Sound settings"
+              >
                 <Text style={styles.soundButtonText}>Sound</Text>
               </TouchableOpacity>
             </View>

@@ -74,6 +74,11 @@
   "name": "reflection-app",
   "version": "1.0.0",
   "main": "expo/AppEntry.js",
+  "reanimated": {
+    "staticFeatureFlags": {
+      "DISABLE_COMMIT_PAUSING_MECHANISM": true
+    }
+  },
   "scripts": {
     "start": "expo start",
     "android": "expo run:android",

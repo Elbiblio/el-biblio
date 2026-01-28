@@ -81,10 +81,14 @@
       [
         "expo-build-properties",
         {
+          "ios": {
+            "reactNativeReleaseLevel": "experimental"
+          },
           "android": {
             "compileSdkVersion": 35,
             "targetSdkVersion": 35,
             "useLegacyPackaging": false,
+            "reactNativeReleaseLevel": "experimental",
             "reactNativeArchitectures": [
               "arm64-v8a"
             ],
