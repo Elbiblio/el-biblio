@@ -12,9 +12,8 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
-
+import { isValidEmail, isValidPasswordLength } from '@/utils/validation';
 import { useTheme } from '@/contexts/ThemeContext';
 import { Theme } from '@/theme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -79,24 +78,19 @@ const GuestUpgradeModal: React.FC<GuestUpgradeModalProps> = ({
   }, [visible, initialValues]);
 
   const validate = () => {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
     if (!firstName.trim()) {
       setValidationError('First name is required');
       return false;
     }
-
     if (!lastName.trim()) {
       setValidationError('Last name is required');
       return false;
     }
-
-    if (!email.trim() || !emailRegex.test(email.trim())) {
+    if (!isValidEmail(email)) {
       setValidationError('Please enter a valid email address');
       return false;
     }
-
-    if (!password || password.length < 8) {
+    if (!password || !isValidPasswordLength(password)) {
       setValidationError('Password must be at least 8 characters long');
       return false;
     }
@@ -147,11 +141,11 @@ const GuestUpgradeModal: React.FC<GuestUpgradeModalProps> = ({
       <KeyboardAvoidingView
         style={styles.container}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
       >
-        <BlurView intensity={30} style={StyleSheet.absoluteFill} pointerEvents="none" />
         <View style={styles.overlay}>
           <View style={styles.modalContainer}>
-            <BlurView intensity={10} style={styles.contentWrapper} pointerEvents="none">
+            <View style={styles.contentWrapper}>
               <View style={styles.header}>
                 <TouchableOpacity onPress={onClose} style={styles.closeButton}>
                   <Text style={styles.closeText}>×</Text>
@@ -163,7 +157,7 @@ const GuestUpgradeModal: React.FC<GuestUpgradeModalProps> = ({
                 </Text>
               </View>
 
-              <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+              <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
                 <View style={styles.row}>
                   <View style={styles.inputGroup}>
                     <Text style={styles.label}>First Name</Text>
@@ -312,7 +306,7 @@ const GuestUpgradeModal: React.FC<GuestUpgradeModalProps> = ({
                   )}
                 </TouchableOpacity>
               </ScrollView>
-            </BlurView>
+            </View>
           </View>
         </View>
       </KeyboardAvoidingView>
@@ -330,11 +324,12 @@ const createStyles = (theme: Theme, insets: { top: number; bottom: number }) => 
   },
   overlay: {
     width: '100%',
+    flex: 1,
     paddingHorizontal: theme.spacing.lg,
     paddingVertical: theme.spacing.xl,
     justifyContent: 'center',
     alignItems: 'center',
-    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
   },
   modalContainer: {
     width: '100%',

@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo } from 'react';
-import { View, Text, TextInput, TouchableOpacity, Modal, FlatList, ActivityIndicator } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, Modal, FlatList, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { observer } from 'mobx-react-lite';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -117,7 +117,11 @@ export const SearchModal = observer(({ visible, onClose, onSearch }: SearchModal
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
-      <View style={styles.searchContainer}>
+      <KeyboardAvoidingView
+        style={styles.searchContainer}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={0}
+      >
         <View style={styles.searchHeader}>
           <TextInput
             style={styles.searchInput}
@@ -144,7 +148,7 @@ export const SearchModal = observer(({ visible, onClose, onSearch }: SearchModal
           keyExtractor={keyExtractor}
           ListEmptyComponent={ListEmpty}
         />
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 });

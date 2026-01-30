@@ -1,6 +1,7 @@
 import { makeAutoObservable, runInAction } from 'mobx';
 import { SignUpData } from '@/types';
 import { AuthStore } from './AuthStore';
+import { isValidEmail, isValidPasswordLength } from '@/utils/validation';
 
 interface RegistrationState {
   formData: Omit<SignUpData, 'avatar'>;
@@ -58,13 +59,11 @@ export class RegistrationStore {
   validateForm = (): boolean => {
     const { email, password, first_name, last_name } = this.state.formData;
     const { confirmPassword } = this.state;
-    const emailRegex = /^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$/g;
-
-    if (!email.trim() || !emailRegex.test(email.trim())) {
+    if (!isValidEmail(email)) {
       this.state.error = 'Please enter a valid email address';
       return false;
     }
-    if (!password || password.length < 8) {
+    if (!password || !isValidPasswordLength(password)) {
       this.state.error = 'Password must be at least 8 characters long';
       return false;
     }

@@ -102,8 +102,10 @@ const ChallengeCompletionBanner: React.FC<ChallengeCompletionBannerProps> = ({ o
     }, 1000);
 
     return () => {
+      clearTimeout(pulseTimeout);
       if (countdownInterval.current) {
         clearInterval(countdownInterval.current);
+        countdownInterval.current = null;
       }
       clearTimeout(pulseTimeout);
       pulseAnimation.stop();

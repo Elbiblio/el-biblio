@@ -1,4 +1,3 @@
-
 import React, { useState, useCallback } from 'react';
 import {
   Image,
@@ -11,7 +10,6 @@ import {
   ActivityIndicator,
   ScrollView,
 } from 'react-native';
-import { BlurView } from 'expo-blur';
 import { useTheme } from '@/contexts/ThemeContext';
 import { Theme } from '@/theme';
 import { XCircle, Camera, Image as ImageIcon } from '@/components/Icons';
@@ -99,19 +97,18 @@ const AvatarSelectionModal: React.FC<AvatarSelectionModalProps> = ({
         statusBarTranslucent
       >
         <View style={styles.container}>
-          <BlurView intensity={20} style={StyleSheet.absoluteFill} pointerEvents="none" />
           <View style={styles.overlay}>
             <View style={styles.modalContainer}>
-              <BlurView intensity={10} style={styles.modalBlur} pointerEvents="none">
-                {/* Close Button */}
-                <TouchableOpacity 
+              <View style={styles.modalContent}>
+                <TouchableOpacity
                   style={styles.closeButton}
                   onPress={onClose}
                   hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  accessibilityLabel="Close"
                 >
                   <XCircle size={24} color={theme.colors.text.secondary} />
                 </TouchableOpacity>
-  
+
                 <View style={styles.content}>
                   <Text style={styles.title}>Make it yours!</Text>
                   <Text style={styles.subtitle}>
@@ -195,7 +192,7 @@ const AvatarSelectionModal: React.FC<AvatarSelectionModalProps> = ({
                     )}
                   </TouchableOpacity>
                 </View>
-              </BlurView>
+              </View>
             </View>
           </View>
         </View>
@@ -217,7 +214,6 @@ const AvatarSelectionModal: React.FC<AvatarSelectionModalProps> = ({
       borderRadius: theme.borderRadius.xl,
       overflow: 'hidden',
       marginVertical: SCREEN_DIMENSIONS.height * 0.1,
-      backgroundColor: theme.colors.background,
       ...Platform.select({
         ios: {
           shadowColor: '#000',
@@ -230,7 +226,7 @@ const AvatarSelectionModal: React.FC<AvatarSelectionModalProps> = ({
         },
       }),
     },
-    modalBlur: {
+    modalContent: {
       borderRadius: theme.borderRadius.xl,
       backgroundColor: theme.colors.background,
     },

@@ -1404,11 +1404,8 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
     }
   }, [bibleStore, resetIdleTimer]);
 
-  const renderPlanHeader = () => {
-    if (scopedView) {
-      console.log('[BibleScreen] renderPlanHeader suppressed due to scoped view');
-      return null;
-    }
+  const renderPlanHeader = useCallback(() => {
+    if (scopedView) return null;
 
     if (!bibleStore.isInitialized) {
       return null;
@@ -1806,7 +1803,16 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
         )}
       </View>
     );
-  };
+  }, [scopedView, bibleStore, showCompactPlan, planDetailsExpanded, styles, theme, formatSegmentLabel, phasesForToday, appTimerStore, resetIdleTimer, handleEnterPlanMode, handleExitPlanMode, handleToggleSegment, setShowCompactPlan, setPlanDetailsExpanded, setShowMeditationMode, setShowTimerModal, setShowAdvancedActions, setIsPlanSetupVisible, setBuilderReminder, builderReminder]);
+
+  const verseKeyExtractor = useCallback((item: BibleVerse) => item.id, []);
+  const renderVerse = useCallback(({ item }: { item: BibleVerse }) => (
+    <VerseItem
+      verse={item}
+      onLongPress={handleToggleHighlight}
+      onPress={handleOpenVerseActions}
+    />
+  ), [handleToggleHighlight, handleOpenVerseActions]);
 
   const handleTestamentFilterChange = useCallback((next: 'all' | 'ot' | 'nt') => {
     if (next === testamentFilter) {
@@ -1859,17 +1865,6 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
     );
   };
 
-
-  // Update verse text style to use fontSize state
-  const renderVerse = ({ item }: { item: BibleVerse }) => {
-    return (
-      <VerseItem
-        verse={item}
-        onLongPress={handleToggleHighlight}
-        onPress={handleOpenVerseActions}
-      />
-    );
-  };
 
   const ListFooter = () => {
     if (bibleStore.isVersesLoading && bibleStore.pagination.currentPage > 1) {
@@ -2035,7 +2030,7 @@ const BibleScreen = ({ route }: BibleScreenProps) => {
         ref={verseListRef}
         data={bibleStore.verses}
         renderItem={renderVerse}
-        keyExtractor={item => item.id}
+        keyExtractor={verseKeyExtractor}
         contentContainerStyle={styles.contentContainer}
         ListHeaderComponent={renderPlanHeader}
         ListHeaderComponentStyle={styles.planHeader}

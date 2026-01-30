@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, FlatList, TextInput, Modal, Animated, useWindowDimensions, Pressable } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, FlatList, TextInput, Modal, Animated, useWindowDimensions, Pressable, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import FeatherIcon from 'react-native-vector-icons/Feather';
 import { Star } from '@/components/Icons';
@@ -330,11 +330,13 @@ const FeatureSuggestionsScreen: React.FC<Props> = ({ navigation }) => {
           />
 
           <Modal visible={showCreate} animationType="slide" transparent onRequestClose={() => setShowCreate(false)}>
-            <View style={styles.modalBackdrop}>
+            <KeyboardAvoidingView style={styles.modalBackdrop} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={0}>
               <View style={styles.modalContent}>
                 <Text style={styles.modalTitle}>Suggest a Feature</Text>
-                <TextInput placeholder="Title" placeholderTextColor={theme.colors.text.tertiary} value={title} onChangeText={setTitle} style={styles.input} />
-                <TextInput placeholder="Describe your idea (markdown ok)" placeholderTextColor={theme.colors.text.tertiary} value={desc} onChangeText={setDesc} style={[styles.input, { height: 120 }]} multiline />
+                <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={{ gap: 12 }}>
+                  <TextInput placeholder="Title" placeholderTextColor={theme.colors.text.tertiary} value={title} onChangeText={setTitle} style={styles.input} />
+                  <TextInput placeholder="Describe your idea (markdown ok)" placeholderTextColor={theme.colors.text.tertiary} value={desc} onChangeText={setDesc} style={[styles.input, { height: 120 }]} multiline />
+                </ScrollView>
                 <View style={styles.modalActions}>
                   <TouchableOpacity style={[styles.action, styles.secondary]} onPress={() => setShowCreate(false)}>
                     <Text style={styles.secondaryText}>Cancel</Text>
@@ -356,7 +358,7 @@ const FeatureSuggestionsScreen: React.FC<Props> = ({ navigation }) => {
                   </TouchableOpacity>
                 </View>
               </View>
-            </View>
+            </KeyboardAvoidingView>
           </Modal>
 
           {canSubmit && (

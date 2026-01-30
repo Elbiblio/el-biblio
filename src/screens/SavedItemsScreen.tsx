@@ -379,8 +379,10 @@ const SavedItemsScreen = ({
         animationType="slide"
         onRequestClose={() => setShowFilters(false)}
       >
-        <BlurView intensity={20} style={styles.modalOverlay} pointerEvents="none">
-          <View style={styles.filterModal}>
+        <View style={styles.modalOverlay} pointerEvents="box-none">
+          <View style={StyleSheet.absoluteFill} pointerEvents="auto" collapsable={false} />
+          <BlurView intensity={20} style={StyleSheet.absoluteFill} pointerEvents="none" />
+          <View style={styles.filterModal} onStartShouldSetResponder={() => true}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Filters</Text>
               <TouchableOpacity
@@ -445,7 +447,7 @@ const SavedItemsScreen = ({
               </TouchableOpacity>
             </View>
           </View>
-        </BlurView>
+        </View>
       </Modal>
     </View>
   );

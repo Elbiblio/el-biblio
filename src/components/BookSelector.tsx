@@ -42,7 +42,7 @@ const BookSelector: React.FC<BookSelectorProps> = ({ currentBook, onSelect, book
         <MaterialIcons name="menu-book" size={24} color={theme.colors.text.primary} />
       </TouchableOpacity>
 
-      <Modal visible={modalVisible} transparent animationType="slide">
+      <Modal visible={modalVisible} transparent animationType="slide" onRequestClose={() => setModalVisible(false)}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <FlatList

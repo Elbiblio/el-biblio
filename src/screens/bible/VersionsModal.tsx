@@ -63,7 +63,7 @@ export const VersionsModal = observer(({ visible, onClose, onInstallVersion }: V
   const keyExtractor = useCallback((item: BibleVersion) => item.shortName, []);
 
   return (
-    <Modal visible={visible} animationType="slide">
+    <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
       <View style={styles.modalContainer}>
         <View style={styles.modalHeader}>
           <Text style={styles.modalTitle}>Bible Versions</Text>

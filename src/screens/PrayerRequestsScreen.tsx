@@ -639,7 +639,7 @@ const PrayerRequestsScreen = ({ navigation }: PrayerRequestsScreenProps) => {
       )}
 
       {/* Category picker modal */}
-      <Modal visible={showCategoryPicker} animationType="fade" transparent>
+      <Modal visible={showCategoryPicker} animationType="fade" transparent onRequestClose={() => setShowCategoryPicker(false)}>
         <View style={styles.modalBackdrop}>
           <View style={styles.pickerCard}>
             <Text style={styles.modalTitle}>Choose Category</Text>
@@ -664,15 +664,16 @@ const PrayerRequestsScreen = ({ navigation }: PrayerRequestsScreenProps) => {
       </Modal>
 
       {/* Compose modal */}
-      <Modal visible={showComposeModal} animationType="slide" transparent>
+      <Modal visible={showComposeModal} animationType="slide" transparent onRequestClose={() => { if (!isPosting) { setShowComposeModal(false); setComposeDraft(''); } }}>
         <KeyboardAvoidingView
           style={styles.modalBackdrop}
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
         >
           <View style={styles.composeCard}>
             <Text style={styles.modalTitle}>Share a Prayer Request</Text>
             <Text style={styles.modalSubtitle}>Write from the heart. Others will pray with you.</Text>
-            <ScrollView style={{ maxHeight: 260 }}>
+            <ScrollView style={{ maxHeight: 260 }} keyboardShouldPersistTaps="handled">
               <TextInput
                 style={styles.composeInput}
                 value={composeDraft}
@@ -778,7 +779,7 @@ const PrayerRequestsScreen = ({ navigation }: PrayerRequestsScreenProps) => {
       </Modal>
 
       {/* Pray guide modal */}
-      <Modal visible={showPrayGuideModal} animationType="fade" transparent>
+      <Modal visible={showPrayGuideModal} animationType="fade" transparent onRequestClose={closePrayGuide}>
         <View style={styles.modalBackdrop}>
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>Committment to God</Text>
@@ -863,10 +864,11 @@ const PrayerRequestsScreen = ({ navigation }: PrayerRequestsScreenProps) => {
       </Modal>
 
       {/* Detail modal */}
-      <Modal visible={!!selectedRequestId} animationType="slide" transparent>
+      <Modal visible={!!selectedRequestId} animationType="slide" transparent onRequestClose={() => setSelectedRequestId(null)}>
         <KeyboardAvoidingView
           style={styles.detailBackdrop}
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
         >
           <View style={styles.detailCard}>
             <TouchableOpacity style={styles.detailClose} onPress={() => setSelectedRequestId(null)}>

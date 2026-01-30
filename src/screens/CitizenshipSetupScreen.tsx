@@ -338,7 +338,7 @@ const CitizenshipSetupScreen = observer(() => {
 
       {/* Revive checklist modal */}
       {showReviveChecklist && (
-        <Modal visible transparent animationType="slide" onRequestClose={() => setShowReviveChecklist(false)}>
+        <Modal visible={showReviveChecklist} transparent animationType="slide" onRequestClose={() => setShowReviveChecklist(false)}>
           <View style={styles.modalOverlay}>
             <View style={styles.modalCard}>
               <Text style={styles.modalTitle}>Revive Daily Checklist</Text>

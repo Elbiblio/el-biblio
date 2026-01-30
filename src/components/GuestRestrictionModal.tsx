@@ -7,7 +7,6 @@ import {
   Modal,
   Pressable,
 } from 'react-native';
-import { BlurView } from 'expo-blur';
 import { useTheme } from '@/contexts/ThemeContext';
 import { Theme } from '@/theme';
 import { Lock, Users, Sparkle } from '@/components/Icons';
@@ -52,8 +51,7 @@ const GuestRestrictionModal: React.FC<GuestRestrictionModalProps> = ({
       onRequestClose={onClose}
     >
       <Pressable style={styles.overlay} onPress={onClose}>
-        <Pressable style={styles.container}>
-          <BlurView intensity={20} style={StyleSheet.absoluteFill} />
+        <Pressable style={styles.container} onStartShouldSetResponder={() => true}>
           <View style={styles.content}>
             <View style={styles.header}>
               <View style={styles.iconContainer}>

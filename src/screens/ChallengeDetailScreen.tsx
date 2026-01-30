@@ -595,7 +595,7 @@ const ChallengeDetailScreen = observer(({ route, navigation }: Props) => {
       </Modal>
 
       {/* Reminder Alert Modal */}
-      <Modal visible={showReminderAlert} animationType="fade" transparent>
+      <Modal visible={showReminderAlert} animationType="fade" transparent onRequestClose={handleDismissReminder}>
         <View style={styles.modalBackdrop}>
           <View style={styles.alertModalCard}>
             <View style={styles.alertIconContainer}>

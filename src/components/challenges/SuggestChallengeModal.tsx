@@ -1,5 +1,5 @@
 import React, { memo } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, TextInput, Modal } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, TextInput, Modal, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
 import { Theme } from '@/theme';
 
 export interface SuggestChallengeModalProps {
@@ -30,24 +30,26 @@ const SuggestChallengeModal = memo(({
 
   return (
     <Modal visible={visible} animationType="fade" transparent onRequestClose={onClose}>
-      <View style={styles.modalBackdrop}>
+      <KeyboardAvoidingView style={styles.modalBackdrop} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={0}>
         <View style={styles.modalCard}>
           <Text style={styles.modalTitle}>Suggest a Community Challenge</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Title"
-            placeholderTextColor={theme?.colors.text.secondary}
-            value={title}
-            onChangeText={onChangeTitle}
-          />
-          <TextInput
-            style={[styles.input, styles.textArea]}
-            placeholder="Description (optional)"
-            placeholderTextColor={theme?.colors.text.secondary}
-            value={description}
-            onChangeText={onChangeDescription}
-            multiline
-          />
+          <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 16 }}>
+            <TextInput
+              style={styles.input}
+              placeholder="Title"
+              placeholderTextColor={theme?.colors.text.secondary}
+              value={title}
+              onChangeText={onChangeTitle}
+            />
+            <TextInput
+              style={[styles.input, styles.textArea]}
+              placeholder="Description (optional)"
+              placeholderTextColor={theme?.colors.text.secondary}
+              value={description}
+              onChangeText={onChangeDescription}
+              multiline
+            />
+          </ScrollView>
           <View style={styles.formActions}>
             <TouchableOpacity style={[styles.formButton, styles.cancelButton]} onPress={onClose}>
               <Text style={styles.cancelButtonText}>Cancel</Text>
@@ -61,7 +63,7 @@ const SuggestChallengeModal = memo(({
             </TouchableOpacity>
           </View>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 });

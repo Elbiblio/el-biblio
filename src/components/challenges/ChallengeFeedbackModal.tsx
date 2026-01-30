@@ -1,5 +1,5 @@
 import React from 'react';
-import { Modal, View, TouchableOpacity, TextInput, Text, StyleSheet } from 'react-native';
+import { Modal, View, TouchableOpacity, TextInput, Text, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { Theme } from '@/theme';
 
@@ -36,7 +36,7 @@ const ChallengeFeedbackModal: React.FC<ChallengeFeedbackModalProps> = ({
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={handleClose}>
-      <View style={styles.overlay}>
+      <KeyboardAvoidingView style={styles.overlay} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={0}>
         <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={handleClose} />
         <View style={styles.card}>
           <Text style={styles.title}>{title}</Text>
@@ -63,7 +63,7 @@ const ChallengeFeedbackModal: React.FC<ChallengeFeedbackModalProps> = ({
             </TouchableOpacity>
           </View>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 };

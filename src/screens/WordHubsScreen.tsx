@@ -617,8 +617,10 @@ const WordHubsScreen = ({
 
       {/* Create Hub Modal */}
       {showCreateHub && (
-        <BlurView intensity={20} style={styles.modalOverlay} pointerEvents="none">
-          <View style={styles.modal}>
+        <View style={styles.modalOverlay} pointerEvents="box-none">
+          <View style={StyleSheet.absoluteFill} pointerEvents="auto" collapsable={false} />
+          <BlurView intensity={20} style={StyleSheet.absoluteFill} pointerEvents="none" />
+          <View style={styles.modal} onStartShouldSetResponder={() => true}>
             <Text style={styles.modalTitle}>Create Word Hub</Text>
 
             <TextInput
@@ -690,13 +692,15 @@ const WordHubsScreen = ({
               </TouchableOpacity>
             </View>
           </View>
-        </BlurView>
+        </View>
       )}
 
       {/* Android Private Hub Access Code Modal */}
       {showAccessCodeModal && (
-        <BlurView intensity={20} style={styles.modalOverlay} pointerEvents="none">
-          <View style={styles.modal}>
+        <View style={styles.modalOverlay} pointerEvents="box-none">
+          <View style={StyleSheet.absoluteFill} pointerEvents="auto" collapsable={false} />
+          <BlurView intensity={20} style={StyleSheet.absoluteFill} pointerEvents="none" />
+          <View style={styles.modal} onStartShouldSetResponder={() => true}>
             <Text style={styles.modalTitle}>Join Private Hub</Text>
             <TextInput
               style={styles.input}
@@ -732,7 +736,7 @@ const WordHubsScreen = ({
               </TouchableOpacity>
             </View>
           </View>
-        </BlurView>
+        </View>
       )}
 
       {/* Guest Restriction Modal */}

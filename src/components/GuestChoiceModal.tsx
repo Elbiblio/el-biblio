@@ -9,7 +9,6 @@ import {
   useWindowDimensions,
 } from 'react-native';
 
-import { BlurView } from 'expo-blur';
 import { useTheme } from '@/contexts/ThemeContext';
 import { Theme } from '@/theme';
 import { User, Users, Sparkle } from '@/components/Icons';
@@ -52,8 +51,7 @@ const GuestChoiceModal: React.FC<GuestChoiceModalProps> = ({
       onRequestClose={onClose}
     >
       <Pressable style={styles.overlay} onPress={onClose}>
-        <Pressable style={styles.container}>
-          <BlurView intensity={20} style={StyleSheet.absoluteFill} />
+        <Pressable style={styles.container} onStartShouldSetResponder={() => true}>
           <View style={styles.content}>
             <View style={styles.header}>
               <Sparkle size={32} color={theme.colors.primary} />

@@ -2,7 +2,7 @@
   "expo": {
     "name": "El-Biblio",
     "slug": "elbiblio",
-    "version": "1.0.29",
+    "version": "1.0.30",
     "orientation": "portrait",
     "icon": "./assets/penheart.png",
     "userInterfaceStyle": "light",
@@ -43,7 +43,7 @@
         "backgroundColor": "#ffffff"
       },
       "package": "com.elbiblio.app",
-      "versionCode": 10029,
+      "versionCode": 10030,
       "googleServicesFile": "./google-services.json",
       "permissions": [
         "android.permission.CAMERA",

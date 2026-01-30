@@ -1,5 +1,5 @@
 import React, { memo } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, TextInput, Modal } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, TextInput, Modal, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
 import { Star, X } from '@/components/Icons';
 import { Theme } from '@/theme';
 import { ChallengeType } from '@/types/challenges';
@@ -45,25 +45,26 @@ const CreateChallengeModal = memo(({
 
   return (
     <Modal visible={visible} animationType="fade" transparent onRequestClose={onClose}>
-      <View style={styles.modalBackdrop}>
+      <KeyboardAvoidingView style={styles.modalBackdrop} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={0}>
         <View style={styles.modalCard}>
           <Text style={styles.modalTitle}>Create a Personal Challenge</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Title"
-            placeholderTextColor={theme?.colors.text.secondary}
-            value={title}
-            onChangeText={onChangeTitle}
-          />
-          <TextInput
-            style={[styles.input, styles.textArea]}
-            placeholder="Description (optional)"
-            placeholderTextColor={theme?.colors.text.secondary}
-            value={description}
-            onChangeText={onChangeDescription}
-            multiline
-          />
-          <View style={{ flexDirection: 'row', gap: theme?.spacing.sm, marginBottom: theme?.spacing.md }}>
+          <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 16 }}>
+            <TextInput
+              style={styles.input}
+              placeholder="Title"
+              placeholderTextColor={theme?.colors.text.secondary}
+              value={title}
+              onChangeText={onChangeTitle}
+            />
+            <TextInput
+              style={[styles.input, styles.textArea]}
+              placeholder="Description (optional)"
+              placeholderTextColor={theme?.colors.text.secondary}
+              value={description}
+              onChangeText={onChangeDescription}
+              multiline
+            />
+            <View style={{ flexDirection: 'row', gap: theme?.spacing.sm, marginBottom: theme?.spacing.md }}>
             {CHALLENGE_TYPES.map((t) => (
               <TouchableOpacity
                 key={t.id}
@@ -88,13 +89,14 @@ const CreateChallengeModal = memo(({
               </TouchableOpacity>
             ))}
           </View>
-          <TextInput
-            style={styles.input}
-            placeholder="End time (HH:MM)"
-            placeholderTextColor={theme?.colors.text.secondary}
-            value={endTime}
-            onChangeText={onChangeEndTime}
-          />
+            <TextInput
+              style={styles.input}
+              placeholder="End time (HH:MM)"
+              placeholderTextColor={theme?.colors.text.secondary}
+              value={endTime}
+              onChangeText={onChangeEndTime}
+            />
+          </ScrollView>
           <View style={styles.formActions}>
             <TouchableOpacity style={[styles.formButton, styles.cancelButton]} onPress={onClose}>
               <Text style={styles.cancelButtonText}>Cancel</Text>
@@ -108,7 +110,7 @@ const CreateChallengeModal = memo(({
             </TouchableOpacity>
           </View>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 });

@@ -102,7 +102,7 @@ const BiblePicker: React.FC<BiblePickerProps> = ({
         <MaterialIcons name="arrow-drop-down" size={24} color={theme.colors.text.primary} />
       </TouchableOpacity>
 
-      <Modal visible={modalVisible} transparent animationType="slide">
+      <Modal visible={modalVisible} transparent animationType="slide" onRequestClose={() => setModalVisible(false)}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             {allowAlphabeticalSort && (

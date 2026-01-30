@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import { Modal, View, Text, TouchableOpacity, StyleSheet, Platform } from 'react-native';
-import { BlurView } from 'expo-blur';
 import SoundManager from '@/utils/SoundManager';
 import { useTheme } from '@/contexts/ThemeContext';
 import { Theme } from '@/theme';
@@ -39,7 +38,6 @@ const SoundSettingsModal: React.FC<Props> = ({ visible, onClose }) => {
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.container}>
-        <BlurView intensity={30} style={StyleSheet.absoluteFill} pointerEvents="none" />
         <View style={styles.card}>
           <Text style={styles.title}>Sound Settings</Text>
 
@@ -77,7 +75,13 @@ const SoundSettingsModal: React.FC<Props> = ({ visible, onClose }) => {
 };
 
 const createStyles = (theme: Theme) => StyleSheet.create({
-  container: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: theme.spacing.lg },
+  container: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: theme.spacing.lg,
+    backgroundColor: theme.colors.modal?.overlay ?? 'rgba(0,0,0,0.5)',
+  },
   card: {
     width: '100%', maxWidth: 420, backgroundColor: theme.colors.surface, borderRadius: theme.borderRadius.lg,
     padding: theme.spacing.xl, gap: theme.spacing.lg,
