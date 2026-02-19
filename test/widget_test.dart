@@ -8,7 +8,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:compass_os/main.dart';
+import 'package:elbiblio/main.dart';
 
 void main() {
   testWidgets('App smoke test', (WidgetTester tester) async {
