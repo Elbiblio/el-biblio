@@ -1,7 +1,7 @@
-name: compass_os
-description: Compass OS - a personal spiritual operating system built with Flutter.
+name: elbiblio
+description: El-Biblio - a personal spiritual operating system built with Flutter.
 publish_to: none
-version: 1.0.0+1
+version: 1.0.32+10033
 
 environment:
   sdk: ">=3.5.0 <4.0.0"
@@ -26,6 +26,8 @@ dependencies:
   path: ^1.9.1
   speech_to_text: ^7.0.0
   permission_handler: ^11.0.0
+  flutter_contacts: ^1.1.9
+  crypto: ^3.0.3
 
 dev_dependencies:
   flutter_test:

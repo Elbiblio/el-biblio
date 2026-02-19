@@ -161,13 +161,23 @@ class BibleDatabaseService {
   }
 
   BibleVerseContent _mapToContent(Map<String, dynamic> map, String bookAbbr, int chapter) {
+    final verse = int.tryParse(map['startVerse'].toString()) ?? 0;
+    final text = map['verseText'].toString().trim();
+    final reference = '$bookAbbr $chapter:$verse';
+    
+    // Generate a pseudo-ID for local verses to ensure UI list uniqueness.
+    // Note: These IDs will not work with backend actions (highlight/bookmark) 
+    // unless the backend supports lookup by reference or we sync differently.
+    // Using hashCode ensures consistency for the same verse.
+    final id = reference.hashCode;
+
     return BibleVerseContent(
-      id: 0, 
+      id: id, 
       bookId: 0, 
       chapter: chapter,
-      verse: int.tryParse(map['startVerse'].toString()) ?? 0,
-      text: map['verseText'].toString().trim(),
-      reference: '$bookAbbr $chapter:${map['startVerse']}',
+      verse: verse,
+      text: text,
+      reference: reference,
     );
   }
 

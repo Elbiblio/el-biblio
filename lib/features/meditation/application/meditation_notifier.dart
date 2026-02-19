@@ -28,9 +28,9 @@ class MeditationNotifier extends StateNotifier<MeditationState> {
       final context = AudioContext(
         iOS: AudioContextIOS(
           category: AVAudioSessionCategory.playback,
-          options: {AVAudioSessionOptions.mixWithOthers},
+          options: const {AVAudioSessionOptions.mixWithOthers},
         ),
-        android: AudioContextAndroid(
+        android: const AudioContextAndroid(
           isSpeakerphoneOn: false,
           stayAwake: true,
           contentType: AndroidContentType.music,

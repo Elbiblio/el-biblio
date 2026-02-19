@@ -175,7 +175,7 @@ class OnboardingScreenRefactored extends ConsumerWidget {
             size: MediaQuery.of(context).size.width * 0.38,
           ),
           title: Text(
-            'Compass OS',
+            'El-Biblio',
             style: Theme.of(context).textTheme.headlineLarge?.copyWith(
                   fontWeight: FontWeight.w300,
                   letterSpacing: 0.6,
@@ -465,7 +465,7 @@ class OnboardingScreenRefactored extends ConsumerWidget {
                 contentPadding: EdgeInsets.zero,
                 value: state.socialPresenceOptIn,
                 title: const Text('Connect with contacts'),
-                subtitle: const Text('Find friends using Compass OS'),
+                subtitle: const Text('Find friends using El-Biblio'),
                 onChanged: notifier.setSocialPresenceOptIn,
               ),
               if (state.socialPresenceOptIn) ...[

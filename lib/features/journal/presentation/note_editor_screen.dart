@@ -11,9 +11,15 @@ class NoteEditorScreen extends ConsumerStatefulWidget {
   const NoteEditorScreen({
     super.key,
     this.noteId,
+    this.initialTitle,
+    this.initialText,
+    this.initialVirtues,
   });
 
   final String? noteId;
+  final String? initialTitle;
+  final String? initialText;
+  final List<String>? initialVirtues;
 
   @override
   ConsumerState<NoteEditorScreen> createState() => _NoteEditorScreenState();
@@ -37,6 +43,11 @@ class _NoteEditorScreenState extends ConsumerState<NoteEditorScreen> {
     _speech = stt.SpeechToText();
     if (widget.noteId != null) {
       _loadNote();
+    } else {
+      // Apply initial values if provided (for new notes)
+      if (widget.initialTitle != null) _titleController.text = widget.initialTitle!;
+      if (widget.initialText != null) _textController.text = widget.initialText!;
+      if (widget.initialVirtues != null) _selectedVirtues = List.from(widget.initialVirtues!);
     }
   }
 

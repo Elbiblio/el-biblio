@@ -66,7 +66,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         routes: [
           GoRoute(
             path: 'new',
-            builder: (context, state) => const NoteEditorScreen(),
+            builder: (context, state) {
+              final extra = state.extra as Map<String, dynamic>?;
+              return NoteEditorScreen(
+                initialTitle: extra?['initialTitle'] as String?,
+                initialText: extra?['initialText'] as String?,
+                initialVirtues: extra?['initialVirtues'] as List<String>?,
+              );
+            },
           ),
           GoRoute(
             path: ':id',

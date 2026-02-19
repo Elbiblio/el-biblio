@@ -16,9 +16,9 @@ class SoundService {
         AudioContext(
           iOS: AudioContextIOS(
             category: AVAudioSessionCategory.playback,
-            options: {AVAudioSessionOptions.mixWithOthers},
+            options: const {AVAudioSessionOptions.mixWithOthers},
           ),
-          android: AudioContextAndroid(
+          android: const AudioContextAndroid(
             isSpeakerphoneOn: false,
             stayAwake: false,
             contentType: AndroidContentType.music,

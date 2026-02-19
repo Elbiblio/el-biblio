@@ -11,6 +11,9 @@ import '../../features/bible/data/services/bible_database_service.dart';
 import '../../features/journal/application/journal_notifier.dart';
 import '../../features/journal/application/journal_state.dart';
 import '../../features/journal/data/journal_repository.dart';
+import '../../features/social/application/contact_notifier.dart';
+import '../../features/social/application/contact_state.dart';
+import '../../features/social/data/contact_repository.dart';
 import '../../features/today/application/daily_anchors_notifier.dart';
 import '../../features/today/application/virtue_notifier.dart';
 import '../../features/today/application/virtue_state.dart';
@@ -132,5 +135,16 @@ final verseRepositoryProvider = Provider<VerseRepository>((ref) {
 
 final verseProvider = StateNotifierProvider<VerseNotifier, DailyVersesState>((ref) {
   return VerseNotifier(ref.watch(verseRepositoryProvider));
+});
+
+final contactRepositoryProvider = Provider<ContactRepository>((ref) {
+  return ContactRepository(
+    ref.watch(dioClientProvider),
+    ref.watch(loggerProvider),
+  );
+});
+
+final contactProvider = StateNotifierProvider<ContactNotifier, ContactState>((ref) {
+  return ContactNotifier(ref.watch(contactRepositoryProvider));
 });
 

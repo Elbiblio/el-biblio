@@ -1,0 +1,51 @@
+default_platform(:android)
+
+platform :android do
+  lane :build_release do
+    gradle(
+      task: "clean",
+      project_dir: "."
+    )
+    
+    gradle(
+      tasks: ["assembleRelease", "bundleRelease"],
+      project_dir: ".",
+      properties: {
+        "org.gradle.daemon" => "true",
+        "org.gradle.parallel" => "true",
+        "org.gradle.configureondemand" => "true",
+        "org.gradle.caching" => "true"
+      },
+      print_command: false
+    )
+  end
+  
+  lane :upload_to_play_console do
+    package_name = "com.elbiblio.app"
+    
+    # Find the AAB file
+    aab_path = Dir.glob("app/build/outputs/bundle/release/*.aab").first
+    
+    if aab_path.nil?
+      UI.user_error!("No AAB file found in app/build/outputs/bundle/release/")
+    end
+    
+    UI.message("Uploading #{aab_path} to Google Play Console...")
+    
+    supply(
+      aab: aab_path,
+      package_name: package_name,
+      track: "internal",
+      skip_upload_metadata: true,
+      skip_upload_changelogs: true,
+      skip_upload_images: true,
+      skip_upload_screenshots: true,
+      release_status: "draft"
+    )
+  end
+  
+  lane :build_and_upload do
+    build_release
+    upload_to_play_console
+  end
+end

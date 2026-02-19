@@ -10,6 +10,7 @@ import '../../today/domain/models/daily_anchors.dart';
 import 'widgets/responsive_layout_builder.dart';
 import 'widgets/onboarding_illustrations.dart';
 import 'widgets/micro_interactions.dart';
+import '../../social/presentation/widgets/social_onboarding_view.dart';
 
 class OnboardingScreen extends ConsumerWidget {
   const OnboardingScreen({super.key});
@@ -191,7 +192,7 @@ class OnboardingScreen extends ConsumerWidget {
                       child: Transform.translate(
                         offset: Offset(0, 20 * (1 - value)),
                         child: Text(
-                          'Compass OS',
+                          'El-Biblio',
                           style: Theme.of(context).textTheme.headlineLarge?.copyWith(
                             fontWeight: FontWeight.w300,
                             letterSpacing: 1.2,
@@ -208,7 +209,7 @@ class OnboardingScreen extends ConsumerWidget {
                 TweenAnimationBuilder<double>(
                   duration: _duration,
                   tween: Tween(begin: 0.0, end: 1.0),
-                  curve: Interval(0.2, 1.0, curve: _curve),
+                  curve: const Interval(0.2, 1.0, curve: _curve),
                   builder: (context, value, child) {
                     return Opacity(
                       opacity: value,
@@ -233,7 +234,7 @@ class OnboardingScreen extends ConsumerWidget {
                 TweenAnimationBuilder<double>(
                   duration: _duration,
                   tween: Tween(begin: 0.0, end: 1.0),
-                  curve: Interval(0.4, 1.0, curve: _curve),
+                  curve: const Interval(0.4, 1.0, curve: _curve),
                   builder: (context, value, child) {
                     return Opacity(
                       opacity: value,
@@ -799,47 +800,7 @@ class OnboardingScreen extends ConsumerWidget {
                     ),
                   ],
                 ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    SwitchListTile(
-                      contentPadding: EdgeInsets.zero,
-                      value: state.socialPresenceOptIn,
-                      title: Text(
-                        'Connect with contacts',
-                        style: TextStyle(fontSize: ResponsiveFontSize.getBodyLarge(context)),
-                      ),
-                      subtitle: Text(
-                        'Find friends using Compass OS',
-                        style: TextStyle(fontSize: ResponsiveFontSize.getBodyMedium(context)),
-                      ),
-                      onChanged: notifier.setSocialPresenceOptIn,
-                    ),
-                    if (state.socialPresenceOptIn) ...[
-                      SizedBox(height: ResponsiveSpacing.getGoldenRatioSmall(12)),
-                      ListTile(
-                        contentPadding: EdgeInsets.zero,
-                        title: Text(
-                          'Import contacts',
-                          style: TextStyle(fontSize: ResponsiveFontSize.getBodyLarge(context)),
-                        ),
-                        subtitle: Text(
-                          state.contactsImported ? 'Contacts imported' : 'Tap to import',
-                          style: TextStyle(fontSize: ResponsiveFontSize.getBodyMedium(context)),
-                        ),
-                        trailing: Icon(
-                          state.contactsImported ? Icons.check_circle : Icons.upload_file,
-                        ),
-                        onTap: state.contactsImported
-                            ? null
-                            : () async {
-                                // Simulate contacts import
-                                notifier.setContactsImported(true);
-                              },
-                      ),
-                    ],
-                  ],
-                ),
+                child: const SocialOnboardingView(),
               ),
             ],
           ),
@@ -1077,7 +1038,7 @@ class OnboardingScreen extends ConsumerWidget {
       child: TweenAnimationBuilder<double>(
         duration: _duration,
         tween: Tween(begin: 0.0, end: 1.0),
-        curve: Interval(0.6, 1.0, curve: _curve),
+        curve: const Interval(0.6, 1.0, curve: _curve),
         builder: (context, value, child) {
           return Opacity(
             opacity: value,
@@ -1131,7 +1092,7 @@ class OnboardingScreen extends ConsumerWidget {
       child: TweenAnimationBuilder<double>(
         duration: _duration,
         tween: Tween(begin: 0.0, end: 1.0),
-        curve: Interval(0.6, 1.0, curve: _curve),
+        curve: const Interval(0.6, 1.0, curve: _curve),
         builder: (context, value, child) {
           return Opacity(
             opacity: value,

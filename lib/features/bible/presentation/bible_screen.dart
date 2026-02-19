@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:flutter/services.dart';
+import 'package:go_router/go_router.dart';
+import '../../../../core/constants/app_routes.dart';
 import '../../../../core/di/app_providers.dart';
 import '../application/bible_notifier.dart';
 import 'widgets/bible_verse_action_sheet.dart';
@@ -89,9 +92,28 @@ class BibleScreen extends ConsumerWidget {
       ),
       body: bibleState.isLoading && bibleState.verses.isEmpty
           ? const Center(child: CircularProgressIndicator())
-          : Stack(
-              children: [
-                Column(
+          : GestureDetector(
+              onHorizontalDragEnd: (details) {
+                if (details.primaryVelocity == null) return;
+                final velocity = details.primaryVelocity!;
+                if (velocity.abs() < 300) return; 
+
+                if (velocity > 0) {
+                  // Swipe Right -> Previous
+                  if (bibleState.currentChapter > 1 || 
+                      (bibleState.currentBook != null && bibleState.books.indexOf(bibleState.currentBook!) > 0)) {
+                    HapticFeedback.lightImpact();
+                    bibleNotifier.previousChapter();
+                  }
+                } else {
+                   // Swipe Left -> Next
+                   HapticFeedback.lightImpact();
+                   bibleNotifier.nextChapter();
+                }
+              },
+              child: Stack(
+                children: [
+                  Column(
                   children: [
                     if (bibleState.error != null)
                       Padding(
@@ -122,30 +144,37 @@ class BibleScreen extends ConsumerWidget {
                                         onHighlight: () => bibleNotifier.toggleHighlight(verse.id),
                                         onBookmark: () => bibleNotifier.toggleBookmark(verse.id),
                                         onInsight: () => bibleNotifier.getInsight(verse.id),
+                                        onJournal: () {
+                                          final reference = verse.reference ?? '${bibleState.currentBook?.name} ${bibleState.currentChapter}:${verse.verse}';
+                                          context.push(
+                                            '${AppRoutes.journal}/new',
+                                            extra: {
+                                              'initialTitle': 'Reflection on $reference',
+                                              'initialText': '"${verse.text}"\n\n$reference\n\n',
+                                              'initialVirtues': <String>[],
+                                            },
+                                          );
+                                        },
                                         onCompare: () {
-                                           // Start fetch
-                                           bibleNotifier.compareVerses(verse.reference ?? '${bibleState.currentBook?.abbreviation} ${bibleState.currentChapter}:${verse.verse}');
-                                           
-                                           // Show Sheet
-                                           showModalBottomSheet(
-                                             context: context,
-                                             isScrollControlled: true,
-                                             useSafeArea: true,
-                                             backgroundColor: Colors.transparent,
-                                             builder: (context) => Consumer(
-                                                builder: (context, ref, child) {
-                                                  // Watch state for updates
-                                                  final currentCompareState = ref.watch(bibleProvider);
-                                                  return BibleCompareSheet(
-                                                    reference: verse.reference ?? 'Verse',
-                                                    results: currentCompareState.comparisonResults,
-                                                    isLoading: currentCompareState.isComparing,
-                                                  );
-                                                },
-                                             ),
-                                           ).whenComplete(() {
-                                              bibleNotifier.clearComparison();
-                                           });
+                                          bibleNotifier.compareVerses(verse.reference ?? '${bibleState.currentBook?.abbreviation} ${bibleState.currentChapter}:${verse.verse}');
+                                          showModalBottomSheet(
+                                            context: context,
+                                            isScrollControlled: true,
+                                            useSafeArea: true,
+                                            backgroundColor: Colors.transparent,
+                                            builder: (context) => Consumer(
+                                              builder: (context, ref, child) {
+                                                final currentCompareState = ref.watch(bibleProvider);
+                                                return BibleCompareSheet(
+                                                  reference: verse.reference ?? 'Verse',
+                                                  results: currentCompareState.comparisonResults,
+                                                  isLoading: currentCompareState.isComparing,
+                                                );
+                                              },
+                                            ),
+                                          ).whenComplete(() {
+                                            bibleNotifier.clearComparison();
+                                          });
                                         },
                                       ),
                                     );

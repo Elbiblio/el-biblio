@@ -12,6 +12,7 @@ class BibleVerseActionSheet extends ConsumerWidget {
     required this.onBookmark,
     required this.onInsight,
     required this.onCompare,
+    required this.onJournal,
   });
 
   final BibleVerseContent verse;
@@ -19,6 +20,7 @@ class BibleVerseActionSheet extends ConsumerWidget {
   final VoidCallback onBookmark;
   final VoidCallback onInsight;
   final VoidCallback onCompare;
+  final VoidCallback onJournal;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -39,6 +41,14 @@ class BibleVerseActionSheet extends ConsumerWidget {
             ),
           ),
           const Divider(),
+          ListTile(
+            leading: const Icon(Icons.edit_note, color: Colors.green),
+            title: const Text('Journal Note'),
+            onTap: () {
+              Navigator.pop(context);
+              onJournal();
+            },
+          ),
           ListTile(
             leading: const Icon(Icons.auto_awesome, color: Colors.purple),
             title: const Text('Get Insight'),
