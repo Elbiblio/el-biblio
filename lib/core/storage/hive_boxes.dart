@@ -9,4 +9,5 @@ class HiveBoxes {
   static const meditationSessions = 'meditation_sessions';
   static const xpActivities = 'xp_activities';
   static const xpTotals = 'xp_totals';
+  static const journeyProgress = 'journey_progress';
 }

@@ -29,6 +29,9 @@ import '../../features/time_diagnose/presentation/screens/time_diagnose_configur
 import '../../features/time_diagnose/presentation/screens/time_diagnose_analysis_screen.dart';
 import '../../features/social/presentation/invite_screen.dart';
 import '../../features/today/presentation/today_screen.dart';
+import '../../features/games/presentation/screens/games_hub_screen.dart';
+import '../../features/games/presentation/screens/journey_map_screen.dart';
+import '../../features/bible/presentation/games/verse_game_screen.dart';
 import '../../shared/widgets/app_shell.dart';
 
 final _rootNavigatorKey = NotificationService.navigatorKey;
@@ -129,6 +132,21 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: '/invite',
         parentNavigatorKey: _rootNavigatorKey,
         builder: (context, state) => const InviteScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.games,
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) => const GamesHubScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.gamesVerseScramble,
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) => const VerseGameScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.gamesJourney,
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) => const JourneyMapScreen(),
       ),
       GoRoute(
         path: AppRoutes.about,

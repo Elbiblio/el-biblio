@@ -15,4 +15,7 @@ class AppRoutes {
   static const reminders = '/profile/reminders';
   static const about = '/about';
   static const invite = '/invite';
+  static const games = '/games';
+  static const gamesVerseScramble = '/games/verse-scramble';
+  static const gamesJourney = '/games/journey';
 }
