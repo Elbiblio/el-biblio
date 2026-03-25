@@ -43,6 +43,13 @@ import '../../features/today/presentation/today_screen.dart';
 import '../../features/games/presentation/screens/games_hub_screen.dart';
 import '../../features/games/presentation/screens/journey_map_screen.dart';
 import '../../features/bible/presentation/games/verse_game_screen.dart';
+import '../../features/alignment/presentation/screens/alignment_hub_screen.dart';
+import '../../features/alignment/presentation/screens/spiritual_profile_screen.dart';
+import '../../features/alignment/presentation/screens/habit_assessment_screen.dart';
+import '../../features/alignment/presentation/screens/habit_tracker_screen.dart';
+import '../../features/alignment/presentation/screens/forty_day_setup_screen.dart';
+import '../../features/alignment/presentation/screens/forty_day_progress_screen.dart';
+import '../../features/alignment/presentation/screens/career_alignment_screen.dart';
 import '../../shared/widgets/app_shell.dart';
 
 final _rootNavigatorKey = NotificationService.navigatorKey;
@@ -193,6 +200,43 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: AppRoutes.gamesJourney,
         parentNavigatorKey: _rootNavigatorKey,
         builder: (context, state) => const JourneyMapScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.alignment,
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) => const AlignmentHubScreen(),
+        routes: [
+          GoRoute(
+            path: 'profile',
+            parentNavigatorKey: _rootNavigatorKey,
+            builder: (context, state) => const SpiritualProfileScreen(),
+          ),
+          GoRoute(
+            path: 'habit-assessment',
+            parentNavigatorKey: _rootNavigatorKey,
+            builder: (context, state) => const HabitAssessmentScreen(),
+          ),
+          GoRoute(
+            path: 'habit-tracker',
+            parentNavigatorKey: _rootNavigatorKey,
+            builder: (context, state) => const HabitTrackerScreen(),
+          ),
+          GoRoute(
+            path: 'forty-day-setup',
+            parentNavigatorKey: _rootNavigatorKey,
+            builder: (context, state) => const FortyDaySetupScreen(),
+          ),
+          GoRoute(
+            path: 'forty-day-progress',
+            parentNavigatorKey: _rootNavigatorKey,
+            builder: (context, state) => const FortyDayProgressScreen(),
+          ),
+          GoRoute(
+            path: 'career',
+            parentNavigatorKey: _rootNavigatorKey,
+            builder: (context, state) => const CareerAlignmentScreen(),
+          ),
+        ],
       ),
       GoRoute(
         path: AppRoutes.about,

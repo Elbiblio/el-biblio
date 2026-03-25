@@ -12,4 +12,5 @@ class HiveBoxes {
   static const appLockConfigs = 'app_lock_configs';
   static const appLockUsage = 'app_lock_usage';
   static const journeyProgress = 'journey_progress';
+  static const alignment = 'alignment';
 }

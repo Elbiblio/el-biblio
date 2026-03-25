@@ -198,10 +198,10 @@ class SpiritualToolsMenu extends ConsumerWidget {
                         ),
                         _UtilityAction(
                           icon: Icons.explore_rounded,
-                          label: 'Assessment',
+                          label: 'Alignment',
                           onTap: () {
                             Navigator.pop(context);
-                            context.push('/assessment');
+                            context.push('/alignment');
                           },
                         ),
                         _UtilityAction(

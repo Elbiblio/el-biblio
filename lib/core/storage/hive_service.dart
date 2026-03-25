@@ -36,6 +36,7 @@ class HiveService {
           _safeOpenBox<dynamic>(HiveBoxes.appLockConfigs),
           _safeOpenBox<dynamic>(HiveBoxes.appLockUsage),
           SpiritualAidRepository.initializeBoxes(),
+          _safeOpenBox<dynamic>(HiveBoxes.alignment),
         ]);
       });
     } catch (e) {
@@ -65,6 +66,7 @@ class HiveService {
           Hive.openBox<dynamic>(HiveBoxes.appLockConfigs),
           Hive.openBox<dynamic>(HiveBoxes.appLockUsage),
           SpiritualAidRepository.initializeBoxes(),
+          Hive.openBox<dynamic>(HiveBoxes.alignment),
         ]);
       });
     }

@@ -25,4 +25,5 @@ class AppRoutes {
   static const games = '/games';
   static const gamesVerseScramble = '/games/verse-scramble';
   static const gamesJourney = '/games/journey';
+  static const alignment = '/alignment';
 }

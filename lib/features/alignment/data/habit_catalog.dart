@@ -1,0 +1,449 @@
+import '../domain/models/habit_assessment.dart';
+
+/// Catalog of common habits (good and bad) with counter-habits.
+class HabitCatalog {
+  const HabitCatalog._();
+
+  static const List<HabitItem> allHabits = [
+    // ── Spiritual Bad Habits ─────────────────────────────────────────────
+    HabitItem(
+      id: 'bad_sp_1',
+      name: 'Neglecting Prayer',
+      description: 'Going days without meaningful prayer or communication with God.',
+      category: HabitCategory.spiritual,
+      isBadHabit: true,
+      counterHabit: 'Set a daily 5-minute prayer alarm and build from there.',
+      severity: 4,
+      relatedVirtue: 'Faith',
+      conquestTips: [
+        'Start with gratitude prayers before bed.',
+        'Use the ACTS model: Adoration, Confession, Thanksgiving, Supplication.',
+        'Pray during your commute or walk.',
+      ],
+    ),
+    HabitItem(
+      id: 'bad_sp_2',
+      name: 'Skipping Scripture',
+      description: 'Rarely reading or studying the Bible.',
+      category: HabitCategory.spiritual,
+      isBadHabit: true,
+      counterHabit: 'Read one chapter per day, starting with the Gospels.',
+      severity: 4,
+      relatedVirtue: 'Wisdom',
+      conquestTips: [
+        'Keep a Bible or Bible app open on your nightstand.',
+        'Start with Proverbs: one chapter per day of the month.',
+        'Listen to audio Bible during routine tasks.',
+      ],
+    ),
+    HabitItem(
+      id: 'bad_sp_3',
+      name: 'Spiritual Complacency',
+      description: 'Coasting in faith without seeking growth or deeper understanding.',
+      category: HabitCategory.spiritual,
+      isBadHabit: true,
+      counterHabit: 'Join a small group or Bible study for accountability.',
+      severity: 3,
+      relatedVirtue: 'Diligence',
+      conquestTips: [
+        'Set quarterly spiritual goals.',
+        'Find a mentor or spiritual director.',
+        'Try a new spiritual discipline each month.',
+      ],
+    ),
+    HabitItem(
+      id: 'bad_sp_4',
+      name: 'Unforgiveness',
+      description: 'Holding grudges and refusing to forgive those who have wronged you.',
+      category: HabitCategory.spiritual,
+      isBadHabit: true,
+      counterHabit: 'Practice daily prayers of release for those who have hurt you.',
+      severity: 5,
+      relatedVirtue: 'Mercy',
+      conquestTips: [
+        'Write a forgiveness letter (you don\'t have to send it).',
+        'Pray for the person you struggle to forgive.',
+        'Remember how much you have been forgiven.',
+      ],
+    ),
+    HabitItem(
+      id: 'bad_sp_5',
+      name: 'Lack of Gratitude',
+      description: 'Focusing on what is missing rather than what God has provided.',
+      category: HabitCategory.spiritual,
+      isBadHabit: true,
+      counterHabit: 'Write three things you are grateful for every morning.',
+      severity: 3,
+      relatedVirtue: 'Gratitude',
+      conquestTips: [
+        'Keep a gratitude journal.',
+        'Thank God before meals deliberately.',
+        'Share one thing you are grateful for with someone each day.',
+      ],
+    ),
+    HabitItem(
+      id: 'bad_sp_6',
+      name: 'Worrying Excessively',
+      description: 'Letting anxiety control your thoughts instead of trusting God.',
+      category: HabitCategory.spiritual,
+      isBadHabit: true,
+      counterHabit: 'Memorize and recite peace-giving scriptures when anxious.',
+      severity: 4,
+      relatedVirtue: 'Peace',
+      conquestTips: [
+        'Practice Philippians 4:6-7 in real time.',
+        'Write your worries down, then pray over them.',
+        'Replace each worry with a truth from Scripture.',
+      ],
+    ),
+
+    // ── Mental Bad Habits ────────────────────────────────────────────────
+    HabitItem(
+      id: 'bad_mn_1',
+      name: 'Negative Self-Talk',
+      description: 'Constantly criticizing yourself and focusing on your failures.',
+      category: HabitCategory.mental,
+      isBadHabit: true,
+      counterHabit: 'Speak one positive truth about yourself from Scripture each morning.',
+      severity: 4,
+      relatedVirtue: 'Identity',
+      conquestTips: [
+        'Write identity statements from Scripture on sticky notes.',
+        'Catch yourself mid-thought and redirect.',
+        'Ask: Would I say this to a friend?',
+      ],
+    ),
+    HabitItem(
+      id: 'bad_mn_2',
+      name: 'Comparison',
+      description: 'Measuring your worth by comparing yourself to others.',
+      category: HabitCategory.mental,
+      isBadHabit: true,
+      counterHabit: 'Celebrate one unique gift God gave you each day.',
+      severity: 3,
+      relatedVirtue: 'Contentment',
+      conquestTips: [
+        'Limit social media scrolling time.',
+        'Congratulate others genuinely instead of comparing.',
+        'Journal about your unique calling.',
+      ],
+    ),
+    HabitItem(
+      id: 'bad_mn_3',
+      name: 'Procrastination',
+      description: 'Delaying important tasks due to fear, laziness, or distraction.',
+      category: HabitCategory.mental,
+      isBadHabit: true,
+      counterHabit: 'Use the "two-minute rule": if it takes less than two minutes, do it now.',
+      severity: 3,
+      relatedVirtue: 'Diligence',
+      conquestTips: [
+        'Break large tasks into small 15-minute blocks.',
+        'Pray before starting difficult tasks.',
+        'Reward yourself after completing hard tasks.',
+      ],
+    ),
+    HabitItem(
+      id: 'bad_mn_4',
+      name: 'Overthinking',
+      description: 'Replaying scenarios and decisions endlessly without resolution.',
+      category: HabitCategory.mental,
+      isBadHabit: true,
+      counterHabit: 'Practice a 5-minute mindfulness or centering prayer when spiraling.',
+      severity: 3,
+      relatedVirtue: 'Trust',
+      conquestTips: [
+        'Set a "decision deadline" and honor it.',
+        'Write thoughts down to externalize them.',
+        'Ask: Is this productive thinking or ruminating?',
+      ],
+    ),
+
+    // ── Physical Bad Habits ──────────────────────────────────────────────
+    HabitItem(
+      id: 'bad_ph_1',
+      name: 'Poor Sleep Habits',
+      description: 'Staying up late, inconsistent sleep schedule, or insufficient rest.',
+      category: HabitCategory.physical,
+      isBadHabit: true,
+      counterHabit: 'Set a consistent bedtime and wake time, honoring the body God gave you.',
+      severity: 4,
+      relatedVirtue: 'Stewardship',
+      conquestTips: [
+        'Set a screen-off alarm 30 minutes before bed.',
+        'Create an evening wind-down ritual.',
+        'Pray or meditate as you fall asleep.',
+      ],
+    ),
+    HabitItem(
+      id: 'bad_ph_2',
+      name: 'Sedentary Lifestyle',
+      description: 'Spending most of the day sitting without physical movement.',
+      category: HabitCategory.physical,
+      isBadHabit: true,
+      counterHabit: 'Take a 15-minute prayer walk each day.',
+      severity: 3,
+      relatedVirtue: 'Stewardship',
+      conquestTips: [
+        'Start with a 10-minute walk and build up.',
+        'Stretch during prayer time.',
+        'Set hourly movement reminders.',
+      ],
+    ),
+    HabitItem(
+      id: 'bad_ph_3',
+      name: 'Stress Eating',
+      description: 'Turning to food for comfort instead of addressing emotions.',
+      category: HabitCategory.physical,
+      isBadHabit: true,
+      counterHabit: 'When stressed, pray for 2 minutes before reaching for food.',
+      severity: 3,
+      relatedVirtue: 'Temperance',
+      conquestTips: [
+        'Identify your emotional triggers.',
+        'Keep healthy snacks accessible.',
+        'Practice fasting as a spiritual discipline.',
+      ],
+    ),
+    HabitItem(
+      id: 'bad_ph_4',
+      name: 'Neglecting Health',
+      description: 'Ignoring your body\'s needs: checkups, rest, nutrition.',
+      category: HabitCategory.physical,
+      isBadHabit: true,
+      counterHabit: 'Schedule one health-honoring action per week.',
+      severity: 3,
+      relatedVirtue: 'Stewardship',
+      conquestTips: [
+        'Your body is a temple (1 Cor 6:19).',
+        'Schedule regular health checkups.',
+        'Drink water as an act of self-care.',
+      ],
+    ),
+
+    // ── Relational Bad Habits ────────────────────────────────────────────
+    HabitItem(
+      id: 'bad_rl_1',
+      name: 'Gossip',
+      description: 'Speaking about others behind their backs in a harmful way.',
+      category: HabitCategory.relational,
+      isBadHabit: true,
+      counterHabit: 'Speak a genuine compliment about someone each day.',
+      severity: 4,
+      relatedVirtue: 'Integrity',
+      conquestTips: [
+        'Ask yourself: Is it true? Is it kind? Is it necessary?',
+        'Redirect conversations that turn to gossip.',
+        'Pray for the person you\'re tempted to gossip about.',
+      ],
+    ),
+    HabitItem(
+      id: 'bad_rl_2',
+      name: 'Isolation',
+      description: 'Withdrawing from community and avoiding vulnerability.',
+      category: HabitCategory.relational,
+      isBadHabit: true,
+      counterHabit: 'Reach out to one friend or family member each day.',
+      severity: 4,
+      relatedVirtue: 'Community',
+      conquestTips: [
+        'Join a small group or church activity.',
+        'Share one honest thing with someone you trust weekly.',
+        'Accept invitations even when you don\'t feel like it.',
+      ],
+    ),
+    HabitItem(
+      id: 'bad_rl_3',
+      name: 'People-Pleasing',
+      description: 'Saying yes to everyone at the cost of your calling and wellbeing.',
+      category: HabitCategory.relational,
+      isBadHabit: true,
+      counterHabit: 'Practice saying "Let me pray about it" before committing.',
+      severity: 3,
+      relatedVirtue: 'Courage',
+      conquestTips: [
+        'Learn to say no gracefully.',
+        'Remember you are serving God, not people.',
+        'Set healthy boundaries with love.',
+      ],
+    ),
+    HabitItem(
+      id: 'bad_rl_4',
+      name: 'Anger Outbursts',
+      description: 'Losing your temper quickly and speaking hurtful words.',
+      category: HabitCategory.relational,
+      isBadHabit: true,
+      counterHabit: 'Pause and count to 10 before responding in heated moments.',
+      severity: 4,
+      relatedVirtue: 'Patience',
+      conquestTips: [
+        'Practice James 1:19: quick to listen, slow to speak.',
+        'Remove yourself from the situation to cool down.',
+        'Identify the deeper emotion beneath the anger.',
+      ],
+    ),
+
+    // ── Digital Bad Habits ───────────────────────────────────────────────
+    HabitItem(
+      id: 'bad_dg_1',
+      name: 'Mindless Scrolling',
+      description: 'Spending hours on social media without purpose.',
+      category: HabitCategory.digital,
+      isBadHabit: true,
+      counterHabit: 'Replace 15 minutes of scrolling with 15 minutes of Scripture.',
+      severity: 4,
+      relatedVirtue: 'Temperance',
+      conquestTips: [
+        'Set app time limits on your phone.',
+        'Remove social media from your home screen.',
+        'Establish phone-free times each day.',
+      ],
+    ),
+    HabitItem(
+      id: 'bad_dg_2',
+      name: 'Phone Before Prayer',
+      description: 'Checking your phone first thing instead of connecting with God.',
+      category: HabitCategory.digital,
+      isBadHabit: true,
+      counterHabit: 'Place your Bible or prayer journal where you charge your phone.',
+      severity: 3,
+      relatedVirtue: 'Priority',
+      conquestTips: [
+        'Charge your phone outside the bedroom.',
+        'Use airplane mode until after morning prayer.',
+        'Set God-time before screen-time.',
+      ],
+    ),
+    HabitItem(
+      id: 'bad_dg_3',
+      name: 'Late-Night Screen Time',
+      description: 'Watching screens late into the night, disrupting sleep and peace.',
+      category: HabitCategory.digital,
+      isBadHabit: true,
+      counterHabit: 'Replace evening screens with a nightly examen prayer.',
+      severity: 3,
+      relatedVirtue: 'Discipline',
+      conquestTips: [
+        'Set a digital sunset alarm.',
+        'Read a physical book or journal instead.',
+        'Use night mode and gradual dimming.',
+      ],
+    ),
+    HabitItem(
+      id: 'bad_dg_4',
+      name: 'Consuming Harmful Content',
+      description: 'Watching or reading content that grieves the Spirit.',
+      category: HabitCategory.digital,
+      isBadHabit: true,
+      counterHabit: 'Follow accounts that inspire spiritual growth and wisdom.',
+      severity: 5,
+      relatedVirtue: 'Purity',
+      conquestTips: [
+        'Use content filters and accountability software.',
+        'Philippians 4:8: think on what is pure and noble.',
+        'Curate your feed to reflect your values.',
+      ],
+    ),
+
+    // ── Good Habits (Counter-habits & Spiritual Disciplines) ─────────────
+    HabitItem(
+      id: 'good_sp_1',
+      name: 'Morning Prayer',
+      description: 'Begin each day with intentional prayer and communion with God.',
+      category: HabitCategory.spiritual,
+      isBadHabit: false,
+      severity: 1,
+      relatedVirtue: 'Faith',
+      conquestTips: [
+        'Set a consistent time.',
+        'Use the ACTS model.',
+        'Start with 5 minutes and grow.',
+      ],
+    ),
+    HabitItem(
+      id: 'good_sp_2',
+      name: 'Daily Scripture Reading',
+      description: 'Read and meditate on a passage of Scripture each day.',
+      category: HabitCategory.spiritual,
+      isBadHabit: false,
+      severity: 1,
+      relatedVirtue: 'Wisdom',
+      conquestTips: [
+        'Follow a reading plan.',
+        'Journal what stands out.',
+        'Share insights with a friend.',
+      ],
+    ),
+    HabitItem(
+      id: 'good_sp_3',
+      name: 'Gratitude Journaling',
+      description: 'Write three things you are grateful for daily.',
+      category: HabitCategory.spiritual,
+      isBadHabit: false,
+      severity: 1,
+      relatedVirtue: 'Gratitude',
+    ),
+    HabitItem(
+      id: 'good_ph_1',
+      name: 'Prayer Walk',
+      description: 'Walk while praying, combining movement with spiritual practice.',
+      category: HabitCategory.physical,
+      isBadHabit: false,
+      severity: 2,
+      relatedVirtue: 'Stewardship',
+    ),
+    HabitItem(
+      id: 'good_mn_1',
+      name: 'Identity Declarations',
+      description: 'Speak scriptural truths about your identity in Christ each morning.',
+      category: HabitCategory.mental,
+      isBadHabit: false,
+      severity: 1,
+      relatedVirtue: 'Identity',
+    ),
+    HabitItem(
+      id: 'good_rl_1',
+      name: 'Encouragement Message',
+      description: 'Send a message of encouragement to someone each day.',
+      category: HabitCategory.relational,
+      isBadHabit: false,
+      severity: 2,
+      relatedVirtue: 'Love',
+    ),
+    HabitItem(
+      id: 'good_dg_1',
+      name: 'Digital Sabbath',
+      description: 'Take one day per week away from non-essential technology.',
+      category: HabitCategory.digital,
+      isBadHabit: false,
+      severity: 3,
+      relatedVirtue: 'Rest',
+    ),
+    HabitItem(
+      id: 'good_sp_4',
+      name: 'Weekly Fasting',
+      description: 'Fast from food or media one day per week as a spiritual discipline.',
+      category: HabitCategory.spiritual,
+      isBadHabit: false,
+      severity: 3,
+      relatedVirtue: 'Discipline',
+    ),
+  ];
+
+  static List<HabitItem> get badHabits =>
+      allHabits.where((h) => h.isBadHabit).toList();
+
+  static List<HabitItem> get goodHabits =>
+      allHabits.where((h) => !h.isBadHabit).toList();
+
+  static List<HabitItem> habitsByCategory(HabitCategory category) =>
+      allHabits.where((h) => h.category == category).toList();
+
+  static HabitItem? findById(String id) {
+    try {
+      return allHabits.firstWhere((h) => h.id == id);
+    } catch (_) {
+      return null;
+    }
+  }
+}
