@@ -21,4 +21,5 @@ class AppRoutes {
   static const commitmentJourney = '/commitment-journey';
   static const commitmentActive = '/commitment-active';
   static const commitmentCompletion = '/commitment-completion';
+  static const spiritualAid = '/spiritual-aid';
 }

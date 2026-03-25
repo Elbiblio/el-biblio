@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../core/constants/app_routes.dart';
 import '../../../../core/di/app_providers.dart';
 import '../../../meditation/application/meditation_notifier.dart';
 
@@ -59,6 +60,23 @@ class _FirstAidKitDialogState extends ConsumerState<FirstAidKitDialog> {
             ...allTools.map((tool) => _buildToolButton(context, tool)),
             
             const SizedBox(height: 12),
+
+            // Full Spiritual First Aid Kit
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  context.push(AppRoutes.spiritualAid);
+                },
+                icon: const Icon(Icons.medical_services_rounded, size: 18),
+                label: const Text('Open Full First Aid Kit'),
+                style: FilledButton.styleFrom(
+                  minimumSize: const Size(0, 44),
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
             Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [

@@ -34,6 +34,11 @@ import '../../features/social/presentation/invite_screen.dart';
 import '../../features/commitments/presentation/screens/commitment_journey_screen.dart';
 import '../../features/commitments/presentation/screens/commitment_active_screen.dart';
 import '../../features/commitments/presentation/screens/commitment_completion_screen.dart';
+import '../../features/spiritual_aid/presentation/screens/spiritual_aid_hub_screen.dart';
+import '../../features/spiritual_aid/presentation/screens/quick_prayer_screen.dart';
+import '../../features/spiritual_aid/presentation/screens/faith_discuss_screen.dart';
+import '../../features/spiritual_aid/presentation/screens/speak_to_me_screen.dart';
+import '../../features/spiritual_aid/presentation/screens/evangelism_helper_screen.dart';
 import '../../features/today/presentation/today_screen.dart';
 import '../../shared/widgets/app_shell.dart';
 
@@ -180,6 +185,33 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: '${AppRoutes.meditation}/session',
         parentNavigatorKey: _rootNavigatorKey,
         builder: (context, state) => const MeditationScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.spiritualAid,
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) => const SpiritualAidHubScreen(),
+        routes: [
+          GoRoute(
+            path: 'prayers',
+            parentNavigatorKey: _rootNavigatorKey,
+            builder: (context, state) => const QuickPrayerScreen(),
+          ),
+          GoRoute(
+            path: 'discuss',
+            parentNavigatorKey: _rootNavigatorKey,
+            builder: (context, state) => const FaithDiscussScreen(),
+          ),
+          GoRoute(
+            path: 'speak',
+            parentNavigatorKey: _rootNavigatorKey,
+            builder: (context, state) => const SpeakToMeScreen(),
+          ),
+          GoRoute(
+            path: 'evangelism',
+            parentNavigatorKey: _rootNavigatorKey,
+            builder: (context, state) => const EvangelismHelperScreen(),
+          ),
+        ],
       ),
       ShellRoute(
         navigatorKey: _shellNavigatorKey,

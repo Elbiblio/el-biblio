@@ -154,6 +154,26 @@ class SpiritualToolsMenu extends ConsumerWidget {
 
                   const SizedBox(height: 24),
 
+                  // Spiritual First Aid Kit
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20.0),
+                    child: _SmallToolTile(
+                      icon: Icons.medical_services_rounded,
+                      iconColor: Colors.red.shade400,
+                      title: 'First Aid Kit',
+                      subtitle: 'Spiritual Care',
+                      actionText: 'Open Kit',
+                      actionIcon: Icons.arrow_forward,
+                      buttonColor: Colors.red.shade400,
+                      onTap: () {
+                        Navigator.pop(context);
+                        context.push(AppRoutes.spiritualAid);
+                      },
+                    ),
+                  ),
+
+                  const SizedBox(height: 24),
+
                   // Secondary Utilities
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 20.0),
