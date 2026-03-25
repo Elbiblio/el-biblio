@@ -15,4 +15,7 @@ class AppRoutes {
   static const reminders = '/profile/reminders';
   static const about = '/about';
   static const invite = '/invite';
+  static const appLockDashboard = '/app-lock';
+  static const appLockSetup = '/app-lock/setup';
+  static const appLockLimitReached = '/app-lock/limit-reached';
 }

@@ -27,6 +27,9 @@ import '../../features/profile/presentation/reminder_settings_screen.dart';
 import '../../features/time_diagnose/presentation/screens/time_diagnose_start_screen.dart';
 import '../../features/time_diagnose/presentation/screens/time_diagnose_configure_screen.dart';
 import '../../features/time_diagnose/presentation/screens/time_diagnose_analysis_screen.dart';
+import '../../features/app_lock/presentation/screens/app_lock_dashboard_screen.dart';
+import '../../features/app_lock/presentation/screens/app_lock_setup_screen.dart';
+import '../../features/app_lock/presentation/screens/app_lock_limit_reached_screen.dart';
 import '../../features/social/presentation/invite_screen.dart';
 import '../../features/today/presentation/today_screen.dart';
 import '../../shared/widgets/app_shell.dart';
@@ -122,6 +125,26 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             path: 'analysis',
             parentNavigatorKey: _rootNavigatorKey,
             builder: (context, state) => const TimeDiagnoseAnalysisScreen(),
+          ),
+        ],
+      ),
+      GoRoute(
+        path: AppRoutes.appLockDashboard,
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) => const AppLockDashboardScreen(),
+        routes: [
+          GoRoute(
+            path: 'setup',
+            parentNavigatorKey: _rootNavigatorKey,
+            builder: (context, state) => const AppLockSetupScreen(),
+          ),
+          GoRoute(
+            path: 'limit-reached',
+            parentNavigatorKey: _rootNavigatorKey,
+            builder: (context, state) {
+              final packageName = state.uri.queryParameters['package'] ?? '';
+              return AppLockLimitReachedScreen(packageName: packageName);
+            },
           ),
         ],
       ),

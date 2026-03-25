@@ -27,6 +27,7 @@ import 'widgets/weekly_recap_card.dart';
 import 'widgets/time_assessment_widget.dart';
 import 'widgets/need_help_widget.dart';
 import 'helpers/share_helper.dart' as share_helper;
+import '../../app_lock/presentation/widgets/app_lock_summary_card.dart';
 
 class TodayScreen extends ConsumerStatefulWidget {
   const TodayScreen({super.key});
@@ -183,6 +184,19 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                 child: DailyProgressCard(
                   anchors: anchors,
                   onTap: () => _showProgressReminder(anchors),
+                ),
+              ),
+
+              // App Lock Summary
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
+                  child: Consumer(
+                    builder: (context, ref, _) {
+                      final appLockState = ref.watch(appLockProvider);
+                      return AppLockSummaryCard(state: appLockState);
+                    },
+                  ),
                 ),
               ),
 

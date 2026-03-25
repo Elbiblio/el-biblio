@@ -51,6 +51,9 @@ import '../theme/app_theme.dart';
 import '../theme/theme_notifier.dart';
 import '../services/xp_service.dart';
 import '../application/xp_notifier.dart';
+import '../../features/app_lock/application/app_lock_notifier.dart';
+import '../../features/app_lock/application/app_lock_state.dart';
+import '../../features/app_lock/data/app_lock_repository.dart';
 
 final meditationSessionRepositoryProvider = Provider<MeditationSessionRepository>((ref) {
   return MeditationSessionRepository(Hive.box<MeditationSession>(HiveBoxes.meditationSessions));
@@ -317,4 +320,13 @@ final xpServiceProvider = Provider<XPService>((ref) {
 // XP provider
 final xpProvider = StateNotifierProvider<XPNotifier, XPState>((ref) {
   return XPNotifier(ref.watch(xpServiceProvider));
+});
+
+// App Lock providers
+final appLockRepositoryProvider = Provider<AppLockRepository>((ref) {
+  return AppLockRepository(ref.watch(loggerProvider));
+});
+
+final appLockProvider = StateNotifierProvider<AppLockNotifier, AppLockState>((ref) {
+  return AppLockNotifier(ref.watch(appLockRepositoryProvider));
 });

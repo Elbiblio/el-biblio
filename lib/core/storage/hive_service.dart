@@ -32,6 +32,8 @@ class HiveService {
           _safeOpenBox<Note>(HiveBoxes.journalEntries),
           _safeOpenBox<BibleVerse>(HiveBoxes.bibleVerses),
           _safeOpenBox<MeditationSession>(HiveBoxes.meditationSessions),
+          _safeOpenBox<dynamic>(HiveBoxes.appLockConfigs),
+          _safeOpenBox<dynamic>(HiveBoxes.appLockUsage),
         ]);
       });
     } catch (e) {
@@ -58,6 +60,8 @@ class HiveService {
           Hive.openBox<Note>(HiveBoxes.journalEntries),
           Hive.openBox<BibleVerse>(HiveBoxes.bibleVerses),
           Hive.openBox<MeditationSession>(HiveBoxes.meditationSessions),
+          Hive.openBox<dynamic>(HiveBoxes.appLockConfigs),
+          Hive.openBox<dynamic>(HiveBoxes.appLockUsage),
         ]);
       });
     }
