@@ -51,6 +51,10 @@ import '../theme/app_theme.dart';
 import '../theme/theme_notifier.dart';
 import '../services/xp_service.dart';
 import '../application/xp_notifier.dart';
+import '../../features/alignment/data/alignment_repository.dart';
+import '../../features/alignment/application/alignment_notifier.dart';
+import '../../features/alignment/application/habit_notifier.dart';
+import '../../features/alignment/application/forty_day_notifier.dart';
 
 final meditationSessionRepositoryProvider = Provider<MeditationSessionRepository>((ref) {
   return MeditationSessionRepository(Hive.box<MeditationSession>(HiveBoxes.meditationSessions));
@@ -317,4 +321,21 @@ final xpServiceProvider = Provider<XPService>((ref) {
 // XP provider
 final xpProvider = StateNotifierProvider<XPNotifier, XPState>((ref) {
   return XPNotifier(ref.watch(xpServiceProvider));
+});
+
+// Alignment providers
+final alignmentRepositoryProvider = Provider<AlignmentRepository>((ref) {
+  return AlignmentRepository(ref.watch(loggerProvider));
+});
+
+final alignmentProvider = StateNotifierProvider<AlignmentNotifier, AlignmentState>((ref) {
+  return AlignmentNotifier(ref.watch(alignmentRepositoryProvider));
+});
+
+final habitProvider = StateNotifierProvider<HabitNotifier, HabitState>((ref) {
+  return HabitNotifier(ref.watch(alignmentRepositoryProvider));
+});
+
+final fortyDayProvider = StateNotifierProvider<FortyDayNotifier, FortyDayState>((ref) {
+  return FortyDayNotifier(ref.watch(alignmentRepositoryProvider));
 });

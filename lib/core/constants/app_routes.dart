@@ -15,4 +15,5 @@ class AppRoutes {
   static const reminders = '/profile/reminders';
   static const about = '/about';
   static const invite = '/invite';
+  static const alignment = '/alignment';
 }
