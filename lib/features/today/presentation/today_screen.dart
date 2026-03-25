@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
+import '../../../../core/constants/app_routes.dart';
 import '../../../../core/di/app_providers.dart';
 import '../../../../core/storage/settings_storage.dart';
 import '../../../../core/theme/app_theme_tokens.dart';
+import '../../commitments/presentation/widgets/commitment_summary_card.dart';
 import '../domain/models/daily_anchors.dart';
 import '../domain/models/commitment.dart';
 import 'widgets/commitment_selection_dialog.dart';
@@ -183,6 +186,23 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                 child: DailyProgressCard(
                   anchors: anchors,
                   onTap: () => _showProgressReminder(anchors),
+                ),
+              ),
+
+              // Graduated Commitment Journey Card
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
+                  child: CommitmentSummaryCard(
+                    onTap: () {
+                      final gcState = ref.read(graduatedCommitmentProvider);
+                      if (gcState.activeCommitment != null) {
+                        context.push(AppRoutes.commitmentActive);
+                      } else {
+                        context.push(AppRoutes.commitmentJourney);
+                      }
+                    },
+                  ),
                 ),
               ),
 

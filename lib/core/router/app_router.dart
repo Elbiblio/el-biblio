@@ -28,6 +28,9 @@ import '../../features/time_diagnose/presentation/screens/time_diagnose_start_sc
 import '../../features/time_diagnose/presentation/screens/time_diagnose_configure_screen.dart';
 import '../../features/time_diagnose/presentation/screens/time_diagnose_analysis_screen.dart';
 import '../../features/social/presentation/invite_screen.dart';
+import '../../features/commitments/presentation/screens/commitment_journey_screen.dart';
+import '../../features/commitments/presentation/screens/commitment_active_screen.dart';
+import '../../features/commitments/presentation/screens/commitment_completion_screen.dart';
 import '../../features/today/presentation/today_screen.dart';
 import '../../shared/widgets/app_shell.dart';
 
@@ -129,6 +132,21 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: '/invite',
         parentNavigatorKey: _rootNavigatorKey,
         builder: (context, state) => const InviteScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.commitmentJourney,
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) => const CommitmentJourneyScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.commitmentActive,
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) => const CommitmentActiveScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.commitmentCompletion,
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) => const CommitmentCompletionScreen(),
       ),
       GoRoute(
         path: AppRoutes.about,
