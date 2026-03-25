@@ -11,4 +11,5 @@ class HiveBoxes {
   static const xpTotals = 'xp_totals';
   static const appLockConfigs = 'app_lock_configs';
   static const appLockUsage = 'app_lock_usage';
+  static const journeyProgress = 'journey_progress';
 }

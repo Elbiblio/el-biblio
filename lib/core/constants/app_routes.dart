@@ -22,4 +22,7 @@ class AppRoutes {
   static const commitmentActive = '/commitment-active';
   static const commitmentCompletion = '/commitment-completion';
   static const spiritualAid = '/spiritual-aid';
+  static const games = '/games';
+  static const gamesVerseScramble = '/games/verse-scramble';
+  static const gamesJourney = '/games/journey';
 }
