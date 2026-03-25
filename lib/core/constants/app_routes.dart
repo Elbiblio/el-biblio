@@ -18,4 +18,7 @@ class AppRoutes {
   static const appLockDashboard = '/app-lock';
   static const appLockSetup = '/app-lock/setup';
   static const appLockLimitReached = '/app-lock/limit-reached';
+  static const commitmentJourney = '/commitment-journey';
+  static const commitmentActive = '/commitment-active';
+  static const commitmentCompletion = '/commitment-completion';
 }

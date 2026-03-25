@@ -25,6 +25,8 @@ import '../../features/profile/data/profile_repository.dart';
 import '../../features/social/application/contact_notifier.dart';
 import '../../features/social/application/contact_state.dart';
 import '../../features/social/data/contact_repository.dart';
+import '../../features/commitments/application/graduated_commitment_notifier.dart';
+import '../../features/commitments/data/graduated_commitment_repository.dart';
 import '../../features/today/application/commitment_notifier.dart';
 import '../../features/today/application/daily_anchors_notifier.dart';
 import '../../features/today/application/virtue_notifier.dart';
@@ -329,4 +331,18 @@ final appLockRepositoryProvider = Provider<AppLockRepository>((ref) {
 
 final appLockProvider = StateNotifierProvider<AppLockNotifier, AppLockState>((ref) {
   return AppLockNotifier(ref.watch(appLockRepositoryProvider));
+});
+
+// Graduated commitment providers
+final graduatedCommitmentRepositoryProvider =
+    Provider<GraduatedCommitmentRepository>((ref) {
+  return GraduatedCommitmentRepository(ref.watch(loggerProvider));
+});
+
+final graduatedCommitmentProvider = StateNotifierProvider<
+    GraduatedCommitmentNotifier, GraduatedCommitmentState>((ref) {
+  return GraduatedCommitmentNotifier(
+    repository: ref.watch(graduatedCommitmentRepositoryProvider),
+    xpService: ref.watch(xpServiceProvider),
+  );
 });

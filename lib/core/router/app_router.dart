@@ -31,6 +31,9 @@ import '../../features/app_lock/presentation/screens/app_lock_dashboard_screen.d
 import '../../features/app_lock/presentation/screens/app_lock_setup_screen.dart';
 import '../../features/app_lock/presentation/screens/app_lock_limit_reached_screen.dart';
 import '../../features/social/presentation/invite_screen.dart';
+import '../../features/commitments/presentation/screens/commitment_journey_screen.dart';
+import '../../features/commitments/presentation/screens/commitment_active_screen.dart';
+import '../../features/commitments/presentation/screens/commitment_completion_screen.dart';
 import '../../features/today/presentation/today_screen.dart';
 import '../../shared/widgets/app_shell.dart';
 
@@ -152,6 +155,21 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: '/invite',
         parentNavigatorKey: _rootNavigatorKey,
         builder: (context, state) => const InviteScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.commitmentJourney,
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) => const CommitmentJourneyScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.commitmentActive,
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) => const CommitmentActiveScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.commitmentCompletion,
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) => const CommitmentCompletionScreen(),
       ),
       GoRoute(
         path: AppRoutes.about,
