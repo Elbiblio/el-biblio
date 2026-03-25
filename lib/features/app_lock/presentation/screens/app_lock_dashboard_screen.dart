@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -142,8 +143,8 @@ class AppLockDashboardScreen extends ConsumerWidget {
                         ),
                       ),
 
-                    // Simulate usage section (for demo purposes)
-                    if (state.configs.isNotEmpty)
+                    // Simulate usage section (debug only)
+                    if (kDebugMode && state.configs.isNotEmpty)
                       SliverToBoxAdapter(
                         child: Padding(
                           padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),

@@ -15,7 +15,6 @@ class CommitmentRoadmap extends StatelessWidget {
   final CommitmentProgress progress;
   final void Function(int level)? onLevelTap;
 
-  // ignore: unused_field
   static const double _nodeSize = 48;
 
   @override
