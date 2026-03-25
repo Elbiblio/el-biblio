@@ -6,6 +6,7 @@ import 'package:path_provider/path_provider.dart';
 import '../../features/bible/domain/models/bible_verse.dart';
 import '../../features/journal/domain/models/note.dart';
 import '../../features/meditation/domain/models/meditation_session.dart';
+import '../../features/spiritual_aid/data/spiritual_aid_repository.dart';
 import '../../features/today/domain/models/daily_anchors.dart';
 import 'hive_boxes.dart';
 
@@ -32,6 +33,7 @@ class HiveService {
           _safeOpenBox<Note>(HiveBoxes.journalEntries),
           _safeOpenBox<BibleVerse>(HiveBoxes.bibleVerses),
           _safeOpenBox<MeditationSession>(HiveBoxes.meditationSessions),
+          SpiritualAidRepository.initializeBoxes(),
         ]);
       });
     } catch (e) {
@@ -58,6 +60,7 @@ class HiveService {
           Hive.openBox<Note>(HiveBoxes.journalEntries),
           Hive.openBox<BibleVerse>(HiveBoxes.bibleVerses),
           Hive.openBox<MeditationSession>(HiveBoxes.meditationSessions),
+          SpiritualAidRepository.initializeBoxes(),
         ]);
       });
     }
