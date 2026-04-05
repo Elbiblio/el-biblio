@@ -3,8 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:confetti/confetti.dart';
+import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../application/verse_game_notifier.dart';
+import '../../../../core/constants/app_routes.dart';
 import '../../../../core/di/app_providers.dart';
 
 class FontSizeCalculator {
@@ -1429,6 +1431,7 @@ class _VerseGameScreenState extends ConsumerState<VerseGameScreen>
       Color primaryColor,
       Color textColor) {
     final isSuccess = gameState.state == GameState.sessionComplete;
+    final verseRef = gameState.verse?.reference;
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -1470,15 +1473,56 @@ class _VerseGameScreenState extends ConsumerState<VerseGameScreen>
             ),
           ],
           const SizedBox(height: 48),
+          // Show "Read the Passage" button on success if a reference exists
+          if (isSuccess && verseRef != null && verseRef.isNotEmpty) ...[
+            SizedBox(
+              width: 260,
+              child: FilledButton.icon(
+                onPressed: () {
+                  context.push(
+                    AppRoutes.gamesPostReading,
+                    extra: {
+                      'bibleReference': verseRef,
+                      'xpEarned': gameState.score,
+                      'gameTitle': 'Verse Scramble',
+                    },
+                  );
+                },
+                icon: const Icon(Icons.menu_book_rounded, size: 20),
+                label: const Text(
+                  'Read the Passage',
+                  style: TextStyle(
+                      fontSize: 16, fontWeight: FontWeight.bold),
+                ),
+                style: FilledButton.styleFrom(
+                  backgroundColor: primaryColor,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(30),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+          ],
           ElevatedButton.icon(
             onPressed: () => notifier.restartSession(),
             style: ElevatedButton.styleFrom(
-              backgroundColor: primaryColor,
-              foregroundColor: Colors.white,
+              backgroundColor: isSuccess && verseRef != null
+                  ? Colors.transparent
+                  : primaryColor,
+              foregroundColor: isSuccess && verseRef != null
+                  ? primaryColor
+                  : Colors.white,
+              elevation: isSuccess && verseRef != null ? 0 : 2,
               padding: const EdgeInsets.symmetric(
                   horizontal: 32, vertical: 16),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(30),
+                side: isSuccess && verseRef != null
+                    ? BorderSide(color: primaryColor.withValues(alpha: 0.4))
+                    : BorderSide.none,
               ),
             ),
             icon: const Icon(Icons.refresh),

@@ -22,9 +22,13 @@ class SpiritualToolsMenu extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return Container(
+    return ConstrainedBox(
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.of(context).size.height * 0.85,
+      ),
+      child: Container(
       decoration: BoxDecoration(
-        color: isDark 
+        color: isDark
             ? const Color(0xFF101822).withValues(alpha: 0.85)
             : const Color(0xFFf6f7f8).withValues(alpha: 0.95),
         borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
@@ -43,6 +47,7 @@ class SpiritualToolsMenu extends ConsumerWidget {
           child: SafeArea(
             child: Padding(
               padding: const EdgeInsets.only(bottom: 24.0),
+              child: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -67,7 +72,7 @@ class SpiritualToolsMenu extends ConsumerWidget {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'ELBIBLIO SPIRITUAL OS',
+                              'ELBIBLIO CLARITY ENGINE',
                               style: TextStyle(
                                 fontSize: 10,
                                 fontWeight: FontWeight.bold,
@@ -77,7 +82,7 @@ class SpiritualToolsMenu extends ConsumerWidget {
                             ),
                             const SizedBox(height: 2),
                             Text(
-                              'Spiritual Tools',
+                              'Your Clarity Toolkit',
                               style: Theme.of(context).textTheme.titleLarge?.copyWith(
                                 fontWeight: FontWeight.w800,
                               ),
@@ -113,19 +118,19 @@ class SpiritualToolsMenu extends ConsumerWidget {
                         
                         Row(
                           children: [
-                            // 2. Meditation Tool Tile
+                            // 2. Bible Library Tool Tile
                             Expanded(
                               child: _SmallToolTile(
-                                icon: Icons.self_improvement,
-                                iconColor: Colors.teal.shade400,
-                                title: 'Meditation',
-                                subtitle: '5 min Virtue Breath',
-                                actionText: 'Start Session',
-                                actionIcon: Icons.play_arrow,
-                                buttonColor: Colors.teal.shade500,
+                                icon: Icons.menu_book_rounded,
+                                iconColor: Theme.of(context).colorScheme.primary,
+                                title: 'Bible',
+                                subtitle: 'Read Scripture',
+                                actionText: 'Open Library',
+                                actionIcon: Icons.arrow_forward,
+                                buttonColor: Theme.of(context).colorScheme.primary,
                                 onTap: () {
                                   Navigator.pop(context);
-                                  context.push(AppRoutes.meditation);
+                                  context.push(AppRoutes.bible);
                                 },
                               ),
                             ),
@@ -136,7 +141,7 @@ class SpiritualToolsMenu extends ConsumerWidget {
                                 icon: Icons.edit_note,
                                 iconColor: Theme.of(context).colorScheme.primary,
                                 title: 'Journal',
-                                subtitle: 'Reflect on Virtue',
+                                subtitle: 'Write your clarity story',
                                 actionText: 'New Entry',
                                 actionIcon: Icons.add,
                                 buttonColor: Theme.of(context).colorScheme.primary,
@@ -161,7 +166,7 @@ class SpiritualToolsMenu extends ConsumerWidget {
                       icon: Icons.medical_services_rounded,
                       iconColor: Colors.red.shade400,
                       title: 'First Aid Kit',
-                      subtitle: 'Spiritual Care',
+                      subtitle: 'Quick Sanity break',
                       actionText: 'Open Kit',
                       actionIcon: Icons.arrow_forward,
                       buttonColor: Colors.red.shade400,
@@ -197,11 +202,11 @@ class SpiritualToolsMenu extends ConsumerWidget {
                           },
                         ),
                         _UtilityAction(
-                          icon: Icons.explore_rounded,
-                          label: 'Alignment',
+                          icon: Icons.lock_rounded,
+                          label: 'App Lock',
                           onTap: () {
                             Navigator.pop(context);
-                            context.push('/alignment');
+                            context.push(AppRoutes.appLockDashboard);
                           },
                         ),
                         _UtilityAction(
@@ -222,7 +227,7 @@ class SpiritualToolsMenu extends ConsumerWidget {
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 40.0),
                     child: Text(
-                      'A life in harmony, spiritually and physically.\nCheck-in and grow daily.',
+                      'The world is noisy. Spiritual clarity drives true focus.\nElbiblio gives you that clarity.',
                       textAlign: TextAlign.center,
                       style: Theme.of(context).textTheme.labelSmall?.copyWith(
                         color: Colors.grey.shade500,
@@ -232,9 +237,11 @@ class SpiritualToolsMenu extends ConsumerWidget {
                   ),
                 ],
               ),
+              ),
             ),
           ),
         ),
+      ),
       ),
     );
   }
@@ -252,7 +259,7 @@ class _DailyVerseTile extends ConsumerWidget {
       return _ToolTile(
         icon: Icons.menu_book,
         iconColor: Theme.of(context).colorScheme.primary,
-        title: 'Verse of the Day',
+        title: 'Clarity Verse',
         subtitle: 'Loading...',
         description: 'Fetching today\'s verse...',
         actionText: 'Open Scripture',
@@ -267,7 +274,7 @@ class _DailyVerseTile extends ConsumerWidget {
       return _ToolTile(
         icon: Icons.menu_book,
         iconColor: Theme.of(context).colorScheme.primary,
-        title: 'Verse of the Day',
+        title: 'Clarity Verse',
         subtitle: 'Unavailable',
         description: 'Tap to retry loading today\'s verse.',
         actionText: 'Retry',

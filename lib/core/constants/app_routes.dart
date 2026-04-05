@@ -25,5 +25,11 @@ class AppRoutes {
   static const games = '/games';
   static const gamesVerseScramble = '/games/verse-scramble';
   static const gamesJourney = '/games/journey';
+  static const gamesPostReading = '/games/post-reading';
   static const alignment = '/alignment';
+  static const faithQuestions = '/faith-questions';
+  static const faithQuestionsFaq = '/faith-questions/faq';
+  static const faithQuestionsQuiz = '/faith-questions/quiz';
+  static const faithQuestionsQuizResults = '/faith-questions/quiz-results';
+  static const grow = '/grow';
 }

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/app_routes.dart';
@@ -11,12 +10,11 @@ import '../application/onboarding_notifier.dart';
 import '../application/onboarding_state.dart';
 import '../../../shared/widgets/primary_button.dart';
 import 'widgets/responsive_layout_builder.dart';
-import 'widgets/welcome_header.dart';
-import 'widgets/welcome_content.dart';
-import 'widgets/lifestyle_setup_view.dart';
-import 'widgets/three_anchors_view.dart';
-import 'widgets/sample_habits_view.dart';
-import 'widgets/social_presence_view.dart';
+import 'widgets/the_noise_view.dart';
+import 'widgets/the_solution_view.dart';
+import 'widgets/discover_identity_view.dart';
+import 'widgets/your_path_view.dart';
+import 'widgets/your_account_view.dart';
 
 class OnboardingScreen extends ConsumerWidget {
   const OnboardingScreen({super.key});
@@ -26,22 +24,40 @@ class OnboardingScreen extends ConsumerWidget {
 
   String _stepTitle(OnboardingStep step) {
     return switch (step) {
-      OnboardingStep.welcome => 'Welcome to Elbiblio',
-      OnboardingStep.threeAnchors => 'The Three Anchors',
-      OnboardingStep.sampleHabits => 'Grow Every Day',
-      OnboardingStep.lifestyleSetup => 'Lifestyle',
-      OnboardingStep.socialPresence => 'Social Presence',
+      OnboardingStep.theProblem => 'The Noise',
+      OnboardingStep.theSolution => 'The Solution',
+      OnboardingStep.yourIdentity => 'Your Identity',
+      OnboardingStep.yourPath => 'Your Path',
+      OnboardingStep.yourAccount => 'Your Account',
     };
   }
 
   String _getPrimaryButtonLabel(OnboardingState state) {
-    if (state.step == OnboardingStep.socialPresence) {
-      return 'Connect Now';
+    return switch (state.step) {
+      OnboardingStep.theProblem => 'There must be a better way',
+      OnboardingStep.theSolution => 'Show me my identity',
+      OnboardingStep.yourIdentity => _canAdvanceFromAssessment(state)
+          ? 'See my path'
+          : 'Answer all questions',
+      OnboardingStep.yourPath => 'Almost there',
+      OnboardingStep.yourAccount => 'Begin my clarity journey',
+    };
+  }
+
+  bool _canAdvanceFromAssessment(OnboardingState state) {
+    return state.miniAssessmentAnswers.length >= 3 &&
+        !state.miniAssessmentAnswers.contains(-1) &&
+        state.primaryArchetypeId != null;
+  }
+
+  bool _canAdvance(OnboardingState state) {
+    if (state.step == OnboardingStep.yourIdentity) {
+      return _canAdvanceFromAssessment(state);
     }
-    if (state.step == OnboardingStep.welcome) {
-      return 'Begin Your Journey';
+    if (state.step == OnboardingStep.yourPath) {
+      return state.commitmentCategory != null;
     }
-    return state.isLastStep ? 'Begin' : 'Next';
+    return true;
   }
 
   Widget _stepContent(
@@ -49,198 +65,98 @@ class OnboardingScreen extends ConsumerWidget {
     WidgetRef ref,
     OnboardingState state,
   ) {
-    final notifier = ref.read(onboardingProvider.notifier);
-
     return switch (state.step) {
-      OnboardingStep.welcome => _buildWelcome(context, notifier),
-      OnboardingStep.threeAnchors => _buildThreeAnchors(context, notifier),
-      OnboardingStep.sampleHabits => _buildSampleHabits(context, ref, notifier),
-      OnboardingStep.lifestyleSetup => _buildLifestyleSetup(context, notifier, state),
-      OnboardingStep.socialPresence => _buildSocialPresence(context, notifier, state),
+      OnboardingStep.theProblem => const TheNoiseView(),
+      OnboardingStep.theSolution => const TheSolutionView(),
+      OnboardingStep.yourIdentity => const DiscoverIdentityView(),
+      OnboardingStep.yourPath => const YourPathView(),
+      OnboardingStep.yourAccount => YourAccountView(
+          onSignUp: (name, email, phone) =>
+              _handleSignUp(context, ref, name, email, phone),
+          onGuestAccount: () => _handleGuestAccount(context, ref),
+        ),
     };
   }
 
-  Widget _buildWelcome(BuildContext context, OnboardingNotifier notifier) {
-    return ResponsiveLayoutBuilder(
-      mobile: (context, constraints) => _buildWelcomeMobile(context, notifier),
-      tablet: (context, constraints) => _buildWelcomeTablet(context, notifier),
-      desktop: (context, constraints) => _buildWelcomeDesktop(context, notifier),
-    );
-  }
-
-  Widget _buildWelcomeMobile(BuildContext context, OnboardingNotifier notifier) {
-    return _buildWelcomeContent(context, notifier, isDesktop: false);
-  }
-
-  Widget _buildWelcomeTablet(BuildContext context, OnboardingNotifier notifier) {
-    return _buildWelcomeContent(context, notifier, isDesktop: false);
-  }
-
-  Widget _buildWelcomeDesktop(BuildContext context, OnboardingNotifier notifier) {
-    return _buildWelcomeContent(context, notifier, isDesktop: true);
-  }
-
-  Widget _buildWelcomeContent(BuildContext context, OnboardingNotifier notifier, {required bool isDesktop}) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        return SingleChildScrollView(
-          physics: const BouncingScrollPhysics(),
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          child: Center(
-            child: ConstrainedBox(
-              constraints: BoxConstraints(
-                maxWidth: isDesktop ? 420 : 360,
-              ),
-              child: const Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  WelcomeHeader(),
-                  SizedBox(height: 24),
-                  WelcomeContent(),
-                ],
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildLifestyleSetup(BuildContext context, OnboardingNotifier notifier, OnboardingState state) {
-    return LifestyleSetupView(
-      notifier: notifier,
-      state: state,
-      isDesktop: false,
-    );
-  }
-
-  Widget _buildThreeAnchors(BuildContext context, OnboardingNotifier notifier) {
-    return const ThreeAnchorsView();
-  }
-
-  Widget _buildSampleHabits(BuildContext context, WidgetRef ref, OnboardingNotifier notifier) {
-    return const SampleHabitsView();
-  }
-
-  Widget _buildSocialPresence(BuildContext context, OnboardingNotifier notifier, OnboardingState state) {
-    return SocialPresenceView(
-      notifier: notifier,
-      state: state,
-      isDesktop: false,
-    );
-  }
-
-  Future<void> _connectContacts(BuildContext context, WidgetRef ref) async {
-    ref.read(onboardingProvider.notifier).setSocialPresenceOptIn(true);
-
-    try {
-      // Request contact permissions
-      final permission = await Permission.contacts.request();
-
-      if (!permission.isGranted) {
-        if (context.mounted) {
-          if (permission.isPermanentlyDenied) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: const Text('Contact permission is permanently denied. Enable it in Settings to sync contacts.'),
-                backgroundColor: Colors.red,
-                action: SnackBarAction(
-                  label: 'Settings',
-                  textColor: Colors.white,
-                  onPressed: () => openAppSettings(),
-                ),
-              ),
-            );
-          } else {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Contact permission denied. You can still continue without syncing contacts.'),
-                backgroundColor: Colors.orange,
-              ),
-            );
-          }
-        }
-      if (!context.mounted) return;
-      await _completeOnboarding(context, ref, contactsImported: false);
-      return;
-    }
-
-    final contactNotifier = ref.read(contactProvider.notifier);
-    final syncFullySuccessful = await contactNotifier.importContacts();
-    final importedState = ref.read(contactProvider);
-
-    String? connectError;
-    if (importedState.potentialContacts.isNotEmpty) {
-      try {
-        await contactNotifier.connectAll(importedState.potentialContacts);
-      } catch (e) {
-        connectError = e.toString();
-      }
-    }
-
-    final finalContactState = ref.read(contactProvider);
-    final importedCount = finalContactState.deviceContacts.length;
-    final connectedCount = finalContactState.connectedContacts.length;
-    final hasImportedContacts = importedCount > 0;
-
-    if (!context.mounted) return;
-
-    final statusText = importedCount == 0
-        ? 'No contacts with phone/email were found.'
-        : 'Imported $importedCount contacts and connected $connectedCount.';
-    final syncText = (syncFullySuccessful && connectError == null)
-        ? ''
-        : ' Some server sync actions failed.';
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('$statusText$syncText'),
-        backgroundColor: (syncFullySuccessful && connectError == null) ? Colors.green : Colors.orange,
-      ),
-    );
-
-    await _completeOnboarding(
-      context,
-      ref,
-      contactsImported: hasImportedContacts,
-    );
-  } catch (e) {
-    if (!context.mounted) return;
-    
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Error connecting contacts: ${e.toString()}'),
-        backgroundColor: Colors.red,
-      ),
-    );
-    await _completeOnboarding(context, ref, contactsImported: false);
-  }
-  }
-
-  Future<void> _completeOnboarding(BuildContext context, WidgetRef ref, {bool contactsImported = false}) async {
-    final state = ref.read(onboardingProvider);
+  Future<void> _handleSignUp(
+    BuildContext context,
+    WidgetRef ref,
+    String name,
+    String email,
+    String phone,
+  ) async {
+    final onboardingState = ref.read(onboardingProvider);
 
     HapticFeedback.mediumImpact();
     CelebrationService.instance.playOnboardingCompletion(context);
 
+    // Complete onboarding settings first
     await ref.read(settingsProvider.notifier).completeOnboarding(
-          primaryVirtue: state.primaryVirtue,
-          lifestyle: state.lifestyle,
-          morningTime: state.morningTime,
-          eveningTime: state.eveningTime,
-          morningReminderEnabled: state.morningReminderEnabled,
-          eveningReminderEnabled: state.eveningReminderEnabled,
-          socialPresenceOptIn: state.socialPresenceOptIn,
-          contactsImported: contactsImported,
+          primaryVirtue: onboardingState.primaryVirtue,
+          lifestyle: onboardingState.lifestyle,
+          morningTime: onboardingState.morningTime,
+          eveningTime: onboardingState.eveningTime,
+          morningReminderEnabled: onboardingState.morningReminderEnabled,
+          eveningReminderEnabled: onboardingState.eveningReminderEnabled,
+          socialPresenceOptIn: onboardingState.socialPresenceOptIn,
+          contactsImported: onboardingState.contactsImported,
+          primaryArchetypeId: onboardingState.primaryArchetypeId,
+          commitmentCategory: onboardingState.commitmentCategory,
         );
 
+    // Signup with account details
+    final success = await ref.read(authProvider.notifier).signUpWithDetails(
+          name: name,
+          email: email,
+          phone: phone,
+        );
+
+    if (success) {
+      await ref.read(settingsProvider.notifier).completePreOnboarding(
+            name: name,
+            phone: phone,
+          );
+    }
+
     if (!context.mounted) return;
-    final authState = ref.read(authProvider);
-    final settings = ref.read(settingsProvider);
-    final targetRoute = (authState.isAuthenticated || settings.hasCompletedPreOnboarding)
-        ? AppRoutes.today
-        : '/pre-onboarding';
-    context.go(targetRoute);
+    context.go(AppRoutes.today);
+  }
+
+  Future<void> _handleGuestAccount(
+    BuildContext context,
+    WidgetRef ref,
+  ) async {
+    final onboardingState = ref.read(onboardingProvider);
+
+    HapticFeedback.mediumImpact();
+
+    // Complete onboarding settings
+    await ref.read(settingsProvider.notifier).completeOnboarding(
+          primaryVirtue: onboardingState.primaryVirtue,
+          lifestyle: onboardingState.lifestyle,
+          morningTime: onboardingState.morningTime,
+          eveningTime: onboardingState.eveningTime,
+          morningReminderEnabled: onboardingState.morningReminderEnabled,
+          eveningReminderEnabled: onboardingState.eveningReminderEnabled,
+          socialPresenceOptIn: onboardingState.socialPresenceOptIn,
+          contactsImported: onboardingState.contactsImported,
+          primaryArchetypeId: onboardingState.primaryArchetypeId,
+          commitmentCategory: onboardingState.commitmentCategory,
+        );
+
+    // Create guest account
+    final success =
+        await ref.read(authProvider.notifier).createGuestAccount();
+
+    if (success) {
+      await ref.read(settingsProvider.notifier).completePreOnboarding(
+            name: 'Guest',
+            phone: '',
+          );
+    }
+
+    if (!context.mounted) return;
+    context.go(AppRoutes.today);
   }
 
   @override
@@ -318,12 +234,19 @@ class OnboardingScreen extends ConsumerWidget {
             ),
         ),
       ),
-      bottomNavigationBar: isDesktop ? null : _buildBottomNavigationBar(context, state, notifier, ref),
-      persistentFooterButtons: isDesktop ? [_buildDesktopButtons(context, state, notifier, ref)] : null,
+      // Hide the bottom bar on yourAccount step — the view has its own buttons
+      bottomNavigationBar: state.step == OnboardingStep.yourAccount
+          ? null
+          : (isDesktop ? null : _buildBottomNavigationBar(context, state, notifier, ref)),
+      persistentFooterButtons: state.step == OnboardingStep.yourAccount
+          ? null
+          : (isDesktop ? [_buildDesktopButtons(context, state, notifier, ref)] : null),
     );
   }
 
   Widget _buildBottomNavigationBar(BuildContext context, OnboardingState state, OnboardingNotifier notifier, WidgetRef ref) {
+    final canAdvance = _canAdvance(state);
+
     return Container(
       padding: EdgeInsets.all(ResponsiveSpacing.getHorizontalPadding(context)),
       decoration: BoxDecoration(
@@ -337,43 +260,20 @@ class OnboardingScreen extends ConsumerWidget {
       child: SafeArea(
         child: Row(
           children: <Widget>[
-            // Show Skip button for social presence step, otherwise show Back button
-            if (state.step == OnboardingStep.socialPresence)
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: () => _completeOnboarding(context, ref),
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    side: BorderSide(
-                      color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.3),
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  child: Text(
-                    'Skip',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      fontWeight: FontWeight.w500,
-                      color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
-                    ),
-                  ),
-                ),
-              )
-            else if (state.step != OnboardingStep.welcome)
+            // Back button (not shown on first step)
+            if (state.step != OnboardingStep.theProblem)
               Expanded(
                 child: PrimaryButton(
                   label: 'Back',
                   onPressed: notifier.back,
                 ),
               ),
-            if (state.step != OnboardingStep.welcome && state.step != OnboardingStep.socialPresence) const SizedBox(width: 16),
+            if (state.step != OnboardingStep.theProblem)
+              const SizedBox(width: 16),
             Expanded(
               child: PrimaryButton(
                 label: _getPrimaryButtonLabel(state),
-                onPressed: state.step == OnboardingStep.socialPresence 
-                    ? () => _connectContacts(context, ref)
-                    : notifier.next,
+                onPressed: canAdvance ? notifier.next : null,
               ),
             ),
           ],
@@ -383,6 +283,8 @@ class OnboardingScreen extends ConsumerWidget {
   }
 
   Widget _buildDesktopButtons(BuildContext context, OnboardingState state, OnboardingNotifier notifier, WidgetRef ref) {
+    final canAdvance = _canAdvance(state);
+
     return Container(
       padding: EdgeInsets.all(ResponsiveSpacing.getHorizontalPadding(context)),
       child: TweenAnimationBuilder<double>(
@@ -397,31 +299,7 @@ class OnboardingScreen extends ConsumerWidget {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: <Widget>[
-                  // Show Skip button for social presence step, otherwise show Back button
-                  if (state.step == OnboardingStep.socialPresence)
-                    SizedBox(
-                      width: 160,
-                      child: OutlinedButton(
-                        onPressed: () => _completeOnboarding(context, ref),
-                        style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          side: BorderSide(
-                            color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.3),
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                        child: Text(
-                          'Skip',
-                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            fontWeight: FontWeight.w500,
-                            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
-                          ),
-                        ),
-                      ),
-                    )
-                  else if (state.step != OnboardingStep.welcome)
+                  if (state.step != OnboardingStep.theProblem)
                     SizedBox(
                       width: 160,
                       child: PrimaryButton(
@@ -429,14 +307,13 @@ class OnboardingScreen extends ConsumerWidget {
                         onPressed: notifier.back,
                       ),
                     ),
-                  if (state.step != OnboardingStep.welcome && state.step != OnboardingStep.socialPresence) const SizedBox(width: 24),
+                  if (state.step != OnboardingStep.theProblem)
+                    const SizedBox(width: 24),
                   SizedBox(
-                    width: 160,
+                    width: 240,
                     child: PrimaryButton(
                       label: _getPrimaryButtonLabel(state),
-                      onPressed: state.step == OnboardingStep.socialPresence 
-                          ? () => _connectContacts(context, ref)
-                          : notifier.next,
+                      onPressed: canAdvance ? notifier.next : null,
                     ),
                   ),
                 ],

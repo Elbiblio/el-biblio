@@ -5,9 +5,12 @@ import 'package:lucide_icons/lucide_icons.dart';
 
 import '../../../../core/constants/app_routes.dart';
 import '../../../../core/di/app_providers.dart';
+import '../../data/quick_sanity_catalog.dart';
 import '../../domain/models/meditation_session.dart';
 import '../../domain/models/meditation_enums.dart';
+import '../../domain/models/quick_sanity_session.dart';
 import '../../application/meditation_notifier.dart';
+import 'quick_sanity_screen.dart';
 
 enum _RecentSessionAction { edit, start }
 
@@ -327,6 +330,21 @@ class _MeditationHomeScreenState extends ConsumerState<MeditationHomeScreen> {
               ),
             ),
 
+            // Quick Sanity Card
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                child: _QuickSanityCard(
+                  surfaceColor: surfaceColor,
+                  borderColor: borderColor,
+                  textColor: textColor,
+                  textMutedColor: textMutedColor,
+                  primaryColor: primaryColor,
+                  isDark: isDark,
+                ),
+              ),
+            ),
+
             // Start New
             SliverToBoxAdapter(
               child: Padding(
@@ -521,3 +539,263 @@ class _MeditationHomeScreenState extends ConsumerState<MeditationHomeScreen> {
   }
 }
 
+/// A visually distinct card promoting quick 2-3 minute sanity sessions.
+class _QuickSanityCard extends StatefulWidget {
+  const _QuickSanityCard({
+    required this.surfaceColor,
+    required this.borderColor,
+    required this.textColor,
+    required this.textMutedColor,
+    required this.primaryColor,
+    required this.isDark,
+  });
+
+  final Color surfaceColor;
+  final Color borderColor;
+  final Color textColor;
+  final Color textMutedColor;
+  final Color primaryColor;
+  final bool isDark;
+
+  @override
+  State<_QuickSanityCard> createState() => _QuickSanityCardState();
+}
+
+class _QuickSanityCardState extends State<_QuickSanityCard> {
+  late QuickSanitySession _previewSession;
+  bool _showBrowse = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _previewSession = QuickSanityCatalog.random;
+  }
+
+  void _startSession(QuickSanitySession session) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => QuickSanityScreen(session: session),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(20),
+        gradient: LinearGradient(
+          colors: widget.isDark
+              ? [const Color(0xFF1A2332), const Color(0xFF162028)]
+              : [const Color(0xFFF0F4FF), const Color(0xFFE8F0FE)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        border: Border.all(
+          color: widget.primaryColor.withValues(alpha: 0.15),
+        ),
+      ),
+      child: Column(
+        children: [
+          // Main card content
+          InkWell(
+            onTap: () => _startSession(_previewSession),
+            borderRadius: BorderRadius.circular(20),
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Row(
+                children: [
+                  Container(
+                    width: 56,
+                    height: 56,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          widget.primaryColor.withValues(alpha: 0.2),
+                          widget.primaryColor.withValues(alpha: 0.08),
+                        ],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Icon(
+                      Icons.spa_rounded,
+                      color: widget.primaryColor,
+                      size: 28,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Text(
+                              'Quick Sanity',
+                              style: theme.textTheme.titleSmall?.copyWith(
+                                fontWeight: FontWeight.bold,
+                                color: widget.textColor,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: widget.primaryColor.withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Text(
+                                '2-3 min',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w600,
+                                  color: widget.primaryColor,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          _previewSession.title,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: widget.textMutedColor,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Column(
+                    children: [
+                      Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: widget.primaryColor,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Icon(
+                          Icons.play_arrow_rounded,
+                          color: Colors.white,
+                          size: 22,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // Browse toggle
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+            child: InkWell(
+              onTap: () => setState(() => _showBrowse = !_showBrowse),
+              borderRadius: BorderRadius.circular(8),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    _showBrowse ? 'Hide Sessions' : 'Browse Sessions',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                      color: widget.primaryColor.withValues(alpha: 0.8),
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  Icon(
+                    _showBrowse
+                        ? Icons.keyboard_arrow_up
+                        : Icons.keyboard_arrow_down,
+                    size: 16,
+                    color: widget.primaryColor.withValues(alpha: 0.8),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // Browseable list
+          if (_showBrowse)
+            SizedBox(
+              height: 110,
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                itemCount: QuickSanityCatalog.sessions.length,
+                itemBuilder: (context, index) {
+                  final session = QuickSanityCatalog.sessions[index];
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 10),
+                    child: InkWell(
+                      onTap: () => _startSession(session),
+                      borderRadius: BorderRadius.circular(14),
+                      child: Container(
+                        width: 150,
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: widget.surfaceColor,
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: widget.borderColor),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(
+                                  Icons.spa_outlined,
+                                  size: 14,
+                                  color: widget.primaryColor,
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  session.durationLabel,
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w600,
+                                    color: widget.primaryColor,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              session.title,
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                fontWeight: FontWeight.w600,
+                                color: widget.textColor,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              session.scriptureReference,
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: widget.textMutedColor,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}

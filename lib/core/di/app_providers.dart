@@ -56,10 +56,13 @@ import '../application/xp_notifier.dart';
 import '../../features/app_lock/application/app_lock_notifier.dart';
 import '../../features/app_lock/application/app_lock_state.dart';
 import '../../features/app_lock/data/app_lock_repository.dart';
+import '../../features/app_lock/data/app_usage_service.dart';
 import '../../features/alignment/data/alignment_repository.dart';
 import '../../features/alignment/application/alignment_notifier.dart';
 import '../../features/alignment/application/habit_notifier.dart';
 import '../../features/alignment/application/forty_day_notifier.dart';
+import '../../features/today/application/pillar_score_notifier.dart';
+import '../../features/today/domain/models/pillar_score.dart';
 
 final meditationSessionRepositoryProvider = Provider<MeditationSessionRepository>((ref) {
   return MeditationSessionRepository(Hive.box<MeditationSession>(HiveBoxes.meditationSessions));
@@ -333,8 +336,15 @@ final appLockRepositoryProvider = Provider<AppLockRepository>((ref) {
   return AppLockRepository(ref.watch(loggerProvider));
 });
 
+final appUsageServiceProvider = Provider<AppUsageService>((ref) {
+  return AppUsageService(ref.watch(loggerProvider));
+});
+
 final appLockProvider = StateNotifierProvider<AppLockNotifier, AppLockState>((ref) {
-  return AppLockNotifier(ref.watch(appLockRepositoryProvider));
+  return AppLockNotifier(
+    ref.watch(appLockRepositoryProvider),
+    ref.watch(appUsageServiceProvider),
+  );
 });
 
 // Graduated commitment providers
@@ -366,4 +376,9 @@ final habitProvider = StateNotifierProvider<HabitNotifier, HabitState>((ref) {
 
 final fortyDayProvider = StateNotifierProvider<FortyDayNotifier, FortyDayState>((ref) {
   return FortyDayNotifier(ref.watch(alignmentRepositoryProvider));
+});
+
+// Pillar Score provider — aggregates data across features for the 4 Pillars of Clarity
+final pillarScoreProvider = StateNotifierProvider<PillarScoreNotifier, PillarScore>((ref) {
+  return PillarScoreNotifier(ref);
 });

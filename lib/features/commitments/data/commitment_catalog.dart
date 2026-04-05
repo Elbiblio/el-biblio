@@ -1,12 +1,18 @@
 import '../domain/models/graduated_commitment.dart';
+import '../domain/models/commitment_category.dart';
 
-/// Static catalog of all 40 graduated commitments.
+/// Static catalog of all graduated commitments across 3 category tracks.
 ///
-/// Designed around psychological commitment escalation:
-///  - Tier 1 (1-10): Quick Wins, 2-5 minutes
-///  - Tier 2 (11-20): Building Blocks, 15-60 minutes
-///  - Tier 3 (21-30): Half-Day Challenges, 2-6 hours
-///  - Tier 4 (31-40): Day-Long Commitments, 12-24 hours
+/// The original 40 commitments are tagged with categories:
+///  - Growth: spiritual learning, prayer, Bible study, meditation
+///  - Discipline: fasting, screen limits, speech control, time management
+///  - Charity: service, kindness, generosity, forgiveness
+///
+/// Each track retains the 4-tier escalation:
+///  - Tier 1: Quick Wins (2-5 min)
+///  - Tier 2: Building Blocks (15-60 min)
+///  - Tier 3: Half-Day Challenges (2-6 hrs)
+///  - Tier 4: Day-Long Commitments (12-24 hrs)
 class CommitmentCatalog {
   CommitmentCatalog._();
 
@@ -21,6 +27,26 @@ class CommitmentCatalog {
 
   static List<GraduatedCommitment> getForTier(CommitmentTier tier) {
     return _all.where((c) => c.tier == tier).toList();
+  }
+
+  /// Returns all commitments for the given category.
+  static List<GraduatedCommitment> getForCategory(CommitmentCategory category) {
+    return _all.where((c) => c.category == category).toList();
+  }
+
+  /// Returns the recommended starting commitment for a given archetype.
+  static GraduatedCommitment getRecommendedForArchetype(String archetypeName) {
+    final category = CommitmentCategory.recommendedForArchetype(archetypeName);
+    final categoryCommitments = getForCategory(category);
+    return categoryCommitments.isNotEmpty ? categoryCommitments.first : _all.first;
+  }
+
+  /// Returns commitments for a category at a specific tier.
+  static List<GraduatedCommitment> getForCategoryAndTier(
+    CommitmentCategory category,
+    CommitmentTier tier,
+  ) {
+    return _all.where((c) => c.category == category && c.tier == tier).toList();
   }
 
   // ---------------------------------------------------------------------------
@@ -46,6 +72,7 @@ class CommitmentCatalog {
           'You just took the first step. Every great journey begins with a single breath of faith.',
       failureGrace:
           'Even wanting to pause shows growth. Try again whenever you are ready \u2014 no rush.',
+      category: CommitmentCategory.growth,
     ),
     const GraduatedCommitment(
       id: 'gc_02',
@@ -66,6 +93,7 @@ class CommitmentCatalog {
           'Gratitude rewires your brain for joy. You just planted a seed of contentment.',
       failureGrace:
           'Some days the words are hard to find. That is okay. Tomorrow the sun rises again.',
+      category: CommitmentCategory.growth,
     ),
     const GraduatedCommitment(
       id: 'gc_03',
@@ -86,6 +114,7 @@ class CommitmentCatalog {
           'One verse can change an entire day. You chose to listen to the Author of life.',
       failureGrace:
           'The Bible will always be there when you are ready. No condemnation, only invitation.',
+      category: CommitmentCategory.growth,
     ),
     const GraduatedCommitment(
       id: 'gc_04',
@@ -106,6 +135,7 @@ class CommitmentCatalog {
           'Your words just became someone\'s bright spot. Love multiplies when shared.',
       failureGrace:
           'Reaching out can feel vulnerable. The fact that you considered it shows a caring heart.',
+      category: CommitmentCategory.charity,
     ),
     const GraduatedCommitment(
       id: 'gc_05',
@@ -126,6 +156,7 @@ class CommitmentCatalog {
           'Two minutes with God is worth more than hours of worry. He heard every word.',
       failureGrace:
           'Prayer is a conversation, not a performance. Come back anytime \u2014 He is always listening.',
+      category: CommitmentCategory.growth,
     ),
     const GraduatedCommitment(
       id: 'gc_06',
@@ -146,6 +177,7 @@ class CommitmentCatalog {
           'Forgiveness is the bravest form of strength. You just freed yourself.',
       failureGrace:
           'Some hurts run deep. Even acknowledging them is a step. Be gentle with yourself.',
+      category: CommitmentCategory.charity,
     ),
     const GraduatedCommitment(
       id: 'gc_07',
@@ -166,6 +198,7 @@ class CommitmentCatalog {
           'You are training your eyes to see abundance. This changes everything over time.',
       failureGrace:
           'If blessings feel invisible today, that is when this practice matters most. Try again tomorrow.',
+      category: CommitmentCategory.growth,
     ),
     const GraduatedCommitment(
       id: 'gc_08',
@@ -186,6 +219,7 @@ class CommitmentCatalog {
           'You just made someone\'s day brighter. Kindness is never wasted.',
       failureGrace:
           'Social courage takes practice. Even thinking about being kind to others builds the muscle.',
+      category: CommitmentCategory.charity,
     ),
     const GraduatedCommitment(
       id: 'gc_09',
@@ -206,6 +240,7 @@ class CommitmentCatalog {
           'You now carry God\'s word in your heart. It will speak to you when you need it most.',
       failureGrace:
           'Memory is a skill, not a talent. Every attempt strengthens the connection.',
+      category: CommitmentCategory.growth,
     ),
     const GraduatedCommitment(
       id: 'gc_10',
@@ -226,6 +261,7 @@ class CommitmentCatalog {
           'You completed Tier 1! Silence is where God often speaks loudest. You are learning to listen.',
       failureGrace:
           'Stillness is hard in a noisy world. Even 30 seconds of trying counts. You will get there.',
+      category: CommitmentCategory.discipline,
     ),
 
     // -------------------------------------------------------------------------
@@ -250,6 +286,7 @@ class CommitmentCatalog {
           'You just proved that you control your phone \u2014 it does not control you.',
       failureGrace:
           'Digital habits are deeply wired. Noticing the pull is the first victory.',
+      category: CommitmentCategory.discipline,
     ),
     const GraduatedCommitment(
       id: 'gc_12',
@@ -270,6 +307,7 @@ class CommitmentCatalog {
           'Fifteen minutes of honest prayer can move mountains. God treasures this time with you.',
       failureGrace:
           'A wandering mind during prayer is normal. God sees the heart behind the effort.',
+      category: CommitmentCategory.growth,
     ),
     const GraduatedCommitment(
       id: 'gc_13',
@@ -290,6 +328,7 @@ class CommitmentCatalog {
           'Writing is thinking made visible. You just processed your soul on paper.',
       failureGrace:
           'Not every day produces profound writing. The act itself is what heals.',
+      category: CommitmentCategory.growth,
     ),
     const GraduatedCommitment(
       id: 'gc_14',
@@ -310,6 +349,7 @@ class CommitmentCatalog {
           'You chose presence over productivity. That takes real courage in today\'s world.',
       failureGrace:
           'Sometimes we cannot step away. The intention to connect with creation still matters.',
+      category: CommitmentCategory.discipline,
     ),
     const GraduatedCommitment(
       id: 'gc_15',
@@ -330,6 +370,7 @@ class CommitmentCatalog {
           'You just rewired 30 minutes of negativity into gratitude. Your words shape your world.',
       failureGrace:
           'Complaints are deeply habitual. Catching even one is a win. Keep noticing.',
+      category: CommitmentCategory.discipline,
     ),
     const GraduatedCommitment(
       id: 'gc_16',
@@ -350,6 +391,7 @@ class CommitmentCatalog {
           'Service is love with its work clothes on. You just wore them beautifully.',
       failureGrace:
           'The willingness to serve already changes your heart, even if the timing did not work out.',
+      category: CommitmentCategory.charity,
     ),
     const GraduatedCommitment(
       id: 'gc_17',
@@ -370,6 +412,7 @@ class CommitmentCatalog {
           'Studying Scripture deeply is how you build an unshakable foundation.',
       failureGrace:
           'The Bible can feel overwhelming. Even opening it is an act of faith.',
+      category: CommitmentCategory.growth,
     ),
     const GraduatedCommitment(
       id: 'gc_18',
@@ -390,6 +433,7 @@ class CommitmentCatalog {
           'Patience is not passive waiting \u2014 it is active trust. You just exercised deep faith.',
       failureGrace:
           'Impatience is deeply human. Every moment of awareness is progress.',
+      category: CommitmentCategory.discipline,
     ),
     const GraduatedCommitment(
       id: 'gc_19',
@@ -410,6 +454,7 @@ class CommitmentCatalog {
           'One hour of digital freedom! You are reclaiming your attention for what truly matters.',
       failureGrace:
           'Our brains are wired for stimulation. Even 20 minutes offline rewires something.',
+      category: CommitmentCategory.discipline,
     ),
     const GraduatedCommitment(
       id: 'gc_20',
@@ -430,6 +475,7 @@ class CommitmentCatalog {
           'You completed Tier 2! True listening is one of the rarest gifts. You gave it freely today.',
       failureGrace:
           'Listening without self-focus is incredibly hard. Each attempt reshapes your relational instincts.',
+      category: CommitmentCategory.charity,
     ),
 
     // -------------------------------------------------------------------------
@@ -454,6 +500,7 @@ class CommitmentCatalog {
           'A whole morning free from the scroll. You are discovering who you are without the feed.',
       failureGrace:
           'Social media is engineered to be addictive. Every minute resisted is a step toward freedom.',
+      category: CommitmentCategory.discipline,
     ),
     const GraduatedCommitment(
       id: 'gc_22',
@@ -474,6 +521,7 @@ class CommitmentCatalog {
           'Four hours of gratitude-powered speech! Your words are building a better inner world.',
       failureGrace:
           'Complaining is a deep reflex. Catching even half of them is remarkable progress.',
+      category: CommitmentCategory.discipline,
     ),
     const GraduatedCommitment(
       id: 'gc_23',
@@ -494,6 +542,7 @@ class CommitmentCatalog {
           'Two hours of your life given away. That is what love looks like with hands and feet.',
       failureGrace:
           'Time is our most precious resource. Even wanting to give it shows a generous spirit.',
+      category: CommitmentCategory.charity,
     ),
     const GraduatedCommitment(
       id: 'gc_24',
@@ -514,6 +563,7 @@ class CommitmentCatalog {
           'Three hours reclaimed from screens. You are proving that joy exists beyond pixels.',
       failureGrace:
           'Entertainment numbs real feelings. Any time spent facing them instead is courageous.',
+      category: CommitmentCategory.discipline,
     ),
     const GraduatedCommitment(
       id: 'gc_25',
@@ -534,6 +584,7 @@ class CommitmentCatalog {
           'Two hours with the Creator. You are building the deepest relationship possible.',
       failureGrace:
           'Extended time with God can feel impossible in a busy life. Any portion you gave was received.',
+      category: CommitmentCategory.growth,
     ),
     const GraduatedCommitment(
       id: 'gc_26',
@@ -554,6 +605,7 @@ class CommitmentCatalog {
           'Four acts of deliberate kindness. You are becoming the kind of person the world needs.',
       failureGrace:
           'Kindness takes awareness and energy. Even attempting this challenge changes you.',
+      category: CommitmentCategory.charity,
     ),
     const GraduatedCommitment(
       id: 'gc_27',
@@ -574,6 +626,7 @@ class CommitmentCatalog {
           'Three hours of radical honesty. Integrity is who you are when convenience tempts you to bend.',
       failureGrace:
           'We tell small lies without even noticing. Awareness of them is the foundation of change.',
+      category: CommitmentCategory.discipline,
     ),
     const GraduatedCommitment(
       id: 'gc_28',
@@ -594,6 +647,7 @@ class CommitmentCatalog {
           'You spent 4 hours exchanging worry for prayer. That is the essence of Philippians 4:6.',
       failureGrace:
           'Worry is a deeply ingrained reflex. Redirecting even some of it to prayer is powerful.',
+      category: CommitmentCategory.discipline,
     ),
     const GraduatedCommitment(
       id: 'gc_29',
@@ -614,6 +668,7 @@ class CommitmentCatalog {
           'Generosity flows from abundance, and you just proved your heart is full.',
       failureGrace:
           'Giving when you feel empty is hard. Rest and try again from a place of overflow.',
+      category: CommitmentCategory.charity,
     ),
     const GraduatedCommitment(
       id: 'gc_30',
@@ -634,6 +689,7 @@ class CommitmentCatalog {
           'You completed Tier 3! Six hours of humble service. You are becoming someone others can trust deeply.',
       failureGrace:
           'Humility goes against every instinct of self-preservation. Each attempt softens the ego.',
+      category: CommitmentCategory.charity,
     ),
 
     // -------------------------------------------------------------------------
@@ -658,6 +714,7 @@ class CommitmentCatalog {
           'A full day free! You just proved social media is a choice, not a necessity.',
       failureGrace:
           'Digital detox is one of the hardest challenges in modern life. Partial success still matters.',
+      category: CommitmentCategory.discipline,
     ),
     const GraduatedCommitment(
       id: 'gc_32',
@@ -678,6 +735,7 @@ class CommitmentCatalog {
           'A full day of patience! You have strengthened a muscle that most people never exercise.',
       failureGrace:
           'Patience for an entire day is heroic. Every patient moment in between counts.',
+      category: CommitmentCategory.discipline,
     ),
     const GraduatedCommitment(
       id: 'gc_33',
@@ -698,6 +756,7 @@ class CommitmentCatalog {
           'A full day of life-giving speech. Your words today built people up instead of tearing them down.',
       failureGrace:
           'Negative speech is so common we barely notice it. Each caught word is a victory.',
+      category: CommitmentCategory.discipline,
     ),
     const GraduatedCommitment(
       id: 'gc_34',
@@ -718,6 +777,7 @@ class CommitmentCatalog {
           'A day lived for others. This is the heart of Christ in action.',
       failureGrace:
           'Self-sacrifice for a whole day is extraordinary. Any service you gave mattered.',
+      category: CommitmentCategory.charity,
     ),
     const GraduatedCommitment(
       id: 'gc_35',
@@ -738,6 +798,7 @@ class CommitmentCatalog {
           'A full day of gratitude transforms how you see the world. Nothing is ordinary anymore.',
       failureGrace:
           'Sustained gratitude is exhausting in a complaining culture. Any grateful moment was real.',
+      category: CommitmentCategory.growth,
     ),
     const GraduatedCommitment(
       id: 'gc_36',
@@ -758,6 +819,7 @@ class CommitmentCatalog {
           'You spent an entire day without numbing yourself with media. That takes incredible strength.',
       failureGrace:
           'Entertainment withdrawal reveals deep needs. Recognizing them is the start of healing.',
+      category: CommitmentCategory.discipline,
     ),
     const GraduatedCommitment(
       id: 'gc_37',
@@ -778,6 +840,7 @@ class CommitmentCatalog {
           'A day of listening. You gave others the gift of feeling truly heard.',
       failureGrace:
           'We are conditioned to talk. Every moment of genuine listening was a gift to someone.',
+      category: CommitmentCategory.charity,
     ),
     const GraduatedCommitment(
       id: 'gc_38',
@@ -798,6 +861,7 @@ class CommitmentCatalog {
           'Fasting and prayer is one of the most powerful spiritual disciplines. You honored God with your body and spirit.',
       failureGrace:
           'Fasting is not for everyone medically. Any form of intentional denial for spiritual gain counts.',
+      category: CommitmentCategory.growth,
     ),
     const GraduatedCommitment(
       id: 'gc_39',
@@ -818,6 +882,7 @@ class CommitmentCatalog {
           'A day of radical forgiveness. Chains that held your heart have been broken.',
       failureGrace:
           'Deep forgiveness is a journey, not a single day. Today was one powerful step on that path.',
+      category: CommitmentCategory.charity,
     ),
     const GraduatedCommitment(
       id: 'gc_40',
@@ -839,6 +904,7 @@ class CommitmentCatalog {
           'You have completed the journey. 40 commitments. 40 steps of faith. You are not the same person who started.',
       failureGrace:
           'Full surrender is the work of a lifetime, not a single day. The desire itself honors God.',
+      category: CommitmentCategory.growth,
     ),
   ];
 }

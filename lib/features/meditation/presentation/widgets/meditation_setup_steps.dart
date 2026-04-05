@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_soloud/flutter_soloud.dart';
 import 'package:logger/logger.dart';
 
 import '../../application/meditation_notifier.dart';
@@ -377,7 +376,7 @@ class _ChantOptionState extends State<_ChantOption> {
   bool _isDownloading = false;
   double _downloadProgress = 0.0;
   late ImprovedAudioService _audioService;
-  AudioSource? _preloadedSource;
+  String? _preloadedPath;
   final GlobalAudioManager _globalAudioManager = GlobalAudioManager();
   StreamSubscription<void>? _stopSubscription;
   int _activePreviewId = 0;
@@ -392,7 +391,7 @@ class _ChantOptionState extends State<_ChantOption> {
         _isPreviewing = false;
         _isDownloading = false;
         _downloadProgress = 0.0;
-        _preloadedSource = null;
+        _preloadedPath = null;
         _activePreviewId = 0;
         _audioService = _globalAudioManager.getAudioService();
       });
@@ -408,12 +407,12 @@ class _ChantOptionState extends State<_ChantOption> {
 
   // Preload chant when user long presses or hovers (optional enhancement)
   Future<void> _preloadChant() async {
-    if (widget.chant.voiceKey == null || _preloadedSource != null) return;
-    
+    if (widget.chant.voiceKey == null || _preloadedPath != null) return;
+
     final urlOrAsset = widget.chant.voiceKey!;
     Logger().d('🎵 Preloading chant for instant playback: ${widget.chant.label}');
-    
-    _preloadedSource = await _audioService.preloadChant(urlOrAsset);
+
+    _preloadedPath = await _audioService.preloadChant(urlOrAsset);
   }
 
   Future<void> _previewVoice() async {
@@ -452,9 +451,9 @@ class _ChantOptionState extends State<_ChantOption> {
         }
       } else {
         // Try preloaded source first for instant playback
-        if (_preloadedSource != null) {
+        if (_preloadedPath != null) {
           Logger().d('🎵 Using preloaded source for instant playback');
-          final played = await _audioService.playPreloadedChant(_preloadedSource!);
+          final played = await _audioService.playPreloadedChant(_preloadedPath!);
           if (!played) {
             throw Exception('Failed to play preloaded chant');
           }

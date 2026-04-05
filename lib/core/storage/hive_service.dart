@@ -18,27 +18,21 @@ class HiveService {
       await Hive.initFlutter();
       _registerAdapters();
 
-      // Open only essential boxes first
+      // Open all boxes before runApp() to prevent race conditions with providers
       await Future.wait(<Future<void>>[
         _safeOpenBox<dynamic>(HiveBoxes.settings),
         _safeOpenBox<DailyAnchors>(HiveBoxes.dailyAnchors),
         _safeOpenBox<Virtue>(HiveBoxes.virtues),
         _safeOpenBox<dynamic>(HiveBoxes.xpActivities),
         _safeOpenBox<int>(HiveBoxes.xpTotals),
+        _safeOpenBox<Note>(HiveBoxes.journalEntries),
+        _safeOpenBox<BibleVerse>(HiveBoxes.bibleVerses),
+        _safeOpenBox<MeditationSession>(HiveBoxes.meditationSessions),
+        _safeOpenBox<dynamic>(HiveBoxes.appLockConfigs),
+        _safeOpenBox<dynamic>(HiveBoxes.appLockUsage),
+        SpiritualAidRepository.initializeBoxes(),
+        _safeOpenBox<dynamic>(HiveBoxes.alignment),
       ]);
-      
-      // Defer less critical boxes
-      Future.microtask(() async {
-        await Future.wait(<Future<void>>[
-          _safeOpenBox<Note>(HiveBoxes.journalEntries),
-          _safeOpenBox<BibleVerse>(HiveBoxes.bibleVerses),
-          _safeOpenBox<MeditationSession>(HiveBoxes.meditationSessions),
-          _safeOpenBox<dynamic>(HiveBoxes.appLockConfigs),
-          _safeOpenBox<dynamic>(HiveBoxes.appLockUsage),
-          SpiritualAidRepository.initializeBoxes(),
-          _safeOpenBox<dynamic>(HiveBoxes.alignment),
-        ]);
-      });
     } catch (e) {
       debugPrint('Hive initialization failed: $e');
       // If initialization fails, try to clear corrupted data and retry
@@ -48,27 +42,21 @@ class HiveService {
       await Hive.initFlutter();
       _registerAdapters();
       
-      // Open essential boxes first
+      // Open all boxes before runApp() to prevent race conditions with providers
       await Future.wait(<Future<void>>[
         Hive.openBox<dynamic>(HiveBoxes.settings),
         Hive.openBox<DailyAnchors>(HiveBoxes.dailyAnchors),
         Hive.openBox<Virtue>(HiveBoxes.virtues),
         Hive.openBox<dynamic>(HiveBoxes.xpActivities),
         Hive.openBox<int>(HiveBoxes.xpTotals),
+        Hive.openBox<Note>(HiveBoxes.journalEntries),
+        Hive.openBox<BibleVerse>(HiveBoxes.bibleVerses),
+        Hive.openBox<MeditationSession>(HiveBoxes.meditationSessions),
+        Hive.openBox<dynamic>(HiveBoxes.appLockConfigs),
+        Hive.openBox<dynamic>(HiveBoxes.appLockUsage),
+        SpiritualAidRepository.initializeBoxes(),
+        Hive.openBox<dynamic>(HiveBoxes.alignment),
       ]);
-      
-      // Defer less critical boxes
-      Future.microtask(() async {
-        await Future.wait(<Future<void>>[
-          Hive.openBox<Note>(HiveBoxes.journalEntries),
-          Hive.openBox<BibleVerse>(HiveBoxes.bibleVerses),
-          Hive.openBox<MeditationSession>(HiveBoxes.meditationSessions),
-          Hive.openBox<dynamic>(HiveBoxes.appLockConfigs),
-          Hive.openBox<dynamic>(HiveBoxes.appLockUsage),
-          SpiritualAidRepository.initializeBoxes(),
-          Hive.openBox<dynamic>(HiveBoxes.alignment),
-        ]);
-      });
     }
   }
 

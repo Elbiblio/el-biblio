@@ -111,17 +111,17 @@ enum TimeContext {
 
 extension TimeContextX on TimeContext {
   String get greeting => switch (this) {
-        TimeContext.morning => 'Good morning!',
-        TimeContext.midday => 'Good afternoon!',
-        TimeContext.evening => 'Good evening!',
+        TimeContext.morning => 'Good morning',
+        TimeContext.midday => 'Good afternoon',
+        TimeContext.evening => 'Good evening',
         TimeContext.night => 'Rest well',
       };
 
   String get focus => switch (this) {
-        TimeContext.morning => 'Time for presence and intention',
-        TimeContext.midday => 'How is your spiritual alignment?',
-        TimeContext.evening => 'Time to complete and reflect',
-        TimeContext.night => 'Prepare for restorative rest',
+        TimeContext.morning => 'Your clarity journey continues.',
+        TimeContext.midday => 'Stay anchored in clarity.',
+        TimeContext.evening => 'Reflect on today\'s clarity.',
+        TimeContext.night => 'Let stillness restore your clarity.',
       };
 
   static TimeContext fromHour(int hour) {

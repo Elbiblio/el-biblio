@@ -17,12 +17,16 @@ class NoteEditorScreen extends ConsumerStatefulWidget {
     this.initialTitle,
     this.initialText,
     this.initialVirtues,
+    this.meditationSessionId,
   });
 
   final String? noteId;
   final String? initialTitle;
   final String? initialText;
   final List<String>? initialVirtues;
+
+  /// If this note was created from a meditation session, this is the session ID.
+  final String? meditationSessionId;
 
   @override
   ConsumerState<NoteEditorScreen> createState() => _NoteEditorScreenState();
@@ -40,7 +44,8 @@ class _NoteEditorScreenState extends ConsumerState<NoteEditorScreen> {
   List<String> _selectedVirtues = [];
   bool _showReference = false;
   Timer? _saveTimer;
-  
+  String? _meditationSessionId;
+
   late stt.SpeechToText _speech;
   bool _isListening = false;
   String _lastWords = '';
@@ -51,6 +56,7 @@ class _NoteEditorScreenState extends ConsumerState<NoteEditorScreen> {
     _speech = stt.SpeechToText();
     
     // Load initial data
+    _meditationSessionId = widget.meditationSessionId;
     if (widget.noteId != null) {
       _loadNote();
     } else {
@@ -164,6 +170,7 @@ class _NoteEditorScreenState extends ConsumerState<NoteEditorScreen> {
           isPublic: _isPublic,
           isPinned: _isPinned,
           virtues: _selectedVirtues,
+          meditationSessionId: _meditationSessionId,
         );
       }
     } catch (e) {
@@ -220,6 +227,7 @@ class _NoteEditorScreenState extends ConsumerState<NoteEditorScreen> {
           isPublic: _isPublic,
           isPinned: _isPinned,
           virtues: _selectedVirtues,
+          meditationSessionId: _meditationSessionId,
         );
       }
       

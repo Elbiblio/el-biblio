@@ -280,17 +280,4 @@ class SampleHabitsView extends ConsumerWidget {
     );
   }
 
-  Widget _buildCountdownTimer(BuildContext context) {
-    // Simple countdown display - in real app this would be dynamic
-    return Text(
-      '3H 59M',
-      style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-        fontSize: 24,
-        fontWeight: FontWeight.w300,
-        letterSpacing: 4.0,
-        color: Theme.of(context).colorScheme.primary,
-      ),
-      textAlign: TextAlign.center,
-    );
-  }
 }

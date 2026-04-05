@@ -26,6 +26,7 @@ class NoteAdapter extends TypeAdapter<Note> {
       isPinned: fields[6] as bool,
       isVoiceRecorded: fields[7] as bool,
       virtues: (fields[8] as List).cast<String>(),
+      meditationSessionId: fields[11] as String?,
       createdAt: fields[9] as DateTime,
       updatedAt: fields[10] as DateTime,
     );
@@ -34,7 +35,7 @@ class NoteAdapter extends TypeAdapter<Note> {
   @override
   void write(BinaryWriter writer, Note obj) {
     writer
-      ..writeByte(11)
+      ..writeByte(12)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -56,7 +57,9 @@ class NoteAdapter extends TypeAdapter<Note> {
       ..writeByte(9)
       ..write(obj.createdAt)
       ..writeByte(10)
-      ..write(obj.updatedAt);
+      ..write(obj.updatedAt)
+      ..writeByte(11)
+      ..write(obj.meditationSessionId);
   }
 
   @override
@@ -87,6 +90,7 @@ Note _$NoteFromJson(Map<String, dynamic> json) => Note(
               ?.map((e) => e as String)
               .toList() ??
           const [],
+      meditationSessionId: json['meditation_session_id'] as String?,
       createdAt: DateTime.parse(json['created_at'] as String),
       updatedAt: DateTime.parse(json['updated_at'] as String),
     );
@@ -101,6 +105,7 @@ Map<String, dynamic> _$NoteToJson(Note instance) => <String, dynamic>{
       'is_pinned': instance.isPinned,
       'is_voice_recorded': instance.isVoiceRecorded,
       'virtues': instance.virtues,
+      'meditation_session_id': instance.meditationSessionId,
       'created_at': instance.createdAt.toIso8601String(),
       'updated_at': instance.updatedAt.toIso8601String(),
     };

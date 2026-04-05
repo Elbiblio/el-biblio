@@ -1,7 +1,9 @@
-import 'package:flutter/foundation.dart';
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/constants/app_routes.dart';
 import '../../../../core/di/app_providers.dart';
@@ -11,6 +13,13 @@ import '../../domain/models/app_category.dart';
 import '../../domain/models/app_usage_record.dart';
 import '../widgets/usage_progress_bar.dart';
 import '../widgets/time_saved_counter.dart';
+
+/// Whether the Android usage stats permission is granted.
+/// Only meaningful on Android; always false on other platforms.
+final _usagePermissionProvider = FutureProvider.autoDispose<bool>((ref) async {
+  if (!Platform.isAndroid) return true; // non-Android doesn't need this
+  return ref.watch(appUsageServiceProvider).hasPermission();
+});
 
 class AppLockDashboardScreen extends ConsumerWidget {
   const AppLockDashboardScreen({super.key});
@@ -68,6 +77,12 @@ class AppLockDashboardScreen extends ConsumerWidget {
                         ),
                       ),
                     ),
+
+                    // Usage stats permission banner (Android only)
+                    if (Platform.isAndroid)
+                      SliverToBoxAdapter(
+                        child: _buildPermissionBanner(context, ref, theme, tokens),
+                      ),
 
                     // Motivational message
                     if (state.isDoingWell && state.todayUsage.isNotEmpty)
@@ -143,18 +158,106 @@ class AppLockDashboardScreen extends ConsumerWidget {
                         ),
                       ),
 
-                    // Simulate usage section (debug only)
-                    if (kDebugMode && state.configs.isNotEmpty)
-                      SliverToBoxAdapter(
-                        child: Padding(
-                          padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
-                          child: _buildSimulateSection(context, ref, theme, tokens, state),
-                        ),
-                      ),
+                    // Bottom spacing for nav bar
+                    const SliverToBoxAdapter(
+                      child: SizedBox(height: 120),
+                    ),
                   ],
                 ),
         ),
       ),
+    );
+  }
+
+  Widget _buildPermissionBanner(
+    BuildContext context,
+    WidgetRef ref,
+    ThemeData theme,
+    AppThemeTokens tokens,
+  ) {
+    final permissionAsync = ref.watch(_usagePermissionProvider);
+    return permissionAsync.when(
+      data: (hasPermission) {
+        if (hasPermission) return const SizedBox.shrink();
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(24, 8, 24, 0),
+          child: Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(14),
+              color: theme.colorScheme.primaryContainer.withValues(alpha: 0.3),
+              border: Border.all(
+                color: theme.colorScheme.primary.withValues(alpha: 0.3),
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.info_outline_rounded,
+                        size: 20, color: theme.colorScheme.primary),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Usage access permission required',
+                        style: theme.textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w600,
+                          color: theme.colorScheme.primary,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'To track real app usage, El-Biblio needs access to usage statistics. '
+                  'Tap below to open settings and enable it for El-Biblio.',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: () async {
+                      // Open the Usage Access settings page on Android
+                      // Using the Android intent URI scheme supported by url_launcher
+                      final uri = Uri.parse(
+                        'intent:#Intent;action=android.settings.USAGE_ACCESS_SETTINGS;end',
+                      );
+                      try {
+                        final launched = await launchUrl(
+                          uri,
+                          mode: LaunchMode.externalApplication,
+                        );
+                        if (!launched) {
+                          // Fallback: open general app settings
+                          await launchUrl(
+                            Uri.parse('app-settings:'),
+                            mode: LaunchMode.externalApplication,
+                          );
+                        }
+                      } catch (_) {
+                        // Last resort: open general settings
+                        await launchUrl(
+                          Uri.parse('app-settings:'),
+                          mode: LaunchMode.externalApplication,
+                        );
+                      }
+                    },
+                    icon: const Icon(Icons.settings_rounded, size: 16),
+                    label: const Text('Open Usage Settings'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+      loading: () => const SizedBox.shrink(),
+      error: (_, __) => const SizedBox.shrink(),
     );
   }
 
@@ -367,61 +470,4 @@ class AppLockDashboardScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildSimulateSection(
-    BuildContext context,
-    WidgetRef ref,
-    ThemeData theme,
-    AppThemeTokens tokens,
-    dynamic state,
-  ) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(16),
-        color: tokens.palette.surface.withValues(alpha: 0.5),
-        border: Border.all(
-          color: tokens.palette.border.withValues(alpha: 0.5),
-          style: BorderStyle.solid,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'SIMULATE USAGE',
-            style: theme.textTheme.sectionHeader.copyWith(
-              color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
-              letterSpacing: 1.5,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Tap an app below to simulate 15 minutes of usage.',
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: tokens.palette.textTertiary,
-            ),
-          ),
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: state.configs.map<Widget>((config) {
-              return ActionChip(
-                avatar: Icon(
-                  AppCategory.fromId(config.category).icon,
-                  size: 16,
-                ),
-                label: Text(config.appName),
-                onPressed: () {
-                  ref
-                      .read(appLockProvider.notifier)
-                      .simulateUsage(config.packageName, 15);
-                },
-              );
-            }).toList(),
-          ),
-        ],
-      ),
-    );
-  }
 }

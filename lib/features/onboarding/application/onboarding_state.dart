@@ -1,11 +1,11 @@
 import '../../today/domain/models/daily_anchors.dart';
 
 enum OnboardingStep {
-  welcome,
-  threeAnchors,
-  sampleHabits,
-  lifestyleSetup,
-  socialPresence,
+  theProblem, // was: theNoise
+  theSolution, // merges: clarityPromise + fourPillars
+  yourIdentity, // merges: discoverIdentity + identityRevealed
+  yourPath, // merges: startingCommitment + lifestyleSetup
+  yourAccount, // merges: ready + pre-onboarding signup
 }
 
 class OnboardingState {
@@ -19,6 +19,13 @@ class OnboardingState {
     required this.primaryVirtue,
     required this.socialPresenceOptIn,
     required this.contactsImported,
+    this.miniAssessmentAnswers = const [],
+    this.primaryArchetypeId,
+    this.commitmentCategory,
+    this.email,
+    this.fullName,
+    this.phone,
+    this.personalDistractions = const [],
   });
 
   final OnboardingStep step;
@@ -31,14 +38,31 @@ class OnboardingState {
   final bool socialPresenceOptIn;
   final bool contactsImported;
 
-  bool get isLastStep => step == OnboardingStep.socialPresence;
+  /// Answers from the 3-question mini-assessment (indices into option lists).
+  final List<int> miniAssessmentAnswers;
+
+  /// The archetype determined by the mini-assessment.
+  final String? primaryArchetypeId;
+
+  /// The chosen commitment category: 'growth', 'discipline', or 'charity'.
+  final String? commitmentCategory;
+
+  /// Account signup fields.
+  final String? email;
+  final String? fullName;
+  final String? phone;
+
+  /// User-selected personal distractions/addictions.
+  final List<String> personalDistractions;
+
+  bool get isLastStep => step == OnboardingStep.yourAccount;
 
   int get currentStepIndex => switch (step) {
-        OnboardingStep.welcome => 0,
-        OnboardingStep.threeAnchors => 1,
-        OnboardingStep.sampleHabits => 2,
-        OnboardingStep.lifestyleSetup => 3,
-        OnboardingStep.socialPresence => 4,
+        OnboardingStep.theProblem => 0,
+        OnboardingStep.theSolution => 1,
+        OnboardingStep.yourIdentity => 2,
+        OnboardingStep.yourPath => 3,
+        OnboardingStep.yourAccount => 4,
       };
 
   int get totalSteps => 5;
@@ -53,6 +77,13 @@ class OnboardingState {
     VirtueType? primaryVirtue,
     bool? socialPresenceOptIn,
     bool? contactsImported,
+    List<int>? miniAssessmentAnswers,
+    String? primaryArchetypeId,
+    String? commitmentCategory,
+    String? email,
+    String? fullName,
+    String? phone,
+    List<String>? personalDistractions,
   }) {
     return OnboardingState(
       step: step ?? this.step,
@@ -64,6 +95,13 @@ class OnboardingState {
       primaryVirtue: primaryVirtue ?? this.primaryVirtue,
       socialPresenceOptIn: socialPresenceOptIn ?? this.socialPresenceOptIn,
       contactsImported: contactsImported ?? this.contactsImported,
+      miniAssessmentAnswers: miniAssessmentAnswers ?? this.miniAssessmentAnswers,
+      primaryArchetypeId: primaryArchetypeId ?? this.primaryArchetypeId,
+      commitmentCategory: commitmentCategory ?? this.commitmentCategory,
+      email: email ?? this.email,
+      fullName: fullName ?? this.fullName,
+      phone: phone ?? this.phone,
+      personalDistractions: personalDistractions ?? this.personalDistractions,
     );
   }
 }

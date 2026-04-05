@@ -28,6 +28,8 @@ class MeditationSession {
     this.virtueAffirmation,
     this.habitAffirmation,
     this.customBibleVerses,
+    this.godSpokeToMe,
+    this.journalEntryId,
   });
 
   final String id;
@@ -52,6 +54,12 @@ class MeditationSession {
   final HabitAffirmation? habitAffirmation;
   final String? customBibleVerses;
 
+  /// Whether the user sensed God speaking during this session.
+  final bool? godSpokeToMe;
+
+  /// ID of the journal entry created after this meditation session.
+  final String? journalEntryId;
+
   MeditationSession copyWith({
     int? completedCount,
     MeditationStyle? style,
@@ -65,6 +73,8 @@ class MeditationSession {
     VirtueAffirmation? virtueAffirmation,
     HabitAffirmation? habitAffirmation,
     String? customBibleVerses,
+    bool? godSpokeToMe,
+    String? journalEntryId,
   }) {
     return MeditationSession(
       id: id,
@@ -86,6 +96,8 @@ class MeditationSession {
       virtueAffirmation: virtueAffirmation ?? this.virtueAffirmation,
       habitAffirmation: habitAffirmation ?? this.habitAffirmation,
       customBibleVerses: customBibleVerses ?? this.customBibleVerses,
+      godSpokeToMe: godSpokeToMe ?? this.godSpokeToMe,
+      journalEntryId: journalEntryId ?? this.journalEntryId,
     );
   }
 
@@ -149,6 +161,8 @@ class MeditationSession {
             )
           : null,
       customBibleVerses: json['customBibleVerses'] as String?,
+      godSpokeToMe: json['godSpokeToMe'] as bool?,
+      journalEntryId: json['journalEntryId'] as String?,
     );
   }
 
@@ -174,6 +188,8 @@ class MeditationSession {
       'virtueAffirmation': virtueAffirmation?.name,
       'habitAffirmation': habitAffirmation?.name,
       'customBibleVerses': customBibleVerses,
+      'godSpokeToMe': godSpokeToMe,
+      'journalEntryId': journalEntryId,
     };
   }
 }
@@ -205,6 +221,8 @@ class MeditationSessionAdapter extends TypeAdapter<MeditationSession> {
       virtueAffirmation: reader.read() as VirtueAffirmation?,
       habitAffirmation: reader.read() as HabitAffirmation?,
       customBibleVerses: reader.readString(),
+      godSpokeToMe: reader.read() as bool?,
+      journalEntryId: reader.readString(),
     );
   }
 
@@ -230,6 +248,8 @@ class MeditationSessionAdapter extends TypeAdapter<MeditationSession> {
       ..write(obj.affirmationCategory)
       ..write(obj.virtueAffirmation)
       ..write(obj.habitAffirmation)
-      ..writeString(obj.customBibleVerses ?? '');
+      ..writeString(obj.customBibleVerses ?? '')
+      ..write(obj.godSpokeToMe)
+      ..writeString(obj.journalEntryId ?? '');
   }
 }

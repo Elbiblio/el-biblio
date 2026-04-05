@@ -377,10 +377,6 @@ class OfflineDataValidationService {
           readOnly: false,
         );
         
-        // Configure database for recovery
-        await db.execute('PRAGMA foreign_keys = ON');
-        await db.execute('PRAGMA journal_mode = WAL');
-        
         // Run integrity check
         final integrityResult = await db.rawQuery('PRAGMA integrity_check');
         await db.close();

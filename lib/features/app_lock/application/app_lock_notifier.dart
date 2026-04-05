@@ -1,25 +1,43 @@
+import 'dart:io';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../data/app_lock_repository.dart';
+import '../data/app_usage_service.dart';
 import '../domain/models/app_lock_config.dart';
 import '../domain/models/app_usage_record.dart';
 import 'app_lock_state.dart';
 
 class AppLockNotifier extends StateNotifier<AppLockState> {
-  AppLockNotifier(this._repository) : super(AppLockState.initial()) {
+  AppLockNotifier(this._repository, this._usageService) : super(AppLockState.initial()) {
     loadAll();
   }
 
   final AppLockRepository _repository;
+  final AppUsageService _usageService;
 
   Future<void> loadAll() async {
     state = state.copyWith(isLoading: true);
     try {
       final configs = _repository.getConfigs();
-      final todayUsage = _repository.getTodayUsage();
       final weeklyStats = _repository.getWeeklyStats();
       final extensions = _repository.getExtensionsUsedToday();
       final streak = _repository.getGoalStreakDays();
+
+      // On Android, try to fetch real usage stats first
+      List<AppUsageRecord> todayUsage;
+      if (Platform.isAndroid) {
+        final realUsage = await _usageService.getTodayUsage(configs);
+        if (realUsage.isNotEmpty && realUsage.any((r) => r.usedMinutesToday > 0)) {
+          todayUsage = realUsage;
+        } else {
+          // Fall back to Hive-based manual tracking
+          todayUsage = _repository.getTodayUsage();
+        }
+      } else {
+        // Non-Android: use Hive-based manual tracking
+        todayUsage = _repository.getTodayUsage();
+      }
 
       // Sync today usage with current configs to ensure limits are up to date
       final syncedUsage = _syncUsageWithConfigs(todayUsage, configs);
@@ -62,14 +80,25 @@ class AppLockNotifier extends StateNotifier<AppLockState> {
   }
 
   Future<void> refreshUsage() async {
-    final todayUsage = _repository.getTodayUsage();
+    List<AppUsageRecord> todayUsage;
+    if (Platform.isAndroid) {
+      final realUsage = await _usageService.getTodayUsage(state.configs);
+      if (realUsage.isNotEmpty && realUsage.any((r) => r.usedMinutesToday > 0)) {
+        todayUsage = realUsage;
+      } else {
+        todayUsage = _repository.getTodayUsage();
+      }
+    } else {
+      todayUsage = _repository.getTodayUsage();
+    }
     final syncedUsage = _syncUsageWithConfigs(todayUsage, state.configs);
     state = state.copyWith(todayUsage: syncedUsage);
   }
 
-  Future<void> simulateUsage(String packageName, int minutes) async {
-    await _repository.recordUsage(packageName, minutes);
-    await loadAll();
+  /// Check if a specific app has exceeded its daily limit.
+  bool isAppLimitReached(String packageName) {
+    final record = state.todayUsage.where((r) => r.packageName == packageName).firstOrNull;
+    return record != null && record.isLimitReached;
   }
 
   Future<bool> requestExtension(String packageName) async {

@@ -43,7 +43,7 @@ class CommitmentJourneyScreen extends ConsumerWidget {
                       backgroundColor: Colors.transparent,
                       surfaceTintColor: Colors.transparent,
                       title: Text(
-                        'Commitment Journey',
+                        'Clarity Commitments',
                         style: theme.textTheme.titleLarge?.copyWith(
                           fontWeight: FontWeight.bold,
                         ),
@@ -97,7 +97,7 @@ class CommitmentJourneyScreen extends ConsumerWidget {
                       child: Padding(
                         padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
                         child: Text(
-                          'Your Path',
+                          'Your Clarity Path',
                           style: theme.textTheme.titleMedium?.copyWith(
                             fontWeight: FontWeight.bold,
                           ),
@@ -427,7 +427,7 @@ class _OverallProgressCard extends StatelessWidget {
             Row(
               children: [
                 Text(
-                  'Overall Progress',
+                  'Clarity Progress',
                   style: theme.textTheme.titleSmall?.copyWith(
                     fontWeight: FontWeight.w600,
                   ),

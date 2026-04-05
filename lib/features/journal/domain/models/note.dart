@@ -16,6 +16,7 @@ class Note {
     this.isPinned = false,
     this.isVoiceRecorded = false,
     this.virtues = const [],
+    this.meditationSessionId,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -51,7 +52,11 @@ class Note {
   
   @HiveField(8)
   final List<String> virtues;
-  
+
+  @HiveField(11)
+  @JsonKey(name: 'meditation_session_id')
+  final String? meditationSessionId;
+
   @HiveField(9)
   @JsonKey(name: 'created_at')
   final DateTime createdAt;
@@ -78,6 +83,7 @@ class Note {
               ?.map((e) => e as String)
               .toList() ??
           const [],
+      meditationSessionId: json['meditation_session_id'] as String?,
       createdAt: DateTime.parse(json['created_at'] as String),
       updatedAt: DateTime.parse(json['updated_at'] as String),
     );
@@ -94,6 +100,7 @@ class Note {
     bool? isPinned,
     bool? isVoiceRecorded,
     List<String>? virtues,
+    String? meditationSessionId,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) {
@@ -107,6 +114,7 @@ class Note {
       isPinned: isPinned ?? this.isPinned,
       isVoiceRecorded: isVoiceRecorded ?? this.isVoiceRecorded,
       virtues: virtues ?? this.virtues,
+      meditationSessionId: meditationSessionId ?? this.meditationSessionId,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );

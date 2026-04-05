@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/di/app_providers.dart';
-import '../../domain/models/daily_anchors.dart';
 
 class VirtueFocusBadge extends ConsumerWidget {
   const VirtueFocusBadge({super.key});
@@ -11,11 +10,24 @@ class VirtueFocusBadge extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final settings = ref.watch(settingsProvider);
     final theme = Theme.of(context);
-    
-    // Get the current virtue focus
-    final virtueType = settings.primaryVirtue;
-    final virtueColor = _getVirtueColor(virtueType, theme);
-    final virtueTitle = virtueType.title;
+
+    final archetypeName = settings.primaryArchetypeId;
+    final categoryName = settings.commitmentCategory;
+
+    // Build a singular identity line: "Artisan · Charity" or just the category
+    String identityLine;
+    if (archetypeName != null && archetypeName.isNotEmpty && categoryName != null && categoryName.isNotEmpty) {
+      final categoryLabel = categoryName[0].toUpperCase() + categoryName.substring(1);
+      identityLine = '$archetypeName · $categoryLabel';
+    } else if (archetypeName != null && archetypeName.isNotEmpty) {
+      identityLine = archetypeName;
+    } else if (categoryName != null && categoryName.isNotEmpty) {
+      identityLine = categoryName[0].toUpperCase() + categoryName.substring(1);
+    } else {
+      identityLine = 'Discover your identity';
+    }
+
+    final categoryColor = _getCategoryColor(categoryName);
 
     return GestureDetector(
       onTap: () {
@@ -24,98 +36,93 @@ class VirtueFocusBadge extends ConsumerWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Virtue Icon
           Icon(
-            _getVirtueIcon(virtueType),
+            _getCategoryIcon(categoryName),
             size: 20,
-            color: virtueColor,
+            color: categoryColor,
           ),
           const SizedBox(width: 8),
-          
-          // Virtue Info
           Flexible(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  'Nurturing...',
-                  style: theme.textTheme.displaySmall?.copyWith(fontSize: 24),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  virtueTitle,
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    color: virtueColor,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ],
+            child: Text(
+              identityLine,
+              style: theme.textTheme.titleSmall?.copyWith(
+                color: categoryColor,
+                fontWeight: FontWeight.w700,
+              ),
+              overflow: TextOverflow.ellipsis,
             ),
           ),
           const SizedBox(width: 4),
-          // Dropdown indicator
           Icon(
             Icons.keyboard_arrow_down,
             size: 16,
-            color: virtueColor.withValues(alpha: 0.6),
+            color: categoryColor.withValues(alpha: 0.6),
           ),
         ],
       ),
     );
   }
 
+  Color _getCategoryColor(String? category) {
+    return switch (category) {
+      'growth' => const Color(0xFF4CAF50),
+      'discipline' => const Color(0xFF2196F3),
+      'charity' => const Color(0xFFE57C23),
+      _ => const Color(0xFF638B6C),
+    };
+  }
+
+  IconData _getCategoryIcon(String? category) {
+    return switch (category) {
+      'growth' => Icons.trending_up_rounded,
+      'discipline' => Icons.shield_rounded,
+      'charity' => Icons.volunteer_activism_rounded,
+      _ => Icons.explore_rounded,
+    };
+  }
+
   void _showVirtueSelectionDialog(BuildContext context, WidgetRef ref) {
-    final currentVirtue = ref.read(settingsProvider).primaryVirtue;
-    
+    final currentCategory = ref.read(settingsProvider).commitmentCategory;
+
+    final categories = [
+      ('growth', 'Growth', 'Strengthen your spiritual muscles', Icons.trending_up_rounded, const Color(0xFF4CAF50)),
+      ('discipline', 'Discipline', 'Build holy habits that anchor your day', Icons.shield_rounded, const Color(0xFF2196F3)),
+      ('charity', 'Charity', 'Fight addiction through grace and giving', Icons.volunteer_activism_rounded, const Color(0xFFE57C23)),
+    ];
+
     showDialog(
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: const Text('Select Virtue Focus'),
+          title: const Text('Choose Your Path'),
           content: Column(
             mainAxisSize: MainAxisSize.min,
-            children: VirtueType.values.map((virtue) {
-              final virtueColor = _getVirtueColor(virtue, Theme.of(context));
-              final isSelected = virtue == currentVirtue;
-              
+            children: categories.map((cat) {
+              final isSelected = cat.$1 == currentCategory;
               return ListTile(
                 leading: Container(
                   width: 32,
                   height: 32,
                   decoration: BoxDecoration(
-                    color: virtueColor.withValues(alpha: 0.2),
+                    color: cat.$5.withValues(alpha: 0.2),
                     shape: BoxShape.circle,
-                    border: isSelected 
-                        ? Border.all(color: virtueColor, width: 2)
-                        : null,
+                    border: isSelected ? Border.all(color: cat.$5, width: 2) : null,
                   ),
-                  child: Icon(
-                    _getVirtueIcon(virtue),
-                    size: 18,
-                    color: virtueColor,
-                  ),
+                  child: Icon(cat.$4, size: 18, color: cat.$5),
                 ),
                 title: Text(
-                  virtue.title,
+                  cat.$2,
                   style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    color: virtueColor,
+                    color: cat.$5,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
-                subtitle: Text(
-                  virtue.focusPrompt,
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
+                subtitle: Text(cat.$3, style: Theme.of(context).textTheme.bodySmall),
                 trailing: isSelected
-                    ? Icon(
-                        Icons.check_circle,
-                        color: virtueColor,
-                        size: 20,
-                      )
+                    ? Icon(Icons.check_circle, color: cat.$5, size: 20)
                     : null,
                 onTap: () {
-                  ref.read(settingsProvider.notifier).setVirtueFocus(primaryVirtue: virtue);
+                  ref.read(settingsProvider.notifier).setCommitmentCategory(cat.$1);
                   Navigator.of(context).pop();
                 },
               );
@@ -124,31 +131,5 @@ class VirtueFocusBadge extends ConsumerWidget {
         );
       },
     );
-  }
-
-  Color _getVirtueColor(VirtueType virtue, ThemeData theme) {
-    switch (virtue) {
-      case VirtueType.humility:
-        return const Color(0xFF8B5E3C); // Brown
-      case VirtueType.love:
-        return const Color(0xFFC85F4B); // Red
-      case VirtueType.faith:
-        return const Color(0xFF638B6C); // Green
-      case VirtueType.knowledge:
-        return const Color(0xFF4A6FA5); // Blue
-    }
-  }
-
-  IconData _getVirtueIcon(VirtueType virtue) {
-    switch (virtue) {
-      case VirtueType.humility:
-        return Icons.self_improvement_rounded;
-      case VirtueType.love:
-        return Icons.favorite_rounded;
-      case VirtueType.faith:
-        return Icons.sailing_rounded;
-      case VirtueType.knowledge:
-        return Icons.lightbulb_rounded;
-    }
   }
 }

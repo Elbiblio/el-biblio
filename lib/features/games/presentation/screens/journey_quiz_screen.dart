@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import '../../../../core/constants/app_routes.dart';
 import '../../application/journey_game_notifier.dart';
 import '../widgets/quiz_option_card.dart';
 import 'journey_complete_screen.dart';
@@ -24,8 +26,23 @@ class JourneyQuizScreen extends ConsumerWidget {
       journeyGameProvider.select((s) => s.phase),
       (prev, next) {
         if (next == JourneyPhase.eventComplete) {
-          // Pop quiz + event screens, back to map
-          Navigator.of(context).popUntil((route) => route.isFirst);
+          // Navigate to post-game reading screen with the event's Bible reference
+          final completedEvent = state.currentEvent;
+          if (completedEvent != null &&
+              completedEvent.bibleReference.isNotEmpty) {
+            Navigator.of(context).popUntil((route) => route.isFirst);
+            context.push(
+              AppRoutes.gamesPostReading,
+              extra: {
+                'bibleReference': completedEvent.bibleReference,
+                'xpEarned': completedEvent.xpReward,
+                'gameTitle': completedEvent.title,
+              },
+            );
+          } else {
+            // Fallback: pop back to map if no reference available
+            Navigator.of(context).popUntil((route) => route.isFirst);
+          }
         } else if (next == JourneyPhase.journeyComplete) {
           Navigator.of(context).pushReplacement(
             MaterialPageRoute(builder: (_) => const JourneyCompleteScreen()),

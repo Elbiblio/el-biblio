@@ -56,7 +56,7 @@ class NeedHelpWidget extends ConsumerWidget {
                     const SizedBox(width: 12),
                     Expanded(
                       child: Text(
-                        'Building a new habit?',
+                        'Feeling distracted?',
                         style: theme.textTheme.titleMedium?.copyWith(
                           fontWeight: FontWeight.w600,
                           color: theme.colorScheme.onSurface,
@@ -67,7 +67,7 @@ class NeedHelpWidget extends ConsumerWidget {
                 ),
                 const SizedBox(height: 12),
                 Text(
-                  'Start small and build consistency. We\'ll help you create a routine that works for your schedule.',
+                  'Feeling overwhelmed? Take a Quick Sanity break \u2014 2 minutes of Scripture and breathing to restore your clarity.',
                   style: theme.textTheme.bodyMedium?.copyWith(
                     color: theme.colorScheme.onSurface.withValues(alpha: 0.8),
                     height: 1.4,
@@ -83,22 +83,22 @@ class NeedHelpWidget extends ConsumerWidget {
                           showDialog(
                             context: context,
                             builder: (context) => AlertDialog(
-                              title: const Text('Habit Building Tips'),
+                              title: const Text('Quick Clarity Tips'),
                               content: const Column(
                                 mainAxisSize: MainAxisSize.min,
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text('🎯 Start Small', style: TextStyle(fontWeight: FontWeight.bold)),
-                                  Text('Begin with just 5-10 minutes daily.'),
+                                  Text('Breathe First', style: TextStyle(fontWeight: FontWeight.bold)),
+                                  Text('Take 3 deep breaths and center yourself in God\'s presence.'),
                                   SizedBox(height: 8),
-                                  Text('⏰ Same Time', style: TextStyle(fontWeight: FontWeight.bold)),
-                                  Text('Practice at the same time each day.'),
+                                  Text('One Verse', style: TextStyle(fontWeight: FontWeight.bold)),
+                                  Text('Read a single verse slowly. Let it anchor your mind.'),
                                   SizedBox(height: 8),
-                                  Text('📈 Track Progress', style: TextStyle(fontWeight: FontWeight.bold)),
-                                  Text('Celebrate small wins and build momentum.'),
+                                  Text('Name the Noise', style: TextStyle(fontWeight: FontWeight.bold)),
+                                  Text('Identify what\'s pulling your focus. Surrender it in prayer.'),
                                   SizedBox(height: 8),
-                                  Text('🤝 Get Support', style: TextStyle(fontWeight: FontWeight.bold)),
-                                  Text('Connect with others on the same journey.'),
+                                  Text('2-Minute Stillness', style: TextStyle(fontWeight: FontWeight.bold)),
+                                  Text('Even 2 minutes of stillness can change your entire day.'),
                                 ],
                               ),
                               actions: [
@@ -111,7 +111,7 @@ class NeedHelpWidget extends ConsumerWidget {
                           );
                         },
                         icon: const Icon(Icons.lightbulb_outline_rounded),
-                        label: const Text('Quick Tips'),
+                        label: const Text('Clarity Tips'),
                         style: OutlinedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(vertical: 12),
                           side: BorderSide(color: Colors.orange.withValues(alpha: 0.5)),
@@ -127,8 +127,8 @@ class NeedHelpWidget extends ConsumerWidget {
                           showDialog(
                             context: context,
                             builder: (context) => AlertDialog(
-                              title: const Text('Personalized Help'),
-                              content: const Text('Our personalized assessment tool is coming soon! It will help you find the perfect routine for your lifestyle.'),
+                              title: const Text('Quick Sanity Session'),
+                              content: const Text('A guided 2-minute session of Scripture reading and breathing is coming soon. It will help you reclaim clarity when the world gets loud.'),
                               actions: [
                                 TextButton(
                                   onPressed: () => Navigator.pop(context),
@@ -139,7 +139,7 @@ class NeedHelpWidget extends ConsumerWidget {
                           );
                         },
                         icon: const Icon(Icons.psychology_rounded),
-                        label: const Text('Get Guide'),
+                        label: const Text('Quick Sanity'),
                         style: ElevatedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(vertical: 12),
                           backgroundColor: Colors.orange,

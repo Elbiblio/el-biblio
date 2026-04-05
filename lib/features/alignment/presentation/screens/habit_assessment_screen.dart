@@ -4,7 +4,6 @@ import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 
 import '../../../../core/di/app_providers.dart';
-import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/theme/app_theme_tokens.dart';
 import '../../data/habit_catalog.dart';
 import '../../data/self_assessment_questions.dart';
@@ -38,7 +37,7 @@ class _HabitAssessmentScreenState extends ConsumerState<HabitAssessmentScreen> {
   }
 
   void _next() {
-    final questions = SelfAssessmentQuestions.allQuestions;
+    const questions = SelfAssessmentQuestions.allQuestions;
     if (_currentPage < questions.length - 1) {
       _pageController.nextPage(
         duration: const Duration(milliseconds: 300),
@@ -86,7 +85,7 @@ class _HabitAssessmentScreenState extends ConsumerState<HabitAssessmentScreen> {
   }
 
   Widget _buildQuestionnaire(BuildContext context, AppThemeTokens tokens) {
-    final questions = SelfAssessmentQuestions.allQuestions;
+    const questions = SelfAssessmentQuestions.allQuestions;
     final progress = questions.isNotEmpty
         ? (_currentPage + 1) / questions.length
         : 0.0;

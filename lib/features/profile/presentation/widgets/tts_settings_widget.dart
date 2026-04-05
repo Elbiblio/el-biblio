@@ -260,14 +260,13 @@ class _TTSSettingsWidgetState extends ConsumerState<TTSSettingsWidget> {
             ? Theme.of(context).colorScheme.primaryContainer 
             : null,
       ),
-      child: RadioListTile<String>(
-        value: voiceKey,
-        groupValue: currentVoice,
-        onChanged: _isLoading ? null : (value) {
-          if (value != null) {
-            _updateVoice(value);
-          }
-        },
+      child: ListTile(
+        leading: Icon(
+          isSelected ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+          color: isSelected
+              ? Theme.of(context).colorScheme.primary
+              : Colors.grey.shade400,
+        ),
         title: Text(
           voiceNames[voiceKey] ?? voiceKey,
           style: TextStyle(
@@ -278,16 +277,17 @@ class _TTSSettingsWidgetState extends ConsumerState<TTSSettingsWidget> {
           voiceDescriptions[voiceKey] ?? 'Voice option',
           style: TextStyle(
             fontSize: 12,
-            color: isSelected 
-                ? Theme.of(context).colorScheme.onPrimaryContainer 
+            color: isSelected
+                ? Theme.of(context).colorScheme.onPrimaryContainer
                 : Colors.grey.shade600,
           ),
         ),
-        secondary: IconButton.filled(
+        trailing: IconButton.filled(
           onPressed: _isLoading ? null : () => _testVoice(voiceKey),
           icon: const Icon(Icons.play_arrow),
           tooltip: 'Test voice',
         ),
+        onTap: _isLoading ? null : () => _updateVoice(voiceKey),
       ),
     );
   }

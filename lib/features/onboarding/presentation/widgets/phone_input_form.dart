@@ -13,6 +13,7 @@ class PhoneInputForm extends ConsumerStatefulWidget {
 class _PhoneInputFormState extends ConsumerState<PhoneInputForm> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
+  final _emailController = TextEditingController();
   final _phoneController = TextEditingController();
   final _countryCodeController = TextEditingController(text: '+1');
   bool _isLoading = false;
@@ -40,6 +41,7 @@ class _PhoneInputFormState extends ConsumerState<PhoneInputForm> {
   @override
   void dispose() {
     _nameController.dispose();
+    _emailController.dispose();
     _phoneController.dispose();
     _countryCodeController.dispose();
     super.dispose();
@@ -52,13 +54,15 @@ class _PhoneInputFormState extends ConsumerState<PhoneInputForm> {
 
     try {
       final name = _nameController.text.trim();
+      final email = _emailController.text.trim();
       final countryCode = _countryCodeController.text.trim();
       final phone = _phoneController.text.trim();
       final fullPhone = '$countryCode$phone';
 
-      // Instant signup with name and phone
-      final success = await ref.read(authProvider.notifier).signUpWithPhoneAndName(
+      // Signup with name, email and phone
+      final success = await ref.read(authProvider.notifier).signUpWithDetails(
         name: name,
+        email: email,
         phone: fullPhone,
       );
 
@@ -153,6 +157,59 @@ class _PhoneInputFormState extends ConsumerState<PhoneInputForm> {
             validator: (value) {
               if (value == null || value.trim().isEmpty) {
                 return 'Please enter your name';
+              }
+              return null;
+            },
+          ),
+          const SizedBox(height: 24),
+
+          // Email field
+          Text(
+            'Email Address',
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w600,
+              color: isDark ? Colors.white : const Color(0xFF1a2418),
+            ),
+          ),
+          const SizedBox(height: 8),
+          TextFormField(
+            controller: _emailController,
+            decoration: InputDecoration(
+              border: InputBorder.none,
+              enabledBorder: UnderlineInputBorder(
+                borderSide: BorderSide(
+                  color: isDark
+                      ? const Color(0xFF638B6C).withValues(alpha: 0.2)
+                      : const Color(0xFF1a2418).withValues(alpha: 0.2),
+                ),
+              ),
+              focusedBorder: const UnderlineInputBorder(
+                borderSide: BorderSide(
+                  color: Color(0xFF638B6C),
+                ),
+              ),
+              hintText: 'Enter your email',
+              hintStyle: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                color: isDark
+                    ? Colors.white.withValues(alpha: 0.4)
+                    : const Color(0xFF1a2418).withValues(alpha: 0.4),
+              ),
+            ),
+            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+              fontSize: 20,
+              color: isDark
+                  ? Colors.white
+                  : const Color(0xFF1a2418),
+            ),
+            keyboardType: TextInputType.emailAddress,
+            textInputAction: TextInputAction.next,
+            validator: (value) {
+              if (value == null || value.trim().isEmpty) {
+                return 'Please enter your email';
+              }
+              final emailRegex = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
+              if (!emailRegex.hasMatch(value.trim())) {
+                return 'Please enter a valid email address';
               }
               return null;
             },

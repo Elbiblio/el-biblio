@@ -33,11 +33,13 @@ class EnhancedBibleDatabaseService with WidgetsBindingObserver {
     switch (state) {
       case AppLifecycleState.paused:
       case AppLifecycleState.inactive:
-        _logger.d('App going to background, clearing database cache');
-        closeAllDatabases();
+        _logger.d('App going to background, keeping database cache for quick resume');
+        // Don't close databases on background - keep for quick resume.
+        // Only close on detached (app being killed).
         break;
       case AppLifecycleState.resumed:
-        _logger.d('App has come to the foreground, database connections will be validated on demand');
+        _logger.d('App has come to the foreground, validating database connections');
+        _validateAllConnections();
         break;
       case AppLifecycleState.detached:
         _logger.d('App detached, cleaning up database resources');
@@ -48,11 +50,31 @@ class EnhancedBibleDatabaseService with WidgetsBindingObserver {
     }
   }
   
+  /// Validate all cached database connections and refresh if needed
+  Future<void> _validateAllConnections() async {
+    final versionsToValidate = List<String>.from(_databases.keys);
+
+    for (final version in versionsToValidate) {
+      try {
+        final db = _databases[version];
+        if (db != null && !db.isOpen) {
+          _logger.w('Database connection for $version is closed, removing from cache');
+          _databases.remove(version);
+        } else if (db != null) {
+          await db.rawQuery('SELECT 1');
+        }
+      } catch (e) {
+        _logger.w('Database validation failed for $version: $e');
+        _databases.remove(version);
+      }
+    }
+  }
+
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     closeAllDatabases();
   }
-  
+
   Future<void> closeAllDatabases() async {
     for (final db in _databases.values) {
       await db.close();
@@ -461,8 +483,8 @@ class EnhancedBibleDatabaseService with WidgetsBindingObserver {
     }
 
     try {
-      final db = await openDatabase(path);
-      
+      final db = await openDatabase(path, readOnly: true, singleInstance: true);
+
       try {
         await db.rawQuery('SELECT count(*) FROM sqlite_master');
       } catch (e) {
@@ -555,29 +577,50 @@ class EnhancedBibleDatabaseService with WidgetsBindingObserver {
 
   Future<String> _resolveTableName(Database db, String version) async {
     final baseName = version.replaceAll('.db', '');
-    
+
+    // Fast path: if the exact base name exists and has 'book' column
     if (await _dbHelper.validateTable(db, baseName, requiredColumns: ['book'])) {
       return baseName;
     }
 
+    // Fallback: examine all available tables
     final tables = await _dbHelper.getAvailableTables(db);
-    final validTables = tables.where((t) => t.toLowerCase() != 'android_metadata' && t.toLowerCase() != 'sqlite_sequence').toList();
-    
+    final validTables = tables
+        .where((t) =>
+            t.toLowerCase() != 'android_metadata' &&
+            t.toLowerCase() != 'sqlite_sequence')
+        .toList();
+
     if (validTables.isEmpty) {
+      _logger.w('No valid data tables found in database for $version, trying default table names');
+      // Try common default table names as fallback
+      final defaultTables = ['bible_verses', 'verses', 'scripture', 'eng_rv_vpl', baseName];
+      for (final defaultTable in defaultTables) {
+        if (tables.contains(defaultTable)) {
+          _logger.d('Using default table: $defaultTable');
+          return defaultTable;
+        }
+      }
       throw Exception('No valid data tables found in database for $version');
     }
 
+    // If there's exactly one data table, it's highly likely the correct one
     if (validTables.length == 1) {
       return validTables.first;
     }
 
+    // Otherwise, look for common patterns
     for (final table in validTables) {
       final lower = table.toLowerCase();
-      if (lower.contains('bible') || lower.contains('verse') || lower == baseName.toLowerCase() || lower == 'eng_rv_vpl') {
+      if (lower.contains('bible') ||
+          lower.contains('verse') ||
+          lower == baseName.toLowerCase() ||
+          lower == 'eng_rv_vpl') {
         return table;
       }
     }
 
+    // Ultimate fallback to the first valid table
     return validTables.first;
   }
 
@@ -763,32 +806,38 @@ class EnhancedBibleDatabaseService with WidgetsBindingObserver {
         }).where((verse) => verse.verse > 0 && verse.text.isNotEmpty).toList();
       } catch (e) {
         _logger.w('FTS search failed, falling back to LIKE: $e');
-        
-        final List<Map<String, dynamic>> maps = await db.query(
-          tableName,
-          columns: ['verseID', 'book', 'chapter', 'startVerse', 'verseText'],
-          where: 'verseText LIKE ?',
-          whereArgs: ['%$query%'],
-          orderBy: 'rowid ASC',
-          limit: limit > 0 ? limit : null,
-        );
 
-        return maps.map((map) {
-          final verse = int.tryParse(map['startVerse'].toString()) ?? 0;
-          final chapter = int.tryParse(map['chapter'].toString()) ?? 0;
-          final bookAbbr = map['book']?.toString() ?? '';
-          final text = (map['verseText']?.toString() ?? '').trim();
-          final reference = '$bookAbbr $chapter:$verse';
-          
-          return BibleVerseContent(
-            id: int.parse(sha256.convert(utf8.encode('$version:$reference')).toString().substring(0, 8), radix: 16) & 0x7FFFFFFF,
-            bookId: 0,
-            chapter: chapter,
-            verse: verse,
-            text: text,
-            reference: reference,
+        // Fallback to LIKE query - also wrapped in try-catch for robustness
+        try {
+          final List<Map<String, dynamic>> maps = await db.query(
+            tableName,
+            columns: ['verseID', 'book', 'chapter', 'startVerse', 'verseText'],
+            where: 'verseText LIKE ?',
+            whereArgs: ['%$query%'],
+            orderBy: 'rowid ASC',
+            limit: limit > 0 ? limit : null,
           );
-        }).where((verse) => verse.verse > 0 && verse.text.isNotEmpty).toList();
+
+          return maps.map((map) {
+            final verse = int.tryParse(map['startVerse'].toString()) ?? 0;
+            final chapter = int.tryParse(map['chapter'].toString()) ?? 0;
+            final bookAbbr = map['book']?.toString() ?? '';
+            final text = (map['verseText']?.toString() ?? '').trim();
+            final reference = '$bookAbbr $chapter:$verse';
+
+            return BibleVerseContent(
+              id: int.parse(sha256.convert(utf8.encode('$version:$reference')).toString().substring(0, 8), radix: 16) & 0x7FFFFFFF,
+              bookId: 0,
+              chapter: chapter,
+              verse: verse,
+              text: text,
+              reference: reference,
+            );
+          }).where((verse) => verse.verse > 0 && verse.text.isNotEmpty).toList();
+        } catch (likeError) {
+          _logger.e('LIKE search fallback also failed: $likeError');
+          return [];
+        }
       }
     });
   }
@@ -797,20 +846,22 @@ class EnhancedBibleDatabaseService with WidgetsBindingObserver {
     try {
       final db = await _getDatabase(version);
       final tableName = await _resolveTableName(db, version);
-      
+
       final verseCount = await db.rawQuery('SELECT COUNT(*) as count FROM $tableName');
       final bookCount = await db.rawQuery('SELECT COUNT(DISTINCT book) as count FROM $tableName');
       final chapterCount = await db.rawQuery('SELECT COUNT(DISTINCT book || chapter) as count FROM $tableName');
-      
-      await db.close();
-      
+
+      // Do NOT close db here - it is cached in _databases and closing it
+      // would cause "database is closed" errors for subsequent operations.
+      final hasFts = await _hasFullTextSearch(db, tableName);
+
       return {
         'version': version,
         'tableName': tableName,
         'verseCount': verseCount.first['count'],
         'bookCount': bookCount.first['count'],
         'chapterCount': chapterCount.first['count'],
-        'hasFullTextSearch': await _hasFullTextSearch(db, tableName),
+        'hasFullTextSearch': hasFts,
       };
     } catch (e) {
       _logger.e('Failed to get database stats for $version: $e');
@@ -834,15 +885,14 @@ class EnhancedBibleDatabaseService with WidgetsBindingObserver {
   Future<void> optimizeDatabase(String version) async {
     try {
       final db = await _getDatabase(version);
-      
+
       // Run VACUUM to optimize database
       await db.execute('VACUUM');
-      
+
       // Analyze tables for better query planning
       await db.execute('ANALYZE');
-      
-      await db.close();
-      
+
+      // Do NOT close db here - it is cached in _databases.
       _logger.i('Database optimized for version: $version');
     } catch (e) {
       _logger.e('Failed to optimize database for $version: $e');

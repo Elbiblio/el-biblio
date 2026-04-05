@@ -1,0 +1,92 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+  <defs>
+    <linearGradient id="bookGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#5E9268"/>
+      <stop offset="100%" stop-color="#46724F"/>
+    </linearGradient>
+    <linearGradient id="pageGrad" x1="0.5" y1="0" x2="0.5" y2="1">
+      <stop offset="0%" stop-color="#FFFFFF"/>
+      <stop offset="100%" stop-color="#F0F7EE"/>
+    </linearGradient>
+    <linearGradient id="glowGrad" x1="0.5" y1="0" x2="0.5" y2="1">
+      <stop offset="0%" stop-color="#D4A944" stop-opacity="0.9"/>
+      <stop offset="60%" stop-color="#C49B38" stop-opacity="0.5"/>
+      <stop offset="100%" stop-color="#B8912E" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="spineGrad" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#3D5C44"/>
+      <stop offset="100%" stop-color="#4A6E52"/>
+    </linearGradient>
+    <filter id="softShadow" x="-10%" y="-10%" width="130%" height="130%">
+      <feDropShadow dx="0" dy="4" stdDeviation="8" flood-color="#1a3a20" flood-opacity="0.18"/>
+    </filter>
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="6"/>
+    </filter>
+  </defs>
+
+  <!-- Soft circular background -->
+  <circle cx="256" cy="256" r="240" fill="#EAF6E8" opacity="0.5"/>
+
+  <!-- Book group with shadow -->
+  <g filter="url(#softShadow)">
+    <!-- Left cover -->
+    <path d="M120 130 C120 118 130 108 142 108 L248 108 L248 404 L142 404 C130 404 120 394 120 382 Z"
+          fill="url(#bookGrad)" rx="6"/>
+
+    <!-- Right cover -->
+    <path d="M264 108 L370 108 C382 108 392 118 392 130 L392 382 C392 394 382 404 370 404 L264 404 Z"
+          fill="url(#bookGrad)" rx="6"/>
+
+    <!-- Spine -->
+    <rect x="248" y="108" width="16" height="296" fill="url(#spineGrad)"/>
+
+    <!-- Left page -->
+    <path d="M138 124 L242 124 L242 390 L138 390 C134 390 130 386 130 382 L130 134 C130 128 134 124 138 124 Z"
+          fill="url(#pageGrad)"/>
+
+    <!-- Right page -->
+    <path d="M270 124 L374 124 C378 124 382 128 382 134 L382 382 C382 386 378 390 374 390 L270 390 Z"
+          fill="url(#pageGrad)"/>
+
+    <!-- Page lines - left -->
+    <line x1="150" y1="170" x2="230" y2="170" stroke="#C8DCC6" stroke-width="1.5" stroke-linecap="round"/>
+    <line x1="150" y1="192" x2="224" y2="192" stroke="#C8DCC6" stroke-width="1.5" stroke-linecap="round"/>
+    <line x1="150" y1="214" x2="228" y2="214" stroke="#C8DCC6" stroke-width="1.5" stroke-linecap="round"/>
+    <line x1="150" y1="236" x2="218" y2="236" stroke="#C8DCC6" stroke-width="1.5" stroke-linecap="round"/>
+
+    <!-- Page lines - right -->
+    <line x1="282" y1="170" x2="362" y2="170" stroke="#C8DCC6" stroke-width="1.5" stroke-linecap="round"/>
+    <line x1="282" y1="192" x2="356" y2="192" stroke="#C8DCC6" stroke-width="1.5" stroke-linecap="round"/>
+    <line x1="282" y1="214" x2="360" y2="214" stroke="#C8DCC6" stroke-width="1.5" stroke-linecap="round"/>
+    <line x1="282" y1="236" x2="350" y2="236" stroke="#C8DCC6" stroke-width="1.5" stroke-linecap="round"/>
+  </g>
+
+  <!-- Golden light emanating from the book -->
+  <g filter="url(#glow)" opacity="0.6">
+    <path d="M256 240 L236 120 L276 120 Z" fill="url(#glowGrad)"/>
+    <path d="M256 240 L220 130 L256 140 Z" fill="url(#glowGrad)" opacity="0.5"/>
+    <path d="M256 240 L292 130 L256 140 Z" fill="url(#glowGrad)" opacity="0.5"/>
+  </g>
+
+  <!-- Cross symbol rising from the book center -->
+  <g opacity="0.9">
+    <!-- Vertical beam -->
+    <rect x="251" y="140" width="10" height="70" rx="5" fill="#D4A944"/>
+    <!-- Horizontal beam -->
+    <rect x="234" y="160" width="44" height="10" rx="5" fill="#D4A944"/>
+  </g>
+
+  <!-- Small decorative dots at cross tips -->
+  <circle cx="256" cy="138" r="2.5" fill="#D4A944" opacity="0.7"/>
+  <circle cx="232" cy="165" r="2.5" fill="#D4A944" opacity="0.7"/>
+  <circle cx="280" cy="165" r="2.5" fill="#D4A944" opacity="0.7"/>
+
+  <!-- Bookmark ribbon -->
+  <path d="M290 108 L290 160 L300 148 L310 160 L310 108"
+        fill="#C49B38" opacity="0.85"/>
+
+  <!-- Subtle page curl - bottom right -->
+  <path d="M374 390 Q368 384 370 374 L382 382 C382 386 378 390 374 390 Z"
+        fill="#E0ECDE" opacity="0.6"/>
+</svg>

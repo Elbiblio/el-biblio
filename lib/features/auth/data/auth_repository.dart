@@ -30,7 +30,21 @@ class AuthRepository {
       }
 
       final responseData = response.data!;
-      
+
+      // Handle Laravel validation errors (422 responses)
+      if (response.statusCode == 422 || responseData['errors'] != null) {
+        final errors = responseData['errors'] as Map<String, dynamic>?;
+        if (errors != null && errors.isNotEmpty) {
+          // Get the first validation error message
+          final firstErrors = errors.values.first;
+          final message = firstErrors is List && firstErrors.isNotEmpty
+              ? firstErrors.first.toString()
+              : responseData['message'] ?? 'Validation failed';
+          throw Exception(message);
+        }
+        throw Exception(responseData['message'] ?? 'Validation failed');
+      }
+
       if (responseData['success'] == false) {
         throw Exception(responseData['message'] ?? 'Signup failed');
       }
@@ -38,11 +52,10 @@ class AuthRepository {
       // Laravel API returns {success: true, data: {...}, message: "..."}
       // After successful registration, login instantly with the generated credentials
       if (responseData['success'] == true && responseData['data'] != null) {
-        // Login immediately after successful registration
         return await login(data.email, data.password);
       }
 
-      throw Exception('Invalid response format from server: $responseData');
+      throw Exception('Signup failed. Please try again.');
     } catch (e) {
       _logger.e('Signup error', error: e);
       rethrow;

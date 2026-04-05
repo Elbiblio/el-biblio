@@ -46,10 +46,11 @@ class JournalRepository extends BaseRepository {
     bool isPinned = false,
     bool isVoiceRecorded = false,
     List<String> virtues = const [],
+    String? meditationSessionId,
   }) async {
     final token = _client.currentAuthToken;
     final now = DateTime.now();
-    
+
     // Check if user is guest and create a local-only note
     if (isGuestToken(token)) {
       logger.i('Creating local-only note for guest user');
@@ -61,13 +62,14 @@ class JournalRepository extends BaseRepository {
         isPinned: isPinned,
         isVoiceRecorded: isVoiceRecorded,
         virtues: virtues,
+        meditationSessionId: meditationSessionId,
         createdAt: now,
         updatedAt: now,
       );
       await _box.put(localNote.id, localNote);
       return localNote;
     }
-    
+
     try {
       final response = await _client.raw.post(
         '/notes',
@@ -78,6 +80,8 @@ class JournalRepository extends BaseRepository {
           'is_pinned': isPinned,
           'is_voice_recorded': isVoiceRecorded,
           'virtues': virtues,
+          if (meditationSessionId != null)
+            'meditation_session_id': meditationSessionId,
         },
       );
       final data = response.data['data'] ?? response.data;
@@ -94,6 +98,7 @@ class JournalRepository extends BaseRepository {
         isPinned: isPinned,
         isVoiceRecorded: isVoiceRecorded,
         virtues: virtues,
+        meditationSessionId: meditationSessionId,
         createdAt: now,
         updatedAt: now,
       );

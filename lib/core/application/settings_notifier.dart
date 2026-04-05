@@ -65,6 +65,8 @@ class SettingsNotifier extends StateNotifier<AppSettings> {
     required bool eveningReminderEnabled,
     required bool socialPresenceOptIn,
     required bool contactsImported,
+    String? primaryArchetypeId,
+    String? commitmentCategory,
   }) async {
     final newSettings = state.copyWith(
       onboardingCompleted: true,
@@ -76,6 +78,8 @@ class SettingsNotifier extends StateNotifier<AppSettings> {
       eveningReminderEnabled: eveningReminderEnabled,
       socialPresenceOptIn: socialPresenceOptIn,
       contactsImported: contactsImported,
+      primaryArchetypeId: primaryArchetypeId,
+      commitmentCategory: commitmentCategory,
     );
     state = newSettings;
     await _storage.save(newSettings);
@@ -169,6 +173,18 @@ class SettingsNotifier extends StateNotifier<AppSettings> {
     
     // Reschedule notifications to cancel the 4pm reminder since they've checked in
     _syncNotifications(next);
+  }
+
+  Future<void> markCommitmentWelcomeSeen() async {
+    final next = state.copyWith(hasSeenCommitmentWelcome: true);
+    state = next;
+    await _storage.save(next);
+  }
+
+  Future<void> setCommitmentCategory(String category) async {
+    final next = state.copyWith(commitmentCategory: category);
+    state = next;
+    await _storage.save(next);
   }
 
   Future<void> updatePhoneSetupCompleted(bool completed) async {

@@ -130,11 +130,17 @@ Future<void> _deferredInitialization() async {
       }
     });
     
-    // Defer Bible database initialization even more
+    // Defer Bible database initialization - just ensure default DB is copied
+    // Don't create a standalone service here; the provider-managed instance
+    // (bibleDatabaseServiceProvider) handles lifecycle. We only need to
+    // ensure the bundled asset is copied to disk so the first read is fast.
     Future.delayed(const Duration(milliseconds: 500), () async {
       try {
         final bibleService = BibleDatabaseService(Logger());
         await bibleService.init();
+        // Do NOT dispose here - that removes the WidgetsBinding observer
+        // and closes all database connections. The provider-managed instance
+        // will handle its own lifecycle.
       } catch (e) {
         debugPrint('Bible database initialization failed: $e');
         // Continue without Bible database

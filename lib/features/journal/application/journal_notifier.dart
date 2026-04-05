@@ -119,6 +119,7 @@ class JournalNotifier extends StateNotifier<JournalState> {
     bool isPinned = false,
     bool isVoiceRecorded = false,
     List<String> virtues = const [],
+    String? meditationSessionId,
   }) async {
     try {
       final newNote = await _repository.createNote(
@@ -128,6 +129,7 @@ class JournalNotifier extends StateNotifier<JournalState> {
         isPinned: isPinned,
         isVoiceRecorded: isVoiceRecorded,
         virtues: virtues,
+        meditationSessionId: meditationSessionId,
       );
       final updatedNotes = [newNote, ...state.notes];
       state = state.copyWith(
@@ -145,6 +147,7 @@ class JournalNotifier extends StateNotifier<JournalState> {
         isPinned: isPinned,
         isVoiceRecorded: isVoiceRecorded,
         virtues: virtues,
+        meditationSessionId: meditationSessionId,
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
       );

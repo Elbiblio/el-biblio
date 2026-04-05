@@ -22,11 +22,11 @@ class _FortyDaySetupScreenState extends ConsumerState<FortyDaySetupScreen> {
   bool _showPreview = false;
 
   static const _categoryIcons = <String, IconData>{
-    'Prayer Life': LucideIcons.handshake,
+    'Prayer Life': LucideIcons.heartHandshake,
     'Scripture Study': LucideIcons.bookOpen,
     'Service': LucideIcons.heart,
     'Gratitude': LucideIcons.sun,
-    'Forgiveness': LucideIcons.handshake,
+    'Forgiveness': LucideIcons.heartHandshake,
     'Fasting': LucideIcons.moon,
   };
 

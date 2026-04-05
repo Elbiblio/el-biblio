@@ -88,20 +88,18 @@ class AuthNotifier extends StateNotifier<AuthState> {
     }
   }
 
-  Future<bool> signUpWithPhoneAndName({
+  Future<bool> signUpWithDetails({
     required String name,
+    required String email,
     required String phone,
   }) async {
     try {
       state = state.copyWith(isLoading: true, error: null);
 
-      // Generate email from name and phone
       final nameParts = name.trim().split(' ');
       final firstName = nameParts.first;
       final lastName = nameParts.length > 1 ? nameParts.sublist(1).join(' ') : '';
-      final cleanPhone = phone.replaceAll(RegExp(r'[^0-9]'), '');
-      final email = '${firstName.toLowerCase()}.$cleanPhone@user.elbiblio.com';
-      
+
       // Generate a secure password
       final timestamp = DateTime.now().millisecondsSinceEpoch.toString();
       final segmentStart = timestamp.length > 6 ? timestamp.length - 6 : 0;
@@ -134,9 +132,23 @@ class AuthNotifier extends StateNotifier<AuthState> {
       
       return true;
     } catch (e) {
+      String errorMessage = 'Signup failed';
+      if (e is Exception) {
+        final msg = e.toString().replaceFirst('Exception: ', '');
+        // Check for common validation messages
+        if (msg.contains('email') && msg.contains('taken')) {
+          errorMessage = 'This email is already taken. Please use a different email.';
+        } else if (msg.contains('email') && msg.contains('valid')) {
+          errorMessage = 'Please enter a valid email address.';
+        } else if (msg.contains('Invalid response format')) {
+          errorMessage = 'Signup failed. Please try again.';
+        } else {
+          errorMessage = msg;
+        }
+      }
       state = state.copyWith(
         isLoading: false,
-        error: 'Signup failed: ${e.toString()}',
+        error: errorMessage,
       );
       return false;
     }

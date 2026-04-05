@@ -89,197 +89,213 @@ class _PrayerGuideDialogState extends ConsumerState<PrayerGuideDialog> {
       children: [
         Dialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          child: Container(
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(20),
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  virtueColor.withValues(alpha: 0.1),
-                  theme.colorScheme.surface.withValues(alpha: 0.8),
-                ],
-              ),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(context).size.height * 0.8,
             ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Quick Start Options (only show if enabled)
-                if (widget.showQuickStart) ...[
-                  _buildQuickStartOptions(context, virtueColor),
-                  const SizedBox(height: 24),
-                ],
-                
-                // Header with virtue icon and title
-                Row(
-                  children: [
-                    Container(
-                      width: 56,
-                      height: 56,
-                      decoration: BoxDecoration(
-                        color: virtueColor.withValues(alpha: 0.2),
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: virtueColor.withValues(alpha: 0.3),
-                          width: 2,
-                        ),
-                      ),
-                      child: Icon(
-                        _getVirtueIcon(widget.virtue.type),
-                        color: virtueColor,
-                        size: 28,
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
+            child: Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(20),
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    virtueColor.withValues(alpha: 0.1),
+                    theme.colorScheme.surface.withValues(alpha: 0.8),
+                  ],
+                ),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Scrollable content area
+                  Flexible(
+                    child: SingleChildScrollView(
                       child: Column(
+                        mainAxisSize: MainAxisSize.min,
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            'Prayer Guide',
-                            style: theme.textTheme.titleLarge?.copyWith(
-                              color: virtueColor,
-                              fontWeight: FontWeight.w800,
+                          // Quick Start Options (only show if enabled)
+                          if (widget.showQuickStart) ...[
+                            _buildQuickStartOptions(context, virtueColor),
+                            const SizedBox(height: 24),
+                          ],
+
+                          // Header with virtue icon and title
+                          Row(
+                            children: [
+                              Container(
+                                width: 56,
+                                height: 56,
+                                decoration: BoxDecoration(
+                                  color: virtueColor.withValues(alpha: 0.2),
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                    color: virtueColor.withValues(alpha: 0.3),
+                                    width: 2,
+                                  ),
+                                ),
+                                child: Icon(
+                                  _getVirtueIcon(widget.virtue.type),
+                                  color: virtueColor,
+                                  size: 28,
+                                ),
+                              ),
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Prayer Guide',
+                                      style: theme.textTheme.titleLarge?.copyWith(
+                                        color: virtueColor,
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      widget.virtue.type.title,
+                                      style: theme.textTheme.titleMedium?.copyWith(
+                                        color: theme.colorScheme.onSurface.withValues(alpha: 0.8),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              IconButton(
+                                onPressed: () => Navigator.of(context).pop(),
+                                icon: Icon(
+                                  Icons.close_rounded,
+                                  color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                                ),
+                              ),
+                            ],
+                          ),
+
+                          const SizedBox(height: 24),
+
+                          // Scripture reference
+                          Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: virtueColor.withValues(alpha: 0.2),
+                                width: 1,
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  Icons.menu_book_rounded,
+                                  color: virtueColor,
+                                  size: 20,
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Text(
+                                    widget.virtue.scriptureReference,
+                                    style: theme.textTheme.bodyMedium?.copyWith(
+                                      fontStyle: FontStyle.italic,
+                                      color: virtueColor,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
-                          const SizedBox(height: 4),
+
+                          const SizedBox(height: 20),
+
+                          // Focus prompt
                           Text(
-                            widget.virtue.type.title,
-                            style: theme.textTheme.titleMedium?.copyWith(
-                              color: theme.colorScheme.onSurface.withValues(alpha: 0.8),
+                            'Today\'s Focus',
+                            style: theme.textTheme.labelMedium?.copyWith(
+                              fontSize: 14,
+                              color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
                             ),
                           ),
+                          const SizedBox(height: 8),
+                          Text(
+                            widget.virtue.focusPrompt,
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w500,
+                              height: 1.4,
+                            ),
+                          ),
+
+                          const SizedBox(height: 20),
+
+                          // Prayer guide steps
+                          Text(
+                            'Quick Prayer Guide',
+                            style: theme.textTheme.labelMedium?.copyWith(
+                              fontSize: 14,
+                              color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+
+                          ..._buildPrayerSteps(context, widget.virtue.type),
                         ],
                       ),
                     ),
-                    IconButton(
-                      onPressed: () => Navigator.of(context).pop(),
-                      icon: Icon(
-                        Icons.close_rounded,
-                        color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
-                      ),
-                    ),
-                  ],
-                ),
-                
-                const SizedBox(height: 24),
-                
-                // Scripture reference
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: virtueColor.withValues(alpha: 0.2),
-                      width: 1,
-                    ),
                   ),
-                  child: Row(
+
+                  const SizedBox(height: 24),
+
+                  // Action buttons (outside scroll area)
+                  Row(
                     children: [
-                      Icon(
-                        Icons.menu_book_rounded,
-                        color: virtueColor,
-                        size: 20,
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () => _showSkipConfirmation(context),
+                          style: OutlinedButton.styleFrom(
+                            side: BorderSide(
+                              color: theme.colorScheme.outline.withValues(alpha: 0.5),
+                            ),
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                          ),
+                          child: Text(
+                            'Skip',
+                            style: theme.textTheme.labelLarge?.copyWith(
+                              color: theme.colorScheme.onSurface,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
-                        child: Text(
-                          widget.virtue.scriptureReference,
-                          style: theme.textTheme.bodyMedium?.copyWith(
-                            fontStyle: FontStyle.italic,
-                            color: virtueColor,
-                            fontWeight: FontWeight.w600,
+                        flex: 2,
+                        child: ElevatedButton(
+                          onPressed: () {
+                            _showConfettiAndComplete();
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: virtueColor,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                          ),
+                          child: Text(
+                            'Mark as Done',
+                            style: theme.textTheme.labelLarge?.copyWith(
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white,
+                            ),
                           ),
                         ),
                       ),
                     ],
                   ),
-                ),
-                
-                const SizedBox(height: 20),
-                
-                // Focus prompt
-                Text(
-                  'Today\'s Focus',
-                  style: theme.textTheme.labelMedium?.copyWith(
-                    fontSize: 14,
-                    color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  widget.virtue.focusPrompt,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w500,
-                    height: 1.4,
-                  ),
-                ),
-                
-                const SizedBox(height: 20),
-                
-                // Prayer guide steps
-                Text(
-                  'Quick Prayer Guide',
-                  style: theme.textTheme.labelMedium?.copyWith(
-                    fontSize: 14,
-                    color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                
-                ..._buildPrayerSteps(context, widget.virtue.type),
-                
-                const SizedBox(height: 24),
-                
-                // Action buttons
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: () => _showSkipConfirmation(context),
-                        style: OutlinedButton.styleFrom(
-                          side: BorderSide(
-                            color: theme.colorScheme.outline.withValues(alpha: 0.5),
-                          ),
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                        ),
-                        child: Text(
-                          'Skip',
-                          style: theme.textTheme.labelLarge?.copyWith(
-                            color: theme.colorScheme.onSurface,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      flex: 2,
-                      child: ElevatedButton(
-                        onPressed: () {
-                          _showConfettiAndComplete();
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: virtueColor,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                        ),
-                        child: Text(
-                          'Mark as Done',
-                          style: theme.textTheme.labelLarge?.copyWith(
-                            fontWeight: FontWeight.w600,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),

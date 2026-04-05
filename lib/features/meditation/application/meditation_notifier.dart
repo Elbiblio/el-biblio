@@ -748,25 +748,6 @@ class MeditationNotifier extends StateNotifier<MeditationState> {
     state = state.copyWith(guide: guide);
   }
 
-  String _sessionTitle(int completedMinutes) {
-    // final base = '$completedMinutes Min ${state.style.label}'; // Unused
-    // if (state.style == MeditationStyle.bible) {
-    //   final template = _currentBibleLabel();
-    //   if (template != null) {
-    //     return '$base: $template';
-    //   }
-    // }
-    // if (state.style == MeditationStyle.affirmation) {
-    //   final focus = _sessionFocusLabel();
-    //   if (focus != null) {
-    //     return '$base: $focus';
-    //   }
-    // }
-    // return base;
-    
-    // Simple title for guided meditation
-    return '$completedMinutes Min Guided Meditation';
-  }
 
   String? _currentBibleLabel() {
     if (state.bibleTemplate == null) return null;

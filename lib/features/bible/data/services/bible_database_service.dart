@@ -515,16 +515,8 @@ class BibleDatabaseService with WidgetsBindingObserver {
     try {
       final db = await openDatabase(
         path,
-        // Removed readOnly: true to allow creating FTS tables
-        version: 1,
-        onConfigure: (db) async {
-          // Enable foreign keys and other optimizations
-          await db.execute('PRAGMA foreign_keys = ON');
-          await db.execute('PRAGMA journal_mode = WAL');
-          await db.execute('PRAGMA synchronous = NORMAL');
-          await db.execute('PRAGMA cache_size = 10000');
-          await db.execute('PRAGMA temp_store = MEMORY');
-        },
+        readOnly: true,
+        singleInstance: true,
       );
       
       // Verify database integrity with comprehensive checks
@@ -887,33 +879,38 @@ class BibleDatabaseService with WidgetsBindingObserver {
         }).where((verse) => verse.verse > 0 && verse.text.isNotEmpty).toList();
       } catch (e) {
         _logger.w('FTS search failed, falling back to LIKE: $e');
-        
-        // Fallback to LIKE
-        final List<Map<String, dynamic>> maps = await db.query(
-          tableName,
-          columns: ['verseID', 'book', 'chapter', 'startVerse', 'verseText'],
-          where: 'verseText LIKE ?',
-          whereArgs: ['%$query%'],
-          orderBy: 'rowid ASC',
-          limit: limit > 0 ? limit : null,
-        );
 
-        return maps.map((map) {
-          final verse = int.tryParse(map['startVerse'].toString()) ?? 0;
-          final chapter = int.tryParse(map['chapter'].toString()) ?? 0;
-          final bookAbbr = map['book']?.toString() ?? '';
-          final text = (map['verseText']?.toString() ?? '').trim();
-          final reference = '$bookAbbr $chapter:$verse';
-          
-          return BibleVerseContent(
-            id: int.parse(sha256.convert(utf8.encode('$version:$reference')).toString().substring(0, 8), radix: 16) & 0x7FFFFFFF,
-            bookId: 0,
-            chapter: chapter,
-            verse: verse,
-            text: text,
-            reference: reference,
+        // Fallback to LIKE - also wrapped in try-catch for robustness
+        try {
+          final List<Map<String, dynamic>> maps = await db.query(
+            tableName,
+            columns: ['verseID', 'book', 'chapter', 'startVerse', 'verseText'],
+            where: 'verseText LIKE ?',
+            whereArgs: ['%$query%'],
+            orderBy: 'rowid ASC',
+            limit: limit > 0 ? limit : null,
           );
-        }).where((verse) => verse.verse > 0 && verse.text.isNotEmpty).toList();
+
+          return maps.map((map) {
+            final verse = int.tryParse(map['startVerse'].toString()) ?? 0;
+            final chapter = int.tryParse(map['chapter'].toString()) ?? 0;
+            final bookAbbr = map['book']?.toString() ?? '';
+            final text = (map['verseText']?.toString() ?? '').trim();
+            final reference = '$bookAbbr $chapter:$verse';
+
+            return BibleVerseContent(
+              id: int.parse(sha256.convert(utf8.encode('$version:$reference')).toString().substring(0, 8), radix: 16) & 0x7FFFFFFF,
+              bookId: 0,
+              chapter: chapter,
+              verse: verse,
+              text: text,
+              reference: reference,
+            );
+          }).where((verse) => verse.verse > 0 && verse.text.isNotEmpty).toList();
+        } catch (likeError) {
+          _logger.e('LIKE search fallback also failed: $likeError');
+          return [];
+        }
       }
     });
   }

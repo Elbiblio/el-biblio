@@ -1,29 +1,15 @@
 import 'dart:io';
-import 'package:flutter_soloud/flutter_soloud.dart';
+import 'package:audioplayers/audioplayers.dart';
 import 'package:dio/dio.dart';
 import 'package:logger/logger.dart';
 import 'package:path_provider/path_provider.dart';
 
 class ImprovedAudioService {
   final Logger _logger = Logger();
-  final SoLoud _soloud;
-  
-  // Store active sound handles for management
-  SoundHandle? _currentHandle;
-  AudioSource? _currentSource;
-  
-  ImprovedAudioService() : _soloud = SoLoud.instance {
-    _logger.d('Audio service initialized on platform: ${Platform.operatingSystem}');
-    _initializeAudio();
-  }
+  final AudioPlayer _player = AudioPlayer();
 
-  Future<void> _initializeAudio() async {
-    try {
-      await _soloud.init();
-      _logger.d('SoLoud audio engine initialized successfully');
-    } catch (e) {
-      _logger.e('Failed to initialize SoLoud audio engine: $e');
-    }
+  ImprovedAudioService() {
+    _logger.d('Audio service initialized on platform: ${Platform.operatingSystem}');
   }
 
   Future<String> _getAudioDir() async {
@@ -57,12 +43,12 @@ class ImprovedAudioService {
   Future<bool> downloadAudio(String url, String filename, {bool isChant = false, Function(int, int)? onProgress}) async {
     try {
       _logger.d('Starting download: $filename from $url');
-      
+
       final dio = Dio();
       final filePath = await _getAudioPath(filename, isChant: isChant);
-      
+
       _logger.d('Download path: $filePath');
-      
+
       await dio.download(
         url,
         filePath,
@@ -76,16 +62,16 @@ class ImprovedAudioService {
           receiveTimeout: const Duration(seconds: 30),
         ),
       );
-      
+
       _logger.i('Download completed successfully: $filename');
       dio.close();
-      
+
       // Verify the downloaded file
       final file = File(filePath);
       if (!await file.exists() || await file.length() == 0) {
         throw Exception('Downloaded audio file is empty or missing');
       }
-      
+
       _logger.i('Audio downloaded successfully: $filename (${await file.length()} bytes)');
       return true;
     } catch (e) {
@@ -98,19 +84,15 @@ class ImprovedAudioService {
     try {
       final path = await _getAudioPath(filename, isChant: isChant);
       _logger.d('Playing local audio: $path');
-      
+
       if (!await File(path).exists()) {
         _logger.e('Local audio file not found: $path');
         return false;
       }
-      
-      // Stop current playback if any
+
       await stop();
-      
-      // Load and play the local file
-      _currentSource = await _soloud.loadFile(path);
-      _currentHandle = await _soloud.play(_currentSource!);
-      
+      await _player.play(DeviceFileSource(path));
+
       _logger.i('Local audio playback started: $filename');
       return true;
     } catch (e) {
@@ -122,21 +104,12 @@ class ImprovedAudioService {
   Future<bool> playStreamingAudio(String url, {bool loop = false}) async {
     try {
       _logger.d('Playing streaming audio: $url');
-      
-      // Stop current playback if any
+
       await stop();
-      
-      // Load and play from URL with optimized settings for instant playback
-      _currentSource = await _soloud.loadUrl(url);
-      _currentHandle = await _soloud.play(_currentSource!);
-      
-      // Set volume slightly lower for streaming to reduce initial load
-      _soloud.setVolume(_currentHandle!, 0.8);
-      
-      if (loop) {
-        _soloud.setLooping(_currentHandle!, true);
-      }
-      
+      await _player.setReleaseMode(loop ? ReleaseMode.loop : ReleaseMode.stop);
+      await _player.setVolume(0.8);
+      await _player.play(UrlSource(url));
+
       _logger.i('Streaming audio started successfully');
       return true;
     } catch (e) {
@@ -145,39 +118,47 @@ class ImprovedAudioService {
     }
   }
 
-  // Preload chant audio for instant playback
-  Future<AudioSource?> preloadChant(String url) async {
+  /// Preload chant audio by downloading it locally for instant playback.
+  /// Returns the local file path if successful, null otherwise.
+  Future<String?> preloadChant(String url) async {
     try {
       _logger.d('Preloading chant: $url');
-      
-      // For asset files, preload directly
+
       if (url.startsWith('assets/')) {
-        return await _soloud.loadAsset(url);
+        // Asset files are already available locally
+        return url;
       }
-      
-      // For remote URLs, preload the beginning for faster start
-      return await _soloud.loadUrl(url);
+
+      // Download to local cache for instant playback
+      final filename = url.split('/').last;
+      final filePath = await _getAudioPath(filename, isChant: true);
+
+      if (await File(filePath).exists()) {
+        return filePath;
+      }
+
+      final success = await downloadAudio(url, filename, isChant: true);
+      return success ? filePath : null;
     } catch (e) {
       _logger.e('Failed to preload chant: $e');
       return null;
     }
   }
 
-  // Play preloaded chant instantly
-  Future<bool> playPreloadedChant(AudioSource source, {bool loop = false}) async {
+  /// Play a preloaded chant from a local path or asset.
+  Future<bool> playPreloadedChant(String path, {bool loop = false}) async {
     try {
       _logger.d('Playing preloaded chant');
-      
-      // Stop current playback if any
+
       await stop();
-      
-      _currentSource = source;
-      _currentHandle = await _soloud.play(_currentSource!);
-      
-      if (loop) {
-        _soloud.setLooping(_currentHandle!, true);
+      await _player.setReleaseMode(loop ? ReleaseMode.loop : ReleaseMode.stop);
+
+      if (path.startsWith('assets/')) {
+        await _player.play(AssetSource(path.replaceFirst('assets/', '')));
+      } else {
+        await _player.play(DeviceFileSource(path));
       }
-      
+
       _logger.i('Preloaded chant playback started successfully');
       return true;
     } catch (e) {
@@ -194,23 +175,16 @@ class ImprovedAudioService {
   }) async {
     try {
       _logger.d('Playing chant: $filename (${isVoice ? "voice" : "instrumental"}) from: $urlOrAsset');
-      
+
       // Check if it's an asset path
       if (urlOrAsset.startsWith('assets/')) {
         try {
           _logger.d('Playing chant from asset: $urlOrAsset');
-          
-          // Stop current playback if any
-          await stop();
-          
-          // Load and play the asset
-          _currentSource = await _soloud.loadAsset(urlOrAsset);
-          _currentHandle = await _soloud.play(_currentSource!);
 
-          if (loop) {
-            _soloud.setLooping(_currentHandle!, true);
-          }
-          
+          await stop();
+          await _player.setReleaseMode(loop ? ReleaseMode.loop : ReleaseMode.stop);
+          await _player.play(AssetSource(urlOrAsset.replaceFirst('assets/', '')));
+
           _logger.d('Asset playback successful');
           return true;
         } catch (e) {
@@ -218,15 +192,15 @@ class ImprovedAudioService {
           return false;
         }
       }
-      
+
       // Try local file first
       if (await _isAudioDownloaded(filename, isChant: true)) {
         _logger.d('Found local file, playing from cache: $filename');
         return await playLocalAudio(filename, isChant: true);
       }
-      
+
       _logger.d('No local file found, trying remote playback for: $urlOrAsset');
-      
+
       // Download and play (for remote URLs)
       if (urlOrAsset.startsWith('http')) {
         _logger.d('Attempting download and play for remote URL');
@@ -235,12 +209,11 @@ class ImprovedAudioService {
           _logger.d('Download successful, playing local file');
           return await playLocalAudio(filename, isChant: true);
         }
-        
+
         _logger.d('Download failed, trying streaming fallback');
-        // Fallback to streaming
         return await playStreamingAudio(urlOrAsset, loop: loop);
       }
-      
+
       _logger.e('Invalid chant source: $urlOrAsset');
       return false;
     } catch (e) {
@@ -251,16 +224,7 @@ class ImprovedAudioService {
 
   Future<void> stop() async {
     try {
-      if (_currentHandle != null) {
-        await _soloud.stop(_currentHandle!);
-        _currentHandle = null;
-      }
-      
-      if (_currentSource != null) {
-        await _soloud.disposeSource(_currentSource!);
-        _currentSource = null;
-      }
-      
+      await _player.stop();
       _logger.d('Audio stopped');
     } catch (e) {
       _logger.e('Failed to stop audio: $e');
@@ -269,10 +233,8 @@ class ImprovedAudioService {
 
   Future<void> pause() async {
     try {
-      if (_currentHandle != null) {
-        _soloud.setPause(_currentHandle!, true);
-        _logger.d('Audio paused');
-      }
+      await _player.pause();
+      _logger.d('Audio paused');
     } catch (e) {
       _logger.e('Failed to pause audio: $e');
     }
@@ -280,10 +242,8 @@ class ImprovedAudioService {
 
   Future<void> resume() async {
     try {
-      if (_currentHandle != null) {
-        _soloud.setPause(_currentHandle!, false);
-        _logger.d('Audio resumed');
-      }
+      await _player.resume();
+      _logger.d('Audio resumed');
     } catch (e) {
       _logger.e('Failed to resume audio: $e');
     }
@@ -291,42 +251,30 @@ class ImprovedAudioService {
 
   Future<void> setVolume(double volume) async {
     try {
-      if (_currentHandle != null) {
-        _soloud.setVolume(_currentHandle!, volume);
-        _logger.d('Volume set to: $volume');
-      }
+      await _player.setVolume(volume);
+      _logger.d('Volume set to: $volume');
     } catch (e) {
       _logger.e('Failed to set volume: $e');
     }
   }
 
   bool get isPlaying {
-    if (_currentHandle == null) return false;
     try {
-      return _soloud.getActiveVoiceCount() > 0 && 
-             !_soloud.getPause(_currentHandle!);
+      return _player.state == PlayerState.playing;
     } catch (e) {
       _logger.e('Failed to check playing state: $e');
       return false;
     }
   }
 
-  // Audio session management
   Future<bool> requestAudioFocus() async {
-    try {
-      // SoLoud handles audio focus automatically on most platforms
-      return true;
-    } catch (e) {
-      _logger.e('Failed to request audio focus: $e');
-      return false;
-    }
+    return true;
   }
 
   Future<void> dispose() async {
     try {
-      await stop();
-      // SoLoud doesn't have a dispose method in the same way
-      // Just clean up our resources
+      await _player.stop();
+      await _player.dispose();
       _logger.d('Audio service disposed');
     } catch (e) {
       _logger.e('Failed to dispose audio service: $e');

@@ -100,7 +100,7 @@ class _VoiceRecorderBottomSheetState extends State<VoiceRecorderBottomSheet>
           },
           listenFor: const Duration(seconds: 30),
           pauseFor: const Duration(seconds: 3),
-          partialResults: true,
+          listenOptions: stt.SpeechListenOptions(partialResults: true),
         );
       } else if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

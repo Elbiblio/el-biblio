@@ -23,7 +23,6 @@ dependencies:
   cached_network_image: ^3.3.0
   flutter_svg: ^2.0.0
   audioplayers: ^6.0.0
-  flutter_soloud: ^3.5.0-pre.1
   shared_preferences: ^2.2.0
   json_annotation: ^4.9.0
   intl: ^0.20.2
@@ -56,6 +55,7 @@ dependencies:
   confetti: ^0.7.0
   connectivity_plus: ^6.1.0
   uuid: ^4.5.1
+  app_usage: ^4.1.0
 
 dev_dependencies:
   flutter_test:

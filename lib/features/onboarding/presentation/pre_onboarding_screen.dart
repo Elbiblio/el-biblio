@@ -14,9 +14,11 @@ class PreOnboardingScreen extends ConsumerStatefulWidget {
 class _PreOnboardingScreenState extends ConsumerState<PreOnboardingScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
+  final _emailController = TextEditingController();
   final _phoneController = TextEditingController();
   final _countryCodeController = TextEditingController(text: '+1');
   final _nameFocusNode = FocusNode();
+  final _emailFocusNode = FocusNode();
   final _phoneFocusNode = FocusNode();
   bool _isLoading = false;
   bool _countryDetected = false;
@@ -43,9 +45,11 @@ class _PreOnboardingScreenState extends ConsumerState<PreOnboardingScreen> {
   @override
   void dispose() {
     _nameController.dispose();
+    _emailController.dispose();
     _phoneController.dispose();
     _countryCodeController.dispose();
     _nameFocusNode.dispose();
+    _emailFocusNode.dispose();
     _phoneFocusNode.dispose();
     super.dispose();
   }
@@ -57,13 +61,15 @@ class _PreOnboardingScreenState extends ConsumerState<PreOnboardingScreen> {
 
     try {
       final name = _nameController.text.trim();
+      final email = _emailController.text.trim();
       final countryCode = _countryCodeController.text.trim();
       final phone = _phoneController.text.trim();
       final fullPhone = '$countryCode$phone';
 
-      // Instant signup with name and phone
-      final success = await ref.read(authProvider.notifier).signUpWithPhoneAndName(
+      // Signup with name, email and phone
+      final success = await ref.read(authProvider.notifier).signUpWithDetails(
         name: name,
+        email: email,
         phone: fullPhone,
       );
 
@@ -185,7 +191,7 @@ class _PreOnboardingScreenState extends ConsumerState<PreOnboardingScreen> {
 
                           // Subtitle
                           Text(
-                            'Enter your full name to proceed.',
+                            'Create your account to get started.',
                             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                               fontSize: 14,
                               color: isDark
@@ -208,7 +214,7 @@ class _PreOnboardingScreenState extends ConsumerState<PreOnboardingScreen> {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
-                                      'Thy Full Name',
+                                      'Full Name',
                                       style: Theme.of(context).textTheme.labelSmall?.copyWith(
                                         fontSize: 10,
                                         fontWeight: FontWeight.bold,
@@ -250,10 +256,75 @@ class _PreOnboardingScreenState extends ConsumerState<PreOnboardingScreen> {
                                             : const Color(0xFF1a2418),
                                       ),
                                       textInputAction: TextInputAction.next,
-                                      onFieldSubmitted: (_) => _phoneFocusNode.requestFocus(),
+                                      onFieldSubmitted: (_) => _emailFocusNode.requestFocus(),
                                       validator: (value) {
                                         if (value == null || value.trim().isEmpty) {
                                           return 'Please enter your name';
+                                        }
+                                        return null;
+                                      },
+                                    ),
+                                  ],
+                                ),
+
+                                const SizedBox(height: 32),
+
+                                // Email field
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Email Address',
+                                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.bold,
+                                        letterSpacing: 2,
+                                        color: isDark
+                                            ? const Color(0xFF638B6C).withValues(alpha: 0.6)
+                                            : const Color(0xFF1a2418).withValues(alpha: 0.4),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    TextFormField(
+                                      focusNode: _emailFocusNode,
+                                      controller: _emailController,
+                                      decoration: InputDecoration(
+                                        border: InputBorder.none,
+                                        enabledBorder: UnderlineInputBorder(
+                                          borderSide: BorderSide(
+                                            color: isDark
+                                                ? const Color(0xFF638B6C).withValues(alpha: 0.2)
+                                                : const Color(0xFF1a2418).withValues(alpha: 0.2),
+                                          ),
+                                        ),
+                                        focusedBorder: const UnderlineInputBorder(
+                                          borderSide: BorderSide(
+                                            color: Color(0xFF638B6C),
+                                          ),
+                                        ),
+                                        hintText: 'e.g. julian@example.com',
+                                        hintStyle: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                                          color: isDark
+                                              ? Colors.white.withValues(alpha: 0.1)
+                                              : const Color(0xFF1a2418).withValues(alpha: 0.2),
+                                        ),
+                                      ),
+                                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                                        fontSize: 20,
+                                        color: isDark
+                                            ? Colors.white
+                                            : const Color(0xFF1a2418),
+                                      ),
+                                      keyboardType: TextInputType.emailAddress,
+                                      textInputAction: TextInputAction.next,
+                                      onFieldSubmitted: (_) => _phoneFocusNode.requestFocus(),
+                                      validator: (value) {
+                                        if (value == null || value.trim().isEmpty) {
+                                          return 'Please enter your email';
+                                        }
+                                        final emailRegex = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
+                                        if (!emailRegex.hasMatch(value.trim())) {
+                                          return 'Please enter a valid email address';
                                         }
                                         return null;
                                       },

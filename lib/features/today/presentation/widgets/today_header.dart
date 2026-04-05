@@ -54,7 +54,7 @@ class TodayHeader extends ConsumerWidget {
           ),
           const SizedBox(width: 12),
 
-          // Greeting + Virtue Focus
+          // Greeting + Clarity Focus
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -67,6 +67,13 @@ class TodayHeader extends ConsumerWidget {
                         letterSpacing: -0.5,
                       ),
                   overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  moodNotifier.getCurrentFocus(),
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+                      ),
                 ),
                 const SizedBox(height: 8),
                 const VirtueFocusBadge(),

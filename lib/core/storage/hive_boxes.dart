@@ -13,4 +13,5 @@ class HiveBoxes {
   static const appLockUsage = 'app_lock_usage';
   static const journeyProgress = 'journey_progress';
   static const alignment = 'alignment';
+  static const faithQuizProgress = 'faith_quiz_progress';
 }

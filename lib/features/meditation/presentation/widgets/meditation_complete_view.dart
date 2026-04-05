@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/app_routes.dart';
 import '../../application/meditation_notifier.dart';
+import 'god_spoke_prompt.dart';
 
 /// Shown after a meditation session completes.
 class MeditationCompleteView extends ConsumerWidget {
@@ -115,41 +116,10 @@ class MeditationCompleteView extends ConsumerWidget {
                 label: const Text('Meditate Again'),
               ),
             ),
-            const SizedBox(height: 12),
-            TextButton.icon(
-              onPressed: () {
-                // Generate context data for pre-filled journal entry
-                final now = DateTime.now();
-                final dateStr = '${now.month}/${now.day}/${now.year}';
-                final styleLabel = state.style.label;
-                
-                // Create pre-filled title and content
-                final title = '$styleLabel Meditation - $dateStr';
-                var initialText = 'Reflections from my ${state.selectedMinutes}-minute $styleLabel meditation:\n\n';
-                
-                if (state.virtueName != null && state.virtueName!.isNotEmpty) {
-                  initialText += 'Focus: ${state.virtueName}\n\n';
-                }
-                
-                initialText += 'What I noticed:\n\n\nWhat I\'m grateful for:\n\n\nHow I want to carry this forward:\n\n';
-                
-                // Prepare virtues list
-                final virtues = state.virtueName != null && state.virtueName!.isNotEmpty 
-                    ? [state.virtueName!] 
-                    : <String>[];
-                
-                notifier.resetToSetup();
-                if (context.mounted) {
-                  context.push('${AppRoutes.journal}/new', extra: {
-                    'initialTitle': title,
-                    'initialText': initialText,
-                    'initialVirtues': virtues,
-                  });
-                }
-              },
-              icon: const Icon(Icons.edit_note_outlined, size: 20),
-              label: const Text('Journal About This'),
-            ),
+            const SizedBox(height: 24),
+
+            // ── "God Spoke to Me" prompt ────────────────────────────
+            const GodSpokePrompt(),
           ],
         ),
       ),

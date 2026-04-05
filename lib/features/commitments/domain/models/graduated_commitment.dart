@@ -1,6 +1,11 @@
 import 'dart:ui';
 
-/// Represents a single commitment in the 40-level graduated system.
+import 'commitment_category.dart';
+
+/// Represents a single commitment in the graduated system.
+///
+/// Commitments are organized into 3 category tracks (Growth, Discipline, Charity),
+/// each with 4 difficulty tiers (Quick Wins, Building Blocks, Half-Day, Day-Long).
 class GraduatedCommitment {
   const GraduatedCommitment({
     required this.id,
@@ -14,10 +19,11 @@ class GraduatedCommitment {
     required this.xpReward,
     required this.encouragement,
     required this.failureGrace,
+    this.category = CommitmentCategory.growth,
   });
 
   final String id;
-  final int level; // 1-40
+  final int level; // 1-40 (legacy), or 1-15 per category track
   final String title;
   final String description;
   final int durationMinutes; // 2 to 1440 (24 hours)
@@ -27,6 +33,7 @@ class GraduatedCommitment {
   final int xpReward;
   final String encouragement; // shown on completion
   final String failureGrace; // shown if they fail
+  final CommitmentCategory category;
 
   GraduatedCommitment copyWith({
     String? id,
@@ -40,6 +47,7 @@ class GraduatedCommitment {
     int? xpReward,
     String? encouragement,
     String? failureGrace,
+    CommitmentCategory? category,
   }) {
     return GraduatedCommitment(
       id: id ?? this.id,
@@ -53,6 +61,7 @@ class GraduatedCommitment {
       xpReward: xpReward ?? this.xpReward,
       encouragement: encouragement ?? this.encouragement,
       failureGrace: failureGrace ?? this.failureGrace,
+      category: category ?? this.category,
     );
   }
 
@@ -69,6 +78,7 @@ class GraduatedCommitment {
       'xpReward': xpReward,
       'encouragement': encouragement,
       'failureGrace': failureGrace,
+      'category': category.name,
     };
   }
 
@@ -85,6 +95,9 @@ class GraduatedCommitment {
       xpReward: json['xpReward'] as int,
       encouragement: json['encouragement'] as String,
       failureGrace: json['failureGrace'] as String,
+      category: CommitmentCategory.fromString(
+        json['category'] as String? ?? 'growth',
+      ),
     );
   }
 

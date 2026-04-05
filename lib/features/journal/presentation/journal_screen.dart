@@ -551,7 +551,11 @@ class _NoteArticleCard extends StatelessWidget {
 
     final timeAgoStr = timeago.format(note.updatedAt, locale: 'en_US');
     final visibilityStr = note.isPublic ? 'Public' : 'Private';
-    final metadataText = '$timeAgoStr • $visibilityStr';
+    final hasMeditation = note.meditationSessionId != null &&
+        note.meditationSessionId!.isNotEmpty;
+    final metadataText = hasMeditation
+        ? '$timeAgoStr • $visibilityStr • After Meditation'
+        : '$timeAgoStr • $visibilityStr';
 
     return GestureDetector(
       onTap: onTap,
@@ -612,6 +616,39 @@ class _NoteArticleCard extends StatelessWidget {
                                   'Voice',
                                   style: TextStyle(
                                     color: Colors.blue,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                        if (note.meditationSessionId != null &&
+                            note.meditationSessionId!.isNotEmpty) ...[
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: Colors.deepPurple.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: Colors.deepPurple.withValues(alpha: 0.3),
+                              ),
+                            ),
+                            child: const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.self_improvement,
+                                  color: Colors.deepPurple,
+                                  size: 14,
+                                ),
+                                SizedBox(width: 4),
+                                Text(
+                                  'Meditation',
+                                  style: TextStyle(
+                                    color: Colors.deepPurple,
                                     fontSize: 10,
                                     fontWeight: FontWeight.w600,
                                   ),

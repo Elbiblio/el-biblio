@@ -20,7 +20,6 @@ import '../../features/journal/presentation/note_reader_screen.dart';
 import '../../features/meditation/presentation/screens/meditation_home_screen.dart';
 import '../../features/meditation/presentation/meditation_screen.dart';
 import '../../features/onboarding/presentation/onboarding_screen.dart';
-import '../../features/onboarding/presentation/pre_onboarding_screen.dart';
 import '../../features/profile/presentation/about_screen.dart';
 import '../../features/profile/presentation/profile_screen.dart';
 import '../../features/profile/presentation/reminder_settings_screen.dart';
@@ -41,7 +40,9 @@ import '../../features/spiritual_aid/presentation/screens/speak_to_me_screen.dar
 import '../../features/spiritual_aid/presentation/screens/evangelism_helper_screen.dart';
 import '../../features/today/presentation/today_screen.dart';
 import '../../features/games/presentation/screens/games_hub_screen.dart';
+import '../../features/grow/presentation/grow_hub_screen.dart';
 import '../../features/games/presentation/screens/journey_map_screen.dart';
+import '../../features/games/presentation/screens/post_game_reading_screen.dart';
 import '../../features/bible/presentation/games/verse_game_screen.dart';
 import '../../features/alignment/presentation/screens/alignment_hub_screen.dart';
 import '../../features/alignment/presentation/screens/spiritual_profile_screen.dart';
@@ -50,6 +51,10 @@ import '../../features/alignment/presentation/screens/habit_tracker_screen.dart'
 import '../../features/alignment/presentation/screens/forty_day_setup_screen.dart';
 import '../../features/alignment/presentation/screens/forty_day_progress_screen.dart';
 import '../../features/alignment/presentation/screens/career_alignment_screen.dart';
+import '../../features/faith_questions/presentation/screens/faith_questions_hub_screen.dart';
+import '../../features/faith_questions/presentation/screens/faith_faq_screen.dart';
+import '../../features/faith_questions/presentation/screens/faith_quiz_screen.dart';
+import '../../features/faith_questions/presentation/screens/faith_quiz_results_screen.dart';
 import '../../shared/widgets/app_shell.dart';
 
 final _rootNavigatorKey = NotificationService.navigatorKey;
@@ -64,11 +69,6 @@ final _routerRefreshProvider = Provider<_RouterRefreshNotifier>((ref) {
 
   ref.listen<bool>(
     settingsProvider.select((value) => value.onboardingCompleted),
-    (_, __) => notifier.trigger(),
-  );
-
-  ref.listen<bool>(
-    settingsProvider.select((value) => value.hasCompletedPreOnboarding),
     (_, __) => notifier.trigger(),
   );
 
@@ -91,11 +91,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     routes: <RouteBase>[
       GoRoute(
         path: AppRoutes.root,
-        builder: (context, state) => const SizedBox.shrink(),
-      ),
-      GoRoute(
-        path: '/pre-onboarding',
-        builder: (context, state) => const PreOnboardingScreen(),
+        builder: (context, state) => const Scaffold(
+          backgroundColor: Color(0xFFF7FCF6),
+          body: Center(child: CircularProgressIndicator()),
+        ),
       ),
       GoRoute(
         path: AppRoutes.onboarding,
@@ -187,11 +186,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const CommitmentCompletionScreen(),
       ),
       GoRoute(
-        path: AppRoutes.games,
-        parentNavigatorKey: _rootNavigatorKey,
-        builder: (context, state) => const GamesHubScreen(),
-      ),
-      GoRoute(
         path: AppRoutes.gamesVerseScramble,
         parentNavigatorKey: _rootNavigatorKey,
         builder: (context, state) => const VerseGameScreen(),
@@ -200,6 +194,18 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: AppRoutes.gamesJourney,
         parentNavigatorKey: _rootNavigatorKey,
         builder: (context, state) => const JourneyMapScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.gamesPostReading,
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) {
+          final extra = state.extra as Map<String, dynamic>? ?? {};
+          return PostGameReadingScreen(
+            bibleReference: extra['bibleReference'] as String? ?? '',
+            xpEarned: extra['xpEarned'] as int? ?? 0,
+            gameTitle: extra['gameTitle'] as String? ?? 'Game Complete',
+          );
+        },
       ),
       GoRoute(
         path: AppRoutes.alignment,
@@ -235,6 +241,28 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             path: 'career',
             parentNavigatorKey: _rootNavigatorKey,
             builder: (context, state) => const CareerAlignmentScreen(),
+          ),
+        ],
+      ),
+      GoRoute(
+        path: AppRoutes.faithQuestions,
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) => const FaithQuestionsHubScreen(),
+        routes: [
+          GoRoute(
+            path: 'faq',
+            parentNavigatorKey: _rootNavigatorKey,
+            builder: (context, state) => const FaithFaqScreen(),
+          ),
+          GoRoute(
+            path: 'quiz',
+            parentNavigatorKey: _rootNavigatorKey,
+            builder: (context, state) => const FaithQuizScreen(),
+          ),
+          GoRoute(
+            path: 'quiz-results',
+            parentNavigatorKey: _rootNavigatorKey,
+            builder: (context, state) => const FaithQuizResultsScreen(),
           ),
         ],
       ),
@@ -344,6 +372,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                     initialTitle: extra?['initialTitle'] as String?,
                     initialText: extra?['initialText'] as String?,
                     initialVirtues: extra?['initialVirtues'] as List<String>?,
+                    meditationSessionId: extra?['meditationSessionId'] as String?,
                   );
                 },
               ),
@@ -366,6 +395,16 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             ],
           ),
           GoRoute(
+            path: AppRoutes.games,
+            pageBuilder: (context, state) =>
+                const NoTransitionPage(child: GamesHubScreen()),
+          ),
+          GoRoute(
+            path: AppRoutes.grow,
+            pageBuilder: (context, state) =>
+                const NoTransitionPage(child: GrowHubScreen()),
+          ),
+          GoRoute(
             path: AppRoutes.profile,
             pageBuilder: (context, state) =>
                 const NoTransitionPage(child: ProfileScreen()),
@@ -381,45 +420,19 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     ],
     redirect: (context, state) {
       final settings = ref.read(settingsProvider);
-      final authState = ref.read(authProvider);
-
-      final isPreOnboarding = state.matchedLocation == '/pre-onboarding';
       final isOnboarding = state.matchedLocation == AppRoutes.onboarding;
 
       if (state.matchedLocation == AppRoutes.root) {
-        if (settings.onboardingCompleted &&
-            settings.hasCompletedPreOnboarding) {
-          // If both onboarding and pre-onboarding are complete, go to today
-          return AppRoutes.today;
-        } else if (settings.onboardingCompleted &&
-            !settings.hasCompletedPreOnboarding) {
-          // Onboarding complete but account not created - go to pre-onboarding
-          return '/pre-onboarding';
-        } else {
-          // Always start with onboarding flow first
-          return AppRoutes.onboarding;
-        }
+        return settings.onboardingCompleted
+            ? AppRoutes.today
+            : AppRoutes.onboarding;
       }
 
-      // If user hasn't completed onboarding, keep them in onboarding
       if (!settings.onboardingCompleted) {
-        if (isOnboarding) {
-          return null;
-        }
-        return AppRoutes.onboarding;
+        return isOnboarding ? null : AppRoutes.onboarding;
       }
 
-      // If onboarding is complete but not authenticated, they need to create account
-      if (!authState.isAuthenticated && !settings.hasCompletedPreOnboarding) {
-        if (isPreOnboarding) {
-          return null;
-        }
-        return '/pre-onboarding';
-      }
-
-      if (isPreOnboarding ||
-          isOnboarding ||
-          state.matchedLocation == AppRoutes.root) {
+      if (isOnboarding || state.matchedLocation == AppRoutes.root) {
         return AppRoutes.today;
       }
 

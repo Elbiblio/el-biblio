@@ -63,14 +63,14 @@ class _AlignmentHubScreenState extends ConsumerState<AlignmentHubScreen> {
               delegate: SliverChildListDelegate([
                 // Section header
                 Text(
-                  'ALIGNMENT HUB',
+                  'CLARITY ALIGNMENT',
                   style: Theme.of(context).textTheme.sectionHeader.copyWith(
                         color: tokens.palette.primary,
                       ),
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'Your spiritual growth dashboard',
+                  'Discover how your God-given identity shapes your calling',
                   style: TextStyle(
                     fontSize: 13,
                     color: tokens.palette.textSecondary,
@@ -87,7 +87,7 @@ class _AlignmentHubScreenState extends ConsumerState<AlignmentHubScreen> {
                       : 'Discover Your Archetype',
                   subtitle: profile != null
                       ? profile.description
-                      : 'Take the spiritual archetype assessment to discover your unique gifts and calling.',
+                      : 'Take the spiritual identity assessment to discover your unique gifts and clarity path.',
                   onTap: () => context.push('/alignment/profile'),
                 ),
                 const SizedBox(height: 12),
@@ -98,8 +98,8 @@ class _AlignmentHubScreenState extends ConsumerState<AlignmentHubScreen> {
                   iconColor: const Color(0xFF5A8E67),
                   title: 'Habit Conquest',
                   subtitle: habitState.activeHabits.isEmpty
-                      ? 'Discover your habits and start your conquest journey.'
-                      : '${habitState.activeHabits.length} active habits | ${habitState.longestStreak}d best streak',
+                      ? 'Build spiritual habits that anchor your clarity daily.'
+                      : '${habitState.activeHabits.length} clarity habits | ${habitState.longestStreak}d best streak',
                   progress: habitState.activeHabits.isNotEmpty
                       ? habitState.consistencyPercent
                       : null,
@@ -122,7 +122,7 @@ class _AlignmentHubScreenState extends ConsumerState<AlignmentHubScreen> {
                       : '40-Day Spiritual Goal',
                   subtitle: fortyDayState.hasActiveGoal
                       ? 'Day ${fortyDayState.currentDay} of 40 | ${fortyDayState.streakDays}d streak'
-                      : 'Set a 40-day transformation goal with daily tasks and reflections.',
+                      : 'Set a 40-day clarity goal with daily tasks and spiritual reflections.',
                   progress: fortyDayState.hasActiveGoal
                       ? fortyDayState.progress
                       : null,
@@ -162,8 +162,8 @@ class _AlignmentHubScreenState extends ConsumerState<AlignmentHubScreen> {
                   iconColor: const Color(0xFFA97A46),
                   title: 'Career & Calling',
                   subtitle: profile != null
-                      ? 'Discover how your ${profile.archetypeName} gifts align with your career calling.'
-                      : 'Complete your profile to unlock career alignment insights.',
+                      ? 'Your ${profile.archetypeName} identity reveals how your spiritual clarity shapes your professional calling.'
+                      : 'Complete your spiritual identity profile to unlock career clarity insights.',
                   onTap: profile != null
                       ? () => context.push('/alignment/career')
                       : null,

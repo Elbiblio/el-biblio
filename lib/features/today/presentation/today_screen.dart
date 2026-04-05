@@ -6,12 +6,9 @@ import '../../../../core/constants/app_routes.dart';
 import '../../../../core/di/app_providers.dart';
 import '../../../../core/storage/settings_storage.dart';
 import '../../../../core/theme/app_theme_tokens.dart';
-import '../../commitments/presentation/widgets/commitment_summary_card.dart';
 import '../domain/models/daily_anchors.dart';
-import '../domain/models/commitment.dart';
-import 'widgets/commitment_selection_dialog.dart';
 import 'widgets/physical_activity_guide.dart';
-import 'widgets/assessment_prompt_widget.dart';
+import '../../commitments/presentation/widgets/commitment_welcome_dialog.dart';
 import 'widgets/prayer_guide_dialog.dart';
 import 'widgets/progress_reminder_dialog.dart';
 import 'widgets/end_of_day_reflection_dialog.dart';
@@ -23,14 +20,10 @@ import 'widgets/share_elbiblio_dialog.dart';
 import 'widgets/time_diagnose_suggestion_dialog.dart';
 import 'widgets/recalibration_suggestion_dialog.dart';
 import 'widgets/today_header.dart';
-import 'widgets/daily_progress_card.dart';
+import 'widgets/daily_focus_card.dart';
+import 'widgets/quick_actions_row.dart';
 import 'widgets/daily_rhythm_section.dart';
-import 'widgets/rhythm_summary_card.dart';
-import 'widgets/weekly_recap_card.dart';
-import 'widgets/time_assessment_widget.dart';
-import 'widgets/need_help_widget.dart';
 import 'helpers/share_helper.dart' as share_helper;
-import '../../app_lock/presentation/widgets/app_lock_summary_card.dart';
 
 class TodayScreen extends ConsumerStatefulWidget {
   const TodayScreen({super.key});
@@ -50,6 +43,8 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
       _checkForMissedDaysAndShowSuggestion();
       _checkAlarmProximity();
       _checkAndShowDailyPrayerGuide();
+      // Refresh pillar scores on screen load
+      ref.read(pillarScoreProvider.notifier).refresh();
     });
   }
 
@@ -148,7 +143,6 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
   @override
   Widget build(BuildContext context) {
     final anchors = ref.watch(dailyAnchorsProvider);
-    final settings = ref.watch(settingsProvider);
     final tokens = Theme.of(context).tokens;
     final now = DateTime.now();
 
@@ -173,58 +167,19 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                 ),
               ),
 
-              // Assessment Prompt for first-time users
-              if (settings.onboardingCompleted && !settings.hasSeenAssessmentPrompt)
-                const SliverToBoxAdapter(
-                  child: Padding(
-                    padding: EdgeInsets.fromLTRB(24, 24, 24, 0),
-                    child: AssessmentPromptWidget(),
-                  ),
-                ),
-
-              // Progress Overview
+              // Daily Focus: archetype + progress + commitment in one card
               SliverToBoxAdapter(
-                child: DailyProgressCard(
+                child: DailyFocusCard(
                   anchors: anchors,
-                  onTap: () => _showProgressReminder(anchors),
+                  onProgressTap: () => _showProgressReminder(anchors),
                 ),
               ),
 
-              // App Lock Summary
-              SliverToBoxAdapter(
+              // Quick Actions: horizontal chips for displaced features
+              const SliverToBoxAdapter(
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
-                  child: Consumer(
-                    builder: (context, ref, _) {
-                      final appLockState = ref.watch(appLockProvider);
-                      return AppLockSummaryCard(state: appLockState);
-                    },
-                  ),
-                ),
-              ),
-
-              // Graduated Commitment Journey Card
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
-                  child: CommitmentSummaryCard(
-                    onTap: () {
-                      final gcState = ref.read(graduatedCommitmentProvider);
-                      if (gcState.activeCommitment != null) {
-                        context.push(AppRoutes.commitmentActive);
-                      } else {
-                        context.push(AppRoutes.commitmentJourney);
-                      }
-                    },
-                  ),
-                ),
-              ),
-
-              // Conditional widget based on weekend and streak
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
-                  child: _buildConditionalWidget(settings, now),
+                  padding: EdgeInsets.only(top: 16),
+                  child: QuickActionsRow(),
                 ),
               ),
 
@@ -265,38 +220,22 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
     }
 
     if (habit.canStartCommitment) {
-      debugPrint('TodayScreen: Can start commitment, showing dialog');
-      final selectedCommitment = await showDialog<Commitment>(
-        context: context,
-        builder: (context) => const CommitmentSelectionDialog(),
-      );
+      debugPrint('TodayScreen: Can start commitment, checking welcome state');
+      final settings = ref.read(settingsProvider);
 
-      if (selectedCommitment != null) {
-        debugPrint('TodayScreen: Commitment selected: ${selectedCommitment.title}');
-        final updatedHabit = habit.copyWith(
-          title: selectedCommitment.title,
-          description: selectedCommitment.description,
-          durationMinutes: selectedCommitment.durationMinutes,
-          commitmentId: selectedCommitment.id,
-          commitmentTitle: selectedCommitment.title,
-          commitmentDescription: selectedCommitment.description,
-        );
-
-        final updatedAnchors = anchors.copyWith(habit: updatedHabit);
-        await ref.read(dailyAnchorsProvider.notifier).repository.save(updatedAnchors);
-
-        debugPrint('TodayScreen: Starting commitment');
-        await ref.read(dailyAnchorsProvider.notifier).startCommitment();
-
-        debugPrint('TodayScreen: Locking in commitment');
-        await ref.read(dailyAnchorsProvider.notifier).lockInCommitment();
-        debugPrint('TodayScreen: Commitment locked in successfully');
-
-        // Refresh state to ensure UI updates immediately
-        await ref.read(dailyAnchorsProvider.notifier).loadToday();
-      } else {
-        debugPrint('TodayScreen: No commitment selected');
+      if (!settings.hasSeenCommitmentWelcome) {
+        debugPrint('TodayScreen: First time - showing welcome dialog');
+        if (!mounted) return;
+        await CommitmentWelcomeDialog.show(context);
+        // The dialog handles navigation to commitment journey when user
+        // taps "Begin My Journey" and marks the flag as seen.
+        return;
       }
+
+      // User has already seen the welcome -- go straight to the journey screen
+      debugPrint('TodayScreen: Navigating to commitment journey');
+      if (!mounted) return;
+      context.push(AppRoutes.commitmentJourney);
     } else if (habit.isLockedIn && habit.commitmentStartTime == null) {
       debugPrint('TodayScreen: Habit locked in but not started, showing waiting dialog');
       CommitmentWaitingDialog.show(context, habit);
@@ -403,34 +342,4 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
     );
   }
 
-  Widget _buildConditionalWidget(settings, DateTime now) {
-    final isFridayOrSunday =
-        now.weekday == DateTime.friday || now.weekday == DateTime.sunday;
-    final isWeekend = now.weekday == DateTime.saturday || now.weekday == DateTime.sunday;
-    final hasStreak = settings.streakCount > 0;
-
-    if (isFridayOrSunday) {
-      return const WeeklyRecapCard();
-    }
-    
-    // Show RhythmSummaryCard only on weekends OR when daily verse is showing
-    if (isWeekend || _isDailyVerseShowing()) {
-      return const RhythmSummaryCard();
-    }
-    
-    // Weekday logic based on streak
-    if (!hasStreak) {
-      return const TimeAssessmentWidget();
-    } else {
-      return const NeedHelpWidget();
-    }
-  }
-
-  bool _isDailyVerseShowing() {
-    final anchors = ref.watch(dailyAnchorsProvider);
-    // Daily verse shows when all anchors are completed
-    return anchors.coreVirtue.isCompleted &&
-           anchors.habit.isCompleted &&
-           anchors.energyAction.isCompleted;
-  }
 }

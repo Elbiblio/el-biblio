@@ -7,7 +7,6 @@ import '../../data/offline_commitment_data.dart';
 import 'current_anchor_card.dart';
 import 'daily_verse_card.dart';
 import 'enhanced_commitment_card.dart';
-import 'end_of_day_reflection_dialog.dart';
 
 Color getVirtueColor(VirtueType virtue, ThemeData theme) {
   switch (virtue) {
@@ -22,15 +21,15 @@ Color getVirtueColor(VirtueType virtue, ThemeData theme) {
   }
 }
 
-/// Displays the appropriate anchor card based on time-of-day and completion state.
+/// Displays the appropriate anchor card based on completion state.
 ///
-/// Hour-by-hour coverage:
-///   0–4   → Default fallback: Prayer → Habit → Activity → DailyVerse
-///   5–9   → Morning window:   Prayer (primary), then fallback
-///   10    → Gap window:        Prayer → Habit → Activity → DailyVerse
-///   11–15 → Afternoon window:  Habit (primary), then fallback
-///   16–18 → Activity window:   Physical Activity (primary), then fallback
-///   19–23 → Evening window:    Incomplete anchors first, then Evening Review
+/// Priority flow (simplified, no strict time windows):
+///   1. All anchors complete → DailyVerseCard
+///   2. Active commitment    → EnhancedCommitmentCard
+///   3. Prayer not done      → Prayer card
+///   4. Prayer done, commitment not started → "Begin Your Commitment" card
+///   5. Commitment done, activity not done  → Small activity suggestion
+///   6. Evening (19+)        → Evening review for remaining items
 class DailyRhythmSection extends StatelessWidget {
   const DailyRhythmSection({
     super.key,
@@ -54,7 +53,7 @@ class DailyRhythmSection extends StatelessWidget {
       sliver: SliverList(
         delegate: SliverChildListDelegate([
           Text(
-            'YOUR DAILY RHYTHM',
+            'YOUR DAILY CLARITY',
             style: Theme.of(context).textTheme.sectionHeader.copyWith(
                   fontSize: 12,
                   letterSpacing: 1.2,
@@ -72,127 +71,37 @@ class DailyRhythmSection extends StatelessWidget {
   Widget _buildCurrentAnchor(BuildContext context) {
     final hour = now.hour;
 
-    // FIRST PRIORITY: All daily anchors completed → show daily verse
+    // 1. All daily anchors completed → show daily verse
     if (anchors.coreVirtue.isCompleted &&
         anchors.habit.isCompleted &&
         anchors.energyAction.isCompleted) {
       return const DailyVerseCard();
     }
 
-    // Active commitment takes priority over time-window logic
+    // 2. Active commitment takes priority
     if (!anchors.habit.isCompleted && anchors.habit.isCommitmentActive) {
       return _buildEnhancedCommitmentCard(context);
     }
 
-    // Time-window based display
-    // Morning (5am - 10am): Morning Prayer
-    if (hour >= 5 && hour < 10) {
-      return _buildForMorning(context);
-    }
-
-    // Gap period (10am - 11am)
-    if (hour >= 10 && hour < 11) {
-      return _buildFallbackAnchor(context,
-          primaryMessage: 'Complete your morning prayer before the day gets busy.');
-    }
-
-    // Daily Anchor Window (11am - 4pm): Focus on commitment
-    if (hour >= 11 && hour < 16) {
-      return _buildForAfternoon(context);
-    }
-
-    // Physical Activity Window (4pm - 7pm)
-    if (hour >= 16 && hour < 19) {
-      return _buildForLateAfternoon(context);
-    }
-
-    // Evening (7pm onwards): Show remaining incomplete anchors first, then review
-    if (hour >= 19) {
-      return _buildForEvening(context);
-    }
-
-    // Default (0am - 5am): fallback priority
-    return _buildFallbackAnchor(context,
-        primaryMessage: 'Start your day with prayer about your current virtue: ${anchors.coreVirtue.type.title}');
-  }
-
-  // --- Time-window builders ---
-
-  Widget _buildForMorning(BuildContext context) {
+    // 3. Prayer not done → show prayer card
     if (!anchors.coreVirtue.isCompleted) {
-      return _prayerCard(context,
-          subtitle: 'Pray about your current virtue: ${anchors.coreVirtue.type.title}');
+      final subtitle = hour >= 19
+          ? 'Complete your morning prayer before the day ends.'
+          : 'Start your day with a moment of prayer.';
+      return _prayerCard(context, subtitle: subtitle);
     }
-    // Prayer done — show next incomplete
-    return _buildFallbackAnchor(context,
-        primaryMessage: 'Time for some movement to reinforce your virtue practice.');
-  }
 
-  Widget _buildForAfternoon(BuildContext context) {
+    // 4. Prayer done, commitment not started → show "Begin Your Commitment"
     if (!anchors.habit.isCompleted) {
-      return _habitCard(context);
+      return _beginCommitmentCard(context);
     }
-    // Habit done — show next incomplete
-    return _buildFallbackAnchor(context,
-        primaryMessage: 'Complete your morning prayer.');
-  }
 
-  Widget _buildForLateAfternoon(BuildContext context) {
-    final hour = now.hour;
+    // 5. Commitment done, activity not done → small activity suggestion
     if (!anchors.energyAction.isCompleted) {
-      return _activityCard(context,
-          subtitle: hour < 17
-              ? 'Take a walk or do a workout to reinforce your virtue practice.'
-              : 'Wrap up your day with some movement for energy and clarity.');
+      return _activitySuggestionCard(context);
     }
-    // Activity done — show next incomplete
-    return _buildFallbackAnchor(context,
-        primaryMessage: 'Complete your morning prayer.');
-  }
 
-  Widget _buildForEvening(BuildContext context) {
-    // In the evening, show any remaining incomplete anchor first so the user
-    // can still finish tasks. Evening Review is the fallback when all tasks
-    // are done (handled by the all-complete check above) or as a secondary
-    // suggestion when only the review remains relevant.
-    if (!anchors.coreVirtue.isCompleted) {
-      return _prayerCard(context,
-          subtitle: 'You still have time to complete your prayer before the day ends.');
-    }
-    if (!anchors.habit.isCompleted) {
-      return _habitCard(context);
-    }
-    if (!anchors.energyAction.isCompleted) {
-      return _activityCard(context,
-          subtitle: 'A short walk or stretching session before bed can help you unwind.');
-    }
-    // All anchors done — show evening review
-    return CurrentAnchorCard(
-      icon: Icons.nights_stay_rounded,
-      title: 'Evening Review',
-      subtitle: 'Reflect on your day and prepare for tomorrow.',
-      isCompleted: false,
-      onTap: () {
-        showDialog(
-          context: context,
-          builder: (context) => const EndOfDayReflectionDialog(),
-        );
-      },
-    );
-  }
-
-  /// Generic fallback: show the next incomplete anchor in priority order
-  /// Prayer → Habit → Physical Activity → DailyVerse
-  Widget _buildFallbackAnchor(BuildContext context, {required String primaryMessage}) {
-    if (!anchors.coreVirtue.isCompleted) {
-      return _prayerCard(context, subtitle: primaryMessage);
-    }
-    if (!anchors.habit.isCompleted) {
-      return _habitCard(context);
-    }
-    if (!anchors.energyAction.isCompleted) {
-      return _activityCard(context, subtitle: primaryMessage);
-    }
+    // Fallback → daily verse
     return const DailyVerseCard();
   }
 
@@ -209,21 +118,21 @@ class DailyRhythmSection extends StatelessWidget {
     );
   }
 
-  Widget _habitCard(BuildContext context) {
+  Widget _beginCommitmentCard(BuildContext context) {
     return CurrentAnchorCard(
-      icon: Icons.task_alt_rounded,
-      title: anchors.habit.displayTitle,
-      subtitle: anchors.habit.displayDescription,
+      icon: Icons.flag_rounded,
+      title: 'Begin Your Commitment',
+      subtitle: 'Choose your daily commitment',
       isCompleted: false,
       onTap: onHabitTap,
     );
   }
 
-  Widget _activityCard(BuildContext context, {required String subtitle}) {
+  Widget _activitySuggestionCard(BuildContext context) {
     return CurrentAnchorCard(
       icon: Icons.directions_walk_rounded,
-      title: 'Physical Activity',
-      subtitle: subtitle,
+      title: 'Optional Activity',
+      subtitle: 'A short walk or movement to round off your day.',
       isCompleted: false,
       onTap: onPhysicalActivityTap,
     );

@@ -82,10 +82,10 @@ class _FloatingBottomNav extends StatelessWidget {
                         onTap: () => context.go(AppRoutes.today),
                       ),
                       _NavItem(
-                        icon: Icons.menu_book_rounded,
-                        label: 'Bible',
-                        isSelected: location.startsWith(AppRoutes.bible),
-                        onTap: () => context.go(AppRoutes.bible),
+                        icon: Icons.sports_esports_rounded,
+                        label: 'Games',
+                        isSelected: location.startsWith(AppRoutes.games),
+                        onTap: () => context.go(AppRoutes.games),
                       ),
                       
                       // Center FAB
@@ -106,15 +106,15 @@ class _FloatingBottomNav extends StatelessWidget {
                       
                       _NavItem(
                         icon: Icons.self_improvement_rounded,
-                        label: 'Reflect',
+                        label: 'Pray',
                         isSelected: location.startsWith(AppRoutes.meditation),
                         onTap: () => context.go(AppRoutes.meditation),
                       ),
                       _NavItem(
-                        icon: Icons.edit_note_rounded,
-                        label: 'Journal',
-                        isSelected: location.startsWith(AppRoutes.journal),
-                        onTap: () => context.go(AppRoutes.journal),
+                        icon: Icons.trending_up_rounded,
+                        label: 'Grow',
+                        isSelected: location.startsWith(AppRoutes.grow),
+                        onTap: () => context.go(AppRoutes.grow),
                       ),
                     ],
                   ),

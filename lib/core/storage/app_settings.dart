@@ -29,6 +29,9 @@ class AppSettings {
     required this.hasSeenAssessmentPrompt,
     required this.selectedTTSVoice,
     required this.lastPrayerGuideDate,
+    required this.primaryArchetypeId,
+    required this.commitmentCategory,
+    required this.hasSeenCommitmentWelcome,
   });
 
   final AppThemeMode themeMode;
@@ -55,6 +58,9 @@ class AppSettings {
   final bool hasSeenAssessmentPrompt;
   final String selectedTTSVoice;
   final DateTime? lastPrayerGuideDate;
+  final String? primaryArchetypeId;
+  final String? commitmentCategory;
+  final bool hasSeenCommitmentWelcome;
 
   factory AppSettings.defaults() {
     return const AppSettings(
@@ -82,6 +88,9 @@ class AppSettings {
       hasSeenAssessmentPrompt: false,
       selectedTTSVoice: 'default',
       lastPrayerGuideDate: null,
+      primaryArchetypeId: null,
+      commitmentCategory: null,
+      hasSeenCommitmentWelcome: false,
     );
   }
 
@@ -138,6 +147,9 @@ class AppSettings {
       lastPrayerGuideDate: map['lastPrayerGuideDate'] == null
           ? null
           : DateTime.tryParse(map['lastPrayerGuideDate'] as String),
+      primaryArchetypeId: map['primaryArchetypeId'] as String?,
+      commitmentCategory: map['commitmentCategory'] as String?,
+      hasSeenCommitmentWelcome: map['hasSeenCommitmentWelcome'] as bool? ?? false,
     );
   }
 
@@ -168,6 +180,9 @@ class AppSettings {
       'hasSeenAssessmentPrompt': hasSeenAssessmentPrompt,
       'selectedTTSVoice': selectedTTSVoice,
       'lastPrayerGuideDate': lastPrayerGuideDate?.toIso8601String(),
+      'primaryArchetypeId': primaryArchetypeId,
+      'commitmentCategory': commitmentCategory,
+      'hasSeenCommitmentWelcome': hasSeenCommitmentWelcome,
     };
   }
 
@@ -196,6 +211,9 @@ class AppSettings {
     bool? hasSeenAssessmentPrompt,
     String? selectedTTSVoice,
     DateTime? lastPrayerGuideDate,
+    String? primaryArchetypeId,
+    String? commitmentCategory,
+    bool? hasSeenCommitmentWelcome,
   }) {
     return AppSettings(
       themeMode: themeMode ?? this.themeMode,
@@ -223,6 +241,9 @@ class AppSettings {
       hasSeenAssessmentPrompt: hasSeenAssessmentPrompt ?? this.hasSeenAssessmentPrompt,
       selectedTTSVoice: selectedTTSVoice ?? this.selectedTTSVoice,
       lastPrayerGuideDate: lastPrayerGuideDate ?? this.lastPrayerGuideDate,
+      primaryArchetypeId: primaryArchetypeId ?? this.primaryArchetypeId,
+      commitmentCategory: commitmentCategory ?? this.commitmentCategory,
+      hasSeenCommitmentWelcome: hasSeenCommitmentWelcome ?? this.hasSeenCommitmentWelcome,
     );
   }
 }

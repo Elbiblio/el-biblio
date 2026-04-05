@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import '../../../../core/constants/app_routes.dart';
+import '../../../../core/constants/clarity_copy.dart';
 import '../../application/journey_game_notifier.dart';
 import '../widgets/game_hub_card.dart';
 
@@ -24,32 +26,20 @@ class GamesHubScreen extends ConsumerWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Header
-              Row(
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.arrow_back_ios_new, size: 20),
-                    onPressed: () => Navigator.of(context).pop(),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Bible Games',
-                    style: TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.w900,
-                      color: isDark ? Colors.white : Colors.black87,
-                    ),
-                  ),
-                ],
+              Text(
+                ClarityCopy.gamesHubTitle,
+                style: TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.w900,
+                  color: isDark ? Colors.white : Colors.black87,
+                ),
               ),
               const SizedBox(height: 8),
-              Padding(
-                padding: const EdgeInsets.only(left: 48),
-                child: Text(
-                  'Learn Scripture through play',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: isDark ? Colors.white54 : Colors.black45,
-                  ),
+              Text(
+                ClarityCopy.gamesHubSubtitle,
+                style: TextStyle(
+                  fontSize: 14,
+                  color: isDark ? Colors.white54 : Colors.black45,
                 ),
               ),
               const SizedBox(height: 28),
@@ -133,6 +123,30 @@ class GamesHubScreen extends ConsumerWidget {
                         ],
                       ),
                     ],
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // Faith Questions card
+              GameHubCard(
+                title: ClarityCopy.faithQuestionsTitle,
+                subtitle: ClarityCopy.faithQuestionsSubtitle,
+                icon: LucideIcons.helpCircle,
+                color: const Color(0xFF7B68EE),
+                onTap: () => context.push(AppRoutes.faithQuestions),
+                trailing: Row(
+                  children: [
+                    Icon(Icons.auto_awesome, size: 16, color: Colors.purple.shade400),
+                    const SizedBox(width: 4),
+                    Text(
+                      'Explore deep questions of faith',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: isDark ? Colors.white60 : Colors.black54,
+                      ),
+                    ),
                   ],
                 ),
               ),

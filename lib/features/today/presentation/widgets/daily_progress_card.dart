@@ -45,7 +45,7 @@ class DailyProgressCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'DAILY PROGRESS',
+                    'CLARITY SCORE',
                     style: Theme.of(context).textTheme.sectionHeader.copyWith(
                           color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5),
                           letterSpacing: 1.5,
@@ -53,7 +53,7 @@ class DailyProgressCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '$completedCount of 3 completed',
+                    '$completedCount of 3 anchors completed',
                     style: Theme.of(context).textTheme.cardTitle,
                   ),
                 ],
