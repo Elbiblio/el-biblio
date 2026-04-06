@@ -27,73 +27,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     });
   }
 
-  Widget _buildAboutLink({
-    required BuildContext context,
-    required Color borderColor,
-    required Color primaryTextColor,
-    required Color mutedTextColor,
-  }) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: borderColor),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'APP',
-            style: Theme.of(context).textTheme.sectionHeader.copyWith(
-              color: mutedTextColor,
-            ),
-          ),
-          const SizedBox(height: 16),
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            leading: Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: Theme.of(context)
-                    .colorScheme
-                    .primaryContainer
-                    .withValues(alpha: 0.5),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(
-                Icons.info_outline_rounded,
-                color: Theme.of(context).colorScheme.onPrimaryContainer,
-                size: 20,
-              ),
-            ),
-            title: Text(
-              'About',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
-                    color: primaryTextColor,
-                  ),
-            ),
-            subtitle: Text(
-              'Version, rate the app, and donate',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: primaryTextColor.withValues(alpha: 0.7),
-                  ),
-            ),
-            trailing: Icon(
-              Icons.chevron_right_rounded,
-              color: primaryTextColor.withValues(alpha: 0.5),
-            ),
-            onTap: () {
-              GoRouter.of(context).push(AppRoutes.about);
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildAchievementsLink({
     required BuildContext context,
     required Color borderColor,
@@ -322,6 +255,287 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           ],
         );
       },
+    );
+  }
+
+  Widget _buildQuickSettingsSection({
+    required BuildContext context,
+    required Color borderColor,
+    required Color primaryTextColor,
+    required Color mutedTextColor,
+    required Color surfaceColor,
+  }) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: borderColor),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'QUICK SETTINGS',
+            style: Theme.of(context).textTheme.sectionHeader.copyWith(
+              color: mutedTextColor,
+            ),
+          ),
+          const SizedBox(height: 16),
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.5),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.lock_rounded,
+                color: Theme.of(context).colorScheme.onPrimaryContainer,
+                size: 20,
+              ),
+            ),
+            title: Text(
+              'App Lock',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+                color: primaryTextColor,
+              ),
+            ),
+            subtitle: Text(
+              'Manage app usage limits',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: primaryTextColor.withValues(alpha: 0.7),
+              ),
+            ),
+            trailing: Icon(
+              Icons.chevron_right_rounded,
+              color: primaryTextColor.withValues(alpha: 0.5),
+            ),
+            onTap: () {
+              GoRouter.of(context).push(AppRoutes.appLockDashboard);
+            },
+          ),
+          const SizedBox(height: 8),
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: Theme.of(context)
+                    .colorScheme
+                    .primaryContainer
+                    .withValues(alpha: 0.5),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.info_outline_rounded,
+                color: Theme.of(context).colorScheme.onPrimaryContainer,
+                size: 20,
+              ),
+            ),
+            title: Text(
+              'About',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: primaryTextColor,
+                  ),
+            ),
+            subtitle: Text(
+              'Version, rate the app, and donate',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: primaryTextColor.withValues(alpha: 0.7),
+                  ),
+            ),
+            trailing: Icon(
+              Icons.chevron_right_rounded,
+              color: primaryTextColor.withValues(alpha: 0.5),
+            ),
+            onTap: () {
+              GoRouter.of(context).push(AppRoutes.about);
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAdvancedGrowthSection({
+    required BuildContext context,
+    required Color borderColor,
+    required Color primaryTextColor,
+    required Color mutedTextColor,
+    required Color surfaceColor,
+  }) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: borderColor),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'ADVANCED GROWTH',
+            style: Theme.of(context).textTheme.sectionHeader.copyWith(
+              color: mutedTextColor,
+            ),
+          ),
+          const SizedBox(height: 16),
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: const Color(0xFF3B82C4).withValues(alpha: 0.2),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.explore_rounded,
+                color: Color(0xFF3B82C4),
+                size: 20,
+              ),
+            ),
+            title: Text(
+              'Spiritual Alignment',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+                color: primaryTextColor,
+              ),
+            ),
+            subtitle: Text(
+              'Align your life with purpose',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: primaryTextColor.withValues(alpha: 0.7),
+              ),
+            ),
+            trailing: Icon(
+              Icons.chevron_right_rounded,
+              color: primaryTextColor.withValues(alpha: 0.5),
+            ),
+            onTap: () {
+              GoRouter.of(context).push(AppRoutes.alignment);
+            },
+          ),
+          const SizedBox(height: 8),
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: const Color(0xFFE57C23).withValues(alpha: 0.2),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.flag_rounded,
+                color: Color(0xFFE57C23),
+                size: 20,
+              ),
+            ),
+            title: Text(
+              'Commitments',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+                color: primaryTextColor,
+              ),
+            ),
+            subtitle: Text(
+              'Make and keep meaningful promises',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: primaryTextColor.withValues(alpha: 0.7),
+              ),
+            ),
+            trailing: Icon(
+              Icons.chevron_right_rounded,
+              color: primaryTextColor.withValues(alpha: 0.5),
+            ),
+            onTap: () {
+              GoRouter.of(context).push(AppRoutes.commitmentJourney);
+            },
+          ),
+          const SizedBox(height: 8),
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: const Color(0xFF7B68EE).withValues(alpha: 0.2),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.quiz_rounded,
+                color: Color(0xFF7B68EE),
+                size: 20,
+              ),
+            ),
+            title: Text(
+              'Faith Questions',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+                color: primaryTextColor,
+              ),
+            ),
+            subtitle: Text(
+              'Explore deep questions of faith',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: primaryTextColor.withValues(alpha: 0.7),
+              ),
+            ),
+            trailing: Icon(
+              Icons.chevron_right_rounded,
+              color: primaryTextColor.withValues(alpha: 0.5),
+            ),
+            onTap: () {
+              GoRouter.of(context).push(AppRoutes.faithQuestions);
+            },
+          ),
+          const SizedBox(height: 8),
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: const Color(0xFF10B981).withValues(alpha: 0.2),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.calendar_month_rounded,
+                color: Color(0xFF10B981),
+                size: 20,
+              ),
+            ),
+            title: Text(
+              '40-Day Goals',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+                color: primaryTextColor,
+              ),
+            ),
+            subtitle: Text(
+              'Transform habits over 40 days',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: primaryTextColor.withValues(alpha: 0.7),
+              ),
+            ),
+            trailing: Icon(
+              Icons.chevron_right_rounded,
+              color: primaryTextColor.withValues(alpha: 0.5),
+            ),
+            onTap: () {
+              GoRouter.of(context).push('/alignment/forty-day-progress');
+            },
+          ),
+        ],
+      ),
     );
   }
 
@@ -803,6 +1017,15 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                                 ),
                                 
                                 const SizedBox(height: 40),
+                                _buildQuickSettingsSection(
+                                  context: context,
+                                  borderColor: borderColor,
+                                  primaryTextColor: primaryTextColor,
+                                  mutedTextColor: mutedTextColor,
+                                  surfaceColor: surfaceColor,
+                                ),
+                                
+                                const SizedBox(height: 40),
                                 _buildReminderSettingsLink(
                                   context: context,
                                   borderColor: borderColor,
@@ -833,6 +1056,15 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                                 ),
 
                                 const SizedBox(height: 40),
+                                _buildAdvancedGrowthSection(
+                                  context: context,
+                                  borderColor: borderColor,
+                                  primaryTextColor: primaryTextColor,
+                                  mutedTextColor: mutedTextColor,
+                                  surfaceColor: surfaceColor,
+                                ),
+                                
+                                const SizedBox(height: 40),
                                 _buildAchievementsLink(
                                   context: context,
                                   borderColor: borderColor,
@@ -840,15 +1072,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                                   mutedTextColor: mutedTextColor,
                                 ),
 
-                                const SizedBox(height: 40),
-                                _buildAboutLink(
-                                  context: context,
-                                  borderColor: borderColor,
-                                  primaryTextColor: primaryTextColor,
-                                  mutedTextColor: mutedTextColor,
-                                ),
-                                
-                                // Debug settings area
                                 const SizedBox(height: 40),
                                 _buildAppearanceSection(
                                   context: context,

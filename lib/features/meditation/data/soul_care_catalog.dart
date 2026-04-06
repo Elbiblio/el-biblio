@@ -1,13 +1,13 @@
-import '../domain/models/quick_sanity_session.dart';
+import '../domain/models/soul_care_session.dart';
 
-/// A curated catalog of quick 2-3 minute sanity sessions.
+/// A curated catalog of soul care reset sessions.
 ///
-/// Each session pairs a breathing pattern with scripture for a midday reset.
-class QuickSanityCatalog {
-  const QuickSanityCatalog._();
+/// Each session pairs a breathing pattern with scripture for a spiritual reset.
+class SoulCareCatalog {
+  const SoulCareCatalog._();
 
-  static const List<QuickSanitySession> sessions = [
-    QuickSanitySession(
+  static const List<SoulCareSession> sessions = [
+    SoulCareSession(
       id: 'qs_peace_storm',
       title: 'Peace in the Storm',
       description: 'Find calm when life feels chaotic.',
@@ -22,7 +22,7 @@ class QuickSanityCatalog {
           'Lord, thank You for Your peace that surpasses understanding. '
           'Guard my heart and mind as I return to my day. Amen.',
     ),
-    QuickSanitySession(
+    SoulCareSession(
       id: 'qs_still_waters',
       title: 'Still Waters',
       description: 'Rest beside quiet streams with the Shepherd.',
@@ -36,7 +36,7 @@ class QuickSanityCatalog {
           'Good Shepherd, refresh my soul in this moment. Lead me in the '
           'paths You have prepared for me. Amen.',
     ),
-    QuickSanitySession(
+    SoulCareSession(
       id: 'qs_breath_of_life',
       title: 'Breath of Life',
       description: 'Remember the breath God breathed into you.',
@@ -51,7 +51,7 @@ class QuickSanityCatalog {
           'Father, every breath I take is a gift from You. Fill me with '
           'Your Spirit as I breathe. Amen.',
     ),
-    QuickSanitySession(
+    SoulCareSession(
       id: 'qs_be_still',
       title: 'Be Still and Know',
       description: 'Surrender control and trust God.',
@@ -65,7 +65,7 @@ class QuickSanityCatalog {
           'Lord, I release my need to control. You are God and I am not. '
           'I trust You with this day. Amen.',
     ),
-    QuickSanitySession(
+    SoulCareSession(
       id: 'qs_cast_anxiety',
       title: 'Cast Your Cares',
       description: 'Hand your anxieties over to God.',
@@ -79,7 +79,7 @@ class QuickSanityCatalog {
           'Father, I give You every worry, every care, every anxious thought. '
           'You carry what I cannot. Thank You. Amen.',
     ),
-    QuickSanitySession(
+    SoulCareSession(
       id: 'qs_strength_renewed',
       title: 'Strength Renewed',
       description: 'Wait on the Lord and find new energy.',
@@ -94,7 +94,7 @@ class QuickSanityCatalog {
           'Lord, renew my strength right now. I choose to hope in You even '
           'when I feel tired. Carry me through this day. Amen.',
     ),
-    QuickSanitySession(
+    SoulCareSession(
       id: 'qs_do_not_fear',
       title: 'Do Not Fear',
       description: 'Remember God is with you wherever you go.',
@@ -109,7 +109,7 @@ class QuickSanityCatalog {
           'God of courage, You go before me and beside me. I will not fear '
           'because You are with me. Amen.',
     ),
-    QuickSanitySession(
+    SoulCareSession(
       id: 'qs_perfect_love',
       title: 'Perfect Love',
       description: 'Let God\'s love drive out fear.',
@@ -124,7 +124,7 @@ class QuickSanityCatalog {
           'Father, let Your perfect love fill every part of me, driving '
           'out every fear. I rest in Your love. Amen.',
     ),
-    QuickSanitySession(
+    SoulCareSession(
       id: 'qs_present_moment',
       title: 'This Present Moment',
       description: 'Stop worrying about tomorrow.',
@@ -138,7 +138,7 @@ class QuickSanityCatalog {
           'Jesus, help me stay in this present moment with You. I release '
           'tomorrow into Your hands. Amen.',
     ),
-    QuickSanitySession(
+    SoulCareSession(
       id: 'qs_refuge',
       title: 'God My Refuge',
       description: 'Find shelter under God\'s wings.',
@@ -153,7 +153,7 @@ class QuickSanityCatalog {
           'Lord, You are my refuge. I run to You in this moment and find '
           'safety in Your presence. Amen.',
     ),
-    QuickSanitySession(
+    SoulCareSession(
       id: 'qs_joy_morning',
       title: 'Joy Comes',
       description: 'Hold on -- joy is coming.',
@@ -167,7 +167,7 @@ class QuickSanityCatalog {
           'Father, even when things are hard, I trust that joy is coming. '
           'Thank You for Your faithfulness. Amen.',
     ),
-    QuickSanitySession(
+    SoulCareSession(
       id: 'qs_living_water',
       title: 'Living Water',
       description: 'Drink deeply from the well that never runs dry.',
@@ -186,7 +186,7 @@ class QuickSanityCatalog {
   ];
 
   /// Returns a random session from the catalog.
-  static QuickSanitySession get random {
+  static SoulCareSession get random {
     final index = DateTime.now().millisecondsSinceEpoch % sessions.length;
     return sessions[index];
   }

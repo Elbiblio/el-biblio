@@ -8,32 +8,21 @@ class AssessmentApiRepository extends BaseRepository {
   AssessmentApiRepository(this._client, Logger logger) : super(logger);
 
   final DioClient _client;
+  static const String _endpoint = '/compass-assessments';
 
   Future<void> submitAssessment(Map<String, dynamic> payload) {
     return guard(() async {
-      final endpoints = <String>[
-        '/compass-assessments',
-        '/compass_assessments',
-      ];
+      final response = await _client.post<Map<String, dynamic>>(
+        _endpoint,
+        data: payload,
+      );
 
-      for (var i = 0; i < endpoints.length; i++) {
-        final response = await _client.post<Map<String, dynamic>>(
-          endpoints[i],
-          data: payload,
+      final statusCode = response.statusCode ?? 500;
+      if (statusCode >= 400) {
+        throw NetworkException(
+          'Unable to sync assessment right now.',
+          response.data,
         );
-
-        final statusCode = response.statusCode ?? 500;
-        if (statusCode < 400) {
-          return;
-        }
-
-        final isLastEndpoint = i == endpoints.length - 1;
-        if (isLastEndpoint || statusCode != 404) {
-          throw NetworkException(
-            'Unable to sync assessment right now.',
-            response.data,
-          );
-        }
       }
     }, operation: 'submit_assessment');
   }

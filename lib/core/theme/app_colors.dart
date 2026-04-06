@@ -16,6 +16,10 @@ class AppColorPalette {
     required this.border,
     required this.success,
     required this.error,
+    this.pillarIdentity,
+    this.pillarCommitment,
+    this.pillarDistraction,
+    this.pillarGrowth,
   });
 
   final Color primary;
@@ -30,6 +34,15 @@ class AppColorPalette {
   final Color border;
   final Color success;
   final Color error;
+  final Color? pillarIdentity;
+  final Color? pillarCommitment;
+  final Color? pillarDistraction;
+  final Color? pillarGrowth;
+
+  Color get identityColor => pillarIdentity ?? primary;
+  Color get commitmentColor => pillarCommitment ?? success;
+  Color get distractionColor => pillarDistraction ?? primaryLight;
+  Color get growthColor => pillarGrowth ?? const Color(0xFFFF9800);
 }
 
 class AppColors {
@@ -48,6 +61,10 @@ class AppColors {
     border: Color(0xFFD8E2EE),
     success: Color(0xFF4C8864),
     error: Color(0xFFB55F68),
+    pillarIdentity: Color(0xFF7B68EE),
+    pillarCommitment: Color(0xFF4CAF50),
+    pillarDistraction: Color(0xFF2196F3),
+    pillarGrowth: Color(0xFFFF9800),
   );
 
   static const AppColorPalette _morningDark = AppColorPalette(
@@ -63,6 +80,10 @@ class AppColors {
     border: Color(0xFF344558),
     success: Color(0xFF6FBB8C),
     error: Color(0xFFE08A94),
+    pillarIdentity: Color(0xFF9B8BF2),
+    pillarCommitment: Color(0xFF6FCF76),
+    pillarDistraction: Color(0xFF4FB3F5),
+    pillarGrowth: Color(0xFFFFB74D),
   );
 
   static const AppColorPalette _afternoonLight = AppColorPalette(
@@ -78,6 +99,10 @@ class AppColors {
     border: Color(0xFFDCE5DD),
     success: Color(0xFF4B8E62),
     error: Color(0xFFB56662),
+    pillarIdentity: Color(0xFF7B68EE),
+    pillarCommitment: Color(0xFF4CAF50),
+    pillarDistraction: Color(0xFF2196F3),
+    pillarGrowth: Color(0xFFFF9800),
   );
 
   static const AppColorPalette _afternoonDark = AppColorPalette(
@@ -93,6 +118,10 @@ class AppColors {
     border: Color(0xFF374539),
     success: Color(0xFF74BC8E),
     error: Color(0xFFE1918D),
+    pillarIdentity: Color(0xFF9B8BF2),
+    pillarCommitment: Color(0xFF6FCF76),
+    pillarDistraction: Color(0xFF4FB3F5),
+    pillarGrowth: Color(0xFFFFB74D),
   );
 
   static const AppColorPalette _eveningLight = AppColorPalette(
@@ -108,6 +137,10 @@ class AppColors {
     border: Color(0xFFE3D4BD),
     success: Color(0xFF5A8A66),
     error: Color(0xFFB86461),
+    pillarIdentity: Color(0xFF7B68EE),
+    pillarCommitment: Color(0xFF4CAF50),
+    pillarDistraction: Color(0xFF2196F3),
+    pillarGrowth: Color(0xFFFF9800),
   );
 
   static const AppColorPalette _eveningDark = AppColorPalette(
@@ -123,6 +156,10 @@ class AppColors {
     border: Color(0xFF4B3B2B),
     success: Color(0xFF7BB58B),
     error: Color(0xFFE5938D),
+    pillarIdentity: Color(0xFF9B8BF2),
+    pillarCommitment: Color(0xFF6FCF76),
+    pillarDistraction: Color(0xFF4FB3F5),
+    pillarGrowth: Color(0xFFFFB74D),
   );
 
   static AppColorPalette paletteFor(

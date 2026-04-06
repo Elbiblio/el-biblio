@@ -10,6 +10,7 @@ import '../../features/assessment/presentation/assessment_screen.dart';
 import '../../features/assessment/presentation/assessment_rating_screen.dart';
 import '../../features/assessment/presentation/assessment_path_screen.dart';
 import '../../features/assessment/presentation/assessment_action_plan_screen.dart';
+import '../../features/assessment/presentation/calling_profile_screen.dart';
 import '../../features/assessment/presentation/assessment_results_screen.dart';
 import '../../features/bible/presentation/bible_library_screen.dart';
 import '../../features/bible/presentation/reading_plan_detail_screen.dart';
@@ -19,10 +20,15 @@ import '../../features/journal/presentation/note_editor_screen.dart';
 import '../../features/journal/presentation/note_reader_screen.dart';
 import '../../features/meditation/presentation/screens/meditation_home_screen.dart';
 import '../../features/meditation/presentation/meditation_screen.dart';
+import '../../features/mission/presentation/mission_hub_screen.dart';
+import '../../features/mission/presentation/screens/impact_history_screen.dart';
+import '../../features/mission/presentation/screens/person_profile_screen.dart';
+import '../../features/mission/presentation/screens/service_opportunities_screen.dart';
 import '../../features/onboarding/presentation/onboarding_screen.dart';
 import '../../features/profile/presentation/about_screen.dart';
 import '../../features/profile/presentation/profile_screen.dart';
 import '../../features/profile/presentation/reminder_settings_screen.dart';
+import '../../features/social/presentation/grow_together_screen.dart';
 import '../../features/time_diagnose/presentation/screens/time_diagnose_start_screen.dart';
 import '../../features/time_diagnose/presentation/screens/time_diagnose_configure_screen.dart';
 import '../../features/time_diagnose/presentation/screens/time_diagnose_analysis_screen.dart';
@@ -40,7 +46,6 @@ import '../../features/spiritual_aid/presentation/screens/speak_to_me_screen.dar
 import '../../features/spiritual_aid/presentation/screens/evangelism_helper_screen.dart';
 import '../../features/today/presentation/today_screen.dart';
 import '../../features/games/presentation/screens/games_hub_screen.dart';
-import '../../features/grow/presentation/grow_hub_screen.dart';
 import '../../features/games/presentation/screens/journey_map_screen.dart';
 import '../../features/games/presentation/screens/post_game_reading_screen.dart';
 import '../../features/bible/presentation/games/verse_game_screen.dart';
@@ -313,6 +318,35 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                 const NoTransitionPage(child: TodayScreen()),
           ),
           GoRoute(
+            path: AppRoutes.act,
+            pageBuilder: (context, state) =>
+                const NoTransitionPage(child: MissionHubScreen()),
+            routes: [
+              GoRoute(
+                path: 'history',
+                parentNavigatorKey: _rootNavigatorKey,
+                builder: (context, state) => const ImpactHistoryScreen(),
+              ),
+              GoRoute(
+                path: 'opportunities',
+                parentNavigatorKey: _rootNavigatorKey,
+                builder: (context, state) => const ServiceOpportunitiesScreen(),
+              ),
+              GoRoute(
+                path: 'people/:id',
+                parentNavigatorKey: _rootNavigatorKey,
+                builder: (context, state) => PersonProfileScreen(
+                  personId: state.pathParameters['id']!,
+                ),
+              ),
+            ],
+          ),
+          GoRoute(
+            path: AppRoutes.growTogether,
+            pageBuilder: (context, state) =>
+                const NoTransitionPage(child: GrowTogetherScreen()),
+          ),
+          GoRoute(
             path: AppRoutes.assessment,
             pageBuilder: (context, state) =>
                 const NoTransitionPage(child: FearFirstAssessmentScreen()),
@@ -346,6 +380,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                 path: 'results',
                 parentNavigatorKey: _rootNavigatorKey,
                 builder: (context, state) => const AssessmentResultsScreen(),
+              ),
+              GoRoute(
+                path: 'calling-profile',
+                parentNavigatorKey: _rootNavigatorKey,
+                builder: (context, state) => const CallingProfileScreen(),
               ),
             ],
           ),
@@ -398,11 +437,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             path: AppRoutes.games,
             pageBuilder: (context, state) =>
                 const NoTransitionPage(child: GamesHubScreen()),
-          ),
-          GoRoute(
-            path: AppRoutes.grow,
-            pageBuilder: (context, state) =>
-                const NoTransitionPage(child: GrowHubScreen()),
           ),
           GoRoute(
             path: AppRoutes.profile,

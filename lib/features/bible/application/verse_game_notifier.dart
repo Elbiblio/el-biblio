@@ -436,7 +436,7 @@ class VerseGameNotifier extends StateNotifier<VerseGameState> {
     }
 
     // Try to match by full name (case-insensitive)
-    for (final book in STANDARD_BIBLE_BOOKS) {
+    for (final book in standardBibleBooks) {
       if (book.name.toLowerCase() == rawBook) {
         return _ChapterRef(bookAbbr: book.abbreviation, chapter: chapter);
       }

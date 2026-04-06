@@ -223,15 +223,6 @@ class _NoteReaderScreenState extends ConsumerState<NoteReaderScreen> {
               color: tokens.palette.textSecondary,
             ),
             actions: [
-              // Share button
-              IconButton(
-                icon: const Icon(Icons.share, size: 20),
-                onPressed: () {
-                  // TODO: Implement share functionality
-                },
-                color: tokens.palette.textSecondary,
-                tooltip: 'Share Note',
-              ),
               // Edit button
               IconButton(
                 icon: const Icon(Icons.edit, size: 20),

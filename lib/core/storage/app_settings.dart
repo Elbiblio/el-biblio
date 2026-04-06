@@ -1,5 +1,10 @@
 import 'package:flutter/material.dart';
 
+import '../../features/assessment/domain/models/calling_profile.dart';
+import '../../features/assessment/domain/models/weekly_plan.dart';
+import '../../features/mission/domain/models/accountability_partner.dart';
+import '../../features/mission/domain/models/mission_action.dart';
+import '../../features/mission/domain/models/person_profile.dart';
 import '../../features/today/domain/models/daily_anchors.dart';
 import '../theme/app_theme_mode.dart';
 
@@ -31,7 +36,14 @@ class AppSettings {
     required this.lastPrayerGuideDate,
     required this.primaryArchetypeId,
     required this.commitmentCategory,
+    required this.primaryMissionFocus,
+    required this.missionActions,
+    required this.accountabilityPartner,
+    required this.personProfiles,
     required this.hasSeenCommitmentWelcome,
+    required this.callingProfile,
+    required this.currentWeeklyPlan,
+    required this.spiritualPulseByDate,
   });
 
   final AppThemeMode themeMode;
@@ -60,7 +72,14 @@ class AppSettings {
   final DateTime? lastPrayerGuideDate;
   final String? primaryArchetypeId;
   final String? commitmentCategory;
+  final String? primaryMissionFocus;
+  final List<MissionAction> missionActions;
+  final AccountabilityPartner? accountabilityPartner;
+  final List<PersonProfile> personProfiles;
   final bool hasSeenCommitmentWelcome;
+  final CallingProfile? callingProfile;
+  final WeeklyPlan? currentWeeklyPlan;
+  final Map<String, SpiritualPulseResponse> spiritualPulseByDate;
 
   factory AppSettings.defaults() {
     return const AppSettings(
@@ -90,7 +109,14 @@ class AppSettings {
       lastPrayerGuideDate: null,
       primaryArchetypeId: null,
       commitmentCategory: null,
+      primaryMissionFocus: null,
+      missionActions: [],
+      accountabilityPartner: null,
+      personProfiles: [],
       hasSeenCommitmentWelcome: false,
+      callingProfile: null,
+      currentWeeklyPlan: null,
+      spiritualPulseByDate: {},
     );
   }
 
@@ -108,6 +134,40 @@ class AppSettings {
             ),
           )
         : <String, String>{};
+    final missionActionsRaw = map['missionActions'];
+    final missionActions = missionActionsRaw is List
+        ? missionActionsRaw
+            .whereType<Map>()
+            .map(
+              (item) => MissionAction.fromMap(
+                Map<String, dynamic>.from(item),
+              ),
+            )
+            .toList()
+        : <MissionAction>[];
+    final accountabilityPartnerRaw = map['accountabilityPartner'];
+    final personProfilesRaw = map['personProfiles'];
+    final personProfiles = personProfilesRaw is List
+        ? personProfilesRaw
+            .whereType<Map>()
+            .map(
+              (item) => PersonProfile.fromMap(
+                Map<String, dynamic>.from(item),
+              ),
+            )
+            .toList()
+        : <PersonProfile>[];
+    final spiritualPulseRaw = map['spiritualPulseByDate'];
+    final spiritualPulseByDate = spiritualPulseRaw is Map
+        ? spiritualPulseRaw.map(
+            (key, value) => MapEntry(
+              key.toString(),
+              SpiritualPulseResponse.fromJson(
+                Map<String, dynamic>.from(value as Map),
+              ),
+            ),
+          )
+        : <String, SpiritualPulseResponse>{};
 
     return AppSettings(
       themeMode: AppThemeModeX.fromStorage(
@@ -149,7 +209,22 @@ class AppSettings {
           : DateTime.tryParse(map['lastPrayerGuideDate'] as String),
       primaryArchetypeId: map['primaryArchetypeId'] as String?,
       commitmentCategory: map['commitmentCategory'] as String?,
+      primaryMissionFocus: map['primaryMissionFocus'] as String?,
+      missionActions: missionActions,
+      accountabilityPartner: accountabilityPartnerRaw is Map
+          ? AccountabilityPartner.fromMap(
+              Map<String, dynamic>.from(accountabilityPartnerRaw),
+            )
+          : null,
+      personProfiles: personProfiles,
       hasSeenCommitmentWelcome: map['hasSeenCommitmentWelcome'] as bool? ?? false,
+      callingProfile: map['callingProfile'] is Map
+          ? CallingProfile.fromMap(Map<String, dynamic>.from(map['callingProfile'] as Map))
+          : null,
+      currentWeeklyPlan: map['currentWeeklyPlan'] is Map
+          ? WeeklyPlan.fromMap(Map<String, dynamic>.from(map['currentWeeklyPlan'] as Map))
+          : null,
+      spiritualPulseByDate: spiritualPulseByDate,
     );
   }
 
@@ -182,7 +257,16 @@ class AppSettings {
       'lastPrayerGuideDate': lastPrayerGuideDate?.toIso8601String(),
       'primaryArchetypeId': primaryArchetypeId,
       'commitmentCategory': commitmentCategory,
+      'primaryMissionFocus': primaryMissionFocus,
+      'missionActions': missionActions.map((item) => item.toMap()).toList(),
+      'accountabilityPartner': accountabilityPartner?.toMap(),
+      'personProfiles': personProfiles.map((item) => item.toMap()).toList(),
       'hasSeenCommitmentWelcome': hasSeenCommitmentWelcome,
+      'callingProfile': callingProfile?.toMap(),
+      'currentWeeklyPlan': currentWeeklyPlan?.toMap(),
+      'spiritualPulseByDate': spiritualPulseByDate.map(
+        (key, value) => MapEntry(key, value.toJson()),
+      ),
     };
   }
 
@@ -213,7 +297,14 @@ class AppSettings {
     DateTime? lastPrayerGuideDate,
     String? primaryArchetypeId,
     String? commitmentCategory,
+    String? primaryMissionFocus,
+    List<MissionAction>? missionActions,
+    AccountabilityPartner? accountabilityPartner,
+    List<PersonProfile>? personProfiles,
     bool? hasSeenCommitmentWelcome,
+    CallingProfile? callingProfile,
+    WeeklyPlan? currentWeeklyPlan,
+    Map<String, SpiritualPulseResponse>? spiritualPulseByDate,
   }) {
     return AppSettings(
       themeMode: themeMode ?? this.themeMode,
@@ -243,7 +334,14 @@ class AppSettings {
       lastPrayerGuideDate: lastPrayerGuideDate ?? this.lastPrayerGuideDate,
       primaryArchetypeId: primaryArchetypeId ?? this.primaryArchetypeId,
       commitmentCategory: commitmentCategory ?? this.commitmentCategory,
+      primaryMissionFocus: primaryMissionFocus ?? this.primaryMissionFocus,
+      missionActions: missionActions ?? this.missionActions,
+      accountabilityPartner: accountabilityPartner ?? this.accountabilityPartner,
+      personProfiles: personProfiles ?? this.personProfiles,
       hasSeenCommitmentWelcome: hasSeenCommitmentWelcome ?? this.hasSeenCommitmentWelcome,
+      callingProfile: callingProfile ?? this.callingProfile,
+      currentWeeklyPlan: currentWeeklyPlan ?? this.currentWeeklyPlan,
+      spiritualPulseByDate: spiritualPulseByDate ?? this.spiritualPulseByDate,
     );
   }
 }

@@ -2,14 +2,16 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/errors/app_exception.dart';
+import '../../../core/services/analytics/app_analytics_service.dart';
 import '../data/journal_repository.dart';
 import '../domain/models/note.dart';
 import 'journal_state.dart';
 
 class JournalNotifier extends StateNotifier<JournalState> {
-  JournalNotifier(this._repository) : super(const JournalState());
+  JournalNotifier(this._repository, this._analytics) : super(const JournalState());
 
   final JournalRepository _repository;
+  final AppAnalyticsService _analytics;
 
   Future<void> loadNotes() async {
     state = state.copyWith(isLoading: true, error: null);
@@ -136,6 +138,7 @@ class JournalNotifier extends StateNotifier<JournalState> {
         notes: updatedNotes,
       );
       _applyFilters();
+      _analytics.track(AppAnalyticsEvent.journalEntryCreated);
       return newNote.id;
     } on GuestUserException {
       // Guest user logic is now handled in repository, but keeping for safety
@@ -156,6 +159,7 @@ class JournalNotifier extends StateNotifier<JournalState> {
         notes: updatedNotes,
       );
       _applyFilters();
+      _analytics.track(AppAnalyticsEvent.journalEntryCreated);
       return localNote.id;
     } catch (e) {
       state = state.copyWith(error: e.toString());

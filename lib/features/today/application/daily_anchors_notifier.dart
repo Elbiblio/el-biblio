@@ -8,6 +8,7 @@ import '../../../core/services/notifications/notification_service.dart';
 import '../application/mood_notifier.dart';
 import '../data/daily_anchors_repository.dart';
 import '../data/daily_anchors_sync_repository.dart';
+import '../data/spiritual_pulse_sync_repository.dart';
 import '../domain/models/daily_anchors.dart';
 
 class DailyAnchorsNotifier extends StateNotifier<DailyAnchors> {
@@ -15,7 +16,9 @@ class DailyAnchorsNotifier extends StateNotifier<DailyAnchors> {
     required this.ref,
     required this.repository,
     required this.syncRepository,
-  }) : super(DailyAnchors.empty(DateTime.now())) {
+    SpiritualPulseSyncRepository? spiritualPulseSyncRepository,
+  })  : _spiritualPulseSyncRepository = spiritualPulseSyncRepository,
+        super(DailyAnchors.empty(DateTime.now())) {
     loadToday();
     
     // Listen to virtue changes and reload anchors
@@ -29,6 +32,7 @@ class DailyAnchorsNotifier extends StateNotifier<DailyAnchors> {
   final Ref ref;
   final DailyAnchorsRepository repository;
   final DailyAnchorsSyncRepository syncRepository;
+  final SpiritualPulseSyncRepository? _spiritualPulseSyncRepository;
 
   Future<void> loadToday() async {
     final settings = ref.read(settingsProvider);
@@ -149,10 +153,37 @@ class DailyAnchorsNotifier extends StateNotifier<DailyAnchors> {
   }) async {
     // This would typically be handled by a separate spiritual pulse service
     // For now, we'll just log it and potentially integrate with daily anchors
+    final settings = ref.read(settingsProvider);
+    final dayKey = _dayKey(state.date);
+    final current = settings.spiritualPulseByDate[dayKey] ?? SpiritualPulseResponse.empty();
+    final entry = SpiritualPulseEntry(
+      type: type,
+      timestamp: DateTime.now(),
+      note: note,
+      intensity: intensity,
+    );
+    final response = current.copyWith(
+      entries: [...current.entries, entry],
+      lastUpdated: DateTime.now(),
+      goingWell: goingWell ?? current.goingWell,
+      struggling: struggling ?? current.struggling,
+      needHelp: needHelp ?? current.needHelp,
+      followUpQuestion: followUpQuestion ?? current.followUpQuestion,
+      followUpAnswer: followUpAnswer ?? current.followUpAnswer,
+      virtueFocus: virtueFocus ?? current.virtueFocus,
+    );
+    await ref.read(settingsProvider.notifier).setSpiritualPulseForDate(state.date, response);
     debugPrint('Spiritual pulse added: ${type.name} - $note');
-    
-    // Could potentially trigger some UI update or notification here
-    // For example, updating a mood indicator or triggering a reflection prompt
+
+    // Sync to backend if available
+    if (_spiritualPulseSyncRepository != null) {
+      try {
+        await _spiritualPulseSyncRepository.createPulse(response);
+      } catch (e) {
+        debugPrint('Failed to sync spiritual pulse to backend: $e');
+        // Don't block local operation on sync failure
+      }
+    }
   }
 
   Future<void> _syncToServer(DailyAnchors anchors) async {
@@ -160,5 +191,9 @@ class DailyAnchorsNotifier extends StateNotifier<DailyAnchors> {
     if (!synced) {
       debugPrint('DailyAnchorsNotifier: deferred server sync for ${anchors.date.toIso8601String()}');
     }
+  }
+
+  String _dayKey(DateTime date) {
+    return DateTime(date.year, date.month, date.day).toIso8601String();
   }
 }

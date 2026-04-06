@@ -17,7 +17,7 @@ class BibleBookDefinition {
 }
 
 // Standard Protestant Bible books (66 books)
-const List<BibleBookDefinition> STANDARD_BIBLE_BOOKS = [
+const List<BibleBookDefinition> standardBibleBooks = [
   // Old Testament (39 books)
   BibleBookDefinition(abbreviation: 'GEN', name: 'Genesis', testament: 'OT', chapters: 50),
   BibleBookDefinition(abbreviation: 'EXO', name: 'Exodus', testament: 'OT', chapters: 40),
@@ -91,23 +91,23 @@ const List<BibleBookDefinition> STANDARD_BIBLE_BOOKS = [
 
 // Helper functions to get books by testament
 List<BibleBookDefinition> getOldTestamentBooks() {
-  return STANDARD_BIBLE_BOOKS.where((book) => book.testament == 'OT').toList();
+  return standardBibleBooks.where((book) => book.testament == 'OT').toList();
 }
 
 List<BibleBookDefinition> getNewTestamentBooks() {
-  return STANDARD_BIBLE_BOOKS.where((book) => book.testament == 'NT').toList();
+  return standardBibleBooks.where((book) => book.testament == 'NT').toList();
 }
 
 BibleBookDefinition? getBookByAbbreviation(String abbreviation) {
   try {
-    return STANDARD_BIBLE_BOOKS.firstWhere((book) => book.abbreviation == abbreviation);
+    return standardBibleBooks.firstWhere((book) => book.abbreviation == abbreviation);
   } catch (e) {
     return null;
   }
 }
 
 // Map for quick abbreviation to full name lookup
-const Map<String, String> BOOK_ABBREVIATION_MAP = {
+const Map<String, String> bookAbbreviationMap = {
   'GEN': 'Genesis',
   'EXO': 'Exodus',
   'LEV': 'Leviticus',

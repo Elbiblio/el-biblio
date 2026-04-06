@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+
+import '../../../../core/constants/app_routes.dart';
 
 class NeedHelpWidget extends ConsumerWidget {
   const NeedHelpWidget({super.key});
@@ -67,7 +70,7 @@ class NeedHelpWidget extends ConsumerWidget {
                 ),
                 const SizedBox(height: 12),
                 Text(
-                  'Feeling overwhelmed? Take a Quick Sanity break \u2014 2 minutes of Scripture and breathing to restore your clarity.',
+                  'Feeling overwhelmed? Take a short reset with prayer, Scripture, and guided support to steady your mind before the next step.',
                   style: theme.textTheme.bodyMedium?.copyWith(
                     color: theme.colorScheme.onSurface.withValues(alpha: 0.8),
                     height: 1.4,
@@ -123,23 +126,10 @@ class NeedHelpWidget extends ConsumerWidget {
                     Expanded(
                       child: ElevatedButton.icon(
                         onPressed: () {
-                          // Navigate to time assessment
-                          showDialog(
-                            context: context,
-                            builder: (context) => AlertDialog(
-                              title: const Text('Quick Sanity Session'),
-                              content: const Text('A guided 2-minute session of Scripture reading and breathing is coming soon. It will help you reclaim clarity when the world gets loud.'),
-                              actions: [
-                                TextButton(
-                                  onPressed: () => Navigator.pop(context),
-                                  child: const Text('OK'),
-                                ),
-                              ],
-                            ),
-                          );
+                          context.push(AppRoutes.spiritualAid);
                         },
                         icon: const Icon(Icons.psychology_rounded),
-                        label: const Text('Quick Sanity'),
+                        label: const Text('Soul Care'),
                         style: ElevatedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(vertical: 12),
                           backgroundColor: Colors.orange,

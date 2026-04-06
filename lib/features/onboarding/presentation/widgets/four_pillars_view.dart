@@ -58,7 +58,7 @@ class _FourPillarsViewState extends State<FourPillarsView>
       const _PillarData(
         icon: Icons.auto_stories_outlined,
         title: 'Bible Games, Faith & Prayer',
-        subtitle: 'Learn the Word through play. Answer tough questions. Claim sanity through prayer.',
+        subtitle: 'Learn the Word through play. Answer tough questions. Find peace through prayer.',
         color: Color(0xFFFF9800),
         interval: Interval(0.45, 0.85, curve: Curves.easeOutCubic),
       ),

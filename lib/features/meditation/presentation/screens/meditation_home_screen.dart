@@ -5,12 +5,12 @@ import 'package:lucide_icons/lucide_icons.dart';
 
 import '../../../../core/constants/app_routes.dart';
 import '../../../../core/di/app_providers.dart';
-import '../../data/quick_sanity_catalog.dart';
+import '../../data/soul_care_catalog.dart';
 import '../../domain/models/meditation_session.dart';
 import '../../domain/models/meditation_enums.dart';
-import '../../domain/models/quick_sanity_session.dart';
+import '../../domain/models/soul_care_session.dart';
 import '../../application/meditation_notifier.dart';
-import 'quick_sanity_screen.dart';
+import 'soul_care_reset_screen.dart';
 
 enum _RecentSessionAction { edit, start }
 
@@ -330,11 +330,11 @@ class _MeditationHomeScreenState extends ConsumerState<MeditationHomeScreen> {
               ),
             ),
 
-            // Quick Sanity Card
+            // Soul Care Card
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                child: _QuickSanityCard(
+                child: _SoulCareCard(
                   surfaceColor: surfaceColor,
                   borderColor: borderColor,
                   textColor: textColor,
@@ -539,9 +539,9 @@ class _MeditationHomeScreenState extends ConsumerState<MeditationHomeScreen> {
   }
 }
 
-/// A visually distinct card promoting quick 2-3 minute sanity sessions.
-class _QuickSanityCard extends StatefulWidget {
-  const _QuickSanityCard({
+/// A visually distinct card promoting quick 2-3 minute soul care sessions.
+class _SoulCareCard extends StatefulWidget {
+  const _SoulCareCard({
     required this.surfaceColor,
     required this.borderColor,
     required this.textColor,
@@ -558,23 +558,23 @@ class _QuickSanityCard extends StatefulWidget {
   final bool isDark;
 
   @override
-  State<_QuickSanityCard> createState() => _QuickSanityCardState();
+  State<_SoulCareCard> createState() => _SoulCareCardState();
 }
 
-class _QuickSanityCardState extends State<_QuickSanityCard> {
-  late QuickSanitySession _previewSession;
+class _SoulCareCardState extends State<_SoulCareCard> {
+  late SoulCareSession _previewSession;
   bool _showBrowse = false;
 
   @override
   void initState() {
     super.initState();
-    _previewSession = QuickSanityCatalog.random;
+    _previewSession = SoulCareCatalog.random;
   }
 
-  void _startSession(QuickSanitySession session) {
+  void _startSession(SoulCareSession session) {
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => QuickSanityScreen(session: session),
+        builder: (_) => SoulCareResetScreen(session: session),
       ),
     );
   }
@@ -635,7 +635,7 @@ class _QuickSanityCardState extends State<_QuickSanityCard> {
                         Row(
                           children: [
                             Text(
-                              'Quick Sanity',
+                              'Soul Care',
                               style: theme.textTheme.titleSmall?.copyWith(
                                 fontWeight: FontWeight.bold,
                                 color: widget.textColor,
@@ -731,9 +731,9 @@ class _QuickSanityCardState extends State<_QuickSanityCard> {
               child: ListView.builder(
                 scrollDirection: Axis.horizontal,
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                itemCount: QuickSanityCatalog.sessions.length,
+                itemCount: SoulCareCatalog.sessions.length,
                 itemBuilder: (context, index) {
-                  final session = QuickSanityCatalog.sessions[index];
+                  final session = SoulCareCatalog.sessions[index];
                   return Padding(
                     padding: const EdgeInsets.only(right: 10),
                     child: InkWell(

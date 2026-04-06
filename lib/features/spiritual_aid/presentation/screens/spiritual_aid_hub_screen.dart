@@ -54,7 +54,7 @@ class SpiritualAidHubScreen extends ConsumerWidget {
                               ),
                             ),
                             child: Icon(
-                              Icons.medical_services_rounded,
+                              Icons.favorite_rounded,
                               color: Colors.red.shade400,
                               size: 24,
                             ),
@@ -63,7 +63,7 @@ class SpiritualAidHubScreen extends ConsumerWidget {
                       ),
                       const SizedBox(height: 20),
                       Text(
-                        'Spiritual\nFirst Aid Kit',
+                        'Soul Care',
                         style: theme.textTheme.headlineMedium?.copyWith(
                           fontWeight: FontWeight.w900,
                           height: 1.1,

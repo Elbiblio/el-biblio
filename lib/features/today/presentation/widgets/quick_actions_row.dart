@@ -21,18 +21,10 @@ class QuickActionsRow extends StatelessWidget {
         children: [
           _ActionChip(
             icon: Icons.medical_services_rounded,
-            label: 'Quick Sanity',
+            label: 'Care',
             color: Colors.red.shade400,
             isDark: isDark,
             onTap: () => context.push(AppRoutes.spiritualAid),
-          ),
-          const SizedBox(width: 10),
-          _ActionChip(
-            icon: Icons.lock_rounded,
-            label: 'App Lock',
-            color: Colors.blue.shade400,
-            isDark: isDark,
-            onTap: () => context.push(AppRoutes.appLockDashboard),
           ),
           const SizedBox(width: 10),
           _ActionChip(
@@ -49,14 +41,6 @@ class QuickActionsRow extends StatelessWidget {
             color: Colors.teal.shade400,
             isDark: isDark,
             onTap: () => context.push(AppRoutes.journal),
-          ),
-          const SizedBox(width: 10),
-          _ActionChip(
-            icon: Icons.quiz_rounded,
-            label: "Faith Q's",
-            color: const Color(0xFF7B68EE),
-            isDark: isDark,
-            onTap: () => context.push(AppRoutes.faithQuestions),
           ),
           const SizedBox(width: 10),
         ],

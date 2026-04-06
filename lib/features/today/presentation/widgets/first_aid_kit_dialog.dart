@@ -34,13 +34,13 @@ class _FirstAidKitDialogState extends ConsumerState<FirstAidKitDialog> {
             Row(
               children: [
                 Icon(
-                  Icons.medical_services_rounded,
+                  Icons.favorite_rounded,
                   color: Theme.of(context).colorScheme.primary,
                   size: 28,
                 ),
                 const SizedBox(width: 12),
                 Text(
-                  'First Aid Kit',
+                  'Soul Care Kit',
                   style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                     fontWeight: FontWeight.bold,
                   ),
@@ -61,7 +61,7 @@ class _FirstAidKitDialogState extends ConsumerState<FirstAidKitDialog> {
             
             const SizedBox(height: 12),
 
-            // Full Spiritual First Aid Kit
+            // Full Soul Care Kit
             SizedBox(
               width: double.infinity,
               child: FilledButton.icon(
@@ -69,8 +69,8 @@ class _FirstAidKitDialogState extends ConsumerState<FirstAidKitDialog> {
                   Navigator.of(context).pop();
                   context.push(AppRoutes.spiritualAid);
                 },
-                icon: const Icon(Icons.medical_services_rounded, size: 18),
-                label: const Text('Open Full First Aid Kit'),
+                icon: const Icon(Icons.favorite_rounded, size: 18),
+                label: const Text('Open Full Soul Care Kit'),
                 style: FilledButton.styleFrom(
                   minimumSize: const Size(0, 44),
                 ),

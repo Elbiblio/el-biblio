@@ -20,9 +20,14 @@ import 'widgets/share_elbiblio_dialog.dart';
 import 'widgets/time_diagnose_suggestion_dialog.dart';
 import 'widgets/recalibration_suggestion_dialog.dart';
 import 'widgets/today_header.dart';
+import 'widgets/assessment_prompt_widget.dart';
 import 'widgets/daily_focus_card.dart';
+import 'widgets/weekly_priorities_widget.dart';
+import 'widgets/weekly_recap_card.dart';
+import 'widgets/mission_next_step_card.dart';
 import 'widgets/quick_actions_row.dart';
 import 'widgets/daily_rhythm_section.dart';
+import 'widgets/spiritual_pulse_widget.dart';
 import 'helpers/share_helper.dart' as share_helper;
 
 class TodayScreen extends ConsumerStatefulWidget {
@@ -43,6 +48,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
       _checkForMissedDaysAndShowSuggestion();
       _checkAlarmProximity();
       _checkAndShowDailyPrayerGuide();
+      ref.read(settingsProvider.notifier).refreshWeeklyPlanIfNeeded();
       // Refresh pillar scores on screen load
       ref.read(pillarScoreProvider.notifier).refresh();
     });
@@ -140,11 +146,38 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
   // Build
   // ---------------------------------------------------------------------------
 
+  Widget? _buildWeeklyRecapCard() {
+    final now = DateTime.now();
+    final isFriday = now.weekday == DateTime.friday;
+    final isSunday = now.weekday == DateTime.sunday;
+    
+    // Only show on Friday or Sunday
+    if (isFriday || isSunday) {
+      return const Padding(
+        padding: EdgeInsets.only(top: 16),
+        child: WeeklyRecapCard(),
+      );
+    }
+    return null;
+  }
+
+  List<Widget> _buildWeeklyRecapCards() {
+    final recapCard = _buildWeeklyRecapCard();
+    if (recapCard != null) {
+      return [SliverToBoxAdapter(child: recapCard)];
+    }
+    return [];
+  }
+
   @override
   Widget build(BuildContext context) {
     final anchors = ref.watch(dailyAnchorsProvider);
+    final settings = ref.watch(settingsProvider);
     final tokens = Theme.of(context).tokens;
     final now = DateTime.now();
+    final todayPulse = settings.spiritualPulseByDate[
+      DateTime(now.year, now.month, now.day).toIso8601String()
+    ];
 
     return Scaffold(
       body: Container(
@@ -175,6 +208,26 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                 ),
               ),
 
+              if (settings.onboardingCompleted && !settings.hasSeenAssessmentPrompt)
+                const SliverToBoxAdapter(
+                  child: Padding(
+                    padding: EdgeInsets.fromLTRB(16, 0, 16, 0),
+                    child: AssessmentPromptWidget(),
+                  ),
+                ),
+
+              // Weekly Priorities from calling profile
+              const SliverToBoxAdapter(
+                child: WeeklyPrioritiesWidget(),
+              ),
+
+              // Weekly Recap Card (only show on Friday or Sunday)
+              ..._buildWeeklyRecapCards(),
+
+              const SliverToBoxAdapter(
+                child: MissionNextStepCard(),
+              ),
+
               // Quick Actions: horizontal chips for displaced features
               const SliverToBoxAdapter(
                 child: Padding(
@@ -182,6 +235,11 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                   child: QuickActionsRow(),
                 ),
               ),
+
+              if ((todayPulse?.entries.length ?? 0) == 0)
+                const SliverToBoxAdapter(
+                  child: SpiritualPulseWidget(),
+                ),
 
               // Daily Rhythm (time-based anchor display)
               DailyRhythmSection(

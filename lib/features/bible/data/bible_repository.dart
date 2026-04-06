@@ -29,7 +29,7 @@ class BibleRepository extends BaseRepository {
     return guard(() async {
       // Use static books for instant offline loading
       try {
-        const staticBooks = STANDARD_BIBLE_BOOKS;
+        const staticBooks = standardBibleBooks;
         final books = <BibleBook>[];
         
         for (final bookDef in staticBooks) {

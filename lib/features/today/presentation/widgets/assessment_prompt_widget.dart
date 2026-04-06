@@ -71,7 +71,7 @@ class AssessmentPromptWidget extends ConsumerWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Discover Your Spiritual Archetype',
+                      'Discover your calling pattern',
                       style: theme.textTheme.titleLarge?.copyWith(
                         fontWeight: FontWeight.bold,
                         color: isDark ? Colors.white : const Color(0xFF221D10),
@@ -80,7 +80,7 @@ class AssessmentPromptWidget extends ConsumerWidget {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'Take our Discovery Compass assessment',
+                      'Take the Discovery Compass',
                       style: theme.textTheme.bodyMedium?.copyWith(
                         color: isDark ? Colors.white70 : const Color(0xFF221D10).withValues(alpha: 0.8),
                         fontSize: 14,
@@ -96,7 +96,7 @@ class AssessmentPromptWidget extends ConsumerWidget {
           
           // Description
           Text(
-            'Understanding your unique spiritual makeup helps us personalize your journey. The Discovery Compass reveals your core identity and strengths.',
+            'A short assessment helps tailor your weekly focus, daily rhythm, and next step.',
             style: theme.textTheme.bodyMedium?.copyWith(
               color: isDark ? Colors.white70 : const Color(0xFF221D10).withValues(alpha: 0.7),
               height: 1.5,
@@ -122,7 +122,7 @@ class AssessmentPromptWidget extends ConsumerWidget {
                     padding: const EdgeInsets.symmetric(vertical: 12),
                   ),
                   child: Text(
-                    'Skip',
+                    'Later',
                     style: TextStyle(
                       color: isDark ? Colors.white70 : const Color(0xFF221D10).withValues(alpha: 0.7),
                       fontWeight: FontWeight.w600,
@@ -170,12 +170,12 @@ class AssessmentPromptWidget extends ConsumerWidget {
 
   void _dismissPrompt(BuildContext context, WidgetRef ref) async {
     // Mark the prompt as seen so it doesn't show again
-    await ref.read(settingsStorageProvider).markAssessmentPromptSeen();
+    await ref.read(settingsProvider.notifier).markAssessmentPromptSeen();
   }
 
   void _startAssessment(BuildContext context, WidgetRef ref) async {
     // Mark the prompt as seen and navigate to assessment
-    await ref.read(settingsStorageProvider).markAssessmentPromptSeen();
+    await ref.read(settingsProvider.notifier).markAssessmentPromptSeen();
     if (context.mounted) {
       context.push(AppRoutes.assessment);
     }

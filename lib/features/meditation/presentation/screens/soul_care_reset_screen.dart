@@ -4,28 +4,28 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../data/quick_sanity_catalog.dart';
-import '../../domain/models/quick_sanity_session.dart';
+import '../../data/soul_care_catalog.dart';
+import '../../domain/models/soul_care_session.dart';
 
-/// Phases of the quick sanity session.
+/// Phases of the soul care session.
 enum _Phase { intro, breathing, scripture, prayer, complete }
 
-/// A guided 2-3 minute quick sanity session screen.
+/// A guided 2-3 minute soul care reset session screen.
 ///
 /// Walks the user through: intro -> breathing -> scripture -> prayer -> done.
-class QuickSanityScreen extends ConsumerStatefulWidget {
-  const QuickSanityScreen({super.key, this.session});
+class SoulCareResetScreen extends ConsumerStatefulWidget {
+  const SoulCareResetScreen({super.key, this.session});
 
   /// If null, a random session is chosen.
-  final QuickSanitySession? session;
+  final SoulCareSession? session;
 
   @override
-  ConsumerState<QuickSanityScreen> createState() => _QuickSanityScreenState();
+  ConsumerState<SoulCareResetScreen> createState() => _SoulCareResetScreenState();
 }
 
-class _QuickSanityScreenState extends ConsumerState<QuickSanityScreen>
+class _SoulCareResetScreenState extends ConsumerState<SoulCareResetScreen>
     with TickerProviderStateMixin {
-  late QuickSanitySession _session;
+  late SoulCareSession _session;
   _Phase _phase = _Phase.intro;
   Timer? _timer;
   int _breathCycle = 0;
@@ -36,7 +36,7 @@ class _QuickSanityScreenState extends ConsumerState<QuickSanityScreen>
   @override
   void initState() {
     super.initState();
-    _session = widget.session ?? QuickSanityCatalog.random;
+    _session = widget.session ?? SoulCareCatalog.random;
     _breathController = AnimationController(vsync: this);
     _breathAnimation = Tween<double>(begin: 0.6, end: 1.0).animate(
       CurvedAnimation(parent: _breathController, curve: Curves.easeInOut),
@@ -258,7 +258,7 @@ class _IntroContent extends StatelessWidget {
     required this.primary,
   });
 
-  final QuickSanitySession session;
+  final SoulCareSession session;
   final ThemeData theme;
   final Color primary;
 
@@ -392,7 +392,7 @@ class _ScriptureContent extends StatelessWidget {
     required this.primary,
   });
 
-  final QuickSanitySession session;
+  final SoulCareSession session;
   final ThemeData theme;
   final Color primary;
 
@@ -439,7 +439,7 @@ class _PrayerContent extends StatelessWidget {
     required this.primary,
   });
 
-  final QuickSanitySession session;
+  final SoulCareSession session;
   final ThemeData theme;
   final Color primary;
 

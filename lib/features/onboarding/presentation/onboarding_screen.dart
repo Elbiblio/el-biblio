@@ -102,6 +102,8 @@ class OnboardingScreen extends ConsumerWidget {
           contactsImported: onboardingState.contactsImported,
           primaryArchetypeId: onboardingState.primaryArchetypeId,
           commitmentCategory: onboardingState.commitmentCategory,
+          primaryMissionFocus: onboardingState.primaryMissionFocus,
+          personalDistractions: onboardingState.personalDistractions,
         );
 
     // Signup with account details
@@ -142,6 +144,8 @@ class OnboardingScreen extends ConsumerWidget {
           contactsImported: onboardingState.contactsImported,
           primaryArchetypeId: onboardingState.primaryArchetypeId,
           commitmentCategory: onboardingState.commitmentCategory,
+          primaryMissionFocus: onboardingState.primaryMissionFocus,
+          personalDistractions: onboardingState.personalDistractions,
         );
 
     // Create guest account

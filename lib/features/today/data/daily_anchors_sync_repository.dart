@@ -8,13 +8,7 @@ class DailyAnchorsSyncRepository extends BaseRepository {
   DailyAnchorsSyncRepository(this._dioClient, Logger logger) : super(logger);
 
   final DioClient _dioClient;
-
-  static const List<String> _syncEndpoints = <String>[
-    '/daily-anchors',
-    '/daily_anchors',
-    '/daily-check-ins',
-    '/daily_check_ins',
-  ];
+  static const String _syncEndpoint = '/daily-anchors';
 
   Future<bool> syncAnchors(DailyAnchors anchors) async {
     final payload = <String, dynamic>{
@@ -36,20 +30,12 @@ class DailyAnchorsSyncRepository extends BaseRepository {
       },
     };
 
-    for (final endpoint in _syncEndpoints) {
-      try {
-        final response = await _dioClient.post(endpoint, data: payload);
-        final statusCode = response.statusCode ?? 0;
-        if (statusCode >= 200 && statusCode < 300) {
-          return true;
-        }
-
-        if (statusCode == 404) {
-          continue;
-        }
-      } catch (error, stackTrace) {
-        logger.w('Daily anchors sync failed for $endpoint', error: error, stackTrace: stackTrace);
-      }
+    try {
+      final response = await _dioClient.post(_syncEndpoint, data: payload);
+      final statusCode = response.statusCode ?? 0;
+      return statusCode >= 200 && statusCode < 300;
+    } catch (error, stackTrace) {
+      logger.w('Daily anchors sync failed for $_syncEndpoint', error: error, stackTrace: stackTrace);
     }
 
     return false;

@@ -41,12 +41,10 @@ class OfflineAction {
     required this.data,
     this.userId,
     this.metadata,
-    int retryCount = 0,
-    DateTime? lastRetryAt,
+    this.retryCount = 0,
+    this.lastRetryAt,
   }) : id = const Uuid().v4(),
-       createdAt = DateTime.now(),
-       retryCount = retryCount,
-       lastRetryAt = lastRetryAt;
+       createdAt = DateTime.now();
 
   OfflineAction copyWith({
     String? actionType,

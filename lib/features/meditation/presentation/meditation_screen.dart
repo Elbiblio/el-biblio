@@ -5,6 +5,8 @@ import 'package:go_router/go_router.dart';
 
 import '../application/meditation_notifier.dart';
 import '../domain/models/meditation_enums.dart';
+import '../../../../core/di/app_providers.dart';
+import '../../../../core/services/analytics/app_analytics_service.dart';
 import '../../../../shared/widgets/safe_bottom_padding.dart';
 import 'widgets/meditation_active_view.dart';
 import 'widgets/immersive_guided_meditation_view.dart';
@@ -26,6 +28,10 @@ class _MeditationScreenState extends ConsumerState<MeditationScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    // Track meditation started
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(analyticsProvider).track(AppAnalyticsEvent.meditationStarted);
+    });
   }
 
   @override

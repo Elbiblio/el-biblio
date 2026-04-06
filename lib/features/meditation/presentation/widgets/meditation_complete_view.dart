@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/app_routes.dart';
+import '../../../../core/di/app_providers.dart';
+import '../../../../core/services/analytics/app_analytics_service.dart';
 import '../../application/meditation_notifier.dart';
 import 'god_spoke_prompt.dart';
 
@@ -16,6 +18,11 @@ class MeditationCompleteView extends ConsumerWidget {
     final notifier = ref.read(meditationProvider.notifier);
     final theme = Theme.of(context);
     final guide = state.guide;
+
+    // Track meditation completion
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(analyticsProvider).track(AppAnalyticsEvent.meditationCompleted);
+    });
 
     return Center(
       child: SingleChildScrollView(

@@ -1,6 +1,6 @@
-/// A short 2-3 minute guided breathing + scripture session for a midday reset.
-class QuickSanitySession {
-  const QuickSanitySession({
+/// A short 2-3 minute guided breathing + scripture session for a soul care reset.
+class SoulCareSession {
+  const SoulCareSession({
     required this.id,
     required this.title,
     required this.scriptureText,

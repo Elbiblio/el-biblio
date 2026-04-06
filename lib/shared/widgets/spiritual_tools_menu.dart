@@ -72,7 +72,7 @@ class SpiritualToolsMenu extends ConsumerWidget {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'ELBIBLIO CLARITY ENGINE',
+                              'QUICK ACTIONS',
                               style: TextStyle(
                                 fontSize: 10,
                                 fontWeight: FontWeight.bold,
@@ -82,26 +82,12 @@ class SpiritualToolsMenu extends ConsumerWidget {
                             ),
                             const SizedBox(height: 2),
                             Text(
-                              'Your Clarity Toolkit',
+                              'Spiritual Tools',
                               style: Theme.of(context).textTheme.titleLarge?.copyWith(
                                 fontWeight: FontWeight.w800,
                               ),
                             ),
                           ],
-                        ),
-                        Container(
-                          height: 40,
-                          width: 40,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: Colors.grey.withValues(alpha: 0.1),
-                            border: Border.all(color: Colors.grey.withValues(alpha: 0.2)),
-                          ),
-                          child: Icon(
-                            Icons.settings,
-                            color: Colors.grey.shade400,
-                            size: 20,
-                          ),
                         ),
                       ],
                     ),
@@ -153,75 +139,87 @@ class SpiritualToolsMenu extends ConsumerWidget {
                             ),
                           ],
                         ),
+                        const SizedBox(height: 16),
+                        Row(
+                          children: [
+                            // 4. Meditation Tool Tile
+                            Expanded(
+                              child: _SmallToolTile(
+                                icon: Icons.self_improvement_rounded,
+                                iconColor: const Color(0xFF7B68EE),
+                                title: 'Meditation',
+                                subtitle: 'Find inner peace',
+                                actionText: 'Start Session',
+                                actionIcon: Icons.play_arrow_rounded,
+                                buttonColor: const Color(0xFF7B68EE),
+                                onTap: () {
+                                  Navigator.pop(context);
+                                  context.push(AppRoutes.meditation);
+                                },
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            // 5. Soul Care Kit Tool Tile
+                            Expanded(
+                              child: _SmallToolTile(
+                                icon: Icons.favorite_rounded,
+                                iconColor: Colors.red.shade400,
+                                title: 'Soul Care',
+                                subtitle: 'Quick reset',
+                                actionText: 'Open Kit',
+                                actionIcon: Icons.arrow_forward,
+                                buttonColor: Colors.red.shade400,
+                                onTap: () {
+                                  Navigator.pop(context);
+                                  context.push(AppRoutes.spiritualAid);
+                                },
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                        Row(
+                          children: [
+                            // 6. Games Tool Tile
+                            Expanded(
+                              child: _SmallToolTile(
+                                icon: Icons.extension_rounded,
+                                iconColor: const Color(0xFFFF9800),
+                                title: 'Scripture Games',
+                                subtitle: 'Learn through play',
+                                actionText: 'Play',
+                                actionIcon: Icons.play_arrow_rounded,
+                                buttonColor: const Color(0xFFFF9800),
+                                onTap: () {
+                                  Navigator.pop(context);
+                                  context.push(AppRoutes.games);
+                                },
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            // 7. Faith Questions Tool Tile
+                            Expanded(
+                              child: _SmallToolTile(
+                                icon: Icons.help_outline_rounded,
+                                iconColor: const Color(0xFF7B68EE),
+                                title: 'Faith Questions',
+                                subtitle: 'Explore deep questions',
+                                actionText: 'Explore',
+                                actionIcon: Icons.arrow_forward,
+                                buttonColor: const Color(0xFF7B68EE),
+                                onTap: () {
+                                  Navigator.pop(context);
+                                  context.push(AppRoutes.faithQuestions);
+                                },
+                              ),
+                            ),
+                          ],
+                        ),
                       ],
                     ),
                   ),
 
                   const SizedBox(height: 24),
-
-                  // Spiritual First Aid Kit
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20.0),
-                    child: _SmallToolTile(
-                      icon: Icons.medical_services_rounded,
-                      iconColor: Colors.red.shade400,
-                      title: 'First Aid Kit',
-                      subtitle: 'Quick Sanity break',
-                      actionText: 'Open Kit',
-                      actionIcon: Icons.arrow_forward,
-                      buttonColor: Colors.red.shade400,
-                      onTap: () {
-                        Navigator.pop(context);
-                        context.push(AppRoutes.spiritualAid);
-                      },
-                    ),
-                  ),
-
-                  const SizedBox(height: 24),
-
-                  // Secondary Utilities
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20.0),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceAround,
-                      children: [
-                        _UtilityAction(
-                          icon: Icons.notifications,
-                          label: 'Reminders',
-                          onTap: () {
-                            Navigator.pop(context);
-                            context.push('/profile/reminders');
-                          },
-                        ),
-                        _UtilityAction(
-                          icon: Icons.person,
-                          label: 'Profile',
-                          onTap: () {
-                            Navigator.pop(context);
-                            context.push(AppRoutes.profile);
-                          },
-                        ),
-                        _UtilityAction(
-                          icon: Icons.lock_rounded,
-                          label: 'App Lock',
-                          onTap: () {
-                            Navigator.pop(context);
-                            context.push(AppRoutes.appLockDashboard);
-                          },
-                        ),
-                        _UtilityAction(
-                          icon: Icons.more_horiz,
-                          label: 'More',
-                          onTap: () {
-                            Navigator.pop(context);
-                            context.push('/about');
-                          },
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(height: 32),
 
                   // Footer Text
                   Padding(
@@ -535,48 +533,6 @@ class _SmallToolTile extends StatelessWidget {
             ),
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _UtilityAction extends StatelessWidget {
-  const _UtilityAction({
-    required this.icon,
-    required this.label,
-    this.onTap,
-  });
-
-  final IconData icon;
-  final String label;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 56,
-            height: 56,
-            decoration: BoxDecoration(
-              color: Colors.grey.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.grey.withValues(alpha: 0.2)),
-            ),
-            child: Icon(icon, color: Colors.grey.shade600, size: 24),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 11,
-              color: Colors.grey.shade500,
-            ),
-          ),
-        ],
       ),
     );
   }

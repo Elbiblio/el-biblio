@@ -398,15 +398,14 @@ class _ActiveQuizView extends StatelessWidget {
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(Icons.star, size: 14, color: themeColor),
+                          const Icon(Icons.star, size: 14, color: themeColor),
                           const SizedBox(width: 4),
                           Text(
                             '${state.sessionCorrect}/$totalQuestions',
-                            style: TextStyle(
+                            style: const TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.w700,
-                              color: themeColor,
-                            ),
+                            ).copyWith(color: themeColor),
                           ),
                         ],
                       ),
@@ -426,12 +425,11 @@ class _ActiveQuizView extends StatelessWidget {
                     children: [
                       Text(
                         'QUESTION $questionNumber',
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.w900,
                           letterSpacing: 2,
-                          color: themeColor,
-                        ),
+                        ).copyWith(color: themeColor),
                       ),
                       const SizedBox(height: 8),
                       // Difficulty indicator
@@ -557,11 +555,10 @@ class _ActiveQuizView extends StatelessWidget {
                                     ),
                                     child: Text(
                                       r,
-                                      style: TextStyle(
+                                      style: const TextStyle(
                                         fontSize: 10,
                                         fontWeight: FontWeight.w600,
-                                        color: themeColor,
-                                      ),
+                                      ).copyWith(color: themeColor),
                                     ),
                                   );
                                 }).toList(),

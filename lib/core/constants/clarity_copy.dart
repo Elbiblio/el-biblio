@@ -3,7 +3,7 @@ class ClarityCopy {
 
   // Navigation
   static const reflectTabLabel = 'Pray';
-  static const spiritualToolsHeader = 'Your Clarity Toolkit';
+  static const spiritualToolsHeader = 'Your Support Hub';
 
   // Today Dashboard
   static String greeting(String name, String timeOfDay) =>
@@ -21,14 +21,14 @@ class ClarityCopy {
   static const emptyGames =
       "Learn God's word through play. Every game brings you closer to clarity.";
   static const emptyMeditation =
-      'Claim your sanity. Even 2 minutes of stillness can change your day.';
+      'Take a moment to breathe. Even 2 minutes of stillness can change your day.';
 
   // Need help
   static String needHelpWithArchetype(
           String archetype, String distraction) =>
-      'Feeling distracted? Your $archetype tends to struggle with $distraction. Try a Quick Sanity session.';
+      'Feeling distracted? Your $archetype tends to struggle with $distraction. Try a Soul Care session.';
   static const needHelpGeneric =
-      'Feeling overwhelmed? Take a Quick Sanity break \u2014 2 minutes of Scripture and breathing.';
+      'Feeling overwhelmed? Take a Soul Care break — 2 minutes of Scripture and breathing.';
 
   // General
   static const clarityJourneyStart = 'Your clarity journey starts now.';

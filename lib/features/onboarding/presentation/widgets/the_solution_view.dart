@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/theme/app_theme.dart';
+
 /// Step 2: The Solution — merges clarity promise and four pillars into one view.
 class TheSolutionView extends StatefulWidget {
   const TheSolutionView({super.key});
@@ -37,35 +39,36 @@ class _TheSolutionViewState extends State<TheSolutionView>
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final textTheme = theme.textTheme;
+    final palette = AppColorPaletteExtension.of(context).palette;
 
     final pillars = [
-      const _PillarData(
+      _PillarData(
         icon: Icons.person_search_outlined,
         title: 'Identity Alignment',
         subtitle: 'Discover who God made you to be.',
-        color: Color(0xFF7B68EE),
-        interval: Interval(0.25, 0.55, curve: Curves.easeOutCubic),
+        color: palette.identityColor,
+        interval: const Interval(0.25, 0.55, curve: Curves.easeOutCubic),
       ),
-      const _PillarData(
+      _PillarData(
         icon: Icons.trending_up_rounded,
         title: 'Daily Commitments',
         subtitle: 'One small action each day, tailored to you.',
-        color: Color(0xFF4CAF50),
-        interval: Interval(0.35, 0.65, curve: Curves.easeOutCubic),
+        color: palette.commitmentColor,
+        interval: const Interval(0.35, 0.65, curve: Curves.easeOutCubic),
       ),
-      const _PillarData(
+      _PillarData(
         icon: Icons.shield_outlined,
         title: 'Distraction Blocking',
         subtitle: 'Guard your attention from noise.',
-        color: Color(0xFF2196F3),
-        interval: Interval(0.45, 0.75, curve: Curves.easeOutCubic),
+        color: palette.distractionColor,
+        interval: const Interval(0.45, 0.75, curve: Curves.easeOutCubic),
       ),
-      const _PillarData(
+      _PillarData(
         icon: Icons.auto_stories_outlined,
         title: 'Games, Faith & Prayer',
         subtitle: 'Learn, question, and find stillness.',
-        color: Color(0xFFFF9800),
-        interval: Interval(0.55, 0.85, curve: Curves.easeOutCubic),
+        color: palette.growthColor,
+        interval: const Interval(0.55, 0.85, curve: Curves.easeOutCubic),
       ),
     ];
 

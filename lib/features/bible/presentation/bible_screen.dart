@@ -6,6 +6,7 @@ import 'dart:async';
 
 import '../../../../core/constants/app_routes.dart';
 import '../../../../core/di/app_providers.dart';
+import '../../../../core/services/analytics/app_analytics_service.dart';
 import '../application/bible_notifier.dart';
 import '../domain/models/bible_content.dart';
 import 'widgets/bible_verse_action_sheet.dart';
@@ -48,6 +49,10 @@ class _BibleScreenState extends ConsumerState<BibleScreen> {
   @override
   void initState() {
     super.initState();
+    // Track Bible reading opened
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(analyticsProvider).track(AppAnalyticsEvent.bibleReadingOpened);
+    });
     // Add scroll listener with debouncing to reset timer on scroll
     _scrollController.addListener(() {
       // Cancel existing debounce timer

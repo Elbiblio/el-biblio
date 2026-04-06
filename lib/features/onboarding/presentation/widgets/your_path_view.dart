@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../commitments/domain/models/commitment_category.dart';
+import '../../../mission/domain/models/mission_focus.dart';
 import '../../application/onboarding_notifier.dart';
 import '../../application/onboarding_state.dart';
 
@@ -159,6 +160,43 @@ class _YourPathViewState extends ConsumerState<YourPathView> {
               ),
             );
           }),
+
+          const SizedBox(height: 12),
+          Text(
+            'HOW YOUR CALLING SHOWS UP FIRST',
+            style: textTheme.labelSmall?.copyWith(
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+              letterSpacing: 1,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: MissionFocusType.values.map((focus) {
+              final isSelected = state.primaryMissionFocus == focus.name;
+              return ChoiceChip(
+                label: Text(focus.label),
+                selected: isSelected,
+                onSelected: (_) => notifier.setPrimaryMissionFocus(focus.name),
+                selectedColor: theme.colorScheme.primary.withValues(alpha: 0.12),
+                labelStyle: textTheme.bodySmall?.copyWith(
+                  fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                  color: isSelected
+                      ? theme.colorScheme.primary
+                      : theme.colorScheme.onSurface.withValues(alpha: 0.75),
+                ),
+              );
+            }).toList(),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            MissionFocusTypeX.fromStorage(state.primaryMissionFocus).description,
+            style: textTheme.bodySmall?.copyWith(
+              height: 1.5,
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.62),
+            ),
+          ),
 
           // ---------- Archetype-specific distractions ----------
           if (archetype != null &&

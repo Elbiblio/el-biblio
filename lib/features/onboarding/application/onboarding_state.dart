@@ -22,6 +22,7 @@ class OnboardingState {
     this.miniAssessmentAnswers = const [],
     this.primaryArchetypeId,
     this.commitmentCategory,
+    this.primaryMissionFocus,
     this.email,
     this.fullName,
     this.phone,
@@ -46,6 +47,8 @@ class OnboardingState {
 
   /// The chosen commitment category: 'growth', 'discipline', or 'charity'.
   final String? commitmentCategory;
+
+  final String? primaryMissionFocus;
 
   /// Account signup fields.
   final String? email;
@@ -80,6 +83,7 @@ class OnboardingState {
     List<int>? miniAssessmentAnswers,
     String? primaryArchetypeId,
     String? commitmentCategory,
+    String? primaryMissionFocus,
     String? email,
     String? fullName,
     String? phone,
@@ -98,6 +102,7 @@ class OnboardingState {
       miniAssessmentAnswers: miniAssessmentAnswers ?? this.miniAssessmentAnswers,
       primaryArchetypeId: primaryArchetypeId ?? this.primaryArchetypeId,
       commitmentCategory: commitmentCategory ?? this.commitmentCategory,
+      primaryMissionFocus: primaryMissionFocus ?? this.primaryMissionFocus,
       email: email ?? this.email,
       fullName: fullName ?? this.fullName,
       phone: phone ?? this.phone,

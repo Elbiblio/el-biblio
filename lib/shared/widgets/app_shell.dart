@@ -76,16 +76,16 @@ class _FloatingBottomNav extends StatelessWidget {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       _NavItem(
+                        icon: Icons.explore_rounded,
+                        label: 'Discover',
+                        isSelected: location.startsWith(AppRoutes.assessment),
+                        onTap: () => context.go(AppRoutes.assessment),
+                      ),
+                      _NavItem(
                         icon: Icons.calendar_today_rounded,
                         label: 'Today',
                         isSelected: location == AppRoutes.today || location == AppRoutes.root,
                         onTap: () => context.go(AppRoutes.today),
-                      ),
-                      _NavItem(
-                        icon: Icons.sports_esports_rounded,
-                        label: 'Games',
-                        isSelected: location.startsWith(AppRoutes.games),
-                        onTap: () => context.go(AppRoutes.games),
                       ),
                       
                       // Center FAB
@@ -100,21 +100,21 @@ class _FloatingBottomNav extends StatelessWidget {
                           onPressed: () {
                             SpiritualToolsMenu.show(context);
                           },
-                          child: const Icon(Icons.add_rounded, size: 28),
+                          child: const Icon(Icons.bolt_rounded, size: 28),
                         ),
                       ),
                       
                       _NavItem(
-                        icon: Icons.self_improvement_rounded,
-                        label: 'Pray',
-                        isSelected: location.startsWith(AppRoutes.meditation),
-                        onTap: () => context.go(AppRoutes.meditation),
+                        icon: Icons.volunteer_activism_rounded,
+                        label: 'Act',
+                        isSelected: location.startsWith(AppRoutes.act),
+                        onTap: () => context.go(AppRoutes.act),
                       ),
                       _NavItem(
-                        icon: Icons.trending_up_rounded,
-                        label: 'Grow',
-                        isSelected: location.startsWith(AppRoutes.grow),
-                        onTap: () => context.go(AppRoutes.grow),
+                        icon: Icons.people_alt_rounded,
+                        label: 'Together',
+                        isSelected: location.startsWith(AppRoutes.growTogether),
+                        onTap: () => context.go(AppRoutes.growTogether),
                       ),
                     ],
                   ),

@@ -6,6 +6,49 @@ import 'app_theme_time.dart';
 import 'app_theme_tokens.dart';
 import 'app_typography.dart';
 
+@immutable
+class AppColorPaletteExtension extends ThemeExtension<AppColorPaletteExtension> {
+  const AppColorPaletteExtension({
+    required this.palette,
+  });
+
+  final AppColorPalette palette;
+
+  @override
+  AppColorPaletteExtension copyWith({AppColorPalette? palette}) {
+    return AppColorPaletteExtension(palette: palette ?? this.palette);
+  }
+
+  @override
+  AppColorPaletteExtension lerp(ThemeExtension<AppColorPaletteExtension>? other, double t) {
+    if (other is! AppColorPaletteExtension) return this;
+    return AppColorPaletteExtension(
+      palette: AppColorPalette(
+        primary: Color.lerp(palette.primary, other.palette.primary, t)!,
+        primaryLight: Color.lerp(palette.primaryLight, other.palette.primaryLight, t)!,
+        primaryDark: Color.lerp(palette.primaryDark, other.palette.primaryDark, t)!,
+        background: Color.lerp(palette.background, other.palette.background, t)!,
+        surface: Color.lerp(palette.surface, other.palette.surface, t)!,
+        paper: Color.lerp(palette.paper, other.palette.paper, t)!,
+        textPrimary: Color.lerp(palette.textPrimary, other.palette.textPrimary, t)!,
+        textSecondary: Color.lerp(palette.textSecondary, other.palette.textSecondary, t)!,
+        textTertiary: Color.lerp(palette.textTertiary, other.palette.textTertiary, t)!,
+        border: Color.lerp(palette.border, other.palette.border, t)!,
+        success: Color.lerp(palette.success, other.palette.success, t)!,
+        error: Color.lerp(palette.error, other.palette.error, t)!,
+        pillarIdentity: Color.lerp(palette.pillarIdentity ?? palette.primary, other.palette.pillarIdentity ?? other.palette.primary, t),
+        pillarCommitment: Color.lerp(palette.pillarCommitment ?? palette.success, other.palette.pillarCommitment ?? other.palette.success, t),
+        pillarDistraction: Color.lerp(palette.pillarDistraction ?? palette.primaryLight, other.palette.pillarDistraction ?? other.palette.primaryLight, t),
+        pillarGrowth: Color.lerp(palette.pillarGrowth ?? const Color(0xFFFF9800), other.palette.pillarGrowth ?? const Color(0xFFFF9800), t),
+      ),
+    );
+  }
+
+  static AppColorPaletteExtension of(BuildContext context) {
+    return Theme.of(context).extension<AppColorPaletteExtension>()!;
+  }
+}
+
 class AppTheme {
   const AppTheme({
     required this.mode,
@@ -152,6 +195,7 @@ class AppThemeFactory {
           palette: palette,
           pageGradient: pageGradient,
         ),
+        AppColorPaletteExtension(palette: palette),
       ],
     );
   }

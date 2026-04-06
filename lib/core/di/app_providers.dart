@@ -2,10 +2,12 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:logger/logger.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:firebase_analytics/firebase_analytics.dart';
 
 import '../../features/auth/application/auth_notifier.dart';
 import '../../features/auth/data/auth_repository.dart';
 import '../../features/auth/domain/models/auth_models.dart';
+import '../../features/assessment/application/calling_profile_service.dart';
 import '../../features/assessment/data/assessment_api_repository.dart';
 import '../../features/bible/application/bible_notifier.dart';
 import '../../features/bible/application/bible_reading_notifier.dart';
@@ -38,9 +40,16 @@ import '../../features/today/domain/models/daily_anchors.dart';
 import '../../features/meditation/data/repositories/meditation_session_api_repository.dart';
 import '../../features/meditation/data/repositories/meditation_session_repository.dart';
 import '../../features/meditation/domain/models/meditation_session.dart';
+import '../../features/mission/application/mission_notifier.dart';
+import '../../features/mission/application/mission_state.dart';
+import '../../features/mission/data/mission_sync_repository.dart';
+import '../../features/assessment/data/calling_profile_sync_repository.dart';
+import '../../features/assessment/data/weekly_plan_sync_repository.dart';
+import '../../features/today/data/spiritual_pulse_sync_repository.dart';
 import '../application/settings_notifier.dart';
 import '../application/push_token_notifier.dart';
 import '../network/dio_client.dart';
+import '../services/analytics/app_analytics_service.dart';
 import '../services/connectivity_service.dart';
 import '../services/sound_service.dart';
 import '../services/notifications/notification_service.dart';
@@ -80,6 +89,17 @@ final loggerProvider = Provider<Logger>((ref) {
   return Logger();
 });
 
+final firebaseAnalyticsProvider = Provider<FirebaseAnalytics>((ref) {
+  return FirebaseAnalytics.instance;
+});
+
+final analyticsProvider = Provider<AppAnalyticsService>((ref) {
+  return AppAnalyticsService(
+    ref.watch(loggerProvider),
+    ref.watch(firebaseAnalyticsProvider),
+  );
+});
+
 final connectivityServiceProvider = Provider<ConnectivityService>((ref) {
   return ConnectivityService(ref.watch(loggerProvider));
 });
@@ -109,8 +129,32 @@ final settingsStorageProvider = Provider<SettingsStorage>((ref) {
   return const SettingsStorage();
 });
 
+final callingProfileServiceProvider = Provider<CallingProfileService>((ref) {
+  return CallingProfileService();
+});
+
 final settingsProvider = StateNotifierProvider<SettingsNotifier, AppSettings>((ref) {
-  return SettingsNotifier(ref.watch(settingsStorageProvider));
+  return SettingsNotifier(
+    ref.watch(settingsStorageProvider),
+    ref.watch(analyticsProvider),
+    ref.watch(callingProfileServiceProvider),
+  );
+});
+
+final missionProvider = StateNotifierProvider<MissionNotifier, MissionState>((ref) {
+  final settings = ref.watch(settingsProvider);
+  final notifier = MissionNotifier(
+    settingsNotifier: ref.read(settingsProvider.notifier),
+    analytics: ref.watch(analyticsProvider),
+    notificationService: ref.watch(notificationServiceProvider),
+    initialSettings: settings,
+  );
+
+  ref.listen<AppSettings>(settingsProvider, (previous, next) {
+    notifier.syncFromSettings(next);
+  });
+
+  return notifier;
 });
 
 final soundServiceProvider = Provider<SoundService>((ref) {
@@ -129,7 +173,10 @@ final journalRepositoryProvider = Provider<JournalRepository>((ref) {
 });
 
 final journalProvider = StateNotifierProvider<JournalNotifier, JournalState>((ref) {
-  return JournalNotifier(ref.watch(journalRepositoryProvider));
+  return JournalNotifier(
+    ref.watch(journalRepositoryProvider),
+    ref.watch(analyticsProvider),
+  );
 });
 
 final dailyAnchorsRepositoryProvider = Provider<DailyAnchorsRepository>((ref) {
@@ -143,11 +190,40 @@ final dailyAnchorsSyncRepositoryProvider = Provider<DailyAnchorsSyncRepository>(
   );
 });
 
+final missionSyncRepositoryProvider = Provider<MissionSyncRepository>((ref) {
+  return MissionSyncRepository(
+    ref.watch(authenticatedDioClientProvider),
+    ref.watch(loggerProvider),
+  );
+});
+
+final callingProfileSyncRepositoryProvider = Provider<CallingProfileSyncRepository>((ref) {
+  return CallingProfileSyncRepository(
+    ref.watch(authenticatedDioClientProvider),
+    ref.watch(loggerProvider),
+  );
+});
+
+final weeklyPlanSyncRepositoryProvider = Provider<WeeklyPlanSyncRepository>((ref) {
+  return WeeklyPlanSyncRepository(
+    ref.watch(authenticatedDioClientProvider),
+    ref.watch(loggerProvider),
+  );
+});
+
+final spiritualPulseSyncRepositoryProvider = Provider<SpiritualPulseSyncRepository>((ref) {
+  return SpiritualPulseSyncRepository(
+    ref.watch(authenticatedDioClientProvider),
+    ref.watch(loggerProvider),
+  );
+});
+
 final dailyAnchorsProvider = StateNotifierProvider<DailyAnchorsNotifier, DailyAnchors>((ref) {
   return DailyAnchorsNotifier(
     ref: ref,
     repository: ref.watch(dailyAnchorsRepositoryProvider),
     syncRepository: ref.watch(dailyAnchorsSyncRepositoryProvider),
+    spiritualPulseSyncRepository: ref.watch(spiritualPulseSyncRepositoryProvider),
   );
 });
 

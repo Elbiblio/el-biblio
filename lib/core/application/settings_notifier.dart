@@ -1,5 +1,12 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../features/assessment/application/calling_profile_service.dart';
+import '../../features/assessment/domain/models/archetype.dart';
+import '../../features/assessment/domain/models/weekly_plan.dart';
+import '../../features/mission/domain/models/accountability_partner.dart';
+import '../../features/mission/domain/models/mission_action.dart';
+import '../../features/mission/domain/models/person_profile.dart';
+import '../services/analytics/app_analytics_service.dart';
 import '../../features/today/domain/models/daily_anchors.dart';
 import '../services/notifications/notification_service.dart';
 import '../services/xp_service.dart';
@@ -7,7 +14,8 @@ import '../storage/app_settings.dart';
 import '../storage/settings_storage.dart';
 
 class SettingsNotifier extends StateNotifier<AppSettings> {
-  SettingsNotifier(this._storage) : super(AppSettings.defaults()) {
+  SettingsNotifier(this._storage, this._analytics, this._callingProfileService)
+      : super(AppSettings.defaults()) {
     NotificationService().setDailyCheckInActionHandler(() async {
       await registerDailyCheckIn(DateTime.now());
     });
@@ -15,12 +23,13 @@ class SettingsNotifier extends StateNotifier<AppSettings> {
   }
 
   final SettingsStorage _storage;
+  final AppAnalyticsService _analytics;
+  final CallingProfileService _callingProfileService;
 
   AppSettings _unlockBadge(AppSettings current, String id, DateTime unlockedAt) {
     if (current.unlockedBadges.containsKey(id)) {
       return current;
     }
-
     final nextBadges = Map<String, String>.from(current.unlockedBadges)
       ..[id] = unlockedAt.toIso8601String();
 
@@ -67,8 +76,10 @@ class SettingsNotifier extends StateNotifier<AppSettings> {
     required bool contactsImported,
     String? primaryArchetypeId,
     String? commitmentCategory,
+    String? primaryMissionFocus,
+    List<String> personalDistractions = const [],
   }) async {
-    final newSettings = state.copyWith(
+    var newSettings = state.copyWith(
       onboardingCompleted: true,
       primaryVirtue: primaryVirtue,
       lifestyle: lifestyle,
@@ -80,10 +91,50 @@ class SettingsNotifier extends StateNotifier<AppSettings> {
       contactsImported: contactsImported,
       primaryArchetypeId: primaryArchetypeId,
       commitmentCategory: commitmentCategory,
+      primaryMissionFocus: primaryMissionFocus,
     );
+
+    // Generate calling profile and weekly plan if we have archetype data
+    if (primaryArchetypeId != null &&
+        commitmentCategory != null &&
+        primaryMissionFocus != null) {
+      final archetype = Archetype.allArchetypes
+          .firstWhere((a) => a.name == primaryArchetypeId);
+
+      final callingProfile = _callingProfileService.generateProfile(
+        archetype: archetype,
+        commitmentCategory: commitmentCategory,
+        missionFocus: primaryMissionFocus,
+        personalDistractions: personalDistractions,
+      );
+
+      // Generate initial weekly plan
+      final now = DateTime.now();
+      final weekStart = _startOfWeek(now);
+      final weeklyPlan = _callingProfileService.generateWeeklyPlan(
+        profile: callingProfile,
+        weekStart: weekStart,
+        morningTime: morningTime,
+        eveningTime: eveningTime,
+      );
+
+      newSettings = newSettings.copyWith(
+        callingProfile: callingProfile,
+        currentWeeklyPlan: weeklyPlan,
+      );
+    }
+
     state = newSettings;
     await _storage.save(newSettings);
     _syncNotifications(newSettings);
+    _analytics.track(
+      AppAnalyticsEvent.onboardingCompleted,
+      properties: {
+        'primary_archetype': primaryArchetypeId,
+        'commitment_category': commitmentCategory,
+        'mission_focus': primaryMissionFocus,
+      },
+    );
   }
 
   Future<void> setVirtueFocus({
@@ -170,6 +221,13 @@ class SettingsNotifier extends StateNotifier<AppSettings> {
         'streak': streak,
       },
     );
+    _analytics.track(
+      AppAnalyticsEvent.dailyCheckInCompleted,
+      properties: {
+        'date': normalized,
+        'streak': streak,
+      },
+    );
     
     // Reschedule notifications to cancel the 4pm reminder since they've checked in
     _syncNotifications(next);
@@ -181,8 +239,82 @@ class SettingsNotifier extends StateNotifier<AppSettings> {
     await _storage.save(next);
   }
 
+  Future<void> markAssessmentPromptSeen() async {
+    final next = state.copyWith(hasSeenAssessmentPrompt: true);
+    state = next;
+    await _storage.save(next);
+  }
+
   Future<void> setCommitmentCategory(String category) async {
     final next = state.copyWith(commitmentCategory: category);
+    state = next;
+    await _storage.save(next);
+  }
+
+  Future<void> setPrimaryMissionFocus(String focus) async {
+    final next = state.copyWith(primaryMissionFocus: focus);
+    state = next;
+    await _storage.save(next);
+  }
+
+  Future<void> setMissionActions(List<MissionAction> actions) async {
+    final next = state.copyWith(missionActions: actions);
+    state = next;
+    await _storage.save(next);
+  }
+
+  Future<void> setPersonProfiles(List<PersonProfile> profiles) async {
+    final next = state.copyWith(personProfiles: profiles);
+    state = next;
+    await _storage.save(next);
+  }
+
+  Future<void> setCurrentWeeklyPlan(WeeklyPlan weeklyPlan) async {
+    final next = state.copyWith(currentWeeklyPlan: weeklyPlan);
+    state = next;
+    await _storage.save(next);
+  }
+
+  Future<void> refreshWeeklyPlanIfNeeded({DateTime? now}) async {
+    final profile = state.callingProfile;
+    if (profile == null) {
+      return;
+    }
+
+    final today = now ?? DateTime.now();
+    final weekStart = _startOfWeek(today);
+    final currentWeeklyPlan = state.currentWeeklyPlan;
+    if (currentWeeklyPlan?.id == WeeklyPlan.generateId(weekStart)) {
+      return;
+    }
+
+    final weeklyPlan = _callingProfileService.generateWeeklyPlan(
+      profile: profile,
+      weekStart: weekStart,
+      morningTime: state.morningTime,
+      eveningTime: state.eveningTime,
+    );
+
+    final next = state.copyWith(currentWeeklyPlan: weeklyPlan);
+    state = next;
+    await _storage.save(next);
+  }
+
+  Future<void> setSpiritualPulseForDate(
+    DateTime date,
+    SpiritualPulseResponse response,
+  ) async {
+    final key = _dayKey(date);
+    final nextPulseByDate = Map<String, SpiritualPulseResponse>.from(
+      state.spiritualPulseByDate,
+    )..[key] = response;
+    final next = state.copyWith(spiritualPulseByDate: nextPulseByDate);
+    state = next;
+    await _storage.save(next);
+  }
+
+  Future<void> setAccountabilityPartner(AccountabilityPartner partner) async {
+    final next = state.copyWith(accountabilityPartner: partner);
     state = next;
     await _storage.save(next);
   }
@@ -259,6 +391,15 @@ class SettingsNotifier extends StateNotifier<AppSettings> {
       payload: 'check_in_reminder',
       actionLabels: ['I did this', 'Journal'],
     );
+  }
+
+  DateTime _startOfWeek(DateTime date) {
+    final normalized = DateTime(date.year, date.month, date.day);
+    return normalized.subtract(Duration(days: normalized.weekday - 1));
+  }
+
+  String _dayKey(DateTime date) {
+    return DateTime(date.year, date.month, date.day).toIso8601String();
   }
 
   @override

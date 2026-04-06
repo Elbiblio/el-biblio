@@ -4,6 +4,7 @@ import '../../../core/di/app_providers.dart';
 import '../../../core/storage/app_settings.dart';
 import '../../assessment/domain/models/archetype.dart';
 import '../../commitments/domain/models/commitment_category.dart';
+import '../../mission/domain/models/mission_focus.dart';
 import '../../today/domain/models/daily_anchors.dart';
 import 'onboarding_state.dart';
 
@@ -26,6 +27,7 @@ class OnboardingNotifier extends StateNotifier<OnboardingState> {
             primaryVirtue: settings.primaryVirtue,
             socialPresenceOptIn: false,
             contactsImported: false,
+            primaryMissionFocus: settings.primaryMissionFocus,
           ),
         );
 
@@ -155,8 +157,17 @@ class OnboardingNotifier extends StateNotifier<OnboardingState> {
       state = state.copyWith(
         primaryArchetypeId: bestArchetype,
         commitmentCategory: recommendedCategory.name,
+        primaryMissionFocus: _recommendedMissionFocus(recommendedCategory).name,
       );
     }
+  }
+
+  MissionFocusType _recommendedMissionFocus(CommitmentCategory category) {
+    return switch (category) {
+      CommitmentCategory.charity => MissionFocusType.service,
+      CommitmentCategory.discipline => MissionFocusType.faithSharing,
+      CommitmentCategory.growth => MissionFocusType.encouragement,
+    };
   }
 
   /// Returns the full Archetype object for the current primary archetype, or null.
@@ -194,7 +205,16 @@ class OnboardingNotifier extends StateNotifier<OnboardingState> {
   // ---------------------------------------------------------------------------
 
   void setCommitmentCategory(String category) {
-    state = state.copyWith(commitmentCategory: category);
+    state = state.copyWith(
+      commitmentCategory: category,
+      primaryMissionFocus: _recommendedMissionFocus(
+        CommitmentCategory.fromString(category),
+      ).name,
+    );
+  }
+
+  void setPrimaryMissionFocus(String focus) {
+    state = state.copyWith(primaryMissionFocus: focus);
   }
 
   // ---------------------------------------------------------------------------

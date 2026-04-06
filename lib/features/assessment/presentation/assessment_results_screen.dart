@@ -7,6 +7,8 @@ import 'package:share_plus/share_plus.dart';
 import 'package:path_provider/path_provider.dart';
 import 'dart:io';
 import '../../../../core/constants/app_routes.dart';
+import '../../../../core/di/app_providers.dart';
+import '../../../../core/services/analytics/app_analytics_service.dart';
 import '../application/assessment_notifier.dart';
 import '../domain/models/archetype_resonance.dart';
 import 'widgets/shareable_archetype_card.dart';
@@ -49,6 +51,11 @@ class _AssessmentResultsScreenState
       curve: Curves.easeOut,
     ));
     _animationController.forward();
+
+    // Track assessment completion
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(analyticsProvider).track(AppAnalyticsEvent.assessmentCompleted);
+    });
   }
 
   @override

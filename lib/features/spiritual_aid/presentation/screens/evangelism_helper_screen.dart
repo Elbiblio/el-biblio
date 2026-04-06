@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:share_plus/share_plus.dart';
 
+import '../../../../core/di/app_providers.dart';
 import '../../../../core/theme/app_theme_tokens.dart';
 import '../../application/spiritual_aid_notifier.dart';
 import '../../domain/models/evangelism_content.dart';
@@ -195,6 +196,12 @@ class _EvangelismHelperScreenState extends ConsumerState<EvangelismHelperScreen>
             }),
             const Spacer(),
             TextButton.icon(
+              onPressed: () => _linkToMissionAction(item),
+              icon: const Icon(Icons.add_task_rounded, size: 16),
+              label: const Text('Add to actions'),
+            ),
+            const SizedBox(width: 8),
+            TextButton.icon(
               onPressed: () => _shareContent(item),
               icon: const Icon(Icons.share, size: 16),
               label: const Text('Share'),
@@ -347,16 +354,30 @@ class _EvangelismHelperScreenState extends ConsumerState<EvangelismHelperScreen>
                         ),
                       ],
                       const SizedBox(height: 24),
-                      SizedBox(
-                        width: double.infinity,
-                        child: FilledButton.icon(
-                          onPressed: () {
-                            Navigator.pop(context);
-                            _shareContent(item);
-                          },
-                          icon: const Icon(Icons.share, size: 18),
-                          label: const Text('Share This'),
-                        ),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: FilledButton.icon(
+                              onPressed: () {
+                                Navigator.pop(context);
+                                _linkToMissionAction(item);
+                              },
+                              icon: const Icon(Icons.add_task_rounded, size: 18),
+                              label: const Text('Add to actions'),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: () {
+                                Navigator.pop(context);
+                                _shareContent(item);
+                              },
+                              icon: const Icon(Icons.share, size: 18),
+                              label: const Text('Share'),
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
@@ -389,6 +410,22 @@ class _EvangelismHelperScreenState extends ConsumerState<EvangelismHelperScreen>
       ..writeln('Shared via ElBiblio');
 
     Share.share(buffer.toString());
+  }
+
+  void _linkToMissionAction(EvangelismContent item) {
+    ref.read(missionProvider.notifier).addAction(
+          title: item.title,
+          description: item.body,
+          evangelismContentId: item.id,
+          requiresFollowUp: true,
+        );
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Added "${item.title}" to your actions'),
+        duration: const Duration(seconds: 2),
+      ),
+    );
   }
 
   List<Color> _getThemeColors(ShareableCardTheme ct) {
