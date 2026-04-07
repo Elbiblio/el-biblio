@@ -17,7 +17,7 @@ import '../../features/bible/data/bible_repository.dart';
 import '../../features/bible/data/bible_reading_repository.dart';
 import '../../features/bible/data/reading_plan_repository.dart';
 import '../../features/bible/data/verse_repository.dart';
-import '../../features/bible/data/services/bible_database_service.dart';
+import '../../features/bible/data/services/enhanced_bible_database_service.dart';
 import '../../features/bible/data/services/bible_history_service.dart';
 import '../../features/journal/application/journal_notifier.dart';
 import '../../features/journal/application/journal_state.dart';
@@ -28,6 +28,9 @@ import '../../features/social/application/contact_notifier.dart';
 import '../../features/social/application/contact_state.dart';
 import '../../features/social/data/contact_repository.dart';
 import '../../features/commitments/application/graduated_commitment_notifier.dart';
+import '../../features/mission/application/service_opportunity_notifier.dart';
+import '../../features/mission/data/service_opportunity_repository.dart';
+import '../../features/mission/domain/models/service_opportunity.dart';
 import '../../features/commitments/data/graduated_commitment_repository.dart';
 import '../../features/today/application/commitment_notifier.dart';
 import '../../features/today/application/daily_anchors_notifier.dart';
@@ -261,8 +264,8 @@ final commitmentProvider = StateNotifierProvider<CommitmentNotifier, CommitmentS
 
 // Mood provider is defined in mood_notifier.dart
 
-final bibleDatabaseServiceProvider = Provider<BibleDatabaseService>((ref) {
-  return BibleDatabaseService(ref.watch(loggerProvider));
+final bibleDatabaseServiceProvider = Provider<EnhancedBibleDatabaseService>((ref) {
+  return EnhancedBibleDatabaseService(ref.watch(loggerProvider));
 });
 
 final bibleHistoryServiceProvider = Provider<BibleHistoryService>((ref) {
@@ -457,4 +460,16 @@ final fortyDayProvider = StateNotifierProvider<FortyDayNotifier, FortyDayState>(
 // Pillar Score provider — aggregates data across features for the 4 Pillars of Clarity
 final pillarScoreProvider = StateNotifierProvider<PillarScoreNotifier, PillarScore>((ref) {
   return PillarScoreNotifier(ref);
+});
+
+// Service Opportunity providers
+final serviceOpportunityRepositoryProvider = Provider<ServiceOpportunityRepository>((ref) {
+  return ServiceOpportunityRepository(
+    ref.watch(authenticatedDioClientProvider),
+    ref.watch(loggerProvider),
+  );
+});
+
+final serviceOpportunityProvider = StateNotifierProvider<ServiceOpportunityNotifier, AsyncValue<List<ServiceOpportunity>>>((ref) {
+  return ServiceOpportunityNotifier(ref.watch(serviceOpportunityRepositoryProvider));
 });

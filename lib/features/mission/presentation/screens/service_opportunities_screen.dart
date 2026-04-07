@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/di/app_providers.dart';
-import '../../data/service_opportunities_data.dart';
+import '../../domain/models/service_opportunity.dart';
 
 class ServiceOpportunitiesScreen extends ConsumerWidget {
   const ServiceOpportunitiesScreen({super.key});
@@ -11,105 +11,124 @@ class ServiceOpportunitiesScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
+    final opportunitiesAsync = ref.watch(serviceOpportunityProvider);
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Service Opportunities'),
       ),
-      body: CustomScrollView(
-        slivers: [
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(16),
-                      gradient: LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [
-                          theme.colorScheme.primary.withValues(alpha: 0.15),
-                          theme.colorScheme.primary.withValues(alpha: 0.05),
+      body: opportunitiesAsync.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (err, stack) => Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.error_outline, size: 48),
+              const SizedBox(height: 16),
+              Text('Failed to load opportunities: $err'),
+              const SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: () => ref.read(serviceOpportunityProvider.notifier).refresh(),
+                child: const Text('Retry'),
+              ),
+            ],
+          ),
+        ),
+        data: (opportunities) => CustomScrollView(
+          slivers: [
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(16),
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [
+                            theme.colorScheme.primary.withValues(alpha: 0.15),
+                            theme.colorScheme.primary.withValues(alpha: 0.05),
+                          ],
+                        ),
+                        border: Border.all(
+                          color: theme.colorScheme.primary.withValues(alpha: 0.2),
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(
+                            Icons.volunteer_activism_rounded,
+                            color: theme.colorScheme.primary,
+                            size: 32,
+                          ),
+                          const SizedBox(height: 12),
+                          Text(
+                            'Find ways to serve',
+                            style: theme.textTheme.titleLarge?.copyWith(
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Browse curated volunteer opportunities in your community and church. Tap "Add to actions" to commit to serving.',
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              height: 1.5,
+                              color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+                            ),
+                          ),
                         ],
                       ),
-                      border: Border.all(
-                        color: theme.colorScheme.primary.withValues(alpha: 0.2),
+                    ),
+                    const SizedBox(height: 20),
+                    Text(
+                      'Available opportunities (${opportunities.length})',
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Icon(
-                          Icons.volunteer_activism_rounded,
-                          color: theme.colorScheme.primary,
-                          size: 32,
-                        ),
-                        const SizedBox(height: 12),
-                        Text(
-                          'Find ways to serve',
-                          style: theme.textTheme.titleLarge?.copyWith(
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Browse curated volunteer opportunities in your community and church. Tap "Add to actions" to commit to serving.',
-                          style: theme.textTheme.bodyMedium?.copyWith(
-                            height: 1.5,
-                            color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  Text(
-                    'Available opportunities',
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                ],
+                    const SizedBox(height: 12),
+                  ],
+                ),
               ),
             ),
-          ),
-          SliverList(
-            delegate: SliverChildBuilderDelegate(
-              (context, index) {
-                final opportunity = curatedServiceOpportunities[index];
-                return Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-                  child: _OpportunityCard(
-                    opportunity: opportunity,
-                    isDark: isDark,
-                    onAddToActions: () {
-                      ref.read(missionProvider.notifier).addAction(
-                            title: opportunity.title,
-                            description: opportunity.description,
-                            requiresFollowUp: true,
-                          );
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('Added "${opportunity.title}" to your actions'),
-                          duration: const Duration(seconds: 2),
-                        ),
-                      );
-                    },
-                  ),
-                );
-              },
-              childCount: curatedServiceOpportunities.length,
+            SliverList(
+              delegate: SliverChildBuilderDelegate(
+                (context, index) {
+                  final opportunity = opportunities[index];
+                  return Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                    child: _OpportunityCard(
+                      opportunity: opportunity,
+                      isDark: isDark,
+                      onAddToActions: () {
+                        ref.read(missionProvider.notifier).addAction(
+                              title: opportunity.title,
+                              description: opportunity.description,
+                              requiresFollowUp: true,
+                            );
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Added "${opportunity.title}" to your actions'),
+                            duration: const Duration(seconds: 2),
+                          ),
+                        );
+                      },
+                    ),
+                  );
+                },
+                childCount: opportunities.length,
+              ),
             ),
-          ),
-          const SliverToBoxAdapter(
-            child: SizedBox(height: 100),
-          ),
-        ],
+            const SliverToBoxAdapter(
+              child: SizedBox(height: 100),
+            ),
+          ],
+        ),
       ),
     );
   }
