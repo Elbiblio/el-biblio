@@ -18,7 +18,6 @@ import 'widgets/tab_button.dart';
 import 'widgets/recent_location_chip.dart';
 import 'widgets/library_options_sheet.dart';
 import 'widgets/reading_plan_setup_sheet.dart';
-import 'widgets/chapter_selection_dialog.dart';
 import 'widgets/continue_reading_card.dart';
 import 'widgets/bible_library_header.dart';
 
@@ -302,7 +301,18 @@ class _BibleLibraryScreenState extends ConsumerState<BibleLibraryScreen> {
             subtitle: Text('${book.chapters} chapters',
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(color: textMutedColor)),
             trailing: Icon(Icons.chevron_right, color: textMutedColor, size: 20),
-            onTap: () => ChapterSelectionDialog.show(context, ref, book),
+            onTap: () {
+              ref
+                  .read(bibleReadingProvider.notifier)
+                  .trackReadingLocation(
+                    bookName: book.name,
+                    chapter: 1,
+                    testament: book.testament,
+                  );
+              context.push(
+                '${AppRoutes.bibleReader}?book=${Uri.encodeComponent(book.name)}&chapter=1&fromLibrary=true',
+              );
+            },
           ),
         );
       },

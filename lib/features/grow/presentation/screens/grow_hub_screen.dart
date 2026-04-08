@@ -149,7 +149,7 @@ class _GrowHubScreenState extends ConsumerState<GrowHubScreen> {
                   onTap: () => context.push(AppRoutes.invite),
                 ),
 
-                const SizedBox(height: 32),
+                const SizedBox(height: 120),
               ]),
             ),
           ),

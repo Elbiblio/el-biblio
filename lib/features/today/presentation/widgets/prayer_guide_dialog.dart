@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:confetti/confetti.dart';
 import '../../../../core/di/app_providers.dart';
 import '../../../today/domain/models/daily_anchors.dart';
+import '../../../commitments/domain/models/commitment_journey.dart';
 import 'breathing_meditation_widget.dart';
 
 /// Full-screen 3-step morning prayer guide.
@@ -10,19 +11,26 @@ import 'breathing_meditation_widget.dart';
 /// Step 1: Breathe & Center (breathing animation + greeting)
 /// Step 2: Pray (scripture + focus + prayer bullets)
 /// Step 3: Commit (focus prompt + "I commit" button)
+///
+/// When an active commitment journey exists, the prayer guide reflects
+/// that journey's content instead of generic virtue-based prayers.
 class PrayerGuideDialog extends ConsumerStatefulWidget {
   const PrayerGuideDialog({
     super.key,
     required this.virtue,
     required this.onMarkDone,
     this.showQuickStart = true,
+    this.activeJourney,
+    this.commitmentJourney,
   });
 
   final Virtue virtue;
   final VoidCallback onMarkDone;
   final bool showQuickStart;
+  final ActiveJourney? activeJourney;
+  final CommitmentJourney? commitmentJourney;
 
-  static void show(BuildContext context, Virtue virtue, VoidCallback onMarkDone, {bool showQuickStart = true}) {
+  static void show(BuildContext context, Virtue virtue, VoidCallback onMarkDone, {bool showQuickStart = true, ActiveJourney? activeJourney, CommitmentJourney? commitmentJourney}) {
     Navigator.of(context).push(
       PageRouteBuilder(
         opaque: false,
@@ -30,6 +38,8 @@ class PrayerGuideDialog extends ConsumerStatefulWidget {
           virtue: virtue,
           onMarkDone: onMarkDone,
           showQuickStart: showQuickStart,
+          activeJourney: activeJourney,
+          commitmentJourney: commitmentJourney,
         ),
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
           return FadeTransition(opacity: animation, child: child);
@@ -253,7 +263,7 @@ class _PrayerGuideDialogState extends ConsumerState<PrayerGuideDialog> {
   // ---------------------------------------------------------------------------
 
   Widget _buildStep2Pray(ThemeData theme, Color virtueColor) {
-    final steps = _getPrayerSteps(widget.virtue.type);
+    final steps = _getContextualPrayerSteps();
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 32),
@@ -278,9 +288,11 @@ class _PrayerGuideDialogState extends ConsumerState<PrayerGuideDialog> {
 
           const SizedBox(height: 16),
 
-          // Scripture
+          // Scripture or journey title
           Text(
-            widget.virtue.scriptureReference,
+            widget.commitmentJourney != null
+                ? widget.commitmentJourney!.title
+                : widget.virtue.scriptureReference,
             style: theme.textTheme.bodyMedium?.copyWith(
               fontStyle: FontStyle.italic,
               color: virtueColor,
@@ -291,7 +303,9 @@ class _PrayerGuideDialogState extends ConsumerState<PrayerGuideDialog> {
           const SizedBox(height: 8),
 
           Text(
-            widget.virtue.focusPrompt,
+            widget.commitmentJourney != null
+                ? widget.commitmentJourney!.description
+                : widget.virtue.focusPrompt,
             style: theme.textTheme.titleLarge?.copyWith(
               fontWeight: FontWeight.w600,
               height: 1.3,
@@ -377,6 +391,14 @@ class _PrayerGuideDialogState extends ConsumerState<PrayerGuideDialog> {
   // ---------------------------------------------------------------------------
 
   Widget _buildStep3Commit(ThemeData theme, Color virtueColor) {
+    final journey = widget.commitmentJourney;
+    final focusText = journey?.baseRequirement != null
+        ? journey!.baseRequirement!
+        : widget.virtue.focusPrompt;
+    final titleText = journey != null
+        ? 'Your Commitment'
+        : 'Your Focus Today';
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 32),
       child: Column(
@@ -389,7 +411,7 @@ class _PrayerGuideDialogState extends ConsumerState<PrayerGuideDialog> {
           const SizedBox(height: 24),
 
           Text(
-            'Your Focus Today',
+            titleText,
             style: theme.textTheme.headlineSmall?.copyWith(
               fontWeight: FontWeight.w600,
               color: theme.colorScheme.onSurface,
@@ -399,7 +421,7 @@ class _PrayerGuideDialogState extends ConsumerState<PrayerGuideDialog> {
           const SizedBox(height: 16),
 
           Text(
-            widget.virtue.focusPrompt,
+            focusText,
             style: theme.textTheme.titleLarge?.copyWith(
               fontWeight: FontWeight.w500,
               height: 1.4,
@@ -407,6 +429,16 @@ class _PrayerGuideDialogState extends ConsumerState<PrayerGuideDialog> {
             ),
             textAlign: TextAlign.center,
           ),
+
+          if (widget.activeJourney != null && journey != null) ...[
+            const SizedBox(height: 12),
+            Text(
+              'Day ${widget.activeJourney!.currentDay} of ${journey.duration.days}',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+              ),
+            ),
+          ],
 
           const Spacer(flex: 3),
 
@@ -447,6 +479,19 @@ class _PrayerGuideDialogState extends ConsumerState<PrayerGuideDialog> {
     if (hour < 12) return 'Good morning';
     if (hour < 17) return 'Good afternoon';
     return 'Good evening';
+  }
+
+  /// Returns prayer steps that match the user's active commitment journey
+  /// when one exists, falling back to generic virtue-based prayers.
+  List<String> _getContextualPrayerSteps() {
+    final journey = widget.commitmentJourney;
+    if (journey != null) {
+      return [
+        if (journey.baseRequirement != null) journey.baseRequirement!,
+        ...journey.tips,
+      ];
+    }
+    return _getPrayerSteps(widget.virtue.type);
   }
 
   List<String> _getPrayerSteps(VirtueType virtueType) {

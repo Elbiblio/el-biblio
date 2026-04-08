@@ -73,7 +73,6 @@ class OnboardingScreen extends ConsumerWidget {
       OnboardingStep.yourAccount => YourAccountView(
           onSignUp: (name, email, phone) =>
               _handleSignUp(context, ref, name, email, phone),
-          onGuestAccount: () => _handleGuestAccount(context, ref),
         ),
     };
   }
@@ -117,45 +116,6 @@ class OnboardingScreen extends ConsumerWidget {
       await ref.read(settingsProvider.notifier).completePreOnboarding(
             name: name,
             phone: phone,
-          );
-    }
-
-    if (!context.mounted) return;
-    context.go(AppRoutes.postOnboarding);
-  }
-
-  Future<void> _handleGuestAccount(
-    BuildContext context,
-    WidgetRef ref,
-  ) async {
-    final onboardingState = ref.read(onboardingProvider);
-
-    HapticFeedback.mediumImpact();
-
-    // Complete onboarding settings
-    await ref.read(settingsProvider.notifier).completeOnboarding(
-          primaryVirtue: onboardingState.primaryVirtue,
-          lifestyle: onboardingState.lifestyle,
-          morningTime: onboardingState.morningTime,
-          eveningTime: onboardingState.eveningTime,
-          morningReminderEnabled: onboardingState.morningReminderEnabled,
-          eveningReminderEnabled: onboardingState.eveningReminderEnabled,
-          socialPresenceOptIn: onboardingState.socialPresenceOptIn,
-          contactsImported: onboardingState.contactsImported,
-          primaryArchetypeId: onboardingState.primaryArchetypeId,
-          commitmentCategory: onboardingState.commitmentCategory,
-          primaryMissionFocus: onboardingState.primaryMissionFocus,
-          personalDistractions: onboardingState.personalDistractions,
-        );
-
-    // Create guest account
-    final success =
-        await ref.read(authProvider.notifier).createGuestAccount();
-
-    if (success) {
-      await ref.read(settingsProvider.notifier).completePreOnboarding(
-            name: 'Guest',
-            phone: '',
           );
     }
 

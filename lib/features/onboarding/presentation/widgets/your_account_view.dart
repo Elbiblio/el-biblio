@@ -10,11 +10,9 @@ class YourAccountView extends ConsumerStatefulWidget {
   const YourAccountView({
     super.key,
     required this.onSignUp,
-    required this.onGuestAccount,
   });
 
   final Future<void> Function(String name, String email, String phone) onSignUp;
-  final Future<void> Function() onGuestAccount;
 
   @override
   ConsumerState<YourAccountView> createState() => _YourAccountViewState();
@@ -414,31 +412,6 @@ class _YourAccountViewState extends ConsumerState<YourAccountView>
                           color: theme.colorScheme.onPrimary,
                         ),
                       ),
-              ),
-            ),
-            const SizedBox(height: 12),
-
-            // Guest / Not Now button
-            TextButton(
-              onPressed: _isLoading
-                  ? null
-                  : () async {
-                      setState(() => _isLoading = true);
-                      try {
-                        await widget.onGuestAccount();
-                      } finally {
-                        if (mounted) {
-                          setState(() => _isLoading = false);
-                        }
-                      }
-                    },
-              child: Text(
-                'Not Now',
-                style: textTheme.bodyMedium?.copyWith(
-                  color: theme.colorScheme.onSurface
-                      .withValues(alpha: 0.4),
-                  letterSpacing: 1,
-                ),
               ),
             ),
             const SizedBox(height: 24),

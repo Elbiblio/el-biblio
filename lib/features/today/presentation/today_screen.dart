@@ -20,6 +20,7 @@ import 'widgets/time_diagnose_suggestion_dialog.dart';
 import 'widgets/recalibration_suggestion_dialog.dart';
 import 'widgets/today_header.dart';
 import 'widgets/assessment_prompt_widget.dart';
+import 'widgets/weekly_plan_prompt_card.dart';
 import 'widgets/daily_focus_card.dart';
 import 'widgets/weekly_section_widget.dart';
 import 'widgets/mission_next_step_card.dart'
@@ -121,6 +122,12 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
       final anchors = ref.read(dailyAnchorsProvider);
       final virtue = anchors.coreVirtue;
       if (!virtue.isCompleted && mounted) {
+        final journeyState = ref.read(commitmentJourneyProvider);
+        final aj = journeyState.activeJourney;
+        final cj = aj != null
+            ? journeyState.availableJourneys.cast<dynamic>().firstWhere(
+                (j) => j.id == aj.journeyId, orElse: () => null)
+            : null;
         PrayerGuideDialog.show(
           context,
           virtue,
@@ -129,6 +136,8 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
             ref.read(dailyAnchorsProvider.notifier).markAnchorDone(AnchorType.coreVirtue);
           },
           showQuickStart: true,
+          activeJourney: aj,
+          commitmentJourney: cj,
         );
         await storage.markPrayerGuideShown();
       }
@@ -145,6 +154,12 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
     if (virtue.isCompleted) return;
 
     if (mounted) {
+      final journeyState = ref.read(commitmentJourneyProvider);
+      final aj = journeyState.activeJourney;
+      final cj = aj != null
+          ? journeyState.availableJourneys.cast<dynamic>().firstWhere(
+              (j) => j.id == aj.journeyId, orElse: () => null)
+          : null;
       PrayerGuideDialog.show(
         context,
         virtue,
@@ -153,6 +168,8 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
           ref.read(dailyAnchorsProvider.notifier).markAnchorDone(AnchorType.coreVirtue);
         },
         showQuickStart: true,
+        activeJourney: aj,
+        commitmentJourney: cj,
       );
       await storage.markPrayerGuideShown();
     }
@@ -207,6 +224,17 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                   child: Padding(
                     padding: EdgeInsets.fromLTRB(16, 0, 16, 0),
                     child: AssessmentPromptWidget(),
+                  ),
+                ),
+
+              // Weekly assessment prompt — shown when no current weekly plan
+              if (settings.onboardingCompleted &&
+                  settings.hasSeenAssessmentPrompt &&
+                  WeeklyPlanPromptCard.shouldShow(currentPlan: settings.currentWeeklyPlan))
+                const SliverToBoxAdapter(
+                  child: Padding(
+                    padding: EdgeInsets.fromLTRB(16, 0, 16, 0),
+                    child: WeeklyPlanPromptCard(),
                   ),
                 ),
 
@@ -369,11 +397,21 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
   }
 
   void _showPrayerGuide(Virtue virtue) {
+    final journeyState = ref.read(commitmentJourneyProvider);
+    final activeJourney = journeyState.activeJourney;
+    final commitmentJourney = activeJourney != null
+        ? journeyState.availableJourneys.cast<dynamic>().firstWhere(
+            (j) => j.id == activeJourney.journeyId,
+            orElse: () => null,
+          )
+        : null;
     PrayerGuideDialog.show(
       context,
       virtue,
       () => ref.read(dailyAnchorsProvider.notifier).markAnchorDone(AnchorType.coreVirtue),
       showQuickStart: _isNearAlarmTime,
+      activeJourney: activeJourney,
+      commitmentJourney: commitmentJourney,
     );
   }
 

@@ -16,14 +16,12 @@ class WeeklyPlanPromptCard extends ConsumerStatefulWidget {
   const WeeklyPlanPromptCard({super.key});
 
   /// Returns `true` when the card should be visible:
-  /// - Today is Monday, AND
   /// - There is no weekly plan whose week matches the current week.
   static bool shouldShow({
     required WeeklyPlan? currentPlan,
     DateTime? now,
   }) {
     final today = now ?? DateTime.now();
-    if (today.weekday != DateTime.monday) return false;
 
     if (currentPlan == null) return true;
 
@@ -129,7 +127,7 @@ class _WeeklyPlanPromptCardState extends ConsumerState<WeeklyPlanPromptCard>
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Set Your Weekly Focus',
+                        'Take a Quick Assessment',
                         style: theme.textTheme.titleSmall?.copyWith(
                           fontWeight: FontWeight.w700,
                           color: isDark
@@ -139,7 +137,7 @@ class _WeeklyPlanPromptCardState extends ConsumerState<WeeklyPlanPromptCard>
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        'Reflect on last week and plan your growth',
+                        'Set your weekly focus and track your growth',
                         style: theme.textTheme.bodySmall?.copyWith(
                           color: theme.colorScheme.onSurface
                               .withValues(alpha: 0.5),
