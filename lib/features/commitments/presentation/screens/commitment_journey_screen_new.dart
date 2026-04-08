@@ -415,9 +415,17 @@ class _CommitmentJourneyScreenNewState
                       journey: journey,
                       activeJourney: activeJourney,
                       onMilestoneTap: (milestone) {
-                        // Show milestone details if reached
                         if (activeJourney.currentDay >= milestone.day) {
                           _showMilestoneDetail(milestone);
+                        } else {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                'Day ${milestone.day} milestone unlocks in ${milestone.day - activeJourney.currentDay} days',
+                              ),
+                              duration: const Duration(seconds: 2),
+                            ),
+                          );
                         }
                       },
                     ),
@@ -440,40 +448,228 @@ class _CommitmentJourneyScreenNewState
 
   void _showMilestoneDetail(CommitmentMilestone milestone) {
     final theme = Theme.of(context);
+    final journeyState = ref.read(commitmentJourneyProvider);
+    final activeJourney = journeyState.activeJourney;
+    final isCompleted = activeJourney?.completedDays.contains(milestone.day) ?? false;
 
-    showDialog(
+    showModalBottomSheet(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Day ${milestone.day} Deepening'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(milestone.description),
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: theme.colorScheme.secondaryContainer,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Text(
-                'New requirement: ${milestone.newRequirement}',
-                style: TextStyle(
-                  color: theme.colorScheme.onSecondaryContainer,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => DraggableScrollableSheet(
+        initialChildSize: 0.65,
+        minChildSize: 0.4,
+        maxChildSize: 0.85,
+        builder: (context, scrollController) => Container(
+          decoration: BoxDecoration(
+            color: theme.colorScheme.surface,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: ListView(
+            controller: scrollController,
+            padding: const EdgeInsets.all(24),
+            children: [
+              // Handle bar
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 20),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.outline.withValues(alpha: 0.3),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
                 ),
               ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Close'),
+
+              // Milestone badge
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.secondary.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: theme.colorScheme.secondary.withValues(alpha: 0.3),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.diamond_outlined,
+                            size: 16, color: theme.colorScheme.secondary),
+                        const SizedBox(width: 6),
+                        Text(
+                          'Milestone \u2022 Day ${milestone.day}',
+                          style: theme.textTheme.labelMedium?.copyWith(
+                            fontWeight: FontWeight.w700,
+                            color: theme.colorScheme.secondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Spacer(),
+                  if (isCompleted)
+                    Icon(Icons.check_circle,
+                        color: theme.colorScheme.primary, size: 24),
+                ],
+              ),
+
+              const SizedBox(height: 20),
+
+              // Title
+              Text(
+                milestone.description,
+                style: theme.textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  height: 1.3,
+                ),
+              ),
+
+              const SizedBox(height: 20),
+
+              // New requirement card
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.primaryContainer.withValues(alpha: 0.4),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: theme.colorScheme.primary.withValues(alpha: 0.2),
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.trending_up_rounded,
+                            size: 18, color: theme.colorScheme.primary),
+                        const SizedBox(width: 8),
+                        Text(
+                          'What changes',
+                          style: theme.textTheme.labelLarge?.copyWith(
+                            fontWeight: FontWeight.w700,
+                            color: theme.colorScheme.primary,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      milestone.newRequirement,
+                      style: theme.textTheme.bodyLarge?.copyWith(
+                        height: 1.5,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 20),
+
+              // Reflection prompts
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.surfaceContainerHighest
+                      .withValues(alpha: 0.5),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.psychology_outlined,
+                            size: 18,
+                            color: theme.colorScheme.onSurface
+                                .withValues(alpha: 0.7)),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Reflect',
+                          style: theme.textTheme.labelLarge?.copyWith(
+                            fontWeight: FontWeight.w700,
+                            color: theme.colorScheme.onSurface
+                                .withValues(alpha: 0.7),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    ..._getReflectionPrompts(milestone).map(
+                      (prompt) => Padding(
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Container(
+                              margin: const EdgeInsets.only(top: 7),
+                              width: 6,
+                              height: 6,
+                              decoration: BoxDecoration(
+                                color: theme.colorScheme.primary
+                                    .withValues(alpha: 0.5),
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                prompt,
+                                style: theme.textTheme.bodyMedium?.copyWith(
+                                  height: 1.5,
+                                  fontStyle: FontStyle.italic,
+                                  color: theme.colorScheme.onSurface
+                                      .withValues(alpha: 0.8),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 24),
+
+              // Done button
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  style: FilledButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
+                  child: Text(isCompleted
+                      ? 'Continue Your Journey'
+                      : 'I Understand \u2014 Let\'s Go Deeper'),
+                ),
+              ),
+
+              const SizedBox(height: 16),
+            ],
           ),
-        ],
+        ),
       ),
     );
+  }
+
+  List<String> _getReflectionPrompts(CommitmentMilestone milestone) {
+    return [
+      'How has this journey changed your daily rhythm so far?',
+      'What has been the hardest part? What surprised you?',
+      'How do you sense God working through this commitment?',
+      'What would you tell someone just starting this journey?',
+    ];
   }
 }
 

@@ -84,11 +84,9 @@ flutter:
 
 # Flutter Launcher Icons configuration
 flutter_launcher_icons:
-  android: "ic_launcher"
-  ios: false
+  android: true
+  ios: true
   image_path: "assets/images/app_icon.png"
-  adaptive_icon_foreground: "assets/images/app_icon_adaptive.png"
-  adaptive_icon_background: "#E8E8E0"
   remove_alpha_ios: true
   min_sdk_android: 21
 

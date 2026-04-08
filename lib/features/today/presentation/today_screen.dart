@@ -276,55 +276,31 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
   }
 
   // ---------------------------------------------------------------------------
-  // Time-aware widget ordering
+  // Secondary widgets (consistent order)
   // ---------------------------------------------------------------------------
 
-  /// Returns secondary slivers ordered by time of day.
-  /// Evening (17+): Journey check-in first, then pulse, weekly, mission.
-  /// Afternoon (12-17): Mission first, weekly, pulse, journey check-in.
-  /// Morning (default): Weekly, mission, pulse, journey check-in.
+  /// Returns secondary slivers in a consistent, predictable order.
+  /// Users build spatial memory for where things are — don't rearrange by time.
   List<Widget> _buildSecondaryWidgets(
     dynamic settings,
     DailyAnchors anchors,
     dynamic todayPulse,
     DateTime now,
   ) {
-    const weeklySectionSliver = SliverToBoxAdapter(child: WeeklySectionWidget());
-    const missionSliver = SliverToBoxAdapter(child: MissionNextStepCard());
-    const journeySliver = SliverToBoxAdapter(child: JourneyCheckInSection());
+    return [
+      // 1. Your next action step (mission / service commitment)
+      const SliverToBoxAdapter(child: MissionNextStepCard()),
 
-    Widget? pulseSliver;
-    if ((todayPulse?.entries.length ?? 0) == 0 && settings.streakCount > 0) {
-      pulseSliver = const SliverToBoxAdapter(child: SpiritualPulseWidget());
-    }
+      // 2. Weekly plan (when a plan exists)
+      const SliverToBoxAdapter(child: WeeklySectionWidget()),
 
-    final hour = now.hour;
+      // 3. Spiritual pulse (mood check — only if not yet recorded today)
+      if ((todayPulse?.entries.length ?? 0) == 0 && settings.streakCount > 0)
+        const SliverToBoxAdapter(child: SpiritualPulseWidget()),
 
-    if (hour >= 17) {
-      // Evening: journey check-in is primary action
-      return [
-        journeySliver,
-        if (pulseSliver != null) pulseSliver,
-        weeklySectionSliver,
-        missionSliver,
-      ];
-    } else if (hour >= 12) {
-      // Afternoon: mission/action time
-      return [
-        missionSliver,
-        weeklySectionSliver,
-        if (pulseSliver != null) pulseSliver,
-        journeySliver,
-      ];
-    } else {
-      // Morning: default order
-      return [
-        weeklySectionSliver,
-        missionSliver,
-        if (pulseSliver != null) pulseSliver,
-        journeySliver,
-      ];
-    }
+      // 4. Journey check-in (commitment journey evening reflection)
+      const SliverToBoxAdapter(child: JourneyCheckInSection()),
+    ];
   }
 
   // ---------------------------------------------------------------------------

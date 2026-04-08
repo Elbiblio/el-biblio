@@ -353,7 +353,7 @@ class UserEveningCheckInCard extends ConsumerWidget {
             Center(
               child: TextButton(
                 onPressed: () => _showStruggledDialog(context),
-                child: const Text('God, help me try again'),
+                child: const Text('I will try again'),
               ),
             ),
           ] else if (hour >= 18 && hour < 20 && partnerName != null) ...[

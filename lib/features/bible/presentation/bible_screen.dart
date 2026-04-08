@@ -28,12 +28,14 @@ class BibleScreen extends ConsumerStatefulWidget {
     this.chapter,
     this.verse,
     this.isPlanMode = false,
+    this.openChapterSelector = false,
   });
-  
+
   final String? bookName;
   final int? chapter;
   final int? verse;
   final bool isPlanMode;
+  final bool openChapterSelector;
   
   @override
   ConsumerState<BibleScreen> createState() => _BibleScreenState();
@@ -45,11 +47,12 @@ class _BibleScreenState extends ConsumerState<BibleScreen> {
   Timer? _idleTimer;
   Timer? _scrollDebounceTimer;
   bool _showGameIcon = false;
-  bool _showBookSelector = false;
+  late bool _showBookSelector;
 
   @override
   void initState() {
     super.initState();
+    _showBookSelector = widget.openChapterSelector;
     // Track Bible reading opened
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(analyticsProvider).track(AppAnalyticsEvent.bibleReadingOpened);
@@ -856,7 +859,7 @@ class _InlineBookChapterList extends StatefulWidget {
 }
 
 class _InlineBookChapterListState extends State<_InlineBookChapterList> {
-  int? _expandedBookId;
+  String? _expandedBookName;
 
   @override
   void initState() {
@@ -864,7 +867,7 @@ class _InlineBookChapterListState extends State<_InlineBookChapterList> {
     // Pre-expand the currently selected book
     if (widget.state.currentBook != null &&
         widget.state.currentBook!.testament == widget.testament) {
-      _expandedBookId = widget.state.currentBook!.id;
+      _expandedBookName = widget.state.currentBook!.name;
     }
   }
 
@@ -881,8 +884,8 @@ class _InlineBookChapterListState extends State<_InlineBookChapterList> {
       itemCount: filteredBooks.length,
       itemBuilder: (context, index) {
         final book = filteredBooks[index];
-        final isExpanded = book.id == _expandedBookId;
-        final isCurrentBook = book.id == widget.state.currentBook?.id;
+        final isExpanded = book.name == _expandedBookName;
+        final isCurrentBook = book.name == widget.state.currentBook?.name;
 
         return Column(
           children: [
@@ -923,7 +926,7 @@ class _InlineBookChapterListState extends State<_InlineBookChapterList> {
               ),
               onTap: () {
                 setState(() {
-                  _expandedBookId = isExpanded ? null : book.id;
+                  _expandedBookName = isExpanded ? null : book.name;
                 });
                 widget.notifier.selectBook(book);
               },

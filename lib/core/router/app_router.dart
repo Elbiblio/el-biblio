@@ -147,12 +147,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           final chapter = state.uri.queryParameters['chapter'];
           final verse = state.uri.queryParameters['verse'];
           final isPlanMode = state.uri.queryParameters['planMode'] == 'true';
+          final fromLibrary = state.uri.queryParameters['fromLibrary'] == 'true';
 
           return BibleScreen(
             bookName: bookName.isNotEmpty ? bookName : null,
             chapter: chapter != null ? int.tryParse(chapter) : null,
             verse: verse != null ? int.tryParse(verse) : null,
             isPlanMode: isPlanMode,
+            openChapterSelector: fromLibrary,
           );
         },
       ),

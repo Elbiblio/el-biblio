@@ -242,7 +242,7 @@ class CommitmentJourneyRepository {
       tips: [
         'Place your Bible by your bed',
         'Set your alarm 15 minutes earlier',
-        'Use a prayer app if that helps you focus',
+        'Use the app if that helps you focus',
       ],
     ),
     CommitmentJourney(

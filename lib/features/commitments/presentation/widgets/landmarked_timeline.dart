@@ -219,7 +219,7 @@ class _MilestoneNode extends StatelessWidget {
     final theme = Theme.of(context);
     
     return GestureDetector(
-      onTap: isReached ? onTap : null,
+      onTap: onTap,
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
