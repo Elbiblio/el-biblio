@@ -52,16 +52,9 @@ class _TheSolutionViewState extends State<TheSolutionView>
       _PillarData(
         icon: Icons.trending_up_rounded,
         title: 'Daily Commitments',
-        subtitle: 'One small action each day, tailored to you.',
+        subtitle: 'One intentional act each day, makes the difference.',
         color: palette.commitmentColor,
         interval: const Interval(0.35, 0.65, curve: Curves.easeOutCubic),
-      ),
-      _PillarData(
-        icon: Icons.shield_outlined,
-        title: 'Distraction Blocking',
-        subtitle: 'Guard your attention from noise.',
-        color: palette.distractionColor,
-        interval: const Interval(0.45, 0.75, curve: Curves.easeOutCubic),
       ),
       _PillarData(
         icon: Icons.auto_stories_outlined,

@@ -23,7 +23,7 @@ class TimeDiagnoseSuggestionDialog {
           mainAxisSize: MainAxisSize.min,
           children: [
             const Text(
-              'We noticed you\'ve missed your daily check-ins for 3 consecutive days. Let\'s take a look at your time allocation to help you get back on track.',
+              'You\'ve taken a break from check-ins. Life happens. Would a quick time audit help you find a rhythm that works better?',
               style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.w500,
@@ -50,7 +50,7 @@ class TimeDiagnoseSuggestionDialog {
                   SizedBox(width: 12),
                   Expanded(
                     child: Text(
-                      'The 7-Pillar Audit helps you analyze how you\'re spending your 24 hours.',
+                      'The Time Audit helps you analyze how you\'re spending your 24 hours.',
                       style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w400,

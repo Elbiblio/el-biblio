@@ -3,6 +3,7 @@ class AppRoutes {
 
   static const root = '/';
   static const onboarding = '/onboarding';
+  static const postOnboarding = '/post-onboarding';
   static const assessment = '/assessment';
   static const timeDiagnose = '/time-diagnose';
   static const today = '/today';
@@ -11,6 +12,7 @@ class AppRoutes {
   static const actOpportunities = '/act/opportunities';
   static const actPeople = '/act/people';
   static const growTogether = '/grow-together';
+  static const grow = '/grow';
   static const bible = '/bible';
   static const bibleReader = '/bible/reader';
   static const biblePlanDetails = '/bible/plans';
@@ -26,6 +28,7 @@ class AppRoutes {
   static const commitmentJourney = '/commitment-journey';
   static const commitmentActive = '/commitment-active';
   static const commitmentCompletion = '/commitment-completion';
+  static const journeySelection = '/journey-selection';
   static const callingProfile = '/assessment/calling-profile';
   static const spiritualAid = '/spiritual-aid';
   static const games = '/games';
@@ -37,4 +40,5 @@ class AppRoutes {
   static const faithQuestionsFaq = '/faith-questions/faq';
   static const faithQuestionsQuiz = '/faith-questions/quiz';
   static const faithQuestionsQuizResults = '/faith-questions/quiz-results';
+  static const weeklyAssessment = '/weekly-assessment';
 }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/application/xp_notifier.dart';
 import '../../../core/di/app_providers.dart';
 import '../../../core/constants/app_routes.dart';
 import '../../../core/theme/app_theme_mode.dart';
@@ -9,6 +10,7 @@ import '../../../core/theme/app_theme_tokens.dart';
 import '../../../core/theme/app_text_styles.dart';
 import 'widgets/tts_settings_widget.dart';
 import 'widgets/achievements_dialog.dart';
+import 'widgets/weekly_progress_chart.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
@@ -255,6 +257,145 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           ],
         );
       },
+    );
+  }
+
+  /// Computes daily XP totals for the current week (Mon-Sun) from activity data.
+  List<int> _computeWeeklyDailyXP(XPState xpState) {
+    final now = DateTime.now();
+    // Find Monday of this week
+    final monday = now.subtract(Duration(days: now.weekday - 1));
+    final mondayStart = DateTime(monday.year, monday.month, monday.day);
+
+    final dailyXP = List<int>.filled(7, 0);
+    for (final activity in xpState.activities) {
+      final daysSinceMonday = activity.timestamp.difference(mondayStart).inDays;
+      if (daysSinceMonday >= 0 && daysSinceMonday < 7) {
+        dailyXP[daysSinceMonday] += activity.xpAmount;
+      }
+    }
+    return dailyXP;
+  }
+
+  Widget _buildThisWeekSection({
+    required BuildContext context,
+    required XPState xpState,
+    required Color borderColor,
+    required Color primaryTextColor,
+    required Color mutedTextColor,
+    required Color accentColor,
+    required Color successColor,
+    required int streakCount,
+  }) {
+    final theme = Theme.of(context);
+    final xpNotifier = ref.read(xpProvider.notifier);
+    final monthlyChange = xpNotifier.getMonthlyXPChange();
+    final changePercent = (monthlyChange * 100).toInt();
+    final isPositive = changePercent >= 0;
+    final weeklyDailyXP = _computeWeeklyDailyXP(xpState);
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: borderColor),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'THIS WEEK',
+            style: theme.textTheme.labelSmall?.copyWith(
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+              letterSpacing: 1.2,
+              color: mutedTextColor,
+            ),
+          ),
+          const SizedBox(height: 16),
+          WeeklyProgressChart(dailyXP: weeklyDailyXP),
+          const SizedBox(height: 20),
+          // Growth stat
+          Row(
+            children: [
+              Icon(
+                isPositive ? Icons.trending_up_rounded : Icons.trending_down_rounded,
+                size: 18,
+                color: isPositive ? successColor : theme.colorScheme.error,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'Growth',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: primaryTextColor,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const Spacer(),
+              Text(
+                '${isPositive ? '+' : ''}$changePercent%',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: isPositive ? successColor : theme.colorScheme.error,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(width: 4),
+              Text(
+                'this month',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: mutedTextColor,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          // Streak row - 7 day indicators
+          Row(
+            children: [
+              Icon(
+                Icons.local_fire_department_rounded,
+                size: 18,
+                color: accentColor,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'Streak',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: primaryTextColor,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const Spacer(),
+              ...List.generate(7, (i) {
+                final isActive = i < streakCount.clamp(0, 7);
+                return Padding(
+                  padding: const EdgeInsets.only(left: 4),
+                  child: Container(
+                    width: 24,
+                    height: 24,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: isActive
+                          ? accentColor.withValues(alpha: 0.2)
+                          : theme.colorScheme.onSurface.withValues(alpha: 0.06),
+                      border: Border.all(
+                        color: isActive
+                            ? accentColor
+                            : theme.colorScheme.onSurface.withValues(alpha: 0.12),
+                        width: 1.5,
+                      ),
+                    ),
+                    child: isActive
+                        ? Icon(Icons.check_rounded, size: 14, color: accentColor)
+                        : null,
+                  ),
+                );
+              }),
+            ],
+          ),
+        ],
+      ),
     );
   }
 
@@ -644,7 +785,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               ),
             ),
             title: Text(
-              'Discovery Compass',
+              'Calling Assessment',
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
                 fontWeight: FontWeight.w600,
                 color: primaryTextColor,
@@ -709,7 +850,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               ),
             ),
             title: Text(
-              'The 7-Pillar Audit',
+              'Time Audit',
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
                 fontWeight: FontWeight.w600,
                 color: primaryTextColor,
@@ -1016,6 +1157,18 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                                   ),
                                 ),
                                 
+                                const SizedBox(height: 40),
+                                _buildThisWeekSection(
+                                  context: context,
+                                  xpState: xpState,
+                                  borderColor: borderColor,
+                                  primaryTextColor: primaryTextColor,
+                                  mutedTextColor: mutedTextColor,
+                                  accentColor: accentColor,
+                                  successColor: successColor,
+                                  streakCount: streak,
+                                ),
+
                                 const SizedBox(height: 40),
                                 _buildQuickSettingsSection(
                                   context: context,

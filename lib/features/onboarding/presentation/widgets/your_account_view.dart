@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../application/onboarding_notifier.dart';
+import '../../../commitments/domain/models/commitment_category.dart';
 
 /// Step 5: Your Account — setup summary + signup form (merged from ready_view
 /// and pre_onboarding_screen).
@@ -155,8 +156,7 @@ class _YourAccountViewState extends ConsumerState<YourAccountView>
                       context,
                       Icons.flag_outlined,
                       'Starting path',
-                      state.commitmentCategory![0].toUpperCase() +
-                          state.commitmentCategory!.substring(1),
+                      CommitmentCategory.fromString(state.commitmentCategory!).label,
                     ),
                   _buildSummaryRow(
                     context,
@@ -170,6 +170,16 @@ class _YourAccountViewState extends ConsumerState<YourAccountView>
                     'Evening',
                     state.eveningTime,
                   ),
+                  if (state.personalDistractions.isNotEmpty)
+                    _buildSummaryRow(
+                      context,
+                      Icons.fitness_center_outlined,
+                      'Struggles',
+                      state.personalDistractions.take(2).join(', ') +
+                          (state.personalDistractions.length > 2
+                              ? ' +${state.personalDistractions.length - 2} more'
+                              : ''),
+                    ),
                 ],
               ),
             ),

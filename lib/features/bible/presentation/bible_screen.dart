@@ -45,6 +45,7 @@ class _BibleScreenState extends ConsumerState<BibleScreen> {
   Timer? _idleTimer;
   Timer? _scrollDebounceTimer;
   bool _showGameIcon = false;
+  bool _showBookSelector = false;
 
   @override
   void initState() {
@@ -275,7 +276,46 @@ class _BibleScreenState extends ConsumerState<BibleScreen> {
                 children: [
                   Column(
                   children: [
-                    if (bibleState.error != null)
+                    // Inline book/chapter selector panel
+                    if (_showBookSelector)
+                      Expanded(
+                        child: DefaultTabController(
+                          length: 3,
+                          child: Column(
+                            children: [
+                              const TabBar(
+                                tabs: [
+                                  Tab(text: 'New Testament'),
+                                  Tab(text: 'Old Testament'),
+                                  Tab(text: 'Reading Plans'),
+                                ],
+                              ),
+                              Expanded(
+                                child: TabBarView(
+                                  children: [
+                                    _InlineBookChapterList(
+                                      state: bibleState,
+                                      notifier: bibleNotifier,
+                                      testament: 'NT',
+                                      scrollController: ScrollController(),
+                                      onChapterSelected: () => setState(() => _showBookSelector = false),
+                                    ),
+                                    _InlineBookChapterList(
+                                      state: bibleState,
+                                      notifier: bibleNotifier,
+                                      testament: 'OT',
+                                      scrollController: ScrollController(),
+                                      onChapterSelected: () => setState(() => _showBookSelector = false),
+                                    ),
+                                    const CompactReadingPlanList(),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    if (!_showBookSelector && bibleState.error != null)
                       Container(
                         margin: const EdgeInsets.all(8.0),
                         padding: const EdgeInsets.all(12.0),
@@ -296,11 +336,12 @@ class _BibleScreenState extends ConsumerState<BibleScreen> {
                           ],
                         ),
                       ),
-                    Expanded(
-                      child: bibleState.verses.isEmpty
-                          ? _buildEmptyState(context)
-                          : _buildVersesList(context, bibleState, bibleNotifier, theme),
-                    ),
+                    if (!_showBookSelector)
+                      Expanded(
+                        child: bibleState.verses.isEmpty
+                            ? _buildEmptyState(context)
+                            : _buildVersesList(context, bibleState, bibleNotifier, theme),
+                      ),
                   ],
                 ),
                 if (bibleState.isInsightLoading)
@@ -658,7 +699,7 @@ class _BibleScreenState extends ConsumerState<BibleScreen> {
     
     return GestureDetector(
       onTap: () {
-        _showBookChapterSelector(context, state, notifier);
+        setState(() => _showBookSelector = !_showBookSelector);
       },
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -748,143 +789,7 @@ class _BibleScreenState extends ConsumerState<BibleScreen> {
     );
   }
 
-  void _showBookChapterSelector(BuildContext context, BibleState state, BibleNotifier notifier) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      builder: (context) {
-        return DraggableScrollableSheet(
-          initialChildSize: 0.7,
-          minChildSize: 0.5,
-          maxChildSize: 0.9,
-          expand: false,
-          builder: (context, scrollController) {
-            return DefaultTabController(
-              length: 3,
-              initialIndex: 0, // NT is default (index 0)
-              child: Column(
-                children: [
-                  const TabBar(
-                    tabs: [
-                      Tab(text: 'New Testament'),
-                      Tab(text: 'Old Testament'),
-                      Tab(text: 'Reading Plans'),
-                    ],
-                  ),
-                  Expanded(
-                    child: TabBarView(
-                      children: [
-                        // New Testament Books
-                        _buildBooksList(context, state, notifier, 'NT', scrollController),
-                        // Old Testament Books
-                        _buildBooksList(context, state, notifier, 'OT', scrollController),
-                        // Reading Plans
-                        const CompactReadingPlanList(),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
-
-  Widget _buildBooksList(BuildContext context, BibleState state, BibleNotifier notifier, String testament, ScrollController scrollController) {
-    final filteredBooks = state.books.where((book) => book.testament == testament).toList();
-    
-    return Column(
-      children: [
-        // Chapters selector for selected book
-        if (state.currentBook != null && state.currentBook!.testament == testament) ...[
-          Container(
-            height: 200,
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '${state.currentBook!.name} - Chapters',
-                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Expanded(
-                  child: GridView.builder(
-                    controller: scrollController,
-                    gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-                      maxCrossAxisExtent: 60,
-                      childAspectRatio: 1,
-                      crossAxisSpacing: 12,
-                      mainAxisSpacing: 12,
-                    ),
-                    itemCount: state.currentBook!.chapters ?? 50,
-                    itemBuilder: (context, index) {
-                      final chapter = index + 1;
-                      final isSelected = chapter == state.currentChapter;
-                      return InkWell(
-                        onTap: () {
-                          notifier.selectChapter(chapter);
-                          Navigator.pop(context);
-                        },
-                        child: Container(
-                          decoration: BoxDecoration(
-                            color: isSelected
-                                ? Theme.of(context).colorScheme.primaryContainer
-                                : Theme.of(context).colorScheme.surfaceContainerHighest,
-                            borderRadius: BorderRadius.circular(8),
-                            border: isSelected
-                                ? Border.all(color: Theme.of(context).colorScheme.primary)
-                                : null,
-                          ),
-                          alignment: Alignment.center,
-                          child: Text(
-                            '$chapter',
-                            style: TextStyle(
-                              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                              color: isSelected
-                                  ? Theme.of(context).colorScheme.primary
-                                  : Theme.of(context).colorScheme.onSurface,
-                            ),
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const Divider(height: 1),
-        ],
-        // Books list
-        Expanded(
-          child: ListView.builder(
-            controller: scrollController,
-            padding: const EdgeInsets.all(16),
-            itemCount: filteredBooks.length,
-            itemBuilder: (context, index) {
-              final book = filteredBooks[index];
-              final isSelected = book.id == state.currentBook?.id;
-              return ListTile(
-                title: Text(book.name),
-                selected: isSelected,
-                trailing: isSelected ? const Icon(Icons.check) : null,
-                onTap: () {
-                  notifier.selectBook(book);
-                  // Keep the same tab open to show chapters
-                },
-              );
-            },
-          ),
-        ),
-      ],
-    );
-  }
+  // Book/chapter selection is now inline via _showBookSelector state toggle
 
   void _scrollToVerse(int verseNumber) {
     // Find the verse in the list and scroll to it
@@ -926,5 +831,162 @@ class _BibleScreenState extends ConsumerState<BibleScreen> {
         });
       }
     });
+  }
+}
+
+/// Inline accordion-style book & chapter selector.
+/// Tapping a book expands it to show a chapter grid directly below.
+class _InlineBookChapterList extends StatefulWidget {
+  const _InlineBookChapterList({
+    required this.state,
+    required this.notifier,
+    required this.testament,
+    required this.scrollController,
+    this.onChapterSelected,
+  });
+
+  final BibleState state;
+  final BibleNotifier notifier;
+  final String testament;
+  final ScrollController scrollController;
+  final VoidCallback? onChapterSelected;
+
+  @override
+  State<_InlineBookChapterList> createState() => _InlineBookChapterListState();
+}
+
+class _InlineBookChapterListState extends State<_InlineBookChapterList> {
+  int? _expandedBookId;
+
+  @override
+  void initState() {
+    super.initState();
+    // Pre-expand the currently selected book
+    if (widget.state.currentBook != null &&
+        widget.state.currentBook!.testament == widget.testament) {
+      _expandedBookId = widget.state.currentBook!.id;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final filteredBooks = widget.state.books
+        .where((book) => book.testament == widget.testament)
+        .toList();
+
+    return ListView.builder(
+      controller: widget.scrollController,
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      itemCount: filteredBooks.length,
+      itemBuilder: (context, index) {
+        final book = filteredBooks[index];
+        final isExpanded = book.id == _expandedBookId;
+        final isCurrentBook = book.id == widget.state.currentBook?.id;
+
+        return Column(
+          children: [
+            // Book row
+            ListTile(
+              dense: true,
+              title: Text(
+                book.name,
+                style: TextStyle(
+                  fontWeight: isCurrentBook ? FontWeight.w700 : FontWeight.w500,
+                  color: isCurrentBook
+                      ? theme.colorScheme.primary
+                      : theme.colorScheme.onSurface,
+                ),
+              ),
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (isCurrentBook)
+                    Text(
+                      'Ch ${widget.state.currentChapter}',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.primary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  const SizedBox(width: 4),
+                  AnimatedRotation(
+                    turns: isExpanded ? 0.5 : 0,
+                    duration: const Duration(milliseconds: 200),
+                    child: Icon(
+                      Icons.expand_more,
+                      size: 20,
+                      color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                    ),
+                  ),
+                ],
+              ),
+              onTap: () {
+                setState(() {
+                  _expandedBookId = isExpanded ? null : book.id;
+                });
+                widget.notifier.selectBook(book);
+              },
+            ),
+
+            // Inline chapter grid (accordion)
+            AnimatedCrossFade(
+              firstChild: const SizedBox.shrink(),
+              secondChild: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                child: GridView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                    maxCrossAxisExtent: 52,
+                    childAspectRatio: 1,
+                    crossAxisSpacing: 8,
+                    mainAxisSpacing: 8,
+                  ),
+                  itemCount: book.chapters ?? 50,
+                  itemBuilder: (context, chapterIndex) {
+                    final chapter = chapterIndex + 1;
+                    final isSelected = isCurrentBook && chapter == widget.state.currentChapter;
+                    return InkWell(
+                      onTap: () {
+                        widget.notifier.selectChapter(chapter);
+                        widget.onChapterSelected?.call();
+                      },
+                      borderRadius: BorderRadius.circular(8),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: isSelected
+                              ? theme.colorScheme.primaryContainer
+                              : theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                          borderRadius: BorderRadius.circular(8),
+                          border: isSelected
+                              ? Border.all(color: theme.colorScheme.primary, width: 1.5)
+                              : null,
+                        ),
+                        alignment: Alignment.center,
+                        child: Text(
+                          '$chapter',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                            color: isSelected
+                                ? theme.colorScheme.primary
+                                : theme.colorScheme.onSurface,
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+              crossFadeState: isExpanded
+                  ? CrossFadeState.showSecond
+                  : CrossFadeState.showFirst,
+              duration: const Duration(milliseconds: 200),
+            ),
+          ],
+        );
+      },
+    );
   }
 }

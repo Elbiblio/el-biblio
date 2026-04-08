@@ -1,3 +1,5 @@
+import 'cardinal_vice.dart';
+
 class Archetype {
   final String name;
   final String identity;
@@ -10,6 +12,15 @@ class Archetype {
   final List<String> charityCommitments;
   final String inversionStrategy;
 
+  /// The dominant cardinal vice this archetype tends toward when distorted.
+  final CardinalVice? primaryVice;
+
+  /// The secondary vice that reinforces the primary distortion pattern.
+  final CardinalVice? secondaryVice;
+
+  /// Specific modern addiction patterns this archetype is most susceptible to.
+  final List<String> modernAddictions;
+
   const Archetype({
     required this.name,
     required this.identity,
@@ -21,6 +32,9 @@ class Archetype {
     this.disciplineCommitments = const [],
     this.charityCommitments = const [],
     this.inversionStrategy = '',
+    this.primaryVice,
+    this.secondaryVice,
+    this.modernAddictions = const [],
   });
 
   @override
@@ -68,6 +82,14 @@ class Archetype {
       ],
       inversionStrategy:
           'Your craving for novelty is actually a longing for the Creator. Channel it into discovering new facets of God\'s character through Scripture and prayer.',
+      primaryVice: CardinalVice.pride,
+      secondaryVice: CardinalVice.lust,
+      modernAddictions: [
+        'Social media validation and image curation',
+        'Entertainment and content binging',
+        'Comparison scrolling and creative envy',
+        'Novelty addiction — chasing trends over depth',
+      ],
     ),
     Archetype(
       name: 'Watchman',
@@ -102,6 +124,14 @@ class Archetype {
       ],
       inversionStrategy:
           'Your vigilance is a gift meant for intercession, not anxiety. When you feel the pull to monitor threats, redirect that energy into standing guard in prayer for those you love.',
+      primaryVice: CardinalVice.wrath,
+      secondaryVice: CardinalVice.pride,
+      modernAddictions: [
+        'Doomscrolling and catastrophizing',
+        'Judgmental monitoring of others online',
+        'Information hoarding for control',
+        'Isolation disguised as vigilance',
+      ],
     ),
     Archetype(
       name: 'Cultivator',
@@ -137,6 +167,14 @@ class Archetype {
       ],
       inversionStrategy:
           'Your desire to control growth comes from a deep love for potential. Release the outcome to God and focus on faithful planting — He is the one who gives the increase.',
+      primaryVice: CardinalVice.gluttony,
+      secondaryVice: CardinalVice.sloth,
+      modernAddictions: [
+        'Comfort eating and shopping as stress relief',
+        'Overworking to avoid surrendering control',
+        'Endless planning as substitute for trust',
+        'Routine avoidance of anything uncomfortable',
+      ],
     ),
     Archetype(
       name: 'Sower',
@@ -172,6 +210,14 @@ class Archetype {
       ],
       inversionStrategy:
           'Your boldness to start is a prophetic gift — but scattered seeds don\'t bear fruit. Ask God which field He wants you to focus on, and pour your fire into that one place.',
+      primaryVice: CardinalVice.pride,
+      secondaryVice: CardinalVice.greed,
+      modernAddictions: [
+        'Self-promotion and personal branding obsession',
+        'Novelty chasing — starting without finishing',
+        'Impatience with slow spiritual growth',
+        'Social media as validation platform',
+      ],
     ),
     Archetype(
       name: 'Welcomer',
@@ -207,6 +253,14 @@ class Archetype {
       ],
       inversionStrategy:
           'Your gift of creating belonging is powerful — but it becomes hollow when driven by fear of rejection. First welcome yourself into God\'s love, then extend that welcome to others from overflow.',
+      primaryVice: CardinalVice.sloth,
+      secondaryVice: CardinalVice.gluttony,
+      modernAddictions: [
+        'People-pleasing and saying yes to everything',
+        'Comfort escapism — eating, shopping, streaming',
+        'Shallow social media connection without vulnerability',
+        'Avoiding difficult conversations for surface peace',
+      ],
     ),
     Archetype(
       name: 'Pillar',
@@ -241,6 +295,14 @@ class Archetype {
       ],
       inversionStrategy:
           'Your faithfulness in the background is not invisibility — it is the posture of Christ. But He also calls you to step forward. Your reliability is the foundation; now build something on it.',
+      primaryVice: CardinalVice.envy,
+      secondaryVice: CardinalVice.sloth,
+      modernAddictions: [
+        'Resentment scrolling — watching others get recognized',
+        'Passive content consumption while neglecting own gifts',
+        'Enabling others\' poor habits by always picking up slack',
+        'Avoiding own calling through busyness for others',
+      ],
     ),
     Archetype(
       name: 'Sentinel',
@@ -276,6 +338,14 @@ class Archetype {
       ],
       inversionStrategy:
           'Your depth of insight is rare and precious — but insight without action is pride. God gave you eyes to see so that you can lead others into what He\'s revealing. Step out of the watchtower.',
+      primaryVice: CardinalVice.pride,
+      secondaryVice: CardinalVice.sloth,
+      modernAddictions: [
+        'Analysis paralysis and overthinking',
+        'Spiritual pride from deep insights',
+        'Content consumption without application',
+        'Isolation disguised as contemplation',
+      ],
     ),
     Archetype(
       name: 'Bridgebuilder',
@@ -310,6 +380,14 @@ class Archetype {
       ],
       inversionStrategy:
           'Your gift of connection becomes your weakness when you connect everything except yourself to God. Build the bridge between your own soul and the Father first — then your bridges to others will carry real weight.',
+      primaryVice: CardinalVice.sloth,
+      secondaryVice: CardinalVice.envy,
+      modernAddictions: [
+        'People-pleasing across multiple platforms',
+        'Identity diffusion — losing self in others\' needs',
+        'Avoiding personal convictions to maintain peace',
+        'Shallow social media connection without depth',
+      ],
     ),
     Archetype(
       name: 'Healer',
@@ -344,6 +422,14 @@ class Archetype {
       ],
       inversionStrategy:
           'Your compassion is Christ-like, but the Savior complex is a counterfeit. You are not the healer — God is. Your role is to be present, point to Him, and let Him do the restoring through you.',
+      primaryVice: CardinalVice.pride,
+      secondaryVice: CardinalVice.gluttony,
+      modernAddictions: [
+        'Emotional numbing through entertainment or food',
+        'Savior complex — needing to fix everyone',
+        'Absorbing others\' pain while neglecting own wounds',
+        'Avoiding hard truths by focusing on healing others',
+      ],
     ),
     Archetype(
       name: 'Harvester',
@@ -379,6 +465,14 @@ class Archetype {
       ],
       inversionStrategy:
           'Your drive for results is a gift from the God who loves fruitfulness. But the harvest belongs to Him, not you. When you feel the pull to measure and optimize, pause and ask: "Am I gathering for God\'s kingdom or my own?"',
+      primaryVice: CardinalVice.greed,
+      secondaryVice: CardinalVice.pride,
+      modernAddictions: [
+        'Metrics obsession — followers, likes, productivity stats',
+        'Workaholism disguised as harvest season',
+        'Exploiting relationships for results',
+        'Superficial engagement — wide but shallow connections',
+      ],
     ),
     Archetype(
       name: 'Reformer',
@@ -413,6 +507,14 @@ class Archetype {
       ],
       inversionStrategy:
           'Your fire for justice is prophetic — but bitterness extinguishes it. Reformation without love becomes destruction. Let God purify your anger so it builds up what He wants built, not just tears down what offends you.',
+      primaryVice: CardinalVice.wrath,
+      secondaryVice: CardinalVice.pride,
+      modernAddictions: [
+        'Outrage addiction — always seeking the next fight',
+        'Social media activism replacing real action',
+        'Bitterness toward institutions and leaders',
+        'Idolizing disruption without building up',
+      ],
     ),
     Archetype(
       name: 'Architect',
@@ -448,6 +550,14 @@ class Archetype {
       ],
       inversionStrategy:
           'Your desire for order reflects God\'s nature as the great Architect. But when your systems become your security instead of God, they become a prison. Build with open hands — the blueprint belongs to Him.',
+      primaryVice: CardinalVice.pride,
+      secondaryVice: CardinalVice.greed,
+      modernAddictions: [
+        'Perfectionism that delays obedience',
+        'Over-planning as avoidance of surrender',
+        'Control addiction — needing every detail managed',
+        'Rigidity that resists the Spirit\'s leading',
+      ],
     ),
   ];
 

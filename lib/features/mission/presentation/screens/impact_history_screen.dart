@@ -3,9 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../core/di/app_providers.dart';
-import '../../domain/models/mission_action.dart';
-import '../../domain/models/mission_focus.dart';
-import '../widgets/mission_hub_sections.dart';
+import '../../application/mission_notifier.dart';
 
 enum TimeFilter { week, month, allTime }
 
@@ -17,17 +15,17 @@ class ImpactHistoryScreen extends ConsumerStatefulWidget {
 }
 
 class _ImpactHistoryScreenState extends ConsumerState<ImpactHistoryScreen> {
-  MissionFocusType? _focusFilter;
+  ImpactType? _typeFilter;
   TimeFilter _timeFilter = TimeFilter.allTime;
 
   @override
   Widget build(BuildContext context) {
-    final mission = ref.watch(missionProvider);
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
-    final filteredActions = _filterActions(mission.completedActions);
-    final stats = _calculateStats(filteredActions);
+    final timelineEvents = ref.read(missionProvider.notifier).impactTimeline;
+    final filteredEvents = _filterEvents(timelineEvents);
+    final stats = _calculateStats(timelineEvents);
 
     return Scaffold(
       appBar: AppBar(
@@ -41,42 +39,48 @@ class _ImpactHistoryScreenState extends ConsumerState<ImpactHistoryScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Statistics cards
                   Row(
                     children: [
                       Expanded(
                         child: _StatCard(
-                          label: 'Total',
-                          value: '${stats.total}',
-                          icon: Icons.task_alt_rounded,
-                          color: theme.colorScheme.primary,
+                          label: 'Actions',
+                          value: '${stats.actionCount}',
+                          icon: ImpactType.action.icon,
+                          color: ImpactType.action.color,
                         ),
                       ),
-                      const SizedBox(width: 12),
+                      const SizedBox(width: 8),
                       Expanded(
                         child: _StatCard(
-                          label: 'This Week',
-                          value: '${stats.thisWeek}',
-                          icon: Icons.calendar_view_week_rounded,
-                          color: Colors.blue,
+                          label: 'Giving',
+                          value: '${stats.generosityCount}',
+                          icon: ImpactType.generosity.icon,
+                          color: ImpactType.generosity.color,
                         ),
                       ),
-                      const SizedBox(width: 12),
+                      const SizedBox(width: 8),
                       Expanded(
                         child: _StatCard(
-                          label: 'Follow-ups',
-                          value: '${stats.followUps}',
-                          icon: Icons.check_circle_rounded,
-                          color: Colors.green,
+                          label: 'Faith',
+                          value: '${stats.evangelismCount}',
+                          icon: ImpactType.evangelism.icon,
+                          color: ImpactType.evangelism.color,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _StatCard(
+                          label: 'People',
+                          value: '${stats.relationshipCount}',
+                          icon: ImpactType.relationship.icon,
+                          color: ImpactType.relationship.color,
                         ),
                       ),
                     ],
                   ),
                   const SizedBox(height: 20),
-
-                  // Focus filter
                   Text(
-                    'Filter by focus',
+                    'Filter by type',
                     style: theme.textTheme.titleSmall?.copyWith(
                       fontWeight: FontWeight.w700,
                     ),
@@ -88,21 +92,21 @@ class _ImpactHistoryScreenState extends ConsumerState<ImpactHistoryScreen> {
                     children: [
                       _FilterChip(
                         label: 'All',
-                        isSelected: _focusFilter == null,
-                        onTap: () => setState(() => _focusFilter = null),
+                        isSelected: _typeFilter == null,
+                        onTap: () => setState(() => _typeFilter = null),
                       ),
-                      ...MissionFocusType.values.map(
-                        (focus) => _FilterChip(
-                          label: focus.label,
-                          isSelected: _focusFilter == focus,
-                          onTap: () => setState(() => _focusFilter = focus),
+                      ...ImpactType.values.map(
+                        (type) => _FilterChip(
+                          label: type.label,
+                          isSelected: _typeFilter == type,
+                          onTap: () => setState(() => _typeFilter = type),
+                          icon: type.icon,
+                          color: type.color,
                         ),
                       ),
                     ],
                   ),
                   const SizedBox(height: 16),
-
-                  // Time filter
                   Text(
                     'Time period',
                     style: theme.textTheme.titleSmall?.copyWith(
@@ -135,9 +139,7 @@ class _ImpactHistoryScreenState extends ConsumerState<ImpactHistoryScreen> {
               ),
             ),
           ),
-
-          // Timeline
-          if (filteredActions.isEmpty)
+          if (filteredEvents.isEmpty)
             SliverFillRemaining(
               child: Center(
                 child: Column(
@@ -150,9 +152,17 @@ class _ImpactHistoryScreenState extends ConsumerState<ImpactHistoryScreen> {
                     ),
                     const SizedBox(height: 16),
                     Text(
-                      'No completed actions yet',
+                      'No impact recorded yet',
                       style: theme.textTheme.titleMedium?.copyWith(
                         color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Complete mission actions, record generosity,\nlog evangelism, or help specific people',
+                      textAlign: TextAlign.center,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
                       ),
                     ),
                   ],
@@ -165,31 +175,27 @@ class _ImpactHistoryScreenState extends ConsumerState<ImpactHistoryScreen> {
               sliver: SliverList(
                 delegate: SliverChildBuilderDelegate(
                   (context, index) {
-                    final action = filteredActions[index];
+                    final event = filteredEvents[index];
                     final showDateHeader = index == 0 ||
-                        _getDateGroup(action.completedAt!) !=
-                            _getDateGroup(filteredActions[index - 1].completedAt!);
+                        _getDateGroup(event.date) !=
+                            _getDateGroup(filteredEvents[index - 1].date);
 
                     return Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         if (showDateHeader) ...[
-                          _DateHeader(date: action.completedAt!),
+                          _DateHeader(date: event.date),
                           const SizedBox(height: 8),
                         ],
-                        MissionActionCard(
-                          action: action,
+                        _ImpactEventCard(
+                          event: event,
                           isDark: isDark,
-                          onToggle: () {
-                            // Allow toggling back to incomplete if needed
-                            ref.read(missionProvider.notifier).toggleCompleted(action);
-                          },
                         ),
                         const SizedBox(height: 12),
                       ],
                     );
                   },
-                  childCount: filteredActions.length,
+                  childCount: filteredEvents.length,
                 ),
               ),
             ),
@@ -198,56 +204,49 @@ class _ImpactHistoryScreenState extends ConsumerState<ImpactHistoryScreen> {
     );
   }
 
-  List<MissionAction> _filterActions(List<MissionAction> actions) {
-    var filtered = actions;
+  List<ImpactTimelineEvent> _filterEvents(List<ImpactTimelineEvent> events) {
+    var filtered = events;
 
-    // Filter by focus
-    if (_focusFilter != null) {
-      filtered = filtered.where((a) => a.focus == _focusFilter).toList();
+    if (_typeFilter != null) {
+      filtered = filtered.where((e) => e.type == _typeFilter).toList();
     }
 
-    // Filter by time
     final now = DateTime.now();
     switch (_timeFilter) {
       case TimeFilter.week:
         final weekAgo = now.subtract(const Duration(days: 7));
-        filtered = filtered
-            .where((a) => a.completedAt != null && a.completedAt!.isAfter(weekAgo))
-            .toList();
+        filtered = filtered.where((e) => e.date.isAfter(weekAgo)).toList();
         break;
       case TimeFilter.month:
         final monthAgo = now.subtract(const Duration(days: 30));
-        filtered = filtered
-            .where((a) => a.completedAt != null && a.completedAt!.isAfter(monthAgo))
-            .toList();
+        filtered = filtered.where((e) => e.date.isAfter(monthAgo)).toList();
         break;
       case TimeFilter.allTime:
         break;
     }
 
-    // Sort by completion date (newest first)
-    filtered.sort((a, b) => (b.completedAt ?? a.createdAt).compareTo(a.completedAt ?? a.createdAt));
-
     return filtered;
   }
 
-  _ImpactStats _calculateStats(List<MissionAction> actions) {
+  _ImpactStats _calculateStats(List<ImpactTimelineEvent> events) {
     final now = DateTime.now();
     final weekAgo = now.subtract(const Duration(days: 7));
 
     return _ImpactStats(
-      total: actions.length,
-      thisWeek: actions.where((a) => a.completedAt != null && a.completedAt!.isAfter(weekAgo)).length,
-      followUps: actions.where((a) => a.followUpCompletedAt != null).length,
+      actionCount: events.where((e) => e.type == ImpactType.action).length,
+      generosityCount: events.where((e) => e.type == ImpactType.generosity).length,
+      evangelismCount: events.where((e) => e.type == ImpactType.evangelism).length,
+      relationshipCount: events.where((e) => e.type == ImpactType.relationship).length,
+      thisWeek: events.where((e) => e.date.isAfter(weekAgo)).length,
     );
   }
 
   String _getDateGroup(DateTime date) {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
-    final actionDate = DateTime(date.year, date.month, date.day);
+    final eventDate = DateTime(date.year, date.month, date.day);
 
-    final difference = today.difference(actionDate).inDays;
+    final difference = today.difference(eventDate).inDays;
 
     if (difference == 0) return 'Today';
     if (difference == 1) return 'Yesterday';
@@ -276,9 +275,9 @@ class _StatCard extends StatelessWidget {
     final isDark = theme.brightness == Brightness.dark;
 
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(12),
         color: color.withValues(alpha: isDark ? 0.15 : 0.1),
         border: Border.all(
           color: color.withValues(alpha: 0.3),
@@ -286,11 +285,11 @@ class _StatCard extends StatelessWidget {
       ),
       child: Column(
         children: [
-          Icon(icon, color: color, size: 24),
-          const SizedBox(height: 8),
+          Icon(icon, color: color, size: 20),
+          const SizedBox(height: 4),
           Text(
             value,
-            style: theme.textTheme.headlineSmall?.copyWith(
+            style: theme.textTheme.titleMedium?.copyWith(
               fontWeight: FontWeight.w800,
               color: color,
             ),
@@ -299,6 +298,7 @@ class _StatCard extends StatelessWidget {
           Text(
             label,
             style: theme.textTheme.bodySmall?.copyWith(
+              fontSize: 11,
               color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
             ),
           ),
@@ -313,25 +313,42 @@ class _FilterChip extends StatelessWidget {
     required this.label,
     required this.isSelected,
     required this.onTap,
+    this.icon,
+    this.color,
   });
 
   final String label;
   final bool isSelected;
   final VoidCallback onTap;
+  final IconData? icon;
+  final Color? color;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
     return FilterChip(
-      label: Text(label),
+      label: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (icon != null) ...[
+            Icon(
+              icon,
+              size: 16,
+              color: isSelected ? (color ?? theme.colorScheme.primary) : theme.colorScheme.onSurface.withValues(alpha: 0.6),
+            ),
+            const SizedBox(width: 6),
+          ],
+          Text(label),
+        ],
+      ),
       selected: isSelected,
       onSelected: (_) => onTap(),
-      selectedColor: theme.colorScheme.primary.withValues(alpha: 0.15),
+      selectedColor: (color ?? theme.colorScheme.primary).withValues(alpha: 0.15),
       labelStyle: TextStyle(
         fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
         color: isSelected
-            ? theme.colorScheme.primary
+            ? (color ?? theme.colorScheme.primary)
             : theme.colorScheme.onSurface.withValues(alpha: 0.75),
       ),
     );
@@ -360,14 +377,158 @@ class _DateHeader extends StatelessWidget {
   }
 }
 
+class _ImpactEventCard extends StatelessWidget {
+  const _ImpactEventCard({
+    required this.event,
+    required this.isDark,
+  });
+
+  final ImpactTimelineEvent event;
+  final bool isDark;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final color = event.type.color;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        color: theme.colorScheme.surface,
+        border: Border.all(
+          color: theme.colorScheme.outline.withValues(alpha: 0.3),
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: isDark ? 0.2 : 0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(
+              event.type.icon,
+              color: color,
+              size: 24,
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: color.withValues(alpha: isDark ? 0.2 : 0.1),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        event.type.label,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: color,
+                        ),
+                      ),
+                    ),
+                    if (event.personName != null) ...[
+                      const SizedBox(width: 8),
+                      Icon(
+                        Icons.person_outline,
+                        size: 14,
+                        color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        event.personName!,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  event.title,
+                  style: theme.textTheme.bodyLarge?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  event.description,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+                  ),
+                ),
+                if (event.decisionMade != null) ...[
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: _getDecisionColor(event.decisionMade!).withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(4),
+                      border: Border.all(
+                        color: _getDecisionColor(event.decisionMade!).withValues(alpha: 0.3),
+                      ),
+                    ),
+                    child: Text(
+                      'Decision: ${_capitalizeFirst(event.decisionMade!)}',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: _getDecisionColor(event.decisionMade!),
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Color _getDecisionColor(String decision) {
+    switch (decision.toLowerCase()) {
+      case 'accepted':
+        return Colors.green;
+      case 'considering':
+        return Colors.orange;
+      case 'not-ready':
+        return Colors.blue;
+      case 'declined':
+        return Colors.red;
+      default:
+        return Colors.grey;
+    }
+  }
+
+  String _capitalizeFirst(String text) {
+    if (text.isEmpty) return text;
+    return text[0].toUpperCase() + text.substring(1);
+  }
+}
+
 class _ImpactStats {
-  final int total;
+  final int actionCount;
+  final int generosityCount;
+  final int evangelismCount;
+  final int relationshipCount;
   final int thisWeek;
-  final int followUps;
 
   _ImpactStats({
-    required this.total,
+    required this.actionCount,
+    required this.generosityCount,
+    required this.evangelismCount,
+    required this.relationshipCount,
     required this.thisWeek,
-    required this.followUps,
   });
 }

@@ -118,10 +118,10 @@ extension TimeContextX on TimeContext {
       };
 
   String get focus => switch (this) {
-        TimeContext.morning => 'Your clarity journey continues.',
-        TimeContext.midday => 'Stay anchored in clarity.',
-        TimeContext.evening => 'Reflect on today\'s clarity.',
-        TimeContext.night => 'Let stillness restore your clarity.',
+        TimeContext.morning => 'Begin your day with God.',
+        TimeContext.midday => 'Stay focused on your calling.',
+        TimeContext.evening => 'Reflect on how God moved today.',
+        TimeContext.night => 'Let God restore your soul.',
       };
 
   static TimeContext fromHour(int hour) {

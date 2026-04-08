@@ -4,12 +4,18 @@ import 'package:elbiblio/core/repository/base_repository.dart';
 import 'package:logger/logger.dart';
 
 import '../domain/models/mission_action.dart';
+import '../domain/models/evangelism_conversation.dart';
+import '../domain/models/generosity_record.dart';
+import '../domain/models/person_commitment.dart';
+import '../domain/models/service_opportunity.dart';
+import '../domain/models/accountability_check_in.dart';
 
 class MissionSyncRepository extends BaseRepository {
   MissionSyncRepository(this._dioClient, Logger logger) : super(logger);
 
   final DioClient _dioClient;
 
+  // ========== Mission Actions ==========
   Future<List<MissionAction>> fetchActions({String? focus}) async {
     return guard(() async {
       final queryParams = <String, dynamic>{};
@@ -94,5 +100,338 @@ class MissionSyncRepository extends BaseRepository {
     return guard(() async {
       await _dioClient.delete<dynamic>('/mission-actions/$id');
     }, operation: 'delete_mission_action');
+  }
+
+  // ========== Evangelism Conversations ==========
+  Future<List<EvangelismConversation>> fetchEvangelismConversations({
+    bool? ongoing,
+    bool? needsFollowUp,
+  }) async {
+    return guard(() async {
+      final queryParams = <String, dynamic>{};
+      if (ongoing != null) queryParams['ongoing'] = ongoing;
+      if (needsFollowUp != null) queryParams['needs_follow_up'] = needsFollowUp;
+
+      final response = await _dioClient.get<List<dynamic>>(
+        '/evangelism-conversations',
+        queryParameters: queryParams.isNotEmpty ? queryParams : null,
+      );
+
+      final data = response.data;
+      if (data == null) return [];
+
+      return data.map((json) {
+        final map = json as Map<String, dynamic>;
+        return EvangelismConversation.fromMap(map);
+      }).toList();
+    }, operation: 'fetch_evangelism_conversations');
+  }
+
+  Future<EvangelismConversation> createEvangelismConversation(EvangelismConversation conversation) async {
+    return guard(() async {
+      final response = await _dioClient.post<Map<String, dynamic>>(
+        '/evangelism-conversations',
+        data: conversation.toMap(),
+      );
+
+      final data = response.data;
+      if (data == null) {
+        throw AppException('Failed to create evangelism conversation', 'create_failed');
+      }
+
+      return EvangelismConversation.fromMap(data);
+    }, operation: 'create_evangelism_conversation');
+  }
+
+  Future<EvangelismConversation> recordEvangelismFollowUp(
+    String conversationId, {
+    String? notes,
+    String? newResponseType,
+    List<String>? newPrayerRequests,
+    String? decisionMade,
+  }) async {
+    return guard(() async {
+      final response = await _dioClient.post<Map<String, dynamic>>(
+        '/evangelism-conversations/$conversationId/follow-up',
+        data: {
+          if (notes != null) 'notes': notes,
+          if (newResponseType != null) 'new_response_type': newResponseType,
+          if (newPrayerRequests != null) 'new_prayer_requests': newPrayerRequests,
+          if (decisionMade != null) 'decision_made': decisionMade,
+          'follow_up_date': DateTime.now().toIso8601String(),
+        },
+      );
+
+      final data = response.data;
+      if (data == null) {
+        throw AppException('Failed to record follow-up', 'followup_failed');
+      }
+
+      return EvangelismConversation.fromMap(data);
+    }, operation: 'record_evangelism_follow_up');
+  }
+
+  // ========== Generosity Records ==========
+  Future<List<GenerosityRecord>> fetchGenerosityRecords({
+    String? type,
+    String? category,
+    DateTime? startDate,
+    DateTime? endDate,
+  }) async {
+    return guard(() async {
+      final queryParams = <String, dynamic>{};
+      if (type != null) queryParams['type'] = type;
+      if (category != null) queryParams['category'] = category;
+      if (startDate != null) queryParams['start_date'] = startDate.toIso8601String();
+      if (endDate != null) queryParams['end_date'] = endDate.toIso8601String();
+
+      final response = await _dioClient.get<List<dynamic>>(
+        '/generosity-records',
+        queryParameters: queryParams.isNotEmpty ? queryParams : null,
+      );
+
+      final data = response.data;
+      if (data == null) return [];
+
+      return data.map((json) {
+        final map = json as Map<String, dynamic>;
+        return GenerosityRecord.fromMap(map);
+      }).toList();
+    }, operation: 'fetch_generosity_records');
+  }
+
+  Future<GenerosityRecord> createGenerosityRecord(GenerosityRecord record) async {
+    return guard(() async {
+      final response = await _dioClient.post<Map<String, dynamic>>(
+        '/generosity-records',
+        data: record.toMap(),
+      );
+
+      final data = response.data;
+      if (data == null) {
+        throw AppException('Failed to create generosity record', 'create_failed');
+      }
+
+      return GenerosityRecord.fromMap(data);
+    }, operation: 'create_generosity_record');
+  }
+
+  Future<Map<String, dynamic>> getGenerositySummary({
+    DateTime? startDate,
+    DateTime? endDate,
+  }) async {
+    return guard(() async {
+      final queryParams = <String, dynamic>{};
+      if (startDate != null) queryParams['start_date'] = startDate.toIso8601String();
+      if (endDate != null) queryParams['end_date'] = endDate.toIso8601String();
+
+      final response = await _dioClient.get<Map<String, dynamic>>(
+        '/generosity-records/summary',
+        queryParameters: queryParams.isNotEmpty ? queryParams : null,
+      );
+
+      return response.data ?? {};
+    }, operation: 'get_generosity_summary');
+  }
+
+  // ========== Person Commitments ==========
+  Future<List<PersonCommitment>> fetchPersonCommitments({
+    bool? active,
+    bool? needsFollowUp,
+  }) async {
+    return guard(() async {
+      final queryParams = <String, dynamic>{};
+      if (active != null) queryParams['active'] = active;
+      if (needsFollowUp != null) queryParams['needs_follow_up'] = needsFollowUp;
+
+      final response = await _dioClient.get<List<dynamic>>(
+        '/person-commitments',
+        queryParameters: queryParams.isNotEmpty ? queryParams : null,
+      );
+
+      final data = response.data;
+      if (data == null) return [];
+
+      return data.map((json) {
+        final map = json as Map<String, dynamic>;
+        return PersonCommitment.fromMap(map);
+      }).toList();
+    }, operation: 'fetch_person_commitments');
+  }
+
+  Future<PersonCommitment> createPersonCommitment(PersonCommitment commitment) async {
+    return guard(() async {
+      final response = await _dioClient.post<Map<String, dynamic>>(
+        '/person-commitments',
+        data: commitment.toMap(),
+      );
+
+      final data = response.data;
+      if (data == null) {
+        throw AppException('Failed to create person commitment', 'create_failed');
+      }
+
+      return PersonCommitment.fromMap(data);
+    }, operation: 'create_person_commitment');
+  }
+
+  Future<PersonCommitment> recordContact(String commitmentId, {
+    String? actionId,
+    DateTime? nextFollowUpAt,
+    String? notes,
+  }) async {
+    return guard(() async {
+      final response = await _dioClient.post<Map<String, dynamic>>(
+        '/person-commitments/$commitmentId/contact',
+        data: {
+          if (actionId != null) 'action_id': actionId,
+          if (nextFollowUpAt != null) 'next_follow_up_at': nextFollowUpAt.toIso8601String(),
+          if (notes != null) 'notes': notes,
+        },
+      );
+
+      final data = response.data;
+      if (data == null) {
+        throw AppException('Failed to record contact', 'contact_failed');
+      }
+
+      return PersonCommitment.fromMap(data);
+    }, operation: 'record_contact');
+  }
+
+  // ========== Service Opportunities ==========
+  Future<List<ServiceOpportunity>> fetchServiceOpportunities({
+    String? category,
+    String? locationType,
+  }) async {
+    return guard(() async {
+      final queryParams = <String, dynamic>{};
+      if (category != null) queryParams['category'] = category;
+      if (locationType != null) queryParams['location_type'] = locationType;
+
+      final response = await _dioClient.get<List<dynamic>>(
+        '/service-opportunities',
+        queryParameters: queryParams.isNotEmpty ? queryParams : null,
+      );
+
+      final data = response.data;
+      if (data == null) return [];
+
+      return data.map((json) {
+        final map = json as Map<String, dynamic>;
+        return ServiceOpportunity.fromMap(map);
+      }).toList();
+    }, operation: 'fetch_service_opportunities');
+  }
+
+  Future<List<ServiceOpportunity>> generateServiceMatches() async {
+    return guard(() async {
+      final response = await _dioClient.post<List<dynamic>>(
+        '/service-opportunities/generate-matches',
+      );
+
+      final data = response.data;
+      if (data == null) return [];
+
+      return data.map((json) {
+        final map = json as Map<String, dynamic>;
+        return ServiceOpportunity.fromMap(map['service_opportunity'] ?? map);
+      }).toList();
+    }, operation: 'generate_service_matches');
+  }
+
+  Future<void> commitToServiceOpportunity(String opportunityId) async {
+    return guard(() async {
+      await _dioClient.post<dynamic>('/service-opportunities/$opportunityId/commit');
+    }, operation: 'commit_to_service_opportunity');
+  }
+
+  Future<void> completeServiceOpportunity(String opportunityId) async {
+    return guard(() async {
+      await _dioClient.post<dynamic>('/service-opportunities/$opportunityId/complete');
+    }, operation: 'complete_service_opportunity');
+  }
+
+  // ========== Accountability Check-Ins ==========
+  Future<List<AccountabilityCheckIn>> fetchAccountabilityCheckIns({
+    String? status,
+    bool? pending,
+  }) async {
+    return guard(() async {
+      final queryParams = <String, dynamic>{};
+      if (status != null) queryParams['status'] = status;
+      if (pending != null) queryParams['pending'] = pending;
+
+      final response = await _dioClient.get<List<dynamic>>(
+        '/accountability-check-ins',
+        queryParameters: queryParams.isNotEmpty ? queryParams : null,
+      );
+
+      final data = response.data;
+      if (data == null) return [];
+
+      return data.map((json) {
+        final map = json as Map<String, dynamic>;
+        return AccountabilityCheckIn.fromMap(map);
+      }).toList();
+    }, operation: 'fetch_accountability_check_ins');
+  }
+
+  Future<AccountabilityCheckIn> requestCheckIn({
+    required String partnerUserId,
+    required DateTime weekStartDate,
+    String? note,
+    List<String>? verifiedCommitmentIds,
+  }) async {
+    return guard(() async {
+      final response = await _dioClient.post<Map<String, dynamic>>(
+        '/accountability-check-ins',
+        data: {
+          'partner_user_id': partnerUserId,
+          'week_start_date': weekStartDate.toIso8601String(),
+          'note': note,
+          'verified_commitment_ids': verifiedCommitmentIds ?? [],
+        },
+      );
+
+      final data = response.data;
+      if (data == null) {
+        throw AppException('Failed to request check-in', 'request_failed');
+      }
+
+      return AccountabilityCheckIn.fromMap(data);
+    }, operation: 'request_check_in');
+  }
+
+  Future<AccountabilityCheckIn> confirmCheckIn(
+    String checkInId, {
+    String? confirmationNote,
+    List<String>? verifiedCommitments,
+  }) async {
+    return guard(() async {
+      final response = await _dioClient.post<Map<String, dynamic>>(
+        '/accountability-check-ins/$checkInId/confirm',
+        data: {
+          if (confirmationNote != null) 'confirmation_note': confirmationNote,
+          if (verifiedCommitments != null) 'verified_commitments': verifiedCommitments,
+        },
+      );
+
+      final data = response.data;
+      if (data == null) {
+        throw AppException('Failed to confirm check-in', 'confirm_failed');
+      }
+
+      return AccountabilityCheckIn.fromMap(data);
+    }, operation: 'confirm_check_in');
+  }
+
+  Future<Map<String, dynamic>> getAccountabilityStats() async {
+    return guard(() async {
+      final response = await _dioClient.get<Map<String, dynamic>>(
+        '/accountability-check-ins/stats',
+      );
+      return response.data ?? {};
+    }, operation: 'get_accountability_stats');
   }
 }

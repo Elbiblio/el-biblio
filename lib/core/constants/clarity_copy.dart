@@ -48,7 +48,7 @@ class ClarityCopy {
       'Discover how your God-given identity shapes your calling and career.';
 
   // Commitments
-  static const commitmentJourneyTitle = 'Clarity Commitments';
+  static const commitmentJourneyTitle = 'Spiritual Commitments';
   static const commitmentJourneySubtitle =
       'Build spiritual habits across three tracks: Prayer, Scripture, and Service.';
 }

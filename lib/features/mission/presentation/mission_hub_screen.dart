@@ -56,12 +56,32 @@ class MissionHubScreen extends ConsumerWidget {
                       );
                     }).toList(),
                   ),
-                  const SizedBox(height: 20),
+                  // Focus description — contextualizes what this focus means
+                  const SizedBox(height: 8),
                   Text(
-                    'Suggested steps',
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w700,
+                    mission.focus.description,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                      height: 1.4,
                     ),
+                  ),
+                  const SizedBox(height: 24),
+                  Row(
+                    children: [
+                      Text(
+                        'Suggested Actions',
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Tap to add to today',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurface.withValues(alpha: 0.35),
+                        ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 10),
                   ..._templatesFor(mission.focus).map(
@@ -71,40 +91,64 @@ class MissionHubScreen extends ConsumerWidget {
                         title: template.title,
                         description: template.description,
                         badge: template.badge,
-                        onTap: () => notifier.addAction(
-                          title: template.title,
-                          description: template.description,
-                          requiresFollowUp: template.requiresFollowUp,
-                        ),
+                        onTap: () {
+                          notifier.addAction(
+                            title: template.title,
+                            description: template.description,
+                            requiresFollowUp: template.requiresFollowUp,
+                          );
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: const Text('Action added to your list'),
+                              duration: const Duration(seconds: 2),
+                              behavior: SnackBarBehavior.floating,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                            ),
+                          );
+                        },
                       ),
                     ),
                   ),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: () => context.push(AppRoutes.actOpportunities),
-                          icon: const Icon(Icons.search_rounded, size: 18),
-                          label: const Text('Opportunities'),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: () => _showCustomActionSheet(context, ref),
-                          icon: const Icon(Icons.add_rounded),
-                          label: const Text('Add action'),
-                        ),
-                      ),
-                    ],
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton.icon(
+                      onPressed: () => _showCustomActionSheet(context, ref),
+                      icon: const Icon(Icons.add_rounded),
+                      label: const Text('Create Your Own'),
+                    ),
                   ),
                   const SizedBox(height: 24),
-                  if (mission.pendingActions.isNotEmpty) ...[
-                    Text(
-                      'In progress',
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
+
+                  // All actions: pending first, then completed
+                  if (mission.pendingActions.isNotEmpty || mission.completedActions.isNotEmpty) ...[
+                    Row(
+                      children: [
+                        Text(
+                          'Today\'s Actions',
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        if (mission.pendingActions.isNotEmpty) ...[
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: theme.colorScheme.primary.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Text(
+                              '${mission.pendingActions.length}',
+                              style: theme.textTheme.labelSmall?.copyWith(
+                                color: theme.colorScheme.primary,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
                     const SizedBox(height: 10),
                     ...mission.pendingActions.map(
@@ -117,86 +161,91 @@ class MissionHubScreen extends ConsumerWidget {
                         ),
                       ),
                     ),
-                    const SizedBox(height: 24),
-                  ],
-                  if (mission.completedActions.isNotEmpty) ...[
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            'Impact history',
-                            style: theme.textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ),
-                        Text(
-                          '${mission.completedActions.length} completed',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        if (mission.completedActions.length > 4) ...[
-                          const SizedBox(width: 8),
-                          TextButton(
-                            onPressed: () => context.push(AppRoutes.actHistory),
-                            child: const Text('View all'),
-                          ),
-                        ],
-                      ],
-                    ),
-                    const SizedBox(height: 10),
                     ...mission.completedActions.take(4).map(
                       (action) => Padding(
                         padding: const EdgeInsets.only(bottom: 12),
-                        child: MissionActionCard(
-                          action: action,
-                          isDark: isDark,
-                          onToggle: () => notifier.toggleCompleted(action),
+                        child: Opacity(
+                          opacity: 0.6,
+                          child: MissionActionCard(
+                            action: action,
+                            isDark: isDark,
+                            onToggle: () => notifier.toggleCompleted(action),
+                          ),
                         ),
                       ),
                     ),
-                    const SizedBox(height: 16),
+                    if (mission.completedActions.length > 4)
+                      Center(
+                        child: TextButton(
+                          onPressed: () => context.push(AppRoutes.actHistory),
+                          child: Text('View all ${mission.completedActions.length} completed'),
+                        ),
+                      ),
+                    const SizedBox(height: 24),
                   ],
+
+                  // Impact summary
                   Container(
                     padding: const EdgeInsets.all(18),
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(18),
-                      color: theme.colorScheme.secondaryContainer.withValues(alpha: isDark ? 0.32 : 0.55),
+                      color: theme.colorScheme.primaryContainer.withValues(alpha: isDark ? 0.2 : 0.3),
                     ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceAround,
                       children: [
-                        Text(
-                          'Bring someone in',
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w700,
-                          ),
+                        _ImpactStat(
+                          value: '${mission.completedActions.length}',
+                          label: 'Done',
+                          icon: Icons.check_circle_outline_rounded,
+                          color: theme.colorScheme.primary,
                         ),
-                        const SizedBox(height: 8),
-                        Text(
-                          mission.accountabilityPartner == null
-                              ? 'Add one trusted person so your next step does not stay private.'
-                              : 'Keep ${mission.accountabilityPartner!.name} in the loop on your next step.',
-                          style: theme.textTheme.bodyMedium?.copyWith(
-                            height: 1.5,
-                            color: theme.colorScheme.onSurface.withValues(alpha: 0.72),
-                          ),
+                        _ImpactStat(
+                          value: '${mission.pendingActions.length}',
+                          label: 'Active',
+                          icon: Icons.pending_actions_rounded,
+                          color: theme.colorScheme.secondary,
                         ),
-                        const SizedBox(height: 14),
-                        FilledButton.tonalIcon(
-                          onPressed: () => context.push(AppRoutes.growTogether),
-                          icon: const Icon(Icons.people_alt_rounded),
-                          label: Text(
-                            mission.accountabilityPartner == null
-                                ? 'Add partner'
-                                : 'Open partner',
-                          ),
+                        _ImpactStat(
+                          value: '${mission.pendingActions.where((a) => a.requiresFollowUp).length}',
+                          label: 'Follow-up',
+                          icon: Icons.schedule_rounded,
+                          color: theme.colorScheme.tertiary,
                         ),
                       ],
                     ),
                   ),
+
+                  const SizedBox(height: 16),
+
+                  // Accountability partner
+                  if (mission.accountabilityPartner != null)
+                    Container(
+                      padding: const EdgeInsets.all(18),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(18),
+                        color: theme.colorScheme.secondaryContainer.withValues(alpha: isDark ? 0.32 : 0.55),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(Icons.people_alt_rounded, color: theme.colorScheme.primary),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              'Walking with ${mission.accountabilityPartner!.name}',
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: () => context.push(AppRoutes.growTogether),
+                            child: const Text('Check in'),
+                          ),
+                        ],
+                      ),
+                    ),
+
                   const SizedBox(height: 120),
                 ]),
               ),
@@ -361,5 +410,43 @@ class MissionHubScreen extends ConsumerWidget {
           ),
         ],
     };
+  }
+}
+
+class _ImpactStat extends StatelessWidget {
+  const _ImpactStat({
+    required this.value,
+    required this.label,
+    required this.icon,
+    required this.color,
+  });
+
+  final String value;
+  final String label;
+  final IconData icon;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      children: [
+        Icon(icon, color: color, size: 20),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          style: theme.textTheme.titleLarge?.copyWith(
+            fontWeight: FontWeight.w700,
+            color: color,
+          ),
+        ),
+        Text(
+          label,
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+          ),
+        ),
+      ],
+    );
   }
 }

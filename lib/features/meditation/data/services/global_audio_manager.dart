@@ -1,6 +1,7 @@
 import 'dart:async';
+import 'package:audioplayers/audioplayers.dart';
 import 'package:logger/logger.dart';
-import 'improved_audio_service.dart';
+import 'meditation_audio_service.dart';
 
 /// Global audio manager to prevent multiple audio streams from playing simultaneously
 class GlobalAudioManager {
@@ -9,14 +10,15 @@ class GlobalAudioManager {
   GlobalAudioManager._internal();
 
   final Logger _logger = Logger();
-  ImprovedAudioService? _currentAudioService;
+  final AudioPlayer _player = AudioPlayer();
+  MeditationAudioService? _currentAudioService;
   final StreamController<void> _stoppedController = StreamController<void>.broadcast();
 
   Stream<void> get onAudioStopped => _stoppedController.stream;
   
   /// Get the current active audio service or create a new one
-  ImprovedAudioService getAudioService() {
-    _currentAudioService ??= ImprovedAudioService();
+  MeditationAudioService getAudioService() {
+    _currentAudioService ??= MeditationAudioService(_player);
     return _currentAudioService!;
   }
 
@@ -44,6 +46,7 @@ class GlobalAudioManager {
       await _currentAudioService!.dispose();
       _currentAudioService = null;
     }
+    await _player.dispose();
     await _stoppedController.close();
   }
 

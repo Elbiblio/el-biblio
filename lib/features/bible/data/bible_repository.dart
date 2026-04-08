@@ -1,4 +1,4 @@
-import 'package:elbiblio/features/bible/data/services/bible_database_service.dart';
+import 'package:elbiblio/features/bible/data/services/enhanced_bible_database_service.dart';
 import 'package:elbiblio/features/bible/data/services/bible_history_service.dart';
 import 'package:elbiblio/features/bible/data/static_books.dart';
 import 'package:elbiblio/core/network/dio_client.dart';
@@ -22,7 +22,7 @@ class BibleRepository extends BaseRepository {
   BibleRepository(this._client, Logger logger, this._dbService, this._historyService) : super(logger);
 
   final DioClient _client;
-  final BibleDatabaseService _dbService;
+  final EnhancedBibleDatabaseService _dbService;
   final BibleHistoryService _historyService;
 
   Future<List<BibleBook>> getBooks() {

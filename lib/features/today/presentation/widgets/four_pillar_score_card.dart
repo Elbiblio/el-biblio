@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/di/app_providers.dart';
 
-/// A card widget showing all 4 Pillars of Clarity with progress bars.
+/// A card widget showing all 4 Pillars of Spiritual Growth with progress bars.
 class FourPillarScoreCard extends ConsumerWidget {
   const FourPillarScoreCard({super.key});
 
@@ -44,7 +44,7 @@ class FourPillarScoreCard extends ConsumerWidget {
                   ),
                   const SizedBox(width: 8),
                   Text(
-                    'Your Four Pillars of Clarity',
+                    'Your Four Pillars of Spiritual Growth',
                     style: theme.textTheme.titleSmall?.copyWith(
                       fontWeight: FontWeight.w700,
                       letterSpacing: -0.3,
@@ -105,7 +105,7 @@ class FourPillarScoreCard extends ConsumerWidget {
                         ),
                         const SizedBox(width: 6),
                         Text(
-                          'Overall Clarity',
+                          'Overall Progress',
                           style: theme.textTheme.bodyMedium?.copyWith(
                             fontWeight: FontWeight.w600,
                             color: theme.colorScheme.primary,

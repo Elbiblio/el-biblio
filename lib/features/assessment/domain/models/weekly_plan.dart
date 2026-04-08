@@ -1,3 +1,6 @@
+import '../../../commitments/domain/models/commitment_category.dart';
+import '../../../mission/domain/models/mission_focus.dart';
+
 /// A weekly plan or rule-of-life that translates the calling profile
 /// into concrete daily and weekly structure.
 class WeeklyPlan {
@@ -71,7 +74,9 @@ class WeeklyPlan {
       'weekStart': weekStart.toIso8601String(),
       'dailyAnchors': dailyAnchors.map((a) => a.toMap()).toList(),
       'weeklyCommitments': weeklyCommitments.map((c) => c.toMap()).toList(),
-      'missionFocusForWeek': missionFocusForWeek,
+      'missionFocusForWeek': MissionFocusTypeX.normalizeStorageValue(
+        missionFocusForWeek,
+      ),
       'accountabilityFocus': accountabilityFocus,
       'reflectionPrompt': reflectionPrompt,
       'createdAt': createdAt.toIso8601String(),
@@ -89,7 +94,9 @@ class WeeklyPlan {
       weeklyCommitments: (map['weeklyCommitments'] as List)
           .map((c) => WeeklyCommitment.fromMap(c as Map<String, dynamic>))
           .toList(),
-      missionFocusForWeek: map['missionFocusForWeek'] as String,
+      missionFocusForWeek: MissionFocusTypeX.normalizeStorageValue(
+        map['missionFocusForWeek'] as String?,
+      ),
       accountabilityFocus: map['accountabilityFocus'] as String,
       reflectionPrompt: map['reflectionPrompt'] as String,
       createdAt: DateTime.parse(map['createdAt'] as String),
@@ -203,7 +210,7 @@ class WeeklyCommitment {
       'description': description,
       'targetCount': targetCount,
       'currentCount': currentCount,
-      'category': category,
+      'category': CommitmentCategory.normalizeStorageValue(category),
     };
   }
 
@@ -215,7 +222,9 @@ class WeeklyCommitment {
       description: map['description'] as String,
       targetCount: map['targetCount'] as int,
       currentCount: map['currentCount'] as int,
-      category: map['category'] as String,
+      category: CommitmentCategory.normalizeStorageValue(
+        map['category'] as String?,
+      ),
     );
   }
 

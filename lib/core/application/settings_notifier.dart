@@ -3,8 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../features/assessment/application/calling_profile_service.dart';
 import '../../features/assessment/domain/models/archetype.dart';
 import '../../features/assessment/domain/models/weekly_plan.dart';
+import '../../features/commitments/domain/models/commitment_category.dart';
 import '../../features/mission/domain/models/accountability_partner.dart';
+import '../../features/mission/domain/models/kingdom_action_models.dart';
 import '../../features/mission/domain/models/mission_action.dart';
+import '../../features/mission/domain/models/mission_focus.dart';
 import '../../features/mission/domain/models/person_profile.dart';
 import '../services/analytics/app_analytics_service.dart';
 import '../../features/today/domain/models/daily_anchors.dart';
@@ -79,6 +82,12 @@ class SettingsNotifier extends StateNotifier<AppSettings> {
     String? primaryMissionFocus,
     List<String> personalDistractions = const [],
   }) async {
+    final normalizedCommitmentCategory = commitmentCategory == null
+        ? null
+        : CommitmentCategory.normalizeStorageValue(commitmentCategory);
+    final normalizedMissionFocus = primaryMissionFocus == null
+        ? null
+        : MissionFocusTypeX.normalizeStorageValue(primaryMissionFocus);
     var newSettings = state.copyWith(
       onboardingCompleted: true,
       primaryVirtue: primaryVirtue,
@@ -90,21 +99,33 @@ class SettingsNotifier extends StateNotifier<AppSettings> {
       socialPresenceOptIn: socialPresenceOptIn,
       contactsImported: contactsImported,
       primaryArchetypeId: primaryArchetypeId,
-      commitmentCategory: commitmentCategory,
-      primaryMissionFocus: primaryMissionFocus,
+      commitmentCategory: normalizedCommitmentCategory,
+      primaryMissionFocus: normalizedMissionFocus,
     );
 
     // Generate calling profile and weekly plan if we have archetype data
-    if (primaryArchetypeId != null &&
-        commitmentCategory != null &&
-        primaryMissionFocus != null) {
+    if (primaryArchetypeId != null && normalizedCommitmentCategory != null) {
       final archetype = Archetype.allArchetypes
           .firstWhere((a) => a.name == primaryArchetypeId);
 
+      // Auto-derive mission focus from commitment category if not explicitly set
+      final effectiveMissionFocus = normalizedMissionFocus ??
+          _recommendedMissionFocus(
+            CommitmentCategory.values.firstWhere(
+              (c) => c.name == normalizedCommitmentCategory,
+              orElse: () => CommitmentCategory.growth,
+            ),
+          ).name;
+
+      // Persist the derived mission focus
+      if (normalizedMissionFocus == null) {
+        newSettings = newSettings.copyWith(primaryMissionFocus: effectiveMissionFocus);
+      }
+
       final callingProfile = _callingProfileService.generateProfile(
         archetype: archetype,
-        commitmentCategory: commitmentCategory,
-        missionFocus: primaryMissionFocus,
+        commitmentCategory: normalizedCommitmentCategory,
+        missionFocus: effectiveMissionFocus,
         personalDistractions: personalDistractions,
       );
 
@@ -131,8 +152,8 @@ class SettingsNotifier extends StateNotifier<AppSettings> {
       AppAnalyticsEvent.onboardingCompleted,
       properties: {
         'primary_archetype': primaryArchetypeId,
-        'commitment_category': commitmentCategory,
-        'mission_focus': primaryMissionFocus,
+        'commitment_category': normalizedCommitmentCategory,
+        'mission_focus': normalizedMissionFocus,
       },
     );
   }
@@ -145,6 +166,149 @@ class SettingsNotifier extends StateNotifier<AppSettings> {
     );
     state = next;
     await _storage.save(next);
+  }
+
+  Future<void> generateCallingProfileFromAssessment({
+    required Archetype primaryArchetype,
+    List<String>? selectedTaskIds,
+  }) async {
+    // Only generate if no profile exists
+    if (state.callingProfile != null) {
+      return;
+    }
+
+    final recommendedCategory = CommitmentCategory.recommendedForArchetype(
+      primaryArchetype.name,
+    );
+    final commitmentCategory = recommendedCategory.name;
+    final missionFocus = _recommendedMissionFocus(recommendedCategory).name;
+    final personalDistractions = primaryArchetype.typicalDistractions;
+
+    final callingProfile = _callingProfileService.generateProfile(
+      archetype: primaryArchetype,
+      commitmentCategory: commitmentCategory,
+      missionFocus: missionFocus,
+      personalDistractions: personalDistractions,
+    );
+
+    // Generate initial weekly plan
+    final now = DateTime.now();
+    final weekStart = _startOfWeek(now);
+    var weeklyPlan = _callingProfileService.generateWeeklyPlan(
+      profile: callingProfile,
+      weekStart: weekStart,
+      morningTime: state.morningTime,
+      eveningTime: state.eveningTime,
+    );
+
+    // Add selected assessment tasks as weekly commitments
+    if (selectedTaskIds != null && selectedTaskIds.isNotEmpty) {
+      final additionalCommitments = _createCommitmentsFromTaskIds(selectedTaskIds);
+      weeklyPlan = weeklyPlan.copyWith(
+        weeklyCommitments: [
+          ...weeklyPlan.weeklyCommitments,
+          ...additionalCommitments,
+        ],
+      );
+    }
+
+    final newSettings = state.copyWith(
+      callingProfile: callingProfile,
+      currentWeeklyPlan: weeklyPlan,
+      primaryArchetypeId: primaryArchetype.name,
+      commitmentCategory: commitmentCategory,
+      primaryMissionFocus: missionFocus,
+    );
+
+    state = newSettings;
+    await _storage.save(newSettings);
+    _analytics.track(
+      AppAnalyticsEvent.callingProfileCreated,
+      properties: {
+        'source': 'assessment',
+        'archetype': primaryArchetype.name,
+        'mission_focus': missionFocus,
+        'tasks_count': selectedTaskIds?.length ?? 0,
+      },
+    );
+  }
+
+  List<WeeklyCommitment> _createCommitmentsFromTaskIds(List<String> taskIds) {
+    // Map task IDs to WeeklyCommitments
+    // For now, we'll create generic commitments with the task IDs
+    // In a full implementation, you'd look up the actual task details
+    return taskIds.map((taskId) {
+      return WeeklyCommitment(
+        id: WeeklyCommitment.generateId('action', taskId),
+        type: 'action',
+        title: _getTaskTitle(taskId),
+        description: _getTaskDescription(taskId),
+        targetCount: 1, // Each task is a one-time action
+        currentCount: 0,
+        category: _getTaskCategory(taskId),
+      );
+    }).toList();
+  }
+
+  String _getTaskTitle(String taskId) {
+    // Simplified mapping - in production, this would look up from a catalog
+    if (taskId.startsWith('dev_')) {
+      switch (taskId) {
+        case 'dev_1': return 'Read one book about your specific talent';
+        case 'dev_2': return 'Find a mentor in your area of calling';
+        case 'dev_3': return 'Start a journal tracking your growth';
+        case 'dev_4': return 'Take a course related to your archetype';
+        case 'dev_5': return 'Find an accountability partner';
+        default: return 'Development task';
+      }
+    } else if (taskId.startsWith('eng_')) {
+      switch (taskId) {
+        case 'eng_1': return 'Volunteer in your local church';
+        case 'eng_2': return 'Start a small group or initiative';
+        case 'eng_3': return 'Offer your skills to a non-profit';
+        case 'eng_4': return 'Mentor someone younger in faith';
+        case 'eng_5': return 'Take on a new responsibility at work';
+        default: return 'Engagement task';
+      }
+    } else if (taskId.startsWith('rec_')) {
+      switch (taskId) {
+        case 'rec_1': return 'Set boundaries around your time';
+        case 'rec_2': return 'Take a sabbatical or retreat';
+        case 'rec_3': return 'Evaluate your current commitments';
+        case 'rec_4': return 'Reconnect with your core motivation';
+        case 'rec_5': return 'Simplify your commitments';
+        default: return 'Recalibration task';
+      }
+    }
+    return 'Assessment task';
+  }
+
+  String _getTaskDescription(String taskId) {
+    // Simplified mapping - in production, this would look up from a catalog
+    if (taskId.startsWith('dev_')) {
+      return 'A development step to grow in your calling';
+    } else if (taskId.startsWith('eng_')) {
+      return 'An engagement step to apply your calling';
+    } else if (taskId.startsWith('rec_')) {
+      return 'A recalibration step to realign your focus';
+    }
+    return 'A task from your assessment action plan';
+  }
+
+  String _getTaskCategory(String taskId) {
+    // Map task ID to commitment category
+    if (taskId.startsWith('dev_')) return 'growth';
+    if (taskId.startsWith('eng_')) return 'discipline';
+    if (taskId.startsWith('rec_')) return 'charity';
+    return 'growth';
+  }
+
+  MissionFocusType _recommendedMissionFocus(CommitmentCategory category) {
+    return switch (category) {
+      CommitmentCategory.charity => MissionFocusType.service,
+      CommitmentCategory.discipline => MissionFocusType.faithSharing,
+      CommitmentCategory.growth => MissionFocusType.encouragement,
+    };
   }
 
   Future<void> registerDailyCheckIn(DateTime day, {int? integrityScore}) async {
@@ -239,6 +403,18 @@ class SettingsNotifier extends StateNotifier<AppSettings> {
     await _storage.save(next);
   }
 
+  Future<void> markTodayWelcomeSeen() async {
+    final next = state.copyWith(hasSeenTodayWelcome: true);
+    state = next;
+    await _storage.save(next);
+  }
+
+  Future<void> markPostOnboardingComplete() async {
+    final next = state.copyWith(hasCompletedPostOnboarding: true);
+    state = next;
+    await _storage.save(next);
+  }
+
   Future<void> markAssessmentPromptSeen() async {
     final next = state.copyWith(hasSeenAssessmentPrompt: true);
     state = next;
@@ -246,13 +422,17 @@ class SettingsNotifier extends StateNotifier<AppSettings> {
   }
 
   Future<void> setCommitmentCategory(String category) async {
-    final next = state.copyWith(commitmentCategory: category);
+    final next = state.copyWith(
+      commitmentCategory: CommitmentCategory.normalizeStorageValue(category),
+    );
     state = next;
     await _storage.save(next);
   }
 
   Future<void> setPrimaryMissionFocus(String focus) async {
-    final next = state.copyWith(primaryMissionFocus: focus);
+    final next = state.copyWith(
+      primaryMissionFocus: MissionFocusTypeX.normalizeStorageValue(focus),
+    );
     state = next;
     await _storage.save(next);
   }
@@ -275,6 +455,21 @@ class SettingsNotifier extends StateNotifier<AppSettings> {
     await _storage.save(next);
   }
 
+  /// Check if the current weekly plan is stale (from a previous week).
+  /// Returns true if a new plan is needed — callers should show a prompt card
+  /// rather than silently generating a new plan.
+  bool get needsWeeklyPlanRefresh {
+    final profile = state.callingProfile;
+    if (profile == null) return false;
+
+    final today = DateTime.now();
+    final weekStart = _startOfWeek(today);
+    final currentWeeklyPlan = state.currentWeeklyPlan;
+    return currentWeeklyPlan?.id != WeeklyPlan.generateId(weekStart);
+  }
+
+  /// Generate and save a weekly plan. Called explicitly after user interaction
+  /// (e.g., from the weekly assessment screen), not automatically.
   Future<void> refreshWeeklyPlanIfNeeded({DateTime? now}) async {
     final profile = state.callingProfile;
     if (profile == null) {
@@ -385,7 +580,7 @@ class SettingsNotifier extends StateNotifier<AppSettings> {
     await notificationService.scheduleNotificationWithActions(
       id: 3, // Check-in reminder ID
       title: 'Daily Commitment',
-      body: 'Have you completed your spiritual anchor today?',
+      body: 'How\'s your day going? Check in when you\'re ready.',
       channel: 'daily_rhythm',
       scheduledTime: fourPm,
       payload: 'check_in_reminder',
@@ -400,6 +595,28 @@ class SettingsNotifier extends StateNotifier<AppSettings> {
 
   String _dayKey(DateTime date) {
     return DateTime(date.year, date.month, date.day).toIso8601String();
+  }
+
+  // ===========================================================================
+  // Kingdom Action Depth Persistence
+  // ===========================================================================
+
+  Future<void> setPersonCommitments(List<PersonCommitment> commitments) async {
+    final next = state.copyWith(personCommitments: commitments);
+    state = next;
+    await _storage.save(next);
+  }
+
+  Future<void> setGenerosityRecords(List<GenerosityRecord> records) async {
+    final next = state.copyWith(generosityRecords: records);
+    state = next;
+    await _storage.save(next);
+  }
+
+  Future<void> setEvangelismConversations(List<EvangelismConversation> conversations) async {
+    final next = state.copyWith(evangelismConversations: conversations);
+    state = next;
+    await _storage.save(next);
   }
 
   @override

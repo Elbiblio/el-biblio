@@ -13,6 +13,7 @@ class SpiritualAidHubScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final tokens = theme.tokens;
+    final colorScheme = theme.colorScheme;
 
     return Scaffold(
       body: Container(
@@ -47,15 +48,15 @@ class SpiritualAidHubScreen extends ConsumerWidget {
                           Container(
                             padding: const EdgeInsets.all(10),
                             decoration: BoxDecoration(
-                              color: Colors.red.shade50,
+                              color: colorScheme.errorContainer,
                               borderRadius: BorderRadius.circular(14),
                               border: Border.all(
-                                color: Colors.red.shade200.withValues(alpha: 0.5),
+                                color: colorScheme.error.withValues(alpha: 0.3),
                               ),
                             ),
                             child: Icon(
                               Icons.favorite_rounded,
-                              color: Colors.red.shade400,
+                              color: colorScheme.error,
                               size: 24,
                             ),
                           ),
@@ -95,7 +96,7 @@ class SpiritualAidHubScreen extends ConsumerWidget {
                       title: 'Quick Prayers',
                       description: 'Pre-written prayers for every moment. '
                           'Read, listen, or pray along word by word.',
-                      gradient: const [Color(0xFF4B82C3), Color(0xFF6BA3E0)],
+                      gradient: [colorScheme.primary, colorScheme.primary.withValues(alpha: 0.8)],
                       badge: '40+ prayers',
                       onTap: () => context.push('${AppRoutes.spiritualAid}/prayers'),
                     ),
@@ -106,7 +107,7 @@ class SpiritualAidHubScreen extends ConsumerWidget {
                       title: 'Faith Discuss',
                       description: 'Daily prompts to deepen your faith. '
                           'Reflect, journal, and share.',
-                      gradient: const [Color(0xFF5A8E67), Color(0xFF7BB58B)],
+                      gradient: [colorScheme.secondary, colorScheme.secondary.withValues(alpha: 0.8)],
                       badge: 'Daily prompt',
                       onTap: () => context.push('${AppRoutes.spiritualAid}/discuss'),
                     ),
@@ -117,7 +118,7 @@ class SpiritualAidHubScreen extends ConsumerWidget {
                       title: 'Speak to Me',
                       description: 'Let God speak through His Word. '
                           'Tap to receive a verse just for this moment.',
-                      gradient: const [Color(0xFF7B3D9E), Color(0xFFA064C4)],
+                      gradient: [colorScheme.tertiary, colorScheme.tertiary.withValues(alpha: 0.8)],
                       onTap: () => context.push('${AppRoutes.spiritualAid}/speak'),
                     ),
                     const SizedBox(height: 16),
@@ -127,7 +128,7 @@ class SpiritualAidHubScreen extends ConsumerWidget {
                       title: 'Evangelism Helper',
                       description: 'Beautiful content to share your faith. '
                           'Verse cards, guides, and conversation starters.',
-                      gradient: const [Color(0xFFA97A46), Color(0xFFC49762)],
+                      gradient: [colorScheme.outline, colorScheme.outline.withValues(alpha: 0.8)],
                       badge: '30+ resources',
                       onTap: () => context.push('${AppRoutes.spiritualAid}/evangelism'),
                     ),

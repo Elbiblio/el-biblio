@@ -1,8 +1,10 @@
 import 'dart:async';
+import 'dart:developer';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/services/xp_service.dart';
+import '../../today/application/daily_anchors_notifier.dart';
 import '../data/commitment_catalog.dart';
 import '../data/graduated_commitment_repository.dart';
 import '../domain/models/commitment_progress.dart';
@@ -97,12 +99,14 @@ class GraduatedCommitmentNotifier
   GraduatedCommitmentNotifier({
     required this.repository,
     required this.xpService,
+    this.dailyAnchorsNotifier,
   }) : super(const GraduatedCommitmentState()) {
     loadProgress();
   }
 
   final GraduatedCommitmentRepository repository;
   final XPService xpService;
+  DailyAnchorsNotifier? dailyAnchorsNotifier;
   Timer? _timer;
 
   @override
@@ -167,9 +171,33 @@ class GraduatedCommitmentNotifier
         isLoading: false,
       );
 
+      // Sync with daily anchors to show commitment on TodayScreen
+      await _syncWithDailyAnchors(commitment);
+
       _startTimer();
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString());
+    }
+  }
+
+  /// Sync the graduated commitment with the daily anchors habit
+  /// so the TodayScreen shows the specific commitment details
+  Future<void> _syncWithDailyAnchors(GraduatedCommitment commitment) async {
+    if (dailyAnchorsNotifier == null) return;
+    
+    try {
+      final currentAnchors = dailyAnchorsNotifier!.state;
+      final updatedHabit = currentAnchors.habit.copyWith(
+        commitmentTitle: commitment.title,
+        commitmentDescription: commitment.description,
+        durationMinutes: commitment.durationMinutes,
+      );
+      final updatedAnchors = currentAnchors.copyWith(habit: updatedHabit);
+      await dailyAnchorsNotifier!.repository.save(updatedAnchors);
+      dailyAnchorsNotifier!.state = updatedAnchors;
+    } catch (e) {
+      // Don't block commitment start if sync fails
+      log('Failed to sync commitment with daily anchors: $e');
     }
   }
 

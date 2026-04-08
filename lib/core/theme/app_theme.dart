@@ -194,6 +194,13 @@ class AppThemeFactory {
         AppThemeTokens(
           palette: palette,
           pageGradient: pageGradient,
+          radiusSmall: 12,
+          radiusMedium: 16,
+          radiusLarge: 20,
+          spacingXs: 8,
+          spacingSm: 12,
+          spacingMd: 16,
+          spacingLg: 24,
         ),
         AppColorPaletteExtension(palette: palette),
       ],

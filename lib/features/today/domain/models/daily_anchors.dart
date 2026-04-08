@@ -241,8 +241,7 @@ class Habit {
 
   // Helper methods for time-based logic
   bool get canStartCommitment {
-    final now = DateTime.now();
-    return now.hour >= 10 && !isLockedIn && commitmentStartTime == null;
+    return !isLockedIn && commitmentStartTime == null;
   }
 
   bool get isCommitmentActive {

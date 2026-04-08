@@ -51,9 +51,8 @@ class PushNotificationService implements PushNotificationGateway {
       // Check if Firebase is available before proceeding
       try {
         await Firebase.initializeApp();
-        debugPrint('Firebase initialized in PushNotificationService');
       } catch (e) {
-        debugPrint('Firebase not available in PushNotificationService: $e');
+        debugPrint('Firebase not available for push notifications: $e');
         // Don't rethrow - continue without push notifications
         return;
       }
@@ -80,7 +79,6 @@ class PushNotificationService implements PushNotificationGateway {
       await _initializeToken();
 
       _initialized = true;
-      debugPrint('PushNotificationService initialized successfully');
     } catch (e) {
       debugPrint('Failed to initialize PushNotificationService: $e');
       // Don't rethrow - allow app to continue without push notifications
@@ -99,7 +97,6 @@ class PushNotificationService implements PushNotificationGateway {
       sound: true,
     );
 
-    debugPrint('Notification permission status: ${settings.authorizationStatus}');
     return settings.authorizationStatus == AuthorizationStatus.authorized;
   }
 
@@ -111,36 +108,16 @@ class PushNotificationService implements PushNotificationGateway {
       if (token != null) {
         _currentToken = token;
         _tokenStreamController.add(token);
-        debugPrint('FCM Token obtained successfully: ${token.substring(0, 8)}...');
-      } else {
-        debugPrint('FCM Token is null - this might be expected in some environments');
       }
 
       // Monitor token refresh
       _tokenSubscription = _firebaseMessaging.onTokenRefresh.listen((newToken) {
         _currentToken = newToken;
         _tokenStreamController.add(newToken);
-        debugPrint('FCM Token refreshed: ${newToken.substring(0, 8)}...');
       });
 
     } catch (e) {
-      final errorMessage = e.toString();
-      debugPrint('Failed to get FCM token: $errorMessage');
-      
-      // Provide more specific error information
-      if (errorMessage.contains('FIS_AUTH_ERROR')) {
-        debugPrint('FIS_AUTH_ERROR: This usually indicates Firebase installation issues.');
-        debugPrint('Possible solutions:');
-        debugPrint('1. Check if google-services.json (Android) or GoogleService-Info.plist (iOS) is properly configured');
-        debugPrint('2. Verify Firebase project settings and app registration');
-        debugPrint('3. Try clearing app data and reinstalling');
-        debugPrint('4. Check network connectivity');
-      } else if (errorMessage.contains('firebase_messaging/unknown')) {
-        debugPrint('Firebase Messaging unknown error - service may not be available in this environment');
-      }
-      
-      // Continue without FCM token - app should still function
-      debugPrint('Continuing without FCM token - local notifications will still work');
+      debugPrint('Failed to get FCM token: $e');
     }
   }
 
@@ -161,7 +138,6 @@ class PushNotificationService implements PushNotificationGateway {
 
   /// Handle messages when app is opened from notification
   void _handleMessage(RemoteMessage message) {
-    debugPrint('App opened from notification: ${message.messageId}');
     _messageStreamController.add(message);
   }
 
@@ -203,7 +179,6 @@ class PushNotificationService implements PushNotificationGateway {
   Future<void> subscribeToTopic(String topic) async {
     try {
       await _firebaseMessaging.subscribeToTopic(topic);
-      debugPrint('Subscribed to topic: $topic');
     } catch (e) {
       debugPrint('Failed to subscribe to topic $topic: $e');
     }
@@ -214,7 +189,6 @@ class PushNotificationService implements PushNotificationGateway {
   Future<void> unsubscribeFromTopic(String topic) async {
     try {
       await _firebaseMessaging.unsubscribeFromTopic(topic);
-      debugPrint('Unsubscribed from topic: $topic');
     } catch (e) {
       debugPrint('Failed to unsubscribe from topic $topic: $e');
     }
@@ -258,7 +232,6 @@ class PushNotificationService implements PushNotificationGateway {
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   try {
     await Firebase.initializeApp();
-    debugPrint('Handling a background message: ${message.messageId}');
   } catch (e) {
     debugPrint('Firebase initialization failed in background handler: $e');
   }

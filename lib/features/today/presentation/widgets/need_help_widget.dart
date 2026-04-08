@@ -86,7 +86,7 @@ class NeedHelpWidget extends ConsumerWidget {
                           showDialog(
                             context: context,
                             builder: (context) => AlertDialog(
-                              title: const Text('Quick Clarity Tips'),
+                              title: const Text('Quick Focus Tips'),
                               content: const Column(
                                 mainAxisSize: MainAxisSize.min,
                                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -114,7 +114,7 @@ class NeedHelpWidget extends ConsumerWidget {
                           );
                         },
                         icon: const Icon(Icons.lightbulb_outline_rounded),
-                        label: const Text('Clarity Tips'),
+                        label: const Text('Focus Tips'),
                         style: OutlinedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(vertical: 12),
                           side: BorderSide(color: Colors.orange.withValues(alpha: 0.5)),

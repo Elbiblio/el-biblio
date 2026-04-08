@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/di/app_providers.dart';
+import '../../../../core/theme/app_theme_tokens.dart';
+import '../../../commitments/domain/models/commitment_category.dart';
 
 class VirtueFocusBadge extends ConsumerWidget {
   const VirtueFocusBadge({super.key});
@@ -10,24 +12,28 @@ class VirtueFocusBadge extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final settings = ref.watch(settingsProvider);
     final theme = Theme.of(context);
+    final tokens = theme.tokens;
 
     final archetypeName = settings.primaryArchetypeId;
     final categoryName = settings.commitmentCategory;
+    final category = categoryName == null
+        ? null
+        : CommitmentCategory.fromString(categoryName);
 
     // Build a singular identity line: "Artisan · Charity" or just the category
     String identityLine;
-    if (archetypeName != null && archetypeName.isNotEmpty && categoryName != null && categoryName.isNotEmpty) {
-      final categoryLabel = categoryName[0].toUpperCase() + categoryName.substring(1);
+    if (archetypeName != null && archetypeName.isNotEmpty && category != null) {
+      final categoryLabel = category.label;
       identityLine = '$archetypeName · $categoryLabel';
     } else if (archetypeName != null && archetypeName.isNotEmpty) {
       identityLine = archetypeName;
-    } else if (categoryName != null && categoryName.isNotEmpty) {
-      identityLine = categoryName[0].toUpperCase() + categoryName.substring(1);
+    } else if (category != null) {
+      identityLine = category.label;
     } else {
       identityLine = 'Discover your identity';
     }
 
-    final categoryColor = _getCategoryColor(categoryName);
+    final categoryColor = _getCategoryColor(categoryName, tokens);
 
     return GestureDetector(
       onTap: () {
@@ -63,12 +69,12 @@ class VirtueFocusBadge extends ConsumerWidget {
     );
   }
 
-  Color _getCategoryColor(String? category) {
+  Color _getCategoryColor(String? category, AppThemeTokens tokens) {
     return switch (category) {
-      'growth' => const Color(0xFF4CAF50),
-      'discipline' => const Color(0xFF2196F3),
-      'charity' => const Color(0xFFE57C23),
-      _ => const Color(0xFF638B6C),
+      'growth' => tokens.palette.growthColor,
+      'discipline' => tokens.palette.distractionColor,
+      'charity' => tokens.palette.commitmentColor,
+      _ => tokens.palette.primary,
     };
   }
 
@@ -83,11 +89,13 @@ class VirtueFocusBadge extends ConsumerWidget {
 
   void _showVirtueSelectionDialog(BuildContext context, WidgetRef ref) {
     final currentCategory = ref.read(settingsProvider).commitmentCategory;
+    final theme = Theme.of(context);
+    final tokens = theme.tokens;
 
     final categories = [
-      ('growth', 'Growth', 'Strengthen your spiritual muscles', Icons.trending_up_rounded, const Color(0xFF4CAF50)),
-      ('discipline', 'Discipline', 'Build holy habits that anchor your day', Icons.shield_rounded, const Color(0xFF2196F3)),
-      ('charity', 'Charity', 'Fight addiction through grace and giving', Icons.volunteer_activism_rounded, const Color(0xFFE57C23)),
+      ('growth', 'Growth', 'Strengthen your spiritual muscles', Icons.trending_up_rounded, tokens.palette.growthColor),
+      ('discipline', 'Discipline', 'Build holy habits that anchor your day', Icons.shield_rounded, tokens.palette.distractionColor),
+      ('charity', 'Charity', 'Fight addiction through grace and giving', Icons.volunteer_activism_rounded, tokens.palette.commitmentColor),
     ];
 
     showDialog(

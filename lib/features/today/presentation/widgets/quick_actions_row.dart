@@ -1,16 +1,19 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/app_routes.dart';
+import '../../../../core/theme/app_theme_tokens.dart';
 
 /// Horizontal scrolling row of compact action chips for quick access
-/// to features that were displaced from the home screen.
-class QuickActionsRow extends StatelessWidget {
+/// to features aligned with the product spine: Discover, Align, Act, Reflect, Grow
+class QuickActionsRow extends ConsumerWidget {
   const QuickActionsRow({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
+    final tokens = theme.tokens;
     final isDark = theme.brightness == Brightness.dark;
 
     return SizedBox(
@@ -19,30 +22,50 @@ class QuickActionsRow extends StatelessWidget {
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 24),
         children: [
+          // Act: Service and evangelism actions
           _ActionChip(
-            icon: Icons.medical_services_rounded,
-            label: 'Care',
-            color: Colors.red.shade400,
+            icon: Icons.volunteer_activism_rounded,
+            label: 'Act',
+            color: tokens.palette.success,
             isDark: isDark,
-            onTap: () => context.push(AppRoutes.spiritualAid),
+            onTap: () => context.push(AppRoutes.act),
           ),
           const SizedBox(width: 10),
-          _ActionChip(
-            icon: Icons.menu_book_rounded,
-            label: 'Bible',
-            color: theme.colorScheme.primary,
-            isDark: isDark,
-            onTap: () => context.push(AppRoutes.bible),
-          ),
-          const SizedBox(width: 10),
+          // Reflect: Journal for reflection
           _ActionChip(
             icon: Icons.edit_note_rounded,
-            label: 'Journal',
-            color: Colors.teal.shade400,
+            label: 'Reflect',
+            color: tokens.palette.growthColor,
             isDark: isDark,
             onTap: () => context.push(AppRoutes.journal),
           ),
           const SizedBox(width: 10),
+          // Align: Bible reading
+          _ActionChip(
+            icon: Icons.menu_book_rounded,
+            label: 'Scripture',
+            color: tokens.palette.primary,
+            isDark: isDark,
+            onTap: () => context.push(AppRoutes.bible),
+          ),
+          const SizedBox(width: 10),
+          // Care: Soul care / meditation
+          _ActionChip(
+            icon: Icons.favorite_rounded,
+            label: 'Care',
+            color: tokens.palette.primaryLight,
+            isDark: isDark,
+            onTap: () => context.push(AppRoutes.meditation),
+          ),
+          const SizedBox(width: 10),
+          // Grow Together: Community
+          _ActionChip(
+            icon: Icons.people_alt_rounded,
+            label: 'Together',
+            color: tokens.palette.identityColor,
+            isDark: isDark,
+            onTap: () => context.push(AppRoutes.growTogether),
+          ),
         ],
       ),
     );

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../../application/onboarding_notifier.dart';
 
@@ -166,7 +167,7 @@ class _IdentityRevealedViewState extends ConsumerState<IdentityRevealedView>
                             ),
                             const SizedBox(width: 8),
                             Text(
-                              'Your Clarity Path',
+                              'Your Spiritual Path',
                               style: textTheme.labelLarge?.copyWith(
                                 fontWeight: FontWeight.w600,
                                 color: theme.colorScheme.primary,
@@ -192,6 +193,29 @@ class _IdentityRevealedViewState extends ConsumerState<IdentityRevealedView>
                   textAlign: TextAlign.center,
                   style: textTheme.bodySmall?.copyWith(
                     color: theme.colorScheme.onSurface.withValues(alpha: 0.4),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                OutlinedButton.icon(
+                  onPressed: () {
+                    Share.share(
+                      'I discovered my spiritual calling: I\'m a ${archetype.name}! Discover yours at elbiblio.com',
+                    );
+                  },
+                  icon: const Icon(Icons.share_rounded, size: 18),
+                  label: const Text('Share Your Calling'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: theme.colorScheme.primary,
+                    side: BorderSide(
+                      color: theme.colorScheme.primary.withValues(alpha: 0.3),
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 12,
+                    ),
                   ),
                 ),
                 const SizedBox(height: 24),

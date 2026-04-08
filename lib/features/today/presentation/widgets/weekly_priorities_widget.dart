@@ -69,6 +69,49 @@ class WeeklyPrioritiesWidget extends ConsumerWidget {
             ],
           ),
           const SizedBox(height: 12),
+          // Reflection Prompt Card
+          if (weeklyPlan.reflectionPrompt.isNotEmpty)
+            Container(
+              margin: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.primary.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: theme.colorScheme.primary.withValues(alpha: 0.2),
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.lightbulb_outline_rounded,
+                        color: theme.colorScheme.primary,
+                        size: 18,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'This Week\'s Reflection',
+                        style: theme.textTheme.labelLarge?.copyWith(
+                          fontWeight: FontWeight.w600,
+                          color: theme.colorScheme.primary,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    weeklyPlan.reflectionPrompt,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.colorScheme.onSurface.withValues(alpha: 0.8),
+                      height: 1.4,
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ...weeklyPlan.weeklyCommitments.map((commitment) => _CommitmentItem(
                 commitment: commitment,
                 theme: theme,
@@ -134,7 +177,7 @@ class _CommitmentItem extends StatelessWidget {
               backgroundColor: theme.colorScheme.surfaceContainerHighest,
               valueColor: AlwaysStoppedAnimation<Color>(
                 commitment.isComplete
-                    ? Colors.green
+                    ? theme.colorScheme.tertiary
                     : theme.colorScheme.primary,
               ),
               minHeight: 4,

@@ -4,7 +4,7 @@ import 'package:elbiblio/features/mission/domain/models/kingdom_action_models.da
 void main() {
   group('ServiceMatch Model Tests', () {
     test('ServiceMatch isStrongMatch returns true for score >= 0.8', () {
-      final strongMatch = ServiceMatch(
+      const strongMatch = ServiceMatch(
         opportunityId: '1',
         title: 'Test Opportunity',
         matchScore: 0.85,
@@ -16,7 +16,7 @@ void main() {
     });
 
     test('ServiceMatch isStrongMatch returns false for score < 0.8', () {
-      final weakMatch = ServiceMatch(
+      const weakMatch = ServiceMatch(
         opportunityId: '1',
         title: 'Test Opportunity',
         matchScore: 0.75,
@@ -28,7 +28,7 @@ void main() {
     });
 
     test('ServiceMatch isGoodMatch returns true for score >= 0.6', () {
-      final goodMatch = ServiceMatch(
+      const goodMatch = ServiceMatch(
         opportunityId: '1',
         title: 'Test Opportunity',
         matchScore: 0.65,
@@ -40,7 +40,7 @@ void main() {
     });
 
     test('ServiceMatch isGoodMatch returns false for score < 0.6', () {
-      final poorMatch = ServiceMatch(
+      const poorMatch = ServiceMatch(
         opportunityId: '1',
         title: 'Test Opportunity',
         matchScore: 0.55,
@@ -52,7 +52,7 @@ void main() {
     });
 
     test('ServiceMatch creates with all optional fields', () {
-      final match = ServiceMatch(
+      const match = ServiceMatch(
         opportunityId: '1',
         title: 'Test Opportunity',
         matchScore: 0.9,
@@ -73,7 +73,7 @@ void main() {
     });
 
     test('ServiceMatch creates with only required fields', () {
-      final match = ServiceMatch(
+      const match = ServiceMatch(
         opportunityId: '1',
         title: 'Test Opportunity',
         matchScore: 0.5,

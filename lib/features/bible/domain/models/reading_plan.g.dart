@@ -58,8 +58,8 @@ _$UserReadingPlanImpl _$$UserReadingPlanImplFromJson(
     _$UserReadingPlanImpl(
       id: (json['id'] as num).toInt(),
       readingPlanId: (json['reading_plan_id'] as num).toInt(),
-      currentDay: (json['current_day'] as num).toInt(),
-      status: json['status'] as String,
+      currentDay: (json['current_day'] as num?)?.toInt() ?? 1,
+      status: json['status'] as String? ?? 'active',
       startedAt: json['started_at'] == null
           ? null
           : DateTime.parse(json['started_at'] as String),

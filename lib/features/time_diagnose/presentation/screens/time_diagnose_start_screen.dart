@@ -43,7 +43,7 @@ class TimeDiagnoseStartScreen extends ConsumerWidget {
                       ),
                       SizedBox(height: 8),
                       Text(
-                        'The 7-Pillar Audit',
+                        'Time Audit',
                         style: TextStyle(
                           fontSize: 28,
                           fontWeight: FontWeight.w300,

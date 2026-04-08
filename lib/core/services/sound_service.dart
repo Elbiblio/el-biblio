@@ -111,4 +111,15 @@ class SoundService {
       SystemSound.play(SystemSoundType.alert);
     }
   }
+
+  /// Stop all currently playing audio (both music and SFX players).
+  /// Call this when navigating away from game screens.
+  Future<void> stopAll() async {
+    try {
+      await _player.stop();
+    } catch (_) {}
+    try {
+      await _sfxPlayer.stop();
+    } catch (_) {}
+  }
 }

@@ -502,7 +502,17 @@ class _VerseGameScreenState extends ConsumerState<VerseGameScreen>
   @override
   void dispose() {
     _confettiController.dispose();
+    // Stop all game audio to prevent background sound leak
+    try {
+      ref.read(soundServiceProvider).stopAll();
+    } catch (_) {}
     super.dispose();
+  }
+
+  /// Clean up game audio before navigation
+  void _exitGame() {
+    ref.read(soundServiceProvider).stopAll();
+    Navigator.of(context).pop();
   }
 
   void _generateRandomTransformations() {
@@ -589,7 +599,12 @@ class _VerseGameScreenState extends ConsumerState<VerseGameScreen>
     final borderColor =
         isDark ? const Color(0xFF334155) : parchmentDarkColor;
 
-    return Scaffold(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _exitGame();
+      },
+      child: Scaffold(
       backgroundColor: bgColor,
       body: Stack(
         children: [
@@ -620,8 +635,7 @@ class _VerseGameScreenState extends ConsumerState<VerseGameScreen>
                                       IconButton(
                                         icon: Icon(Icons.close,
                                             color: mutedTextColor),
-                                        onPressed: () =>
-                                            Navigator.of(context).pop(),
+                                        onPressed: _exitGame,
                                       ),
                                       Column(
                                         mainAxisSize: MainAxisSize.min,
@@ -1167,6 +1181,7 @@ class _VerseGameScreenState extends ConsumerState<VerseGameScreen>
             _TutorialOverlay(onComplete: _completeTutorial),
         ],
       ),
+    ),
     );
   }
 

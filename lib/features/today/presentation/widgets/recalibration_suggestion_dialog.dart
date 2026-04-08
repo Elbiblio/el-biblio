@@ -54,8 +54,8 @@ class RecalibrationSuggestionDialog {
                 const SizedBox(height: 12),
                 Text(
                   missedDays == 1
-                      ? 'Looks like you missed a day. Want to adjust your reminders so it fits your schedule?'
-                      : 'Looks like you missed $missedDays days. Let\'s make it easier to return without pressure.',
+                      ? 'You\'ve had a break from your rhythm. No worries — want to adjust your reminders?'
+                      : 'You\'ve had a $missedDays-day break. Life happens. Want help finding a rhythm that works better?',
                   style: theme.textTheme.bodyMedium?.copyWith(
                     color: theme.colorScheme.onSurface.withValues(alpha: 0.8),
                     height: 1.35,

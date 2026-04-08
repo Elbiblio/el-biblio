@@ -26,7 +26,7 @@ class IntegrityBadge extends ConsumerWidget {
       return const SizedBox.shrink();
     }
 
-    final gradient = _getGradient(score);
+    final gradient = _getGradient(score, theme);
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -72,12 +72,12 @@ class IntegrityBadge extends ConsumerWidget {
     );
   }
 
-  LinearGradient _getGradient(int score) {
+  LinearGradient _getGradient(int score, ThemeData theme) {
     if (score >= 12) {
       return LinearGradient(
         colors: [
-          const Color(0xFF10B981).withValues(alpha: 0.9),
-          const Color(0xFF059669).withValues(alpha: 0.9),
+          theme.colorScheme.tertiary.withValues(alpha: 0.9),
+          theme.colorScheme.primary.withValues(alpha: 0.9),
         ],
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,

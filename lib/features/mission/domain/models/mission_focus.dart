@@ -5,9 +5,41 @@ enum MissionFocusType {
 }
 
 extension MissionFocusTypeX on MissionFocusType {
+  static String normalizeStorageValue(String? value) {
+    final normalized = value?.trim();
+    if (normalized == null || normalized.isEmpty) {
+      return MissionFocusType.service.name;
+    }
+
+    switch (normalized.toLowerCase()) {
+      case 'service':
+      case 'acts of service':
+      case 'general service':
+      case 'service & stewardship':
+      case 'care & compassion':
+        return MissionFocusType.service.name;
+      case 'faithsharing':
+      case 'faithsharing ': 
+        return MissionFocusType.faithSharing.name;
+      case 'faith sharing':
+      case 'teaching & discipleship':
+      case 'justice & protection':
+        return MissionFocusType.faithSharing.name;
+      case 'encouragement':
+      case 'creative expression':
+      case 'leadership & guidance':
+        return MissionFocusType.encouragement.name;
+      default:
+        return MissionFocusType.values.any((item) => item.name == normalized)
+            ? normalized
+            : MissionFocusType.service.name;
+    }
+  }
+
   static MissionFocusType fromStorage(String? value) {
+    final normalized = normalizeStorageValue(value);
     for (final item in MissionFocusType.values) {
-      if (item.name == value) {
+      if (item.name == normalized) {
         return item;
       }
     }

@@ -38,8 +38,8 @@ class UserReadingPlan with _$UserReadingPlan {
   const factory UserReadingPlan({
     required int id,
     @JsonKey(name: 'reading_plan_id') required int readingPlanId,
-    @JsonKey(name: 'current_day') required int currentDay,
-    required String status,
+    @JsonKey(name: 'current_day') @Default(1) int currentDay,
+    @Default('active') String status,
     @JsonKey(name: 'started_at') DateTime? startedAt,
     @JsonKey(name: 'completed_at') DateTime? completedAt,
     ReadingPlan? plan,

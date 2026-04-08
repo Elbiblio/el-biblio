@@ -313,8 +313,8 @@ class _AccountabilityCheckInSheetState
     required CheckInRequest request,
     required WeeklyPlan? weeklyPlan,
   }) {
-    final _confirmationController = TextEditingController();
-    final Set<String> _verifiedCommitments = {...request.verifiedCommitments};
+    final confirmationController = TextEditingController();
+    final Set<String> verifiedCommitments = {...request.verifiedCommitments};
 
     return StatefulBuilder(
       builder: (context, setState) {
@@ -417,20 +417,20 @@ class _AccountabilityCheckInSheetState
                         .firstWhere((c) => c.id == commitmentId);
                     if (commitment == null) return const SizedBox.shrink();
 
-                    final isVerified = _verifiedCommitments.contains(commitmentId);
+                    final isVerified = verifiedCommitments.contains(commitmentId);
                     return CheckboxListTile(
                       value: isVerified,
                       onChanged: (value) {
                         setState(() {
                           if (value == true) {
-                            _verifiedCommitments.add(commitmentId);
+                            verifiedCommitments.add(commitmentId);
                           } else {
-                            _verifiedCommitments.remove(commitmentId);
+                            verifiedCommitments.remove(commitmentId);
                           }
                         });
                       },
                       title: Text(commitment.title),
-                      subtitle: Text('They reported completing this'),
+                      subtitle: const Text('They reported completing this'),
                       activeColor: Colors.green,
                       contentPadding: EdgeInsets.zero,
                     );
@@ -446,7 +446,7 @@ class _AccountabilityCheckInSheetState
                   ),
                   const SizedBox(height: 8),
                   TextField(
-                    controller: _confirmationController,
+                    controller: confirmationController,
                     maxLines: 2,
                     decoration: InputDecoration(
                       hintText: 'Add encouragement, feedback, or prayer...',
@@ -475,9 +475,9 @@ class _AccountabilityCheckInSheetState
                                 .read(missionProvider.notifier)
                                 .confirmCheckIn(
                                   confirmationNote:
-                                      _confirmationController.text.trim(),
+                                      confirmationController.text.trim(),
                                   verifiedCommitmentIds:
-                                      _verifiedCommitments.toList(),
+                                      verifiedCommitments.toList(),
                                 );
                             if (context.mounted) {
                               Navigator.pop(context);

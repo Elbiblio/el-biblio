@@ -9,6 +9,7 @@ class XPState {
   final int monthlyXP;
   final Map<XPActivityType, int> xpBreakdown;
   final bool isLoading;
+  final List<XPActivity> activities;
 
   const XPState({
     required this.totalXP,
@@ -17,6 +18,7 @@ class XPState {
     required this.monthlyXP,
     required this.xpBreakdown,
     required this.isLoading,
+    this.activities = const [],
   });
 
   XPState.initial()
@@ -25,7 +27,8 @@ class XPState {
         weeklyXP = 0,
         monthlyXP = 0,
         xpBreakdown = {},
-        isLoading = false;
+        isLoading = false,
+        activities = [];
 
   XPState copyWith({
     int? totalXP,
@@ -34,6 +37,7 @@ class XPState {
     int? monthlyXP,
     Map<XPActivityType, int>? xpBreakdown,
     bool? isLoading,
+    List<XPActivity>? activities,
   }) {
     return XPState(
       totalXP: totalXP ?? this.totalXP,
@@ -42,6 +46,7 @@ class XPState {
       monthlyXP: monthlyXP ?? this.monthlyXP,
       xpBreakdown: xpBreakdown ?? this.xpBreakdown,
       isLoading: isLoading ?? this.isLoading,
+      activities: activities ?? this.activities,
     );
   }
 }
@@ -67,6 +72,10 @@ class XPNotifier extends StateNotifier<XPState> {
     final weeklyXP = _xpService.getWeeklyXP();
     final monthlyXP = _xpService.getMonthlyXP();
     final xpBreakdown = _xpService.getXPBreakdown();
+    final activities = _xpService.getActivitiesInRange(
+      DateTime.now().subtract(const Duration(days: 90)),
+      DateTime.now(),
+    );
 
     state = state.copyWith(
       totalXP: totalXP,
@@ -74,6 +83,7 @@ class XPNotifier extends StateNotifier<XPState> {
       weeklyXP: weeklyXP,
       monthlyXP: monthlyXP,
       xpBreakdown: xpBreakdown,
+      activities: activities,
     );
   }
 
@@ -107,9 +117,29 @@ class XPNotifier extends StateNotifier<XPState> {
 
   /// Get XP percentage change for this month
   double getMonthlyXPChange() {
-    // This would require historical data comparison
-    // For now, return a placeholder
-    return 0.12; // 12% increase
+    // Calculate actual percentage change from last month
+    final now = DateTime.now();
+    final lastMonth = now.subtract(const Duration(days: 30));
+
+    final thisMonthXP = getRecentXP(days: 30);
+    final lastMonthXP = _getHistoricalXPForPeriod(lastMonth.subtract(const Duration(days: 30)), lastMonth);
+
+    if (lastMonthXP == 0) return thisMonthXP > 0 ? 1.0 : 0.0;
+    return (thisMonthXP - lastMonthXP) / lastMonthXP;
+  }
+
+  /// Get XP earned in the last N days
+  int getRecentXP({required int days}) {
+    final now = DateTime.now();
+    final startDate = now.subtract(Duration(days: days));
+    return _getHistoricalXPForPeriod(startDate, now);
+  }
+
+  int _getHistoricalXPForPeriod(DateTime start, DateTime end) {
+    // Sum XP from activities within the date range
+    return state.activities
+        .where((a) => a.timestamp.isAfter(start) && a.timestamp.isBefore(end))
+        .fold(0, (sum, a) => sum + a.xpAmount);
   }
 
   @override

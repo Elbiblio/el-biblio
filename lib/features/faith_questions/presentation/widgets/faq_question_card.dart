@@ -140,6 +140,44 @@ class FaqQuestionCard extends StatelessWidget {
                           color: isDark ? Colors.white : Colors.black87,
                         ),
                       ),
+
+                      // Parable / analogy
+                      if (question.parable.isNotEmpty) ...[
+                        const SizedBox(height: 12),
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF59E0B).withValues(alpha: isDark ? 0.1 : 0.08),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                              color: const Color(0xFFF59E0B).withValues(alpha: 0.2),
+                            ),
+                          ),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Icon(
+                                Icons.format_quote_rounded,
+                                size: 18,
+                                color: const Color(0xFFF59E0B).withValues(alpha: 0.7),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  question.parable,
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontStyle: FontStyle.italic,
+                                    height: 1.5,
+                                    color: isDark ? Colors.white.withValues(alpha: 0.85) : Colors.black87,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                       const SizedBox(height: 12),
 
                       // Full answer

@@ -144,13 +144,18 @@ class _SpeakToMeScreenState extends ConsumerState<SpeakToMeScreen>
                       () => _ttsService.speak(verse.verseText, isBibleVerse: true),
                     ),
                     _buildActionButton(
-                      Icons.bookmark_border_rounded,
-                      'Save',
+                      verse.isBookmarked
+                          ? Icons.bookmark_rounded
+                          : Icons.bookmark_border_rounded,
+                      verse.isBookmarked ? 'Saved' : 'Save',
                       () {
-                        // Save first verse in history
+                        // Find the current verse's index in history
                         final history = state.verseHistory;
-                        if (history.isNotEmpty) {
-                          ref.read(spiritualAidProvider.notifier).toggleVerseBookmark(0);
+                        final index = history.indexWhere(
+                          (v) => v.reference == verse.reference && v.verseText == verse.verseText,
+                        );
+                        if (index >= 0) {
+                          ref.read(spiritualAidProvider.notifier).toggleVerseBookmark(index);
                         }
                       },
                     ),
@@ -370,6 +375,24 @@ class _SpeakToMeScreenState extends ConsumerState<SpeakToMeScreen>
               child: CircularProgressIndicator(
                 strokeWidth: 2,
                 valueColor: AlwaysStoppedAnimation(Colors.white38),
+              ),
+            ),
+          ] else if (state.error != null && (state.error?.contains('explain') ?? false)) ...[
+            const SizedBox(height: 24),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.06),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                'Explanation unavailable right now. Try again later.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.5),
+                  fontSize: 13,
+                ),
               ),
             ),
           ],

@@ -40,6 +40,8 @@ class FaithQuestionCatalog {
       question: 'What is the Trinity?',
       shortAnswer:
           'The Trinity is the Christian belief that God exists as three persons — Father, Son, and Holy Spirit — in one divine being.',
+      parable:
+          'Think of the sun: the star itself, its light, and its warmth are distinct — yet they are inseparably one sun. You cannot have sunlight without the star, nor warmth without the light. The Trinity is like that — three expressions of one God, each fully divine, none existing without the others.',
       fullAnswer:
           'The doctrine of the Trinity teaches that there is one God who eternally exists as three distinct persons: the Father, the Son (Jesus Christ), and the Holy Spirit. Each person is fully God, yet there is only one God. This is not three gods (tritheism) or one God wearing three masks (modalism). The Trinity is seen at Jesus\' baptism where the Father speaks, the Son is baptized, and the Spirit descends. While the word "Trinity" does not appear in Scripture, the concept is woven throughout both Old and New Testaments.',
       scriptureRefs: ['Matthew 28:19', '2 Corinthians 13:14', 'John 1:1-3'],
@@ -58,6 +60,8 @@ class FaithQuestionCatalog {
       question: 'Are we saved by grace or by works?',
       shortAnswer:
           'Christians are saved by grace through faith, not by works. However, genuine faith naturally produces good works as its fruit.',
+      parable:
+          'A drowning man cannot save himself by swimming harder — he needs someone to pull him out. But once rescued, he naturally uses his arms to help others. Grace is the rescue; works are the arms now free to serve.',
       fullAnswer:
           'The apostle Paul makes clear that salvation is a gift of God\'s grace received through faith, not earned by human effort. This prevents any boasting. However, James writes that faith without works is dead — meaning true saving faith inevitably expresses itself in action. The two are not contradictory: grace saves us, and that same grace transforms us to live differently. Works are the evidence of salvation, not the cause of it. Think of it like a fruit tree: the fruit doesn\'t make it a tree, but a healthy tree naturally bears fruit.',
       scriptureRefs: ['Ephesians 2:8-9', 'James 2:17', 'Titus 3:5'],
@@ -76,6 +80,8 @@ class FaithQuestionCatalog {
       question: 'What does predestination mean?',
       shortAnswer:
           'Predestination is the biblical teaching that God, before the foundation of the world, chose those who would be saved according to His foreknowledge and purpose.',
+      parable:
+          'A master playwright writes a story knowing every character\'s arc — yet each character speaks with their own voice and makes real choices on stage. The author\'s foreknowledge does not make the characters puppets. God is the playwright who holds the pen and honors the performance.',
       fullAnswer:
           'Predestination is one of the most debated doctrines in Christianity. Calvinists emphasize God\'s sovereign choice in election, while Arminians stress God\'s foreknowledge of those who would freely choose Him. Both traditions affirm that God is sovereign and humans are responsible. The tension between divine sovereignty and human free will is held throughout Scripture. What all Christians agree on is that salvation ultimately originates with God\'s initiative — we love Him because He first loved us.',
       scriptureRefs: ['Romans 8:29-30', 'Ephesians 1:4-5', '1 Peter 1:2'],

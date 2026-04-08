@@ -3,6 +3,7 @@ class FaithQuestion {
   final String question;
   final String shortAnswer;
   final String fullAnswer;
+  final String parable;
   final List<String> scriptureRefs;
   final String category;
   final int difficulty;
@@ -14,6 +15,7 @@ class FaithQuestion {
     required this.question,
     required this.shortAnswer,
     required this.fullAnswer,
+    this.parable = '',
     required this.scriptureRefs,
     required this.category,
     required this.difficulty,
@@ -27,6 +29,7 @@ class FaithQuestion {
       'question': question,
       'shortAnswer': shortAnswer,
       'fullAnswer': fullAnswer,
+      'parable': parable,
       'scriptureRefs': scriptureRefs,
       'category': category,
       'difficulty': difficulty,
@@ -39,13 +42,14 @@ class FaithQuestion {
     return FaithQuestion(
       id: json['id'] as String,
       question: json['question'] as String,
-      shortAnswer: json['shortAnswer'] as String,
-      fullAnswer: json['fullAnswer'] as String,
-      scriptureRefs: (json['scriptureRefs'] as List).cast<String>(),
+      shortAnswer: (json['shortAnswer'] ?? json['short_answer'] ?? '') as String,
+      fullAnswer: (json['fullAnswer'] ?? json['full_answer'] ?? '') as String,
+      parable: (json['parable'] ?? '') as String,
+      scriptureRefs: (json['scriptureRefs'] ?? json['scripture_refs'] as List? ?? []).cast<String>(),
       category: json['category'] as String,
       difficulty: json['difficulty'] as int,
-      quizOptions: (json['quizOptions'] as List).cast<String>(),
-      correctOptionIndex: json['correctOptionIndex'] as int,
+      quizOptions: ((json['quizOptions'] ?? json['quiz_options']) as List).cast<String>(),
+      correctOptionIndex: (json['correctOptionIndex'] ?? json['correct_option_index']) as int,
     );
   }
 }

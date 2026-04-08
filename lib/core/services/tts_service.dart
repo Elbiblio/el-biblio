@@ -130,11 +130,20 @@ class TTSService {
       if (_useOfflineMode) {
         return await _speakOffline(text, speechRate, volume, isBibleVerse);
       } else {
-        return await _speakOnline(text, speechRate, volume, isBibleVerse);
+        final success = await _speakOnline(text, speechRate, volume, isBibleVerse);
+        if (!success) {
+          // Online failed without throwing — try offline before giving up
+          return await _speakOffline(text, speechRate, volume, isBibleVerse);
+        }
+        return success;
       }
     } catch (e) {
-      _logger.e('TTS failed, trying fallback: $e');
-      return await _fallbackToPreRecorded(text, isBibleVerse);
+      _logger.e('TTS failed, trying offline fallback: $e');
+      try {
+        return await _speakOffline(text, speechRate, volume, isBibleVerse);
+      } catch (_) {
+        return await _fallbackToPreRecorded(text, isBibleVerse);
+      }
     }
   }
 

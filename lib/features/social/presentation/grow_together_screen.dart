@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:share_plus/share_plus.dart';
 
-import '../../../core/constants/app_routes.dart';
 import '../../../core/di/app_providers.dart';
+import '../../../core/network/dio_client.dart';
 import '../../mission/presentation/widgets/accountability_check_in_sheet.dart';
 
 class GrowTogetherScreen extends ConsumerStatefulWidget {
@@ -15,24 +15,16 @@ class GrowTogetherScreen extends ConsumerStatefulWidget {
 }
 
 class _GrowTogetherScreenState extends ConsumerState<GrowTogetherScreen> {
-  late final TextEditingController _nameController;
-  late final TextEditingController _relationshipController;
-  late final TextEditingController _contactController;
-
-  @override
-  void initState() {
-    super.initState();
-    final partner = ref.read(missionProvider).accountabilityPartner;
-    _nameController = TextEditingController(text: partner?.name ?? '');
-    _relationshipController = TextEditingController(text: partner?.relationship ?? '');
-    _contactController = TextEditingController(text: partner?.contact ?? '');
-  }
+  final _searchController = TextEditingController();
+  bool _isSearching = false;
+  List<Map<String, dynamic>> _searchResults = [];
+  String? _searchError;
+  bool _showInviteOption = false;
+  String _searchQuery = '';
 
   @override
   void dispose() {
-    _nameController.dispose();
-    _relationshipController.dispose();
-    _contactController.dispose();
+    _searchController.dispose();
     super.dispose();
   }
 
@@ -51,6 +43,7 @@ class _GrowTogetherScreenState extends ConsumerState<GrowTogetherScreen> {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(24, 12, 24, 120),
           children: [
+            // Hero section
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
@@ -86,50 +79,148 @@ class _GrowTogetherScreenState extends ConsumerState<GrowTogetherScreen> {
               ),
             ),
             const SizedBox(height: 20),
+
+            // Current partner card
             if (partner != null) ...[
               _PartnerSummaryCard(),
               const SizedBox(height: 20),
             ],
+
+            // --- Partner search/invite section ---
             Text(
-              partner == null ? 'Add your accountability partner' : 'Update partner details',
+              partner == null ? 'Find your accountability partner' : 'Add another partner',
               style: theme.textTheme.titleMedium?.copyWith(
                 fontWeight: FontWeight.w700,
               ),
             ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _nameController,
-              decoration: const InputDecoration(
-                labelText: 'Partner name',
+            const SizedBox(height: 8),
+            Text(
+              'Search by email or phone number',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
               ),
             ),
             const SizedBox(height: 12),
+
+            // Search field
             TextField(
-              controller: _relationshipController,
-              decoration: const InputDecoration(
-                labelText: 'Relationship',
+              controller: _searchController,
+              keyboardType: TextInputType.emailAddress,
+              decoration: InputDecoration(
+                labelText: 'Email or phone number',
+                hintText: 'friend@example.com or +1234567890',
+                prefixIcon: const Icon(Icons.search, size: 20),
+                suffixIcon: _isSearching
+                    ? const Padding(
+                        padding: EdgeInsets.all(12),
+                        child: SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                      )
+                    : IconButton(
+                        icon: const Icon(Icons.arrow_forward_rounded),
+                        onPressed: _searchController.text.trim().isNotEmpty
+                            ? () => _searchPartner(_searchController.text.trim())
+                            : null,
+                      ),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
               ),
+              onSubmitted: (value) {
+                if (value.trim().isNotEmpty) _searchPartner(value.trim());
+              },
             ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _contactController,
-              decoration: const InputDecoration(
-                labelText: 'Phone or email',
+
+            // Search results
+            if (_searchError != null) ...[
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.errorContainer.withValues(alpha: 0.3),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  _searchError!,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.error,
+                  ),
+                ),
               ),
-            ),
-            const SizedBox(height: 16),
-            FilledButton(
-              onPressed: _savePartner,
-              child: Text(partner == null ? 'Save partner' : 'Update partner'),
-            ),
-            const SizedBox(height: 12),
-            OutlinedButton.icon(
-              onPressed: () => context.push(AppRoutes.invite),
-              icon: const Icon(Icons.person_add_alt_1_rounded),
-              label: const Text('Invite from contacts'),
-            ),
+            ],
+
+            if (_searchResults.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              ..._searchResults.map((user) => _buildSearchResultCard(theme, user)),
+            ],
+
+            // Invite option when user not found
+            if (_showInviteOption) ...[
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.primaryContainer.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: theme.colorScheme.primary.withValues(alpha: 0.15),
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.person_add_alt_1_rounded, size: 20,
+                            color: theme.colorScheme.primary),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Not on El-Biblio yet',
+                            style: theme.textTheme.titleSmall?.copyWith(
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'We\'ll send them an invite to join you on El-Biblio as your accountability partner.',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                        height: 1.4,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton.icon(
+                        onPressed: () => _invitePartner(_searchQuery),
+                        icon: const Icon(Icons.send_rounded, size: 18),
+                        label: const Text('Send Invite'),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Partners who miss 3 check-ins are automatically removed to keep accountability strong.',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurface.withValues(alpha: 0.35),
+                        fontSize: 11,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+
             const SizedBox(height: 24),
-            if (nextAction != null)
+
+            // Current step + check-in
+            if (nextAction != null && partner != null)
               Container(
                 padding: const EdgeInsets.all(18),
                 decoration: BoxDecoration(
@@ -166,7 +257,7 @@ class _GrowTogetherScreenState extends ConsumerState<GrowTogetherScreen> {
                     ),
                     const SizedBox(height: 14),
                     FilledButton.tonalIcon(
-                      onPressed: partner == null ? null : () => AccountabilityCheckInSheet.show(context),
+                      onPressed: () => AccountabilityCheckInSheet.show(context),
                       icon: const Icon(Icons.mark_chat_read_rounded),
                       label: const Text('Check-in'),
                     ),
@@ -179,28 +270,163 @@ class _GrowTogetherScreenState extends ConsumerState<GrowTogetherScreen> {
     );
   }
 
-  Future<void> _savePartner() async {
-    final name = _nameController.text.trim();
-    final relationship = _relationshipController.text.trim();
-    final contact = _contactController.text.trim();
+  Widget _buildSearchResultCard(ThemeData theme, Map<String, dynamic> user) {
+    final name = user['name'] as String? ?? 'El-Biblio User';
+    final userId = user['id'];
 
-    if (name.isEmpty || relationship.isEmpty) {
-      return;
-    }
-
-    await ref.read(missionProvider.notifier).savePartner(
-          name: name,
-          relationship: relationship,
-          contact: contact,
-        );
-
-    if (!mounted) {
-      return;
-    }
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('$name is now your partner.')),
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: theme.colorScheme.outline.withValues(alpha: 0.12),
+        ),
+      ),
+      child: Row(
+        children: [
+          CircleAvatar(
+            radius: 20,
+            backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.12),
+            child: Text(
+              name.isNotEmpty ? name[0].toUpperCase() : '?',
+              style: TextStyle(
+                color: theme.colorScheme.primary,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  name,
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                Text(
+                  'El-Biblio member',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          FilledButton(
+            onPressed: () => _sendPartnerRequest(userId, name),
+            child: const Text('Request'),
+          ),
+        ],
+      ),
     );
+  }
+
+  Future<void> _searchPartner(String query) async {
+    setState(() {
+      _isSearching = true;
+      _searchError = null;
+      _searchResults = [];
+      _showInviteOption = false;
+      _searchQuery = query;
+    });
+
+    try {
+      final dio = ref.read(dioClientProvider);
+      final response = await dio.get(
+        '/partnerships/search',
+        queryParameters: {'query': query},
+      );
+
+      if (response.statusCode != null && response.statusCode! >= 400) {
+        setState(() {
+          _isSearching = false;
+          _showInviteOption = true;
+        });
+        return;
+      }
+
+      final data = response.data['data'] as List<dynamic>? ?? [];
+
+      setState(() {
+        _isSearching = false;
+        _searchResults = data.cast<Map<String, dynamic>>();
+        _showInviteOption = data.isEmpty;
+      });
+    } catch (e) {
+      setState(() {
+        _isSearching = false;
+        _showInviteOption = true;
+      });
+    }
+  }
+
+  Future<void> _sendPartnerRequest(dynamic userId, String name) async {
+    try {
+      final dio = ref.read(dioClientProvider);
+      await dio.post('/partnerships', data: {
+        'partner_user_id': userId,
+        'partner_type': 'peer',
+      });
+
+      // Also save locally for immediate display
+      await ref.read(missionProvider.notifier).savePartner(
+        name: name,
+        relationship: 'Accountability Partner',
+        contact: '',
+      );
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Partnership request sent to $name')),
+      );
+      setState(() {
+        _searchResults = [];
+        _searchController.clear();
+      });
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Failed to send request. Try again.')),
+      );
+    }
+  }
+
+  Future<void> _invitePartner(String contact) async {
+    try {
+      final dio = ref.read(dioClientProvider);
+
+      // Determine if email or phone
+      final isEmail = contact.contains('@');
+      await dio.post('/partnerships', data: {
+        if (isEmail) 'partner_email': contact,
+        if (!isEmail) 'partner_phone': contact,
+        'partner_type': 'peer',
+      });
+
+      // Also share the invite link
+      Share.share(
+        'I\'m using El-Biblio to grow spiritually and I\'d like you to be my accountability partner. Download it here: https://elbiblio.com',
+      );
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Invitation sent! They\'ll be notified when they join.')),
+      );
+      setState(() {
+        _showInviteOption = false;
+        _searchController.clear();
+      });
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Failed to send invite. Try again.')),
+      );
+    }
   }
 }
 

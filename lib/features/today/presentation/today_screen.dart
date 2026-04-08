@@ -1,34 +1,32 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../../../../core/constants/app_routes.dart';
 import '../../../../core/di/app_providers.dart';
 import '../../../../core/storage/settings_storage.dart';
+import '../../../../core/services/analytics/app_analytics_service.dart';
 import '../../../../core/theme/app_theme_tokens.dart';
 import '../domain/models/daily_anchors.dart';
 import 'widgets/physical_activity_guide.dart';
 import '../../commitments/presentation/widgets/commitment_welcome_dialog.dart';
 import 'widgets/prayer_guide_dialog.dart';
-import 'widgets/progress_reminder_dialog.dart';
-import 'widgets/end_of_day_reflection_dialog.dart';
-import 'widgets/first_aid_kit_dialog.dart';
+import 'widgets/soul_care_dialog.dart';
 import 'widgets/commitment_waiting_dialog.dart';
 import 'widgets/commitment_completion_dialog.dart';
 import 'widgets/habit_reset_dialog.dart';
-import 'widgets/share_elbiblio_dialog.dart';
 import 'widgets/time_diagnose_suggestion_dialog.dart';
 import 'widgets/recalibration_suggestion_dialog.dart';
 import 'widgets/today_header.dart';
 import 'widgets/assessment_prompt_widget.dart';
 import 'widgets/daily_focus_card.dart';
-import 'widgets/weekly_priorities_widget.dart';
-import 'widgets/weekly_recap_card.dart';
-import 'widgets/mission_next_step_card.dart';
-import 'widgets/quick_actions_row.dart';
-import 'widgets/daily_rhythm_section.dart';
+import 'widgets/weekly_section_widget.dart';
+import 'widgets/mission_next_step_card.dart'
+    show MissionNextStepCard;
+import 'widgets/daily_verse_card.dart';
 import 'widgets/spiritual_pulse_widget.dart';
-import 'helpers/share_helper.dart' as share_helper;
+import 'widgets/journey_check_in_section.dart';
 
 class TodayScreen extends ConsumerStatefulWidget {
   const TodayScreen({super.key});
@@ -43,6 +41,10 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
   @override
   void initState() {
     super.initState();
+    // Track TodayScreen view
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(analyticsProvider).track(AppAnalyticsEvent.todayScreenViewed);
+    });
     // Check for missed days and alarm proximity when screen initializes
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _checkForMissedDaysAndShowSuggestion();
@@ -112,32 +114,46 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
     final settings = ref.read(settingsProvider);
     const storage = SettingsStorage();
 
-    // Only show if onboarding is completed and it's morning hours
     if (!settings.onboardingCompleted) return;
+
+    // First-time welcome: show prayer guide immediately regardless of time
+    if (!settings.hasSeenTodayWelcome) {
+      final anchors = ref.read(dailyAnchorsProvider);
+      final virtue = anchors.coreVirtue;
+      if (!virtue.isCompleted && mounted) {
+        PrayerGuideDialog.show(
+          context,
+          virtue,
+          () async {
+            await storage.markPrayerGuideShown();
+            ref.read(dailyAnchorsProvider.notifier).markAnchorDone(AnchorType.coreVirtue);
+          },
+          showQuickStart: true,
+        );
+        await storage.markPrayerGuideShown();
+      }
+      await ref.read(settingsProvider.notifier).markTodayWelcomeSeen();
+      return;
+    }
+
+    // Normal behavior: only show during morning hours
     if (!storage.isMorningHours()) return;
     if (!storage.shouldShowPrayerGuide(settings)) return;
 
-    // Get current virtue for prayer guide
     final anchors = ref.read(dailyAnchorsProvider);
     final virtue = anchors.coreVirtue;
-
-    // Don't show if virtue is already completed
     if (virtue.isCompleted) return;
 
-    // Show prayer guide dialog
     if (mounted) {
       PrayerGuideDialog.show(
         context,
         virtue,
         () async {
-          // Mark prayer guide as shown and mark virtue as done
           await storage.markPrayerGuideShown();
           ref.read(dailyAnchorsProvider.notifier).markAnchorDone(AnchorType.coreVirtue);
         },
         showQuickStart: true,
       );
-
-      // Mark as shown even if user dismisses (so it doesn't show again today)
       await storage.markPrayerGuideShown();
     }
   }
@@ -145,29 +161,6 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
   // ---------------------------------------------------------------------------
   // Build
   // ---------------------------------------------------------------------------
-
-  Widget? _buildWeeklyRecapCard() {
-    final now = DateTime.now();
-    final isFriday = now.weekday == DateTime.friday;
-    final isSunday = now.weekday == DateTime.sunday;
-    
-    // Only show on Friday or Sunday
-    if (isFriday || isSunday) {
-      return const Padding(
-        padding: EdgeInsets.only(top: 16),
-        child: WeeklyRecapCard(),
-      );
-    }
-    return null;
-  }
-
-  List<Widget> _buildWeeklyRecapCards() {
-    final recapCard = _buildWeeklyRecapCard();
-    if (recapCard != null) {
-      return [SliverToBoxAdapter(child: recapCard)];
-    }
-    return [];
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -192,11 +185,10 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
           bottom: false,
           child: CustomScrollView(
             slivers: [
-              // Header (profile, greeting, help & share buttons)
+              // Header (profile, greeting, help button)
               SliverToBoxAdapter(
                 child: TodayHeader(
                   onHelpTap: _showQuickHelp,
-                  onShareTap: _showShareModal,
                 ),
               ),
 
@@ -204,7 +196,9 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
               SliverToBoxAdapter(
                 child: DailyFocusCard(
                   anchors: anchors,
-                  onProgressTap: () => _showProgressReminder(anchors),
+                  onPrayerTap: () => _showPrayerGuide(anchors.coreVirtue),
+                  onHabitTap: () => _handleHabitTap(anchors, now),
+                  onActivityTap: _showPhysicalActivityGuide,
                 ),
               ),
 
@@ -216,38 +210,35 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                   ),
                 ),
 
-              // Weekly Priorities from calling profile
-              const SliverToBoxAdapter(
-                child: WeeklyPrioritiesWidget(),
-              ),
+              // --- Time-aware secondary widget ordering ---
+              // Evening: promote journey check-in; Afternoon: promote mission
+              ..._buildSecondaryWidgets(settings, anchors, todayPulse, now),
 
-              // Weekly Recap Card (only show on Friday or Sunday)
-              ..._buildWeeklyRecapCards(),
-
-              const SliverToBoxAdapter(
-                child: MissionNextStepCard(),
-              ),
-
-              // Quick Actions: horizontal chips for displaced features
-              const SliverToBoxAdapter(
-                child: Padding(
-                  padding: EdgeInsets.only(top: 16),
-                  child: QuickActionsRow(),
+              // Daily verse when all anchors complete
+              if (anchors.coreVirtue.isCompleted &&
+                  anchors.habit.isCompleted &&
+                  anchors.energyAction.isCompleted)
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    child: DailyVerseCard(
+                      onShare: () {
+                        final verse = ref.read(verseProvider).todayVerse;
+                        if (verse != null) {
+                          Share.share(
+                            '"${verse.text}" — ${verse.reference}\n\nShared from El-Biblio',
+                          );
+                        }
+                      },
+                    ),
+                  ),
                 ),
-              ),
 
-              if ((todayPulse?.entries.length ?? 0) == 0)
-                const SliverToBoxAdapter(
-                  child: SpiritualPulseWidget(),
+              // Responsive bottom padding for floating nav
+              SliverToBoxAdapter(
+                child: SizedBox(
+                  height: MediaQuery.of(context).padding.bottom + 100,
                 ),
-
-              // Daily Rhythm (time-based anchor display)
-              DailyRhythmSection(
-                anchors: anchors,
-                now: now,
-                onPrayerTap: _showPrayerGuide,
-                onHabitTap: () => _handleHabitTap(anchors, now),
-                onPhysicalActivityTap: _showPhysicalActivityGuide,
               ),
             ],
           ),
@@ -257,32 +248,72 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
   }
 
   // ---------------------------------------------------------------------------
+  // Time-aware widget ordering
+  // ---------------------------------------------------------------------------
+
+  /// Returns secondary slivers ordered by time of day.
+  /// Evening (17+): Journey check-in first, then pulse, weekly, mission.
+  /// Afternoon (12-17): Mission first, weekly, pulse, journey check-in.
+  /// Morning (default): Weekly, mission, pulse, journey check-in.
+  List<Widget> _buildSecondaryWidgets(
+    dynamic settings,
+    DailyAnchors anchors,
+    dynamic todayPulse,
+    DateTime now,
+  ) {
+    const weeklySectionSliver = SliverToBoxAdapter(child: WeeklySectionWidget());
+    const missionSliver = SliverToBoxAdapter(child: MissionNextStepCard());
+    const journeySliver = SliverToBoxAdapter(child: JourneyCheckInSection());
+
+    Widget? pulseSliver;
+    if ((todayPulse?.entries.length ?? 0) == 0 && settings.streakCount > 0) {
+      pulseSliver = const SliverToBoxAdapter(child: SpiritualPulseWidget());
+    }
+
+    final hour = now.hour;
+
+    if (hour >= 17) {
+      // Evening: journey check-in is primary action
+      return [
+        journeySliver,
+        if (pulseSliver != null) pulseSliver,
+        weeklySectionSliver,
+        missionSliver,
+      ];
+    } else if (hour >= 12) {
+      // Afternoon: mission/action time
+      return [
+        missionSliver,
+        weeklySectionSliver,
+        if (pulseSliver != null) pulseSliver,
+        journeySliver,
+      ];
+    } else {
+      // Morning: default order
+      return [
+        weeklySectionSliver,
+        missionSliver,
+        if (pulseSliver != null) pulseSliver,
+        journeySliver,
+      ];
+    }
+  }
+
+  // ---------------------------------------------------------------------------
   // Actions
   // ---------------------------------------------------------------------------
 
   void _handleHabitTap(DailyAnchors anchors, DateTime now) async {
     final habit = anchors.habit;
 
-    debugPrint('TodayScreen: _handleHabitTap called');
-    debugPrint('TodayScreen: habit.isCompleted=${habit.isCompleted}');
-    debugPrint('TodayScreen: habit.canStartCommitment=${habit.canStartCommitment}');
-    debugPrint('TodayScreen: habit.isCommitmentActive=${habit.isCommitmentActive}');
-    debugPrint('TodayScreen: habit.isCommitmentComplete=${habit.isCommitmentComplete}');
-    debugPrint('TodayScreen: habit.isLockedIn=${habit.isLockedIn}');
-    debugPrint('TodayScreen: habit.commitmentStartTime=${habit.commitmentStartTime}');
-    debugPrint('TodayScreen: habit.commitmentLockedTime=${habit.commitmentLockedTime}');
-
     if (habit.isCompleted) {
-      debugPrint('TodayScreen: Habit already completed, returning');
       return;
     }
 
     if (habit.canStartCommitment) {
-      debugPrint('TodayScreen: Can start commitment, checking welcome state');
       final settings = ref.read(settingsProvider);
 
       if (!settings.hasSeenCommitmentWelcome) {
-        debugPrint('TodayScreen: First time - showing welcome dialog');
         if (!mounted) return;
         await CommitmentWelcomeDialog.show(context);
         // The dialog handles navigation to commitment journey when user
@@ -290,15 +321,11 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
         return;
       }
 
-      // User has already seen the welcome -- go straight to the journey screen
-      debugPrint('TodayScreen: Navigating to commitment journey');
       if (!mounted) return;
       context.push(AppRoutes.commitmentJourney);
     } else if (habit.isLockedIn && habit.commitmentStartTime == null) {
-      debugPrint('TodayScreen: Habit locked in but not started, showing waiting dialog');
       CommitmentWaitingDialog.show(context, habit);
     } else if (habit.isCommitmentActive && habit.isCommitmentComplete) {
-      debugPrint('TodayScreen: Showing completion dialog');
       CommitmentCompletionDialog.show(
         context,
         habit: habit,
@@ -306,10 +333,8 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
         onFailed: () => ref.read(dailyAnchorsProvider.notifier).completeCommitment(succeeded: false),
       );
     } else if (habit.isCommitmentActive) {
-      debugPrint('TodayScreen: Habit is active - EnhancedCommitmentCard handles tap');
       return;
     } else if (habit.isLockedIn && habit.commitmentStartTime != null) {
-      debugPrint('TodayScreen: Habit locked in and started, checking completion status');
       if (habit.isCommitmentComplete) {
         CommitmentCompletionDialog.show(
           context,
@@ -318,11 +343,9 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
           onFailed: () => ref.read(dailyAnchorsProvider.notifier).completeCommitment(succeeded: false),
         );
       } else {
-        debugPrint('TodayScreen: Habit locked in but not active - EnhancedCommitmentCard handles tap');
         return;
       }
     } else {
-      debugPrint('TodayScreen: No valid habit state found, showing reset option');
       HabitResetDialog.show(
         context,
         onReset: () {
@@ -345,23 +368,6 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
     PhysicalActivityGuide.show(context);
   }
 
-  bool _isEveningTime() {
-    final now = DateTime.now();
-    return now.hour >= 19 || now.hour < 2; // 7 PM to 2 AM considered evening
-  }
-
-  void _showProgressReminder(DailyAnchors anchors) {
-    final completedCount = _calculateCompletedAnchors(anchors);
-    if (_isEveningTime() && completedCount == 0) {
-      showDialog(
-        context: context,
-        builder: (context) => const EndOfDayReflectionDialog(),
-      );
-    } else {
-      ProgressReminderDialog.show(context, anchors);
-    }
-  }
-
   void _showPrayerGuide(Virtue virtue) {
     PrayerGuideDialog.show(
       context,
@@ -371,32 +377,11 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
     );
   }
 
-  int _calculateCompletedAnchors(DailyAnchors anchors) {
-    int count = 0;
-    if (anchors.coreVirtue.isCompleted) count++;
-    if (anchors.habit.isCompleted) count++;
-    if (anchors.energyAction.isCompleted) count++;
-    return count;
-  }
-
-  void _showShareModal() {
-    final authState = ref.read(authProvider);
-    ShareElbiblioDialog.show(
-      context,
-      onShareWithContacts: () => share_helper.shareWithContacts(
-        context,
-        isAuthenticated: authState.isAuthenticated,
-        isGuest: authState.isGuest,
-      ),
-      onShareUrl: () => share_helper.shareAppUrl(context),
-      onLeaveReview: () => share_helper.openStoreReview(context),
-    );
-  }
-
   void _showQuickHelp() {
+    ref.read(analyticsProvider).track(AppAnalyticsEvent.soulCareDialogOpened);
     showDialog(
       context: context,
-      builder: (context) => const FirstAidKitDialog(),
+      builder: (context) => const SoulCareDialog(),
     );
   }
 

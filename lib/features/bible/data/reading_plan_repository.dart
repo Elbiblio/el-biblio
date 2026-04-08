@@ -1,5 +1,6 @@
 import 'package:logger/logger.dart';
 
+import '../../../core/errors/app_exception.dart';
 import '../../../core/network/dio_client.dart';
 import '../../../core/repository/base_repository.dart';
 import '../domain/models/reading_plan.dart';
@@ -70,7 +71,16 @@ class ReadingPlanRepository extends BaseRepository {
   Future<UserReadingPlan> startPlan(int id) {
     return guard(() async {
       final response = await _client.post('/reading-plans/$id/start');
+
+      if (response.statusCode != null && response.statusCode! >= 400) {
+        final message = response.data?['message'] ?? 'Failed to start reading plan';
+        throw AppException(message.toString(), 'start_plan_error', '${response.statusCode}');
+      }
+
       final data = response.data['data'] ?? response.data;
+      if (data is! Map<String, dynamic>) {
+        throw AppException('Invalid response format', 'parse_error', data.toString());
+      }
       return UserReadingPlan.fromJson(data);
     }, operation: 'start_reading_plan');
   }

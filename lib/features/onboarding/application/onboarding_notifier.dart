@@ -56,14 +56,19 @@ class OnboardingNotifier extends StateNotifier<OnboardingState> {
   }
 
   // ---------------------------------------------------------------------------
-  // Mini-assessment (3 questions)
+  // Mini-assessment (3 questions + optional tiebreaker)
   // ---------------------------------------------------------------------------
 
-  /// The 3 mini-assessment questions. Each question maps answer indices to
-  /// archetype affinities (which archetypes score points for that answer).
+  /// The mini-assessment questions with positive AND negative archetype
+  /// affinities plus per-question weight multipliers.
+  ///
+  /// Negative scoring helps discriminate between archetypes that share
+  /// similar positive signals (e.g., Welcomer/Bridgebuilder/Healer cluster).
   static const List<MiniAssessmentQuestion> miniAssessmentQuestions = [
+    // Q1: Instinctive response — broad archetype signal (weight 1.0)
     MiniAssessmentQuestion(
       question: 'When life gets overwhelming, what do you instinctively reach for?',
+      weight: 1.0,
       options: [
         'Something creative — music, art, writing, or building',
         'Information — I need to understand what\'s happening',
@@ -71,29 +76,33 @@ class OnboardingNotifier extends StateNotifier<OnboardingState> {
         'Action — I start doing something to fix it',
       ],
       affinityMap: {
-        0: ['Artisan', 'Sower'],
-        1: ['Watchman', 'Sentinel'],
-        2: ['Welcomer', 'Bridgebuilder', 'Healer'],
-        3: ['Reformer', 'Architect', 'Harvester'],
+        0: ArchetypeScoreSet(positive: ['Artisan', 'Sower'], negative: ['Architect', 'Pillar']),
+        1: ArchetypeScoreSet(positive: ['Watchman', 'Sentinel'], negative: ['Welcomer', 'Sower']),
+        2: ArchetypeScoreSet(positive: ['Welcomer', 'Bridgebuilder', 'Healer'], negative: ['Sentinel', 'Architect']),
+        3: ArchetypeScoreSet(positive: ['Reformer', 'Architect', 'Harvester'], negative: ['Bridgebuilder', 'Welcomer']),
       },
     ),
+    // Q2: Vice-signal question — splits clustered archetypes (weight 1.2)
     MiniAssessmentQuestion(
-      question: 'What frustrates you most about the world right now?',
+      question: 'What secretly drains your energy the most?',
+      weight: 1.2,
       options: [
-        'People don\'t care enough about each other',
-        'Things are chaotic — no one is building anything lasting',
-        'Truth is being silenced or ignored',
-        'People are stuck and won\'t grow or change',
+        'Feeling unseen or unappreciated for what I give',
+        'Shallow relationships that never go deep',
+        'Injustice that nobody seems to care about',
+        'Disorder when things could be so much better',
       ],
       affinityMap: {
-        0: ['Healer', 'Welcomer', 'Cultivator'],
-        1: ['Architect', 'Pillar', 'Cultivator'],
-        2: ['Watchman', 'Reformer', 'Sentinel'],
-        3: ['Sower', 'Harvester', 'Artisan'],
+        0: ArchetypeScoreSet(positive: ['Pillar', 'Artisan', 'Cultivator'], negative: ['Harvester', 'Reformer']),
+        1: ArchetypeScoreSet(positive: ['Sentinel', 'Healer', 'Bridgebuilder'], negative: ['Sower', 'Harvester']),
+        2: ArchetypeScoreSet(positive: ['Reformer', 'Watchman', 'Sower'], negative: ['Welcomer', 'Pillar']),
+        3: ArchetypeScoreSet(positive: ['Architect', 'Cultivator', 'Harvester'], negative: ['Bridgebuilder', 'Artisan']),
       },
     ),
+    // Q3: Static fallback (only used if dynamic Q3 can't be generated)
     MiniAssessmentQuestion(
       question: 'If you could have one spiritual superpower, what would it be?',
+      weight: 1.5,
       options: [
         'The ability to see what God sees in people',
         'Unshakeable peace no matter what happens',
@@ -101,16 +110,165 @@ class OnboardingNotifier extends StateNotifier<OnboardingState> {
         'The patience to build something that outlasts you',
       ],
       affinityMap: {
-        0: ['Healer', 'Cultivator', 'Bridgebuilder'],
-        1: ['Sentinel', 'Pillar', 'Welcomer'],
-        2: ['Watchman', 'Reformer', 'Sower'],
-        3: ['Architect', 'Harvester', 'Artisan'],
+        0: ArchetypeScoreSet(positive: ['Healer', 'Cultivator', 'Bridgebuilder'], negative: ['Harvester', 'Architect']),
+        1: ArchetypeScoreSet(positive: ['Sentinel', 'Pillar', 'Welcomer'], negative: ['Reformer', 'Sower']),
+        2: ArchetypeScoreSet(positive: ['Watchman', 'Reformer', 'Sower'], negative: ['Pillar', 'Welcomer']),
+        3: ArchetypeScoreSet(positive: ['Architect', 'Harvester', 'Artisan'], negative: ['Healer', 'Bridgebuilder']),
       },
     ),
   ];
 
+  /// Archetype-specific distinguishing statements for dynamic Q3.
+  static const archetypeDistinguishers = <String, String>{
+    'Watchman': 'I would protect others from unseen dangers',
+    'Sentinel': 'I would stand firm when everyone else compromises',
+    'Reformer': 'I would challenge systems that keep people oppressed',
+    'Architect': 'I would design something that changes how people live',
+    'Sower': 'I would start movements that outlive me',
+    'Harvester': 'I would bring people together for a shared purpose',
+    'Artisan': 'I would create beauty that points people to God',
+    'Healer': 'I would restore what is broken in someone\'s life',
+    'Welcomer': 'I would make every stranger feel like family',
+    'Cultivator': 'I would invest years developing one person\'s potential',
+    'Bridgebuilder': 'I would connect divided communities',
+    'Pillar': 'I would be the steady presence everyone relies on',
+  };
+
+  /// Generates a dynamic Q3 that distinguishes between the top candidates
+  /// from Q1+Q2 answers. Uses weighted scoring with negatives.
+  MiniAssessmentQuestion getDynamicQuestion3() {
+    final answers = state.miniAssessmentAnswers;
+    if (answers.length < 2) return miniAssessmentQuestions[2]; // fallback
+
+    // Compute intermediate scores from Q1+Q2 using weighted scoring
+    final scores = _computeIntermediateScores(answers.take(2).toList());
+    if (scores.isEmpty) return miniAssessmentQuestions[2]; // fallback
+
+    // Get top 4 candidates
+    final sorted = scores.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    final topCandidates = sorted.take(4).map((e) => e.key).toList();
+
+    // Ensure we have at least 4 options
+    if (topCandidates.length < 4) {
+      for (final archetype in archetypeDistinguishers.keys) {
+        if (!topCandidates.contains(archetype)) {
+          topCandidates.add(archetype);
+          if (topCandidates.length >= 4) break;
+        }
+      }
+    }
+
+    final options = topCandidates
+        .where((a) => archetypeDistinguishers.containsKey(a))
+        .take(4)
+        .map((a) => archetypeDistinguishers[a]!)
+        .toList();
+
+    // Dynamic Q3 gets highest weight (2.0) — it's a direct distinguisher
+    final affinityMap = <int, ArchetypeScoreSet>{};
+    for (int i = 0; i < options.length; i++) {
+      final archetype = topCandidates[i];
+      affinityMap[i] = ArchetypeScoreSet(positive: [archetype], negative: const []);
+    }
+
+    return MiniAssessmentQuestion(
+      question: 'Which of these best describes the impact you want to have?',
+      weight: 2.0,
+      options: options,
+      affinityMap: affinityMap,
+    );
+  }
+
+  /// Generates a tiebreaker question when the top 2 archetypes are too close.
+  /// Returns null if no tiebreaker is needed.
+  MiniAssessmentQuestion? getTiebreakerQuestion() {
+    final answers = state.miniAssessmentAnswers;
+    if (answers.length < 3) return null;
+
+    final scores = _computeFullScores(answers);
+    final sorted = scores.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+
+    if (sorted.length < 2) return null;
+
+    final topScore = sorted[0].value;
+    final secondScore = sorted[1].value;
+    final confidence = topScore > 0 ? (topScore - secondScore) / topScore : 0.0;
+
+    // Only show tiebreaker when confidence is low
+    if (confidence >= 0.3) return null;
+
+    final top2 = sorted.take(2).map((e) => e.key).toList();
+    final options = top2
+        .where((a) => archetypeDistinguishers.containsKey(a))
+        .map((a) => archetypeDistinguishers[a]!)
+        .toList();
+
+    if (options.length < 2) return null;
+
+    final affinityMap = <int, ArchetypeScoreSet>{};
+    for (int i = 0; i < options.length; i++) {
+      affinityMap[i] = ArchetypeScoreSet(positive: [top2[i]], negative: const []);
+    }
+
+    return MiniAssessmentQuestion(
+      question: 'One last thought — which resonates more deeply?',
+      weight: 2.5,
+      options: options,
+      affinityMap: affinityMap,
+    );
+  }
+
+  /// Computes intermediate scores from a subset of answers (used for dynamic Q3).
+  Map<String, double> _computeIntermediateScores(List<int> answers) {
+    final scores = <String, double>{};
+    for (var i = 0; i < answers.length && i < miniAssessmentQuestions.length; i++) {
+      if (answers[i] < 0) continue;
+      final question = miniAssessmentQuestions[i];
+      final scoreSet = question.affinityMap[answers[i]];
+      if (scoreSet == null) continue;
+      for (final archetype in scoreSet.positive) {
+        scores[archetype] = (scores[archetype] ?? 0) + question.weight;
+      }
+      for (final archetype in scoreSet.negative) {
+        scores[archetype] = (scores[archetype] ?? 0) - (question.weight * 0.5);
+      }
+    }
+    return scores;
+  }
+
+  /// Computes full scores across all answered questions (including dynamic Q3).
+  Map<String, double> _computeFullScores(List<int> answers) {
+    final scores = <String, double>{};
+    for (var i = 0; i < answers.length; i++) {
+      if (answers[i] < 0) continue;
+      final MiniAssessmentQuestion question;
+      if (i == 2) {
+        question = getDynamicQuestion3();
+      } else if (i == 3) {
+        final tiebreaker = getTiebreakerQuestion();
+        if (tiebreaker == null) continue;
+        question = tiebreaker;
+      } else if (i < miniAssessmentQuestions.length) {
+        question = miniAssessmentQuestions[i];
+      } else {
+        continue;
+      }
+      final scoreSet = question.affinityMap[answers[i]];
+      if (scoreSet == null) continue;
+      for (final archetype in scoreSet.positive) {
+        scores[archetype] = (scores[archetype] ?? 0) + question.weight;
+      }
+      for (final archetype in scoreSet.negative) {
+        scores[archetype] = (scores[archetype] ?? 0) - (question.weight * 0.5);
+      }
+    }
+    return scores;
+  }
+
   /// Records an answer for a mini-assessment question and, if all 3 are
-  /// answered, computes the primary archetype.
+  /// answered (or 4 with tiebreaker), computes the primary archetype.
   void answerMiniAssessment(int questionIndex, int answerIndex) {
     final answers = List<int>.from(state.miniAssessmentAnswers);
 
@@ -122,44 +280,54 @@ class OnboardingNotifier extends StateNotifier<OnboardingState> {
 
     state = state.copyWith(miniAssessmentAnswers: answers);
 
-    // If all 3 answered, compute archetype
-    if (answers.length >= 3 && !answers.contains(-1)) {
+    // Compute archetype once we have at least 3 answers
+    final answeredCount = answers.where((a) => a >= 0).length;
+    if (answeredCount >= 3) {
       _computeArchetype(answers);
     }
   }
 
   void _computeArchetype(List<int> answers) {
-    // Tally affinity scores
-    final scores = <String, int>{};
-    for (var i = 0; i < answers.length && i < miniAssessmentQuestions.length; i++) {
-      final question = miniAssessmentQuestions[i];
-      final archetypes = question.affinityMap[answers[i]] ?? [];
-      for (final archetype in archetypes) {
-        scores[archetype] = (scores[archetype] ?? 0) + 1;
-      }
-    }
+    final scores = _computeFullScores(answers);
 
-    // Find the highest-scoring archetype
-    String? bestArchetype;
-    var bestScore = 0;
-    for (final entry in scores.entries) {
-      if (entry.value > bestScore) {
-        bestScore = entry.value;
-        bestArchetype = entry.key;
-      }
-    }
+    // Sort to find best and second-best
+    final sorted = scores.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
 
-    if (bestArchetype != null) {
-      // Also set the recommended commitment category
-      final recommendedCategory =
-          CommitmentCategory.recommendedForArchetype(bestArchetype);
+    if (sorted.isEmpty) return;
 
-      state = state.copyWith(
-        primaryArchetypeId: bestArchetype,
-        commitmentCategory: recommendedCategory.name,
-        primaryMissionFocus: _recommendedMissionFocus(recommendedCategory).name,
-      );
-    }
+    final bestArchetype = sorted[0].key;
+    final bestScore = sorted[0].value;
+    final secondScore = sorted.length > 1 ? sorted[1].value : 0.0;
+
+    // Compute confidence: how much the top archetype leads
+    final confidence = bestScore > 0
+        ? ((bestScore - secondScore) / bestScore).clamp(0.0, 1.0)
+        : 0.0;
+
+    // Set the recommended commitment category
+    final recommendedCategory =
+        CommitmentCategory.recommendedForArchetype(bestArchetype);
+
+    state = state.copyWith(
+      primaryArchetypeId: bestArchetype,
+      assessmentConfidence: confidence,
+      commitmentCategory: recommendedCategory.name,
+      primaryMissionFocus: _recommendedMissionFocus(recommendedCategory).name,
+    );
+  }
+
+  /// Whether a tiebreaker question is needed (low confidence after 3 questions).
+  bool get needsTiebreaker {
+    return state.miniAssessmentAnswers.length >= 3 &&
+        !state.tiebreakerShown &&
+        state.assessmentConfidence < 0.3 &&
+        getTiebreakerQuestion() != null;
+  }
+
+  /// Marks the tiebreaker as shown so it won't trigger again.
+  void markTiebreakerShown() {
+    state = state.copyWith(tiebreakerShown: true);
   }
 
   MissionFocusType _recommendedMissionFocus(CommitmentCategory category) {
@@ -275,17 +443,36 @@ class OnboardingNotifier extends StateNotifier<OnboardingState> {
   }
 }
 
-/// A single mini-assessment question with answer-to-archetype mapping.
+/// A single mini-assessment question with weighted positive/negative scoring.
 class MiniAssessmentQuestion {
   const MiniAssessmentQuestion({
     required this.question,
     required this.options,
     required this.affinityMap,
+    this.weight = 1.0,
   });
 
   final String question;
   final List<String> options;
 
-  /// Maps answer index -> list of archetype names that gain affinity.
-  final Map<int, List<String>> affinityMap;
+  /// Per-question weight multiplier. Higher weight means this question's
+  /// signal counts more toward the final archetype determination.
+  final double weight;
+
+  /// Maps answer index -> archetype score set (positive and negative affinities).
+  final Map<int, ArchetypeScoreSet> affinityMap;
+}
+
+/// Positive and negative archetype affinities for a single answer option.
+class ArchetypeScoreSet {
+  const ArchetypeScoreSet({
+    required this.positive,
+    this.negative = const [],
+  });
+
+  /// Archetypes that gain points when this answer is selected.
+  final List<String> positive;
+
+  /// Archetypes that lose points (at 50% of question weight) when selected.
+  final List<String> negative;
 }

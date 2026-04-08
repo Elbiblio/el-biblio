@@ -57,13 +57,22 @@ class MeditationAudioService {
     return audioDir.path;
   }
 
-  Future<String> _getAudioPath(String filename) async {
-    final dir = await _getAudioDir();
+  Future<String> _getChantDir() async {
+    final directory = await getApplicationDocumentsDirectory();
+    final chantDir = Directory('${directory.path}/meditation_chants');
+    if (!await chantDir.exists()) {
+      await chantDir.create(recursive: true);
+    }
+    return chantDir.path;
+  }
+
+  Future<String> _getAudioPath(String filename, {bool isChant = false}) async {
+    final dir = isChant ? await _getChantDir() : await _getAudioDir();
     return '$dir/$filename';
   }
 
-  Future<bool> _isAudioDownloaded(String filename) async {
-    final path = await _getAudioPath(filename);
+  Future<bool> _isAudioDownloaded(String filename, {bool isChant = false}) async {
+    final path = await _getAudioPath(filename, isChant: isChant);
     return await File(path).exists();
   }
 
@@ -87,13 +96,14 @@ class MeditationAudioService {
     }
   }
 
-  Future<void> downloadAudio(String filename, {Function(int, int)? onProgress}) async {
-    if (await _isAudioDownloaded(filename)) {
+  Future<bool> downloadAudio(String url, String filename, {bool isChant = false, Function(int, int)? onProgress}) async {
+    final path = await _getAudioPath(filename, isChant: isChant);
+    
+    if (await _isAudioDownloaded(filename, isChant: isChant)) {
       // Validate existing file
-      final path = await _getAudioPath(filename);
       if (await _validateAudioFile(path)) {
         _logger.d('Audio $filename already downloaded and validated');
-        return;
+        return true;
       } else {
         _logger.w('Existing audio file $filename is invalid, re-downloading');
         // Delete invalid file and re-download
@@ -102,9 +112,6 @@ class MeditationAudioService {
     }
 
     try {
-      final path = await _getAudioPath(filename);
-      final url = '$_baseUrl$filename';
-      
       _logger.d('Downloading meditation audio from $url to $path');
       
       final dio = Dio(BaseOptions(
@@ -114,7 +121,7 @@ class MeditationAudioService {
           'Accept': 'audio/mpeg',
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
           'Referer': 'https://elbiblio.com/',
-          'CF-Connecting_IP': '173.245.48.90', // Added this line
+          'CF-Connecting-IP': '173.245.48.90',
         },
       ));
       
@@ -132,9 +139,10 @@ class MeditationAudioService {
       }
       
       _logger.i('Meditation audio downloaded and validated successfully: $filename');
+      return true;
     } catch (e) {
       _logger.e('Failed to download meditation audio: $e');
-      throw Exception('Failed to download meditation audio: $e');
+      return false;
     }
   }
 
@@ -236,113 +244,13 @@ class MeditationAudioService {
     }
   }
 
-  Future<void> stop() async {
-    try {
-      await _player.stop();
-    } catch (e) {
-      _logger.e('Failed to stop audio: $e');
-    }
-  }
-
-  Future<void> setVolume(double volume) async {
-    try {
-      await _player.setVolume(volume);
-    } catch (e) {
-      _logger.e('Failed to set volume: $e');
-    }
-  }
-
-  Future<List<String>> getAvailableSounds() async {
-    return [
-      'ambient.mp3',
-      'heartbeat.mp3',
-      'bell-meditation.mp3',
-      'success_bell.mp3',
-    ];
-  }
-
-  Future<bool> isSoundAvailable(String filename) async {
-    // Check if either local file or asset exists
-    final localPath = await _getAudioPath(filename);
-    return await File(localPath).exists();
-  }
-
-  // Chant-specific methods
-  Future<String> _getChantDir() async {
-    final directory = await getApplicationDocumentsDirectory();
-    final chantDir = Directory('${directory.path}/meditation_chants');
-    if (!await chantDir.exists()) {
-      await chantDir.create(recursive: true);
-    }
-    return chantDir.path;
-  }
-
-  Future<String> _getChantPath(String filename) async {
-    final dir = await _getChantDir();
-    return '$dir/$filename';
-  }
-
-  Future<bool> _isChantDownloaded(String filename) async {
-    final path = await _getChantPath(filename);
-    return await File(path).exists();
-  }
-
-  Future<void> downloadChant(String url, String filename, {Function(int, int)? onProgress}) async {
-    if (await _isChantDownloaded(filename)) {
-      // Validate existing chant file
-      final path = await _getChantPath(filename);
-      if (await _validateAudioFile(path)) {
-        _logger.d('Chant $filename already downloaded and validated');
-        return;
-      } else {
-        _logger.w('Existing chant file $filename is invalid, re-downloading');
-        // Delete invalid file and re-download
-        await File(path).delete();
-      }
-    }
-
-    try {
-      final path = await _getChantPath(filename);
-      
-      _logger.d('Downloading chant from $url to $path');
-      
-      final dio = Dio(BaseOptions(
-        connectTimeout: const Duration(seconds: 30),
-        receiveTimeout: const Duration(seconds: 60),
-        headers: {
-          'Accept': 'audio/mpeg',
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-          'Referer': 'https://elbiblio.com/',
-        },
-      ));
-      
-      await dio.download(
-        url,
-        path,
-        onReceiveProgress: onProgress,
-      );
-      
-      dio.close();
-      
-      // Verify the downloaded chant file
-      if (!await _validateAudioFile(path)) {
-        throw Exception('Downloaded chant file is invalid or corrupted');
-      }
-      
-      _logger.i('Chant downloaded and validated successfully: $filename');
-    } catch (e) {
-      _logger.e('Failed to download chant: $e');
-      throw Exception('Failed to download chant: $e');
-    }
-  }
-
   Future<void> playChant(
     String url,
     String filename, {
     bool loop = false,
     double volume = 0.65,
   }) async {
-    final localPath = await _getChantPath(filename);
+    final localPath = await _getAudioPath(filename, isChant: true);
 
     Future<void> playLocal() async {
       await _player.setReleaseMode(loop ? ReleaseMode.loop : ReleaseMode.stop);
@@ -366,27 +274,149 @@ class MeditationAudioService {
       
       // Download and play
       _logger.d('Downloading chant for playback: $filename');
-      await downloadChant(url, filename);
-      await playLocal();
-      _logger.d('Playing chant after download: $filename');
-    } catch (e) {
-      _logger.e('Failed to play chant locally: $e');
-      // Fallback to streaming so session isn't silent
-      if (await _isNetworkAvailable()) {
-        try {
-          _logger.d('Attempting streaming fallback for chant: $filename');
-          await _player.setReleaseMode(loop ? ReleaseMode.loop : ReleaseMode.stop);
-          await _player.setVolume(volume);
-          await _player.play(UrlSource(url));
-          _logger.d('Chant streaming fallback successful: $filename');
-        } catch (streamError) {
-          _logger.e('Failed to stream chant: $streamError');
+      final success = await downloadAudio(url, filename, isChant: true);
+      if (success) {
+        await playLocal();
+        _logger.d('Playing chant after download: $filename');
+      } else {
+        // Fallback to streaming so session isn't silent
+        if (await _isNetworkAvailable()) {
+          try {
+            _logger.d('Attempting streaming fallback for chant: $filename');
+            await _player.setReleaseMode(loop ? ReleaseMode.loop : ReleaseMode.stop);
+            await _player.setVolume(volume);
+            await _player.play(UrlSource(url));
+            _logger.d('Chant streaming fallback successful: $filename');
+          } catch (streamError) {
+            _logger.e('Failed to stream chant: $streamError');
+            throw Exception('All fallback methods failed for chant: $filename');
+          }
+        } else {
+          _logger.w('No network connectivity available for chant streaming fallback');
           throw Exception('All fallback methods failed for chant: $filename');
         }
-      } else {
-        _logger.w('No network connectivity available for chant streaming fallback');
-        throw Exception('All fallback methods failed for chant: $filename');
       }
+    } catch (e) {
+      _logger.e('Failed to play chant: $e');
+      throw Exception('Failed to play chant: $e');
+    }
+  }
+
+  /// Preload chant audio by downloading it locally for instant playback.
+  /// Returns the local file path if successful, null otherwise.
+  Future<String?> preloadChant(String url) async {
+    try {
+      _logger.d('Preloading chant: $url');
+
+      if (url.startsWith('assets/')) {
+        // Asset files are already available locally
+        return url;
+      }
+
+      // Download to local cache for instant playback
+      final filename = url.split('/').last;
+      final filePath = await _getAudioPath(filename, isChant: true);
+
+      if (await File(filePath).exists()) {
+        return filePath;
+      }
+
+      final success = await downloadAudio(url, filename, isChant: true);
+      return success ? filePath : null;
+    } catch (e) {
+      _logger.e('Failed to preload chant: $e');
+      return null;
+    }
+  }
+
+  /// Play a preloaded chant from a local path or asset.
+  Future<bool> playPreloadedChant(String path, {bool loop = false, double volume = 0.65}) async {
+    try {
+      _logger.d('Playing preloaded chant');
+
+      await stop();
+      await _player.setReleaseMode(loop ? ReleaseMode.loop : ReleaseMode.stop);
+      await _player.setVolume(volume);
+
+      if (path.startsWith('assets/')) {
+        await _player.play(AssetSource(path.replaceFirst('assets/', '')));
+      } else {
+        await _player.play(DeviceFileSource(path));
+      }
+
+      _logger.i('Preloaded chant playback started successfully');
+      return true;
+    } catch (e) {
+      _logger.e('Failed to play preloaded chant: $e');
+      return false;
+    }
+  }
+
+  Future<void> stop() async {
+    try {
+      await _player.stop();
+    } catch (e) {
+      _logger.e('Failed to stop audio: $e');
+    }
+  }
+
+  Future<void> pause() async {
+    try {
+      await _player.pause();
+      _logger.d('Audio paused');
+    } catch (e) {
+      _logger.e('Failed to pause audio: $e');
+    }
+  }
+
+  Future<void> resume() async {
+    try {
+      await _player.resume();
+      _logger.d('Audio resumed');
+    } catch (e) {
+      _logger.e('Failed to resume audio: $e');
+    }
+  }
+
+  Future<void> setVolume(double volume) async {
+    try {
+      await _player.setVolume(volume);
+    } catch (e) {
+      _logger.e('Failed to set volume: $e');
+    }
+  }
+
+  bool get isPlaying {
+    try {
+      return _player.state == PlayerState.playing;
+    } catch (e) {
+      _logger.e('Failed to check playing state: $e');
+      return false;
+    }
+  }
+
+  Future<List<String>> getAvailableSounds() async {
+    return [
+      'ambient.mp3',
+      'heartbeat.mp3',
+      'bell-meditation.mp3',
+      'success_bell.mp3',
+    ];
+  }
+
+  Future<bool> isSoundAvailable(String filename) async {
+    // Check if either local file or asset exists
+    final localPath = await _getAudioPath(filename);
+    return await File(localPath).exists();
+  }
+
+  Future<void> dispose() async {
+    try {
+      await _player.stop();
+      await _player.dispose();
+      _logger.d('Audio service disposed');
+    } catch (e) {
+      _logger.e('Failed to dispose audio service: $e');
     }
   }
 }

@@ -760,8 +760,8 @@ class _$UserReadingPlanImpl implements _UserReadingPlan {
   const _$UserReadingPlanImpl(
       {required this.id,
       @JsonKey(name: 'reading_plan_id') required this.readingPlanId,
-      @JsonKey(name: 'current_day') required this.currentDay,
-      required this.status,
+      @JsonKey(name: 'current_day') this.currentDay = 1,
+      this.status = 'active',
       @JsonKey(name: 'started_at') this.startedAt,
       @JsonKey(name: 'completed_at') this.completedAt,
       this.plan});
@@ -778,6 +778,7 @@ class _$UserReadingPlanImpl implements _UserReadingPlan {
   @JsonKey(name: 'current_day')
   final int currentDay;
   @override
+  @JsonKey()
   final String status;
   @override
   @JsonKey(name: 'started_at')
@@ -835,8 +836,8 @@ abstract class _UserReadingPlan implements UserReadingPlan {
   const factory _UserReadingPlan(
       {required final int id,
       @JsonKey(name: 'reading_plan_id') required final int readingPlanId,
-      @JsonKey(name: 'current_day') required final int currentDay,
-      required final String status,
+      @JsonKey(name: 'current_day') final int currentDay,
+      final String status,
       @JsonKey(name: 'started_at') final DateTime? startedAt,
       @JsonKey(name: 'completed_at') final DateTime? completedAt,
       final ReadingPlan? plan}) = _$UserReadingPlanImpl;

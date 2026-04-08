@@ -54,12 +54,12 @@ class NoteAdapter extends TypeAdapter<Note> {
       ..write(obj.isVoiceRecorded)
       ..writeByte(8)
       ..write(obj.virtues)
+      ..writeByte(11)
+      ..write(obj.meditationSessionId)
       ..writeByte(9)
       ..write(obj.createdAt)
       ..writeByte(10)
-      ..write(obj.updatedAt)
-      ..writeByte(11)
-      ..write(obj.meditationSessionId);
+      ..write(obj.updatedAt);
   }
 
   @override

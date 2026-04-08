@@ -85,27 +85,22 @@ class DailyAnchorsNotifier extends StateNotifier<DailyAnchors> {
   }
 
   Future<void> lockInCommitment() async {
-    debugPrint('DailyAnchorsNotifier: lockInCommitment called');
     final now = DateTime.now();
     final updatedHabit = state.habit.copyWith(
       commitmentLockedTime: now,
       isLockedIn: true,
     );
-    
-    debugPrint('DailyAnchorsNotifier: Updated habit with lock-in time');
+
     final updatedAnchors = state.copyWith(habit: updatedHabit);
     await repository.save(updatedAnchors);
     state = updatedAnchors;
     unawaited(_syncToServer(updatedAnchors));
 
-    debugPrint('DailyAnchorsNotifier: Showing commitment lock-in notification');
-    // Show music player style commitment notification
     final notificationService = NotificationService();
     await notificationService.showCommitmentLockInNotification(
       commitmentTitle: updatedHabit.displayTitle,
       virtueType: state.coreVirtue.type,
     );
-    debugPrint('DailyAnchorsNotifier: Commitment lock-in notification sent');
   }
 
   Future<void> completeCommitment({bool succeeded = true}) async {
@@ -173,7 +168,6 @@ class DailyAnchorsNotifier extends StateNotifier<DailyAnchors> {
       virtueFocus: virtueFocus ?? current.virtueFocus,
     );
     await ref.read(settingsProvider.notifier).setSpiritualPulseForDate(state.date, response);
-    debugPrint('Spiritual pulse added: ${type.name} - $note');
 
     // Sync to backend if available
     if (_spiritualPulseSyncRepository != null) {
@@ -189,7 +183,7 @@ class DailyAnchorsNotifier extends StateNotifier<DailyAnchors> {
   Future<void> _syncToServer(DailyAnchors anchors) async {
     final synced = await syncRepository.syncAnchors(anchors);
     if (!synced) {
-      debugPrint('DailyAnchorsNotifier: deferred server sync for ${anchors.date.toIso8601String()}');
+      // Server sync deferred — will retry later
     }
   }
 

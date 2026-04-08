@@ -1,3 +1,6 @@
+import '../../../commitments/domain/models/commitment_category.dart';
+import '../../../mission/domain/models/mission_focus.dart';
+
 /// A synthesized calling profile that translates archetype and assessment data
 /// into actionable weekly priorities and spiritual direction.
 class CallingProfile {
@@ -86,8 +89,10 @@ class CallingProfile {
       'relationalFocus': relationalFocus,
       'recommendedPractices': recommendedPractices.map((p) => p.toMap()).toList(),
       'personalDistractions': personalDistractions,
-      'commitmentCategory': commitmentCategory,
-      'missionFocus': missionFocus,
+      'commitmentCategory': CommitmentCategory.normalizeStorageValue(
+        commitmentCategory,
+      ),
+      'missionFocus': MissionFocusTypeX.normalizeStorageValue(missionFocus),
       'createdAt': createdAt.toIso8601String(),
     };
   }
@@ -106,8 +111,12 @@ class CallingProfile {
           .map((p) => RecommendedPractice.fromMap(p as Map<String, dynamic>))
           .toList(),
       personalDistractions: List<String>.from(map['personalDistractions'] as List),
-      commitmentCategory: map['commitmentCategory'] as String,
-      missionFocus: map['missionFocus'] as String,
+      commitmentCategory: CommitmentCategory.normalizeStorageValue(
+        map['commitmentCategory'] as String?,
+      ),
+      missionFocus: MissionFocusTypeX.normalizeStorageValue(
+        map['missionFocus'] as String?,
+      ),
       createdAt: DateTime.parse(map['createdAt'] as String),
     );
   }
@@ -182,7 +191,9 @@ class RecommendedPractice {
       name: map['name'] as String,
       description: map['description'] as String,
       frequency: map['frequency'] as String,
-      category: map['category'] as String,
+      category: CommitmentCategory.normalizeStorageValue(
+        map['category'] as String?,
+      ),
     );
   }
 }

@@ -14,7 +14,7 @@ import 'core/services/notifications/notification_service.dart';
 import 'core/services/xp_service.dart';
 import 'core/storage/hive_service.dart';
 import 'core/theme/app_theme.dart';
-import 'features/bible/data/services/bible_database_service.dart';
+import 'features/bible/data/services/enhanced_bible_database_service.dart';
 
 Future<void> main() async {
   try {
@@ -28,7 +28,6 @@ Future<void> main() async {
     if (!kIsWeb) {
       try {
         await Firebase.initializeApp();
-        debugPrint('Firebase initialized successfully');
       } catch (e) {
         debugPrint('Firebase initialization failed (continuing without Firebase): $e');
         // Continue without Firebase - this shouldn't block the app
@@ -136,7 +135,7 @@ Future<void> _deferredInitialization() async {
     // ensure the bundled asset is copied to disk so the first read is fast.
     Future.delayed(const Duration(milliseconds: 500), () async {
       try {
-        final bibleService = BibleDatabaseService(Logger());
+        final bibleService = EnhancedBibleDatabaseService(Logger());
         await bibleService.init();
         // Do NOT dispose here - that removes the WidgetsBinding observer
         // and closes all database connections. The provider-managed instance

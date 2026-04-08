@@ -28,6 +28,8 @@ import '../../features/social/application/contact_notifier.dart';
 import '../../features/social/application/contact_state.dart';
 import '../../features/social/data/contact_repository.dart';
 import '../../features/commitments/application/graduated_commitment_notifier.dart';
+import '../../features/commitments/application/commitment_journey_notifier.dart';
+import '../../features/commitments/data/commitment_journey_repository.dart';
 import '../../features/mission/application/service_opportunity_notifier.dart';
 import '../../features/mission/data/service_opportunity_repository.dart';
 import '../../features/mission/domain/models/service_opportunity.dart';
@@ -150,6 +152,8 @@ final missionProvider = StateNotifierProvider<MissionNotifier, MissionState>((re
     settingsNotifier: ref.read(settingsProvider.notifier),
     analytics: ref.watch(analyticsProvider),
     notificationService: ref.watch(notificationServiceProvider),
+    serviceOpportunityRepository: ref.watch(serviceOpportunityRepositoryProvider),
+    logger: ref.watch(loggerProvider),
     initialSettings: settings,
   );
 
@@ -265,7 +269,11 @@ final commitmentProvider = StateNotifierProvider<CommitmentNotifier, CommitmentS
 // Mood provider is defined in mood_notifier.dart
 
 final bibleDatabaseServiceProvider = Provider<EnhancedBibleDatabaseService>((ref) {
-  return EnhancedBibleDatabaseService(ref.watch(loggerProvider));
+  final service = EnhancedBibleDatabaseService(ref.watch(loggerProvider));
+  // Fire-and-forget initialization — copies bundled Bible DB and loads mappings.
+  // init() is idempotent and safe to call multiple times.
+  service.init();
+  return service;
 });
 
 final bibleHistoryServiceProvider = Provider<BibleHistoryService>((ref) {
@@ -437,6 +445,23 @@ final graduatedCommitmentProvider = StateNotifierProvider<
   return GraduatedCommitmentNotifier(
     repository: ref.watch(graduatedCommitmentRepositoryProvider),
     xpService: ref.watch(xpServiceProvider),
+    dailyAnchorsNotifier: ref.watch(dailyAnchorsProvider.notifier),
+  );
+});
+
+// Commitment Journey providers (3/10/40-day journeys with prayer intentions)
+final commitmentJourneyRepositoryProvider =
+    Provider<CommitmentJourneyRepository>((ref) {
+  return CommitmentJourneyRepository(ref.watch(loggerProvider));
+});
+
+final commitmentJourneyProvider = StateNotifierProvider<
+    CommitmentJourneyNotifier, CommitmentJourneyState>((ref) {
+  return CommitmentJourneyNotifier(
+    repository: ref.watch(commitmentJourneyRepositoryProvider),
+    xpService: ref.watch(xpServiceProvider),
+    notificationService: ref.watch(notificationServiceProvider),
+    dailyAnchorsNotifier: ref.watch(dailyAnchorsProvider.notifier),
   );
 });
 

@@ -1,9 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/services/haptic_service.dart';
+import '../../../../core/theme/app_animations.dart';
 import '../../application/onboarding_notifier.dart';
 
 /// Step 3: Your Identity — 3-question mini-assessment with inline archetype reveal.
+///
+/// Supports an optional 4th tiebreaker question when the top 2 archetypes
+/// are too close after the first 3 questions.
 class DiscoverIdentityView extends ConsumerStatefulWidget {
   const DiscoverIdentityView({super.key});
 
@@ -19,16 +24,17 @@ class _DiscoverIdentityViewState extends ConsumerState<DiscoverIdentityView>
   late final Animation<double> _revealScale;
   late final Animation<double> _revealFade;
   bool _revealTriggered = false;
+  bool _showingTiebreaker = false;
 
   @override
   void initState() {
     super.initState();
     _revealController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1200),
+      duration: AppAnimations.reveal,
     );
     _revealScale = Tween<double>(begin: 0.7, end: 1.0).animate(
-      CurvedAnimation(parent: _revealController, curve: Curves.elasticOut),
+      CurvedAnimation(parent: _revealController, curve: AppAnimations.bounceCurve),
     );
     _revealFade = CurvedAnimation(
       parent: _revealController,
@@ -45,8 +51,16 @@ class _DiscoverIdentityViewState extends ConsumerState<DiscoverIdentityView>
   void _triggerReveal() {
     if (!_revealTriggered) {
       _revealTriggered = true;
+      HapticService.milestone();
       _revealController.forward();
     }
+  }
+
+  /// Returns a confidence label based on the assessment score spread.
+  String _confidenceLabel(double confidence) {
+    if (confidence >= 0.5) return 'Strong match!';
+    if (confidence >= 0.3) return 'Great match!';
+    return 'Good match';
   }
 
   @override
@@ -56,24 +70,68 @@ class _DiscoverIdentityViewState extends ConsumerState<DiscoverIdentityView>
     final state = ref.watch(onboardingProvider);
     final notifier = ref.read(onboardingProvider.notifier);
     const questions = OnboardingNotifier.miniAssessmentQuestions;
-    final question = questions[_currentQuestion];
+
+    // Determine total questions including possible tiebreaker
+    final baseQuestionCount = questions.length; // 3
+
+    // Determine which question to show
+    final MiniAssessmentQuestion question;
+    if (_showingTiebreaker) {
+      final tiebreaker = notifier.getTiebreakerQuestion();
+      if (tiebreaker != null) {
+        question = tiebreaker;
+      } else {
+        question = questions[_currentQuestion.clamp(0, baseQuestionCount - 1)];
+      }
+    } else if (_currentQuestion == 2) {
+      question = notifier.getDynamicQuestion3();
+    } else {
+      question = questions[_currentQuestion.clamp(0, baseQuestionCount - 1)];
+    }
+
     final archetype = notifier.primaryArchetype;
 
     // Check if current question has been answered
-    final hasAnswer = state.miniAssessmentAnswers.length > _currentQuestion &&
-        state.miniAssessmentAnswers[_currentQuestion] >= 0;
+    final questionIndex = _showingTiebreaker ? 3 : _currentQuestion;
+    final hasAnswer = state.miniAssessmentAnswers.length > questionIndex &&
+        state.miniAssessmentAnswers[questionIndex] >= 0;
     final selectedIndex =
-        hasAnswer ? state.miniAssessmentAnswers[_currentQuestion] : -1;
+        hasAnswer ? state.miniAssessmentAnswers[questionIndex] : -1;
 
-    // Check if all questions are answered and archetype is determined
-    final assessmentComplete = state.miniAssessmentAnswers.length >= 3 &&
-        !state.miniAssessmentAnswers.contains(-1) &&
+    // Assessment is complete when archetype is determined AND no tiebreaker needed
+    final hasThreeAnswers = state.miniAssessmentAnswers.length >= 3 &&
+        state.miniAssessmentAnswers.take(3).every((a) => a >= 0);
+    final needsTiebreaker = hasThreeAnswers && notifier.needsTiebreaker;
+    final assessmentComplete = hasThreeAnswers &&
+        archetype != null &&
+        !needsTiebreaker &&
+        !_showingTiebreaker;
+
+    // Check if tiebreaker just completed
+    final tiebreakerComplete = _showingTiebreaker &&
+        state.miniAssessmentAnswers.length >= 4 &&
+        state.miniAssessmentAnswers[3] >= 0 &&
         archetype != null;
 
-    // Trigger reveal animation when assessment completes
-    if (assessmentComplete) {
+    // Trigger reveal when fully done
+    if (assessmentComplete || tiebreakerComplete) {
       _triggerReveal();
     }
+
+    // Auto-show tiebreaker after Q3 completes
+    if (needsTiebreaker && !_showingTiebreaker && !state.tiebreakerShown) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          setState(() {
+            _showingTiebreaker = true;
+          });
+          notifier.markTiebreakerShown();
+        }
+      });
+    }
+
+    final totalQuestions = _showingTiebreaker ? baseQuestionCount + 1 : baseQuestionCount;
+    final displayQuestionNum = _showingTiebreaker ? baseQuestionCount + 1 : _currentQuestion + 1;
 
     return SingleChildScrollView(
       physics: const BouncingScrollPhysics(),
@@ -85,14 +143,15 @@ class _DiscoverIdentityViewState extends ConsumerState<DiscoverIdentityView>
           // Question progress
           Row(
             children: [
-              for (var i = 0; i < questions.length; i++) ...[
+              for (var i = 0; i < totalQuestions; i++) ...[
                 if (i > 0) const SizedBox(width: 8),
                 Expanded(
-                  child: Container(
+                  child: AnimatedContainer(
+                    duration: AppAnimations.fast,
                     height: 4,
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(2),
-                      color: i <= _currentQuestion
+                      color: i < displayQuestionNum
                           ? theme.colorScheme.primary
                           : theme.colorScheme.onSurface
                               .withValues(alpha: 0.1),
@@ -104,7 +163,9 @@ class _DiscoverIdentityViewState extends ConsumerState<DiscoverIdentityView>
           ),
           const SizedBox(height: 8),
           Text(
-            'Question ${_currentQuestion + 1} of ${questions.length}',
+            _showingTiebreaker
+                ? 'One last thought...'
+                : 'Question $displayQuestionNum of $totalQuestions',
             style: textTheme.labelMedium?.copyWith(
               color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
             ),
@@ -127,9 +188,10 @@ class _DiscoverIdentityViewState extends ConsumerState<DiscoverIdentityView>
                 color: Colors.transparent,
                 child: InkWell(
                   onTap: () {
-                    notifier.answerMiniAssessment(_currentQuestion, index);
+                    HapticService.selection();
+                    notifier.answerMiniAssessment(questionIndex, index);
                     // Auto-advance after a short delay
-                    if (_currentQuestion < questions.length - 1) {
+                    if (!_showingTiebreaker && _currentQuestion < baseQuestionCount - 1) {
                       Future.delayed(const Duration(milliseconds: 400), () {
                         if (mounted) {
                           setState(() {
@@ -213,8 +275,8 @@ class _DiscoverIdentityViewState extends ConsumerState<DiscoverIdentityView>
               ),
             );
           }),
-          // Back button for questions 2 and 3
-          if (_currentQuestion > 0 && !assessmentComplete) ...[
+          // Back button for questions 2+ (not during tiebreaker)
+          if (_currentQuestion > 0 && !assessmentComplete && !tiebreakerComplete && !_showingTiebreaker) ...[
             const SizedBox(height: 8),
             Center(
               child: TextButton.icon(
@@ -229,7 +291,7 @@ class _DiscoverIdentityViewState extends ConsumerState<DiscoverIdentityView>
             ),
           ],
           // Inline archetype reveal
-          if (assessmentComplete) ...[
+          if (assessmentComplete || tiebreakerComplete) ...[
             const SizedBox(height: 32),
             AnimatedBuilder(
               animation: _revealController,
@@ -326,7 +388,16 @@ class _DiscoverIdentityViewState extends ConsumerState<DiscoverIdentityView>
                         ),
                       ),
                     ),
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 8),
+                    // Confidence indicator
+                    Text(
+                      _confidenceLabel(state.assessmentConfidence),
+                      style: textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.primary.withValues(alpha: 0.7),
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
                     // Strengths
                     _buildSection(
                       context,
@@ -336,7 +407,7 @@ class _DiscoverIdentityViewState extends ConsumerState<DiscoverIdentityView>
                       color: theme.colorScheme.primary,
                     ),
                     const SizedBox(height: 14),
-                    // Inversion strategy / clarity path
+                    // Inversion strategy / spiritual path
                     if (archetype.inversionStrategy.isNotEmpty)
                       Container(
                         width: double.infinity,
@@ -362,7 +433,7 @@ class _DiscoverIdentityViewState extends ConsumerState<DiscoverIdentityView>
                                 ),
                                 const SizedBox(width: 8),
                                 Text(
-                                  'Your Clarity Path',
+                                  'Your Spiritual Path',
                                   style: textTheme.labelLarge?.copyWith(
                                     fontWeight: FontWeight.w600,
                                     color: theme.colorScheme.primary,

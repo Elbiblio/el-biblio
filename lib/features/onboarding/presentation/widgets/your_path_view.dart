@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../commitments/domain/models/commitment_category.dart';
-import '../../../mission/domain/models/mission_focus.dart';
 import '../../application/onboarding_notifier.dart';
 import '../../application/onboarding_state.dart';
 
@@ -16,17 +15,6 @@ class YourPathView extends ConsumerStatefulWidget {
 }
 
 class _YourPathViewState extends ConsumerState<YourPathView> {
-  static const _commonDistractions = [
-    'Social Media',
-    'Gaming',
-    'Pornography',
-    'Alcohol',
-    'Gambling',
-    'Overeating',
-    'Shopping',
-    'Gossip',
-  ];
-
   static const _categoryDescriptions = {
     'growth': 'Strengthen your spiritual muscles daily',
     'discipline': 'Build holy habits that anchor your day',
@@ -161,157 +149,8 @@ class _YourPathViewState extends ConsumerState<YourPathView> {
             );
           }),
 
-          const SizedBox(height: 12),
-          Text(
-            'HOW YOUR CALLING SHOWS UP FIRST',
-            style: textTheme.labelSmall?.copyWith(
-              color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
-              letterSpacing: 1,
-            ),
-          ),
-          const SizedBox(height: 10),
-          Wrap(
-            spacing: 10,
-            runSpacing: 10,
-            children: MissionFocusType.values.map((focus) {
-              final isSelected = state.primaryMissionFocus == focus.name;
-              return ChoiceChip(
-                label: Text(focus.label),
-                selected: isSelected,
-                onSelected: (_) => notifier.setPrimaryMissionFocus(focus.name),
-                selectedColor: theme.colorScheme.primary.withValues(alpha: 0.12),
-                labelStyle: textTheme.bodySmall?.copyWith(
-                  fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                  color: isSelected
-                      ? theme.colorScheme.primary
-                      : theme.colorScheme.onSurface.withValues(alpha: 0.75),
-                ),
-              );
-            }).toList(),
-          ),
-          const SizedBox(height: 10),
-          Text(
-            MissionFocusTypeX.fromStorage(state.primaryMissionFocus).description,
-            style: textTheme.bodySmall?.copyWith(
-              height: 1.5,
-              color: theme.colorScheme.onSurface.withValues(alpha: 0.62),
-            ),
-          ),
-
-          // ---------- Archetype-specific distractions ----------
-          if (archetype != null &&
-              archetype.typicalDistractions.isNotEmpty) ...[
-            const SizedBox(height: 20),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: theme.colorScheme.error.withValues(alpha: 0.05),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: theme.colorScheme.error.withValues(alpha: 0.1),
-                ),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Your typical distractions as a ${archetype.name}:',
-                    style: textTheme.labelMedium?.copyWith(
-                      fontWeight: FontWeight.w600,
-                      color:
-                          theme.colorScheme.error.withValues(alpha: 0.7),
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  ...archetype.typicalDistractions.take(3).map(
-                        (d) => Padding(
-                          padding: const EdgeInsets.only(bottom: 3),
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                '\u2022 ',
-                                style: textTheme.bodySmall?.copyWith(
-                                  color: theme.colorScheme.error
-                                      .withValues(alpha: 0.5),
-                                ),
-                              ),
-                              Expanded(
-                                child: Text(
-                                  d,
-                                  style: textTheme.bodySmall?.copyWith(
-                                    color: theme.colorScheme.onSurface
-                                        .withValues(alpha: 0.6),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                ],
-              ),
-            ),
-          ],
-
-          // ---------- Personal distractions picker ----------
-          const SizedBox(height: 20),
-          Text(
-            'STRUGGLES TO OVERCOME',
-            style: textTheme.labelSmall?.copyWith(
-              color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
-              letterSpacing: 1,
-            ),
-          ),
-          const SizedBox(height: 10),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: _commonDistractions.map((distraction) {
-              final isSelected =
-                  state.personalDistractions.contains(distraction);
-              return FilterChip(
-                selected: isSelected,
-                label: Text(distraction),
-                labelStyle: textTheme.bodySmall?.copyWith(
-                  fontWeight:
-                      isSelected ? FontWeight.w600 : FontWeight.w400,
-                  color: isSelected
-                      ? theme.colorScheme.primary
-                      : theme.colorScheme.onSurface
-                          .withValues(alpha: 0.7),
-                ),
-                selectedColor:
-                    theme.colorScheme.primary.withValues(alpha: 0.12),
-                backgroundColor:
-                    theme.colorScheme.onSurface.withValues(alpha: 0.04),
-                side: BorderSide(
-                  color: isSelected
-                      ? theme.colorScheme.primary.withValues(alpha: 0.3)
-                      : theme.colorScheme.onSurface
-                          .withValues(alpha: 0.1),
-                ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                showCheckmark: false,
-                onSelected: (selected) {
-                  final current =
-                      List<String>.from(state.personalDistractions);
-                  if (selected) {
-                    current.add(distraction);
-                  } else {
-                    current.remove(distraction);
-                  }
-                  notifier.setPersonalDistractions(current);
-                },
-              );
-            }).toList(),
-          ),
-
           // ---------- Lifestyle & schedule ----------
-          const SizedBox(height: 24),
+          const SizedBox(height: 20),
           Text(
             'LIFESTYLE',
             style: textTheme.labelSmall?.copyWith(

@@ -22,9 +22,14 @@ class ServiceOpportunityRepository {
       if (locationType != null) queryParams['location_type'] = locationType;
 
       final response = await _dioClient.get(
-        '/api/service-opportunities',
+        '/service-opportunities',
         queryParameters: queryParams.isNotEmpty ? queryParams : null,
       );
+
+      if (response.statusCode != null && response.statusCode! >= 400) {
+        _logger.w('Service opportunities returned ${response.statusCode}');
+        return [];
+      }
 
       if (response.statusCode == 200 && response.data != null) {
         final responseData = response.data['data'] as List<dynamic>?;
@@ -35,7 +40,7 @@ class ServiceOpportunityRepository {
         }
       }
 
-      throw Exception('Invalid response format');
+      return [];
     } catch (e) {
       _logger.e('Failed to fetch service opportunities from API: $e');
       rethrow;
@@ -46,7 +51,7 @@ class ServiceOpportunityRepository {
   Future<List<ServiceMatch>> getMatchedOpportunities() async {
     try {
       final response = await _dioClient.post(
-        '/api/service-opportunities/generate-matches',
+        '/service-opportunities/generate-matches',
       );
 
       if (response.statusCode == 200 && response.data != null) {
@@ -69,13 +74,47 @@ class ServiceOpportunityRepository {
   Future<bool> commitToOpportunity(String opportunityId) async {
     try {
       final response = await _dioClient.post(
-        '/api/service-opportunities/$opportunityId/commit',
+        '/service-opportunities/$opportunityId/commit',
       );
 
       return response.statusCode == 200;
     } catch (e) {
       _logger.e('Failed to commit to opportunity: $e');
       return false;
+    }
+  }
+
+  /// Fetch challenges filtered for service-type actions relevant to an archetype.
+  /// Uses the existing /api/challenges endpoint with category and level filters.
+  Future<List<Map<String, dynamic>>> getChallengesForArchetype({
+    required String archetypeId,
+    String? category,
+    int? maxLevel,
+  }) async {
+    try {
+      final queryParams = <String, dynamic>{
+        'is_active': true,
+        'is_published': true,
+      };
+      if (category != null) queryParams['category'] = category;
+      if (maxLevel != null) queryParams['level'] = maxLevel;
+
+      final response = await _dioClient.get(
+        '/api/challenges',
+        queryParameters: queryParams,
+      );
+
+      if (response.statusCode == 200 && response.data != null) {
+        final responseData = response.data['data'] as List<dynamic>?;
+        if (responseData != null) {
+          return responseData.cast<Map<String, dynamic>>();
+        }
+      }
+
+      return [];
+    } catch (e) {
+      _logger.e('Failed to fetch challenges: $e');
+      return [];
     }
   }
 

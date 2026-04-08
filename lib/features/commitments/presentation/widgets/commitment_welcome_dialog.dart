@@ -17,7 +17,7 @@ class CommitmentWelcomeDialog extends ConsumerWidget {
   static Future<bool> show(BuildContext context) async {
     final result = await showDialog<bool>(
       context: context,
-      barrierDismissible: false,
+      barrierDismissible: true,
       builder: (_) => const CommitmentWelcomeDialog(),
     );
     return result ?? false;

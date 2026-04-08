@@ -6,7 +6,7 @@ import 'package:logger/logger.dart';
 import '../../application/meditation_notifier.dart';
 import '../../domain/models/meditation_enums.dart';
 import '../../domain/models/chant_tracks.dart';
-import '../../data/services/improved_audio_service.dart';
+import '../../data/services/meditation_audio_service.dart';
 import '../../data/services/global_audio_manager.dart';
 
 // Shared widgets for duration, sound, and chant selection steps.
@@ -375,7 +375,7 @@ class _ChantOptionState extends State<_ChantOption> {
   bool _isPreviewing = false;
   bool _isDownloading = false;
   double _downloadProgress = 0.0;
-  late ImprovedAudioService _audioService;
+  late MeditationAudioService _audioService;
   String? _preloadedPath;
   final GlobalAudioManager _globalAudioManager = GlobalAudioManager();
   StreamSubscription<void>? _stopSubscription;
@@ -443,67 +443,13 @@ class _ChantOptionState extends State<_ChantOption> {
     try {
       Logger().d('🎵 Playing chant from: $urlOrAsset');
       
-      // For asset files, play directly
-      if (urlOrAsset.startsWith('assets/')) {
-        final played = await _audioService.playChant(urlOrAsset, filename);
-        if (!played) {
-          throw Exception('Failed to play chant from asset');
-        }
-      } else {
-        // Try preloaded source first for instant playback
-        if (_preloadedPath != null) {
-          Logger().d('🎵 Using preloaded source for instant playback');
-          final played = await _audioService.playPreloadedChant(_preloadedPath!);
-          if (!played) {
-            throw Exception('Failed to play preloaded chant');
-          }
-        } else {
-          // For remote URLs, stream directly for instant preview
-          Logger().d('🎵 Streaming chant from: $urlOrAsset');
-          
-          // Try streaming first for instant playback
-          final streamed = await _audioService.playStreamingAudio(urlOrAsset);
-          if (!streamed) {
-            // If streaming fails, fallback to download + play
-            Logger().d('🎵 Streaming failed, downloading for playback');
-            if (mounted) {
-              setState(() {
-                _isDownloading = true;
-                _downloadProgress = 0.0;
-              });
-            }
-            
-            final success = await _audioService.downloadAudio(
-              urlOrAsset,
-              filename,
-              isChant: true,
-              onProgress: (received, total) {
-                if (total > 0 && mounted) {
-                  setState(() {
-                    _downloadProgress = received / total;
-                  });
-                }
-              },
-            );
-            
-            if (!success) {
-              throw Exception('Failed to download chant');
-            }
-            
-            Logger().d('🎵 Download complete, playing preview');
-            if (mounted) {
-              setState(() {
-                _isDownloading = false;
-              });
-            }
-            
-            final played = await _audioService.playChant(urlOrAsset, filename, isVoice: true);
-            if (!played) {
-              throw Exception('Failed to play chant');
-            }
-          }
-        }
-      }
+      // The consolidated playChant handles assets, local files, downloads, and streaming fallbacks
+      await _audioService.playChant(
+        urlOrAsset,
+        filename,
+        loop: false,
+        volume: 0.7,
+      );
       
       // Auto-stop after 15 seconds
       await Future.delayed(const Duration(seconds: 15));

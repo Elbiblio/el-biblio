@@ -3,8 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/constants/app_routes.dart';
-import '../../../core/theme/app_theme_tokens.dart';
+import '../../core/constants/app_routes.dart';
+import '../../core/services/haptic_service.dart';
+import '../../core/theme/app_theme_tokens.dart';
 import 'spiritual_tools_menu.dart';
 
 class AppShell extends ConsumerWidget {
@@ -48,7 +49,9 @@ class _FloatingBottomNav extends StatelessWidget {
         child: Center(
           heightFactor: 1.0,
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 380),
+            constraints: BoxConstraints(
+              maxWidth: (MediaQuery.of(context).size.width * 0.92).clamp(0, 420),
+            ),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(999),
               child: BackdropFilter(
@@ -66,7 +69,7 @@ class _FloatingBottomNav extends StatelessWidget {
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.08),
+                        color: theme.colorScheme.shadow.withValues(alpha: isDark ? 0.2 : 0.08),
                         blurRadius: 30,
                         offset: const Offset(0, 10),
                       ),
@@ -76,18 +79,18 @@ class _FloatingBottomNav extends StatelessWidget {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       _NavItem(
-                        icon: Icons.explore_rounded,
-                        label: 'Discover',
-                        isSelected: location.startsWith(AppRoutes.assessment),
-                        onTap: () => context.go(AppRoutes.assessment),
-                      ),
-                      _NavItem(
                         icon: Icons.calendar_today_rounded,
-                        label: 'Today',
+                        label: 'Home',
                         isSelected: location == AppRoutes.today || location == AppRoutes.root,
                         onTap: () => context.go(AppRoutes.today),
                       ),
-                      
+                      _NavItem(
+                        icon: Icons.menu_book_rounded,
+                        label: 'Bible',
+                        isSelected: location.startsWith(AppRoutes.bible),
+                        onTap: () => context.go(AppRoutes.bible),
+                      ),
+
                       // Center FAB
                       Container(
                         margin: const EdgeInsets.only(bottom: 8),
@@ -95,7 +98,7 @@ class _FloatingBottomNav extends StatelessWidget {
                           elevation: 8,
                           highlightElevation: 12,
                           backgroundColor: Theme.of(context).colorScheme.primary,
-                          foregroundColor: Colors.white,
+                          foregroundColor: Theme.of(context).colorScheme.onPrimary,
                           shape: const CircleBorder(),
                           onPressed: () {
                             SpiritualToolsMenu.show(context);
@@ -103,18 +106,18 @@ class _FloatingBottomNav extends StatelessWidget {
                           child: const Icon(Icons.bolt_rounded, size: 28),
                         ),
                       ),
-                      
+
+                      _NavItem(
+                        icon: Icons.trending_up_rounded,
+                        label: 'Grow',
+                        isSelected: location.startsWith(AppRoutes.grow),
+                        onTap: () => context.go(AppRoutes.grow),
+                      ),
                       _NavItem(
                         icon: Icons.volunteer_activism_rounded,
                         label: 'Act',
                         isSelected: location.startsWith(AppRoutes.act),
                         onTap: () => context.go(AppRoutes.act),
-                      ),
-                      _NavItem(
-                        icon: Icons.people_alt_rounded,
-                        label: 'Together',
-                        isSelected: location.startsWith(AppRoutes.growTogether),
-                        onTap: () => context.go(AppRoutes.growTogether),
                       ),
                     ],
                   ),
@@ -148,7 +151,10 @@ class _NavItem extends StatelessWidget {
         : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5);
 
     return InkWell(
-      onTap: onTap,
+      onTap: () {
+        HapticService.selection();
+        onTap();
+      },
       borderRadius: BorderRadius.circular(16),
       child: SizedBox(
         width: 64,

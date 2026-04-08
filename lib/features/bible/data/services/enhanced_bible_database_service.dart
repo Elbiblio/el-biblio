@@ -8,6 +8,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:logger/logger.dart';
 import 'package:dio/dio.dart';
 import 'package:crypto/crypto.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../../core/database/database_helper.dart';
 import '../../domain/models/bible_content.dart';
@@ -16,17 +17,19 @@ import '../../domain/models/bible_content.dart';
 class EnhancedBibleDatabaseService with WidgetsBindingObserver {
   static const String _defaultVersion = 'eng_rv_vpl';
   static const String _defaultAssetPath = 'assets/bibles/rv.db';
-  
-  EnhancedBibleDatabaseService(this._logger) : _dbHelper = DatabaseHelper(_logger) {
-    WidgetsBinding.instance.addObserver(this);
-  }
 
   final Logger _logger;
   final DatabaseHelper _dbHelper;
   final Map<String, Database> _databases = {};
   final Map<String, Map<String, int>> _verseIdMappings = {};
   final String _cdnBaseUrl = 'https://api.elbiblio.com/dbs/';
-  
+  static const String _verseIdMappingsKey = 'verse_id_mappings';
+  SharedPreferences? _prefs;
+
+  EnhancedBibleDatabaseService(this._logger) : _dbHelper = DatabaseHelper(_logger) {
+    WidgetsBinding.instance.addObserver(this);
+  }
+
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
@@ -88,8 +91,13 @@ class EnhancedBibleDatabaseService with WidgetsBindingObserver {
     '1KI': 'K1', '2KI': 'K2', '1CH': 'R1', '2CH': 'R2', 'EZR': 'ER',
     'NEH': 'NH', 'EST': 'ET', 'JOB': 'JB', 'PSA': 'PS', 'PRO': 'PR',
     'ECC': 'EC', 'SNG': 'SS', 'ISA': 'IS', 'JER': 'JR', 'LAM': 'LM',
-    'EZK': 'EK', 'DAN': 'DN', 'HOS': 'HS', 'JOL': 'JL', 'AMO': 'AM',
-    'OBA': 'OB', 'JON': 'JH', 'MIC': 'MC', 'NAM': 'NM', 'HAB': 'HK',
+    'EZK': 'EK', 'EZE': 'EK', // static_books uses EZE
+    'DAN': 'DN', 'HOS': 'HS',
+    'JOL': 'JL', 'JOE': 'JL', // static_books uses JOE
+    'AMO': 'AM',
+    'OBA': 'OB', 'JON': 'JH', 'MIC': 'MC',
+    'NAM': 'NM', 'NAH': 'NM', // static_books uses NAH
+    'HAB': 'HK',
     'ZEP': 'ZP', 'HAG': 'HG', 'ZEC': 'ZC', 'MAL': 'ML',
     'MAT': 'MT', 'MRK': 'MK', 'LUK': 'LK', 'JHN': 'JN', 'ACT': 'AC',
     'ROM': 'RM', '1CO': 'C1', '2CO': 'C2', 'GAL': 'GL', 'EPH': 'EP',
@@ -99,10 +107,24 @@ class EnhancedBibleDatabaseService with WidgetsBindingObserver {
     'JUD': 'JD', 'REV': 'RV',
   };
 
+  bool _initialized = false;
+
   Future<void> init() async {
-    await _getDbDirectory();
-    await _ensureDefaultBible();
-    await _loadVerseIdMappings();
+    if (_initialized) return;
+    try {
+      await _getDbDirectory();
+      await _ensureDefaultBible();
+      await _loadVerseIdMappings();
+      _initialized = true;
+    } catch (e) {
+      _logger.e('Bible DB init failed (will retry on next access): $e');
+      // Don't rethrow — allow graceful degradation with API fallback.
+    }
+  }
+
+  /// Ensure init has run before any DB operation. Safe to call repeatedly.
+  Future<void> ensureInitialized() async {
+    if (!_initialized) await init();
   }
 
   Future<void> _ensureDefaultBible() async {
@@ -265,6 +287,7 @@ class EnhancedBibleDatabaseService with WidgetsBindingObserver {
   }
 
   Future<bool> isVersionDownloaded(String version) async {
+    await ensureInitialized();
     final possibleNames = <String>[
       version,
       version.replaceAll('.db', ''),
@@ -625,6 +648,7 @@ class EnhancedBibleDatabaseService with WidgetsBindingObserver {
   }
 
   Future<List<BibleVerseContent>> getChapter(String version, String bookAbbr, int chapter, {Function(String, double)? onAutoDownloadProgress}) async {
+    await ensureInitialized();
     return executeWithRetry<List<BibleVerseContent>>(
       version, 
       (db) async {
@@ -685,9 +709,38 @@ class EnhancedBibleDatabaseService with WidgetsBindingObserver {
   }
 
   Future<void> _loadVerseIdMappings() async {
-    // This could be enhanced to load mappings from a local cache file
-    // or from the backend when online
-    _logger.d('Verse ID mappings loaded');
+    try {
+      _prefs ??= await SharedPreferences.getInstance();
+      final mappingsJson = _prefs!.getString(_verseIdMappingsKey);
+      if (mappingsJson != null) {
+        final decoded = jsonDecode(mappingsJson) as Map<String, dynamic>;
+        for (final entry in decoded.entries) {
+          final version = entry.key;
+          final innerMap = entry.value as Map<String, dynamic>;
+          _verseIdMappings[version] = {
+            for (final e in innerMap.entries) e.key: e.value as int
+          };
+        }
+        _logger.d('Loaded ${_verseIdMappings.length} verse ID mappings from storage');
+      }
+    } catch (e) {
+      _logger.w('Failed to load verse ID mappings: $e');
+    }
+  }
+
+  /// Save verse ID mappings to SharedPreferences
+  Future<void> _saveVerseIdMappings() async {
+    try {
+      _prefs ??= await SharedPreferences.getInstance();
+      final encoded = {
+        for (final entry in _verseIdMappings.entries)
+          entry.key: entry.value
+      };
+      await _prefs!.setString(_verseIdMappingsKey, jsonEncode(encoded));
+      _logger.d('Saved ${_verseIdMappings.length} verse ID mappings to storage');
+    } catch (e) {
+      _logger.w('Failed to save verse ID mappings: $e');
+    }
   }
 
   Future<int> getBackendVerseId(String version, String bookAbbr, int chapter, int verse) async {
@@ -713,9 +766,8 @@ class EnhancedBibleDatabaseService with WidgetsBindingObserver {
   Future<void> updateVerseIdMapping(String version, String bookAbbr, int chapter, int verse, int backendId) async {
     final reference = '$bookAbbr $chapter:$verse';
     _verseIdMappings.putIfAbsent(version, () => {})[reference] = backendId;
-    
-    // TODO: Persist mappings to local storage
     _logger.d('Updated verse ID mapping for $reference -> $backendId');
+    await _saveVerseIdMappings();
   }
 
   Future<List<String>> getAvailableBooks(String version) async {

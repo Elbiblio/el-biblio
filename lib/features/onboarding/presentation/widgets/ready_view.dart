@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../application/onboarding_notifier.dart';
+import '../../../commitments/domain/models/commitment_category.dart';
 
 /// Step 8: Ready — final launch screen before entering the app.
 class ReadyView extends ConsumerStatefulWidget {
@@ -125,8 +126,7 @@ class _ReadyViewState extends ConsumerState<ReadyView>
                       context,
                       Icons.flag_outlined,
                       'Starting path',
-                      state.commitmentCategory![0].toUpperCase() +
-                          state.commitmentCategory!.substring(1),
+                      CommitmentCategory.fromString(state.commitmentCategory!).label,
                     ),
                   _buildSummaryRow(
                     context,

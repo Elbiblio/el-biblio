@@ -20,6 +20,8 @@ class OnboardingState {
     required this.socialPresenceOptIn,
     required this.contactsImported,
     this.miniAssessmentAnswers = const [],
+    this.assessmentConfidence = 0.0,
+    this.tiebreakerShown = false,
     this.primaryArchetypeId,
     this.commitmentCategory,
     this.primaryMissionFocus,
@@ -41,6 +43,13 @@ class OnboardingState {
 
   /// Answers from the 3-question mini-assessment (indices into option lists).
   final List<int> miniAssessmentAnswers;
+
+  /// Confidence level of the archetype match (0.0 to 1.0).
+  /// Higher values mean the top archetype scored significantly above the rest.
+  final double assessmentConfidence;
+
+  /// Whether a tiebreaker (4th) question was shown to resolve a close match.
+  final bool tiebreakerShown;
 
   /// The archetype determined by the mini-assessment.
   final String? primaryArchetypeId;
@@ -81,6 +90,8 @@ class OnboardingState {
     bool? socialPresenceOptIn,
     bool? contactsImported,
     List<int>? miniAssessmentAnswers,
+    double? assessmentConfidence,
+    bool? tiebreakerShown,
     String? primaryArchetypeId,
     String? commitmentCategory,
     String? primaryMissionFocus,
@@ -100,6 +111,8 @@ class OnboardingState {
       socialPresenceOptIn: socialPresenceOptIn ?? this.socialPresenceOptIn,
       contactsImported: contactsImported ?? this.contactsImported,
       miniAssessmentAnswers: miniAssessmentAnswers ?? this.miniAssessmentAnswers,
+      assessmentConfidence: assessmentConfidence ?? this.assessmentConfidence,
+      tiebreakerShown: tiebreakerShown ?? this.tiebreakerShown,
       primaryArchetypeId: primaryArchetypeId ?? this.primaryArchetypeId,
       commitmentCategory: commitmentCategory ?? this.commitmentCategory,
       primaryMissionFocus: primaryMissionFocus ?? this.primaryMissionFocus,

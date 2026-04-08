@@ -1,8 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/di/app_providers.dart';
+import '../../../../core/theme/app_theme_tokens.dart';
 import '../../domain/models/daily_anchors.dart';
 
+/// Spiritual Pulse Widget - A 4-step quick check-in wizard for emotional awareness
+/// 
+/// Steps:
+/// 1. How's your spirit? (Required) - 6 emotion chips
+/// 2. What's the intensity? (Required) - 3 options
+/// 3. One thing on your mind? (Optional) - 6 quick tap options
+/// 4. Quick note? (Optional) - 140 character limit
 class SpiritualPulseWidget extends ConsumerStatefulWidget {
   const SpiritualPulseWidget({super.key});
 
@@ -11,26 +19,83 @@ class SpiritualPulseWidget extends ConsumerStatefulWidget {
 }
 
 class _SpiritualPulseWidgetState extends ConsumerState<SpiritualPulseWidget> {
+  final PageController _pageController = PageController();
   final TextEditingController _noteController = TextEditingController();
+  
+  int _currentStep = 0;
   SpiritualPulseType? _selectedType;
-  double _intensity = 1.0;
-  String _goingWell = '';
-  String _struggling = '';
-  String _needHelp = '';
-  String _followUpAnswer = '';
-  String _virtueFocus = '';
+  String? _selectedIntensity;
+  String? _selectedMindItem;
+  
+  final List<String> _intensities = [
+    'Light',
+    'Medium',
+    'Strong',
+  ];
+  
+  final List<String> _mindItems = [
+    'Family',
+    'Work',
+    'Stress',
+    'Goals',
+    'Health',
+    'Other',
+  ];
 
   @override
   void dispose() {
+    _pageController.dispose();
     _noteController.dispose();
     super.dispose();
   }
 
+  void _nextStep() {
+    if (_currentStep < 3) {
+      setState(() {
+        _currentStep++;
+      });
+      _pageController.animateToPage(
+        _currentStep,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+      );
+    } else {
+      _submitPulse();
+    }
+  }
+
+  void _previousStep() {
+    if (_currentStep > 0) {
+      setState(() {
+        _currentStep--;
+      });
+      _pageController.animateToPage(
+        _currentStep,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+      );
+    }
+  }
+
+  void _skipOptionalStep() {
+    if (_currentStep == 2) {
+      setState(() {
+        _selectedMindItem = null;
+      });
+      _nextStep();
+    } else if (_currentStep == 3) {
+      setState(() {
+        _noteController.clear();
+      });
+      _submitPulse();
+    }
+  }
+
   void _submitPulse() {
-    if (_selectedType == null || _noteController.text.trim().isEmpty) {
+    if (_selectedType == null || _selectedIntensity == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Please select a pulse type and add a note'),
+          content: Text('Please select an emotion and intensity'),
           backgroundColor: Colors.orange,
         ),
       );
@@ -39,46 +104,60 @@ class _SpiritualPulseWidgetState extends ConsumerState<SpiritualPulseWidget> {
 
     ref.read(dailyAnchorsProvider.notifier).addSpiritualPulse(
       type: _selectedType!,
-      note: _noteController.text.trim(),
-      intensity: _intensity,
-      goingWell: _goingWell.isNotEmpty ? _goingWell : null,
-      struggling: _struggling.isNotEmpty ? _struggling : null,
-      needHelp: _needHelp.isNotEmpty ? _needHelp : null,
-      followUpAnswer: _followUpAnswer.isNotEmpty ? _followUpAnswer : null,
-      virtueFocus: _virtueFocus.isNotEmpty ? _virtueFocus : null,
+      note: _noteController.text.trim().isNotEmpty 
+          ? _noteController.text.trim() 
+          : _selectedMindItem ?? '',
+      intensity: _mapIntensityToValue(_selectedIntensity!),
+      goingWell: null,
+      struggling: null,
+      needHelp: null,
+      followUpAnswer: null,
+      virtueFocus: null,
     );
 
-    // Clear form
+    // Reset form
     setState(() {
+      _currentStep = 0;
       _selectedType = null;
-      _intensity = 1.0;
-      _goingWell = '';
-      _struggling = '';
-      _needHelp = '';
-      _followUpAnswer = '';
-      _virtueFocus = '';
+      _selectedIntensity = null;
+      _selectedMindItem = null;
     });
     _noteController.clear();
+    _pageController.jumpToPage(0);
 
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-        content: Text('Spiritual pulse recorded'),
+        content: Text('Daily check-in recorded'),
         backgroundColor: Colors.green,
       ),
     );
   }
 
+  double _mapIntensityToValue(String intensity) {
+    switch (intensity) {
+      case 'Light':
+        return 0.33;
+      case 'Medium':
+        return 0.66;
+      case 'Strong':
+        return 1.0;
+      default:
+        return 0.5;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final tokens = theme.tokens;
     final isDark = theme.brightness == Brightness.dark;
 
     return Container(
       margin: const EdgeInsets.all(16),
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF1e293b) : Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        color: isDark ? theme.colorScheme.surface : Colors.white,
+        borderRadius: BorderRadius.circular(tokens.radiusMedium),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.1),
@@ -90,173 +169,192 @@ class _SpiritualPulseWidgetState extends ConsumerState<SpiritualPulseWidget> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Spiritual Pulse Check-in',
-            style: theme.textTheme.titleLarge?.copyWith(
-              fontWeight: FontWeight.bold,
-              color: theme.colorScheme.primary,
+          // Header with progress
+          Row(
+            children: [
+              Text(
+                'Daily Check-in',
+                style: theme.textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: theme.colorScheme.primary,
+                ),
+              ),
+              const Spacer(),
+              Text(
+                'Step ${_currentStep + 1} of 4',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          // Progress bar
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: LinearProgressIndicator(
+              value: (_currentStep + 1) / 4,
+              backgroundColor: theme.colorScheme.surfaceContainerHighest,
+              valueColor: AlwaysStoppedAnimation<Color>(theme.colorScheme.primary),
+              minHeight: 4,
             ),
           ),
           const SizedBox(height: 16),
-          
-          // Pulse type selection
-          Text(
-            'How are you feeling spiritually?',
-            style: theme.textTheme.bodyMedium?.copyWith(
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: SpiritualPulseType.values.map((type) {
-              final isSelected = _selectedType == type;
-              return FilterChip(
-                label: Text(_getPulseTypeLabel(type)),
-                selected: isSelected,
-                onSelected: (selected) {
-                  setState(() {
-                    _selectedType = selected ? type : null;
-                  });
-                },
-                backgroundColor: isDark ? Colors.grey.shade800 : Colors.grey.shade200,
-                selectedColor: theme.colorScheme.primary.withValues(alpha: 0.2),
-                checkmarkColor: theme.colorScheme.primary,
-              );
-            }).toList(),
-          ),
-          
-          if (_selectedType != null) ...[
-            const SizedBox(height: 20),
-            
-            // Intensity slider
-            Text(
-              'Intensity: ${(_intensity * 100).round()}%',
-              style: theme.textTheme.bodyMedium?.copyWith(
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-            Slider(
-              value: _intensity,
-              onChanged: (value) {
-                setState(() {
-                  _intensity = value;
-                });
-              },
-              min: 0.0,
-              max: 1.0,
-              activeColor: theme.colorScheme.primary,
-            ),
-            
-            const SizedBox(height: 20),
-            
-            // Note input
-            TextField(
-              controller: _noteController,
-              decoration: InputDecoration(
-                hintText: 'Add a note about your spiritual state...',
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                filled: true,
-                fillColor: isDark ? Colors.grey.shade800 : Colors.grey.shade50,
-              ),
-              maxLines: 3,
-            ),
-            
-            const SizedBox(height: 20),
-            
-            // Optional reflection questions
-            ExpansionTile(
-              title: Text(
-                'Add reflection details (optional)',
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
+          // Wizard content (compact height for less scroll)
+          SizedBox(
+            height: 240,
+            child: PageView(
+              controller: _pageController,
+              physics: const NeverScrollableScrollPhysics(),
               children: [
-                TextField(
-                  decoration: InputDecoration(
-                    labelText: 'What\'s going well?',
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    filled: true,
-                    fillColor: isDark ? Colors.grey.shade800 : Colors.grey.shade50,
-                  ),
-                  onChanged: (value) => _goingWell = value,
-                  maxLines: 2,
+                _Step1Emotion(
+                  selectedType: _selectedType,
+                  onSelect: (type) {
+                    setState(() {
+                      _selectedType = type;
+                    });
+                  },
+                  theme: theme,
+                  tokens: tokens,
+                  isDark: isDark,
                 ),
-                const SizedBox(height: 12),
-                TextField(
-                  decoration: InputDecoration(
-                    labelText: 'What are you struggling with?',
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    filled: true,
-                    fillColor: isDark ? Colors.grey.shade800 : Colors.grey.shade50,
-                  ),
-                  onChanged: (value) => _struggling = value,
-                  maxLines: 2,
+                _Step2Intensity(
+                  intensities: _intensities,
+                  selectedIntensity: _selectedIntensity,
+                  onSelect: (intensity) {
+                    setState(() {
+                      _selectedIntensity = intensity;
+                    });
+                  },
+                  theme: theme,
+                  tokens: tokens,
                 ),
-                const SizedBox(height: 12),
-                TextField(
-                  decoration: InputDecoration(
-                    labelText: 'What do you need help with?',
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    filled: true,
-                    fillColor: isDark ? Colors.grey.shade800 : Colors.grey.shade50,
-                  ),
-                  onChanged: (value) => _needHelp = value,
-                  maxLines: 2,
+                _Step3MindItem(
+                  mindItems: _mindItems,
+                  selectedItem: _selectedMindItem,
+                  onSelect: (item) {
+                    setState(() {
+                      _selectedMindItem = item;
+                    });
+                  },
+                  theme: theme,
+                  tokens: tokens,
+                  isDark: isDark,
                 ),
-                const SizedBox(height: 12),
-                TextField(
-                  decoration: InputDecoration(
-                    labelText: 'Virtue focus',
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    filled: true,
-                    fillColor: isDark ? Colors.grey.shade800 : Colors.grey.shade50,
-                  ),
-                  onChanged: (value) => _virtueFocus = value,
-                  maxLines: 1,
+                _Step4Note(
+                  controller: _noteController,
+                  theme: theme,
+                  tokens: tokens,
+                  isDark: isDark,
                 ),
               ],
             ),
-            
-            const SizedBox(height: 20),
-            
-            // Submit button
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: _submitPulse,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: theme.colorScheme.primary,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+          ),
+          const SizedBox(height: 20),
+          // Navigation buttons
+          Row(
+            children: [
+              if (_currentStep > 0)
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: _previousStep,
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(tokens.radiusSmall),
+                      ),
+                    ),
+                    child: const Text('Back'),
                   ),
                 ),
-                child: const Text(
-                  'Record Spiritual Pulse',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 16,
+              if (_currentStep > 0) const SizedBox(width: 12),
+              Expanded(
+                flex: _currentStep > 0 ? 1 : 2,
+                child: ElevatedButton(
+                  onPressed: _nextStep,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: theme.colorScheme.primary,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(tokens.radiusSmall),
+                    ),
+                  ),
+                  child: Text(_currentStep == 3 ? 'Submit' : 'Next'),
+                ),
+              ),
+              if (_currentStep >= 2) ...[
+                const SizedBox(width: 12),
+                TextButton(
+                  onPressed: _skipOptionalStep,
+                  child: const Text('Skip'),
+                ),
+              ],
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _Step1Emotion extends StatelessWidget {
+  const _Step1Emotion({
+    required this.selectedType,
+    required this.onSelect,
+    required this.theme,
+    required this.tokens,
+    required this.isDark,
+  });
+
+  final SpiritualPulseType? selectedType;
+  final Function(SpiritualPulseType) onSelect;
+  final ThemeData theme;
+  final AppThemeTokens tokens;
+  final bool isDark;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          "How are you feeling today?",
+          style: theme.textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 16),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: SpiritualPulseType.values.map((type) {
+            final isSelected = selectedType == type;
+            return InkWell(
+              onTap: () => onSelect(type),
+              borderRadius: BorderRadius.circular(tokens.radiusSmall),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                decoration: BoxDecoration(
+                  color: isSelected ? theme.colorScheme.primary : (isDark ? Colors.grey.shade800 : Colors.grey.shade200),
+                  borderRadius: BorderRadius.circular(tokens.radiusSmall),
+                  border: Border.all(
+                    color: isSelected ? theme.colorScheme.primary : Colors.transparent,
+                    width: 2,
+                  ),
+                ),
+                child: Text(
+                  _getPulseTypeLabel(type),
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: isSelected ? Colors.white : theme.colorScheme.onSurface,
+                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
                   ),
                 ),
               ),
-            ),
-          ],
-        ],
-      ),
+            );
+          }).toList(),
+        ),
+      ],
     );
   }
 
@@ -275,5 +373,213 @@ class _SpiritualPulseWidgetState extends ConsumerState<SpiritualPulseWidget> {
       case SpiritualPulseType.wisdom:
         return 'Wisdom';
     }
+  }
+}
+
+class _Step2Intensity extends StatelessWidget {
+  const _Step2Intensity({
+    required this.intensities,
+    required this.selectedIntensity,
+    required this.onSelect,
+    required this.theme,
+    required this.tokens,
+  });
+
+  final List<String> intensities;
+  final String? selectedIntensity;
+  final Function(String) onSelect;
+  final ThemeData theme;
+  final AppThemeTokens tokens;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          "How strong is this feeling?",
+          style: theme.textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          "Choose how it feels",
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+          ),
+        ),
+        const SizedBox(height: 16),
+        ...intensities.map((intensity) {
+          final isSelected = selectedIntensity == intensity;
+          
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: InkWell(
+              onTap: () => onSelect(intensity),
+              borderRadius: BorderRadius.circular(tokens.radiusMedium),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: isSelected
+                        ? [
+                            theme.colorScheme.primary.withValues(alpha: 0.8),
+                            theme.colorScheme.primary.withValues(alpha: 0.6),
+                          ]
+                        : [
+                            theme.colorScheme.surfaceContainerHighest,
+                            theme.colorScheme.surfaceContainerHighest,
+                          ],
+                  ),
+                  borderRadius: BorderRadius.circular(tokens.radiusMedium),
+                  border: Border.all(
+                    color: isSelected ? theme.colorScheme.primary : Colors.transparent,
+                    width: 2,
+                  ),
+                ),
+                child: Text(
+                  intensity,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    color: isSelected ? Colors.white : theme.colorScheme.onSurface,
+                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            ),
+          );
+        }),
+      ],
+    );
+  }
+}
+
+class _Step3MindItem extends StatelessWidget {
+  const _Step3MindItem({
+    required this.mindItems,
+    required this.selectedItem,
+    required this.onSelect,
+    required this.theme,
+    required this.tokens,
+    required this.isDark,
+  });
+
+  final List<String> mindItems;
+  final String? selectedItem;
+  final Function(String) onSelect;
+  final ThemeData theme;
+  final AppThemeTokens tokens;
+  final bool isDark;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          "What's on your mind?",
+          style: theme.textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          "Optional - tap if anything stands out",
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+          ),
+        ),
+        const SizedBox(height: 16),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: mindItems.map((item) {
+            final isSelected = selectedItem == item;
+            return InkWell(
+              onTap: () => onSelect(item),
+              borderRadius: BorderRadius.circular(tokens.radiusSmall),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: isSelected ? theme.colorScheme.primary.withValues(alpha: 0.15) : (isDark ? Colors.grey.shade800 : Colors.grey.shade200),
+                  borderRadius: BorderRadius.circular(tokens.radiusSmall),
+                  border: Border.all(
+                    color: isSelected ? theme.colorScheme.primary : Colors.transparent,
+                    width: 2,
+                  ),
+                ),
+                child: Text(
+                  item,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: isSelected ? theme.colorScheme.primary : theme.colorScheme.onSurface,
+                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                  ),
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+      ],
+    );
+  }
+}
+
+class _Step4Note extends StatelessWidget {
+  const _Step4Note({
+    required this.controller,
+    required this.theme,
+    required this.tokens,
+    required this.isDark,
+  });
+
+  final TextEditingController controller;
+  final ThemeData theme;
+  final AppThemeTokens tokens;
+  final bool isDark;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          "Add a quick note?",
+          style: theme.textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          "Optional - any insights?",
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+          ),
+        ),
+        const SizedBox(height: 16),
+        TextField(
+          controller: controller,
+          maxLength: 100,
+          maxLines: 4,
+          decoration: InputDecoration(
+            hintText: "What's God showing you...",
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(tokens.radiusSmall),
+            ),
+            filled: true,
+            fillColor: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+          ),
+          style: theme.textTheme.bodyMedium,
+        ),
+        const SizedBox(height: 8),
+        Text(
+          "${controller.text.length}/100",
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+          ),
+        ),
+      ],
+    );
   }
 }

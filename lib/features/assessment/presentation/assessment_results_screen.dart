@@ -386,7 +386,25 @@ class _AssessmentResultsScreenState
                     width: double.infinity,
                     height: 56,
                     child: ElevatedButton(
-                      onPressed: () => context.go(AppRoutes.today),
+                      onPressed: () async {
+                        // Capture router before async gap
+                        final router = GoRouter.of(context);
+                        
+                        // Generate CallingProfile from assessment if none exists
+                        final assessmentState = ref.read(assessmentProvider);
+                        final archetypes = assessmentState.selectedArchetypes;
+                        if (archetypes.isNotEmpty) {
+                          await ref.read(settingsProvider.notifier).generateCallingProfileFromAssessment(
+                            primaryArchetype: archetypes.first,
+                            selectedTaskIds: assessmentState.selectedTasks.isNotEmpty
+                                ? assessmentState.selectedTasks
+                                : null,
+                          );
+                        }
+                        if (mounted) {
+                          router.go(AppRoutes.today);
+                        }
+                      },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: primaryColor,
                         foregroundColor: const Color(0xFF221D10),

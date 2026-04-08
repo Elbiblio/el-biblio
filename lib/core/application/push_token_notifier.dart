@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../services/notifications/push_notification_service.dart';
 import '../network/dio_client.dart';
@@ -74,9 +73,6 @@ class PushTokenNotifier extends StateNotifier<PushTokenState> {
 
       // Get device info if not provided
       deviceInfo ??= await _notificationService.getDeviceInfo();
-
-      debugPrint('Syncing push token for user $userId: $token');
-      debugPrint('Device info: $deviceInfo');
 
       // Make actual API call to register device token
       final response = await _dioClient.post(

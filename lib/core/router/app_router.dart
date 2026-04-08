@@ -12,6 +12,7 @@ import '../../features/assessment/presentation/assessment_path_screen.dart';
 import '../../features/assessment/presentation/assessment_action_plan_screen.dart';
 import '../../features/assessment/presentation/calling_profile_screen.dart';
 import '../../features/assessment/presentation/assessment_results_screen.dart';
+import '../../features/assessment/presentation/weekly_assessment_screen.dart';
 import '../../features/bible/presentation/bible_library_screen.dart';
 import '../../features/bible/presentation/reading_plan_detail_screen.dart';
 import '../../features/bible/presentation/bible_screen.dart';
@@ -25,6 +26,7 @@ import '../../features/mission/presentation/screens/impact_history_screen.dart';
 import '../../features/mission/presentation/screens/person_profile_screen.dart';
 import '../../features/mission/presentation/screens/service_opportunities_screen.dart';
 import '../../features/onboarding/presentation/onboarding_screen.dart';
+import '../../features/onboarding/presentation/post_onboarding_flow_screen.dart';
 import '../../features/profile/presentation/about_screen.dart';
 import '../../features/profile/presentation/profile_screen.dart';
 import '../../features/profile/presentation/reminder_settings_screen.dart';
@@ -36,7 +38,8 @@ import '../../features/app_lock/presentation/screens/app_lock_dashboard_screen.d
 import '../../features/app_lock/presentation/screens/app_lock_setup_screen.dart';
 import '../../features/app_lock/presentation/screens/app_lock_limit_reached_screen.dart';
 import '../../features/social/presentation/invite_screen.dart';
-import '../../features/commitments/presentation/screens/commitment_journey_screen.dart';
+import '../../features/commitments/presentation/screens/commitment_journey_screen_new.dart';
+import '../../features/commitments/presentation/screens/journey_selection_screen.dart';
 import '../../features/commitments/presentation/screens/commitment_active_screen.dart';
 import '../../features/commitments/presentation/screens/commitment_completion_screen.dart';
 import '../../features/spiritual_aid/presentation/screens/spiritual_aid_hub_screen.dart';
@@ -49,6 +52,7 @@ import '../../features/games/presentation/screens/games_hub_screen.dart';
 import '../../features/games/presentation/screens/journey_map_screen.dart';
 import '../../features/games/presentation/screens/post_game_reading_screen.dart';
 import '../../features/bible/presentation/games/verse_game_screen.dart';
+import '../../features/grow/presentation/screens/grow_hub_screen.dart';
 import '../../features/alignment/presentation/screens/alignment_hub_screen.dart';
 import '../../features/alignment/presentation/screens/spiritual_profile_screen.dart';
 import '../../features/alignment/presentation/screens/habit_assessment_screen.dart';
@@ -60,7 +64,27 @@ import '../../features/faith_questions/presentation/screens/faith_questions_hub_
 import '../../features/faith_questions/presentation/screens/faith_faq_screen.dart';
 import '../../features/faith_questions/presentation/screens/faith_quiz_screen.dart';
 import '../../features/faith_questions/presentation/screens/faith_quiz_results_screen.dart';
+import '../theme/app_animations.dart';
 import '../../shared/widgets/app_shell.dart';
+
+/// Subtle fast-fade page transition for shell routes (bottom-nav tabs).
+Page<void> _fadePage({required Widget child, LocalKey? key}) {
+  return CustomTransitionPage<void>(
+    key: key,
+    child: child,
+    transitionDuration: AppAnimations.fast,
+    reverseTransitionDuration: AppAnimations.fast,
+    transitionsBuilder: (context, animation, secondaryAnimation, child) {
+      return FadeTransition(
+        opacity: CurvedAnimation(
+          parent: animation,
+          curve: AppAnimations.fadeCurve,
+        ),
+        child: child,
+      );
+    },
+  );
+}
 
 final _rootNavigatorKey = NotificationService.navigatorKey;
 final _shellNavigatorKey = GlobalKey<NavigatorState>();
@@ -74,6 +98,11 @@ final _routerRefreshProvider = Provider<_RouterRefreshNotifier>((ref) {
 
   ref.listen<bool>(
     settingsProvider.select((value) => value.onboardingCompleted),
+    (_, __) => notifier.trigger(),
+  );
+
+  ref.listen<bool>(
+    settingsProvider.select((value) => value.hasCompletedPostOnboarding),
     (_, __) => notifier.trigger(),
   );
 
@@ -104,6 +133,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: AppRoutes.onboarding,
         builder: (context, state) => const OnboardingScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.postOnboarding,
+        builder: (context, state) => const PostOnboardingFlowScreen(),
       ),
       GoRoute(
         path: AppRoutes.bibleReader,
@@ -178,7 +211,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: AppRoutes.commitmentJourney,
         parentNavigatorKey: _rootNavigatorKey,
-        builder: (context, state) => const CommitmentJourneyScreen(),
+        builder: (context, state) => const CommitmentJourneyScreenNew(),
+      ),
+      GoRoute(
+        path: AppRoutes.journeySelection,
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) => const JourneySelectionScreen(),
       ),
       GoRoute(
         path: AppRoutes.commitmentActive,
@@ -277,6 +315,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const AboutScreen(),
       ),
       GoRoute(
+        path: AppRoutes.weeklyAssessment,
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) => const WeeklyAssessmentScreen(),
+      ),
+      GoRoute(
         path: '${AppRoutes.meditation}/session',
         parentNavigatorKey: _rootNavigatorKey,
         builder: (context, state) => const MeditationScreen(),
@@ -315,12 +358,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: AppRoutes.today,
             pageBuilder: (context, state) =>
-                const NoTransitionPage(child: TodayScreen()),
+                _fadePage(child: const TodayScreen()),
           ),
           GoRoute(
             path: AppRoutes.act,
             pageBuilder: (context, state) =>
-                const NoTransitionPage(child: MissionHubScreen()),
+                _fadePage(child: const MissionHubScreen()),
             routes: [
               GoRoute(
                 path: 'history',
@@ -344,12 +387,17 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: AppRoutes.growTogether,
             pageBuilder: (context, state) =>
-                const NoTransitionPage(child: GrowTogetherScreen()),
+                _fadePage(child: const GrowTogetherScreen()),
+          ),
+          GoRoute(
+            path: AppRoutes.grow,
+            pageBuilder: (context, state) =>
+                _fadePage(child: const GrowHubScreen()),
           ),
           GoRoute(
             path: AppRoutes.assessment,
             pageBuilder: (context, state) =>
-                const NoTransitionPage(child: FearFirstAssessmentScreen()),
+                _fadePage(child: const FearFirstAssessmentScreen()),
             routes: [
               GoRoute(
                 path: 'compass',
@@ -391,17 +439,17 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: AppRoutes.bible,
             pageBuilder: (context, state) =>
-                const NoTransitionPage(child: BibleLibraryScreen()),
+                _fadePage(child: const BibleLibraryScreen()),
           ),
           GoRoute(
             path: AppRoutes.meditation,
             pageBuilder: (context, state) =>
-                const NoTransitionPage(child: MeditationHomeScreen()),
+                _fadePage(child: const MeditationHomeScreen()),
           ),
           GoRoute(
             path: AppRoutes.journal,
             pageBuilder: (context, state) =>
-                const NoTransitionPage(child: JournalScreen()),
+                _fadePage(child: const JournalScreen()),
             routes: [
               GoRoute(
                 path: 'new',
@@ -436,12 +484,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: AppRoutes.games,
             pageBuilder: (context, state) =>
-                const NoTransitionPage(child: GamesHubScreen()),
+                _fadePage(child: const GamesHubScreen()),
           ),
           GoRoute(
             path: AppRoutes.profile,
             pageBuilder: (context, state) =>
-                const NoTransitionPage(child: ProfileScreen()),
+                _fadePage(child: const ProfileScreen()),
             routes: [
               GoRoute(
                 path: 'reminders',
@@ -454,19 +502,29 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     ],
     redirect: (context, state) {
       final settings = ref.read(settingsProvider);
-      final isOnboarding = state.matchedLocation == AppRoutes.onboarding;
+      final loc = state.matchedLocation;
+      final isOnboarding = loc == AppRoutes.onboarding;
+      final isPostOnboarding = loc == AppRoutes.postOnboarding;
 
-      if (state.matchedLocation == AppRoutes.root) {
-        return settings.onboardingCompleted
-            ? AppRoutes.today
-            : AppRoutes.onboarding;
+      // Root redirect
+      if (loc == AppRoutes.root) {
+        if (!settings.onboardingCompleted) return AppRoutes.onboarding;
+        if (!settings.hasCompletedPostOnboarding) return AppRoutes.postOnboarding;
+        return AppRoutes.today;
       }
 
+      // Guard: must complete onboarding first
       if (!settings.onboardingCompleted) {
         return isOnboarding ? null : AppRoutes.onboarding;
       }
 
-      if (isOnboarding || state.matchedLocation == AppRoutes.root) {
+      // Guard: must complete post-onboarding before accessing the app
+      if (!settings.hasCompletedPostOnboarding) {
+        return isPostOnboarding ? null : AppRoutes.postOnboarding;
+      }
+
+      // Already completed — redirect away from onboarding screens
+      if (isOnboarding || isPostOnboarding) {
         return AppRoutes.today;
       }
 

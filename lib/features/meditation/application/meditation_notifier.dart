@@ -836,25 +836,14 @@ class MeditationNotifier extends StateNotifier<MeditationState> {
     if (filename.isEmpty) return;
     
     _logger.d('Playing background sound: $filename');
-    
+
     try {
-      // Try to download if not available, then play
-      await _audioService.downloadAudio(filename);
+      // playBackgroundSound handles download, validation, and fallbacks internally
       await _audioService.playBackgroundSound(filename);
       _logger.i('Background sound started: $filename');
     } catch (e) {
-      _logger.w('Failed to play background from download: $e');
-      // Fallback to asset if download fails
-      try {
-        final asset = 'audio/$filename';
-        await _bgPlayer.setReleaseMode(ReleaseMode.loop);
-        await _bgPlayer.setVolume(0.4);
-        await _bgPlayer.play(AssetSource(asset));
-        _logger.i('Background sound started from asset: $filename');
-      } catch (assetError) {
-        _logger.e('Failed to play background sound from asset: $assetError');
-        _handleAudioError('Background sound', 'Unable to play background audio');
-      }
+      _logger.e('Failed to play background sound: $e');
+      _handleAudioError('Background sound', 'Unable to play background audio');
     }
   }
 
@@ -905,7 +894,6 @@ class MeditationNotifier extends StateNotifier<MeditationState> {
         // Try streaming first for instant playback
         if (audioKey.startsWith('http')) {
           try {
-            await _audioService.downloadChant(audioKey, filename);
             await _audioService.playChant(
               audioKey,
               filename,
@@ -951,10 +939,13 @@ class MeditationNotifier extends StateNotifier<MeditationState> {
   }
 
   /// Show user notification for audio issues
+  ///
+  /// Note: This is intentionally log-only since the notifier doesn't have
+  /// access to BuildContext for showing SnackBars. Audio issues are rare
+  /// edge cases, and the meditation UI already shows session state clearly.
+  /// If needed, the screen can add error handling callbacks.
   void _showUserNotification(String title, String message) {
     _logger.i('User notification: $title - $message');
-    // TODO: Integrate with app's notification system
-    // For now, just log the issue
   }
 
   /// Run background completion tasks without blocking UI

@@ -3,19 +3,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../application/mood_notifier.dart';
-import 'integrity_badge.dart';
-import 'virtue_focus_badge.dart';
-import 'streak_badge.dart';
 
 class TodayHeader extends ConsumerWidget {
   const TodayHeader({
     super.key,
     required this.onHelpTap,
-    required this.onShareTap,
   });
 
   final VoidCallback onHelpTap;
-  final VoidCallback onShareTap;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -54,7 +49,7 @@ class TodayHeader extends ConsumerWidget {
           ),
           const SizedBox(width: 12),
 
-          // Greeting + Clarity Focus
+          // Greeting
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -75,17 +70,6 @@ class TodayHeader extends ConsumerWidget {
                         color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
                       ),
                 ),
-                const SizedBox(height: 8),
-                const VirtueFocusBadge(),
-                const SizedBox(height: 6),
-                const Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    StreakBadge(),
-                    SizedBox(width: 8),
-                    IntegrityBadge(),
-                  ],
-                ),
               ],
             ),
           ),
@@ -105,26 +89,6 @@ class TodayHeader extends ConsumerWidget {
               ),
               child: Icon(
                 Icons.help_outline_rounded,
-                color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.8),
-              ),
-            ),
-          ),
-
-          // Share Button
-          GestureDetector(
-            onTap: onShareTap,
-            child: Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.8),
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.2),
-                ),
-              ),
-              child: Icon(
-                Icons.share_rounded,
                 color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.8),
               ),
             ),

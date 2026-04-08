@@ -49,13 +49,6 @@ class _FourPillarsViewState extends State<FourPillarsView>
         interval: Interval(0.15, 0.55, curve: Curves.easeOutCubic),
       ),
       const _PillarData(
-        icon: Icons.shield_outlined,
-        title: 'Distraction Blocking',
-        subtitle: 'Guard your attention. Less noise, more clarity.',
-        color: Color(0xFF2196F3),
-        interval: Interval(0.30, 0.70, curve: Curves.easeOutCubic),
-      ),
-      const _PillarData(
         icon: Icons.auto_stories_outlined,
         title: 'Bible Games, Faith & Prayer',
         subtitle: 'Learn the Word through play. Answer tough questions. Find peace through prayer.',

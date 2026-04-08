@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
-import '../../../../../core/theme/app_text_styles.dart';
+import '../../../../core/theme/app_text_styles.dart';
+import '../../../../core/theme/app_theme_tokens.dart';
 import '../../domain/models/daily_anchors.dart';
 import '../../domain/models/commitment.dart';
 import '../../data/offline_commitment_data.dart';
@@ -9,27 +10,25 @@ import 'daily_verse_card.dart';
 import 'enhanced_commitment_card.dart';
 
 Color getVirtueColor(VirtueType virtue, ThemeData theme) {
+  final tokens = theme.tokens;
   switch (virtue) {
     case VirtueType.humility:
-      return const Color(0xFF8B5E3C); // Brown
+      return tokens.palette.commitmentColor; // Green
     case VirtueType.love:
-      return const Color(0xFFC85F4B); // Red
+      return tokens.palette.growthColor; // Orange
     case VirtueType.faith:
-      return const Color(0xFF638B6C); // Green
+      return tokens.palette.commitmentColor; // Green
     case VirtueType.knowledge:
-      return const Color(0xFF4A6FA5); // Blue
+      return tokens.palette.distractionColor; // Blue
   }
 }
 
-/// Displays the appropriate anchor card based on completion state.
+/// Displays the daily spiritual journey organized by time of day.
 ///
-/// Priority flow (simplified, no strict time windows):
-///   1. All anchors complete → DailyVerseCard
-///   2. Active commitment    → EnhancedCommitmentCard
-///   3. Prayer not done      → Prayer card
-///   4. Prayer done, commitment not started → "Begin Your Commitment" card
-///   5. Commitment done, activity not done  → Small activity suggestion
-///   6. Evening (19+)        → Evening review for remaining items
+/// The journey flows through three phases:
+///   1. Morning: Connect with God through prayer
+///   2. Midday: Live your calling through your commitment
+///   3. Evening: Reflect and refresh
 class DailyRhythmSection extends StatelessWidget {
   const DailyRhythmSection({
     super.key,
@@ -48,29 +47,37 @@ class DailyRhythmSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final hour = now.hour;
+    
+    // Determine time context for contextual messaging
+    final timeContext = _getTimeContext(hour);
+    
     return SliverPadding(
       padding: const EdgeInsets.all(24),
       sliver: SliverList(
         delegate: SliverChildListDelegate([
+          // Section header with time-appropriate greeting
           Text(
-            'YOUR DAILY CLARITY',
-            style: Theme.of(context).textTheme.sectionHeader.copyWith(
+            timeContext.headerLabel,
+            style: theme.textTheme.sectionHeader.copyWith(
                   fontSize: 12,
                   letterSpacing: 1.2,
-                  color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5),
+                  color: theme.colorScheme.onSurface.withValues(alpha: 0.4),
                 ),
           ),
           const SizedBox(height: 16),
-          _buildCurrentAnchor(context),
+          
+          // Show the current phase card (only one at a time for clarity)
+          _buildCurrentPhaseCard(context, timeContext),
+          
           const SizedBox(height: 120), // Bottom padding for floating nav
         ]),
       ),
     );
   }
 
-  Widget _buildCurrentAnchor(BuildContext context) {
-    final hour = now.hour;
-
+  Widget _buildCurrentPhaseCard(BuildContext context, TimeContext timeContext) {
     // 1. All daily anchors completed → show daily verse
     if (anchors.coreVirtue.isCompleted &&
         anchors.habit.isCompleted &&
@@ -78,73 +85,83 @@ class DailyRhythmSection extends StatelessWidget {
       return const DailyVerseCard();
     }
 
-    // 2. Active commitment takes priority
+    // 2. Active commitment takes priority (regardless of time)
     if (!anchors.habit.isCompleted && anchors.habit.isCommitmentActive) {
-      return _buildEnhancedCommitmentCard(context);
+      return _buildActiveCommitmentCard(context);
     }
 
-    // 3. Prayer not done → show prayer card
+    // 3. Morning phase: Prayer not done
     if (!anchors.coreVirtue.isCompleted) {
-      final subtitle = hour >= 19
-          ? 'Complete your morning prayer before the day ends.'
-          : 'Start your day with a moment of prayer.';
-      return _prayerCard(context, subtitle: subtitle);
+      return _morningCard(context);
     }
 
-    // 4. Prayer done, commitment not started → show "Begin Your Commitment"
+    // 4. Midday phase: Commitment not started or in progress
     if (!anchors.habit.isCompleted) {
-      return _beginCommitmentCard(context);
+      return _middayCard(context);
     }
 
-    // 5. Commitment done, activity not done → small activity suggestion
+    // 5. Evening phase: Activity not done
     if (!anchors.energyAction.isCompleted) {
-      return _activitySuggestionCard(context);
+      return _eveningCard(context);
     }
 
     // Fallback → daily verse
     return const DailyVerseCard();
   }
 
-  // --- Card helpers ---
+  // --- Phase-specific cards with clear time labels ---
 
-  Widget _prayerCard(BuildContext context, {required String subtitle}) {
+  Widget _morningCard(BuildContext context) {
     return CurrentAnchorCard(
       icon: Icons.wb_sunny_outlined,
-      title: 'Morning Prayer',
-      subtitle: subtitle,
-      isCompleted: false,
+      title: 'Morning: Connect with God',
+      subtitle: anchors.coreVirtue.isCompleted
+          ? 'Morning prayer complete'
+          : 'Start your day grounded in prayer and scripture',
+      isCompleted: anchors.coreVirtue.isCompleted,
       virtueColor: getVirtueColor(anchors.coreVirtue.type, Theme.of(context)),
       onTap: () => onPrayerTap(anchors.coreVirtue),
     );
   }
 
-  Widget _beginCommitmentCard(BuildContext context) {
+  Widget _middayCard(BuildContext context) {
+    // Show specific commitment if selected, otherwise generic
+    final commitmentTitle = anchors.habit.commitmentTitle;
+    final title = commitmentTitle != null
+        ? 'Midday: $commitmentTitle'
+        : 'Midday: Live Your Commitment';
+    
+    final subtitle = anchors.habit.isLockedIn
+        ? 'Your commitment is locked in. Stay focused!'
+        : anchors.habit.commitmentDescription ?? 'Choose and practice your daily habit';
+
     return CurrentAnchorCard(
-      icon: Icons.flag_rounded,
-      title: 'Begin Your Commitment',
-      subtitle: 'Choose your daily commitment',
-      isCompleted: false,
+      icon: Icons.flag_outlined,
+      title: title,
+      subtitle: subtitle,
+      isCompleted: anchors.habit.isCompleted,
       onTap: onHabitTap,
     );
   }
 
-  Widget _activitySuggestionCard(BuildContext context) {
+  Widget _eveningCard(BuildContext context) {
     return CurrentAnchorCard(
-      icon: Icons.directions_walk_rounded,
-      title: 'Optional Activity',
-      subtitle: 'A short walk or movement to round off your day.',
-      isCompleted: false,
+      icon: Icons.nightlight_outlined,
+      title: 'Evening: Refresh & Reflect',
+      subtitle: 'Take a walk, breathe deeply, and thank God for today',
+      isCompleted: anchors.energyAction.isCompleted,
+      virtueColor: Theme.of(context).colorScheme.secondary.withValues(alpha: 0.8),
       onTap: onPhysicalActivityTap,
     );
   }
 
-  Widget _buildEnhancedCommitmentCard(BuildContext context) {
+  Widget _buildActiveCommitmentCard(BuildContext context) {
     final hour = now.hour;
-    String timePeriod = 'MORNING';
+    String timePeriod = 'Morning';
     if (hour >= 11 && hour < 17) {
-      timePeriod = 'AFTERNOON';
+      timePeriod = 'Afternoon';
     } else if (hour >= 17) {
-      timePeriod = 'EVENING';
+      timePeriod = 'Evening';
     }
 
     Commitment? commitmentData;
@@ -167,4 +184,28 @@ class DailyRhythmSection extends StatelessWidget {
       commitment: commitmentData,
     );
   }
+
+  TimeContext _getTimeContext(int hour) {
+    if (hour >= 5 && hour < 12) {
+      return TimeContext.morning;
+    } else if (hour >= 12 && hour < 17) {
+      return TimeContext.midday;
+    } else if (hour >= 17 && hour < 22) {
+      return TimeContext.evening;
+    } else {
+      return TimeContext.night;
+    }
+  }
+}
+
+/// Time contexts for contextual messaging
+class TimeContext {
+  final String headerLabel;
+  
+  const TimeContext._(this.headerLabel);
+  
+  static final morning = TimeContext._('YOUR MORNING JOURNEY');
+  static final midday = TimeContext._('YOUR MIDDAY JOURNEY');
+  static final evening = TimeContext._('YOUR EVENING JOURNEY');
+  static final night = TimeContext._('TONIGHT\'S REFLECTION');
 }

@@ -58,10 +58,39 @@ enum CommitmentCategory {
   });
 
   static CommitmentCategory fromString(String value) {
+    final normalized = normalizeStorageValue(value);
     return CommitmentCategory.values.firstWhere(
-      (c) => c.name == value,
+      (c) => c.name == normalized,
       orElse: () => CommitmentCategory.growth,
     );
+  }
+
+  static String normalizeStorageValue(String? value) {
+    final normalized = value?.trim();
+    if (normalized == null || normalized.isEmpty) {
+      return CommitmentCategory.growth.name;
+    }
+
+    switch (normalized.toLowerCase()) {
+      case 'growth':
+      case 'creative':
+      case 'intellectual':
+      case 'balanced':
+        return CommitmentCategory.growth.name;
+      case 'discipline':
+      case 'protective':
+      case 'practical':
+      case 'relational':
+        return CommitmentCategory.discipline.name;
+      case 'charity':
+      case 'compassionate':
+        return CommitmentCategory.charity.name;
+      default:
+        return CommitmentCategory.values
+                .any((category) => category.name == normalized)
+            ? normalized
+            : CommitmentCategory.growth.name;
+    }
   }
 
   /// Returns the recommended starting category for a given archetype.

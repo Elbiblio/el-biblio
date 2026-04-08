@@ -121,7 +121,7 @@ class OnboardingScreen extends ConsumerWidget {
     }
 
     if (!context.mounted) return;
-    context.go(AppRoutes.today);
+    context.go(AppRoutes.postOnboarding);
   }
 
   Future<void> _handleGuestAccount(
@@ -160,7 +160,7 @@ class OnboardingScreen extends ConsumerWidget {
     }
 
     if (!context.mounted) return;
-    context.go(AppRoutes.today);
+    context.go(AppRoutes.postOnboarding);
   }
 
   @override
@@ -181,7 +181,7 @@ class OnboardingScreen extends ConsumerWidget {
 
     return Scaffold(
       backgroundColor: Colors.transparent,
-      extendBodyBehindAppBar: true,
+      extendBodyBehindAppBar: false,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,

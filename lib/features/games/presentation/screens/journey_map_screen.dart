@@ -63,7 +63,9 @@ class _JourneyMapScreenState extends ConsumerState<JourneyMapScreen> {
     // Compute background gradient based on progress
     final gradientColors = _backgroundGradient(progress, isDark);
 
-    return Scaffold(
+    return PopScope(
+      canPop: true,
+      child: Scaffold(
       body: Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(
@@ -125,6 +127,59 @@ class _JourneyMapScreenState extends ConsumerState<JourneyMapScreen> {
               ),
               const SizedBox(height: 12),
 
+              // First-time intro card
+              if (progress.completedEvents.isEmpty) ...[
+                Builder(builder: (context) {
+                  final introTheme = Theme.of(context);
+                  return Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
+                  child: Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: isDark
+                          ? Colors.white.withValues(alpha: 0.06)
+                          : introTheme.colorScheme.primaryContainer.withValues(alpha: 0.3),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: introTheme.colorScheme.primary.withValues(alpha: 0.2),
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(Icons.auto_awesome_rounded, size: 18,
+                                color: introTheme.colorScheme.primary),
+                            const SizedBox(width: 8),
+                            Text(
+                              'How It Works',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                                color: introTheme.colorScheme.primary,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Walk through 30 key moments in Jesus\' life. Each stop has a short story and quiz. Start at the top and progress naturally.',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: isDark
+                                ? Colors.white.withValues(alpha: 0.7)
+                                : Colors.black87,
+                            height: 1.5,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+                }),
+              ],
+
               // Scrollable journey path
               Expanded(
                 child: ListView.builder(
@@ -174,6 +229,7 @@ class _JourneyMapScreenState extends ConsumerState<JourneyMapScreen> {
           ),
         ),
       ),
+    ),
     );
   }
 

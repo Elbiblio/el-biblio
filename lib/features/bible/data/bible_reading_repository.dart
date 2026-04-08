@@ -43,8 +43,24 @@ class BibleReadingRepository extends BaseRepository {
           'per_page': perPage,
         },
       );
-      final List<dynamic> data = response.data['data'] ?? response.data;
-      return data.map((json) => Activity.fromJson(json)).toList();
+      
+      // Handle both successful responses and error responses
+      final dynamic data = response.data['data'] ?? response.data;
+      
+      // If data is a Map (error response), return empty list
+      if (data is Map<String, dynamic>) {
+        logger.w('getHistory received error response instead of list: $data');
+        return <Activity>[];
+      }
+      
+      // If data is a List, parse it
+      if (data is List<dynamic>) {
+        return data.map((json) => Activity.fromJson(json)).toList();
+      }
+      
+      // Fallback: unexpected data type
+      logger.w('getHistory received unexpected data type: ${data.runtimeType}');
+      return <Activity>[];
     }, operation: 'get_reading_history');
   }
 

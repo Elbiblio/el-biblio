@@ -6,14 +6,14 @@ import '../../../../core/constants/app_routes.dart';
 import '../../../../core/di/app_providers.dart';
 import '../../../meditation/application/meditation_notifier.dart';
 
-class FirstAidKitDialog extends ConsumerStatefulWidget {
-  const FirstAidKitDialog({super.key});
+class SoulCareDialog extends ConsumerStatefulWidget {
+  const SoulCareDialog({super.key});
 
   @override
-  ConsumerState<FirstAidKitDialog> createState() => _FirstAidKitDialogState();
+  ConsumerState<SoulCareDialog> createState() => _SoulCareDialogState();
 }
 
-class _FirstAidKitDialogState extends ConsumerState<FirstAidKitDialog> {
+class _SoulCareDialogState extends ConsumerState<SoulCareDialog> {
   @override
   Widget build(BuildContext context) {
     final allTools = _getAllTools();
@@ -288,7 +288,7 @@ class _FirstAidKitDialogState extends ConsumerState<FirstAidKitDialog> {
   void _showBreathingReset() {
     showDialog(
       context: context,
-      barrierDismissible: false,
+      barrierDismissible: true,
       builder: (context) => BreathingResetDialog(
         onComplete: () => Navigator.of(context).pop(),
       ),

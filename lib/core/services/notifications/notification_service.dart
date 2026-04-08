@@ -67,8 +67,6 @@ class NotificationService {
     if (_initialized) return;
 
     try {
-      debugPrint('NotificationService: Starting initialization...');
-      
       tz.initializeTimeZones();
 
       const androidInitSettings =
@@ -107,17 +105,12 @@ class NotificationService {
       );
 
       _initialized = true;
-      debugPrint('NotificationService: Initialization completed');
     } catch (e, stackTrace) {
-      debugPrint('NotificationService: Initialization failed: $e');
-      debugPrint('NotificationService: Stack trace: $stackTrace');
+      debugPrint('NotificationService: Initialization failed: $e\n$stackTrace');
     }
   }
 
   void _onNotificationTapped(NotificationResponse response) {
-    debugPrint('NotificationService: Notification tapped with payload: ${response.payload}');
-    debugPrint('NotificationService: Action ID: ${response.actionId}');
-    
     // Handle notification actions
     if (response.notificationResponseType ==
             NotificationResponseType.selectedNotificationAction &&
@@ -131,10 +124,7 @@ class NotificationService {
 
   void _handleNotificationAction(String actionId, String? payload) {
     final context = _getAppContext();
-    if (context == null) {
-      debugPrint('NotificationService: No context available for action handling');
-      return;
-    }
+    if (context == null) return;
     
     try {
       switch (actionId) {
@@ -149,7 +139,7 @@ class NotificationService {
           _goToRoute(AppRoutes.today);
           break;
         default:
-          debugPrint('NotificationService: Unknown action ID: $actionId');
+          break;
       }
     } catch (e) {
       debugPrint('NotificationService: Action handling error: $e');
@@ -258,10 +248,7 @@ class NotificationService {
     // Get the current context (this needs to be called from a widget context)
     // For now, we'll use a global navigator key approach
     final context = _getAppContext();
-    if (context == null) {
-      debugPrint('NotificationService: No context available for navigation');
-      return;
-    }
+    if (context == null) return;
     
     try {
       if (payload == 'bible_reading' ||
@@ -294,10 +281,7 @@ class NotificationService {
 
   void _goToRoute(String route) {
     final context = _getAppContext();
-    if (context == null) {
-      debugPrint('NotificationService: No context available for route $route');
-      return;
-    }
+    if (context == null) return;
     GoRouter.of(context).go(route);
   }
   
@@ -315,7 +299,6 @@ class NotificationService {
         resolved = resolved.add(const Duration(days: 1));
       }
       
-      debugPrint('NotificationService: Scheduled for ${resolved.toLocal()} (timezone: ${tz.local.name})');
       return resolved;
     } catch (e) {
       debugPrint('NotificationService: Error resolving timezone, falling back to local: $e');
@@ -531,10 +514,6 @@ class NotificationService {
     VirtueType? virtueType,
   }) async {
     try {
-      debugPrint('NotificationService: showCommitmentLockInNotification called');
-      debugPrint('NotificationService: commitmentTitle=$commitmentTitle');
-      debugPrint('NotificationService: virtueType=$virtueType');
-      
       await initialize();
 
       // Create virtue icon bitmap if virtue type is provided
@@ -632,7 +611,6 @@ class NotificationService {
   }) async {
     try {
       await initialize();
-      debugPrint('NotificationService: Scheduling daily reminders...');
 
       // Cancel existing reminders first
       await cancelDailyReminders();
@@ -646,7 +624,6 @@ class NotificationService {
           scheduledTime: morningDateTime,
           payload: 'morning_reminder',
         );
-        debugPrint('NotificationService: Morning reminder scheduled for $morningTime');
       }
 
       if (eveningEnabled) {
@@ -658,7 +635,6 @@ class NotificationService {
           scheduledTime: eveningDateTime,
           payload: 'evening_reminder',
         );
-        debugPrint('NotificationService: Evening reminder scheduled for $eveningTime');
       }
 
       // Save scheduled notification info for persistence
@@ -672,7 +648,6 @@ class NotificationService {
     try {
       await _localNotificationsPlugin.cancel(id: morningReminderId);
       await _localNotificationsPlugin.cancel(id: eveningReminderId);
-      debugPrint('NotificationService: Daily reminders cancelled');
     } catch (e) {
       debugPrint('NotificationService: Error cancelling daily reminders: $e');
     }
@@ -773,7 +748,6 @@ class NotificationService {
         payload: '${payload}_backup',
       );
 
-      debugPrint('NotificationService: Backup notification scheduled for ID $backupId');
     } catch (e) {
       debugPrint('NotificationService: Error scheduling backup notification: $e');
     }
@@ -829,7 +803,6 @@ class NotificationService {
               eveningEnabled: true,
             );
           }
-          debugPrint('NotificationService: Daily reminders restored from persistence');
         }
       }
     } catch (e) {
@@ -864,13 +837,9 @@ class NotificationService {
     return {};
   }
 
-  Future<void> subscribeToTopic(String topic) async {
-    debugPrint('NotificationService: subscribeToTopic called (stub)');
-  }
+  Future<void> subscribeToTopic(String topic) async {}
 
-  Future<void> unsubscribeFromTopic(String topic) async {
-    debugPrint('NotificationService: unsubscribeToTopic called (stub)');
-  }
+  Future<void> unsubscribeFromTopic(String topic) async {}
 
   Future<AndroidBitmap?> _createVirtueIconBitmap(VirtueType virtueType) async {
     try {
@@ -951,6 +920,302 @@ class NotificationService {
         return 'F';
       case VirtueType.knowledge:
         return 'K';
+    }
+  }
+
+  // ============================================================================
+  // COMMITMENT JOURNEY NOTIFICATIONS (3/10/40-day journeys with spiritual copy)
+  // ============================================================================
+
+  static const int journeyCheckInBaseId = 3000;
+  static const int journeyMilestoneBaseId = 4000;
+  static const int journeyCompletionId = 5000;
+  static const String _journeyCategory = 'commitment_journey';
+
+  /// Schedule 6pm partner check-in request notification.
+  /// Asks partner to confirm user's commitment completion.
+  Future<void> schedulePartnerCheckInRequest({
+    required String partnerName,
+    required String userName,
+    required String journeyTitle,
+    required int currentDay,
+    required int totalDays,
+  }) async {
+    try {
+      await initialize();
+
+      const androidDetails = AndroidNotificationDetails(
+        'partner_check_ins',
+        'Walking Together Check-ins',
+        channelDescription: 'Evening check-in requests for accountability partners',
+        importance: Importance.high,
+        priority: Priority.high,
+        color: Color(0xFF7B68EE),
+        ledColor: Color(0xFF7B68EE),
+        enableLights: true,
+        enableVibration: true,
+        playSound: true,
+        icon: '@mipmap/ic_launcher',
+        actions: <AndroidNotificationAction>[
+          AndroidNotificationAction('confirm', 'Yes, they did', showsUserInterface: true),
+          AndroidNotificationAction('decline', 'Not today', showsUserInterface: true),
+        ],
+      );
+
+      const iosDetails = DarwinNotificationDetails(
+        categoryIdentifier: _journeyCategory,
+        presentAlert: true,
+        presentBadge: true,
+        presentSound: true,
+      );
+
+      const notificationDetails = NotificationDetails(
+        android: androidDetails,
+        iOS: iosDetails,
+      );
+
+      // Spiritual copy for partner notification
+      final title = 'Walking together with $userName';
+      final body = 'Day $currentDay of $totalDays: Did they keep their commitment to "$journeyTitle"?';
+
+      // Schedule for 6:00 PM today
+      final now = DateTime.now();
+      var scheduledTime = DateTime(now.year, now.month, now.day, 18, 0);
+      if (scheduledTime.isBefore(now)) {
+        scheduledTime = scheduledTime.add(const Duration(days: 1));
+      }
+
+      await _localNotificationsPlugin.zonedSchedule(
+        id: journeyCheckInBaseId,
+        title: title,
+        body: body,
+        scheduledDate: _resolveScheduleTime(scheduledTime),
+        notificationDetails: notificationDetails,
+        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+        payload: 'partner_check_in_request',
+      );
+
+    } catch (e) {
+      debugPrint('NotificationService: Error scheduling partner check-in: $e');
+    }
+  }
+
+  /// Schedule 8pm user fallback check-in notification.
+  /// Sent when partner hasn't responded by 8pm.
+  Future<void> scheduleUserCheckInReminder({
+    required String journeyTitle,
+    required int currentDay,
+    required int totalDays,
+    String? prayerIntention,
+  }) async {
+    try {
+      await initialize();
+
+      const androidDetails = AndroidNotificationDetails(
+        'journey_check_ins',
+        'Your Journey Check-ins',
+        channelDescription: 'Evening reminders to check in on your commitment journey',
+        importance: Importance.high,
+        priority: Priority.high,
+        color: Color(0xFF638B6C),
+        ledColor: Color(0xFF638B6C),
+        enableLights: true,
+        enableVibration: true,
+        playSound: true,
+        icon: '@mipmap/ic_launcher',
+        actions: <AndroidNotificationAction>[
+          AndroidNotificationAction('check_in', 'I kept my commitment', showsUserInterface: true),
+          AndroidNotificationAction('view', 'View journey', showsUserInterface: true),
+        ],
+      );
+
+      const iosDetails = DarwinNotificationDetails(
+        categoryIdentifier: _journeyCategory,
+        presentAlert: true,
+        presentBadge: true,
+        presentSound: true,
+      );
+
+      const notificationDetails = NotificationDetails(
+        android: androidDetails,
+        iOS: iosDetails,
+      );
+
+      // Spiritual copy options - randomly select for variety
+      final spiritualTitles = [
+        'How did God move today?',
+        'Reflect on your journey',
+        'Stay faithful to your calling',
+        'Day $currentDay awaits your check-in',
+      ];
+
+      final spiritualBodies = [
+        'Day $currentDay of $totalDays: $journeyTitle',
+        if (prayerIntention != null && prayerIntention.isNotEmpty)
+          'Remember your intention: "$prayerIntention"',
+        'Take a moment to reflect and check in',
+      ].where((s) => s.isNotEmpty).join(' • ');
+
+      final title = spiritualTitles[currentDay % spiritualTitles.length];
+
+      // Schedule for 8:00 PM today (2 hours after partner notification)
+      final now = DateTime.now();
+      var scheduledTime = DateTime(now.year, now.month, now.day, 20, 0);
+      if (scheduledTime.isBefore(now)) {
+        scheduledTime = scheduledTime.add(const Duration(days: 1));
+      }
+
+      await _localNotificationsPlugin.zonedSchedule(
+        id: journeyCheckInBaseId + 1,
+        title: title,
+        body: spiritualBodies,
+        scheduledDate: _resolveScheduleTime(scheduledTime),
+        notificationDetails: notificationDetails,
+        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+        payload: 'journey_check_in_reminder',
+      );
+
+    } catch (e) {
+      debugPrint('NotificationService: Error scheduling user check-in: $e');
+    }
+  }
+
+  /// Show immediate notification when user reaches a milestone.
+  /// Called when the commitment tightens at milestone days.
+  Future<void> showMilestoneReachedNotification({
+    required String journeyTitle,
+    required int milestoneDay,
+    required String newRequirement,
+  }) async {
+    try {
+      await initialize();
+
+      const androidDetails = AndroidNotificationDetails(
+        'journey_milestones',
+        'Journey Deepenings',
+        channelDescription: 'Notifications when your commitment journey tightens',
+        importance: Importance.high,
+        priority: Priority.high,
+        color: Color(0xFFFFC107),
+        ledColor: Color(0xFFFFC107),
+        enableLights: true,
+        enableVibration: true,
+        playSound: true,
+        icon: '@mipmap/ic_launcher',
+      );
+
+      const iosDetails = DarwinNotificationDetails(
+        presentAlert: true,
+        presentBadge: true,
+        presentSound: true,
+      );
+
+      const notificationDetails = NotificationDetails(
+        android: androidDetails,
+        iOS: iosDetails,
+      );
+
+      // Spiritual copy for milestone
+      const title = 'Your journey deepens';
+      final body = 'From Day $milestoneDay, your commitment grows stronger. '
+          'New practice: $newRequirement';
+
+      await _localNotificationsPlugin.show(
+        id: journeyMilestoneBaseId + milestoneDay,
+        title: title,
+        body: body,
+        notificationDetails: notificationDetails,
+        payload: 'journey_milestone',
+      );
+
+    } catch (e) {
+      debugPrint('NotificationService: Error showing milestone notification: $e');
+    }
+  }
+
+  /// Show immediate notification when journey is completed.
+  /// Celebrates completion and virtue growth silently.
+  Future<void> showJourneyCompletedNotification({
+    required String journeyTitle,
+    required int durationDays,
+    required String virtueAlignment,
+  }) async {
+    try {
+      await initialize();
+
+      const androidDetails = AndroidNotificationDetails(
+        'journey_completions',
+        'Journey Completions',
+        channelDescription: 'Celebrations when you complete a commitment journey',
+        importance: Importance.high,
+        priority: Priority.high,
+        color: Color(0xFF4CAF50),
+        ledColor: Color(0xFF4CAF50),
+        enableLights: true,
+        enableVibration: true,
+        playSound: true,
+        icon: '@mipmap/ic_launcher',
+      );
+
+      const iosDetails = DarwinNotificationDetails(
+        presentAlert: true,
+        presentBadge: true,
+        presentSound: true,
+      );
+
+      const notificationDetails = NotificationDetails(
+        android: androidDetails,
+        iOS: iosDetails,
+      );
+
+      // Spiritual copy for completion - emphasizing growth, not achievement
+      final spiritualTitles = [
+        'You have been faithful',
+        'Your journey is complete',
+        'Well done',
+        'A season of growth ends',
+      ];
+
+      final spiritualBodies = [
+        '$durationDays days of $journeyTitle — your $virtueAlignment has grown.',
+        'What will God invite you to next?',
+      ].join(' ');
+
+      final title = spiritualTitles[durationDays % spiritualTitles.length];
+
+      await _localNotificationsPlugin.show(
+        id: journeyCompletionId,
+        title: title,
+        body: spiritualBodies,
+        notificationDetails: notificationDetails,
+        payload: 'journey_completed',
+      );
+
+    } catch (e) {
+      debugPrint('NotificationService: Error showing journey completion: $e');
+    }
+  }
+
+  /// Cancel all journey-related notifications.
+  /// Call when user abandons a journey.
+  Future<void> cancelJourneyNotifications() async {
+    try {
+      await initialize();
+
+      // Cancel check-in reminders
+      await _localNotificationsPlugin.cancel(id: journeyCheckInBaseId);
+      await _localNotificationsPlugin.cancel(id: journeyCheckInBaseId + 1);
+
+      // Cancel milestone notifications (potential range)
+      for (int i = 0; i < 50; i++) {
+        await _localNotificationsPlugin.cancel(id: journeyMilestoneBaseId + i);
+      }
+
+      // Cancel completion notification
+      await _localNotificationsPlugin.cancel(id: journeyCompletionId);
+
+    } catch (e) {
+      debugPrint('NotificationService: Error cancelling journey notifications: $e');
     }
   }
 }

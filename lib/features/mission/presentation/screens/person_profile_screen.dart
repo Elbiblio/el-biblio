@@ -222,8 +222,6 @@ class _PersonProfileScreenState extends ConsumerState<PersonProfileScreen> {
   }
 
   String _getPersonName(dynamic mission) {
-    // In a real implementation, this would fetch the PersonProfile
-    // For now, we'll use a placeholder
     final settings = ref.read(settingsProvider);
     final matchingProfiles = settings.personProfiles.where(
       (profile) => profile.id == widget.personId,
@@ -232,7 +230,6 @@ class _PersonProfileScreenState extends ConsumerState<PersonProfileScreen> {
   }
 
   String _getRelationship(dynamic mission) {
-    // In a real implementation, this would fetch from PersonProfile
     final settings = ref.read(settingsProvider);
     final matchingProfiles = settings.personProfiles.where(
       (profile) => profile.id == widget.personId,
@@ -241,7 +238,6 @@ class _PersonProfileScreenState extends ConsumerState<PersonProfileScreen> {
   }
 
   void _showEditDialog(BuildContext context, WidgetRef ref, dynamic profile) {
-    // In a real implementation, this would open an edit dialog
     final nameController = TextEditingController(text: profile.name as String? ?? '');
     final relationshipController = TextEditingController(text: profile.relationship as String? ?? '');
     final contactController = TextEditingController(text: profile.contactInfo as String? ?? '');

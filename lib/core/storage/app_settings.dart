@@ -2,8 +2,11 @@ import 'package:flutter/material.dart';
 
 import '../../features/assessment/domain/models/calling_profile.dart';
 import '../../features/assessment/domain/models/weekly_plan.dart';
+import '../../features/commitments/domain/models/commitment_category.dart';
 import '../../features/mission/domain/models/accountability_partner.dart';
+import '../../features/mission/domain/models/kingdom_action_models.dart';
 import '../../features/mission/domain/models/mission_action.dart';
+import '../../features/mission/domain/models/mission_focus.dart';
 import '../../features/mission/domain/models/person_profile.dart';
 import '../../features/today/domain/models/daily_anchors.dart';
 import '../theme/app_theme_mode.dart';
@@ -41,9 +44,14 @@ class AppSettings {
     required this.accountabilityPartner,
     required this.personProfiles,
     required this.hasSeenCommitmentWelcome,
+    required this.hasCompletedPostOnboarding,
+    required this.hasSeenTodayWelcome,
     required this.callingProfile,
     required this.currentWeeklyPlan,
     required this.spiritualPulseByDate,
+    this.personCommitments = const [],
+    this.generosityRecords = const [],
+    this.evangelismConversations = const [],
   });
 
   final AppThemeMode themeMode;
@@ -77,9 +85,14 @@ class AppSettings {
   final AccountabilityPartner? accountabilityPartner;
   final List<PersonProfile> personProfiles;
   final bool hasSeenCommitmentWelcome;
+  final bool hasCompletedPostOnboarding;
+  final bool hasSeenTodayWelcome;
   final CallingProfile? callingProfile;
   final WeeklyPlan? currentWeeklyPlan;
   final Map<String, SpiritualPulseResponse> spiritualPulseByDate;
+  final List<PersonCommitment> personCommitments;
+  final List<GenerosityRecord> generosityRecords;
+  final List<EvangelismConversation> evangelismConversations;
 
   factory AppSettings.defaults() {
     return const AppSettings(
@@ -114,9 +127,14 @@ class AppSettings {
       accountabilityPartner: null,
       personProfiles: [],
       hasSeenCommitmentWelcome: false,
+      hasCompletedPostOnboarding: false,
+      hasSeenTodayWelcome: false,
       callingProfile: null,
       currentWeeklyPlan: null,
       spiritualPulseByDate: {},
+      personCommitments: [],
+      generosityRecords: [],
+      evangelismConversations: [],
     );
   }
 
@@ -168,6 +186,12 @@ class AppSettings {
             ),
           )
         : <String, SpiritualPulseResponse>{};
+    final normalizedCommitmentCategory = CommitmentCategory.normalizeStorageValue(
+      map['commitmentCategory'] as String?,
+    );
+    final normalizedMissionFocus = MissionFocusTypeX.normalizeStorageValue(
+      map['primaryMissionFocus'] as String?,
+    );
 
     return AppSettings(
       themeMode: AppThemeModeX.fromStorage(
@@ -208,8 +232,12 @@ class AppSettings {
           ? null
           : DateTime.tryParse(map['lastPrayerGuideDate'] as String),
       primaryArchetypeId: map['primaryArchetypeId'] as String?,
-      commitmentCategory: map['commitmentCategory'] as String?,
-      primaryMissionFocus: map['primaryMissionFocus'] as String?,
+      commitmentCategory: map['commitmentCategory'] == null
+          ? null
+          : normalizedCommitmentCategory,
+      primaryMissionFocus: map['primaryMissionFocus'] == null
+          ? null
+          : normalizedMissionFocus,
       missionActions: missionActions,
       accountabilityPartner: accountabilityPartnerRaw is Map
           ? AccountabilityPartner.fromMap(
@@ -218,6 +246,8 @@ class AppSettings {
           : null,
       personProfiles: personProfiles,
       hasSeenCommitmentWelcome: map['hasSeenCommitmentWelcome'] as bool? ?? false,
+      hasCompletedPostOnboarding: map['hasCompletedPostOnboarding'] as bool? ?? false,
+      hasSeenTodayWelcome: map['hasSeenTodayWelcome'] as bool? ?? false,
       callingProfile: map['callingProfile'] is Map
           ? CallingProfile.fromMap(Map<String, dynamic>.from(map['callingProfile'] as Map))
           : null,
@@ -225,6 +255,21 @@ class AppSettings {
           ? WeeklyPlan.fromMap(Map<String, dynamic>.from(map['currentWeeklyPlan'] as Map))
           : null,
       spiritualPulseByDate: spiritualPulseByDate,
+      personCommitments: (map['personCommitments'] as List<dynamic>?)
+              ?.whereType<Map>()
+              .map((item) => PersonCommitment.fromMap(Map<String, dynamic>.from(item)))
+              .toList() ??
+          const [],
+      generosityRecords: (map['generosityRecords'] as List<dynamic>?)
+              ?.whereType<Map>()
+              .map((item) => GenerosityRecord.fromMap(Map<String, dynamic>.from(item)))
+              .toList() ??
+          const [],
+      evangelismConversations: (map['evangelismConversations'] as List<dynamic>?)
+              ?.whereType<Map>()
+              .map((item) => EvangelismConversation.fromMap(Map<String, dynamic>.from(item)))
+              .toList() ??
+          const [],
     );
   }
 
@@ -256,17 +301,26 @@ class AppSettings {
       'selectedTTSVoice': selectedTTSVoice,
       'lastPrayerGuideDate': lastPrayerGuideDate?.toIso8601String(),
       'primaryArchetypeId': primaryArchetypeId,
-      'commitmentCategory': commitmentCategory,
-      'primaryMissionFocus': primaryMissionFocus,
+      'commitmentCategory': commitmentCategory == null
+          ? null
+          : CommitmentCategory.normalizeStorageValue(commitmentCategory),
+      'primaryMissionFocus': primaryMissionFocus == null
+          ? null
+          : MissionFocusTypeX.normalizeStorageValue(primaryMissionFocus),
       'missionActions': missionActions.map((item) => item.toMap()).toList(),
       'accountabilityPartner': accountabilityPartner?.toMap(),
       'personProfiles': personProfiles.map((item) => item.toMap()).toList(),
       'hasSeenCommitmentWelcome': hasSeenCommitmentWelcome,
+      'hasCompletedPostOnboarding': hasCompletedPostOnboarding,
+      'hasSeenTodayWelcome': hasSeenTodayWelcome,
       'callingProfile': callingProfile?.toMap(),
       'currentWeeklyPlan': currentWeeklyPlan?.toMap(),
       'spiritualPulseByDate': spiritualPulseByDate.map(
         (key, value) => MapEntry(key, value.toJson()),
       ),
+      'personCommitments': personCommitments.map((item) => item.toMap()).toList(),
+      'generosityRecords': generosityRecords.map((item) => item.toMap()).toList(),
+      'evangelismConversations': evangelismConversations.map((item) => item.toMap()).toList(),
     };
   }
 
@@ -302,9 +356,14 @@ class AppSettings {
     AccountabilityPartner? accountabilityPartner,
     List<PersonProfile>? personProfiles,
     bool? hasSeenCommitmentWelcome,
+    bool? hasCompletedPostOnboarding,
+    bool? hasSeenTodayWelcome,
     CallingProfile? callingProfile,
     WeeklyPlan? currentWeeklyPlan,
     Map<String, SpiritualPulseResponse>? spiritualPulseByDate,
+    List<PersonCommitment>? personCommitments,
+    List<GenerosityRecord>? generosityRecords,
+    List<EvangelismConversation>? evangelismConversations,
   }) {
     return AppSettings(
       themeMode: themeMode ?? this.themeMode,
@@ -339,9 +398,14 @@ class AppSettings {
       accountabilityPartner: accountabilityPartner ?? this.accountabilityPartner,
       personProfiles: personProfiles ?? this.personProfiles,
       hasSeenCommitmentWelcome: hasSeenCommitmentWelcome ?? this.hasSeenCommitmentWelcome,
+      hasCompletedPostOnboarding: hasCompletedPostOnboarding ?? this.hasCompletedPostOnboarding,
+      hasSeenTodayWelcome: hasSeenTodayWelcome ?? this.hasSeenTodayWelcome,
       callingProfile: callingProfile ?? this.callingProfile,
       currentWeeklyPlan: currentWeeklyPlan ?? this.currentWeeklyPlan,
       spiritualPulseByDate: spiritualPulseByDate ?? this.spiritualPulseByDate,
+      personCommitments: personCommitments ?? this.personCommitments,
+      generosityRecords: generosityRecords ?? this.generosityRecords,
+      evangelismConversations: evangelismConversations ?? this.evangelismConversations,
     );
   }
 }
