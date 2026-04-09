@@ -52,6 +52,7 @@ class JourneyCheckInSection extends ConsumerWidget {
 }
 
 /// Unified journey task card that shows today's requirement and allows check-in.
+/// Compacts to a minimal header when the day is already completed.
 class _JourneyTaskCard extends ConsumerWidget {
   const _JourneyTaskCard({
     required this.journey,
@@ -71,191 +72,214 @@ class _JourneyTaskCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
 
-    return Container(
-      margin: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: alreadyCheckedIn
-            ? theme.colorScheme.secondaryContainer.withValues(alpha: 0.3)
-            : theme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
+    return AnimatedSize(
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeInOut,
+      alignment: Alignment.topCenter,
+      child: Container(
+        margin: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+        padding: EdgeInsets.all(alreadyCheckedIn ? 12 : 16),
+        decoration: BoxDecoration(
           color: alreadyCheckedIn
-              ? theme.colorScheme.secondary.withValues(alpha: 0.3)
-              : theme.colorScheme.outline.withValues(alpha: 0.2),
+              ? theme.colorScheme.secondaryContainer.withValues(alpha: 0.3)
+              : theme.colorScheme.surface,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: alreadyCheckedIn
+                ? theme.colorScheme.secondary.withValues(alpha: 0.3)
+                : theme.colorScheme.outline.withValues(alpha: 0.2),
+          ),
         ),
+        child: alreadyCheckedIn
+            ? _buildCompactCompleted(theme)
+            : _buildFullCard(theme, context),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Header
+    );
+  }
+
+  Widget _buildCompactCompleted(ThemeData theme) {
+    return Row(
+      children: [
+        Icon(Icons.check_circle, color: theme.colorScheme.secondary, size: 18),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            journey.title,
+            style: theme.textTheme.labelMedium?.copyWith(
+              fontWeight: FontWeight.w600,
+              color: theme.colorScheme.secondary,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        Text(
+          'Day ${activeJourney.currentDay} done',
+          style: theme.textTheme.labelSmall?.copyWith(
+            fontWeight: FontWeight.w600,
+            color: theme.colorScheme.secondary.withValues(alpha: 0.7),
+          ),
+        ),
+        const SizedBox(width: 8),
+        // Compact progress indicator
+        SizedBox(
+          width: 32,
+          height: 32,
+          child: CircularProgressIndicator(
+            value: activeJourney.progressPercent,
+            strokeWidth: 3,
+            backgroundColor: theme.colorScheme.secondary.withValues(alpha: 0.15),
+            valueColor: AlwaysStoppedAnimation(theme.colorScheme.secondary),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFullCard(ThemeData theme, BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Header
+        Row(
+          children: [
+            Icon(
+              Icons.route_rounded,
+              size: 18,
+              color: theme.colorScheme.primary.withValues(alpha: 0.7),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                journey.title,
+                style: theme.textTheme.labelMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  color: theme.colorScheme.primary,
+                  letterSpacing: 0.5,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.primary.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                'Day ${activeJourney.currentDay}/${journey.duration.days}',
+                style: theme.textTheme.labelSmall?.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: theme.colorScheme.primary,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+
+        // Today's requirement with clickable Bible references
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Today\'s Task',
+                style: theme.textTheme.labelSmall?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.8,
+                  color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                ),
+              ),
+              const SizedBox(height: 6),
+              _ClickableRequirement(
+                text: todayRequirement,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w500,
+                  height: 1.5,
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        // Intention (if set)
+        if (activeJourney.prayerIntention.isNotEmpty) ...[
+          const SizedBox(height: 8),
           Row(
             children: [
               Icon(
-                alreadyCheckedIn ? Icons.check_circle : Icons.route_rounded,
-                size: 18,
-                color: alreadyCheckedIn
-                    ? theme.colorScheme.secondary
-                    : theme.colorScheme.primary.withValues(alpha: 0.7),
+                Icons.favorite_outline,
+                size: 14,
+                color: theme.colorScheme.primary.withValues(alpha: 0.5),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 6),
               Expanded(
                 child: Text(
-                  journey.title,
-                  style: theme.textTheme.labelMedium?.copyWith(
-                    fontWeight: FontWeight.w700,
-                    color: alreadyCheckedIn
-                        ? theme.colorScheme.secondary
-                        : theme.colorScheme.primary,
-                    letterSpacing: 0.5,
+                  activeJourney.prayerIntention,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    fontStyle: FontStyle.italic,
+                    color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.primary.withValues(alpha: 0.08),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(
-                  'Day ${activeJourney.currentDay}/${journey.duration.days}',
-                  style: theme.textTheme.labelSmall?.copyWith(
-                    fontWeight: FontWeight.w600,
-                    color: theme.colorScheme.primary,
-                  ),
-                ),
-              ),
             ],
           ),
-          const SizedBox(height: 12),
+        ],
 
-          // Today's requirement with clickable Bible references
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Today\'s Task',
-                  style: theme.textTheme.labelSmall?.copyWith(
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.8,
-                    color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
-                  ),
-                ),
-                const SizedBox(height: 6),
-                _ClickableRequirement(
-                  text: todayRequirement,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    fontWeight: FontWeight.w500,
-                    height: 1.5,
-                  ),
-                ),
-              ],
-            ),
-          ),
+        const SizedBox(height: 12),
 
-          // Intention (if set)
-          if (activeJourney.prayerIntention.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Icon(
-                  Icons.favorite_outline,
-                  size: 14,
-                  color: theme.colorScheme.primary.withValues(alpha: 0.5),
-                ),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: Text(
-                    activeJourney.prayerIntention,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      fontStyle: FontStyle.italic,
-                      color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+        // Action row
+        Row(
+          children: [
+            Expanded(
+              child: FilledButton.icon(
+                onPressed: onCheckIn,
+                icon: const Icon(Icons.check, size: 18),
+                label: const Text('Complete'),
+                style: FilledButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
                   ),
                 ),
-              ],
-            ),
-          ],
-
-          const SizedBox(height: 12),
-
-          // Action row
-          if (alreadyCheckedIn)
-            Row(
-              children: [
-                Icon(
-                  Icons.check_circle,
-                  color: theme.colorScheme.secondary,
-                  size: 20,
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  'Day ${activeJourney.currentDay} complete. Well done.',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    fontWeight: FontWeight.w600,
-                    color: theme.colorScheme.secondary,
-                  ),
-                ),
-              ],
-            )
-          else
-            Row(
-              children: [
-                Expanded(
-                  child: FilledButton.icon(
-                    onPressed: onCheckIn,
-                    icon: const Icon(Icons.check, size: 18),
-                    label: const Text('Complete'),
-                    style: FilledButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 10),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                OutlinedButton(
-                  onPressed: () => _showStruggledDialog(context),
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 14),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  child: const Text('Struggling'),
-                ),
-              ],
-            ),
-
-          // Progress bar
-          const SizedBox(height: 10),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(4),
-            child: LinearProgressIndicator(
-              value: activeJourney.progressPercent,
-              minHeight: 4,
-              backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.1),
-              valueColor: AlwaysStoppedAnimation(
-                alreadyCheckedIn
-                    ? theme.colorScheme.secondary
-                    : theme.colorScheme.primary,
               ),
             ),
+            const SizedBox(width: 10),
+            OutlinedButton(
+              onPressed: () => _showStruggledDialog(context),
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 14),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              child: const Text('Struggling'),
+            ),
+          ],
+        ),
+
+        // Progress bar
+        const SizedBox(height: 10),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(4),
+          child: LinearProgressIndicator(
+            value: activeJourney.progressPercent,
+            minHeight: 4,
+            backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.1),
+            valueColor: AlwaysStoppedAnimation(theme.colorScheme.primary),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 

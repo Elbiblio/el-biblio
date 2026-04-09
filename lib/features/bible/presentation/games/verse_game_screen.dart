@@ -499,6 +499,48 @@ class _VerseGameScreenState extends ConsumerState<VerseGameScreen>
     }
   }
 
+  /// Show a confirmation dialog when pressing back during an active game.
+  Future<void> _confirmExit() async {
+    final gameState = ref.read(verseGameProvider);
+    // If not actively playing, just exit
+    if (gameState.state == GameState.ready ||
+        gameState.state == GameState.gameOver ||
+        gameState.state == GameState.sessionComplete) {
+      _exitGame();
+      return;
+    }
+
+    // Pause timer while dialog is showing
+    ref.read(verseGameProvider.notifier).pauseTimer();
+    ref.read(soundServiceProvider).stopAll();
+
+    final shouldExit = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Leave Game?'),
+        content: const Text('Your progress in this session will be lost.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Resume'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Leave'),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldExit == true) {
+      _exitGame();
+    } else {
+      // Resume game
+      ref.read(verseGameProvider.notifier).resumeTimer();
+    }
+  }
+
   @override
   void dispose() {
     _confettiController.dispose();
@@ -602,7 +644,7 @@ class _VerseGameScreenState extends ConsumerState<VerseGameScreen>
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
-        if (!didPop) _exitGame();
+        if (!didPop) _confirmExit();
       },
       child: Scaffold(
       backgroundColor: bgColor,
@@ -613,6 +655,8 @@ class _VerseGameScreenState extends ConsumerState<VerseGameScreen>
                 ? const Center(
                     child:
                         CircularProgressIndicator(color: primaryColor))
+                : gameState.state == GameState.ready
+                    ? _buildStartScreen(context, notifier, primaryColor, textColor, mutedTextColor)
                 : gameState.state == GameState.gameOver ||
                         gameState.state == GameState.sessionComplete
                     ? _buildEndScreen(context, gameState, notifier,
@@ -635,7 +679,7 @@ class _VerseGameScreenState extends ConsumerState<VerseGameScreen>
                                       IconButton(
                                         icon: Icon(Icons.close,
                                             color: mutedTextColor),
-                                        onPressed: _exitGame,
+                                        onPressed: _confirmExit,
                                       ),
                                       Column(
                                         mainAxisSize: MainAxisSize.min,
@@ -1384,6 +1428,89 @@ class _VerseGameScreenState extends ConsumerState<VerseGameScreen>
           child: Center(child: wrap),
         );
       },
+    );
+  }
+
+  Widget _buildStartScreen(
+      BuildContext context,
+      VerseGameNotifier notifier,
+      Color primaryColor,
+      Color textColor,
+      Color mutedTextColor) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.auto_stories,
+              size: 72,
+              color: primaryColor.withValues(alpha: 0.8),
+            ),
+            const SizedBox(height: 24),
+            Text(
+              'Verse Scramble',
+              style: TextStyle(
+                fontSize: 28,
+                fontWeight: FontWeight.w900,
+                color: textColor,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Arrange scrambled verses and guess missing words',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 14,
+                color: mutedTextColor,
+                height: 1.4,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.favorite, color: Colors.red, size: 14),
+                const SizedBox(width: 4),
+                Text('3 lives', style: TextStyle(fontSize: 12, color: mutedTextColor)),
+                const SizedBox(width: 16),
+                Icon(Icons.quiz, color: primaryColor, size: 14),
+                const SizedBox(width: 4),
+                Text('10 questions', style: TextStyle(fontSize: 12, color: mutedTextColor)),
+              ],
+            ),
+            const SizedBox(height: 40),
+            SizedBox(
+              width: 220,
+              child: FilledButton.icon(
+                onPressed: () => notifier.startGame(),
+                icon: const Icon(Icons.play_arrow_rounded, size: 24),
+                label: const Text(
+                  'Start',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                ),
+                style: FilledButton.styleFrom(
+                  backgroundColor: primaryColor,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(30),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: Text(
+                'Back',
+                style: TextStyle(color: textColor.withValues(alpha: 0.5)),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 

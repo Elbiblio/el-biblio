@@ -30,178 +30,205 @@ class FortyDayTaskCard extends ConsumerWidget {
 
     final theme = Theme.of(context);
 
-    return Container(
-      margin: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: isCompletedToday
-            ? theme.colorScheme.secondaryContainer.withValues(alpha: 0.3)
-            : theme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
+    return AnimatedSize(
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeInOut,
+      alignment: Alignment.topCenter,
+      child: Container(
+        margin: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+        padding: EdgeInsets.all(isCompletedToday ? 12 : 16),
+        decoration: BoxDecoration(
           color: isCompletedToday
-              ? theme.colorScheme.secondary.withValues(alpha: 0.3)
-              : theme.colorScheme.outline.withValues(alpha: 0.2),
+              ? theme.colorScheme.secondaryContainer.withValues(alpha: 0.3)
+              : theme.colorScheme.surface,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: isCompletedToday
+                ? theme.colorScheme.secondary.withValues(alpha: 0.3)
+                : theme.colorScheme.outline.withValues(alpha: 0.2),
+          ),
         ),
+        child: isCompletedToday
+            ? _buildCompactCompleted(context, theme, goal)
+            : _buildFullCard(context, theme, ref, goal, todayTask),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Header
-          Row(
-            children: [
-              Icon(
-                isCompletedToday ? Icons.check_circle : Icons.local_fire_department_rounded,
-                size: 18,
-                color: isCompletedToday
-                    ? theme.colorScheme.secondary
-                    : theme.colorScheme.tertiary,
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  goal.title,
-                  style: theme.textTheme.labelMedium?.copyWith(
-                    fontWeight: FontWeight.w700,
-                    color: isCompletedToday
-                        ? theme.colorScheme.secondary
-                        : theme.colorScheme.tertiary,
-                    letterSpacing: 0.5,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.tertiary.withValues(alpha: 0.08),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(
-                  'Day ${goal.currentDay}/40',
-                  style: theme.textTheme.labelSmall?.copyWith(
-                    fontWeight: FontWeight.w600,
-                    color: theme.colorScheme.tertiary,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
+    );
+  }
 
-          // Today's task
-          Text(
-            todayTask.title,
-            style: theme.textTheme.bodyMedium?.copyWith(
+  Widget _buildCompactCompleted(BuildContext context, ThemeData theme, FortyDayGoal goal) {
+    return Row(
+      children: [
+        Icon(Icons.check_circle, color: theme.colorScheme.secondary, size: 18),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            goal.title,
+            style: theme.textTheme.labelMedium?.copyWith(
               fontWeight: FontWeight.w600,
+              color: theme.colorScheme.secondary,
             ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
-          if (todayTask.description.isNotEmpty) ...[
-            const SizedBox(height: 4),
-            Text(
-              todayTask.description,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
-                height: 1.4,
+        ),
+        Text(
+          'Day ${goal.currentDay} done',
+          style: theme.textTheme.labelSmall?.copyWith(
+            fontWeight: FontWeight.w600,
+            color: theme.colorScheme.secondary.withValues(alpha: 0.7),
+          ),
+        ),
+        const SizedBox(width: 8),
+        SizedBox(
+          width: 32,
+          height: 32,
+          child: CircularProgressIndicator(
+            value: goal.progress,
+            strokeWidth: 3,
+            backgroundColor: theme.colorScheme.secondary.withValues(alpha: 0.15),
+            valueColor: AlwaysStoppedAnimation(theme.colorScheme.secondary),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFullCard(BuildContext context, ThemeData theme, WidgetRef ref,
+      FortyDayGoal goal, DailyGoalTask todayTask) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Header
+        Row(
+          children: [
+            Icon(
+              Icons.local_fire_department_rounded,
+              size: 18,
+              color: theme.colorScheme.tertiary,
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                goal.title,
+                style: theme.textTheme.labelMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  color: theme.colorScheme.tertiary,
+                  letterSpacing: 0.5,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.tertiary.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                'Day ${goal.currentDay}/40',
+                style: theme.textTheme.labelSmall?.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: theme.colorScheme.tertiary,
+                ),
+              ),
             ),
           ],
+        ),
+        const SizedBox(height: 10),
 
-          // Scripture reference (clickable)
-          if (todayTask.relatedVerse.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            GestureDetector(
-              onTap: () => _navigateToBible(context, todayTask.relatedVerse),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.menu_book_rounded,
-                    size: 14,
-                    color: theme.colorScheme.primary,
-                  ),
-                  const SizedBox(width: 6),
-                  Text(
-                    todayTask.relatedVerse,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.primary,
-                      fontWeight: FontWeight.w600,
-                      decoration: TextDecoration.underline,
-                      decorationColor: theme.colorScheme.primary.withValues(alpha: 0.4),
-                    ),
-                  ),
-                ],
-              ),
+        // Today's task
+        Text(
+          todayTask.title,
+          style: theme.textTheme.bodyMedium?.copyWith(
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        if (todayTask.description.isNotEmpty) ...[
+          const SizedBox(height: 4),
+          Text(
+            todayTask.description,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+              height: 1.4,
             ),
-          ],
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
 
-          const SizedBox(height: 12),
-
-          // Action row
-          if (isCompletedToday)
-            Row(
+        // Scripture reference (clickable)
+        if (todayTask.relatedVerse.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          GestureDetector(
+            onTap: () => _navigateToBible(context, todayTask.relatedVerse),
+            child: Row(
               children: [
-                Icon(Icons.check_circle, color: theme.colorScheme.secondary, size: 20),
-                const SizedBox(width: 8),
+                Icon(
+                  Icons.menu_book_rounded,
+                  size: 14,
+                  color: theme.colorScheme.primary,
+                ),
+                const SizedBox(width: 6),
                 Text(
-                  'Day ${goal.currentDay} complete',
+                  todayTask.relatedVerse,
                   style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.primary,
                     fontWeight: FontWeight.w600,
-                    color: theme.colorScheme.secondary,
+                    decoration: TextDecoration.underline,
+                    decorationColor: theme.colorScheme.primary.withValues(alpha: 0.4),
                   ),
                 ),
               ],
-            )
-          else
-            Row(
-              children: [
-                Expanded(
-                  child: FilledButton.icon(
-                    onPressed: () => _completeDay(ref, goal),
-                    icon: const Icon(Icons.check, size: 18),
-                    label: const Text('Complete'),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: theme.colorScheme.tertiary,
-                      padding: const EdgeInsets.symmetric(vertical: 10),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                OutlinedButton(
-                  onPressed: () => context.push('/alignment/forty-day-progress'),
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 14),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  child: const Text('Details'),
-                ),
-              ],
-            ),
-
-          // Progress bar
-          const SizedBox(height: 10),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(4),
-            child: LinearProgressIndicator(
-              value: goal.progress,
-              minHeight: 4,
-              backgroundColor: theme.colorScheme.tertiary.withValues(alpha: 0.1),
-              valueColor: AlwaysStoppedAnimation(
-                isCompletedToday
-                    ? theme.colorScheme.secondary
-                    : theme.colorScheme.tertiary,
-              ),
             ),
           ),
         ],
-      ),
+
+        const SizedBox(height: 12),
+
+        // Action row
+        Row(
+          children: [
+            Expanded(
+              child: FilledButton.icon(
+                onPressed: () => _completeDay(ref, goal),
+                icon: const Icon(Icons.check, size: 18),
+                label: const Text('Complete'),
+                style: FilledButton.styleFrom(
+                  backgroundColor: theme.colorScheme.tertiary,
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+            OutlinedButton(
+              onPressed: () => context.push('/alignment/forty-day-progress'),
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 14),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              child: const Text('Details'),
+            ),
+          ],
+        ),
+
+        // Progress bar
+        const SizedBox(height: 10),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(4),
+          child: LinearProgressIndicator(
+            value: goal.progress,
+            minHeight: 4,
+            backgroundColor: theme.colorScheme.tertiary.withValues(alpha: 0.1),
+            valueColor: AlwaysStoppedAnimation(theme.colorScheme.tertiary),
+          ),
+        ),
+      ],
     );
   }
 

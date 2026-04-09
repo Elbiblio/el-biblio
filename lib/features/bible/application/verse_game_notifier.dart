@@ -8,7 +8,7 @@ import '../data/bible_repository.dart';
 import '../data/static_books.dart';
 import '../../../core/di/app_providers.dart';
 
-enum GameState { loading, playing, checking, success, failed, gameOver, sessionComplete }
+enum GameState { ready, loading, playing, checking, success, failed, gameOver, sessionComplete }
 enum GameMode { arrange, guess }
 
 enum DifficultyLevel { beginner, easy, medium, hard, expert }
@@ -124,6 +124,12 @@ class VerseGameNotifier extends StateNotifier<VerseGameState> {
   final Random _random = Random();
   Timer? _timer;
   List<BibleVerseContent> _sessionQuestions = [];
+
+  // Cross-session tracking for Play Again
+  int _difficultyBonus = 0; // Increases when player scores well
+  int _lastSessionCorrect = 0;
+  int _lastSessionTotal = 0;
+  final Set<String> _allSessionUsedVerses = {}; // Persists across Play Again
   
   // Difficulty progression configuration
   static final List<VerseDifficulty> _difficultyLevels = [
@@ -199,20 +205,22 @@ class VerseGameNotifier extends StateNotifier<VerseGameState> {
   // Get appropriate difficulty level based on player progress
   VerseDifficulty _getCurrentDifficulty() {
     final baseLevel = (state.currentQuestionIndex / 2).ceil().clamp(1, 10);
-    
-    // Adjust based on player performance
-    int adjustedLevel = baseLevel;
+
+    // Apply difficulty bonus from previous sessions (Play Again level-up)
+    int adjustedLevel = min(10, baseLevel + _difficultyBonus);
+
+    // Adjust based on player performance within this session
     if (state.streak >= 3) {
-      adjustedLevel = min(10, baseLevel + 1); // Increase difficulty for good streaks
+      adjustedLevel = min(10, adjustedLevel + 1);
     } else if (state.streak == 0 && state.currentQuestionIndex > 3) {
-      adjustedLevel = max(1, baseLevel - 1); // Decrease difficulty if struggling
+      adjustedLevel = max(1, adjustedLevel - 1);
     }
-    
+
     // Bonus rounds are harder
     if (state.isBonusRound) {
       adjustedLevel = min(10, adjustedLevel + 2);
     }
-    
+
     return _difficultyLevels[adjustedLevel - 1];
   }
   
@@ -231,7 +239,36 @@ class VerseGameNotifier extends StateNotifier<VerseGameState> {
   
 
   VerseGameNotifier(this._repository, this._ref) : super(VerseGameState()) {
-    _initSession();
+    _prepareSession();
+  }
+
+  /// Prepare session questions without starting the game.
+  /// The game stays in `ready` state until the player taps Start.
+  Future<void> _prepareSession() async {
+    if (_baseGameVerses.isEmpty) {
+      await _loadBaseGameVerses();
+    }
+
+    state = state.copyWith(
+      state: GameState.loading,
+      currentQuestionIndex: 1,
+      lives: 3,
+      score: 0,
+      streak: 0,
+      comboMultiplier: 1,
+      isBonusRound: false,
+    );
+
+    _sessionQuestions = await _buildSessionQuestions();
+
+    // Wait in ready state for player to start
+    state = state.copyWith(state: GameState.ready);
+  }
+
+  /// Called when the player taps the Start button.
+  void startGame() {
+    if (state.state != GameState.ready) return;
+    _loadNextQuestion();
   }
 
   Future<void> _initSession() async {
@@ -248,16 +285,17 @@ class VerseGameNotifier extends StateNotifier<VerseGameState> {
       comboMultiplier: 1,
       isBonusRound: false,
     );
-    
+
     _sessionQuestions = await _buildSessionQuestions();
-    
+
     await _loadNextQuestion();
   }
 
   Future<List<BibleVerseContent>> _buildSessionQuestions() async {
     final questions = <BibleVerseContent>[];
     final completedRefs = await _loadCompletedChapterRefs();
-    final usedVerses = <String>{};
+    // Use the persistent set so verses never repeat across Play Again sessions
+    final usedVerses = _allSessionUsedVerses;
 
     for (int i = 0; i < state.totalQuestions; i++) {
       final targetDifficulty = _difficultyLevels[(i ~/ 2).clamp(0, 9)];
@@ -638,6 +676,8 @@ class VerseGameNotifier extends StateNotifier<VerseGameState> {
   void _startTimer() {
     _timer?.cancel();
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      // Only tick when actively playing (not during pause/tutorial/ready)
+      if (state.state != GameState.playing) return;
       if (state.timeLeft > 0) {
         state = state.copyWith(timeLeft: state.timeLeft - 1);
         _ref.read(soundServiceProvider).playGameTick();
@@ -646,6 +686,18 @@ class VerseGameNotifier extends StateNotifier<VerseGameState> {
         _handleTimeUp();
       }
     });
+  }
+
+  /// Pause the game timer (e.g. when showing back confirmation dialog)
+  void pauseTimer() {
+    _timer?.cancel();
+  }
+
+  /// Resume the game timer after a pause
+  void resumeTimer() {
+    if (state.state == GameState.playing) {
+      _startTimer();
+    }
   }
   
   void _handleTimeUp() {
@@ -862,6 +914,20 @@ class VerseGameNotifier extends StateNotifier<VerseGameState> {
   }
 
   void restartSession() {
+    // Track performance from the session that just ended
+    _lastSessionCorrect = state.currentQuestionIndex - state.lives.clamp(0, 3);
+    // A rough correct count: questions answered minus lives lost from initial 3
+    final livesLost = 3 - state.lives.clamp(0, 3);
+    final questionsAttempted = state.currentQuestionIndex - 1;
+    _lastSessionCorrect = max(0, questionsAttempted - livesLost);
+    _lastSessionTotal = questionsAttempted;
+
+    // Level up if player got >= 8/10 (80% correct)
+    if (_lastSessionTotal >= 5 && _lastSessionCorrect / _lastSessionTotal >= 0.8) {
+      _difficultyBonus = min(5, _difficultyBonus + 1);
+    }
+
+    // Don't clear _allSessionUsedVerses — prevents repeats across sessions
     _initSession();
   }
 

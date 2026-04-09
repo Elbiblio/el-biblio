@@ -35,145 +35,192 @@ class _MissionNextStepCardState extends ConsumerState<MissionNextStepCard> {
       return _buildEmptyState(context, mission.focus.label);
     }
 
+    // All done — show compact summary
+    final allDone = pending.isEmpty && completed.isNotEmpty;
+
     final visiblePending = _isExpanded ? pending : pending.take(2).toList();
     final recentCompleted = _isExpanded ? completed.take(3).toList() : <MissionAction>[];
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
-          color: theme.colorScheme.surface.withValues(alpha: 0.8),
-          border: Border.all(
-            color: theme.colorScheme.outline.withValues(alpha: 0.08),
+      child: AnimatedSize(
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+        alignment: Alignment.topCenter,
+        child: Container(
+          padding: EdgeInsets.all(allDone ? 12 : 16),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            color: allDone
+                ? theme.colorScheme.secondaryContainer.withValues(alpha: 0.3)
+                : theme.colorScheme.surface.withValues(alpha: 0.8),
+            border: Border.all(
+              color: allDone
+                  ? theme.colorScheme.secondary.withValues(alpha: 0.3)
+                  : theme.colorScheme.outline.withValues(alpha: 0.08),
+            ),
           ),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Header row
-            GestureDetector(
-              onTap: () => setState(() => _isExpanded = !_isExpanded),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.volunteer_activism_rounded,
-                    size: 18,
-                    color: theme.colorScheme.primary.withValues(alpha: 0.7),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Today\'s Acts',
-                    style: theme.textTheme.labelMedium?.copyWith(
-                      fontWeight: FontWeight.w700,
-                      color: theme.colorScheme.primary,
-                      letterSpacing: 0.5,
-                    ),
-                  ),
-                  const Spacer(),
-                  if (pending.isNotEmpty)
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: theme.colorScheme.primary.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(8),
+          child: allDone
+              ? _buildCompactAllDone(theme, completed.length, context)
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Header row
+                    GestureDetector(
+                      onTap: () => setState(() => _isExpanded = !_isExpanded),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.volunteer_activism_rounded,
+                            size: 18,
+                            color: theme.colorScheme.primary.withValues(alpha: 0.7),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Today\'s Acts',
+                            style: theme.textTheme.labelMedium?.copyWith(
+                              fontWeight: FontWeight.w700,
+                              color: theme.colorScheme.primary,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                          const Spacer(),
+                          if (pending.isNotEmpty)
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: theme.colorScheme.primary.withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Text(
+                                '${pending.length} pending',
+                                style: theme.textTheme.labelSmall?.copyWith(
+                                  color: theme.colorScheme.primary,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          const SizedBox(width: 8),
+                          AnimatedRotation(
+                            turns: _isExpanded ? 0.5 : 0,
+                            duration: const Duration(milliseconds: 200),
+                            child: Icon(
+                              Icons.expand_more,
+                              size: 20,
+                              color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                            ),
+                          ),
+                        ],
                       ),
-                      child: Text(
-                        '${pending.length} pending',
-                        style: theme.textTheme.labelSmall?.copyWith(
-                          color: theme.colorScheme.primary,
-                          fontWeight: FontWeight.w600,
+                    ),
+                    const SizedBox(height: 12),
+
+                    // Pending actions with checkboxes
+                    ...visiblePending.map((action) => _ActionItem(
+                      action: action,
+                      onToggle: () => notifier.toggleCompleted(action),
+                    )),
+
+                    // Show "and X more" when collapsed
+                    if (!_isExpanded && pending.length > 2)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: GestureDetector(
+                          onTap: () => setState(() => _isExpanded = true),
+                          child: Text(
+                            '+ ${pending.length - 2} more actions',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.primary,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
                         ),
                       ),
-                    ),
-                  const SizedBox(width: 8),
-                  AnimatedRotation(
-                    turns: _isExpanded ? 0.5 : 0,
-                    duration: const Duration(milliseconds: 200),
-                    child: Icon(
-                      Icons.expand_more,
-                      size: 20,
-                      color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 12),
 
-            // Pending actions with checkboxes
-            ...visiblePending.map((action) => _ActionItem(
-              action: action,
-              onToggle: () => notifier.toggleCompleted(action),
-            )),
+                    // Recently completed (when expanded)
+                    if (_isExpanded && recentCompleted.isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      Divider(color: theme.colorScheme.outline.withValues(alpha: 0.1)),
+                      const SizedBox(height: 4),
+                      ...recentCompleted.map((action) => Opacity(
+                        opacity: 0.5,
+                        child: _ActionItem(
+                          action: action,
+                          onToggle: () => notifier.toggleCompleted(action),
+                        ),
+                      )),
+                    ],
 
-            // Show "and X more" when collapsed
-            if (!_isExpanded && pending.length > 2)
-              Padding(
-                padding: const EdgeInsets.only(top: 4),
-                child: GestureDetector(
-                  onTap: () => setState(() => _isExpanded = true),
-                  child: Text(
-                    '+ ${pending.length - 2} more actions',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.primary,
-                      fontWeight: FontWeight.w600,
+                    const SizedBox(height: 8),
+
+                    // Action buttons row
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: () => context.push(AppRoutes.act),
+                            icon: const Icon(Icons.add, size: 16),
+                            label: const Text('Add Step'),
+                            style: OutlinedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 8),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                          ),
+                        ),
+                        if (hasPartner) ...[
+                          const SizedBox(width: 10),
+                          OutlinedButton(
+                            onPressed: () => context.push(AppRoutes.growTogether),
+                            style: OutlinedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 14),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            child: const Text('Check in'),
+                          ),
+                        ],
+                      ],
                     ),
-                  ),
+                  ],
                 ),
-              ),
-
-            // Recently completed (when expanded)
-            if (_isExpanded && recentCompleted.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              Divider(color: theme.colorScheme.outline.withValues(alpha: 0.1)),
-              const SizedBox(height: 4),
-              ...recentCompleted.map((action) => Opacity(
-                opacity: 0.5,
-                child: _ActionItem(
-                  action: action,
-                  onToggle: () => notifier.toggleCompleted(action),
-                ),
-              )),
-            ],
-
-            const SizedBox(height: 8),
-
-            // Action buttons row
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: () => context.push(AppRoutes.act),
-                    icon: const Icon(Icons.add, size: 16),
-                    label: const Text('Add Step'),
-                    style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                  ),
-                ),
-                if (hasPartner) ...[
-                  const SizedBox(width: 10),
-                  OutlinedButton(
-                    onPressed: () => context.push(AppRoutes.growTogether),
-                    style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 14),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    child: const Text('Check in'),
-                  ),
-                ],
-              ],
-            ),
-          ],
         ),
       ),
+    );
+  }
+
+  Widget _buildCompactAllDone(ThemeData theme, int completedCount, BuildContext context) {
+    return Row(
+      children: [
+        Icon(Icons.check_circle, color: theme.colorScheme.secondary, size: 18),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            'All $completedCount acts completed',
+            style: theme.textTheme.labelMedium?.copyWith(
+              fontWeight: FontWeight.w600,
+              color: theme.colorScheme.secondary,
+            ),
+          ),
+        ),
+        TextButton(
+          onPressed: () => context.push(AppRoutes.act),
+          style: TextButton.styleFrom(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            minimumSize: Size.zero,
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
+          child: Text(
+            'Add more',
+            style: theme.textTheme.labelSmall?.copyWith(
+              fontWeight: FontWeight.w600,
+              color: theme.colorScheme.primary,
+            ),
+          ),
+        ),
+      ],
     );
   }
 
