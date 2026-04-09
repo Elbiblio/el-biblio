@@ -12,6 +12,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../../core/database/database_helper.dart';
 import '../../domain/models/bible_content.dart';
+import '../static_books.dart';
 
 /// Enhanced Bible database service with improved offline support
 class EnhancedBibleDatabaseService with WidgetsBindingObserver {
@@ -21,6 +22,7 @@ class EnhancedBibleDatabaseService with WidgetsBindingObserver {
   final Logger _logger;
   final DatabaseHelper _dbHelper;
   final Map<String, Database> _databases = {};
+  final Map<String, String> _resolvedTableNames = {};
   final Map<String, Map<String, int>> _verseIdMappings = {};
   final String _cdnBaseUrl = 'https://api.elbiblio.com/dbs/';
   static const String _verseIdMappingsKey = 'verse_id_mappings';
@@ -63,12 +65,14 @@ class EnhancedBibleDatabaseService with WidgetsBindingObserver {
         if (db != null && !db.isOpen) {
           _logger.w('Database connection for $version is closed, removing from cache');
           _databases.remove(version);
+          _resolvedTableNames.remove(version);
         } else if (db != null) {
           await db.rawQuery('SELECT 1');
         }
       } catch (e) {
         _logger.w('Database validation failed for $version: $e');
         _databases.remove(version);
+        _resolvedTableNames.remove(version);
       }
     }
   }
@@ -80,9 +84,14 @@ class EnhancedBibleDatabaseService with WidgetsBindingObserver {
 
   Future<void> closeAllDatabases() async {
     for (final db in _databases.values) {
-      await db.close();
+      try {
+        await db.close();
+      } catch (_) {
+        // Ignore close errors during cleanup
+      }
     }
     _databases.clear();
+    _resolvedTableNames.clear();
   }
 
   static final Map<String, String> _bookCodeMap = {
@@ -463,11 +472,17 @@ class EnhancedBibleDatabaseService with WidgetsBindingObserver {
           await db.rawQuery('SELECT 1');
           return db;
         } catch (e) {
-          _logger.w('Database connection for $version is invalid, removing from cache');
-          await db.close();
+          _logger.w('Cached database connection invalid for $version, reopening: $e');
           _databases.remove(version);
+          try {
+            await db.close();
+          } catch (_) {
+            // Already broken, ignore close error
+          }
+          // Fall through to open fresh
         }
       } else {
+        _logger.w('Cached database for $version is closed, removing from cache');
         _databases.remove(version);
       }
     }
@@ -561,49 +576,67 @@ class EnhancedBibleDatabaseService with WidgetsBindingObserver {
     Function(String, double)? onAutoDownloadProgress,
   }) async {
     int retries = 0;
-    
+
     while (retries <= maxRetries) {
       try {
         final db = await _getDatabase(version, onAutoDownloadProgress: onAutoDownloadProgress);
         return await operation(db);
       } catch (e) {
         retries++;
-        final errorMessage = e.toString();
-        
-        if (errorMessage.contains('database is closed') && 
-            errorMessage.contains('closed') && 
-            retries <= maxRetries) {
-          _logger.w('Database closed, retrying operation (attempt $retries/$maxRetries)');
-          _databases.remove(version);
-          await Future.delayed(Duration(milliseconds: 200 * retries));
-          continue;
-        }
-        
-        if (errorMessage.contains('network') || 
+        final errorMessage = e.toString().toLowerCase();
+
+        // Network errors: fail fast, no retry
+        if (errorMessage.contains('network') ||
             errorMessage.contains('connection') ||
             errorMessage.contains('timeout') ||
             errorMessage.contains('internet')) {
-          _logger.w('Network error detected, failing fast for offline mode: $errorMessage');
+          _logger.w('Network error detected, failing fast for offline mode: $e');
           rethrow;
         }
-        
+
+        // Database errors that are retryable: closed, locked, corrupt, disk I/O
+        final isRetryable = errorMessage.contains('closed') ||
+            errorMessage.contains('locked') ||
+            errorMessage.contains('disk i/o') ||
+            errorMessage.contains('unable to open') ||
+            errorMessage.contains('not a database') ||
+            errorMessage.contains('no such table');
+
+        if (isRetryable && retries <= maxRetries) {
+          _logger.w('Database error for $version (attempt $retries/$maxRetries), retrying: $e');
+          _databases.remove(version);
+          _resolvedTableNames.remove(version);
+          await Future.delayed(Duration(milliseconds: 200 * retries));
+          continue;
+        }
+
         if (retries > maxRetries) {
-          throw Exception('Failed after $maxRetries attempts: $errorMessage');
+          throw Exception('Failed after $maxRetries attempts: $e');
         } else {
           rethrow;
         }
       }
     }
-    
+
     throw Exception('Operation failed after $maxRetries retries');
   }
 
   Future<String> _resolveTableName(Database db, String version) async {
+    // Check cache first to avoid repeated sqlite_master queries
+    if (_resolvedTableNames.containsKey(version)) {
+      return _resolvedTableNames[version]!;
+    }
+
     final baseName = version.replaceAll('.db', '');
+
+    String cacheAndReturn(String tableName) {
+      _resolvedTableNames[version] = tableName;
+      return tableName;
+    }
 
     // Fast path: if the exact base name exists and has 'book' column
     if (await _dbHelper.validateTable(db, baseName, requiredColumns: ['book'])) {
-      return baseName;
+      return cacheAndReturn(baseName);
     }
 
     // Fallback: examine all available tables
@@ -621,7 +654,7 @@ class EnhancedBibleDatabaseService with WidgetsBindingObserver {
       for (final defaultTable in defaultTables) {
         if (tables.contains(defaultTable)) {
           _logger.d('Using default table: $defaultTable');
-          return defaultTable;
+          return cacheAndReturn(defaultTable);
         }
       }
       throw Exception('No valid data tables found in database for $version');
@@ -629,7 +662,7 @@ class EnhancedBibleDatabaseService with WidgetsBindingObserver {
 
     // If there's exactly one data table, it's highly likely the correct one
     if (validTables.length == 1) {
-      return validTables.first;
+      return cacheAndReturn(validTables.first);
     }
 
     // Otherwise, look for common patterns
@@ -639,49 +672,119 @@ class EnhancedBibleDatabaseService with WidgetsBindingObserver {
           lower.contains('verse') ||
           lower == baseName.toLowerCase() ||
           lower == 'eng_rv_vpl') {
-        return table;
+        return cacheAndReturn(table);
       }
     }
 
     // Ultimate fallback to the first valid table
-    return validTables.first;
+    return cacheAndReturn(validTables.first);
   }
 
   Future<List<BibleVerseContent>> getChapter(String version, String bookAbbr, int chapter, {Function(String, double)? onAutoDownloadProgress}) async {
     await ensureInitialized();
     return executeWithRetry<List<BibleVerseContent>>(
-      version, 
+      version,
       (db) async {
       final tableName = await _resolveTableName(db, version);
-      
-      List<Map<String, dynamic>> maps = [];
-      
-      try {
-        if (chapter <= 0) {
-          _logger.w('Invalid chapter number: $chapter');
-          return [];
-        }
-        
-        final originalBookCode = bookAbbr.toUpperCase();
-        final mappedBookCode = _bookCodeMap[originalBookCode] ?? originalBookCode;
-        
-        final query = 'SELECT verseID, startVerse, verseText FROM $tableName WHERE book = ? AND chapter = ? ORDER BY CAST(startVerse AS INTEGER)';
-        maps = await db.rawQuery(query, [originalBookCode, chapter]);
 
-        if (maps.isEmpty && mappedBookCode != originalBookCode) {
-          maps = await db.rawQuery(query, [mappedBookCode, chapter]);
-        }
-      } catch (e) {
-        _logger.d('Failed to query table $tableName: $e');
-      }
-
-      if (maps.isEmpty) {
-        _logger.d('No verses found for $bookAbbr $chapter in table $tableName');
+      if (chapter <= 0) {
+        _logger.w('Invalid chapter number: $chapter');
         return [];
       }
 
-      return maps.map((map) => _mapToContent(map, bookAbbr, chapter, version)).toList();
+      final query = 'SELECT verseID, startVerse, verseText FROM $tableName WHERE book = ? AND chapter = ? ORDER BY CAST(startVerse AS INTEGER)';
+
+      // Try multiple book code variations for robustness
+      final codesToTry = _getBookCodeVariations(bookAbbr);
+
+      for (final code in codesToTry) {
+        try {
+          final maps = await db.rawQuery(query, [code, chapter]);
+          if (maps.isNotEmpty) {
+            return maps.map((map) => _mapToContent(map, bookAbbr, chapter, version)).toList();
+          }
+        } catch (e) {
+          _logger.d('Failed to query table $tableName with book code "$code": $e');
+        }
+      }
+
+      _logger.d('No verses found for $bookAbbr chapter $chapter in table $tableName (tried codes: $codesToTry)');
+      return [];
     }, onAutoDownloadProgress: onAutoDownloadProgress);
+  }
+
+  /// Returns all possible book code variations for a given abbreviation,
+  /// covering mismatches between standard abbreviations and database-specific codes.
+  List<String> _getBookCodeVariations(String abbrev) {
+    final upperAbbrev = abbrev.toUpperCase();
+    final variations = <String>[upperAbbrev];
+
+    // Try the database-specific mapped code (e.g. GEN -> GN)
+    if (_bookCodeMap.containsKey(upperAbbrev)) {
+      variations.add(_bookCodeMap[upperAbbrev]!);
+    }
+
+    // Try reverse lookup: if abbrev is already a mapped code, find the standard one
+    for (final entry in _bookCodeMap.entries) {
+      if (entry.value == upperAbbrev && !variations.contains(entry.key)) {
+        variations.add(entry.key);
+      }
+    }
+
+    // Try the static_books abbreviation (handles MAR vs MRK, JOH vs JHN, etc.)
+    final bookDef = standardBibleBooks.where((b) => b.abbreviation == upperAbbrev).firstOrNull;
+    if (bookDef != null) {
+      // Add full book name as some databases use it
+      if (!variations.contains(bookDef.name)) {
+        variations.add(bookDef.name);
+      }
+    } else {
+      // abbrev might not match static_books - try finding by _bookCodeMap cross-reference
+      // e.g. if abbrev is MRK but static_books has MAR
+      for (final book in standardBibleBooks) {
+        if (_bookCodeMap[book.abbreviation] == _bookCodeMap[upperAbbrev] &&
+            !variations.contains(book.abbreviation)) {
+          variations.add(book.abbreviation);
+        }
+      }
+    }
+
+    // Additional cross-reference: static_books uses different abbrevs than _bookCodeMap keys
+    // Handle known divergences explicitly
+    const crossRefCodes = <String, List<String>>{
+      'MRK': ['MAR', 'MK'],
+      'MAR': ['MRK', 'MK'],
+      'JHN': ['JOH', 'JN'],
+      'JOH': ['JHN', 'JN'],
+      '1JN': ['1JO', 'J1'],
+      '1JO': ['1JN', 'J1'],
+      '2JN': ['2JO', 'J2'],
+      '2JO': ['2JN', 'J2'],
+      '3JN': ['3JO', 'J3'],
+      '3JO': ['3JN', 'J3'],
+      'EZK': ['EZE', 'EK'],
+      'EZE': ['EZK', 'EK'],
+      'JOL': ['JOE', 'JL'],
+      'JOE': ['JOL', 'JL'],
+      'NAM': ['NAH', 'NM'],
+      'NAH': ['NAM', 'NM'],
+    };
+
+    if (crossRefCodes.containsKey(upperAbbrev)) {
+      for (final alt in crossRefCodes[upperAbbrev]!) {
+        if (!variations.contains(alt)) {
+          variations.add(alt);
+        }
+      }
+    }
+
+    // Try lowercase and common truncations
+    variations.add(upperAbbrev.toLowerCase());
+    if (upperAbbrev.length > 3) {
+      variations.add(upperAbbrev.substring(0, 3));
+    }
+
+    return variations.toSet().toList(); // Deduplicate
   }
 
   BibleVerseContent _mapToContent(Map<String, dynamic> map, String bookAbbr, int chapter, String version) {

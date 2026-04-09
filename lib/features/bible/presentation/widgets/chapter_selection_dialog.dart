@@ -14,9 +14,13 @@ class ChapterSelectionDialog {
     WidgetRef ref,
     BibleBookDefinition book,
   ) {
+    // Capture the router from the parent context before opening the dialog,
+    // so we can navigate after the dialog is popped (dialog context becomes unmounted).
+    final router = GoRouter.of(context);
+
     return showDialog<void>(
       context: context,
-      builder: (BuildContext context) {
+      builder: (BuildContext dialogContext) {
         return AlertDialog(
           title: Text('Select Chapter - ${book.name}'),
           content: SizedBox(
@@ -29,7 +33,7 @@ class ChapterSelectionDialog {
                 return ListTile(
                   title: Text('Chapter $chapterNumber'),
                   onTap: () {
-                    Navigator.of(context).pop();
+                    Navigator.of(dialogContext).pop();
                     ref
                         .read(bibleReadingProvider.notifier)
                         .trackReadingLocation(
@@ -37,7 +41,7 @@ class ChapterSelectionDialog {
                           chapter: chapterNumber,
                           testament: book.testament,
                         );
-                    context.push(
+                    router.push(
                       '${AppRoutes.bibleReader}?book=${Uri.encodeComponent(book.name)}&chapter=$chapterNumber&fromLibrary=true',
                     );
                   },
@@ -47,7 +51,7 @@ class ChapterSelectionDialog {
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.of(context).pop(),
+              onPressed: () => Navigator.of(dialogContext).pop(),
               child: const Text('Cancel'),
             ),
           ],

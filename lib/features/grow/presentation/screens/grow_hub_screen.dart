@@ -1,18 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 
 import '../../../../core/constants/app_routes.dart';
 import '../../../../core/di/app_providers.dart';
 import '../../../../core/theme/app_theme_tokens.dart';
 
-/// GrowHubScreen - Central hub for spiritual growth and learning
-/// 
-/// Connects users to:
-/// - Games (Scripture learning through play)
-/// - Faith Questions (Deep theological exploration)
-/// - Reading Plans (Structured Bible study)
-/// - Progress tracking (Growth journey)
+/// GrowHubScreen - Unified personal growth dashboard.
+///
+/// Consolidates alignment hub features (spiritual profile, habits, 40-day goals)
+/// with learning & community features into one streamlined screen.
 class GrowHubScreen extends ConsumerStatefulWidget {
   const GrowHubScreen({super.key});
 
@@ -26,6 +24,9 @@ class _GrowHubScreenState extends ConsumerState<GrowHubScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(analyticsProvider).track('grow_hub_viewed');
+      ref.read(alignmentProvider.notifier).loadProfile();
+      ref.read(habitProvider.notifier).loadHabits();
+      ref.read(fortyDayProvider.notifier).loadGoal();
     });
   }
 
@@ -34,12 +35,14 @@ class _GrowHubScreenState extends ConsumerState<GrowHubScreen> {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final settings = ref.watch(settingsProvider);
-    final profile = settings.callingProfile;
+    final alignmentState = ref.watch(alignmentProvider);
+    final habitState = ref.watch(habitProvider);
+    final fortyDayState = ref.watch(fortyDayProvider);
+    final profile = alignmentState.currentProfile;
 
     return Scaffold(
       body: CustomScrollView(
         slivers: [
-          // App Bar
           SliverAppBar(
             expandedHeight: 140,
             floating: true,
@@ -67,14 +70,91 @@ class _GrowHubScreenState extends ConsumerState<GrowHubScreen> {
               delegate: SliverChildListDelegate([
                 // Growth Summary Card
                 _GrowthSummaryCard(
-                  archetype: profile?.archetypeIdentity ?? 'Discoverer',
+                  archetype: profile?.archetypeName ?? settings.callingProfile?.archetypeIdentity ?? 'Discoverer',
                   streakDays: settings.streakCount,
                   completedActions: settings.missionActions.where((a) => a.isCompleted).length,
+                  onTap: () => context.push('/alignment/profile'),
                 ),
 
                 const SizedBox(height: 24),
 
-                // Learning Section
+                // ── YOUR JOURNEY ────────────────────────────────
+                Text(
+                  'Your Journey',
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 12),
+
+                // Spiritual Profile
+                _GrowHubCard(
+                  icon: LucideIcons.compass,
+                  iconColor: colorScheme.primary,
+                  title: profile != null
+                      ? 'The ${profile.archetypeName}'
+                      : 'Discover Your Archetype',
+                  subtitle: profile != null
+                      ? 'Your spiritual identity shapes your growth path.'
+                      : 'Take the assessment to discover your unique gifts.',
+                  onTap: () => context.push('/alignment/profile'),
+                ),
+
+                const SizedBox(height: 12),
+
+                // Habit Tracking
+                _GrowHubCard(
+                  icon: LucideIcons.target,
+                  iconColor: colorScheme.secondary,
+                  title: 'Habit Conquest',
+                  subtitle: habitState.activeHabits.isEmpty
+                      ? 'Build spiritual habits that anchor your purpose daily.'
+                      : '${habitState.activeHabits.length} active habits | ${habitState.longestStreak}d best streak',
+                  trailing: habitState.activeHabits.isNotEmpty
+                      ? _ProgressBadge(
+                          value: habitState.consistencyPercent,
+                          color: colorScheme.secondary,
+                        )
+                      : null,
+                  onTap: () {
+                    if (habitState.activeHabits.isEmpty) {
+                      context.push('/alignment/habit-assessment');
+                    } else {
+                      context.push('/alignment/habit-tracker');
+                    }
+                  },
+                ),
+
+                const SizedBox(height: 12),
+
+                // 40-Day Goal
+                _GrowHubCard(
+                  icon: LucideIcons.flame,
+                  iconColor: colorScheme.tertiary,
+                  title: fortyDayState.hasActiveGoal
+                      ? fortyDayState.activeGoal!.title
+                      : '40-Day Spiritual Goal',
+                  subtitle: fortyDayState.hasActiveGoal
+                      ? 'Day ${fortyDayState.currentDay} of 40 | ${fortyDayState.streakDays}d streak'
+                      : 'Set a focused 40-day goal with daily tasks.',
+                  trailing: fortyDayState.hasActiveGoal
+                      ? _ProgressBadge(
+                          value: fortyDayState.progress,
+                          color: colorScheme.tertiary,
+                        )
+                      : null,
+                  onTap: () {
+                    if (fortyDayState.hasActiveGoal) {
+                      context.push('/alignment/forty-day-progress');
+                    } else {
+                      context.push('/alignment/forty-day-setup');
+                    }
+                  },
+                ),
+
+                const SizedBox(height: 24),
+
+                // ── LEARN & PLAY ────────────────────────────────
                 Text(
                   'Learn & Play',
                   style: theme.textTheme.titleMedium?.copyWith(
@@ -87,13 +167,23 @@ class _GrowHubScreenState extends ConsumerState<GrowHubScreen> {
                   icon: Icons.games_rounded,
                   iconColor: colorScheme.primary,
                   title: 'Scripture Games',
-                  subtitle: 'Learn God\'s word through play. Every game strengthens your knowledge.',
+                  subtitle: 'Learn God\'s word through play.',
                   onTap: () => context.push(AppRoutes.games),
+                ),
+
+                const SizedBox(height: 12),
+
+                _GrowHubCard(
+                  icon: Icons.help_outline_rounded,
+                  iconColor: colorScheme.tertiary,
+                  title: 'Faith Questions',
+                  subtitle: 'Explore deep questions about faith.',
+                  onTap: () => context.push(AppRoutes.faithQuestions),
                 ),
 
                 const SizedBox(height: 24),
 
-                // Study Section
+                // ── STUDY & REFLECT ────────────────────────────
                 Text(
                   'Study & Reflect',
                   style: theme.textTheme.titleMedium?.copyWith(
@@ -106,7 +196,7 @@ class _GrowHubScreenState extends ConsumerState<GrowHubScreen> {
                   icon: Icons.menu_book_rounded,
                   iconColor: colorScheme.tertiary,
                   title: 'Reading Plans',
-                  subtitle: 'Follow guided paths through Scripture with daily readings.',
+                  subtitle: 'Follow guided paths through Scripture.',
                   onTap: () => context.push(AppRoutes.bible),
                 ),
 
@@ -122,7 +212,7 @@ class _GrowHubScreenState extends ConsumerState<GrowHubScreen> {
 
                 const SizedBox(height: 24),
 
-                // Community Growth
+                // ── GROW TOGETHER ────────────────────────────────
                 Text(
                   'Grow Together',
                   style: theme.textTheme.titleMedium?.copyWith(
@@ -135,7 +225,7 @@ class _GrowHubScreenState extends ConsumerState<GrowHubScreen> {
                   icon: Icons.people_alt_rounded,
                   iconColor: colorScheme.secondary,
                   title: 'Accountability Partner',
-                  subtitle: 'Connect with someone to support your spiritual growth.',
+                  subtitle: 'Connect with someone to support your growth.',
                   onTap: () => context.push(AppRoutes.growTogether),
                 ),
 
@@ -145,9 +235,21 @@ class _GrowHubScreenState extends ConsumerState<GrowHubScreen> {
                   icon: Icons.person_add_rounded,
                   iconColor: colorScheme.tertiary,
                   title: 'Invite Friends',
-                  subtitle: 'Share El-Biblio with others on their faith journey.',
+                  subtitle: 'Share El-Biblio with others.',
                   onTap: () => context.push(AppRoutes.invite),
                 ),
+
+                // Career & Calling (only show when profile exists)
+                if (profile != null) ...[
+                  const SizedBox(height: 12),
+                  _GrowHubCard(
+                    icon: LucideIcons.briefcase,
+                    iconColor: colorScheme.outline,
+                    title: 'Career & Calling',
+                    subtitle: 'See how your identity shapes your professional life.',
+                    onTap: () => context.push('/alignment/career'),
+                  ),
+                ],
 
                 const SizedBox(height: 120),
               ]),
@@ -159,93 +261,127 @@ class _GrowHubScreenState extends ConsumerState<GrowHubScreen> {
   }
 }
 
+class _ProgressBadge extends StatelessWidget {
+  const _ProgressBadge({required this.value, required this.color});
+
+  final double value;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Text(
+        '${(value * 100).round()}%',
+        style: TextStyle(
+          fontWeight: FontWeight.bold,
+          fontSize: 12,
+          color: color,
+        ),
+      ),
+    );
+  }
+}
+
 class _GrowthSummaryCard extends StatelessWidget {
   const _GrowthSummaryCard({
     required this.archetype,
     required this.streakDays,
     required this.completedActions,
+    this.onTap,
   });
 
   final String archetype;
   final int streakDays;
   final int completedActions;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    final tokens = theme.tokens;
 
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            colorScheme.primaryContainer,
-            colorScheme.secondaryContainer,
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              colorScheme.primaryContainer,
+              colorScheme.secondaryContainer,
+            ],
+          ),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: colorScheme.onPrimaryContainer.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(
+                    Icons.trending_up_rounded,
+                    color: colorScheme.onPrimaryContainer,
+                    size: 24,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Your Growth Journey',
+                        style: theme.textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: colorScheme.onPrimaryContainer,
+                        ),
+                      ),
+                      Text(
+                        archetype,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: colorScheme.onPrimaryContainer.withValues(alpha: 0.8),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(
+                  Icons.chevron_right_rounded,
+                  color: colorScheme.onPrimaryContainer.withValues(alpha: 0.4),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                _StatItem(
+                  value: '$streakDays',
+                  label: 'Day Streak',
+                  icon: Icons.local_fire_department_rounded,
+                ),
+                const SizedBox(width: 24),
+                _StatItem(
+                  value: '$completedActions',
+                  label: 'Actions',
+                  icon: Icons.volunteer_activism_rounded,
+                ),
+              ],
+            ),
           ],
         ),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: colorScheme.onPrimaryContainer.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(
-                  Icons.trending_up_rounded,
-                  color: colorScheme.onPrimaryContainer,
-                  size: 24,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Your Growth Journey',
-                      style: theme.textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: colorScheme.onPrimaryContainer,
-                      ),
-                    ),
-                    Text(
-                      archetype,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: colorScheme.onPrimaryContainer.withValues(alpha: 0.8),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              _StatItem(
-                value: '$streakDays',
-                label: 'Day Streak',
-                icon: Icons.local_fire_department_rounded,
-              ),
-              const SizedBox(width: 24),
-              _StatItem(
-                value: '$completedActions',
-                label: 'Actions',
-                icon: Icons.volunteer_activism_rounded,
-              ),
-            ],
-          ),
-        ],
       ),
     );
   }
@@ -301,6 +437,7 @@ class _GrowHubCard extends StatelessWidget {
     required this.title,
     required this.subtitle,
     required this.onTap,
+    this.trailing,
   });
 
   final IconData icon;
@@ -308,6 +445,7 @@ class _GrowHubCard extends StatelessWidget {
   final String title;
   final String subtitle;
   final VoidCallback onTap;
+  final Widget? trailing;
 
   @override
   Widget build(BuildContext context) {
@@ -366,10 +504,14 @@ class _GrowHubCard extends StatelessWidget {
                   ],
                 ),
               ),
-              Icon(
-                Icons.chevron_right_rounded,
-                color: colorScheme.onSurface.withValues(alpha: 0.4),
-              ),
+              if (trailing != null) ...[
+                const SizedBox(width: 8),
+                trailing!,
+              ] else
+                Icon(
+                  Icons.chevron_right_rounded,
+                  color: colorScheme.onSurface.withValues(alpha: 0.4),
+                ),
             ],
           ),
         ),

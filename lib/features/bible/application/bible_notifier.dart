@@ -257,7 +257,7 @@ class BibleNotifier extends StateNotifier<BibleState> {
   }
 
   Future<void> selectBook(BibleBook book) async {
-    if (state.currentBook?.abbreviation == book.abbreviation) return;
+    if (state.currentBook?.abbreviation == book.abbreviation && state.verses.isNotEmpty && state.error == null) return;
 
     state = state.copyWith(
       currentBook: book,
@@ -278,7 +278,7 @@ class BibleNotifier extends StateNotifier<BibleState> {
   }
 
   Future<void> selectChapter(int chapter) async {
-    if (state.currentChapter == chapter) return;
+    if (state.currentChapter == chapter && state.verses.isNotEmpty && state.error == null) return;
 
     state = state.copyWith(
       currentChapter: chapter,
@@ -616,9 +616,23 @@ class BibleNotifier extends StateNotifier<BibleState> {
       ),
     );
 
-    // Select the book and chapter
-    await selectBook(targetBook);
-    await selectChapter(chapter);
+    // Set book and chapter together, then load once (avoids double loadVerses)
+    state = state.copyWith(
+      currentBook: targetBook,
+      currentChapter: chapter,
+      verses: [],
+    );
+
+    // Track reading location
+    if (_readingNotifier != null) {
+      _readingNotifier.trackReadingLocation(
+        bookName: targetBook.name,
+        chapter: chapter,
+        testament: targetBook.testament,
+      );
+    }
+
+    await loadVerses();
 
     // Set the highlighted verse
     state = state.copyWith(highlightedVerseId: verseNumber);
@@ -669,16 +683,30 @@ class BibleNotifier extends StateNotifier<BibleState> {
       }
     }
 
-    // Select the book and chapter
-    await selectBook(targetBook);
-    await selectChapter(chapter);
+    // Set book and chapter together, then load once (avoids double loadVerses)
+    state = state.copyWith(
+      currentBook: targetBook,
+      currentChapter: chapter,
+      verses: [],
+    );
+
+    // Track reading location
+    if (_readingNotifier != null) {
+      _readingNotifier.trackReadingLocation(
+        bookName: targetBook.name,
+        chapter: chapter,
+        testament: targetBook.testament,
+      );
+    }
+
+    await loadVerses();
 
     if (verseNumber != null) {
       // Scroll to verse without highlighting
       state = state.copyWith(scrollToVerseId: verseNumber);
-      
+
       _logger.i('Scrolled to verse: ${targetBook.name} $chapter:$verseNumber');
-      
+
       // Clear the scroll target after a short delay to prevent re-scrolling
       Future.delayed(const Duration(milliseconds: 500), () {
         if (state.scrollToVerseId == verseNumber) {

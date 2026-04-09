@@ -28,6 +28,7 @@ import 'widgets/mission_next_step_card.dart'
 import 'widgets/daily_verse_card.dart';
 import 'widgets/spiritual_pulse_widget.dart';
 import 'widgets/journey_check_in_section.dart';
+import 'widgets/forty_day_task_card.dart';
 
 class TodayScreen extends ConsumerStatefulWidget {
   const TodayScreen({super.key});
@@ -288,18 +289,21 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
     DateTime now,
   ) {
     return [
-      // 1. Your next action step (mission / service commitment)
+      // 1. Commitment journey — today's task (always visible when active)
+      const SliverToBoxAdapter(child: JourneyCheckInSection()),
+
+      // 2. 40-Day goal — today's task (always visible when active)
+      const SliverToBoxAdapter(child: FortyDayTaskCard()),
+
+      // 3. Mission acts — pending actions with inline completion
       const SliverToBoxAdapter(child: MissionNextStepCard()),
 
-      // 2. Weekly plan (when a plan exists)
+      // 4. Weekly plan (when a plan exists)
       const SliverToBoxAdapter(child: WeeklySectionWidget()),
 
-      // 3. Spiritual pulse (mood check — only if not yet recorded today)
+      // 5. Spiritual pulse (mood check — only if not yet recorded today)
       if ((todayPulse?.entries.length ?? 0) == 0 && settings.streakCount > 0)
         const SliverToBoxAdapter(child: SpiritualPulseWidget()),
-
-      // 4. Journey check-in (commitment journey evening reflection)
-      const SliverToBoxAdapter(child: JourneyCheckInSection()),
     ];
   }
 

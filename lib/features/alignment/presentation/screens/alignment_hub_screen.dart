@@ -29,7 +29,6 @@ class _AlignmentHubScreenState extends ConsumerState<AlignmentHubScreen> {
   @override
   Widget build(BuildContext context) {
     final tokens = Theme.of(context).tokens;
-    final colorScheme = Theme.of(context).colorScheme;
     final alignmentState = ref.watch(alignmentProvider);
     final habitState = ref.watch(habitProvider);
     final fortyDayState = ref.watch(fortyDayProvider);
@@ -45,6 +44,10 @@ class _AlignmentHubScreenState extends ConsumerState<AlignmentHubScreen> {
             floating: false,
             pinned: true,
             backgroundColor: tokens.palette.background,
+            leading: IconButton(
+              icon: const Icon(Icons.arrow_back),
+              onPressed: () => context.pop(),
+            ),
             flexibleSpace: FlexibleSpaceBar(
               titlePadding: const EdgeInsets.only(left: 20, bottom: 14),
               title: Text(
@@ -64,7 +67,7 @@ class _AlignmentHubScreenState extends ConsumerState<AlignmentHubScreen> {
               delegate: SliverChildListDelegate([
                 // Section header
                 Text(
-                  'SPIRITUAL ALIGNMENT',
+                  'CLARITY ALIGNMENT',
                   style: Theme.of(context).textTheme.sectionHeader.copyWith(
                         color: tokens.palette.primary,
                       ),
@@ -82,13 +85,13 @@ class _AlignmentHubScreenState extends ConsumerState<AlignmentHubScreen> {
                 // 1. Spiritual Profile Card
                 AlignmentHubCard(
                   icon: LucideIcons.compass,
-                  iconColor: colorScheme.primary,
+                  iconColor: const Color(0xFF7B68EE),
                   title: profile != null
                       ? 'The ${profile.archetypeName}'
                       : 'Discover Your Archetype',
                   subtitle: profile != null
                       ? profile.description
-                      : 'Take the spiritual identity assessment to discover your unique gifts and spiritual path.',
+                      : 'Take the spiritual identity assessment to discover your unique gifts and clarity path.',
                   onTap: () => context.push('/alignment/profile'),
                 ),
                 const SizedBox(height: 12),
@@ -96,11 +99,11 @@ class _AlignmentHubScreenState extends ConsumerState<AlignmentHubScreen> {
                 // 2. Habits Section
                 AlignmentHubCard(
                   icon: LucideIcons.target,
-                  iconColor: colorScheme.secondary,
+                  iconColor: const Color(0xFF5A8E67),
                   title: 'Habit Conquest',
                   subtitle: habitState.activeHabits.isEmpty
-                      ? 'Build spiritual habits that anchor your purpose daily.'
-                      : '${habitState.activeHabits.length} spiritual habits | ${habitState.longestStreak}d best streak',
+                      ? 'Build spiritual habits that anchor your clarity daily.'
+                      : '${habitState.activeHabits.length} clarity habits | ${habitState.longestStreak}d best streak',
                   progress: habitState.activeHabits.isNotEmpty
                       ? habitState.consistencyPercent
                       : null,
@@ -117,13 +120,13 @@ class _AlignmentHubScreenState extends ConsumerState<AlignmentHubScreen> {
                 // 3. 40-Day Goal
                 AlignmentHubCard(
                   icon: LucideIcons.flame,
-                  iconColor: colorScheme.tertiary,
+                  iconColor: const Color(0xFFFF6B35),
                   title: fortyDayState.hasActiveGoal
                       ? fortyDayState.activeGoal!.title
                       : '40-Day Spiritual Goal',
                   subtitle: fortyDayState.hasActiveGoal
                       ? 'Day ${fortyDayState.currentDay} of 40 | ${fortyDayState.streakDays}d streak'
-                      : 'Set a 40-day spiritual goal with daily tasks and faith reflections.',
+                      : 'Set a 40-day clarity goal with daily tasks and spiritual reflections.',
                   progress: fortyDayState.hasActiveGoal
                       ? fortyDayState.progress
                       : null,
@@ -134,15 +137,15 @@ class _AlignmentHubScreenState extends ConsumerState<AlignmentHubScreen> {
                             vertical: 4,
                           ),
                           decoration: BoxDecoration(
-                            color: colorScheme.tertiary.withValues(alpha: 0.1),
+                            color: const Color(0xFFFF6B35).withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: Text(
                             '${(fortyDayState.progress * 100).round()}%',
-                            style: TextStyle(
+                            style: const TextStyle(
                               fontWeight: FontWeight.bold,
                               fontSize: 12,
-                              color: colorScheme.tertiary,
+                              color: Color(0xFFFF6B35),
                             ),
                           ),
                         )
@@ -160,11 +163,11 @@ class _AlignmentHubScreenState extends ConsumerState<AlignmentHubScreen> {
                 // 4. Career Alignment
                 AlignmentHubCard(
                   icon: LucideIcons.briefcase,
-                  iconColor: colorScheme.outline,
+                  iconColor: const Color(0xFFA97A46),
                   title: 'Career & Calling',
                   subtitle: profile != null
-                      ? 'Your ${profile.archetypeName} identity reveals how your calling shapes your professional life.'
-                      : 'Complete your spiritual identity profile to unlock career calling insights.',
+                      ? 'Your ${profile.archetypeName} identity reveals how your spiritual clarity shapes your professional calling.'
+                      : 'Complete your spiritual identity profile to unlock career clarity insights.',
                   onTap: profile != null
                       ? () => context.push('/alignment/career')
                       : null,
@@ -184,21 +187,21 @@ class _AlignmentHubScreenState extends ConsumerState<AlignmentHubScreen> {
                     _QuickAction(
                       icon: LucideIcons.refreshCw,
                       label: 'Re-Assess',
-                      color: colorScheme.primary,
+                      color: const Color(0xFF7B68EE),
                       onTap: () => context.push('/assessment/compass'),
                     ),
                     const SizedBox(width: 12),
                     _QuickAction(
                       icon: LucideIcons.clipboardList,
                       label: 'Habit Quiz',
-                      color: colorScheme.secondary,
+                      color: const Color(0xFF5A8E67),
                       onTap: () => context.push('/alignment/habit-assessment'),
                     ),
                     const SizedBox(width: 12),
                     _QuickAction(
                       icon: LucideIcons.bookOpen,
                       label: 'Resources',
-                      color: colorScheme.outline,
+                      color: const Color(0xFFA97A46),
                       onTap: profile != null
                           ? () => context.push('/alignment/career')
                           : null,

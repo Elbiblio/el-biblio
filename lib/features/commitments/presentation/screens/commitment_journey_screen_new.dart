@@ -177,7 +177,19 @@ class _CommitmentJourneyScreenNewState
       }
     });
 
-    return Center(
+    return Column(
+      children: [
+        Align(
+          alignment: Alignment.topLeft,
+          child: Padding(
+            padding: const EdgeInsets.only(left: 4, top: 8),
+            child: IconButton(
+              icon: const Icon(Icons.arrow_back),
+              onPressed: () => context.pop(),
+            ),
+          ),
+        ),
+        Expanded(child: Center(
       child: Padding(
         padding: const EdgeInsets.all(32),
         child: Column(
@@ -279,13 +291,27 @@ class _CommitmentJourneyScreenNewState
           ],
         ),
       ),
+    )),
+      ],
     );
   }
 
   Widget _buildEmptyState(BuildContext context) {
     final theme = Theme.of(context);
 
-    return Center(
+    return Column(
+      children: [
+        Align(
+          alignment: Alignment.topLeft,
+          child: Padding(
+            padding: const EdgeInsets.only(left: 4, top: 8),
+            child: IconButton(
+              icon: const Icon(Icons.arrow_back),
+              onPressed: () => context.pop(),
+            ),
+          ),
+        ),
+        Expanded(child: Center(
       child: Padding(
         padding: const EdgeInsets.all(32),
         child: Column(
@@ -320,6 +346,8 @@ class _CommitmentJourneyScreenNewState
           ],
         ),
       ),
+    )),
+      ],
     );
   }
 

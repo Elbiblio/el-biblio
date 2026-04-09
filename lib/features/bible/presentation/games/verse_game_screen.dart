@@ -517,11 +517,11 @@ class _VerseGameScreenState extends ConsumerState<VerseGameScreen>
 
   void _generateRandomTransformations() {
     _rotations = List.generate(
-        50, (index) => (_random.nextDouble() * 10 - 5) * pi / 180);
+        50, (index) => (_random.nextDouble() * 3 - 1.5) * pi / 180);
     _translations = List.generate(
         50,
-        (index) => Offset(_random.nextDouble() * 20 - 10,
-            _random.nextDouble() * 20 - 10));
+        (index) => Offset(_random.nextDouble() * 6 - 3,
+            _random.nextDouble() * 6 - 3));
   }
 
   Color _getDifficultyColor(DifficultyLevel difficulty) {
@@ -888,267 +888,36 @@ class _VerseGameScreenState extends ConsumerState<VerseGameScreen>
                               _buildArrangeContext(gameState, textColor,
                                   primaryColor, mutedTextColor),
 
-                            // Word Cloud / Options
+                            // Word Cloud + Footer together so footer stays visible
                             Expanded(
-                              child: _buildWordOptions(
-                                gameState: gameState,
-                                ref: ref,
-                                notifier: notifier,
-                                isDark: isDark,
-                                borderColor: borderColor,
-                                primaryColor: primaryColor,
-                                textColor: textColor,
-                                shouldScroll: shouldScrollWords,
+                              child: Column(
+                                children: [
+                                  // Word Cloud / Options (takes remaining space)
+                                  Expanded(
+                                    child: _buildWordOptions(
+                                      gameState: gameState,
+                                      ref: ref,
+                                      notifier: notifier,
+                                      isDark: isDark,
+                                      borderColor: borderColor,
+                                      primaryColor: primaryColor,
+                                      textColor: textColor,
+                                      shouldScroll: shouldScrollWords,
+                                    ),
+                                  ),
+                                  // Footer — always visible at bottom
+                                  _buildGameFooter(
+                                    gameState: gameState,
+                                    notifier: notifier,
+                                    ref: ref,
+                                    textColor: textColor,
+                                    primaryColor: primaryColor,
+                                    mutedTextColor: mutedTextColor,
+                                    borderColor: borderColor,
+                                  ),
+                                ],
                               ),
                             ),
-
-                            // Footer
-                            if (gameState.state ==
-                                    GameState.success ||
-                                gameState.state ==
-                                    GameState.checking)
-                              Container(
-                                padding: const EdgeInsets.all(16),
-                                margin: const EdgeInsets.only(
-                                    bottom: 24, left: 16, right: 16),
-                                decoration: BoxDecoration(
-                                  color: gameState.state ==
-                                          GameState.success
-                                      ? Colors.green
-                                          .withValues(alpha: 0.1)
-                                      : Colors.blue
-                                          .withValues(alpha: 0.1),
-                                  borderRadius:
-                                      BorderRadius.circular(16),
-                                ),
-                                child: Column(
-                                  children: [
-                                    Text(
-                                      gameState.state ==
-                                              GameState.success
-                                          ? (gameState.streak >= 3
-                                              ? '${gameState.streak}x Streak! Amazing!'
-                                              : 'Great job! Loading next question...')
-                                          : 'Checking...',
-                                      style: TextStyle(
-                                        color: gameState.state ==
-                                                GameState.success
-                                            ? Colors.green
-                                            : Colors.blue,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                    if (gameState.state ==
-                                            GameState.success &&
-                                        gameState.currentMode ==
-                                            GameMode.arrange) ...[
-                                      const SizedBox(height: 8),
-                                      Text(
-                                        gameState.originalWords
-                                            .join(' '),
-                                        textAlign: TextAlign.center,
-                                        style: TextStyle(
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.w600,
-                                          color: textColor,
-                                          fontStyle: FontStyle.italic,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        gameState.verse?.reference ??
-                                            '',
-                                        style: const TextStyle(
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.bold,
-                                          color: primaryColor,
-                                        ),
-                                      ),
-                                    ]
-                                  ],
-                                ),
-                              )
-                            else if (gameState.state ==
-                                GameState.failed)
-                              Container(
-                                padding: const EdgeInsets.all(16),
-                                margin: const EdgeInsets.only(
-                                    bottom: 24, left: 16, right: 16),
-                                decoration: BoxDecoration(
-                                  color: Colors.red
-                                      .withValues(alpha: 0.1),
-                                  borderRadius:
-                                      BorderRadius.circular(16),
-                                ),
-                                child: Column(
-                                  children: [
-                                    Text(
-                                      gameState.currentMode ==
-                                              GameMode.arrange
-                                          ? 'Oops! Not quite right.'
-                                          : 'Oops! It was "${gameState.missingWord}".',
-                                      style: const TextStyle(
-                                          color: Colors.red,
-                                          fontWeight:
-                                              FontWeight.bold),
-                                    ),
-                                    if (gameState.currentMode ==
-                                        GameMode.arrange) ...[
-                                      const SizedBox(height: 8),
-                                      Text(
-                                        gameState.originalWords
-                                            .join(' '),
-                                        textAlign: TextAlign.center,
-                                        style: TextStyle(
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.w600,
-                                          color: textColor,
-                                          fontStyle: FontStyle.italic,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        gameState.verse?.reference ??
-                                            '',
-                                        style: const TextStyle(
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.bold,
-                                          color: primaryColor,
-                                        ),
-                                      ),
-                                    ]
-                                  ],
-                                ),
-                              )
-                            else
-                              Padding(
-                                padding: const EdgeInsets.only(
-                                    bottom: 40),
-                                child: Column(
-                                  children: [
-                                    Row(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.center,
-                                      children: [
-                                        Icon(Icons.touch_app,
-                                            size: 16,
-                                            color: mutedTextColor),
-                                        const SizedBox(width: 8),
-                                        Text(
-                                          gameState.currentMode ==
-                                                  GameMode.arrange
-                                              ? 'TAP IN ORDER'
-                                              : 'TAP THE ANSWER',
-                                          style: TextStyle(
-                                            fontSize: 11,
-                                            fontWeight:
-                                                FontWeight.bold,
-                                            color: mutedTextColor,
-                                            letterSpacing: 1,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 16),
-                                    if (gameState.hintsRemaining >
-                                            0 ||
-                                        gameState.isBonusRound)
-                                      Row(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment
-                                                .spaceEvenly,
-                                        children: [
-                                          if (gameState
-                                                  .hintsRemaining >
-                                              0)
-                                            ElevatedButton.icon(
-                                              onPressed: () {
-                                                ref
-                                                    .read(
-                                                        verseGameProvider
-                                                            .notifier)
-                                                    .useHint();
-                                                HapticFeedback
-                                                    .lightImpact();
-                                              },
-                                              icon: const Icon(
-                                                  Icons.lightbulb,
-                                                  size: 16),
-                                              label: Text(
-                                                  'HINT (${gameState.hintsRemaining})'),
-                                              style: ElevatedButton
-                                                  .styleFrom(
-                                                backgroundColor:
-                                                    Colors.amber,
-                                                foregroundColor:
-                                                    Colors.black,
-                                                padding:
-                                                    const EdgeInsets
-                                                        .symmetric(
-                                                        horizontal:
-                                                            16,
-                                                        vertical: 8),
-                                                shape:
-                                                    RoundedRectangleBorder(
-                                                  borderRadius:
-                                                      BorderRadius
-                                                          .circular(
-                                                              20),
-                                                ),
-                                              ),
-                                            ),
-                                          if (gameState.isBonusRound)
-                                            ElevatedButton.icon(
-                                              onPressed: () {
-                                                ref
-                                                    .read(
-                                                        verseGameProvider
-                                                            .notifier)
-                                                    .useTimeBoost();
-                                                HapticFeedback
-                                                    .lightImpact();
-                                              },
-                                              icon: const Icon(
-                                                  Icons.timer,
-                                                  size: 16),
-                                              label:
-                                                  const Text('+10s'),
-                                              style: ElevatedButton
-                                                  .styleFrom(
-                                                backgroundColor:
-                                                    Colors.blue,
-                                                foregroundColor:
-                                                    Colors.white,
-                                                padding:
-                                                    const EdgeInsets
-                                                        .symmetric(
-                                                        horizontal:
-                                                            16,
-                                                        vertical: 8),
-                                                shape:
-                                                    RoundedRectangleBorder(
-                                                  borderRadius:
-                                                      BorderRadius
-                                                          .circular(
-                                                              20),
-                                                ),
-                                              ),
-                                            ),
-                                        ],
-                                      ),
-                                    const SizedBox(height: 16),
-                                    Container(
-                                      width: 64,
-                                      height: 4,
-                                      decoration: BoxDecoration(
-                                        color: borderColor,
-                                        borderRadius:
-                                            BorderRadius.circular(2),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
                           ],
                         ),
                       ),
@@ -1183,6 +952,185 @@ class _VerseGameScreenState extends ConsumerState<VerseGameScreen>
       ),
     ),
     );
+  }
+
+  Widget _buildGameFooter({
+    required VerseGameState gameState,
+    required VerseGameNotifier notifier,
+    required WidgetRef ref,
+    required Color textColor,
+    required Color primaryColor,
+    required Color mutedTextColor,
+    required Color borderColor,
+  }) {
+    if (gameState.state == GameState.success ||
+        gameState.state == GameState.checking) {
+      return Container(
+        padding: const EdgeInsets.all(16),
+        margin: const EdgeInsets.only(bottom: 24, left: 16, right: 16),
+        decoration: BoxDecoration(
+          color: gameState.state == GameState.success
+              ? Colors.green.withValues(alpha: 0.1)
+              : Colors.blue.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              gameState.state == GameState.success
+                  ? (gameState.streak >= 3
+                      ? '${gameState.streak}x Streak! Amazing!'
+                      : 'Great job! Loading next question...')
+                  : 'Checking...',
+              style: TextStyle(
+                color: gameState.state == GameState.success
+                    ? Colors.green
+                    : Colors.blue,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            if (gameState.state == GameState.success &&
+                gameState.currentMode == GameMode.arrange) ...[
+              const SizedBox(height: 8),
+              Text(
+                gameState.originalWords.join(' '),
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: textColor,
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                gameState.verse?.reference ?? '',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: primaryColor,
+                ),
+              ),
+            ]
+          ],
+        ),
+      );
+    } else if (gameState.state == GameState.failed) {
+      return Container(
+        padding: const EdgeInsets.all(16),
+        margin: const EdgeInsets.only(bottom: 24, left: 16, right: 16),
+        decoration: BoxDecoration(
+          color: Colors.red.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              gameState.currentMode == GameMode.arrange
+                  ? 'Oops! Not quite right.'
+                  : 'Oops! It was "${gameState.missingWord}".',
+              style: const TextStyle(
+                  color: Colors.red, fontWeight: FontWeight.bold),
+            ),
+            if (gameState.currentMode == GameMode.arrange) ...[
+              const SizedBox(height: 8),
+              Text(
+                gameState.originalWords.join(' '),
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: textColor,
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                gameState.verse?.reference ?? '',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: primaryColor,
+                ),
+              ),
+            ]
+          ],
+        ),
+      );
+    } else {
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.touch_app, size: 16, color: mutedTextColor),
+                const SizedBox(width: 8),
+                Text(
+                  gameState.currentMode == GameMode.arrange
+                      ? 'TAP IN ORDER'
+                      : 'TAP THE ANSWER',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    color: mutedTextColor,
+                    letterSpacing: 1,
+                  ),
+                ),
+              ],
+            ),
+            if (gameState.hintsRemaining > 0 || gameState.isBonusRound) ...[
+              const SizedBox(height: 12),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  if (gameState.hintsRemaining > 0)
+                    ElevatedButton.icon(
+                      onPressed: () {
+                        ref.read(verseGameProvider.notifier).useHint();
+                        HapticFeedback.lightImpact();
+                      },
+                      icon: const Icon(Icons.lightbulb, size: 16),
+                      label: Text('HINT (${gameState.hintsRemaining})'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.amber,
+                        foregroundColor: Colors.black,
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 8),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                      ),
+                    ),
+                  if (gameState.isBonusRound)
+                    ElevatedButton.icon(
+                      onPressed: () {
+                        ref.read(verseGameProvider.notifier).useTimeBoost();
+                        HapticFeedback.lightImpact();
+                      },
+                      icon: const Icon(Icons.timer, size: 16),
+                      label: const Text('+10s'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blue,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 8),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ],
+          ],
+        ),
+      );
+    }
   }
 
   Widget _buildGuessContext(
