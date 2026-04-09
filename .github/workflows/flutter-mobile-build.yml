@@ -309,9 +309,9 @@ jobs:
         run: |
           cd android
           
-          # Verify we're in android directory
-          if [ ! -f "app/build.gradle" ]; then
-            echo "Error: build.gradle not found in android/app/"
+          # Verify we're in android directory (project uses Kotlin DSL)
+          if [ ! -f "app/build.gradle.kts" ]; then
+            echo "Error: build.gradle.kts not found in android/app/"
             exit 1
           fi
           
