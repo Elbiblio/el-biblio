@@ -44,6 +44,18 @@ class SettingsNotifier extends StateNotifier<AppSettings> {
     _syncNotifications(state);
   }
 
+  /// Persist settings with a single retry on failure.
+  /// Critical for onboarding flags — a missed save means re-onboarding.
+  Future<void> _persistWithRetry(AppSettings settings) async {
+    try {
+      await _storage.save(settings);
+    } catch (_) {
+      // Single retry after a brief pause
+      await Future.delayed(const Duration(milliseconds: 200));
+      await _storage.save(settings);
+    }
+  }
+
   Future<void> resetOnboarding() async {
     final next = AppSettings.defaults();
     state = next;
@@ -65,7 +77,7 @@ class SettingsNotifier extends StateNotifier<AppSettings> {
     // Persist that pre-onboarding is done
     final newSettings = state.copyWith(hasCompletedPreOnboarding: true);
     state = newSettings;
-    await _storage.save(newSettings);
+    await _persistWithRetry(newSettings);
   }
 
   Future<void> completeOnboarding({
@@ -146,7 +158,7 @@ class SettingsNotifier extends StateNotifier<AppSettings> {
     }
 
     state = newSettings;
-    await _storage.save(newSettings);
+    await _persistWithRetry(newSettings);
     _syncNotifications(newSettings);
     _analytics.track(
       AppAnalyticsEvent.onboardingCompleted,
@@ -412,7 +424,7 @@ class SettingsNotifier extends StateNotifier<AppSettings> {
   Future<void> markPostOnboardingComplete() async {
     final next = state.copyWith(hasCompletedPostOnboarding: true);
     state = next;
-    await _storage.save(next);
+    await _persistWithRetry(next);
   }
 
   Future<void> markAssessmentPromptSeen() async {
