@@ -19,14 +19,18 @@ class AppUsageService {
     if (!Platform.isAndroid) return false;
     try {
       final now = DateTime.now();
-      // Try a short window - if permission is denied this will throw
+      // AppUsage throws AppUsageException when permission is denied.
       await AppUsage().getAppUsage(
         now.subtract(const Duration(hours: 1)),
         now,
       );
       return true;
+    } on AppUsageException catch (e) {
+      _logger.d('Usage stats permission not granted: $e');
+      return false;
     } catch (e) {
-      _logger.d('Usage stats permission check failed: $e');
+      // Platform channel errors, etc. — treat as unavailable.
+      _logger.w('Unexpected error checking usage stats permission: $e');
       return false;
     }
   }
@@ -63,16 +67,15 @@ class AppUsageService {
       }
 
       return records;
+    } on AppUsageException catch (e) {
+      _logger.d('Usage stats permission not granted: $e');
+      // Return [] so the notifier knows to fall back to manual Hive tracking.
+      // Do NOT return fake-zero records — the caller cannot distinguish those
+      // from a genuine "no apps used yet today" result.
+      return [];
     } catch (e) {
-      _logger.w('Failed to get app usage stats: $e');
-      // Return empty records with 0 usage so the UI still renders
-      return enabledConfigs.map((config) => AppUsageRecord(
-        packageName: config.packageName,
-        appName: config.appName,
-        usedMinutesToday: 0,
-        dailyLimitMinutes: config.dailyLimitMinutes,
-        date: DateTime.now(),
-      )).toList();
+      _logger.w('Unexpected error reading usage stats: $e');
+      return [];
     }
   }
 }

@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/constants/app_routes.dart';
@@ -222,29 +223,23 @@ class AppLockDashboardScreen extends ConsumerWidget {
                   width: double.infinity,
                   child: OutlinedButton.icon(
                     onPressed: () async {
-                      // Open the Usage Access settings page on Android
-                      // Using the Android intent URI scheme supported by url_launcher
-                      final uri = Uri.parse(
+                      // Primary: open the Android Usage Access settings page
+                      // directly via the standard Settings action intent URI.
+                      final usageSettingsUri = Uri.parse(
                         'intent:#Intent;action=android.settings.USAGE_ACCESS_SETTINGS;end',
                       );
                       try {
                         final launched = await launchUrl(
-                          uri,
+                          usageSettingsUri,
                           mode: LaunchMode.externalApplication,
                         );
                         if (!launched) {
-                          // Fallback: open general app settings
-                          await launchUrl(
-                            Uri.parse('app-settings:'),
-                            mode: LaunchMode.externalApplication,
-                          );
+                          // Fallback: open this app's own Android settings page.
+                          // 'app-settings:' is iOS-only, so use permission_handler.
+                          await openAppSettings();
                         }
                       } catch (_) {
-                        // Last resort: open general settings
-                        await launchUrl(
-                          Uri.parse('app-settings:'),
-                          mode: LaunchMode.externalApplication,
-                        );
+                        await openAppSettings();
                       }
                     },
                     icon: const Icon(Icons.settings_rounded, size: 16),

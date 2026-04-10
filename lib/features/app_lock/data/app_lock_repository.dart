@@ -204,6 +204,34 @@ class AppLockRepository {
     }
   }
 
+  /// Returns a map of packageName → extra minutes granted today via extensions.
+  Map<String, int> getPackageExtensionMinutesToday() {
+    try {
+      final raw = _usageBox.get('pkg_ext_${_todayKey()}');
+      if (raw is String) {
+        final map = jsonDecode(raw) as Map<String, dynamic>;
+        return map.map((k, v) => MapEntry(k, (v as num).toInt()));
+      }
+      return {};
+    } catch (e) {
+      return {};
+    }
+  }
+
+  /// Persists [minutes] of extra limit for [packageName] today.
+  Future<void> addPackageExtensionMinutes(
+    String packageName,
+    int minutes,
+  ) async {
+    try {
+      final current = getPackageExtensionMinutesToday();
+      current[packageName] = (current[packageName] ?? 0) + minutes;
+      await _usageBox.put('pkg_ext_${_todayKey()}', jsonEncode(current));
+    } catch (e) {
+      _logger.e('Failed to store package extension: $e');
+    }
+  }
+
   int getGoalStreakDays() {
     try {
       final now = DateTime.now();

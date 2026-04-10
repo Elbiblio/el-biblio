@@ -24,16 +24,16 @@ class AppLockNotifier extends StateNotifier<AppLockState> {
       final extensions = _repository.getExtensionsUsedToday();
       final streak = _repository.getGoalStreakDays();
 
-      // On Android, try to fetch real usage stats first
+      // On Android, try to fetch real usage stats first.
+      // getTodayUsage() returns [] only when permission is denied or the query
+      // fails — real stats with all-zero usage (e.g. early morning) are
+      // returned as a non-empty list and must be trusted as-is.
       List<AppUsageRecord> todayUsage;
       if (Platform.isAndroid) {
         final realUsage = await _usageService.getTodayUsage(configs);
-        if (realUsage.isNotEmpty && realUsage.any((r) => r.usedMinutesToday > 0)) {
-          todayUsage = realUsage;
-        } else {
-          // Fall back to Hive-based manual tracking
-          todayUsage = _repository.getTodayUsage();
-        }
+        todayUsage = realUsage.isNotEmpty
+            ? realUsage
+            : _repository.getTodayUsage(); // fall back to manual Hive tracking
       } else {
         // Non-Android: use Hive-based manual tracking
         todayUsage = _repository.getTodayUsage();
@@ -83,11 +83,9 @@ class AppLockNotifier extends StateNotifier<AppLockState> {
     List<AppUsageRecord> todayUsage;
     if (Platform.isAndroid) {
       final realUsage = await _usageService.getTodayUsage(state.configs);
-      if (realUsage.isNotEmpty && realUsage.any((r) => r.usedMinutesToday > 0)) {
-        todayUsage = realUsage;
-      } else {
-        todayUsage = _repository.getTodayUsage();
-      }
+      todayUsage = realUsage.isNotEmpty
+          ? realUsage
+          : _repository.getTodayUsage();
     } else {
       todayUsage = _repository.getTodayUsage();
     }
@@ -106,16 +104,9 @@ class AppLockNotifier extends StateNotifier<AppLockState> {
     if (extensions >= 3) return false;
 
     await _repository.incrementExtensionsUsed();
-
-    // Add 5 minutes to the usage record's limit (effectively giving more time)
-    final records = _repository.getTodayUsage();
-    final index = records.indexWhere((r) => r.packageName == packageName);
-    if (index >= 0) {
-      records[index] = records[index].copyWith(
-        dailyLimitMinutes: records[index].dailyLimitMinutes + 5,
-      );
-      await _repository.saveTodayUsage(records);
-    }
+    // Store the extra 5 minutes against this package separately so the
+    // extension survives real-stats refreshes (which always use config limits).
+    await _repository.addPackageExtensionMinutes(packageName, 5);
 
     await loadAll();
     return true;
@@ -125,6 +116,11 @@ class AppLockNotifier extends StateNotifier<AppLockState> {
     List<AppUsageRecord> usage,
     List<AppLockConfig> configs,
   ) {
+    // Per-package extension minutes are stored separately so they survive
+    // real-stats refreshes (where AppUsage returns fresh records with the
+    // original config limit).
+    final extensions = _repository.getPackageExtensionMinutesToday();
+
     final synced = <AppUsageRecord>[];
     for (final config in configs.where((c) => c.isEnabled)) {
       final existing = usage.firstWhere(
@@ -137,9 +133,10 @@ class AppLockNotifier extends StateNotifier<AppLockState> {
           date: DateTime.now(),
         ),
       );
+      final extraMinutes = extensions[config.packageName] ?? 0;
       synced.add(existing.copyWith(
         appName: config.appName,
-        dailyLimitMinutes: config.dailyLimitMinutes,
+        dailyLimitMinutes: config.dailyLimitMinutes + extraMinutes,
       ));
     }
     return synced;
