@@ -413,25 +413,29 @@ jobs:
       - name: Find artifacts
         id: find-files
         run: |
-          APK=$(find android/app/build/outputs/apk/release -name "*.apk" ! -name "*unsigned*" 2>/dev/null | head -1)
-          AAB=$(find android/app/build/outputs/bundle/release -name "*.aab" 2>/dev/null | head -1)
-          
+          # android/build.gradle.kts redirects all build output to ../../build
+          # relative to the android/ root, i.e. the project root's build/ dir.
+          # APKs land at build/app/outputs/apk/release/, NOT android/app/build/.
+          APK=$(find build/app/outputs/apk/release -name "*.apk" ! -name "*unsigned*" 2>/dev/null | head -1)
+          AAB=$(find build/app/outputs/bundle/release -name "*.aab" 2>/dev/null | head -1)
+
           if [ -z "$APK" ]; then
             echo "Error: No signed APK found"
-            echo "Available APKs:"
-            find android/app/build/outputs -name "*.apk" 2>/dev/null || echo "No APK files found"
+            echo "Searching broadly for any APK:"
+            find build/app/outputs -name "*.apk" 2>/dev/null || true
+            find android -name "*.apk" 2>/dev/null || echo "No APK files found anywhere"
             exit 1
           fi
-          
+
           echo "apk_path=$APK" >> $GITHUB_OUTPUT
-          
+
           if [ -n "$AAB" ]; then
             echo "aab_path=$AAB" >> $GITHUB_OUTPUT
             echo "✓ Found AAB: $(basename $AAB)"
           else
             echo "⚠ Warning: No AAB found (APK only)"
           fi
-          
+
           APK_SIZE=$(du -h "$APK" | cut -f1)
           echo "✓ Found APK: $(basename $APK) ($APK_SIZE)"
 
