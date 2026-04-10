@@ -545,6 +545,54 @@ jobs:
       - name: Get Flutter dependencies
         run: flutter pub get
 
+      - name: Generate iOS project files if missing
+        run: |
+          if [ ! -d "ios/Runner.xcodeproj" ]; then
+            echo "iOS Runner.xcodeproj missing — generating via flutter create..."
+            # --org com.elbiblio + --project-name app produces bundle ID com.elbiblio.app
+            flutter create \
+              --platforms=ios \
+              --org com.elbiblio \
+              --project-name app \
+              . 2>&1
+            echo "✓ iOS project files generated"
+          else
+            echo "✓ iOS project files already exist"
+          fi
+
+      - name: Configure iOS Info.plist permissions
+        run: |
+          INFO_PLIST="ios/Runner/Info.plist"
+          if [ ! -f "$INFO_PLIST" ]; then
+            echo "Error: Info.plist not found after flutter create"
+            exit 1
+          fi
+
+          # Helper: add key if absent, then set it (idempotent)
+          plist_set() {
+            /usr/libexec/PlistBuddy -c "Add :$1 string '$2'" "$INFO_PLIST" 2>/dev/null || \
+            /usr/libexec/PlistBuddy -c "Set :$1 $2" "$INFO_PLIST"
+          }
+
+          plist_set NSMicrophoneUsageDescription \
+            "El-Biblio needs microphone access for voice prayer and devotion recording."
+          plist_set NSSpeechRecognitionUsageDescription \
+            "El-Biblio uses speech recognition for hands-free prayer and devotion input."
+          plist_set NSContactsUsageDescription \
+            "El-Biblio accesses your contacts to share spiritual content with others."
+          plist_set CFBundleDisplayName "El-Biblio"
+
+          # Ensure background modes array exists then set entries
+          /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes array" "$INFO_PLIST" 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes:0 string audio" "$INFO_PLIST" 2>/dev/null || \
+            /usr/libexec/PlistBuddy -c "Set :UIBackgroundModes:0 audio" "$INFO_PLIST" 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes:1 string remote-notification" "$INFO_PLIST" 2>/dev/null || \
+            /usr/libexec/PlistBuddy -c "Set :UIBackgroundModes:1 remote-notification" "$INFO_PLIST" 2>/dev/null || true
+
+          echo "✓ Info.plist permissions and display name configured"
+          /usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$INFO_PLIST" || true
+          /usr/libexec/PlistBuddy -c "Print :NSMicrophoneUsageDescription" "$INFO_PLIST" || true
+
       - name: Verify iOS directory exists
         run: |
           if [ ! -d "ios" ]; then
@@ -791,7 +839,7 @@ jobs:
                     signing_info[:bundle_id] => signing_info[:profile_name]
                   }
                 },
-                xcargs: "DEVELOPMENT_TEAM=#{signing_info[:team_id]} CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=#{signing_info[:identity]} PROVISIONING_PROFILE_SPECIFIER=#{signing_info[:profile_uuid]} OTHER_CODE_SIGN_FLAGS='--keychain #{signing_info[:keychain]}'"
+                xcargs: "DEVELOPMENT_TEAM=#{signing_info[:team_id]} CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=#{signing_info[:identity]} PROVISIONING_PROFILE_SPECIFIER=#{signing_info[:profile_uuid]} PRODUCT_BUNDLE_IDENTIFIER=#{signing_info[:bundle_id]} OTHER_CODE_SIGN_FLAGS='--keychain #{signing_info[:keychain]}'"
               )
             end
             

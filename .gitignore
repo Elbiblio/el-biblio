@@ -49,3 +49,6 @@ app.*.map.json
 analyze_output.txt
 screenshots/
 pending-features-bugs-gaps.md
+
+# Generated platform directories not targeted for this app
+/web/

@@ -1,8 +1,5 @@
-gradle-wrapper.jar
 /.gradle
 /captures/
-/gradlew
-/gradlew.bat
 /local.properties
 GeneratedPluginRegistrant.java
 .cxx/
@@ -12,3 +9,11 @@ GeneratedPluginRegistrant.java
 key.properties
 **/*.keystore
 **/*.jks
+
+# Sensitive/local files not for CI
+pc-app.json
+keystore.properties
+
+# JVM crash dumps (large, local only)
+hs_err_pid*.log
+replay_pid*.log
