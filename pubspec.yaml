@@ -58,6 +58,12 @@ dependencies:
   connectivity_plus: ^6.1.0
   uuid: ^4.5.1
   app_usage: ^4.1.0
+  # flutter_native_splash has a native Android FlutterNativeSplashPlugin class
+  # that Flutter's Gradle plugin includes in GeneratedPluginRegistrant.java.
+  # Dev dependencies don't get their AARs on the compile classpath, causing
+  # "package net.jonhanson.flutter_native_splash does not exist" at build time.
+  # Must live in dependencies so the AAR is available to the compiler.
+  flutter_native_splash: ^2.4.1
 
 dev_dependencies:
   flutter_test:
@@ -69,7 +75,6 @@ dev_dependencies:
   build_runner: ^2.4.0
   path_provider_platform_interface: ^2.0.0
   flutter_launcher_icons: ^0.13.1
-  flutter_native_splash: ^2.4.1
 
 flutter:
   uses-material-design: true
