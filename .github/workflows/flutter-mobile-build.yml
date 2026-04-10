@@ -229,15 +229,17 @@ jobs:
 
       - name: Inject version into local.properties
         run: |
-          # flutter pub get writes android/local.properties with SDK/NDK paths.
-          # When Gradle is invoked directly (via Fastlane, not `flutter build`),
-          # flutter.versionCode and flutter.versionName are not set and default
-          # to 1/"1.0". Write them explicitly so the Gradle plugin picks them up.
+          # flutter pub get writes android/local.properties WITHOUT a trailing
+          # newline. Appending with `echo >>` would concatenate onto the last
+          # line (e.g. flutter.sdk=...flutter.versionCode=10102), corrupting
+          # the SDK path and breaking the Gradle plugin resolution.
+          # printf '\n' guarantees a clean new line before each property.
           VERSION_CODE="${{ needs.prepare-build.outputs.version_code }}"
           VERSION_NAME="${{ needs.prepare-build.outputs.version_name }}"
-          echo "flutter.versionCode=${VERSION_CODE}" >> android/local.properties
-          echo "flutter.versionName=${VERSION_NAME}" >> android/local.properties
+          printf '\nflutter.versionCode=%s\nflutter.versionName=%s\n' \
+            "${VERSION_CODE}" "${VERSION_NAME}" >> android/local.properties
           echo "✓ Injected version ${VERSION_NAME}+${VERSION_CODE} into android/local.properties"
+          tail -4 android/local.properties
 
       - name: Configure AWS CLI
         run: |
