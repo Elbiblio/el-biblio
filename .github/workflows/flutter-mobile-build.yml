@@ -549,15 +549,32 @@ jobs:
         run: |
           if [ ! -d "ios/Runner.xcodeproj" ]; then
             echo "iOS Runner.xcodeproj missing — generating via flutter create..."
-            # --org com.elbiblio + --project-name app produces bundle ID com.elbiblio.app
+            # --org com.elbiblio + --project-name app → bundle ID com.elbiblio.app
+            # In an existing project flutter create uses the org/project-name for new
+            # platform scaffolding; bundle ID is overridden anyway via Fastlane xcargs.
             flutter create \
               --platforms=ios \
               --org com.elbiblio \
               --project-name app \
-              . 2>&1
+              . 2>&1 || true  # non-zero exit is possible in existing projects; check below
+
+            if [ ! -d "ios/Runner.xcodeproj" ]; then
+              echo "Error: flutter create did not produce ios/Runner.xcodeproj"
+              exit 1
+            fi
             echo "✓ iOS project files generated"
           else
             echo "✓ iOS project files already exist"
+          fi
+
+          # Ensure minimum iOS deployment target >= 13.0 (required by Firebase packages)
+          if [ -f "ios/Podfile" ]; then
+            # Uncomment and set if line is commented out
+            sed -i '' "s/^# platform :ios, '[0-9.]*'/platform :ios, '13.0'/" ios/Podfile
+            # Update if already uncommented with an older version
+            sed -i '' "s/^platform :ios, '[0-9]\+\.[0-9]*'/platform :ios, '13.0'/" ios/Podfile
+            echo "✓ Podfile iOS deployment target set to 13.0"
+            grep "platform :ios" ios/Podfile || echo "  (platform line not found — Flutter default applies)"
           fi
 
       - name: Configure iOS Info.plist permissions
@@ -569,9 +586,10 @@ jobs:
           fi
 
           # Helper: add key if absent, then set it (idempotent)
+          # Both Add and Set quote $2 so values with spaces work correctly.
           plist_set() {
             /usr/libexec/PlistBuddy -c "Add :$1 string '$2'" "$INFO_PLIST" 2>/dev/null || \
-            /usr/libexec/PlistBuddy -c "Set :$1 $2" "$INFO_PLIST"
+            /usr/libexec/PlistBuddy -c "Set :$1 '$2'" "$INFO_PLIST"
           }
 
           plist_set NSMicrophoneUsageDescription \
@@ -616,7 +634,7 @@ jobs:
           path: |
             ios/Pods
             ~/Library/Caches/CocoaPods
-          key: ${{ runner.os }}-pods-${{ hashFiles('ios/Podfile.lock') }}
+          key: ${{ runner.os }}-pods-${{ hashFiles('pubspec.lock') }}
           restore-keys: |
             ${{ runner.os }}-pods-
 
@@ -866,16 +884,76 @@ jobs:
           end
           EOF
 
+      - name: Add resource files to Xcode project
+        run: |
+          # xcodeproj gem is a Fastlane dependency — available after gem install fastlane
+          ruby - <<'RUBY'
+          require 'xcodeproj'
+
+          project_path = 'ios/Runner.xcodeproj'
+          unless File.exist?(project_path)
+            puts "Runner.xcodeproj not found — skipping resource injection"
+            exit 0
+          end
+
+          project  = Xcodeproj::Project.open(project_path)
+          target   = project.targets.find { |t| t.name == 'Runner' }
+          abort "ERROR: Runner target not found" unless target
+
+          resources_phase = target.resources_build_phase
+
+          runner_group = project.main_group.find_subpath('Runner', false)
+          abort "ERROR: Runner group not found in project" unless runner_group
+
+          files_to_add = %w[
+            notification_sound.wav
+            notification_sound_gentle.mp3
+            GoogleService-Info.plist
+          ]
+
+          added = 0
+          files_to_add.each do |filename|
+            disk_path = "ios/Runner/#{filename}"
+            unless File.exist?(disk_path)
+              puts "Skipping #{filename} — not present on disk"
+              next
+            end
+
+            existing_ref = runner_group.files.find { |f| f.display_name == filename }
+            if existing_ref
+              puts "#{filename} already in project"
+              unless resources_phase.files_references.include?(existing_ref)
+                resources_phase.add_file_reference(existing_ref)
+                puts "  → added existing ref to Copy Bundle Resources"
+                added += 1
+              end
+              next
+            end
+
+            file_ref = runner_group.new_reference(filename)
+            resources_phase.add_file_reference(file_ref)
+            puts "Added #{filename} to Runner → Copy Bundle Resources"
+            added += 1
+          end
+
+          if added > 0
+            project.save
+            puts "✓ Project saved (#{added} file(s) added)"
+          else
+            puts "✓ No xcodeproj changes needed"
+          end
+          RUBY
+
       - name: Build with Fastlane
         run: |
           cd ios
-          
+
           # Verify Fastfile exists
           if [ ! -f "fastlane/Fastfile" ]; then
             echo "Error: Fastfile not found"
             exit 1
           fi
-          
+
           fastlane build_release
         env:
           IOS_KEYCHAIN_PASSWORD: ${{ secrets.IOS_KEYCHAIN_PASSWORD }}
