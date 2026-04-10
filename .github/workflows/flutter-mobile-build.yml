@@ -469,20 +469,18 @@ jobs:
           compression-level: 0
 
       - name: Upload AAB to Play Console (internal track)
+        # Non-fatal: a missing service account or Play API error must not
+        # prevent the AAB artifact (already uploaded above) from being usable.
         if: steps.find-files.outputs.aab_path
+        continue-on-error: true
         env:
           PACKAGE_NAME: com.elbiblio.app
         run: |
           set -euo pipefail
 
           if [ -z "${GOOGLE_PLAY_SERVICE_ACCOUNT_JSON:-}" ] || [ ! -f "$GOOGLE_PLAY_SERVICE_ACCOUNT_JSON" ]; then
-            echo "Error: GOOGLE_PLAY_SERVICE_ACCOUNT_JSON is not set or file missing."
-            exit 1
-          fi
-
-          if [ ! -f "${{ steps.find-files.outputs.aab_path }}" ]; then
-            echo "Error: AAB path not found: ${{ steps.find-files.outputs.aab_path }}"
-            exit 1
+            echo "⚠ GOOGLE_PLAY_SERVICE_ACCOUNT_JSON not set or missing — skipping Play upload."
+            exit 0
           fi
 
           echo "Uploading ${{ steps.find-files.outputs.aab_path }} to Google Play (track: internal)"
@@ -500,12 +498,13 @@ jobs:
 
       - name: Cleanup
         if: always()
-        run: rm -rf android/app/keystore
+        # Keystore is created at android/app/keystore/ by the Setup Keystore step
+        run: rm -rf android/app/keystore android/credentials
 
   build-ios:
-    needs: 
+    needs:
       - prepare-build
-      - build-android
+    if: needs.prepare-build.outputs.version_changed == 'true'
     runs-on: macos-15
     strategy:
       fail-fast: true
@@ -1082,8 +1081,13 @@ jobs:
     needs:
       - prepare-build
       - build-android
+      - build-ios
       - build-windows
-    if: needs.prepare-build.outputs.version_changed == 'true'
+    # Run even if build-ios failed — iOS is optional for a release; Android + Windows are required.
+    if: |
+      needs.prepare-build.outputs.version_changed == 'true' &&
+      needs.build-android.result == 'success' &&
+      needs.build-windows.result == 'success'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -1117,8 +1121,8 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ needs.prepare-build.outputs.version_name }}
-          name: El-Biblio v${{ needs.prepare-build.outputs.version_name }}
+          tag_name: v${{ needs.prepare-build.outputs.version_name }}+${{ needs.prepare-build.outputs.version_code }}
+          name: El-Biblio v${{ needs.prepare-build.outputs.version_name }} (${{ needs.prepare-build.outputs.version_code }})
           draft: false
           prerelease: false
           generate_release_notes: true
