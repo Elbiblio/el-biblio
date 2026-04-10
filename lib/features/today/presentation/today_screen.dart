@@ -5,30 +5,30 @@ import 'package:share_plus/share_plus.dart';
 
 import '../../../../core/constants/app_routes.dart';
 import '../../../../core/di/app_providers.dart';
-import '../../../../core/storage/settings_storage.dart';
 import '../../../../core/services/analytics/app_analytics_service.dart';
+import '../../../../core/storage/app_settings.dart';
+import '../../../../core/storage/settings_storage.dart';
 import '../../../../core/theme/app_theme_tokens.dart';
-import '../domain/models/daily_anchors.dart';
-import 'widgets/physical_activity_guide.dart';
 import '../../commitments/presentation/widgets/commitment_welcome_dialog.dart';
-import 'widgets/prayer_guide_dialog.dart';
-import 'widgets/soul_care_dialog.dart';
-import 'widgets/commitment_waiting_dialog.dart';
-import 'widgets/commitment_completion_dialog.dart';
-import 'widgets/habit_reset_dialog.dart';
-import 'widgets/time_diagnose_suggestion_dialog.dart';
-import 'widgets/recalibration_suggestion_dialog.dart';
-import 'widgets/today_header.dart';
+import '../domain/models/daily_anchors.dart';
 import 'widgets/assessment_prompt_widget.dart';
-import 'widgets/weekly_plan_prompt_card.dart';
+import 'widgets/commitment_completion_dialog.dart';
+import 'widgets/commitment_waiting_dialog.dart';
 import 'widgets/daily_focus_card.dart';
-import 'widgets/weekly_section_widget.dart';
-import 'widgets/mission_next_step_card.dart'
-    show MissionNextStepCard;
 import 'widgets/daily_verse_card.dart';
-import 'widgets/spiritual_pulse_widget.dart';
-import 'widgets/journey_check_in_section.dart';
 import 'widgets/forty_day_task_card.dart';
+import 'widgets/habit_reset_dialog.dart';
+import 'widgets/journey_check_in_section.dart';
+import 'widgets/mission_next_step_card.dart' show MissionNextStepCard;
+import 'widgets/physical_activity_guide.dart';
+import 'widgets/prayer_guide_dialog.dart';
+import 'widgets/recalibration_suggestion_dialog.dart';
+import 'widgets/soul_care_dialog.dart';
+import 'widgets/spiritual_pulse_widget.dart';
+import 'widgets/time_diagnose_suggestion_dialog.dart';
+import 'widgets/today_header.dart';
+import 'widgets/weekly_plan_prompt_card.dart';
+import 'widgets/weekly_section_widget.dart';
 
 class TodayScreen extends ConsumerStatefulWidget {
   const TodayScreen({super.key});
@@ -43,30 +43,25 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
   @override
   void initState() {
     super.initState();
-    // Track TodayScreen view
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(analyticsProvider).track(AppAnalyticsEvent.todayScreenViewed);
     });
-    // Check for missed days and alarm proximity when screen initializes
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _checkForMissedDaysAndShowSuggestion();
       _checkAlarmProximity();
       _checkAndShowDailyPrayerGuide();
       ref.read(settingsProvider.notifier).refreshWeeklyPlanIfNeeded();
-      // Refresh pillar scores on screen load
       ref.read(pillarScoreProvider.notifier).refresh();
     });
   }
 
-  // ---------------------------------------------------------------------------
-  // Lifecycle helpers
-  // ---------------------------------------------------------------------------
-
   Future<void> _checkForMissedDaysAndShowSuggestion() async {
-    final missedDays = await ref.read(dailyAnchorsProvider.notifier).getConsecutiveMissedDays();
-    if (!mounted) return;
-
-    if (missedDays < 2) return;
+    final missedDays = await ref
+        .read(dailyAnchorsProvider.notifier)
+        .getConsecutiveMissedDays();
+    if (!mounted || missedDays < 2) return;
 
     final settings = ref.read(settingsProvider);
     final now = DateTime.now();
@@ -78,7 +73,9 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
 
     if (lastPromptDay == today) return;
 
-    await ref.read(settingsProvider.notifier).markRecalibrationPromptShown(today);
+    await ref
+        .read(settingsProvider.notifier)
+        .markRecalibrationPromptShown(today);
 
     if (!mounted) return;
     await RecalibrationSuggestionDialog.show(
@@ -94,17 +91,21 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
     final settings = ref.read(settingsProvider);
     final now = DateTime.now();
 
-    // Parse morning time (default 07:30)
     final morningTimeParts = settings.morningTime.split(':');
     final morningHour = int.parse(morningTimeParts[0]);
     final morningMinute = int.parse(morningTimeParts[1]);
-    final morningTime = DateTime(now.year, now.month, now.day, morningHour, morningMinute);
+    final morningTime = DateTime(
+      now.year,
+      now.month,
+      now.day,
+      morningHour,
+      morningMinute,
+    );
 
-    // Check if within 30 minutes of alarm time
     final timeDifference = now.difference(morningTime);
-    final isWithin30Minutes = timeDifference.inMinutes >= -30 && timeDifference.inMinutes <= 30;
+    final isWithin30Minutes =
+        timeDifference.inMinutes >= -30 && timeDifference.inMinutes <= 30;
 
-    // Also check if it's early morning (5 AM - 10 AM) for simplified interface
     final isEarlyMorning = now.hour >= 5 && now.hour < 10;
 
     setState(() {
@@ -118,27 +119,31 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
 
     if (!settings.onboardingCompleted) return;
 
-    // First-time welcome: show prayer guide immediately regardless of time
     if (!settings.hasSeenTodayWelcome) {
       final anchors = ref.read(dailyAnchorsProvider);
       final virtue = anchors.coreVirtue;
       if (!virtue.isCompleted && mounted) {
         final journeyState = ref.read(commitmentJourneyProvider);
-        final aj = journeyState.activeJourney;
-        final cj = aj != null
+        final activeJourney = journeyState.activeJourney;
+        final commitmentJourney = activeJourney != null
             ? journeyState.availableJourneys.cast<dynamic>().firstWhere(
-                (j) => j.id == aj.journeyId, orElse: () => null)
+                (j) => j.id == activeJourney.journeyId,
+                orElse: () => null,
+              )
             : null;
+
         PrayerGuideDialog.show(
           context,
           virtue,
           () async {
             await storage.markPrayerGuideShown();
-            ref.read(dailyAnchorsProvider.notifier).markAnchorDone(AnchorType.coreVirtue);
+            ref
+                .read(dailyAnchorsProvider.notifier)
+                .markAnchorDone(AnchorType.coreVirtue);
           },
           showQuickStart: true,
-          activeJourney: aj,
-          commitmentJourney: cj,
+          activeJourney: activeJourney,
+          commitmentJourney: commitmentJourney,
         );
         await storage.markPrayerGuideShown();
       }
@@ -146,49 +151,52 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
       return;
     }
 
-    // Normal behavior: only show during morning hours
     if (!storage.isMorningHours()) return;
     if (!storage.shouldShowPrayerGuide(settings)) return;
 
     final anchors = ref.read(dailyAnchorsProvider);
     final virtue = anchors.coreVirtue;
-    if (virtue.isCompleted) return;
+    if (virtue.isCompleted || !mounted) return;
 
-    if (mounted) {
-      final journeyState = ref.read(commitmentJourneyProvider);
-      final aj = journeyState.activeJourney;
-      final cj = aj != null
-          ? journeyState.availableJourneys.cast<dynamic>().firstWhere(
-              (j) => j.id == aj.journeyId, orElse: () => null)
-          : null;
-      PrayerGuideDialog.show(
-        context,
-        virtue,
-        () async {
-          await storage.markPrayerGuideShown();
-          ref.read(dailyAnchorsProvider.notifier).markAnchorDone(AnchorType.coreVirtue);
-        },
-        showQuickStart: true,
-        activeJourney: aj,
-        commitmentJourney: cj,
-      );
-      await storage.markPrayerGuideShown();
-    }
+    final journeyState = ref.read(commitmentJourneyProvider);
+    final activeJourney = journeyState.activeJourney;
+    final commitmentJourney = activeJourney != null
+        ? journeyState.availableJourneys.cast<dynamic>().firstWhere(
+            (j) => j.id == activeJourney.journeyId,
+            orElse: () => null,
+          )
+        : null;
+
+    PrayerGuideDialog.show(
+      context,
+      virtue,
+      () async {
+        await storage.markPrayerGuideShown();
+        ref
+            .read(dailyAnchorsProvider.notifier)
+            .markAnchorDone(AnchorType.coreVirtue);
+      },
+      showQuickStart: true,
+      activeJourney: activeJourney,
+      commitmentJourney: commitmentJourney,
+    );
+    await storage.markPrayerGuideShown();
   }
-
-  // ---------------------------------------------------------------------------
-  // Build
-  // ---------------------------------------------------------------------------
 
   @override
   Widget build(BuildContext context) {
     final anchors = ref.watch(dailyAnchorsProvider);
     final settings = ref.watch(settingsProvider);
     final tokens = Theme.of(context).tokens;
+    final layout = _TodayLayout.fromContext(context);
+
     final now = DateTime.now();
-    final todayPulse = settings.spiritualPulseByDate[
-      DateTime(now.year, now.month, now.day).toIso8601String()
-    ];
+    final todayPulse =
+        settings.spiritualPulseByDate[DateTime(
+          now.year,
+          now.month,
+          now.day,
+        ).toIso8601String()];
 
     return Scaffold(
       body: Container(
@@ -203,70 +211,65 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
           bottom: false,
           child: CustomScrollView(
             slivers: [
-              // Header (profile, greeting, help button)
-              SliverToBoxAdapter(
-                child: TodayHeader(
-                  onHelpTap: _showQuickHelp,
-                ),
+              _adaptiveSection(
+                layout: layout,
+                child: TodayHeader(onHelpTap: _showQuickHelp),
               ),
-
-              // Daily Focus: archetype + progress + commitment in one card
-              SliverToBoxAdapter(
+              _adaptiveSection(
+                layout: layout,
                 child: DailyFocusCard(
                   anchors: anchors,
                   onPrayerTap: () => _showPrayerGuide(anchors.coreVirtue),
-                  onHabitTap: () => _handleHabitTap(anchors, now),
+                  onHabitTap: () => _handleHabitTap(anchors),
                   onActivityTap: _showPhysicalActivityGuide,
                 ),
               ),
-
-              if (settings.onboardingCompleted && !settings.hasSeenAssessmentPrompt)
-                const SliverToBoxAdapter(
-                  child: Padding(
-                    padding: EdgeInsets.fromLTRB(16, 0, 16, 0),
-                    child: AssessmentPromptWidget(),
+              if (settings.onboardingCompleted &&
+                  !settings.hasSeenAssessmentPrompt)
+                _adaptiveSection(
+                  layout: layout,
+                  padding: EdgeInsets.symmetric(
+                    horizontal: layout.promptHorizontalPadding,
                   ),
+                  child: const AssessmentPromptWidget(),
                 ),
-
-              // Weekly assessment prompt — shown when no current weekly plan
               if (settings.onboardingCompleted &&
                   settings.hasSeenAssessmentPrompt &&
-                  WeeklyPlanPromptCard.shouldShow(currentPlan: settings.currentWeeklyPlan))
-                const SliverToBoxAdapter(
-                  child: Padding(
-                    padding: EdgeInsets.fromLTRB(16, 0, 16, 0),
-                    child: WeeklyPlanPromptCard(),
+                  WeeklyPlanPromptCard.shouldShow(
+                    currentPlan: settings.currentWeeklyPlan,
+                  ))
+                _adaptiveSection(
+                  layout: layout,
+                  padding: EdgeInsets.symmetric(
+                    horizontal: layout.promptHorizontalPadding,
                   ),
+                  child: const WeeklyPlanPromptCard(),
                 ),
-
-              // --- Time-aware secondary widget ordering ---
-              // Evening: promote journey check-in; Afternoon: promote mission
-              ..._buildSecondaryWidgets(settings, anchors, todayPulse, now),
-
-              // Daily verse when all anchors complete
+              ..._buildSecondaryWidgets(settings, todayPulse, layout),
               if (anchors.coreVirtue.isCompleted &&
                   anchors.habit.isCompleted &&
                   anchors.energyAction.isCompleted)
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 24),
-                    child: DailyVerseCard(
-                      onShare: () {
-                        final verse = ref.read(verseProvider).todayVerse;
-                        if (verse != null) {
-                          Share.share(
-                            '"${verse.text}" — ${verse.reference}\n\nShared from El-Biblio',
-                          );
-                        }
-                      },
-                    ),
+                _adaptiveSection(
+                  layout: layout,
+                  padding: EdgeInsets.symmetric(
+                    horizontal: layout.promptHorizontalPadding + 8,
+                  ),
+                  child: DailyVerseCard(
+                    onShare: () {
+                      final verse = ref.read(verseProvider).todayVerse;
+                      if (verse != null) {
+                        Share.share(
+                          '"${verse.text}" - ${verse.reference}\n\nShared from El-Biblio',
+                        );
+                      }
+                    },
                   ),
                 ),
-
-              // Responsive bottom padding for floating nav
               SliverToBoxAdapter(
                 child: SizedBox(
-                  height: MediaQuery.of(context).padding.bottom + 100,
+                  height:
+                      MediaQuery.paddingOf(context).bottom +
+                      layout.bottomSpacing,
                 ),
               ),
             ],
@@ -276,42 +279,41 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
     );
   }
 
-  // ---------------------------------------------------------------------------
-  // Secondary widgets (consistent order)
-  // ---------------------------------------------------------------------------
-
-  /// Returns secondary slivers in a consistent, predictable order.
-  /// Users build spatial memory for where things are — don't rearrange by time.
   List<Widget> _buildSecondaryWidgets(
-    dynamic settings,
-    DailyAnchors anchors,
-    dynamic todayPulse,
-    DateTime now,
+    AppSettings settings,
+    SpiritualPulseResponse? todayPulse,
+    _TodayLayout layout,
   ) {
     return [
-      // 1. Commitment journey — today's task (always visible when active)
-      const SliverToBoxAdapter(child: JourneyCheckInSection()),
-
-      // 2. 40-Day goal — today's task (always visible when active)
-      const SliverToBoxAdapter(child: FortyDayTaskCard()),
-
-      // 3. Mission acts — pending actions with inline completion
-      const SliverToBoxAdapter(child: MissionNextStepCard()),
-
-      // 4. Weekly plan (when a plan exists)
-      const SliverToBoxAdapter(child: WeeklySectionWidget()),
-
-      // 5. Spiritual pulse (mood check — only if not yet recorded today)
+      _adaptiveSection(layout: layout, child: const JourneyCheckInSection()),
+      _adaptiveSection(layout: layout, child: const FortyDayTaskCard()),
+      _adaptiveSection(layout: layout, child: const MissionNextStepCard()),
+      _adaptiveSection(layout: layout, child: const WeeklySectionWidget()),
       if ((todayPulse?.entries.length ?? 0) == 0 && settings.streakCount > 0)
-        const SliverToBoxAdapter(child: SpiritualPulseWidget()),
+        _adaptiveSection(layout: layout, child: const SpiritualPulseWidget()),
     ];
   }
 
-  // ---------------------------------------------------------------------------
-  // Actions
-  // ---------------------------------------------------------------------------
+  SliverToBoxAdapter _adaptiveSection({
+    required _TodayLayout layout,
+    required Widget child,
+    EdgeInsetsGeometry padding = EdgeInsets.zero,
+  }) {
+    return SliverToBoxAdapter(
+      child: Padding(
+        padding: padding,
+        child: Align(
+          alignment: Alignment.topCenter,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: layout.maxContentWidth),
+            child: child,
+          ),
+        ),
+      ),
+    );
+  }
 
-  void _handleHabitTap(DailyAnchors anchors, DateTime now) async {
+  void _handleHabitTap(DailyAnchors anchors) async {
     final habit = anchors.habit;
 
     if (habit.isCompleted) {
@@ -324,8 +326,6 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
       if (!settings.hasSeenCommitmentWelcome) {
         if (!mounted) return;
         await CommitmentWelcomeDialog.show(context);
-        // The dialog handles navigation to commitment journey when user
-        // taps "Begin My Journey" and marks the flag as seen.
         return;
       }
 
@@ -337,8 +337,12 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
       CommitmentCompletionDialog.show(
         context,
         habit: habit,
-        onSucceeded: () => ref.read(dailyAnchorsProvider.notifier).completeCommitment(succeeded: true),
-        onFailed: () => ref.read(dailyAnchorsProvider.notifier).completeCommitment(succeeded: false),
+        onSucceeded: () => ref
+            .read(dailyAnchorsProvider.notifier)
+            .completeCommitment(succeeded: true),
+        onFailed: () => ref
+            .read(dailyAnchorsProvider.notifier)
+            .completeCommitment(succeeded: false),
       );
     } else if (habit.isCommitmentActive) {
       return;
@@ -347,8 +351,12 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
         CommitmentCompletionDialog.show(
           context,
           habit: habit,
-          onSucceeded: () => ref.read(dailyAnchorsProvider.notifier).completeCommitment(succeeded: true),
-          onFailed: () => ref.read(dailyAnchorsProvider.notifier).completeCommitment(succeeded: false),
+          onSucceeded: () => ref
+              .read(dailyAnchorsProvider.notifier)
+              .completeCommitment(succeeded: true),
+          onFailed: () => ref
+              .read(dailyAnchorsProvider.notifier)
+              .completeCommitment(succeeded: false),
         );
       } else {
         return;
@@ -359,14 +367,18 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
         onReset: () {
           const resetHabit = Habit(
             title: 'Practice a Habit',
-            description: 'Begin and lock in a habit during the day for a minimum of 4 hours.',
+            description:
+                'Begin and lock in a habit during the day for a minimum of 4 hours.',
             durationMinutes: 240,
             type: HabitType.reflection,
             isCompleted: false,
           );
           final currentAnchors = ref.read(dailyAnchorsProvider);
           final updatedAnchors = currentAnchors.copyWith(habit: resetHabit);
-          ref.read(dailyAnchorsProvider.notifier).repository.save(updatedAnchors);
+          ref
+              .read(dailyAnchorsProvider.notifier)
+              .repository
+              .save(updatedAnchors);
         },
       );
     }
@@ -385,10 +397,13 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
             orElse: () => null,
           )
         : null;
+
     PrayerGuideDialog.show(
       context,
       virtue,
-      () => ref.read(dailyAnchorsProvider.notifier).markAnchorDone(AnchorType.coreVirtue),
+      () => ref
+          .read(dailyAnchorsProvider.notifier)
+          .markAnchorDone(AnchorType.coreVirtue),
       showQuickStart: _isNearAlarmTime,
       activeJourney: activeJourney,
       commitmentJourney: commitmentJourney,
@@ -397,10 +412,44 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
 
   void _showQuickHelp() {
     ref.read(analyticsProvider).track(AppAnalyticsEvent.soulCareDialogOpened);
-    showDialog(
-      context: context,
-      builder: (context) => const SoulCareDialog(),
+    showDialog(context: context, builder: (context) => const SoulCareDialog());
+  }
+}
+
+class _TodayLayout {
+  const _TodayLayout({
+    required this.maxContentWidth,
+    required this.promptHorizontalPadding,
+    required this.bottomSpacing,
+  });
+
+  final double maxContentWidth;
+  final double promptHorizontalPadding;
+  final double bottomSpacing;
+
+  factory _TodayLayout.fromContext(BuildContext context) {
+    final width = MediaQuery.sizeOf(context).width;
+
+    if (width >= 1200) {
+      return const _TodayLayout(
+        maxContentWidth: 920,
+        promptHorizontalPadding: 24,
+        bottomSpacing: 116,
+      );
+    }
+
+    if (width >= 840) {
+      return const _TodayLayout(
+        maxContentWidth: 760,
+        promptHorizontalPadding: 20,
+        bottomSpacing: 108,
+      );
+    }
+
+    return const _TodayLayout(
+      maxContentWidth: 640,
+      promptHorizontalPadding: 16,
+      bottomSpacing: 100,
     );
   }
-
 }

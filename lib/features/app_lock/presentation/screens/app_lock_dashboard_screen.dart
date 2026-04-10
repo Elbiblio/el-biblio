@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/constants/app_routes.dart';
 import '../../../../core/di/app_providers.dart';
@@ -16,17 +15,44 @@ import '../widgets/usage_progress_bar.dart';
 import '../widgets/time_saved_counter.dart';
 
 /// Whether the Android usage stats permission is granted.
-/// Only meaningful on Android; always false on other platforms.
+/// Only meaningful on Android; always true on other platforms.
 final _usagePermissionProvider = FutureProvider.autoDispose<bool>((ref) async {
   if (!Platform.isAndroid) return true; // non-Android doesn't need this
   return ref.watch(appUsageServiceProvider).hasPermission();
 });
 
-class AppLockDashboardScreen extends ConsumerWidget {
+class AppLockDashboardScreen extends ConsumerStatefulWidget {
   const AppLockDashboardScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<AppLockDashboardScreen> createState() =>
+      _AppLockDashboardScreenState();
+}
+
+class _AppLockDashboardScreenState extends ConsumerState<AppLockDashboardScreen>
+    with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && Platform.isAndroid) {
+      ref.invalidate(_usagePermissionProvider);
+      ref.read(appLockProvider.notifier).refreshUsage();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final state = ref.watch(appLockProvider);
     final theme = Theme.of(context);
     final tokens = theme.tokens;
@@ -82,7 +108,12 @@ class AppLockDashboardScreen extends ConsumerWidget {
                     // Usage stats permission banner (Android only)
                     if (Platform.isAndroid)
                       SliverToBoxAdapter(
-                        child: _buildPermissionBanner(context, ref, theme, tokens),
+                        child: _buildPermissionBanner(
+                          context,
+                          ref,
+                          theme,
+                          tokens,
+                        ),
                       ),
 
                     // Motivational message
@@ -100,7 +131,10 @@ class AppLockDashboardScreen extends ConsumerWidget {
                         child: Padding(
                           padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
                           child: _buildWarningBanner(
-                              theme, tokens, state.appsApproachingLimit),
+                            theme,
+                            tokens,
+                            state.appsApproachingLimit,
+                          ),
                         ),
                       ),
 
@@ -114,8 +148,9 @@ class AppLockDashboardScreen extends ConsumerWidget {
                             Text(
                               'APP USAGE TODAY',
                               style: theme.textTheme.sectionHeader.copyWith(
-                                color: theme.colorScheme.onSurface
-                                    .withValues(alpha: 0.5),
+                                color: theme.colorScheme.onSurface.withValues(
+                                  alpha: 0.5,
+                                ),
                                 letterSpacing: 1.5,
                               ),
                             ),
@@ -140,29 +175,23 @@ class AppLockDashboardScreen extends ConsumerWidget {
                       )
                     else
                       SliverList(
-                        delegate: SliverChildBuilderDelegate(
-                          (context, index) {
-                            final record = state.todayUsage[index];
-                            return Padding(
-                              padding:
-                                  const EdgeInsets.fromLTRB(24, 0, 24, 12),
-                              child: _buildAppUsageCard(
-                                context,
-                                ref,
-                                theme,
-                                tokens,
-                                record,
-                              ),
-                            );
-                          },
-                          childCount: state.todayUsage.length,
-                        ),
+                        delegate: SliverChildBuilderDelegate((context, index) {
+                          final record = state.todayUsage[index];
+                          return Padding(
+                            padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
+                            child: _buildAppUsageCard(
+                              context,
+                              ref,
+                              theme,
+                              tokens,
+                              record,
+                            ),
+                          );
+                        }, childCount: state.todayUsage.length),
                       ),
 
                     // Bottom spacing for nav bar
-                    const SliverToBoxAdapter(
-                      child: SizedBox(height: 120),
-                    ),
+                    const SliverToBoxAdapter(child: SizedBox(height: 120)),
                   ],
                 ),
         ),
@@ -196,8 +225,11 @@ class AppLockDashboardScreen extends ConsumerWidget {
               children: [
                 Row(
                   children: [
-                    Icon(Icons.info_outline_rounded,
-                        size: 20, color: theme.colorScheme.primary),
+                    Icon(
+                      Icons.info_outline_rounded,
+                      size: 20,
+                      color: theme.colorScheme.primary,
+                    ),
                     const SizedBox(width: 10),
                     Expanded(
                       child: Text(
@@ -223,22 +255,10 @@ class AppLockDashboardScreen extends ConsumerWidget {
                   width: double.infinity,
                   child: OutlinedButton.icon(
                     onPressed: () async {
-                      // Primary: open the Android Usage Access settings page
-                      // directly via the standard Settings action intent URI.
-                      final usageSettingsUri = Uri.parse(
-                        'intent:#Intent;action=android.settings.USAGE_ACCESS_SETTINGS;end',
-                      );
-                      try {
-                        final launched = await launchUrl(
-                          usageSettingsUri,
-                          mode: LaunchMode.externalApplication,
-                        );
-                        if (!launched) {
-                          // Fallback: open this app's own Android settings page.
-                          // 'app-settings:' is iOS-only, so use permission_handler.
-                          await openAppSettings();
-                        }
-                      } catch (_) {
+                      final opened = await ref
+                          .read(appUsageServiceProvider)
+                          .openUsageSettings();
+                      if (!opened) {
                         await openAppSettings();
                       }
                     },
@@ -269,13 +289,17 @@ class AppLockDashboardScreen extends ConsumerWidget {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(14),
         color: tokens.palette.success.withValues(alpha: 0.1),
-        border:
-            Border.all(color: tokens.palette.success.withValues(alpha: 0.2)),
+        border: Border.all(
+          color: tokens.palette.success.withValues(alpha: 0.2),
+        ),
       ),
       child: Row(
         children: [
-          Icon(Icons.emoji_events_rounded,
-              size: 20, color: tokens.palette.success),
+          Icon(
+            Icons.emoji_events_rounded,
+            size: 20,
+            color: tokens.palette.success,
+          ),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
@@ -292,19 +316,26 @@ class AppLockDashboardScreen extends ConsumerWidget {
   }
 
   Widget _buildWarningBanner(
-      ThemeData theme, AppThemeTokens tokens, int count) {
+    ThemeData theme,
+    AppThemeTokens tokens,
+    int count,
+  ) {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(14),
         color: const Color(0xFFE8A838).withValues(alpha: 0.1),
         border: Border.all(
-            color: const Color(0xFFE8A838).withValues(alpha: 0.2)),
+          color: const Color(0xFFE8A838).withValues(alpha: 0.2),
+        ),
       ),
       child: Row(
         children: [
-          const Icon(Icons.warning_amber_rounded,
-              size: 20, color: Color(0xFFE8A838)),
+          const Icon(
+            Icons.warning_amber_rounded,
+            size: 20,
+            color: Color(0xFFE8A838),
+          ),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
@@ -327,7 +358,10 @@ class AppLockDashboardScreen extends ConsumerWidget {
     AppThemeTokens tokens,
     AppUsageRecord record,
   ) {
-    final config = ref.read(appLockProvider).configs.firstWhere(
+    final config = ref
+        .read(appLockProvider)
+        .configs
+        .firstWhere(
           (c) => c.packageName == record.packageName,
           orElse: () => throw StateError('Config not found'),
         );
@@ -350,11 +384,7 @@ class AppLockDashboardScreen extends ConsumerWidget {
               borderRadius: BorderRadius.circular(12),
               color: category.color.withValues(alpha: 0.15),
             ),
-            child: Icon(
-              category.icon,
-              color: category.color,
-              size: 22,
-            ),
+            child: Icon(category.icon, color: category.color, size: 22),
           ),
           const SizedBox(width: 14),
 
@@ -408,8 +438,9 @@ class AppLockDashboardScreen extends ConsumerWidget {
                       height: 20,
                       child: Switch(
                         value: config.isEnabled,
-                        onChanged: (_) =>
-                            ref.read(appLockProvider.notifier).toggleConfig(config.id),
+                        onChanged: (_) => ref
+                            .read(appLockProvider.notifier)
+                            .toggleConfig(config.id),
                         materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                       ),
                     ),
@@ -424,7 +455,10 @@ class AppLockDashboardScreen extends ConsumerWidget {
   }
 
   Widget _buildEmptyState(
-      BuildContext context, ThemeData theme, AppThemeTokens tokens) {
+    BuildContext context,
+    ThemeData theme,
+    AppThemeTokens tokens,
+  ) {
     return Container(
       padding: const EdgeInsets.all(32),
       decoration: BoxDecoration(
@@ -464,5 +498,4 @@ class AppLockDashboardScreen extends ConsumerWidget {
       ),
     );
   }
-
 }
