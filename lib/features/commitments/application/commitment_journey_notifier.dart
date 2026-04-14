@@ -83,6 +83,16 @@ class CommitmentJourneyNotifier extends StateNotifier<CommitmentJourneyState> {
         activeJourney: journey,
         isLoading: false,
       );
+      // Reschedule tonight's check-in notification on every app restore so
+      // the reminder survives device reboots and notification clearing.
+      if (journey != null && journey.isActive) {
+        try {
+          final journeyDefinition = await repository.getJourneyById(journey.journeyId);
+          await _scheduleCheckInNotifications(journeyDefinition, journey.prayerIntention);
+        } catch (e) {
+          log('Failed to reschedule check-in notification on restore: $e');
+        }
+      }
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString());
     }
@@ -171,6 +181,10 @@ class CommitmentJourneyNotifier extends StateNotifier<CommitmentJourneyState> {
       // Check for journey completion
       if (updated.isComplete) {
         await _completeJourney(journey);
+      } else {
+        // Reschedule tomorrow's check-in notification so the reminder fires
+        // every day of the journey, not just on the day it was started.
+        await _scheduleCheckInNotifications(journey, updated.prayerIntention);
       }
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString());

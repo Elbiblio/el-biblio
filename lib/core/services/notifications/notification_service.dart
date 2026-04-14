@@ -15,6 +15,23 @@ import '../../../features/today/domain/models/daily_anchors.dart';
 
 enum NotificationActionOutcome { success, fallbackNavigation, failed }
 
+/// Top-level handler for notification taps when the app is in background/terminated.
+/// Must be a top-level function (not a class method) for flutter_local_notifications.
+@pragma('vm:entry-point')
+void _onBackgroundNotificationTapped(NotificationResponse response) {
+  // The app is brought to foreground by the OS; we only need to handle
+  // action button taps here. Simple notification taps are handled by
+  // onDidReceiveNotificationResponse once the app resumes.
+  if (response.notificationResponseType ==
+      NotificationResponseType.selectedNotificationAction) {
+    // Store the action in shared prefs so the app can process it on resume.
+    // The service singleton handles this via actionEvents stream when ready.
+    debugPrint(
+      'NotificationService [BG]: action=${response.actionId} payload=${response.payload}',
+    );
+  }
+}
+
 class NotificationActionEvent {
   const NotificationActionEvent({
     required this.actionId,
@@ -80,15 +97,48 @@ class NotificationService {
           DarwinNotificationCategory(
             _dailyCheckInCategory,
             actions: <DarwinNotificationAction>[
-              DarwinNotificationAction.plain(_actionDidThis, 'I did this'),
-              DarwinNotificationAction.plain(_actionJournal, 'Journal'),
+              DarwinNotificationAction.plain(
+                _actionDidThis,
+                'I did this ✓',
+                options: {DarwinNotificationActionOption.foreground},
+              ),
+              DarwinNotificationAction.plain(
+                _actionJournal,
+                'Journal',
+                options: {DarwinNotificationActionOption.foreground},
+              ),
             ],
           ),
           DarwinNotificationCategory(
             _commitmentCategory,
             actions: <DarwinNotificationAction>[
-              DarwinNotificationAction.plain(_actionCommitmentView, 'View'),
-              DarwinNotificationAction.plain(_actionCommitmentDone, 'I did this'),
+              DarwinNotificationAction.plain(
+                _actionCommitmentView,
+                'View',
+                options: {DarwinNotificationActionOption.foreground},
+              ),
+              DarwinNotificationAction.plain(
+                _actionCommitmentDone,
+                'I did this ✓',
+                options: {DarwinNotificationActionOption.foreground},
+              ),
+            ],
+          ),
+          // Journey check-in category — was missing, causing action buttons
+          // to be invisible on iOS for all journey notifications.
+          DarwinNotificationCategory(
+            _journeyCategory,
+            actions: <DarwinNotificationAction>[
+              DarwinNotificationAction.plain(
+                'check_in',
+                'I kept my commitment ✓',
+                options: {DarwinNotificationActionOption.foreground},
+              ),
+              DarwinNotificationAction.plain(
+                'view',
+                'View journey',
+                options: {DarwinNotificationActionOption.foreground},
+              ),
             ],
           ),
         ],
@@ -102,6 +152,7 @@ class NotificationService {
       await _localNotificationsPlugin.initialize(
         settings: initSettings,
         onDidReceiveNotificationResponse: _onNotificationTapped,
+        onDidReceiveBackgroundNotificationResponse: _onBackgroundNotificationTapped,
       );
 
       _initialized = true;
@@ -265,7 +316,11 @@ class NotificationService {
         // Navigate to today's verse (will be handled by verse provider)
         _goToRoute(AppRoutes.bible);
       } else if (payload == 'check_in_reminder' ||
-          payload == 'commitment_locked_in') {
+          payload == 'commitment_locked_in' ||
+          payload == 'journey_check_in_reminder' ||
+          payload == 'journey_milestone' ||
+          payload == 'journey_completed' ||
+          payload == 'partner_check_in_request') {
         _goToRoute(AppRoutes.today);
       }
     } catch (e) {
@@ -660,24 +715,56 @@ class NotificationService {
     required DateTime scheduledTime,
     required String payload,
   }) async {
-    const androidDetails = AndroidNotificationDetails(
+    final isMorning = id == morningReminderId;
+    final expandedText = isMorning
+        ? 'Open Scripture, reflect on today\'s verse, and set your intention for the day.'
+        : 'Review what God did today. Journal a moment of faithfulness before you sleep.';
+
+    final androidDetails = AndroidNotificationDetails(
       'daily_reminders',
       'Daily Reminders',
       channelDescription: 'Morning and evening spiritual reminders',
       importance: Importance.high,
       priority: Priority.high,
-      color: Color(0xFF638B6C),
-      ledColor: Color(0xFF638B6C),
+      color: const Color(0xFF638B6C),
+      ledColor: const Color(0xFF638B6C),
       enableLights: true,
       enableVibration: true,
       playSound: true,
-      icon: '@mipmap/ic_launcher',
+      channelShowBadge: true,
+      visibility: NotificationVisibility.public,
+      // BigText shows the expanded body when notification is long-pressed/expanded
+      styleInformation: BigTextStyleInformation(
+        expandedText,
+        htmlFormatBigText: false,
+        contentTitle: title,
+        htmlFormatContentTitle: false,
+        summaryText: 'ElBiblio',
+        htmlFormatSummaryText: false,
+      ),
+      // Action buttons for quick interaction without opening the app
+      actions: const <AndroidNotificationAction>[
+        AndroidNotificationAction(
+          'action_0',
+          'I did this ✓',
+          showsUserInterface: true,
+        ),
+        AndroidNotificationAction(
+          'action_1',
+          'Journal',
+          showsUserInterface: true,
+        ),
+      ],
     );
 
     const iosDetails = DarwinNotificationDetails(
       presentAlert: true,
       presentBadge: true,
       presentSound: true,
+      threadIdentifier: 'daily_reminders',
+      categoryIdentifier: _dailyCheckInCategory,
+      // iOS 15+: breaks through Focus/Do Not Disturb for spiritual reminders
+      interruptionLevel: InterruptionLevel.timeSensitive,
     );
 
     const notificationDetails = NotificationDetails(
@@ -695,63 +782,13 @@ class NotificationService {
       matchDateTimeComponents: DateTimeComponents.time,
       payload: payload,
     );
-
-    // Schedule backup notification 30 minutes later
-    await _scheduleBackupNotification(
-      originalId: id,
-      title: title,
-      body: body,
-      payload: payload,
-      delay: const Duration(minutes: 30),
-    );
   }
 
-  Future<void> _scheduleBackupNotification({
-    required int originalId,
-    required String title,
-    required String body,
-    required String payload,
-    required Duration delay,
-  }) async {
-    try {
-      const androidDetails = AndroidNotificationDetails(
-        'backup_reminders',
-        'Backup Reminders',
-        channelDescription: 'Backup notifications for missed reminders',
-        importance: Importance.defaultImportance,
-        priority: Priority.defaultPriority,
-        color: Color(0xFF638B6C),
-        icon: '@mipmap/ic_launcher',
-      );
-
-      const iosDetails = DarwinNotificationDetails(
-        presentAlert: true,
-        presentBadge: true,
-        presentSound: true,
-      );
-
-      const notificationDetails = NotificationDetails(
-        android: androidDetails,
-        iOS: iosDetails,
-      );
-
-      final backupId = originalId + 1000; // Backup ID offset
-      final scheduledDate = tz.TZDateTime.now(tz.local).add(delay);
-
-      await _localNotificationsPlugin.zonedSchedule(
-        id: backupId,
-        title: title,
-        body: '$body (Backup reminder)',
-        scheduledDate: scheduledDate,
-        notificationDetails: notificationDetails,
-        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-        payload: '${payload}_backup',
-      );
-
-    } catch (e) {
-      debugPrint('NotificationService: Error scheduling backup notification: $e');
-    }
-  }
+  // _scheduleBackupNotification was removed: it fired 30 minutes after the
+  // scheduling call (not after the actual reminder time), creating a confusing
+  // duplicate that appeared mid-morning when the user set a 7 AM reminder.
+  // The daily repeat via matchDateTimeComponents: DateTimeComponents.time is
+  // sufficient — no backup needed.
 
   DateTime _parseTime(String timeString) {
     final parts = timeString.split(':');
@@ -1011,21 +1048,41 @@ class NotificationService {
     try {
       await initialize();
 
-      const androidDetails = AndroidNotificationDetails(
+      final subText = 'Day $currentDay of $totalDays';
+      final expandedBody = prayerIntention != null && prayerIntention.isNotEmpty
+          ? 'Your intention: "$prayerIntention"\n\nTap to record today\'s faithfulness.'
+          : 'Take a moment to reflect and mark today\'s commitment complete.';
+
+      final androidDetails = AndroidNotificationDetails(
         'journey_check_ins',
         'Your Journey Check-ins',
         channelDescription: 'Evening reminders to check in on your commitment journey',
         importance: Importance.high,
         priority: Priority.high,
-        color: Color(0xFF638B6C),
-        ledColor: Color(0xFF638B6C),
+        color: const Color(0xFF638B6C),
+        ledColor: const Color(0xFF638B6C),
         enableLights: true,
         enableVibration: true,
         playSound: true,
-        icon: '@mipmap/ic_launcher',
-        actions: <AndroidNotificationAction>[
-          AndroidNotificationAction('check_in', 'I kept my commitment', showsUserInterface: true),
-          AndroidNotificationAction('view', 'View journey', showsUserInterface: true),
+        channelShowBadge: true,
+        visibility: NotificationVisibility.public,
+        subText: subText,
+        styleInformation: BigTextStyleInformation(
+          expandedBody,
+          htmlFormatBigText: false,
+          summaryText: subText,
+        ),
+        actions: const <AndroidNotificationAction>[
+          AndroidNotificationAction(
+            'check_in',
+            'I kept my commitment ✓',
+            showsUserInterface: true,
+          ),
+          AndroidNotificationAction(
+            'view',
+            'View journey',
+            showsUserInterface: true,
+          ),
         ],
       );
 
@@ -1034,6 +1091,8 @@ class NotificationService {
         presentAlert: true,
         presentBadge: true,
         presentSound: true,
+        threadIdentifier: 'journey_check_ins',
+        interruptionLevel: InterruptionLevel.timeSensitive,
       );
 
       const notificationDetails = NotificationDetails(
@@ -1090,24 +1149,30 @@ class NotificationService {
     try {
       await initialize();
 
-      const androidDetails = AndroidNotificationDetails(
+      final androidDetails = AndroidNotificationDetails(
         'journey_milestones',
         'Journey Deepenings',
         channelDescription: 'Notifications when your commitment journey tightens',
         importance: Importance.high,
         priority: Priority.high,
-        color: Color(0xFFFFC107),
-        ledColor: Color(0xFFFFC107),
+        color: const Color(0xFFFFC107),
+        ledColor: const Color(0xFFFFC107),
         enableLights: true,
         enableVibration: true,
         playSound: true,
-        icon: '@mipmap/ic_launcher',
+        channelShowBadge: true,
+        styleInformation: BigTextStyleInformation(
+          'Starting Day $milestoneDay your practice deepens: $newRequirement\n\n'
+          'This is how God shapes faithfulness — layer by layer.',
+        ),
       );
 
       const iosDetails = DarwinNotificationDetails(
         presentAlert: true,
         presentBadge: true,
         presentSound: true,
+        threadIdentifier: 'journey_milestones',
+        interruptionLevel: InterruptionLevel.timeSensitive,
       );
 
       const notificationDetails = NotificationDetails(
@@ -1117,8 +1182,7 @@ class NotificationService {
 
       // Spiritual copy for milestone
       const title = 'Your journey deepens';
-      final body = 'From Day $milestoneDay, your commitment grows stronger. '
-          'New practice: $newRequirement';
+      final body = 'Day $milestoneDay: $newRequirement';
 
       await _localNotificationsPlugin.show(
         id: journeyMilestoneBaseId + milestoneDay,
@@ -1143,24 +1207,31 @@ class NotificationService {
     try {
       await initialize();
 
-      const androidDetails = AndroidNotificationDetails(
+      final androidDetails = AndroidNotificationDetails(
         'journey_completions',
         'Journey Completions',
         channelDescription: 'Celebrations when you complete a commitment journey',
         importance: Importance.high,
         priority: Priority.high,
-        color: Color(0xFF4CAF50),
-        ledColor: Color(0xFF4CAF50),
+        color: const Color(0xFF4CAF50),
+        ledColor: const Color(0xFF4CAF50),
         enableLights: true,
         enableVibration: true,
         playSound: true,
-        icon: '@mipmap/ic_launcher',
+        channelShowBadge: true,
+        styleInformation: BigTextStyleInformation(
+          '$durationDays days of faithful practice. Your $virtueAlignment has been tested '
+          'and proven. What will God invite you into next?\n\n'
+          '"Well done, good and faithful servant." — Matthew 25:21',
+        ),
       );
 
       const iosDetails = DarwinNotificationDetails(
         presentAlert: true,
         presentBadge: true,
         presentSound: true,
+        threadIdentifier: 'journey_completions',
+        interruptionLevel: InterruptionLevel.timeSensitive,
       );
 
       const notificationDetails = NotificationDetails(
