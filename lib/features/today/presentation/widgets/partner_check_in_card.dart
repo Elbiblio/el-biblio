@@ -231,22 +231,18 @@ class UserEveningCheckInCard extends ConsumerWidget {
       return _buildCheckedInState(context, ref);
     }
 
-    String statusText;
-    bool canCheckIn;
-    IconData statusIcon;
+    // Users can always self-report their commitment at any time.
+    // The 6pm–8pm window is informational — it's when the partner is asked to
+    // confirm, but the user should not be blocked from recording their own progress.
+    final String statusText;
+    final IconData statusIcon;
 
-    if (hour < 18) {
-      statusText = 'Check-in opens at 6pm';
-      canCheckIn = false;
-      statusIcon = Icons.schedule;
-    } else if (hour >= 18 && hour < 20 && partnerName != null) {
-      statusText = 'Waiting for partner check-in';
-      canCheckIn = false;
+    if (hour >= 18 && hour < 20 && partnerName != null) {
+      statusText = 'Partner is confirming your check-in';
       statusIcon = Icons.people_outline;
     } else {
-      statusText = 'Reflect on how God moved today';
-      canCheckIn = true;
-      statusIcon = Icons.edit_note;
+      statusText = 'Record today\'s commitment';
+      statusIcon = Icons.check_circle_outline;
     }
 
     return Container(
@@ -268,9 +264,7 @@ class UserEveningCheckInCard extends ConsumerWidget {
               Icon(
                 statusIcon,
                 size: 20,
-                color: canCheckIn
-                    ? theme.colorScheme.primary
-                    : theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                color: theme.colorScheme.primary,
               ),
               const SizedBox(width: 8),
               Expanded(
@@ -279,9 +273,7 @@ class UserEveningCheckInCard extends ConsumerWidget {
                   style: theme.textTheme.labelSmall?.copyWith(
                     fontWeight: FontWeight.w700,
                     letterSpacing: 1.2,
-                    color: canCheckIn
-                        ? theme.colorScheme.primary
-                        : theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                    color: theme.colorScheme.primary,
                   ),
                 ),
               ),
@@ -333,57 +325,28 @@ class UserEveningCheckInCard extends ConsumerWidget {
             ),
           ),
           
-          if (canCheckIn) ...[
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: FilledButton.icon(
-                    onPressed: onCheckIn,
-                    icon: const Icon(Icons.check),
-                    label: const Text('I kept my commitment'),
-                    style: FilledButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                    ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: FilledButton.icon(
+                  onPressed: onCheckIn,
+                  icon: const Icon(Icons.check),
+                  label: const Text('I kept my commitment'),
+                  style: FilledButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 14),
                   ),
                 ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Center(
-              child: TextButton(
-                onPressed: () => _showStruggledDialog(context),
-                child: const Text('I will try again'),
               ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Center(
+            child: TextButton(
+              onPressed: () => _showStruggledDialog(context),
+              child: const Text('I will try again'),
             ),
-          ] else if (hour >= 18 && hour < 20 && partnerName != null) ...[
-            const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: theme.colorScheme.primaryContainer.withValues(alpha: 0.3),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.info_outline,
-                    size: 18,
-                    color: theme.colorScheme.primary,
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'Waiting for $partnerName to check in. You can check in at 8pm.',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.primary,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
+          ),
         ],
       ),
     );
@@ -439,10 +402,11 @@ class UserEveningCheckInCard extends ConsumerWidget {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('That\'s okay'),
+        title: const Text('Faithfulness, not perfection'),
         content: const Text(
-          'Growth includes struggle. Tomorrow is a new day to begin again. '
-          'Consider sharing this with your accountability partner for support.',
+          '"His mercies are new every morning." — Lamentations 3:23\n\n'
+          'Struggle is part of growth. Let your accountability partner know — '
+          'they\'re here to walk with you, not judge you.',
         ),
         actions: [
           TextButton(
@@ -454,7 +418,7 @@ class UserEveningCheckInCard extends ConsumerWidget {
               Navigator.of(context).pop();
               context.push(AppRoutes.growTogether);
             },
-            child: const Text('Reach out'),
+            child: const Text('Tell my partner'),
           ),
         ],
       ),

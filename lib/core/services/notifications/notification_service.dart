@@ -322,6 +322,8 @@ class NotificationService {
           payload == 'journey_completed' ||
           payload == 'partner_check_in_request') {
         _goToRoute(AppRoutes.today);
+      } else if (payload == 'grow_together') {
+        _goToRoute(AppRoutes.growTogether);
       }
     } catch (e) {
       debugPrint('NotificationService: Navigation error: $e');
@@ -708,6 +710,92 @@ class NotificationService {
     }
   }
 
+  // ─── Weekly accountability partner check-in reminder ─────────────────────
+  // Fires every Friday at 7pm as a gentle nudge to share weekly progress.
+
+  Future<void> scheduleWeeklyPartnerCheckInReminder({
+    required String partnerName,
+  }) async {
+    try {
+      await initialize();
+      await _localNotificationsPlugin.cancel(id: weeklyPartnerCheckInId);
+
+      final now = tz.TZDateTime.now(tz.local);
+
+      // Find the next Friday at 19:00
+      int daysUntilFriday = (DateTime.friday - now.weekday + 7) % 7;
+      // If today is Friday but it's already past 19:00, schedule for next Friday
+      if (daysUntilFriday == 0 && now.hour >= 19) daysUntilFriday = 7;
+
+      final scheduledDate = tz.TZDateTime(
+        tz.local,
+        now.year,
+        now.month,
+        now.day + daysUntilFriday,
+        19,
+        0,
+        0,
+      );
+
+      final androidDetails = AndroidNotificationDetails(
+        'accountability_weekly',
+        'Weekly Partner Check-in',
+        channelDescription:
+            'Weekly reminder to share progress with your accountability partner',
+        importance: Importance.defaultImportance,
+        priority: Priority.defaultPriority,
+        color: const Color(0xFF638B6C),
+        channelShowBadge: true,
+        enableVibration: true,
+        playSound: true,
+        styleInformation: BigTextStyleInformation(
+          'Sharing your progress — wins and struggles alike — deepens accountability and grows your faith.',
+          htmlFormatBigText: false,
+          summaryText: 'El-Biblio',
+        ),
+      );
+
+      const iosDetails = DarwinNotificationDetails(
+        presentAlert: true,
+        presentBadge: true,
+        presentSound: true,
+        threadIdentifier: 'accountability_weekly',
+      );
+
+      await _localNotificationsPlugin.zonedSchedule(
+        id: weeklyPartnerCheckInId,
+        title: 'Weekly check-in with $partnerName',
+        body: 'How did your week go? Take a moment to share your progress.',
+        scheduledDate: scheduledDate,
+        notificationDetails: NotificationDetails(
+          android: androidDetails,
+          iOS: iosDetails,
+        ),
+        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+        matchDateTimeComponents: DateTimeComponents.dayOfWeekAndTime,
+        payload: 'grow_together',
+      );
+
+      debugPrint(
+        'NotificationService: Scheduled weekly partner check-in every Friday at 7pm',
+      );
+    } catch (e) {
+      debugPrint(
+        'NotificationService: Error scheduling weekly partner check-in: $e',
+      );
+    }
+  }
+
+  Future<void> cancelWeeklyPartnerCheckInReminder() async {
+    try {
+      await _localNotificationsPlugin.cancel(id: weeklyPartnerCheckInId);
+    } catch (e) {
+      debugPrint(
+        'NotificationService: Error cancelling weekly partner check-in: $e',
+      );
+    }
+  }
+
   Future<void> _scheduleDailyReminder({
     required int id,
     required String title,
@@ -767,7 +855,7 @@ class NotificationService {
       interruptionLevel: InterruptionLevel.timeSensitive,
     );
 
-    const notificationDetails = NotificationDetails(
+    final notificationDetails = NotificationDetails(
       android: androidDetails,
       iOS: iosDetails,
     );
@@ -967,6 +1055,7 @@ class NotificationService {
   static const int journeyCheckInBaseId = 3000;
   static const int journeyMilestoneBaseId = 4000;
   static const int journeyCompletionId = 5000;
+  static const int weeklyPartnerCheckInId = 6000;
   static const String _journeyCategory = 'commitment_journey';
 
   /// Schedule 6pm partner check-in request notification.
@@ -1006,7 +1095,7 @@ class NotificationService {
         presentSound: true,
       );
 
-      const notificationDetails = NotificationDetails(
+      final notificationDetails = NotificationDetails(
         android: androidDetails,
         iOS: iosDetails,
       );
@@ -1095,7 +1184,7 @@ class NotificationService {
         interruptionLevel: InterruptionLevel.timeSensitive,
       );
 
-      const notificationDetails = NotificationDetails(
+      final notificationDetails = NotificationDetails(
         android: androidDetails,
         iOS: iosDetails,
       );
@@ -1175,7 +1264,7 @@ class NotificationService {
         interruptionLevel: InterruptionLevel.timeSensitive,
       );
 
-      const notificationDetails = NotificationDetails(
+      final notificationDetails = NotificationDetails(
         android: androidDetails,
         iOS: iosDetails,
       );
@@ -1234,7 +1323,7 @@ class NotificationService {
         interruptionLevel: InterruptionLevel.timeSensitive,
       );
 
-      const notificationDetails = NotificationDetails(
+      final notificationDetails = NotificationDetails(
         android: androidDetails,
         iOS: iosDetails,
       );

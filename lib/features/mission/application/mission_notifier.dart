@@ -1,3 +1,5 @@
+import 'dart:async' show unawaited;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:logger/logger.dart';
@@ -261,6 +263,14 @@ class MissionNotifier extends StateNotifier<MissionState> {
 
     state = state.copyWith(accountabilityPartner: partner);
     await _settingsNotifier.setAccountabilityPartner(partner);
+
+    // Schedule weekly Friday check-in reminder now that there's a partner
+    unawaited(
+      _notificationService.scheduleWeeklyPartnerCheckInReminder(
+        partnerName: name,
+      ),
+    );
+
     _analytics.track(
       AppAnalyticsEvent.accountabilityPartnerSaved,
       properties: {
@@ -487,6 +497,14 @@ class MissionNotifier extends StateNotifier<MissionState> {
 
     state = state.copyWith(accountabilityPartner: partner);
     await _settingsNotifier.setAccountabilityPartner(partner);
+
+    // Schedule weekly Friday check-in reminder now that there's a partner
+    unawaited(
+      _notificationService.scheduleWeeklyPartnerCheckInReminder(
+        partnerName: name,
+      ),
+    );
+
     _analytics.track(
       AppAnalyticsEvent.accountabilityPartnerSaved,
       properties: {

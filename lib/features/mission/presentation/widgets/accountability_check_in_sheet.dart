@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:intl/intl.dart';
+import 'package:go_router/go_router.dart';
 
+import '../../../../core/constants/app_routes.dart';
 import '../../../../core/di/app_providers.dart';
 import '../../../../core/theme/app_theme_tokens.dart';
 import '../../../assessment/domain/models/weekly_plan.dart';
@@ -105,9 +106,9 @@ class _AccountabilityCheckInSheetState
             FilledButton(
               onPressed: () {
                 Navigator.pop(context);
-                // Navigate to grow together screen
+                context.push(AppRoutes.growTogether);
               },
-              child: const Text('Set Up Partner'),
+              child: const Text('Find an Accountability Partner'),
             ),
           ],
         ),

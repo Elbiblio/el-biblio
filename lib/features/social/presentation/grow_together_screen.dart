@@ -4,8 +4,8 @@ import 'package:intl/intl.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../../../core/di/app_providers.dart';
-import '../../../core/network/dio_client.dart';
 import '../../mission/presentation/widgets/accountability_check_in_sheet.dart';
+import '../domain/models/social_models.dart';
 
 class GrowTogetherScreen extends ConsumerStatefulWidget {
   const GrowTogetherScreen({super.key});
@@ -219,6 +219,12 @@ class _GrowTogetherScreenState extends ConsumerState<GrowTogetherScreen> {
 
             const SizedBox(height: 24),
 
+            // --- Find from contacts section ---
+            const Divider(),
+            const SizedBox(height: 16),
+            _ContactsPartnerSection(),
+            const SizedBox(height: 24),
+
             // Current step + check-in
             if (nextAction != null && partner != null)
               Container(
@@ -425,6 +431,267 @@ class _GrowTogetherScreenState extends ConsumerState<GrowTogetherScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Failed to send invite. Try again.')),
+      );
+    }
+  }
+}
+
+/// Section that finds existing El-Biblio users from device contacts and offers
+/// to add them as accountability partners directly — no email search needed.
+class _ContactsPartnerSection extends ConsumerStatefulWidget {
+  @override
+  ConsumerState<_ContactsPartnerSection> createState() =>
+      _ContactsPartnerSectionState();
+}
+
+class _ContactsPartnerSectionState
+    extends ConsumerState<_ContactsPartnerSection> {
+  bool _hasSearched = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final contactState = ref.watch(contactProvider);
+    final potentialContacts = contactState.potentialContacts;
+
+    if (!_hasSearched && potentialContacts.isEmpty) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Find from your contacts',
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'We\'ll privately check if any of your contacts are already on El-Biblio.',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.55),
+              height: 1.4,
+            ),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: contactState.isImporting
+                  ? null
+                  : () async {
+                      setState(() => _hasSearched = true);
+                      await ref.read(contactProvider.notifier).importContacts();
+                    },
+              icon: contactState.isImporting
+                  ? const SizedBox(
+                      width: 16, height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.contacts_rounded, size: 18),
+              label: Text(
+                contactState.isImporting
+                    ? 'Searching contacts…'
+                    : 'Search My Contacts',
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
+    if (contactState.isImporting) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(16),
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+
+    if (potentialContacts.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surface,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: theme.colorScheme.outline.withValues(alpha: 0.1),
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              Icons.search_off_rounded,
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.4),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                'None of your contacts are on El-Biblio yet. '
+                'Invite them using the search above.',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                  height: 1.4,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(
+              Icons.people_rounded,
+              size: 16,
+              color: theme.colorScheme.primary,
+            ),
+            const SizedBox(width: 6),
+            Text(
+              '${potentialContacts.length} contact${potentialContacts.length == 1 ? '' : 's'} on El-Biblio',
+              style: theme.textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w700,
+                color: theme.colorScheme.primary,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        ...potentialContacts.map(
+          (contact) => _ContactPartnerCard(contact: contact),
+        ),
+      ],
+    );
+  }
+}
+
+class _ContactPartnerCard extends ConsumerWidget {
+  const _ContactPartnerCard({required this.contact});
+  final Contact contact;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final mission = ref.watch(missionProvider);
+    final isAlreadyPartner =
+        mission.accountabilityPartner?.name == contact.displayName;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: theme.colorScheme.primary.withValues(alpha: 0.2),
+        ),
+      ),
+      child: Row(
+        children: [
+          CircleAvatar(
+            radius: 20,
+            backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.12),
+            child: Text(
+              contact.displayName.isNotEmpty
+                  ? contact.displayName[0].toUpperCase()
+                  : '?',
+              style: TextStyle(
+                color: theme.colorScheme.primary,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  contact.displayName,
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                Row(
+                  children: [
+                    Icon(
+                      Icons.check_circle,
+                      size: 11,
+                      color: theme.colorScheme.primary,
+                    ),
+                    const SizedBox(width: 3),
+                    Text(
+                      'El-Biblio member',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.primary,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          if (isAlreadyPartner)
+            Chip(
+              label: const Text('Partner'),
+              labelStyle: const TextStyle(fontSize: 11),
+              padding: EdgeInsets.zero,
+              visualDensity: VisualDensity.compact,
+            )
+          else
+            FilledButton(
+              onPressed: () => _addAsPartner(context, ref),
+              style: FilledButton.styleFrom(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              child: const Text('Add Partner'),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _addAsPartner(BuildContext context, WidgetRef ref) async {
+    try {
+      final dio = ref.read(dioClientProvider);
+      await dio.post('/partnerships', data: {
+        'partner_user_id': contact.id,
+        'partner_type': 'peer',
+      });
+
+      await ref.read(missionProvider.notifier).savePartnerEnhanced(
+            name: contact.displayName,
+            relationship: 'Accountability Partner',
+            contact: contact.email ?? contact.phoneNumber ?? '',
+          );
+
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('${contact.displayName} added as your partner!'),
+        ),
+      );
+    } catch (e) {
+      if (!context.mounted) return;
+      // Still save locally even if API fails
+      await ref.read(missionProvider.notifier).savePartnerEnhanced(
+            name: contact.displayName,
+            relationship: 'Accountability Partner',
+            contact: contact.email ?? contact.phoneNumber ?? '',
+          );
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('${contact.displayName} added as your partner.'),
+        ),
       );
     }
   }
