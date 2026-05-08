@@ -86,8 +86,9 @@ class NotificationService {
     try {
       tz.initializeTimeZones();
 
-      const androidInitSettings =
-          AndroidInitializationSettings('@mipmap/ic_launcher');
+      const androidInitSettings = AndroidInitializationSettings(
+        '@mipmap/ic_launcher',
+      );
 
       final iosInitSettings = DarwinInitializationSettings(
         requestAlertPermission: true,
@@ -152,7 +153,8 @@ class NotificationService {
       await _localNotificationsPlugin.initialize(
         settings: initSettings,
         onDidReceiveNotificationResponse: _onNotificationTapped,
-        onDidReceiveBackgroundNotificationResponse: _onBackgroundNotificationTapped,
+        onDidReceiveBackgroundNotificationResponse:
+            _onBackgroundNotificationTapped,
       );
 
       _initialized = true;
@@ -176,7 +178,7 @@ class NotificationService {
   void _handleNotificationAction(String actionId, String? payload) {
     final context = _getAppContext();
     if (context == null) return;
-    
+
     try {
       switch (actionId) {
         case _actionDidThis:
@@ -227,13 +229,17 @@ class NotificationService {
     _goToRoute(AppRoutes.today);
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-        content: Text('Could not record check-in automatically. Please confirm it on Today.'),
+        content: Text(
+          'Could not record check-in automatically. Please confirm it on Today.',
+        ),
         duration: Duration(seconds: 3),
       ),
     );
   }
 
-  Future<NotificationActionOutcome> executeDailyCheckInAction({String? payload}) async {
+  Future<NotificationActionOutcome> executeDailyCheckInAction({
+    String? payload,
+  }) async {
     try {
       if (_dailyCheckInActionHandler == null) {
         _emitActionEvent(
@@ -283,7 +289,7 @@ class NotificationService {
   void _handleJournalAction(BuildContext context, String? payload) {
     // Navigate to journal screen
     _goToRoute('${AppRoutes.journal}/new');
-    
+
     // Show a hint about the daily commitment
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
@@ -295,12 +301,12 @@ class NotificationService {
 
   void _handleNotificationNavigation(String? payload) {
     if (payload == null) return;
-    
+
     // Get the current context (this needs to be called from a widget context)
     // For now, we'll use a global navigator key approach
     final context = _getAppContext();
     if (context == null) return;
-    
+
     try {
       if (payload == 'bible_reading' ||
           payload == 'morning_reminder' ||
@@ -322,6 +328,9 @@ class NotificationService {
           payload == 'journey_completed' ||
           payload == 'partner_check_in_request') {
         _goToRoute(AppRoutes.today);
+      } else if (payload == 'mvp_commitment_check_in' ||
+          payload.startsWith('mvp_commitment_check_in:')) {
+        _goToRoute(AppRoutes.mvpChallenge);
       } else if (payload == 'grow_together') {
         _goToRoute(AppRoutes.growTogether);
       } else if (payload == 'companion_partner_checkin') {
@@ -334,7 +343,7 @@ class NotificationService {
       debugPrint('NotificationService: Navigation error: $e');
     }
   }
-  
+
   BuildContext? _getAppContext() {
     // This is a simplified approach - in a real app, you'd want to use
     // a proper navigator key or context management system
@@ -346,8 +355,9 @@ class NotificationService {
     if (context == null) return;
     GoRouter.of(context).go(route);
   }
-  
-  static final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+
+  static final GlobalKey<NavigatorState> navigatorKey =
+      GlobalKey<NavigatorState>();
 
   /// ISO week key (`YYYY-Www`). Used to scope the companion accountability
   /// thread per week — each Friday opens a fresh thread, avoiding runaway
@@ -365,16 +375,18 @@ class NotificationService {
       // Get current device timezone dynamically
       final now = tz.TZDateTime.now(tz.local);
       var resolved = tz.TZDateTime.from(scheduledTime, tz.local);
-      
+
       // Handle DST transitions and ensure future scheduling
       // Add extra safety margin for timezone changes
       while (!resolved.isAfter(now.add(const Duration(minutes: 5)))) {
         resolved = resolved.add(const Duration(days: 1));
       }
-      
+
       return resolved;
     } catch (e) {
-      debugPrint('NotificationService: Error resolving timezone, falling back to local: $e');
+      debugPrint(
+        'NotificationService: Error resolving timezone, falling back to local: $e',
+      );
       // Enhanced fallback with better error handling
       try {
         final now = DateTime.now();
@@ -385,15 +397,17 @@ class NotificationService {
           scheduledTime.hour,
           scheduledTime.minute,
         );
-        
+
         // Ensure future scheduling with buffer
         while (!resolved.isAfter(now.add(const Duration(minutes: 5)))) {
           resolved = resolved.add(const Duration(days: 1));
         }
-        
+
         return tz.TZDateTime.from(resolved, tz.local);
       } catch (fallbackError) {
-        debugPrint('NotificationService: Critical error in timezone fallback: $fallbackError');
+        debugPrint(
+          'NotificationService: Critical error in timezone fallback: $fallbackError',
+        );
         // Last resort - schedule for 24 hours from now
         return tz.TZDateTime.now(tz.local).add(const Duration(hours: 24));
       }
@@ -452,10 +466,9 @@ class NotificationService {
         presentAlert: true,
         presentBadge: true,
         presentSound: true,
-        categoryIdentifier:
-            actionLabels != null && actionLabels.isNotEmpty
-                ? _dailyCheckInCategory
-                : null,
+        categoryIdentifier: actionLabels != null && actionLabels.isNotEmpty
+            ? _dailyCheckInCategory
+            : null,
       );
 
       final notificationDetails = NotificationDetails(
@@ -484,7 +497,9 @@ class NotificationService {
         );
       }
     } catch (e) {
-      debugPrint('NotificationService: Error scheduling notification with actions: $e');
+      debugPrint(
+        'NotificationService: Error scheduling notification with actions: $e',
+      );
     }
   }
 
@@ -508,9 +523,12 @@ class NotificationService {
       if (largeIcon != null && largeIcon.startsWith('http')) {
         largeIconPath = await _downloadAndSaveFile(largeIcon, 'largeIcon_$id');
       }
-      
+
       if (bigPicture != null && bigPicture.startsWith('http')) {
-        bigPicturePath = await _downloadAndSaveFile(bigPicture, 'bigPicture_$id');
+        bigPicturePath = await _downloadAndSaveFile(
+          bigPicture,
+          'bigPicture_$id',
+        );
       }
 
       AndroidNotificationDetails androidDetails;
@@ -519,7 +537,9 @@ class NotificationService {
       if (bigPicturePath != null) {
         final bigPictureStyleInformation = BigPictureStyleInformation(
           FilePathAndroidBitmap(bigPicturePath),
-          largeIcon: largeIconPath != null ? FilePathAndroidBitmap(largeIconPath) : null,
+          largeIcon: largeIconPath != null
+              ? FilePathAndroidBitmap(largeIconPath)
+              : null,
           contentTitle: title,
           summaryText: body,
           htmlFormatContentTitle: true,
@@ -534,7 +554,7 @@ class NotificationService {
           priority: Priority.high,
           styleInformation: bigPictureStyleInformation,
         );
-        
+
         iosDetails = DarwinNotificationDetails(
           attachments: [DarwinNotificationAttachment(bigPicturePath)],
         );
@@ -545,11 +565,15 @@ class NotificationService {
           channelDescription: 'Standard Notifications',
           importance: Importance.max,
           priority: Priority.high,
-          largeIcon: largeIconPath != null ? FilePathAndroidBitmap(largeIconPath) : null,
+          largeIcon: largeIconPath != null
+              ? FilePathAndroidBitmap(largeIconPath)
+              : null,
         );
-        
+
         iosDetails = DarwinNotificationDetails(
-          attachments: largeIconPath != null ? [DarwinNotificationAttachment(largeIconPath)] : null,
+          attachments: largeIconPath != null
+              ? [DarwinNotificationAttachment(largeIconPath)]
+              : null,
         );
       }
 
@@ -566,8 +590,7 @@ class NotificationService {
           scheduledDate: _resolveScheduleTime(scheduledTime),
           notificationDetails: notificationDetails,
           androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-          matchDateTimeComponents:
-              repeatDaily ? DateTimeComponents.time : null,
+          matchDateTimeComponents: repeatDaily ? DateTimeComponents.time : null,
           payload: payload,
         );
       } else {
@@ -620,7 +643,7 @@ class NotificationService {
             'View',
             showsUserInterface: true,
             cancelNotification: false,
-            icon: virtueIconBitmap != null 
+            icon: virtueIconBitmap != null
                 ? virtueIconBitmap as AndroidBitmap<Object>?
                 : null,
           ),
@@ -628,7 +651,7 @@ class NotificationService {
             _actionCommitmentDone,
             'I did this',
             showsUserInterface: true,
-            icon: virtueIconBitmap != null 
+            icon: virtueIconBitmap != null
                 ? virtueIconBitmap as AndroidBitmap<Object>?
                 : null,
           ),
@@ -648,10 +671,10 @@ class NotificationService {
         iOS: iosDetails,
       );
 
-      final title = virtueType != null 
+      final title = virtueType != null
           ? 'Afternoon commitment locked in'
           : 'Afternoon commitment locked in';
-      
+
       final body = virtueType != null
           ? '$commitmentTitle • ${virtueType.title} Focus'
           : commitmentTitle;
@@ -778,7 +801,7 @@ class NotificationService {
             'Weekly reminder to share progress with your accountability partner',
         importance: Importance.defaultImportance,
         priority: Priority.defaultPriority,
-        color: const Color(0xFF638B6C),
+        color: Color(0xFF638B6C),
         channelShowBadge: true,
         enableVibration: true,
         playSound: true,
@@ -801,15 +824,13 @@ class NotificationService {
         title: 'Weekly check-in with $partnerName',
         body: 'How did your week go? Take a moment to share your progress.',
         scheduledDate: scheduledDate,
-        notificationDetails: NotificationDetails(
+        notificationDetails: const NotificationDetails(
           android: androidDetails,
           iOS: iosDetails,
         ),
         androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
         matchDateTimeComponents: DateTimeComponents.dayOfWeekAndTime,
-        payload: isAiCompanion
-            ? 'companion_partner_checkin'
-            : 'grow_together',
+        payload: isAiCompanion ? 'companion_partner_checkin' : 'grow_together',
       );
 
       debugPrint(
@@ -966,7 +987,7 @@ class NotificationService {
             'Daily nudge to share today\'s walk with your accountability partner',
         importance: Importance.defaultImportance,
         priority: Priority.defaultPriority,
-        color: const Color(0xFF638B6C),
+        color: Color(0xFF638B6C),
         channelShowBadge: true,
         enableVibration: true,
         playSound: true,
@@ -989,7 +1010,7 @@ class NotificationService {
         title: 'Check in with $partnerName',
         body: 'How did today go? A quick share keeps you both moving.',
         scheduledDate: scheduledDate,
-        notificationDetails: NotificationDetails(
+        notificationDetails: const NotificationDetails(
           android: androidDetails,
           iOS: iosDetails,
         ),
@@ -998,9 +1019,7 @@ class NotificationService {
         // defeats the whole cadence.
         androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
         matchDateTimeComponents: DateTimeComponents.time,
-        payload: isAiCompanion
-            ? 'companion_partner_checkin'
-            : 'grow_together',
+        payload: isAiCompanion ? 'companion_partner_checkin' : 'grow_together',
       );
 
       debugPrint(
@@ -1101,15 +1120,27 @@ class NotificationService {
     final parts = timeString.split(':');
     final hour = int.parse(parts[0]);
     final minute = parts.length > 1 ? int.parse(parts[1]) : 0;
-    return DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day, hour, minute);
+    return DateTime(
+      DateTime.now().year,
+      DateTime.now().month,
+      DateTime.now().day,
+      hour,
+      minute,
+    );
   }
 
-  Future<void> _saveScheduledReminderInfo(bool morningEnabled, bool eveningEnabled) async {
+  Future<void> _saveScheduledReminderInfo(
+    bool morningEnabled,
+    bool eveningEnabled,
+  ) async {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setBool('morning_reminder_scheduled', morningEnabled);
       await prefs.setBool('evening_reminder_scheduled', eveningEnabled);
-      await prefs.setString('last_reminder_update', DateTime.now().toIso8601String());
+      await prefs.setString(
+        'last_reminder_update',
+        DateTime.now().toIso8601String(),
+      );
     } catch (e) {
       debugPrint('NotificationService: Error saving reminder info: $e');
     }
@@ -1123,8 +1154,10 @@ class NotificationService {
   }) async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final morningScheduled = prefs.getBool('morning_reminder_scheduled') ?? false;
-      final eveningScheduled = prefs.getBool('evening_reminder_scheduled') ?? false;
+      final morningScheduled =
+          prefs.getBool('morning_reminder_scheduled') ?? false;
+      final eveningScheduled =
+          prefs.getBool('evening_reminder_scheduled') ?? false;
       final lastUpdate = prefs.getString('last_reminder_update');
 
       if (lastUpdate != null) {
@@ -1158,16 +1191,15 @@ class NotificationService {
     if (Platform.isIOS) {
       await _localNotificationsPlugin
           .resolvePlatformSpecificImplementation<
-              IOSFlutterLocalNotificationsPlugin>()
-          ?.requestPermissions(
-            alert: true,
-            badge: true,
-            sound: true,
-          );
+            IOSFlutterLocalNotificationsPlugin
+          >()
+          ?.requestPermissions(alert: true, badge: true, sound: true);
     } else if (Platform.isAndroid) {
       final AndroidFlutterLocalNotificationsPlugin? androidImplementation =
-          _localNotificationsPlugin.resolvePlatformSpecificImplementation<
-              AndroidFlutterLocalNotificationsPlugin>();
+          _localNotificationsPlugin
+              .resolvePlatformSpecificImplementation<
+                AndroidFlutterLocalNotificationsPlugin
+              >();
 
       await androidImplementation?.requestNotificationsPermission();
     }
@@ -1191,18 +1223,14 @@ class NotificationService {
       final recorder = ui.PictureRecorder();
       final canvas = Canvas(recorder);
       const size = 96.0; // Notification icon size
-      
+
       // Draw colored circle background
       final paint = Paint()
         ..color = _getVirtueColor(virtueType)
         ..isAntiAlias = true;
-      
-      canvas.drawCircle(
-        const Offset(size / 2, size / 2),
-        size / 2,
-        paint,
-      );
-      
+
+      canvas.drawCircle(const Offset(size / 2, size / 2), size / 2, paint);
+
       // Draw virtue icon (simplified - using text for now)
       final textPainter = TextPainter(
         text: TextSpan(
@@ -1215,20 +1243,17 @@ class NotificationService {
         ),
         textDirection: TextDirection.ltr,
       );
-      
+
       textPainter.layout();
       textPainter.paint(
         canvas,
-        Offset(
-          (size - textPainter.width) / 2,
-          (size - textPainter.height) / 2,
-        ),
+        Offset((size - textPainter.width) / 2, (size - textPainter.height) / 2),
       );
-      
+
       final picture = recorder.endRecording();
       final image = await picture.toImage(size.toInt(), size.toInt());
       final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
-      
+
       if (byteData != null) {
         final bytes = byteData.buffer.asUint8List();
         return ByteArrayAndroidBitmap(bytes);
@@ -1241,7 +1266,7 @@ class NotificationService {
 
   Color _getVirtueColor(VirtueType? virtueType) {
     if (virtueType == null) return const Color(0xFF638B6C); // Default green
-    
+
     switch (virtueType) {
       case VirtueType.humility:
         return const Color(0xFF8B5E3C); // Brown
@@ -1292,7 +1317,8 @@ class NotificationService {
       const androidDetails = AndroidNotificationDetails(
         'partner_check_ins',
         'Walking Together Check-ins',
-        channelDescription: 'Evening check-in requests for accountability partners',
+        channelDescription:
+            'Evening check-in requests for accountability partners',
         importance: Importance.high,
         priority: Priority.high,
         color: Color(0xFF7B68EE),
@@ -1302,8 +1328,16 @@ class NotificationService {
         playSound: true,
         icon: '@mipmap/ic_launcher',
         actions: <AndroidNotificationAction>[
-          AndroidNotificationAction('confirm', 'Yes, they did', showsUserInterface: true),
-          AndroidNotificationAction('decline', 'Not today', showsUserInterface: true),
+          AndroidNotificationAction(
+            'confirm',
+            'Yes, they did',
+            showsUserInterface: true,
+          ),
+          AndroidNotificationAction(
+            'decline',
+            'Not today',
+            showsUserInterface: true,
+          ),
         ],
       );
 
@@ -1321,7 +1355,8 @@ class NotificationService {
 
       // Spiritual copy for partner notification
       final title = 'Walking together with $userName';
-      final body = 'Day $currentDay of $totalDays: Did they keep their commitment to "$journeyTitle"?';
+      final body =
+          'Day $currentDay of $totalDays: Did they keep their commitment to "$journeyTitle"?';
 
       // Schedule for 6:00 PM today
       final now = DateTime.now();
@@ -1339,7 +1374,6 @@ class NotificationService {
         androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
         payload: 'partner_check_in_request',
       );
-
     } catch (e) {
       debugPrint('NotificationService: Error scheduling partner check-in: $e');
     }
@@ -1364,7 +1398,8 @@ class NotificationService {
       final androidDetails = AndroidNotificationDetails(
         'journey_check_ins',
         'Your Journey Check-ins',
-        channelDescription: 'Evening reminders to check in on your commitment journey',
+        channelDescription:
+            'Evening reminders to check in on your commitment journey',
         importance: Importance.high,
         priority: Priority.high,
         color: const Color(0xFF638B6C),
@@ -1441,9 +1476,78 @@ class NotificationService {
         androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
         payload: 'journey_check_in_reminder',
       );
-
     } catch (e) {
       debugPrint('NotificationService: Error scheduling user check-in: $e');
+    }
+  }
+
+  Future<void> scheduleMvpCommitmentNudges({
+    required int commitmentId,
+    required String commitmentTitle,
+    required String dailyAction,
+    required int nudgeCount,
+  }) async {
+    try {
+      await initialize();
+
+      final boundedCount = nudgeCount.clamp(3, 10);
+      final now = DateTime.now();
+      final start = DateTime(now.year, now.month, now.day, 8);
+      final end = DateTime(now.year, now.month, now.day, 20);
+      final spanMinutes = end.difference(start).inMinutes;
+      final stepMinutes = boundedCount <= 1
+          ? spanMinutes
+          : (spanMinutes / (boundedCount - 1)).round();
+
+      const androidDetails = AndroidNotificationDetails(
+        'mvp_commitment_nudges',
+        'Commitment nudges',
+        channelDescription:
+            'Gentle prompts to return to your active commitment',
+        importance: Importance.high,
+        priority: Priority.high,
+        color: Color(0xFF638B6C),
+        ledColor: Color(0xFF638B6C),
+        enableLights: true,
+        enableVibration: true,
+        playSound: true,
+        channelShowBadge: true,
+        visibility: NotificationVisibility.public,
+      );
+
+      const iosDetails = DarwinNotificationDetails(
+        presentAlert: true,
+        presentBadge: true,
+        presentSound: true,
+        threadIdentifier: 'mvp_commitment_nudges',
+        interruptionLevel: InterruptionLevel.timeSensitive,
+      );
+
+      const details = NotificationDetails(
+        android: androidDetails,
+        iOS: iosDetails,
+      );
+
+      for (var i = 0; i < boundedCount; i++) {
+        var scheduledTime = start.add(Duration(minutes: stepMinutes * i));
+        if (scheduledTime.isBefore(now.add(const Duration(minutes: 2)))) {
+          scheduledTime = scheduledTime.add(const Duration(days: 1));
+        }
+
+        await _localNotificationsPlugin.zonedSchedule(
+          id: 7000 + commitmentId * 10 + i,
+          title: commitmentTitle,
+          body: dailyAction,
+          scheduledDate: _resolveScheduleTime(scheduledTime),
+          notificationDetails: details,
+          androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+          payload: 'mvp_commitment_check_in:$commitmentId',
+        );
+      }
+    } catch (e) {
+      debugPrint(
+        'NotificationService: Error scheduling MVP commitment nudges: $e',
+      );
     }
   }
 
@@ -1460,7 +1564,8 @@ class NotificationService {
       final androidDetails = AndroidNotificationDetails(
         'journey_milestones',
         'Journey Deepenings',
-        channelDescription: 'Notifications when your commitment journey tightens',
+        channelDescription:
+            'Notifications when your commitment journey tightens',
         importance: Importance.high,
         priority: Priority.high,
         color: const Color(0xFFFFC107),
@@ -1499,9 +1604,10 @@ class NotificationService {
         notificationDetails: notificationDetails,
         payload: 'journey_milestone',
       );
-
     } catch (e) {
-      debugPrint('NotificationService: Error showing milestone notification: $e');
+      debugPrint(
+        'NotificationService: Error showing milestone notification: $e',
+      );
     }
   }
 
@@ -1518,7 +1624,8 @@ class NotificationService {
       final androidDetails = AndroidNotificationDetails(
         'journey_completions',
         'Journey Completions',
-        channelDescription: 'Celebrations when you complete a commitment journey',
+        channelDescription:
+            'Celebrations when you complete a commitment journey',
         importance: Importance.high,
         priority: Priority.high,
         color: const Color(0xFF4CAF50),
@@ -1569,7 +1676,6 @@ class NotificationService {
         notificationDetails: notificationDetails,
         payload: 'journey_completed',
       );
-
     } catch (e) {
       debugPrint('NotificationService: Error showing journey completion: $e');
     }
@@ -1592,9 +1698,10 @@ class NotificationService {
 
       // Cancel completion notification
       await _localNotificationsPlugin.cancel(id: journeyCompletionId);
-
     } catch (e) {
-      debugPrint('NotificationService: Error cancelling journey notifications: $e');
+      debugPrint(
+        'NotificationService: Error cancelling journey notifications: $e',
+      );
     }
   }
 }

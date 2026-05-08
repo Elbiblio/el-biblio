@@ -33,6 +33,9 @@ import '../../features/commitments/data/commitment_journey_repository.dart';
 import '../../features/mission/application/service_opportunity_notifier.dart';
 import '../../features/mission/data/service_opportunity_repository.dart';
 import '../../features/mission/domain/models/service_opportunity.dart';
+import '../../features/mvp/application/mvp_notifier.dart';
+import '../../features/mvp/application/mvp_state.dart';
+import '../../features/mvp/data/mvp_repository.dart';
 import '../../features/commitments/data/graduated_commitment_repository.dart';
 import '../../features/today/application/commitment_notifier.dart';
 import '../../features/today/application/daily_anchors_notifier.dart';
@@ -78,17 +81,20 @@ import '../../features/alignment/application/forty_day_notifier.dart';
 import '../../features/today/application/pillar_score_notifier.dart';
 import '../../features/today/domain/models/pillar_score.dart';
 
-final meditationSessionRepositoryProvider = Provider<MeditationSessionRepository>((ref) {
-  return MeditationSessionRepository(Hive.box<MeditationSession>(HiveBoxes.meditationSessions));
-});
+final meditationSessionRepositoryProvider =
+    Provider<MeditationSessionRepository>((ref) {
+      return MeditationSessionRepository(
+        Hive.box<MeditationSession>(HiveBoxes.meditationSessions),
+      );
+    });
 
 final meditationSessionApiRepositoryProvider =
     Provider<MeditationSessionApiRepository>((ref) {
-  return MeditationSessionApiRepository(
-    ref.watch(dioClientProvider),
-    ref.watch(loggerProvider),
-  );
-});
+      return MeditationSessionApiRepository(
+        ref.watch(dioClientProvider),
+        ref.watch(loggerProvider),
+      );
+    });
 
 final loggerProvider = Provider<Logger>((ref) {
   return Logger();
@@ -116,17 +122,33 @@ final dioClientProvider = Provider<DioClient>((ref) {
 final authenticatedDioClientProvider = Provider<DioClient>((ref) {
   final authState = ref.watch(authProvider);
   final dioClient = ref.watch(dioClientProvider);
-  
+
   // Update the dio client with the current token
   dioClient.updateAuthToken(authState.token);
-  
+
   return dioClient;
 });
 
-final assessmentApiRepositoryProvider = Provider<AssessmentApiRepository>((ref) {
+final assessmentApiRepositoryProvider = Provider<AssessmentApiRepository>((
+  ref,
+) {
   return AssessmentApiRepository(
     ref.watch(authenticatedDioClientProvider),
     ref.watch(loggerProvider),
+  );
+});
+
+final mvpRepositoryProvider = Provider<MvpRepository>((ref) {
+  return MvpRepository(
+    ref.watch(authenticatedDioClientProvider),
+    ref.watch(loggerProvider),
+  );
+});
+
+final mvpProvider = StateNotifierProvider<MvpNotifier, MvpState>((ref) {
+  return MvpNotifier(
+    ref.watch(mvpRepositoryProvider),
+    ref.watch(notificationServiceProvider),
   );
 });
 
@@ -138,7 +160,9 @@ final callingProfileServiceProvider = Provider<CallingProfileService>((ref) {
   return CallingProfileService();
 });
 
-final settingsProvider = StateNotifierProvider<SettingsNotifier, AppSettings>((ref) {
+final settingsProvider = StateNotifierProvider<SettingsNotifier, AppSettings>((
+  ref,
+) {
   return SettingsNotifier(
     ref.watch(settingsStorageProvider),
     ref.watch(analyticsProvider),
@@ -146,13 +170,17 @@ final settingsProvider = StateNotifierProvider<SettingsNotifier, AppSettings>((r
   );
 });
 
-final missionProvider = StateNotifierProvider<MissionNotifier, MissionState>((ref) {
+final missionProvider = StateNotifierProvider<MissionNotifier, MissionState>((
+  ref,
+) {
   final settings = ref.watch(settingsProvider);
   final notifier = MissionNotifier(
     settingsNotifier: ref.read(settingsProvider.notifier),
     analytics: ref.watch(analyticsProvider),
     notificationService: ref.watch(notificationServiceProvider),
-    serviceOpportunityRepository: ref.watch(serviceOpportunityRepositoryProvider),
+    serviceOpportunityRepository: ref.watch(
+      serviceOpportunityRepositoryProvider,
+    ),
     logger: ref.watch(loggerProvider),
     initialSettings: settings,
   );
@@ -179,7 +207,9 @@ final journalRepositoryProvider = Provider<JournalRepository>((ref) {
   );
 });
 
-final journalProvider = StateNotifierProvider<JournalNotifier, JournalState>((ref) {
+final journalProvider = StateNotifierProvider<JournalNotifier, JournalState>((
+  ref,
+) {
   return JournalNotifier(
     ref.watch(journalRepositoryProvider),
     ref.watch(analyticsProvider),
@@ -190,12 +220,14 @@ final dailyAnchorsRepositoryProvider = Provider<DailyAnchorsRepository>((ref) {
   return DailyAnchorsRepository(ref.watch(loggerProvider));
 });
 
-final dailyAnchorsSyncRepositoryProvider = Provider<DailyAnchorsSyncRepository>((ref) {
-  return DailyAnchorsSyncRepository(
-    ref.watch(authenticatedDioClientProvider),
-    ref.watch(loggerProvider),
-  );
-});
+final dailyAnchorsSyncRepositoryProvider = Provider<DailyAnchorsSyncRepository>(
+  (ref) {
+    return DailyAnchorsSyncRepository(
+      ref.watch(authenticatedDioClientProvider),
+      ref.watch(loggerProvider),
+    );
+  },
+);
 
 final missionSyncRepositoryProvider = Provider<MissionSyncRepository>((ref) {
   return MissionSyncRepository(
@@ -204,49 +236,54 @@ final missionSyncRepositoryProvider = Provider<MissionSyncRepository>((ref) {
   );
 });
 
-final callingProfileSyncRepositoryProvider = Provider<CallingProfileSyncRepository>((ref) {
-  return CallingProfileSyncRepository(
-    ref.watch(authenticatedDioClientProvider),
-    ref.watch(loggerProvider),
-  );
-});
+final callingProfileSyncRepositoryProvider =
+    Provider<CallingProfileSyncRepository>((ref) {
+      return CallingProfileSyncRepository(
+        ref.watch(authenticatedDioClientProvider),
+        ref.watch(loggerProvider),
+      );
+    });
 
-final weeklyPlanSyncRepositoryProvider = Provider<WeeklyPlanSyncRepository>((ref) {
+final weeklyPlanSyncRepositoryProvider = Provider<WeeklyPlanSyncRepository>((
+  ref,
+) {
   return WeeklyPlanSyncRepository(
     ref.watch(authenticatedDioClientProvider),
     ref.watch(loggerProvider),
   );
 });
 
-final spiritualPulseSyncRepositoryProvider = Provider<SpiritualPulseSyncRepository>((ref) {
-  return SpiritualPulseSyncRepository(
-    ref.watch(authenticatedDioClientProvider),
-    ref.watch(loggerProvider),
-  );
-});
+final spiritualPulseSyncRepositoryProvider =
+    Provider<SpiritualPulseSyncRepository>((ref) {
+      return SpiritualPulseSyncRepository(
+        ref.watch(authenticatedDioClientProvider),
+        ref.watch(loggerProvider),
+      );
+    });
 
-final dailyAnchorsProvider = StateNotifierProvider<DailyAnchorsNotifier, DailyAnchors>((ref) {
-  return DailyAnchorsNotifier(
-    ref: ref,
-    repository: ref.watch(dailyAnchorsRepositoryProvider),
-    syncRepository: ref.watch(dailyAnchorsSyncRepositoryProvider),
-    spiritualPulseSyncRepository: ref.watch(spiritualPulseSyncRepositoryProvider),
-  );
-});
+final dailyAnchorsProvider =
+    StateNotifierProvider<DailyAnchorsNotifier, DailyAnchors>((ref) {
+      return DailyAnchorsNotifier(
+        ref: ref,
+        repository: ref.watch(dailyAnchorsRepositoryProvider),
+        syncRepository: ref.watch(dailyAnchorsSyncRepositoryProvider),
+        spiritualPulseSyncRepository: ref.watch(
+          spiritualPulseSyncRepositoryProvider,
+        ),
+      );
+    });
 
-final virtueProvider = StateNotifierProvider<VirtueNotifier, VirtueState>((ref) {
+final virtueProvider = StateNotifierProvider<VirtueNotifier, VirtueState>((
+  ref,
+) {
   final settings = ref.watch(settingsProvider);
 
   final notifier = VirtueNotifier(
-    VirtueState.initial(
-      primaryVirtue: settings.primaryVirtue,
-    ),
+    VirtueState.initial(primaryVirtue: settings.primaryVirtue),
   );
 
   ref.listen<AppSettings>(settingsProvider, (previous, next) {
-    notifier.syncFromSettings(
-      primaryVirtue: next.primaryVirtue,
-    );
+    notifier.syncFromSettings(primaryVirtue: next.primaryVirtue);
   });
 
   return notifier;
@@ -260,15 +297,18 @@ final commitmentRepositoryProvider = Provider<CommitmentRepository>((ref) {
   );
 });
 
-final commitmentProvider = StateNotifierProvider<CommitmentNotifier, CommitmentState>((ref) {
-  return CommitmentNotifier(
-    repository: ref.watch(commitmentRepositoryProvider),
-  );
-});
+final commitmentProvider =
+    StateNotifierProvider<CommitmentNotifier, CommitmentState>((ref) {
+      return CommitmentNotifier(
+        repository: ref.watch(commitmentRepositoryProvider),
+      );
+    });
 
 // Mood provider is defined in mood_notifier.dart
 
-final bibleDatabaseServiceProvider = Provider<EnhancedBibleDatabaseService>((ref) {
+final bibleDatabaseServiceProvider = Provider<EnhancedBibleDatabaseService>((
+  ref,
+) {
   final service = EnhancedBibleDatabaseService(ref.watch(loggerProvider));
   // Fire-and-forget initialization — copies bundled Bible DB and loads mappings.
   // init() is idempotent and safe to call multiple times.
@@ -295,12 +335,13 @@ final bibleReadingRepositoryProvider = Provider<BibleReadingRepository>((ref) {
     ref.watch(loggerProvider),
   );
 });
-final bibleReadingProvider = StateNotifierProvider<BibleReadingNotifier, BibleReadingState>((ref) {
-  return BibleReadingNotifier(
-    ref.watch(bibleReadingRepositoryProvider),
-    ref.watch(settingsStorageProvider),
-  );
-});
+final bibleReadingProvider =
+    StateNotifierProvider<BibleReadingNotifier, BibleReadingState>((ref) {
+      return BibleReadingNotifier(
+        ref.watch(bibleReadingRepositoryProvider),
+        ref.watch(settingsStorageProvider),
+      );
+    });
 
 final readingPlanRepositoryProvider = Provider<ReadingPlanRepository>((ref) {
   return ReadingPlanRepository(
@@ -309,9 +350,10 @@ final readingPlanRepositoryProvider = Provider<ReadingPlanRepository>((ref) {
   );
 });
 
-final readingPlanProvider = StateNotifierProvider<ReadingPlanNotifier, ReadingPlanState>((ref) {
-  return ReadingPlanNotifier(ref.watch(readingPlanRepositoryProvider));
-});
+final readingPlanProvider =
+    StateNotifierProvider<ReadingPlanNotifier, ReadingPlanState>((ref) {
+      return ReadingPlanNotifier(ref.watch(readingPlanRepositoryProvider));
+    });
 
 final bibleProvider = StateNotifierProvider<BibleNotifier, BibleState>((ref) {
   final settings = ref.watch(settingsProvider);
@@ -330,7 +372,9 @@ final verseRepositoryProvider = Provider<VerseRepository>((ref) {
   );
 });
 
-final verseProvider = StateNotifierProvider<VerseNotifier, DailyVersesState>((ref) {
+final verseProvider = StateNotifierProvider<VerseNotifier, DailyVersesState>((
+  ref,
+) {
   return VerseNotifier(ref.watch(verseRepositoryProvider));
 });
 
@@ -341,7 +385,9 @@ final contactRepositoryProvider = Provider<ContactRepository>((ref) {
   );
 });
 
-final contactProvider = StateNotifierProvider<ContactNotifier, ContactState>((ref) {
+final contactProvider = StateNotifierProvider<ContactNotifier, ContactState>((
+  ref,
+) {
   return ContactNotifier(ref.watch(contactRepositoryProvider));
 });
 
@@ -352,7 +398,9 @@ final profileRepositoryProvider = Provider<ProfileRepository>((ref) {
   );
 });
 
-final profileProvider = StateNotifierProvider<ProfileNotifier, ProfileState>((ref) {
+final profileProvider = StateNotifierProvider<ProfileNotifier, ProfileState>((
+  ref,
+) {
   return ProfileNotifier(ref.watch(profileRepositoryProvider));
 });
 
@@ -370,15 +418,15 @@ final authProvider = StateNotifierProvider<AuthNotifier, AuthState>((ref) {
     ref.watch(dioClientProvider),
     ref.watch(pushTokenProvider.notifier),
   );
-  
+
   // Initialize auth when provider is first created
   Future.microtask(() => notifier.initialize());
-  
+
   // Initialize push token monitoring after auth is set up
   WidgetsBinding.instance.addPostFrameCallback((_) {
     ref.read(pushTokenProvider.notifier).initialize();
   });
-  
+
   return notifier;
 });
 
@@ -388,17 +436,20 @@ final notificationServiceProvider = Provider<NotificationService>((ref) {
 });
 
 // Push notification service provider (Firebase FCM)
-final pushNotificationServiceProvider = Provider<PushNotificationService>((ref) {
+final pushNotificationServiceProvider = Provider<PushNotificationService>((
+  ref,
+) {
   return PushNotificationService();
 });
 
 // Push token provider
-final pushTokenProvider = StateNotifierProvider<PushTokenNotifier, PushTokenState>((ref) {
-  return PushTokenNotifier(
-    ref.watch(pushNotificationServiceProvider),
-    ref.watch(dioClientProvider),
-  );
-});
+final pushTokenProvider =
+    StateNotifierProvider<PushTokenNotifier, PushTokenState>((ref) {
+      return PushTokenNotifier(
+        ref.watch(pushNotificationServiceProvider),
+        ref.watch(dioClientProvider),
+      );
+    });
 
 // Country service provider
 final countryServiceProvider = Provider<CountryService>((ref) {
@@ -427,7 +478,9 @@ final appUsageServiceProvider = Provider<AppUsageService>((ref) {
   return AppUsageService(ref.watch(loggerProvider));
 });
 
-final appLockProvider = StateNotifierProvider<AppLockNotifier, AppLockState>((ref) {
+final appLockProvider = StateNotifierProvider<AppLockNotifier, AppLockState>((
+  ref,
+) {
   return AppLockNotifier(
     ref.watch(appLockRepositoryProvider),
     ref.watch(appUsageServiceProvider),
@@ -437,67 +490,83 @@ final appLockProvider = StateNotifierProvider<AppLockNotifier, AppLockState>((re
 // Graduated commitment providers
 final graduatedCommitmentRepositoryProvider =
     Provider<GraduatedCommitmentRepository>((ref) {
-  return GraduatedCommitmentRepository(ref.watch(loggerProvider));
-});
+      return GraduatedCommitmentRepository(ref.watch(loggerProvider));
+    });
 
-final graduatedCommitmentProvider = StateNotifierProvider<
-    GraduatedCommitmentNotifier, GraduatedCommitmentState>((ref) {
-  return GraduatedCommitmentNotifier(
-    repository: ref.watch(graduatedCommitmentRepositoryProvider),
-    xpService: ref.watch(xpServiceProvider),
-    dailyAnchorsNotifier: ref.watch(dailyAnchorsProvider.notifier),
-  );
-});
+final graduatedCommitmentProvider =
+    StateNotifierProvider<
+      GraduatedCommitmentNotifier,
+      GraduatedCommitmentState
+    >((ref) {
+      return GraduatedCommitmentNotifier(
+        repository: ref.watch(graduatedCommitmentRepositoryProvider),
+        xpService: ref.watch(xpServiceProvider),
+        dailyAnchorsNotifier: ref.watch(dailyAnchorsProvider.notifier),
+      );
+    });
 
 // Commitment Journey providers (3/10/40-day journeys with prayer intentions)
 final commitmentJourneyRepositoryProvider =
     Provider<CommitmentJourneyRepository>((ref) {
-  return CommitmentJourneyRepository(
-    ref.watch(authenticatedDioClientProvider),
-    ref.watch(loggerProvider),
-  );
-});
+      return CommitmentJourneyRepository(
+        ref.watch(authenticatedDioClientProvider),
+        ref.watch(loggerProvider),
+      );
+    });
 
-final commitmentJourneyProvider = StateNotifierProvider<
-    CommitmentJourneyNotifier, CommitmentJourneyState>((ref) {
-  return CommitmentJourneyNotifier(
-    repository: ref.watch(commitmentJourneyRepositoryProvider),
-    xpService: ref.watch(xpServiceProvider),
-    notificationService: ref.watch(notificationServiceProvider),
-    dailyAnchorsNotifier: ref.watch(dailyAnchorsProvider.notifier),
-  );
-});
+final commitmentJourneyProvider =
+    StateNotifierProvider<CommitmentJourneyNotifier, CommitmentJourneyState>((
+      ref,
+    ) {
+      return CommitmentJourneyNotifier(
+        repository: ref.watch(commitmentJourneyRepositoryProvider),
+        xpService: ref.watch(xpServiceProvider),
+        notificationService: ref.watch(notificationServiceProvider),
+        dailyAnchorsNotifier: ref.watch(dailyAnchorsProvider.notifier),
+      );
+    });
 
 // Alignment providers
 final alignmentRepositoryProvider = Provider<AlignmentRepository>((ref) {
   return AlignmentRepository(ref.watch(loggerProvider));
 });
 
-final alignmentProvider = StateNotifierProvider<AlignmentNotifier, AlignmentState>((ref) {
-  return AlignmentNotifier(ref.watch(alignmentRepositoryProvider));
-});
+final alignmentProvider =
+    StateNotifierProvider<AlignmentNotifier, AlignmentState>((ref) {
+      return AlignmentNotifier(ref.watch(alignmentRepositoryProvider));
+    });
 
 final habitProvider = StateNotifierProvider<HabitNotifier, HabitState>((ref) {
   return HabitNotifier(ref.watch(alignmentRepositoryProvider));
 });
 
-final fortyDayProvider = StateNotifierProvider<FortyDayNotifier, FortyDayState>((ref) {
-  return FortyDayNotifier(ref.watch(alignmentRepositoryProvider));
-});
+final fortyDayProvider = StateNotifierProvider<FortyDayNotifier, FortyDayState>(
+  (ref) {
+    return FortyDayNotifier(ref.watch(alignmentRepositoryProvider));
+  },
+);
 
 // Pillar Score provider — aggregates data across features for the 4 Pillars of Clarity
-final pillarScoreProvider = StateNotifierProvider<PillarScoreNotifier, PillarScore>((ref) {
-  return PillarScoreNotifier(ref);
-});
+final pillarScoreProvider =
+    StateNotifierProvider<PillarScoreNotifier, PillarScore>((ref) {
+      return PillarScoreNotifier(ref);
+    });
 
 // Service Opportunity providers
-final serviceOpportunityRepositoryProvider = Provider<ServiceOpportunityRepository>((ref) {
-  return ServiceOpportunityRepository(
-    ref.watch(authenticatedDioClientProvider),
-    ref.watch(loggerProvider),
-  );
-});
+final serviceOpportunityRepositoryProvider =
+    Provider<ServiceOpportunityRepository>((ref) {
+      return ServiceOpportunityRepository(
+        ref.watch(authenticatedDioClientProvider),
+        ref.watch(loggerProvider),
+      );
+    });
 
-final serviceOpportunityProvider = StateNotifierProvider<ServiceOpportunityNotifier, AsyncValue<List<ServiceOpportunity>>>((ref) {
-  return ServiceOpportunityNotifier(ref.watch(serviceOpportunityRepositoryProvider));
-});
+final serviceOpportunityProvider =
+    StateNotifierProvider<
+      ServiceOpportunityNotifier,
+      AsyncValue<List<ServiceOpportunity>>
+    >((ref) {
+      return ServiceOpportunityNotifier(
+        ref.watch(serviceOpportunityRepositoryProvider),
+      );
+    });

@@ -6,13 +6,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/constants/app_routes.dart';
 import '../../core/services/haptic_service.dart';
 import '../../core/theme/app_theme_tokens.dart';
-import 'spiritual_tools_menu.dart';
 
 class AppShell extends ConsumerWidget {
-  const AppShell({
-    super.key,
-    required this.child,
-  });
+  const AppShell({super.key, required this.child});
 
   final Widget child;
 
@@ -34,14 +30,14 @@ class _FloatingBottomNav extends StatelessWidget {
     final location = GoRouterState.of(context).matchedLocation;
     final theme = Theme.of(context);
     final tokens = theme.tokens;
-    
+
     // Hide nav on certain routes like onboarding or full-screen assessment
     if (location == AppRoutes.onboarding) {
       return const SizedBox.shrink();
     }
 
     final isDark = theme.brightness == Brightness.dark;
-    
+
     return SafeArea(
       bottom: false,
       child: Padding(
@@ -50,26 +46,36 @@ class _FloatingBottomNav extends StatelessWidget {
           heightFactor: 1.0,
           child: ConstrainedBox(
             constraints: BoxConstraints(
-              maxWidth: (MediaQuery.of(context).size.width * 0.92).clamp(0, 420),
+              maxWidth: (MediaQuery.of(context).size.width * 0.92).clamp(
+                0,
+                420,
+              ),
             ),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(999),
               child: BackdropFilter(
                 filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 8,
+                  ),
                   decoration: BoxDecoration(
-                    color: isDark 
+                    color: isDark
                         ? theme.colorScheme.surface.withValues(alpha: 0.82)
                         : tokens.palette.paper.withValues(alpha: 0.9),
                     borderRadius: BorderRadius.circular(999),
                     border: Border.all(
-                      color: tokens.palette.border.withValues(alpha: isDark ? 0.7 : 0.85),
+                      color: tokens.palette.border.withValues(
+                        alpha: isDark ? 0.7 : 0.85,
+                      ),
                       width: 1,
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: theme.colorScheme.shadow.withValues(alpha: isDark ? 0.2 : 0.08),
+                        color: theme.colorScheme.shadow.withValues(
+                          alpha: isDark ? 0.2 : 0.08,
+                        ),
                         blurRadius: 30,
                         offset: const Offset(0, 10),
                       ),
@@ -79,45 +85,36 @@ class _FloatingBottomNav extends StatelessWidget {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       _NavItem(
-                        icon: Icons.calendar_today_rounded,
-                        label: 'Home',
-                        isSelected: location == AppRoutes.today || location == AppRoutes.root,
+                        icon: Icons.today_rounded,
+                        label: 'Today',
+                        isSelected:
+                            location == AppRoutes.today ||
+                            location == AppRoutes.root,
                         onTap: () => context.go(AppRoutes.today),
                       ),
                       _NavItem(
-                        icon: Icons.menu_book_rounded,
-                        label: 'Bible',
-                        isSelected: location.startsWith(AppRoutes.bible),
-                        onTap: () => context.go(AppRoutes.bible),
-                      ),
-
-                      // Center FAB
-                      Container(
-                        margin: const EdgeInsets.only(bottom: 8),
-                        child: FloatingActionButton(
-                          elevation: 8,
-                          highlightElevation: 12,
-                          backgroundColor: Theme.of(context).colorScheme.primary,
-                          foregroundColor: Theme.of(context).colorScheme.onPrimary,
-                          shape: const CircleBorder(),
-                          onPressed: () {
-                            SpiritualToolsMenu.show(context);
-                          },
-                          child: const Icon(Icons.bolt_rounded, size: 28),
-                        ),
-                      ),
-
-                      _NavItem(
-                        icon: Icons.trending_up_rounded,
-                        label: 'Grow',
-                        isSelected: location.startsWith(AppRoutes.grow),
-                        onTap: () => context.go(AppRoutes.grow),
+                        icon: Icons.flag_rounded,
+                        label: 'Challenge',
+                        isSelected: location.startsWith(AppRoutes.mvpChallenge),
+                        onTap: () => context.go(AppRoutes.mvpChallenge),
                       ),
                       _NavItem(
-                        icon: Icons.volunteer_activism_rounded,
-                        label: 'Act',
-                        isSelected: location.startsWith(AppRoutes.act),
-                        onTap: () => context.go(AppRoutes.act),
+                        icon: Icons.groups_rounded,
+                        label: 'Tribes',
+                        isSelected: location.startsWith(AppRoutes.mvpTribes),
+                        onTap: () => context.go(AppRoutes.mvpTribes),
+                      ),
+                      _NavItem(
+                        icon: Icons.help_rounded,
+                        label: 'Questions',
+                        isSelected: location.startsWith(AppRoutes.mvpQuestions),
+                        onTap: () => context.go(AppRoutes.mvpQuestions),
+                      ),
+                      _NavItem(
+                        icon: Icons.person_rounded,
+                        label: 'Profile',
+                        isSelected: location.startsWith(AppRoutes.profile),
+                        onTap: () => context.go(AppRoutes.profile),
                       ),
                     ],
                   ),
@@ -146,7 +143,7 @@ class _NavItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = isSelected 
+    final color = isSelected
         ? Theme.of(context).colorScheme.primary
         : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5);
 
@@ -163,11 +160,7 @@ class _NavItem extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(
-                icon,
-                color: color,
-                size: 24,
-              ),
+              Icon(icon, color: color, size: 24),
               const SizedBox(height: 4),
               Text(
                 label,

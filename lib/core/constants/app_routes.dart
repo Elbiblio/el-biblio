@@ -7,6 +7,9 @@ class AppRoutes {
   static const assessment = '/assessment';
   static const timeDiagnose = '/time-diagnose';
   static const today = '/today';
+  static const mvpChallenge = '/challenge';
+  static const mvpTribes = '/tribes';
+  static const mvpQuestions = '/questions';
   static const act = '/act';
   static const actHistory = '/act/history';
   static const actOpportunities = '/act/opportunities';

@@ -26,7 +26,11 @@ import '../../features/mission/presentation/screens/impact_history_screen.dart';
 import '../../features/mission/presentation/screens/person_profile_screen.dart';
 import '../../features/mission/presentation/screens/service_opportunities_screen.dart';
 import '../../features/onboarding/presentation/onboarding_screen.dart';
-import '../../features/onboarding/presentation/post_onboarding_flow_screen.dart';
+import '../../features/mvp/presentation/screens/mvp_challenge_screen.dart';
+import '../../features/mvp/presentation/screens/mvp_onboarding_flow_screen.dart';
+import '../../features/mvp/presentation/screens/mvp_questions_screen.dart';
+import '../../features/mvp/presentation/screens/mvp_today_screen.dart';
+import '../../features/mvp/presentation/screens/mvp_tribes_screen.dart';
 import '../../features/profile/presentation/about_screen.dart';
 import '../../features/profile/presentation/profile_screen.dart';
 import '../../features/profile/presentation/reminder_settings_screen.dart';
@@ -49,7 +53,6 @@ import '../../features/spiritual_aid/presentation/screens/quick_prayer_screen.da
 import '../../features/spiritual_aid/presentation/screens/faith_discuss_screen.dart';
 import '../../features/spiritual_aid/presentation/screens/speak_to_me_screen.dart';
 import '../../features/spiritual_aid/presentation/screens/evangelism_helper_screen.dart';
-import '../../features/today/presentation/today_screen.dart';
 import '../../features/games/presentation/screens/games_hub_screen.dart';
 import '../../features/games/presentation/screens/journey_map_screen.dart';
 import '../../features/games/presentation/screens/post_game_reading_screen.dart';
@@ -143,18 +146,20 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: AppRoutes.postOnboarding,
-        builder: (context, state) => const PostOnboardingFlowScreen(),
+        builder: (context, state) => const MvpOnboardingFlowScreen(),
       ),
       GoRoute(
         path: AppRoutes.bibleReader,
         parentNavigatorKey: _rootNavigatorKey,
         builder: (context, state) {
-          final bookName =
-              Uri.decodeComponent(state.uri.queryParameters['book'] ?? '');
+          final bookName = Uri.decodeComponent(
+            state.uri.queryParameters['book'] ?? '',
+          );
           final chapter = state.uri.queryParameters['chapter'];
           final verse = state.uri.queryParameters['verse'];
           final isPlanMode = state.uri.queryParameters['planMode'] == 'true';
-          final fromLibrary = state.uri.queryParameters['fromLibrary'] == 'true';
+          final fromLibrary =
+              state.uri.queryParameters['fromLibrary'] == 'true';
 
           return BibleScreen(
             bookName: bookName.isNotEmpty ? bookName : null,
@@ -332,8 +337,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: AppRoutes.companionChat,
         parentNavigatorKey: _rootNavigatorKey,
         builder: (context, state) {
-          final thread =
-              state.uri.queryParameters['thread'] ?? 'default';
+          final thread = state.uri.queryParameters['thread'] ?? 'default';
           final mode = state.uri.queryParameters['mode'] ?? 'default';
           final title = state.uri.queryParameters['title'];
           final extra = state.extra as Map<String, dynamic>?;
@@ -390,7 +394,22 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: AppRoutes.today,
             pageBuilder: (context, state) =>
-                _fadePage(child: const TodayScreen()),
+                _fadePage(child: const MvpTodayScreen()),
+          ),
+          GoRoute(
+            path: AppRoutes.mvpChallenge,
+            pageBuilder: (context, state) =>
+                _fadePage(child: const MvpChallengeScreen()),
+          ),
+          GoRoute(
+            path: AppRoutes.mvpTribes,
+            pageBuilder: (context, state) =>
+                _fadePage(child: const MvpTribesScreen()),
+          ),
+          GoRoute(
+            path: AppRoutes.mvpQuestions,
+            pageBuilder: (context, state) =>
+                _fadePage(child: const MvpQuestionsScreen()),
           ),
           GoRoute(
             path: AppRoutes.act,
@@ -410,9 +429,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               GoRoute(
                 path: 'people/:id',
                 parentNavigatorKey: _rootNavigatorKey,
-                builder: (context, state) => PersonProfileScreen(
-                  personId: state.pathParameters['id']!,
-                ),
+                builder: (context, state) =>
+                    PersonProfileScreen(personId: state.pathParameters['id']!),
               ),
             ],
           ),
@@ -491,7 +509,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                     initialTitle: extra?['initialTitle'] as String?,
                     initialText: extra?['initialText'] as String?,
                     initialVirtues: extra?['initialVirtues'] as List<String>?,
-                    meditationSessionId: extra?['meditationSessionId'] as String?,
+                    meditationSessionId:
+                        extra?['meditationSessionId'] as String?,
                   );
                 },
               ),
@@ -541,7 +560,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       // Root redirect
       if (loc == AppRoutes.root) {
         if (!settings.onboardingCompleted) return AppRoutes.onboarding;
-        if (!settings.hasCompletedPostOnboarding) return AppRoutes.postOnboarding;
+        if (!settings.hasCompletedPostOnboarding) {
+          return AppRoutes.postOnboarding;
+        }
         return AppRoutes.today;
       }
 
