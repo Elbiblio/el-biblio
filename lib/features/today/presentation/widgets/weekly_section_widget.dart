@@ -114,12 +114,12 @@ class _WeeklySectionWidgetState extends ConsumerState<WeeklySectionWidget> {
                   const Spacer(),
                   // Quick metrics (always visible)
                   if (settings.streakCount > 0)
-                    Padding(
-                      padding: const EdgeInsets.only(right: 12),
+                    const Padding(
+                      padding: EdgeInsets.only(right: 12),
                       child: StreakBadge(),
                     ),
                   if (showIntegrity)
-                    IntegrityBadge(),
+                    const IntegrityBadge(),
                 ],
               ),
             ),

@@ -43,7 +43,7 @@ class CallingJourneyWidget extends ConsumerWidget {
     );
 
     return Container(
-      margin: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       padding: EdgeInsets.all(tokens.spacingLg),
       decoration: BoxDecoration(
         gradient: LinearGradient(

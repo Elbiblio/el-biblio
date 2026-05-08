@@ -204,8 +204,8 @@ class TimeContext {
   
   const TimeContext._(this.headerLabel);
   
-  static final morning = TimeContext._('YOUR MORNING JOURNEY');
-  static final midday = TimeContext._('YOUR MIDDAY JOURNEY');
-  static final evening = TimeContext._('YOUR EVENING JOURNEY');
-  static final night = TimeContext._('TONIGHT\'S REFLECTION');
+  static const morning = TimeContext._('YOUR MORNING JOURNEY');
+  static const midday = TimeContext._('YOUR MIDDAY JOURNEY');
+  static const evening = TimeContext._('YOUR EVENING JOURNEY');
+  static const night = TimeContext._('TONIGHT\'S REFLECTION');
 }

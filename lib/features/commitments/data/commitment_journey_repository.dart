@@ -300,7 +300,7 @@ class CommitmentJourneyRepository {
   // Bundled hardcoded fallback — used only when both remote + cache are empty.
   static final List<CommitmentJourney> _sampleJourneys = [
     // 3-Day Seeds
-    CommitmentJourney(
+    const CommitmentJourney(
       id: 'seed_prayer_morning',
       title: 'Morning Prayer',
       description: 'Begin each day with intentional time with God before touching your phone.',
@@ -315,7 +315,7 @@ class CommitmentJourneyRepository {
       ],
       source: CommitmentSource.offlineFallback,
     ),
-    CommitmentJourney(
+    const CommitmentJourney(
       id: 'seed_gratitude_journal',
       title: 'Daily Gratitude',
       description: 'Record three things you are grateful for each evening.',
@@ -332,7 +332,7 @@ class CommitmentJourneyRepository {
     ),
 
     // 10-Day Paths
-    CommitmentJourney(
+    const CommitmentJourney(
       id: 'path_social_fast',
       title: 'Social Media Fast',
       description: 'Remove social media to create space for deeper connection with God and others.',
@@ -359,7 +359,7 @@ class CommitmentJourneyRepository {
       ],
       source: CommitmentSource.offlineFallback,
     ),
-    CommitmentJourney(
+    const CommitmentJourney(
       id: 'path_generosity',
       title: 'Practicing Generosity',
       description: 'Cultivate a generous heart through daily acts of giving.',
@@ -383,7 +383,7 @@ class CommitmentJourneyRepository {
     ),
 
     // 40-Day Journeys
-    CommitmentJourney(
+    const CommitmentJourney(
       id: 'journey_fasting',
       title: 'The Discipline of Fasting',
       description: 'A graduated fasting practice to strengthen self-control and deepen prayer.',
@@ -415,7 +415,7 @@ class CommitmentJourneyRepository {
       ],
       source: CommitmentSource.offlineFallback,
     ),
-    CommitmentJourney(
+    const CommitmentJourney(
       id: 'journey_scripture',
       title: 'Deep in the Word',
       description: 'Immerse yourself in Scripture through lectio divina and study.',
@@ -447,7 +447,7 @@ class CommitmentJourneyRepository {
       ],
       source: CommitmentSource.offlineFallback,
     ),
-    CommitmentJourney(
+    const CommitmentJourney(
       id: 'journey_service',
       title: 'Called to Serve',
       description: 'Live out your faith through consistent acts of service to others.',

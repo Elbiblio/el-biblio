@@ -48,33 +48,33 @@ class ReadingPlanNotifier extends StateNotifier<ReadingPlanState> {
 
   /// Default offline reading plans so the section is never empty.
   static final List<ReadingPlan> _defaultPlans = [
-    ReadingPlan(
+    const ReadingPlan(
       id: -1,
       title: 'Psalms in 30 Days',
       description: 'Journey through the Psalms — 5 psalms per day for a month of worship, lament, and praise.',
       durationDays: 30,
       isFeatured: true,
     ),
-    ReadingPlan(
+    const ReadingPlan(
       id: -2,
       title: 'The Gospel of John',
       description: 'One chapter a day through the most intimate account of Jesus\' life and teaching.',
       durationDays: 21,
       isFeatured: true,
     ),
-    ReadingPlan(
+    const ReadingPlan(
       id: -3,
       title: 'Proverbs: Wisdom for Daily Life',
       description: 'One chapter a day — practical wisdom for decisions, relationships, and integrity.',
       durationDays: 31,
     ),
-    ReadingPlan(
+    const ReadingPlan(
       id: -4,
       title: 'The Sermon on the Mount',
       description: 'A deep 14-day study of Matthew 5-7 — the heart of Jesus\' teaching on kingdom living.',
       durationDays: 14,
     ),
-    ReadingPlan(
+    const ReadingPlan(
       id: -5,
       title: 'Romans: Faith Foundations',
       description: 'Paul\'s letter to the Romans — the clearest explanation of grace, faith, and salvation.',

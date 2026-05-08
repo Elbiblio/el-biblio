@@ -771,7 +771,7 @@ class NotificationService {
         0,
       );
 
-      final androidDetails = AndroidNotificationDetails(
+      const androidDetails = AndroidNotificationDetails(
         'accountability_weekly',
         'Weekly Partner Check-in',
         channelDescription:
@@ -959,7 +959,7 @@ class NotificationService {
         scheduledDate = scheduledDate.add(const Duration(days: 1));
       }
 
-      final androidDetails = AndroidNotificationDetails(
+      const androidDetails = AndroidNotificationDetails(
         'accountability_daily',
         'Daily Partner Check-in',
         channelDescription:
@@ -1314,7 +1314,7 @@ class NotificationService {
         presentSound: true,
       );
 
-      final notificationDetails = NotificationDetails(
+      const notificationDetails = NotificationDetails(
         android: androidDetails,
         iOS: iosDetails,
       );

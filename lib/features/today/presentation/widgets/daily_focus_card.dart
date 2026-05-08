@@ -85,7 +85,7 @@ class DailyFocusCard extends ConsumerWidget {
                   ),
                 ),
                 const SizedBox(width: 8),
-                ContextualHelpButton(
+                const ContextualHelpButton(
                   title: 'Your Calling',
                   explanation: 'Your archetype reflects how God designed you to serve. '
                       'It shapes your daily practices and helps you grow in your unique purpose.',

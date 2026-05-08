@@ -154,7 +154,7 @@ class _StartNode extends StatelessWidget {
               child: Center(
                 child: isComplete
                     ? Icon(Icons.check, color: theme.colorScheme.onPrimary, size: 20)
-                    : Text(
+                    : const Text(
                         '🏁',
                         style: TextStyle(fontSize: 18),
                       ),
@@ -431,12 +431,12 @@ class _FinishNode extends StatelessWidget {
           height: 40,
           decoration: BoxDecoration(
             color: isComplete
-                ? Color(0xFFFFD700).withValues(alpha: 0.2) // Gold
+                ? const Color(0xFFFFD700).withValues(alpha: 0.2) // Gold
                 : theme.colorScheme.surfaceContainerHighest,
             shape: BoxShape.circle,
             border: Border.all(
               color: isComplete
-                  ? Color(0xFFFFD700)
+                  ? const Color(0xFFFFD700)
                   : theme.colorScheme.outline.withValues(alpha: 0.3),
               width: 2,
             ),
@@ -462,7 +462,7 @@ class _FinishNode extends StatelessWidget {
                   fontWeight: FontWeight.w700,
                   letterSpacing: 1.2,
                   color: isComplete
-                      ? Color(0xFFB8860B) // Dark gold
+                      ? const Color(0xFFB8860B) // Dark gold
                       : theme.colorScheme.onSurface.withValues(alpha: 0.5),
                 ),
               ),
@@ -481,7 +481,7 @@ class _FinishNode extends StatelessWidget {
                 Text(
                   '✓ Journey complete',
                   style: theme.textTheme.bodySmall?.copyWith(
-                    color: Color(0xFFB8860B),
+                    color: const Color(0xFFB8860B),
                     fontWeight: FontWeight.w500,
                   ),
                 ),

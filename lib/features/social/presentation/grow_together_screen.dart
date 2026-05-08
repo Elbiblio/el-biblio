@@ -637,9 +637,9 @@ class _ContactPartnerCard extends ConsumerWidget {
             ),
           ),
           if (isAlreadyPartner)
-            Chip(
-              label: const Text('Partner'),
-              labelStyle: const TextStyle(fontSize: 11),
+            const Chip(
+              label: Text('Partner'),
+              labelStyle: TextStyle(fontSize: 11),
               padding: EdgeInsets.zero,
               visualDensity: VisualDensity.compact,
             )

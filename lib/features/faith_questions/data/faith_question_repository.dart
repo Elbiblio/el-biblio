@@ -47,7 +47,7 @@ class FaithQuestionRepository {
     }
 
     // Fallback to local catalog
-    final local = FaithQuestionCatalog.allQuestions;
+    const local = FaithQuestionCatalog.allQuestions;
     _cachedQuestions = local;
     return _filterByCategory(local, category);
   }
