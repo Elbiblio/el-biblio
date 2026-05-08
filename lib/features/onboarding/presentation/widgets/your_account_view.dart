@@ -7,10 +7,7 @@ import '../../../commitments/domain/models/commitment_category.dart';
 /// Step 5: Your Account — setup summary + signup form (merged from ready_view
 /// and pre_onboarding_screen).
 class YourAccountView extends ConsumerStatefulWidget {
-  const YourAccountView({
-    super.key,
-    required this.onSignUp,
-  });
+  const YourAccountView({super.key, required this.onSignUp});
 
   final Future<void> Function(String name, String email, String phone) onSignUp;
 
@@ -110,7 +107,7 @@ class _YourAccountViewState extends ConsumerState<YourAccountView>
             ),
             const SizedBox(height: 20),
             Text(
-              'Ready to begin.',
+              'Your first path is almost ready.',
               textAlign: TextAlign.center,
               style: textTheme.headlineMedium?.copyWith(
                 fontWeight: FontWeight.w700,
@@ -127,18 +124,16 @@ class _YourAccountViewState extends ConsumerState<YourAccountView>
                 color: theme.colorScheme.onSurface.withValues(alpha: 0.03),
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(
-                  color:
-                      theme.colorScheme.onSurface.withValues(alpha: 0.08),
+                  color: theme.colorScheme.onSurface.withValues(alpha: 0.08),
                 ),
               ),
               child: Column(
                 children: [
                   Text(
-                    'Your setup',
+                    'Your starting point',
                     style: textTheme.labelLarge?.copyWith(
                       fontWeight: FontWeight.w600,
-                      color: theme.colorScheme.onSurface
-                          .withValues(alpha: 0.5),
+                      color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
                     ),
                   ),
                   const SizedBox(height: 12),
@@ -153,8 +148,10 @@ class _YourAccountViewState extends ConsumerState<YourAccountView>
                     _buildSummaryRow(
                       context,
                       Icons.flag_outlined,
-                      'Starting path',
-                      CommitmentCategory.fromString(state.commitmentCategory!).label,
+                      'Commitment direction',
+                      CommitmentCategory.fromString(
+                        state.commitmentCategory!,
+                      ).label,
                     ),
                   _buildSummaryRow(
                     context,
@@ -172,7 +169,7 @@ class _YourAccountViewState extends ConsumerState<YourAccountView>
                     _buildSummaryRow(
                       context,
                       Icons.fitness_center_outlined,
-                      'Struggles',
+                      'Growth edges',
                       state.personalDistractions.take(2).join(', ') +
                           (state.personalDistractions.length > 2
                               ? ' +${state.personalDistractions.length - 2} more'
@@ -191,13 +188,10 @@ class _YourAccountViewState extends ConsumerState<YourAccountView>
                 children: [
                   // Name
                   Text(
-                    'FULL NAME',
+                    'Full name',
                     style: textTheme.labelSmall?.copyWith(
-                      fontSize: 10,
                       fontWeight: FontWeight.bold,
-                      letterSpacing: 2,
-                      color: theme.colorScheme.onSurface
-                          .withValues(alpha: 0.4),
+                      color: theme.colorScheme.onSurface.withValues(alpha: 0.4),
                     ),
                   ),
                   const SizedBox(height: 4),
@@ -208,8 +202,9 @@ class _YourAccountViewState extends ConsumerState<YourAccountView>
                       border: InputBorder.none,
                       enabledBorder: UnderlineInputBorder(
                         borderSide: BorderSide(
-                          color: theme.colorScheme.onSurface
-                              .withValues(alpha: 0.2),
+                          color: theme.colorScheme.onSurface.withValues(
+                            alpha: 0.2,
+                          ),
                         ),
                       ),
                       focusedBorder: UnderlineInputBorder(
@@ -217,18 +212,16 @@ class _YourAccountViewState extends ConsumerState<YourAccountView>
                           color: theme.colorScheme.primary,
                         ),
                       ),
-                      hintText: 'e.g. Julian Vane',
+                      hintText: 'Your name',
                       hintStyle: textTheme.bodyLarge?.copyWith(
-                        color: theme.colorScheme.onSurface
-                            .withValues(alpha: 0.2),
+                        color: theme.colorScheme.onSurface.withValues(
+                          alpha: 0.2,
+                        ),
                       ),
                     ),
-                    style: textTheme.headlineSmall?.copyWith(
-                      fontSize: 20,
-                    ),
+                    style: textTheme.bodyLarge,
                     textInputAction: TextInputAction.next,
-                    onFieldSubmitted: (_) =>
-                        _emailFocusNode.requestFocus(),
+                    onFieldSubmitted: (_) => _emailFocusNode.requestFocus(),
                     validator: (value) {
                       if (value == null || value.trim().isEmpty) {
                         return 'Please enter your name';
@@ -240,13 +233,10 @@ class _YourAccountViewState extends ConsumerState<YourAccountView>
 
                   // Email
                   Text(
-                    'EMAIL ADDRESS',
+                    'Email address',
                     style: textTheme.labelSmall?.copyWith(
-                      fontSize: 10,
                       fontWeight: FontWeight.bold,
-                      letterSpacing: 2,
-                      color: theme.colorScheme.onSurface
-                          .withValues(alpha: 0.4),
+                      color: theme.colorScheme.onSurface.withValues(alpha: 0.4),
                     ),
                   ),
                   const SizedBox(height: 4),
@@ -257,8 +247,9 @@ class _YourAccountViewState extends ConsumerState<YourAccountView>
                       border: InputBorder.none,
                       enabledBorder: UnderlineInputBorder(
                         borderSide: BorderSide(
-                          color: theme.colorScheme.onSurface
-                              .withValues(alpha: 0.2),
+                          color: theme.colorScheme.onSurface.withValues(
+                            alpha: 0.2,
+                          ),
                         ),
                       ),
                       focusedBorder: UnderlineInputBorder(
@@ -266,25 +257,22 @@ class _YourAccountViewState extends ConsumerState<YourAccountView>
                           color: theme.colorScheme.primary,
                         ),
                       ),
-                      hintText: 'e.g. julian@example.com',
+                      hintText: 'you@example.com',
                       hintStyle: textTheme.bodyLarge?.copyWith(
-                        color: theme.colorScheme.onSurface
-                            .withValues(alpha: 0.2),
+                        color: theme.colorScheme.onSurface.withValues(
+                          alpha: 0.2,
+                        ),
                       ),
                     ),
-                    style: textTheme.headlineSmall?.copyWith(
-                      fontSize: 20,
-                    ),
+                    style: textTheme.bodyLarge,
                     keyboardType: TextInputType.emailAddress,
                     textInputAction: TextInputAction.next,
-                    onFieldSubmitted: (_) =>
-                        _phoneFocusNode.requestFocus(),
+                    onFieldSubmitted: (_) => _phoneFocusNode.requestFocus(),
                     validator: (value) {
                       if (value == null || value.trim().isEmpty) {
                         return 'Please enter your email';
                       }
-                      final emailRegex =
-                          RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
+                      final emailRegex = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
                       if (!emailRegex.hasMatch(value.trim())) {
                         return 'Please enter a valid email address';
                       }
@@ -295,13 +283,10 @@ class _YourAccountViewState extends ConsumerState<YourAccountView>
 
                   // Phone
                   Text(
-                    'MOBILE NUMBER (OPTIONAL)',
+                    'Mobile number (optional)',
                     style: textTheme.labelSmall?.copyWith(
-                      fontSize: 10,
                       fontWeight: FontWeight.bold,
-                      letterSpacing: 2,
-                      color: theme.colorScheme.onSurface
-                          .withValues(alpha: 0.4),
+                      color: theme.colorScheme.onSurface.withValues(alpha: 0.4),
                     ),
                   ),
                   const SizedBox(height: 4),
@@ -316,8 +301,9 @@ class _YourAccountViewState extends ConsumerState<YourAccountView>
                             border: InputBorder.none,
                             enabledBorder: UnderlineInputBorder(
                               borderSide: BorderSide(
-                                color: theme.colorScheme.onSurface
-                                    .withValues(alpha: 0.2),
+                                color: theme.colorScheme.onSurface.withValues(
+                                  alpha: 0.2,
+                                ),
                               ),
                             ),
                             focusedBorder: UnderlineInputBorder(
@@ -327,7 +313,7 @@ class _YourAccountViewState extends ConsumerState<YourAccountView>
                             ),
                             hintText: '+1',
                           ),
-                          style: textTheme.headlineSmall?.copyWith(fontSize: 20),
+                          style: textTheme.bodyLarge,
                           keyboardType: TextInputType.phone,
                           textInputAction: TextInputAction.next,
                         ),
@@ -341,8 +327,9 @@ class _YourAccountViewState extends ConsumerState<YourAccountView>
                             border: InputBorder.none,
                             enabledBorder: UnderlineInputBorder(
                               borderSide: BorderSide(
-                                color: theme.colorScheme.onSurface
-                                    .withValues(alpha: 0.2),
+                                color: theme.colorScheme.onSurface.withValues(
+                                  alpha: 0.2,
+                                ),
                               ),
                             ),
                             focusedBorder: UnderlineInputBorder(
@@ -352,11 +339,12 @@ class _YourAccountViewState extends ConsumerState<YourAccountView>
                             ),
                             hintText: '(555) 000-0000',
                             hintStyle: textTheme.bodyLarge?.copyWith(
-                              color: theme.colorScheme.onSurface
-                                  .withValues(alpha: 0.2),
+                              color: theme.colorScheme.onSurface.withValues(
+                                alpha: 0.2,
+                              ),
                             ),
                           ),
-                          style: textTheme.headlineSmall?.copyWith(fontSize: 20),
+                          style: textTheme.bodyLarge,
                           keyboardType: TextInputType.phone,
                           textInputAction: TextInputAction.done,
                           onFieldSubmitted: (_) => _submit(),
@@ -371,10 +359,9 @@ class _YourAccountViewState extends ConsumerState<YourAccountView>
 
             // Privacy note
             Text(
-              'Used for personalization only.',
+              'Next you will choose visibility, join a tribe, and start one commitment.',
               style: textTheme.bodySmall?.copyWith(
-                color:
-                    theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
               ),
               textAlign: TextAlign.center,
             ),
@@ -406,7 +393,7 @@ class _YourAccountViewState extends ConsumerState<YourAccountView>
                         ),
                       )
                     : Text(
-                        'Begin my clarity journey',
+                        'Continue to tribe and commitment',
                         style: textTheme.titleMedium?.copyWith(
                           fontWeight: FontWeight.w600,
                           color: theme.colorScheme.onPrimary,

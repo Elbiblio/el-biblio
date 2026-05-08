@@ -26,11 +26,12 @@ import '../../features/mission/presentation/screens/impact_history_screen.dart';
 import '../../features/mission/presentation/screens/person_profile_screen.dart';
 import '../../features/mission/presentation/screens/service_opportunities_screen.dart';
 import '../../features/onboarding/presentation/onboarding_screen.dart';
-import '../../features/mvp/presentation/screens/mvp_challenge_screen.dart';
-import '../../features/mvp/presentation/screens/mvp_onboarding_flow_screen.dart';
-import '../../features/mvp/presentation/screens/mvp_questions_screen.dart';
-import '../../features/mvp/presentation/screens/mvp_today_screen.dart';
-import '../../features/mvp/presentation/screens/mvp_tribes_screen.dart';
+import '../../features/vision/presentation/screens/commit_screen.dart';
+import '../../features/vision/presentation/screens/grow_screen.dart';
+import '../../features/vision/presentation/screens/reflect_screen.dart';
+import '../../features/vision/presentation/screens/today_screen.dart';
+import '../../features/vision/presentation/screens/tribe_screen.dart';
+import '../../features/vision/presentation/screens/vision_onboarding_flow_screen.dart';
 import '../../features/profile/presentation/about_screen.dart';
 import '../../features/profile/presentation/profile_screen.dart';
 import '../../features/profile/presentation/reminder_settings_screen.dart';
@@ -57,7 +58,6 @@ import '../../features/games/presentation/screens/games_hub_screen.dart';
 import '../../features/games/presentation/screens/journey_map_screen.dart';
 import '../../features/games/presentation/screens/post_game_reading_screen.dart';
 import '../../features/bible/presentation/games/verse_game_screen.dart';
-import '../../features/grow/presentation/screens/grow_hub_screen.dart';
 import '../../features/alignment/presentation/screens/alignment_hub_screen.dart';
 import '../../features/alignment/presentation/screens/spiritual_profile_screen.dart';
 import '../../features/alignment/presentation/screens/habit_assessment_screen.dart';
@@ -146,7 +146,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: AppRoutes.postOnboarding,
-        builder: (context, state) => const MvpOnboardingFlowScreen(),
+        builder: (context, state) => const VisionOnboardingFlowScreen(),
       ),
       GoRoute(
         path: AppRoutes.bibleReader,
@@ -394,22 +394,34 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: AppRoutes.today,
             pageBuilder: (context, state) =>
-                _fadePage(child: const MvpTodayScreen()),
+                _fadePage(child: const TodayScreen()),
           ),
           GoRoute(
-            path: AppRoutes.mvpChallenge,
+            path: AppRoutes.reflect,
             pageBuilder: (context, state) =>
-                _fadePage(child: const MvpChallengeScreen()),
+                _fadePage(child: const ReflectScreen()),
           ),
           GoRoute(
-            path: AppRoutes.mvpTribes,
+            path: AppRoutes.commit,
             pageBuilder: (context, state) =>
-                _fadePage(child: const MvpTribesScreen()),
+                _fadePage(child: const CommitScreen()),
           ),
           GoRoute(
-            path: AppRoutes.mvpQuestions,
+            path: AppRoutes.tribe,
             pageBuilder: (context, state) =>
-                _fadePage(child: const MvpQuestionsScreen()),
+                _fadePage(child: const TribeScreen()),
+          ),
+          GoRoute(
+            path: AppRoutes.legacyChallenge,
+            redirect: (context, state) => AppRoutes.commit,
+          ),
+          GoRoute(
+            path: AppRoutes.legacyTribes,
+            redirect: (context, state) => AppRoutes.tribe,
+          ),
+          GoRoute(
+            path: AppRoutes.legacyQuestions,
+            redirect: (context, state) => AppRoutes.grow,
           ),
           GoRoute(
             path: AppRoutes.act,
@@ -442,7 +454,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: AppRoutes.grow,
             pageBuilder: (context, state) =>
-                _fadePage(child: const GrowHubScreen()),
+                _fadePage(child: const GrowScreen()),
           ),
           GoRoute(
             path: AppRoutes.assessment,
@@ -553,9 +565,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     ],
     redirect: (context, state) {
       final settings = ref.read(settingsProvider);
+      final auth = ref.read(authProvider);
       final loc = state.matchedLocation;
       final isOnboarding = loc == AppRoutes.onboarding;
       final isPostOnboarding = loc == AppRoutes.postOnboarding;
+
+      if (auth.isInitialized && !auth.isAuthenticated) {
+        return isOnboarding ? null : AppRoutes.onboarding;
+      }
 
       // Root redirect
       if (loc == AppRoutes.root) {

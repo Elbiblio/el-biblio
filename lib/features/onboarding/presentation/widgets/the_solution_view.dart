@@ -44,24 +44,31 @@ class _TheSolutionViewState extends State<TheSolutionView>
 
     final pillars = [
       _PillarData(
-        icon: Icons.person_search_outlined,
-        title: 'Identity Alignment',
-        subtitle: 'Discover who God made you to be.',
+        icon: Icons.explore_outlined,
+        title: 'Spiritual compass',
+        subtitle: 'Name the season you are beginning from.',
         color: palette.identityColor,
         interval: const Interval(0.25, 0.55, curve: Curves.easeOutCubic),
       ),
       _PillarData(
-        icon: Icons.trending_up_rounded,
-        title: 'Daily Commitments',
-        subtitle: 'One intentional act each day, makes the difference.',
+        icon: Icons.groups_outlined,
+        title: 'Tribe belonging',
+        subtitle: 'Join a circle shaped by your growth path.',
         color: palette.commitmentColor,
         interval: const Interval(0.35, 0.65, curve: Curves.easeOutCubic),
       ),
       _PillarData(
-        icon: Icons.auto_stories_outlined,
-        title: 'Games, Faith & Prayer',
-        subtitle: 'Learn, question, and find stillness.',
+        icon: Icons.flag_outlined,
+        title: 'One commitment',
+        subtitle: 'Keep a concrete daily action for a time-bound season.',
         color: palette.growthColor,
+        interval: const Interval(0.45, 0.75, curve: Curves.easeOutCubic),
+      ),
+      _PillarData(
+        icon: Icons.chat_bubble_outline,
+        title: 'Shared reflection',
+        subtitle: 'Post one honest reflection with people on the same path.',
+        color: palette.primary,
         interval: const Interval(0.55, 0.85, curve: Curves.easeOutCubic),
       ),
     ];
@@ -97,7 +104,7 @@ class _TheSolutionViewState extends State<TheSolutionView>
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 24),
                     child: Text(
-                      'But there\'s a\ndeeper signal.',
+                      'There is a quieter\nway to grow.',
                       textAlign: TextAlign.center,
                       style: textTheme.headlineMedium?.copyWith(
                         fontWeight: FontWeight.w700,
@@ -114,11 +121,12 @@ class _TheSolutionViewState extends State<TheSolutionView>
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 20),
                     child: Text(
-                      'When you know who God made you to be,\neverything else falls into place.',
+                      'Identity leads to belonging. Belonging supports commitment. Commitment creates reflection. Reflection deepens growth.',
                       textAlign: TextAlign.center,
                       style: textTheme.bodyLarge?.copyWith(
-                        color:
-                            theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                        color: theme.colorScheme.onSurface.withValues(
+                          alpha: 0.6,
+                        ),
                         height: 1.5,
                       ),
                     ),
@@ -162,9 +170,7 @@ class _TheSolutionViewState extends State<TheSolutionView>
       decoration: BoxDecoration(
         color: pillar.color.withValues(alpha: 0.06),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: pillar.color.withValues(alpha: 0.15),
-        ),
+        border: Border.all(color: pillar.color.withValues(alpha: 0.15)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -194,8 +200,7 @@ class _TheSolutionViewState extends State<TheSolutionView>
                 Text(
                   pillar.subtitle,
                   style: theme.textTheme.bodySmall?.copyWith(
-                    color:
-                        theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                    color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
                     height: 1.4,
                   ),
                 ),

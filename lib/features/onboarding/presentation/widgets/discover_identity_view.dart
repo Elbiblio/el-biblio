@@ -35,7 +35,10 @@ class _DiscoverIdentityViewState extends ConsumerState<DiscoverIdentityView>
       duration: AppAnimations.reveal,
     );
     _revealScale = Tween<double>(begin: 0.7, end: 1.0).animate(
-      CurvedAnimation(parent: _revealController, curve: AppAnimations.bounceCurve),
+      CurvedAnimation(
+        parent: _revealController,
+        curve: AppAnimations.bounceCurve,
+      ),
     );
     _revealFade = CurvedAnimation(
       parent: _revealController,
@@ -59,9 +62,9 @@ class _DiscoverIdentityViewState extends ConsumerState<DiscoverIdentityView>
 
   /// Returns a confidence label based on the assessment score spread.
   String _confidenceLabel(double confidence) {
-    if (confidence >= 0.5) return 'Strong match!';
-    if (confidence >= 0.3) return 'Great match!';
-    return 'Good match';
+    if (confidence >= 0.5) return 'Clear signal';
+    if (confidence >= 0.3) return 'Steady signal';
+    return 'Gentle signal';
   }
 
   @override
@@ -94,22 +97,27 @@ class _DiscoverIdentityViewState extends ConsumerState<DiscoverIdentityView>
 
     // Check if current question has been answered
     final questionIndex = _showingTiebreaker ? 3 : _currentQuestion;
-    final hasAnswer = state.miniAssessmentAnswers.length > questionIndex &&
+    final hasAnswer =
+        state.miniAssessmentAnswers.length > questionIndex &&
         state.miniAssessmentAnswers[questionIndex] >= 0;
-    final selectedIndex =
-        hasAnswer ? state.miniAssessmentAnswers[questionIndex] : -1;
+    final selectedIndex = hasAnswer
+        ? state.miniAssessmentAnswers[questionIndex]
+        : -1;
 
     // Assessment is complete when archetype is determined AND no tiebreaker needed
-    final hasThreeAnswers = state.miniAssessmentAnswers.length >= 3 &&
+    final hasThreeAnswers =
+        state.miniAssessmentAnswers.length >= 3 &&
         state.miniAssessmentAnswers.take(3).every((a) => a >= 0);
     final needsTiebreaker = hasThreeAnswers && notifier.needsTiebreaker;
-    final assessmentComplete = hasThreeAnswers &&
+    final assessmentComplete =
+        hasThreeAnswers &&
         archetype != null &&
         !needsTiebreaker &&
         !_showingTiebreaker;
 
     // Check if tiebreaker just completed
-    final tiebreakerComplete = _showingTiebreaker &&
+    final tiebreakerComplete =
+        _showingTiebreaker &&
         state.miniAssessmentAnswers.length >= 4 &&
         state.miniAssessmentAnswers[3] >= 0 &&
         archetype != null;
@@ -131,8 +139,12 @@ class _DiscoverIdentityViewState extends ConsumerState<DiscoverIdentityView>
       });
     }
 
-    final totalQuestions = _showingTiebreaker ? baseQuestionCount + 1 : baseQuestionCount;
-    final displayQuestionNum = _showingTiebreaker ? baseQuestionCount + 1 : _currentQuestion + 1;
+    final totalQuestions = _showingTiebreaker
+        ? baseQuestionCount + 1
+        : baseQuestionCount;
+    final displayQuestionNum = _showingTiebreaker
+        ? baseQuestionCount + 1
+        : _currentQuestion + 1;
 
     return SingleChildScrollView(
       physics: const BouncingScrollPhysics(),
@@ -154,8 +166,7 @@ class _DiscoverIdentityViewState extends ConsumerState<DiscoverIdentityView>
                       borderRadius: BorderRadius.circular(2),
                       color: i < displayQuestionNum
                           ? theme.colorScheme.primary
-                          : theme.colorScheme.onSurface
-                              .withValues(alpha: 0.1),
+                          : theme.colorScheme.onSurface.withValues(alpha: 0.1),
                     ),
                   ),
                 ),
@@ -165,7 +176,7 @@ class _DiscoverIdentityViewState extends ConsumerState<DiscoverIdentityView>
           const SizedBox(height: 8),
           Text(
             _showingTiebreaker
-                ? 'One last thought...'
+                ? 'One last thought'
                 : 'Question $displayQuestionNum of $totalQuestions',
             style: textTheme.labelMedium?.copyWith(
               color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
@@ -192,7 +203,8 @@ class _DiscoverIdentityViewState extends ConsumerState<DiscoverIdentityView>
                     HapticService.selection();
                     notifier.answerMiniAssessment(questionIndex, index);
                     // Auto-advance after a short delay
-                    if (!_showingTiebreaker && _currentQuestion < baseQuestionCount - 1) {
+                    if (!_showingTiebreaker &&
+                        _currentQuestion < baseQuestionCount - 1) {
                       Future.delayed(const Duration(milliseconds: 400), () {
                         if (mounted) {
                           setState(() {
@@ -209,17 +221,15 @@ class _DiscoverIdentityViewState extends ConsumerState<DiscoverIdentityView>
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
                       color: isSelected
-                          ? theme.colorScheme.primary
-                              .withValues(alpha: 0.1)
-                          : theme.colorScheme.onSurface
-                              .withValues(alpha: 0.03),
+                          ? theme.colorScheme.primary.withValues(alpha: 0.1)
+                          : theme.colorScheme.onSurface.withValues(alpha: 0.03),
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
                         color: isSelected
-                            ? theme.colorScheme.primary
-                                .withValues(alpha: 0.4)
-                            : theme.colorScheme.onSurface
-                                .withValues(alpha: 0.1),
+                            ? theme.colorScheme.primary.withValues(alpha: 0.4)
+                            : theme.colorScheme.onSurface.withValues(
+                                alpha: 0.1,
+                              ),
                         width: isSelected ? 1.5 : 1,
                       ),
                     ),
@@ -236,14 +246,18 @@ class _DiscoverIdentityViewState extends ConsumerState<DiscoverIdentityView>
                             border: Border.all(
                               color: isSelected
                                   ? theme.colorScheme.primary
-                                  : theme.colorScheme.onSurface
-                                      .withValues(alpha: 0.3),
+                                  : theme.colorScheme.onSurface.withValues(
+                                      alpha: 0.3,
+                                    ),
                               width: 1.5,
                             ),
                           ),
                           child: isSelected
-                              ? const Icon(Icons.check,
-                                  size: 16, color: Colors.white)
+                              ? const Icon(
+                                  Icons.check,
+                                  size: 16,
+                                  color: Colors.white,
+                                )
                               : Center(
                                   child: Text(
                                     String.fromCharCode(65 + index),
@@ -264,8 +278,9 @@ class _DiscoverIdentityViewState extends ConsumerState<DiscoverIdentityView>
                                   : FontWeight.w400,
                               color: isSelected
                                   ? theme.colorScheme.primary
-                                  : theme.colorScheme.onSurface
-                                      .withValues(alpha: 0.8),
+                                  : theme.colorScheme.onSurface.withValues(
+                                      alpha: 0.8,
+                                    ),
                             ),
                           ),
                         ),
@@ -277,7 +292,10 @@ class _DiscoverIdentityViewState extends ConsumerState<DiscoverIdentityView>
             );
           }),
           // Back button for questions 2+ (not during tiebreaker)
-          if (_currentQuestion > 0 && !assessmentComplete && !tiebreakerComplete && !_showingTiebreaker) ...[
+          if (_currentQuestion > 0 &&
+              !assessmentComplete &&
+              !tiebreakerComplete &&
+              !_showingTiebreaker) ...[
             const SizedBox(height: 8),
             Center(
               child: TextButton.icon(
@@ -297,10 +315,7 @@ class _DiscoverIdentityViewState extends ConsumerState<DiscoverIdentityView>
             AnimatedBuilder(
               animation: _revealController,
               builder: (context, child) {
-                return Opacity(
-                  opacity: _revealFade.value,
-                  child: child,
-                );
+                return Opacity(opacity: _revealFade.value, child: child);
               },
               child: Container(
                 width: double.infinity,
@@ -316,8 +331,7 @@ class _DiscoverIdentityViewState extends ConsumerState<DiscoverIdentityView>
                   ),
                   borderRadius: BorderRadius.circular(18),
                   border: Border.all(
-                    color:
-                        theme.colorScheme.primary.withValues(alpha: 0.2),
+                    color: theme.colorScheme.primary.withValues(alpha: 0.2),
                   ),
                 ),
                 child: Column(
@@ -334,15 +348,14 @@ class _DiscoverIdentityViewState extends ConsumerState<DiscoverIdentityView>
                             begin: Alignment.topLeft,
                             end: Alignment.bottomRight,
                             colors: [
-                              theme.colorScheme.primary
-                                  .withValues(alpha: 0.15),
-                              theme.colorScheme.primary
-                                  .withValues(alpha: 0.05),
+                              theme.colorScheme.primary.withValues(alpha: 0.15),
+                              theme.colorScheme.primary.withValues(alpha: 0.05),
                             ],
                           ),
                           border: Border.all(
-                            color: theme.colorScheme.primary
-                                .withValues(alpha: 0.3),
+                            color: theme.colorScheme.primary.withValues(
+                              alpha: 0.3,
+                            ),
                             width: 2,
                           ),
                         ),
@@ -359,10 +372,11 @@ class _DiscoverIdentityViewState extends ConsumerState<DiscoverIdentityView>
                     ),
                     const SizedBox(height: 16),
                     Text(
-                      'You are a',
+                      'Your compass points toward',
                       style: textTheme.bodyMedium?.copyWith(
-                        color: theme.colorScheme.onSurface
-                            .withValues(alpha: 0.5),
+                        color: theme.colorScheme.onSurface.withValues(
+                          alpha: 0.5,
+                        ),
                       ),
                     ),
                     const SizedBox(height: 4),
@@ -381,10 +395,11 @@ class _DiscoverIdentityViewState extends ConsumerState<DiscoverIdentityView>
                     const SizedBox(height: 4),
                     Container(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 14, vertical: 6),
+                        horizontal: 14,
+                        vertical: 6,
+                      ),
                       decoration: BoxDecoration(
-                        color: theme.colorScheme.primary
-                            .withValues(alpha: 0.1),
+                        color: theme.colorScheme.primary.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: Text(
@@ -409,7 +424,7 @@ class _DiscoverIdentityViewState extends ConsumerState<DiscoverIdentityView>
                     _buildSection(
                       context,
                       icon: Icons.star_outline,
-                      title: 'Your Strengths',
+                      title: 'How you tend to grow',
                       content: archetype.strengths,
                       color: theme.colorScheme.primary,
                     ),
@@ -420,12 +435,14 @@ class _DiscoverIdentityViewState extends ConsumerState<DiscoverIdentityView>
                         width: double.infinity,
                         padding: const EdgeInsets.all(14),
                         decoration: BoxDecoration(
-                          color: theme.colorScheme.primary
-                              .withValues(alpha: 0.06),
+                          color: theme.colorScheme.primary.withValues(
+                            alpha: 0.06,
+                          ),
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(
-                            color: theme.colorScheme.primary
-                                .withValues(alpha: 0.12),
+                            color: theme.colorScheme.primary.withValues(
+                              alpha: 0.12,
+                            ),
                           ),
                         ),
                         child: Column(
@@ -440,7 +457,7 @@ class _DiscoverIdentityViewState extends ConsumerState<DiscoverIdentityView>
                                 ),
                                 const SizedBox(width: 8),
                                 Text(
-                                  'Your Spiritual Path',
+                                  'Growth invitation',
                                   style: textTheme.labelLarge?.copyWith(
                                     fontWeight: FontWeight.w600,
                                     color: theme.colorScheme.primary,
@@ -452,8 +469,9 @@ class _DiscoverIdentityViewState extends ConsumerState<DiscoverIdentityView>
                             Text(
                               archetype.inversionStrategy,
                               style: textTheme.bodySmall?.copyWith(
-                                color: theme.colorScheme.onSurface
-                                    .withValues(alpha: 0.7),
+                                color: theme.colorScheme.onSurface.withValues(
+                                  alpha: 0.7,
+                                ),
                                 height: 1.5,
                               ),
                             ),
@@ -462,11 +480,12 @@ class _DiscoverIdentityViewState extends ConsumerState<DiscoverIdentityView>
                       ),
                     const SizedBox(height: 10),
                     Text(
-                      'Take the full assessment later for deeper insights.',
+                      'You can retake the compass later as your season changes.',
                       textAlign: TextAlign.center,
                       style: textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurface
-                            .withValues(alpha: 0.4),
+                        color: theme.colorScheme.onSurface.withValues(
+                          alpha: 0.4,
+                        ),
                       ),
                     ),
                   ],

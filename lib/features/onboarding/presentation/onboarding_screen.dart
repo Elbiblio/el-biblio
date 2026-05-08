@@ -23,21 +23,22 @@ class OnboardingScreen extends ConsumerWidget {
 
   String _stepTitle(OnboardingStep step) {
     return switch (step) {
-      OnboardingStep.theProblem => 'The Noise',
-      OnboardingStep.theSolution => 'The Solution',
-      OnboardingStep.yourIdentity => 'Your Identity',
-      OnboardingStep.yourAccount => 'Your Account',
+      OnboardingStep.theProblem => 'Daily Return',
+      OnboardingStep.theSolution => 'The Path',
+      OnboardingStep.yourIdentity => 'Spiritual Compass',
+      OnboardingStep.yourAccount => 'Create Account',
     };
   }
 
   String _getPrimaryButtonLabel(OnboardingState state) {
     return switch (state.step) {
-      OnboardingStep.theProblem => 'There must be a better way',
-      OnboardingStep.theSolution => 'Show me my identity',
-      OnboardingStep.yourIdentity => _canAdvanceFromAssessment(state)
-          ? 'Create my account'
-          : 'Answer all questions',
-      OnboardingStep.yourAccount => 'Begin my clarity journey',
+      OnboardingStep.theProblem => 'Show me the path',
+      OnboardingStep.theSolution => 'Find my compass',
+      OnboardingStep.yourIdentity =>
+        _canAdvanceFromAssessment(state)
+            ? 'Create my account'
+            : 'Answer all questions',
+      OnboardingStep.yourAccount => 'Continue to tribe and commitment',
     };
   }
 
@@ -64,9 +65,9 @@ class OnboardingScreen extends ConsumerWidget {
       OnboardingStep.theSolution => const TheSolutionView(),
       OnboardingStep.yourIdentity => const DiscoverIdentityView(),
       OnboardingStep.yourAccount => YourAccountView(
-          onSignUp: (name, email, phone) =>
-              _handleSignUp(context, ref, name, email, phone),
-        ),
+        onSignUp: (name, email, phone) =>
+            _handleSignUp(context, ref, name, email, phone),
+      ),
     };
   }
 
@@ -82,18 +83,14 @@ class OnboardingScreen extends ConsumerWidget {
     HapticFeedback.mediumImpact();
 
     // Signup FIRST — if it fails, we don't mark onboarding complete.
-    final success = await ref.read(authProvider.notifier).signUpWithDetails(
-          name: name,
-          email: email,
-          phone: phone,
-        );
+    final success = await ref
+        .read(authProvider.notifier)
+        .signUpWithDetails(name: name, email: email, phone: phone);
 
     if (!success) {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Could not create your account. Please try again.'),
-        ),
+        const SnackBar(content: Text('We could not create your account yet.')),
       );
       return;
     }
@@ -112,7 +109,9 @@ class OnboardingScreen extends ConsumerWidget {
     // disk write. A crash between the two writes previously could leave
     // hasCompletedPreOnboarding=true and onboardingCompleted=false, stranding
     // the user on a dead route.
-    await ref.read(settingsProvider.notifier).persistOnboardingBundle(
+    await ref
+        .read(settingsProvider.notifier)
+        .persistOnboardingBundle(
           primaryVirtue: onboardingState.primaryVirtue,
           lifestyle: onboardingState.lifestyle,
           morningTime: onboardingState.morningTime,
@@ -139,13 +138,22 @@ class OnboardingScreen extends ConsumerWidget {
     final notifier = ref.read(onboardingProvider.notifier);
 
     return ResponsiveLayoutBuilder(
-      mobile: (context, constraints) => _buildScaffold(context, ref, state, notifier, isDesktop: false),
-      tablet: (context, constraints) => _buildScaffold(context, ref, state, notifier, isDesktop: false),
-      desktop: (context, constraints) => _buildScaffold(context, ref, state, notifier, isDesktop: true),
+      mobile: (context, constraints) =>
+          _buildScaffold(context, ref, state, notifier, isDesktop: false),
+      tablet: (context, constraints) =>
+          _buildScaffold(context, ref, state, notifier, isDesktop: false),
+      desktop: (context, constraints) =>
+          _buildScaffold(context, ref, state, notifier, isDesktop: true),
     );
   }
 
-  Widget _buildScaffold(BuildContext context, WidgetRef ref, OnboardingState state, OnboardingNotifier notifier, {required bool isDesktop}) {
+  Widget _buildScaffold(
+    BuildContext context,
+    WidgetRef ref,
+    OnboardingState state,
+    OnboardingNotifier notifier, {
+    required bool isDesktop,
+  }) {
     const horizontalPadding = 24.0;
     const contentMaxWidth = 600.0;
 
@@ -170,7 +178,9 @@ class OnboardingScreen extends ConsumerWidget {
             margin: const EdgeInsets.symmetric(horizontal: horizontalPadding),
             child: LinearProgressIndicator(
               value: (state.currentStepIndex + 1) / state.totalSteps,
-              backgroundColor: Theme.of(context).colorScheme.outline.withValues(alpha: 0.1),
+              backgroundColor: Theme.of(
+                context,
+              ).colorScheme.outline.withValues(alpha: 0.1),
               valueColor: AlwaysStoppedAnimation<Color>(
                 Theme.of(context).colorScheme.primary.withValues(alpha: 0.6),
               ),
@@ -198,27 +208,36 @@ class OnboardingScreen extends ConsumerWidget {
             ),
           ),
           child: Center(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: contentMaxWidth),
-                child: Padding(
-                  padding: const EdgeInsets.only(bottom: 0),
-                  child: _stepContent(context, ref, state),
-                ),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: contentMaxWidth),
+              child: Padding(
+                padding: const EdgeInsets.only(bottom: 0),
+                child: _stepContent(context, ref, state),
               ),
             ),
+          ),
         ),
       ),
       // Hide the bottom bar on yourAccount step — the view has its own buttons
       bottomNavigationBar: state.step == OnboardingStep.yourAccount
           ? null
-          : (isDesktop ? null : _buildBottomNavigationBar(context, state, notifier, ref)),
+          : (isDesktop
+                ? null
+                : _buildBottomNavigationBar(context, state, notifier, ref)),
       persistentFooterButtons: state.step == OnboardingStep.yourAccount
           ? null
-          : (isDesktop ? [_buildDesktopButtons(context, state, notifier, ref)] : null),
+          : (isDesktop
+                ? [_buildDesktopButtons(context, state, notifier, ref)]
+                : null),
     );
   }
 
-  Widget _buildBottomNavigationBar(BuildContext context, OnboardingState state, OnboardingNotifier notifier, WidgetRef ref) {
+  Widget _buildBottomNavigationBar(
+    BuildContext context,
+    OnboardingState state,
+    OnboardingNotifier notifier,
+    WidgetRef ref,
+  ) {
     final canAdvance = _canAdvance(state);
 
     return Container(
@@ -237,10 +256,7 @@ class OnboardingScreen extends ConsumerWidget {
             // Back button (not shown on first step)
             if (state.step != OnboardingStep.theProblem)
               Expanded(
-                child: PrimaryButton(
-                  label: 'Back',
-                  onPressed: notifier.back,
-                ),
+                child: PrimaryButton(label: 'Back', onPressed: notifier.back),
               ),
             if (state.step != OnboardingStep.theProblem)
               const SizedBox(width: 16),
@@ -256,7 +272,12 @@ class OnboardingScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildDesktopButtons(BuildContext context, OnboardingState state, OnboardingNotifier notifier, WidgetRef ref) {
+  Widget _buildDesktopButtons(
+    BuildContext context,
+    OnboardingState state,
+    OnboardingNotifier notifier,
+    WidgetRef ref,
+  ) {
     final canAdvance = _canAdvance(state);
 
     return Container(

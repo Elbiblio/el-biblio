@@ -15,14 +15,14 @@ import 'onboarding_state.dart';
 
 final onboardingProvider =
     StateNotifierProvider<OnboardingNotifier, OnboardingState>((ref) {
-  final settings = ref.read(settingsProvider);
-  final settingsNotifier = ref.read(settingsProvider.notifier);
-  return OnboardingNotifier(settings, settingsNotifier);
-});
+      final settings = ref.read(settingsProvider);
+      final settingsNotifier = ref.read(settingsProvider.notifier);
+      return OnboardingNotifier(settings, settingsNotifier);
+    });
 
 class OnboardingNotifier extends StateNotifier<OnboardingState> {
   OnboardingNotifier(AppSettings settings, [this._settingsNotifier])
-      : super(_initialState(settings));
+    : super(_initialState(settings));
 
   /// Optional so pure-unit tests can instantiate the notifier without a
   /// real `SettingsNotifier`. Null-case: persistence no-ops silently.
@@ -107,19 +107,31 @@ class OnboardingNotifier extends StateNotifier<OnboardingState> {
   static const List<MiniAssessmentQuestion> miniAssessmentQuestions = [
     // Q1: Instinctive response — broad archetype signal (weight 1.0)
     MiniAssessmentQuestion(
-      question: 'When life gets overwhelming, what do you instinctively reach for?',
+      question: 'When life gets overwhelming, what do you usually reach for?',
       weight: 1.0,
       options: [
-        'Something creative — music, art, writing, or building',
-        'Information — I need to understand what\'s happening',
-        'People — I reach out to someone I trust',
-        'Action — I start doing something to fix it',
+        'Something creative: music, art, writing, or building',
+        'Understanding: I need to see what is happening',
+        'People: I reach out to someone I trust',
+        'Action: I start doing something concrete',
       ],
       affinityMap: {
-        0: ArchetypeScoreSet(positive: ['Artisan', 'Sower'], negative: ['Architect', 'Pillar']),
-        1: ArchetypeScoreSet(positive: ['Watchman', 'Sentinel'], negative: ['Welcomer', 'Sower']),
-        2: ArchetypeScoreSet(positive: ['Welcomer', 'Bridgebuilder', 'Healer'], negative: ['Sentinel', 'Architect']),
-        3: ArchetypeScoreSet(positive: ['Reformer', 'Architect', 'Harvester'], negative: ['Bridgebuilder', 'Welcomer']),
+        0: ArchetypeScoreSet(
+          positive: ['Artisan', 'Sower'],
+          negative: ['Architect', 'Pillar'],
+        ),
+        1: ArchetypeScoreSet(
+          positive: ['Watchman', 'Sentinel'],
+          negative: ['Welcomer', 'Sower'],
+        ),
+        2: ArchetypeScoreSet(
+          positive: ['Welcomer', 'Bridgebuilder', 'Healer'],
+          negative: ['Sentinel', 'Architect'],
+        ),
+        3: ArchetypeScoreSet(
+          positive: ['Reformer', 'Architect', 'Harvester'],
+          negative: ['Bridgebuilder', 'Welcomer'],
+        ),
       },
     ),
     // Q2: Vice-signal question — splits clustered archetypes (weight 1.2)
@@ -133,27 +145,51 @@ class OnboardingNotifier extends StateNotifier<OnboardingState> {
         'Disorder when things could be so much better',
       ],
       affinityMap: {
-        0: ArchetypeScoreSet(positive: ['Pillar', 'Artisan', 'Cultivator'], negative: ['Harvester', 'Reformer']),
-        1: ArchetypeScoreSet(positive: ['Sentinel', 'Healer', 'Bridgebuilder'], negative: ['Sower', 'Harvester']),
-        2: ArchetypeScoreSet(positive: ['Reformer', 'Watchman', 'Sower'], negative: ['Welcomer', 'Pillar']),
-        3: ArchetypeScoreSet(positive: ['Architect', 'Cultivator', 'Harvester'], negative: ['Bridgebuilder', 'Artisan']),
+        0: ArchetypeScoreSet(
+          positive: ['Pillar', 'Artisan', 'Cultivator'],
+          negative: ['Harvester', 'Reformer'],
+        ),
+        1: ArchetypeScoreSet(
+          positive: ['Sentinel', 'Healer', 'Bridgebuilder'],
+          negative: ['Sower', 'Harvester'],
+        ),
+        2: ArchetypeScoreSet(
+          positive: ['Reformer', 'Watchman', 'Sower'],
+          negative: ['Welcomer', 'Pillar'],
+        ),
+        3: ArchetypeScoreSet(
+          positive: ['Architect', 'Cultivator', 'Harvester'],
+          negative: ['Bridgebuilder', 'Artisan'],
+        ),
       },
     ),
     // Q3: Static fallback (only used if dynamic Q3 can't be generated)
     MiniAssessmentQuestion(
-      question: 'If you could have one spiritual superpower, what would it be?',
+      question: 'What kind of growth do you feel most drawn toward?',
       weight: 1.5,
       options: [
-        'The ability to see what God sees in people',
-        'Unshakeable peace no matter what happens',
+        'Seeing people with more mercy and attention',
+        'Finding steadiness when life feels uncertain',
         'The courage to speak truth even when it\'s costly',
-        'The patience to build something that outlasts you',
+        'Building something faithful over time',
       ],
       affinityMap: {
-        0: ArchetypeScoreSet(positive: ['Healer', 'Cultivator', 'Bridgebuilder'], negative: ['Harvester', 'Architect']),
-        1: ArchetypeScoreSet(positive: ['Sentinel', 'Pillar', 'Welcomer'], negative: ['Reformer', 'Sower']),
-        2: ArchetypeScoreSet(positive: ['Watchman', 'Reformer', 'Sower'], negative: ['Pillar', 'Welcomer']),
-        3: ArchetypeScoreSet(positive: ['Architect', 'Harvester', 'Artisan'], negative: ['Healer', 'Bridgebuilder']),
+        0: ArchetypeScoreSet(
+          positive: ['Healer', 'Cultivator', 'Bridgebuilder'],
+          negative: ['Harvester', 'Architect'],
+        ),
+        1: ArchetypeScoreSet(
+          positive: ['Sentinel', 'Pillar', 'Welcomer'],
+          negative: ['Reformer', 'Sower'],
+        ),
+        2: ArchetypeScoreSet(
+          positive: ['Watchman', 'Reformer', 'Sower'],
+          negative: ['Pillar', 'Welcomer'],
+        ),
+        3: ArchetypeScoreSet(
+          positive: ['Architect', 'Harvester', 'Artisan'],
+          negative: ['Healer', 'Bridgebuilder'],
+        ),
       },
     ),
   ];
@@ -209,7 +245,10 @@ class OnboardingNotifier extends StateNotifier<OnboardingState> {
     final affinityMap = <int, ArchetypeScoreSet>{};
     for (int i = 0; i < options.length; i++) {
       final archetype = topCandidates[i];
-      affinityMap[i] = ArchetypeScoreSet(positive: [archetype], negative: const []);
+      affinityMap[i] = ArchetypeScoreSet(
+        positive: [archetype],
+        negative: const [],
+      );
     }
 
     return MiniAssessmentQuestion(
@@ -249,11 +288,14 @@ class OnboardingNotifier extends StateNotifier<OnboardingState> {
 
     final affinityMap = <int, ArchetypeScoreSet>{};
     for (int i = 0; i < options.length; i++) {
-      affinityMap[i] = ArchetypeScoreSet(positive: [top2[i]], negative: const []);
+      affinityMap[i] = ArchetypeScoreSet(
+        positive: [top2[i]],
+        negative: const [],
+      );
     }
 
     return MiniAssessmentQuestion(
-      question: 'One last thought — which resonates more deeply?',
+      question: 'One last thought: which resonates more deeply?',
       weight: 2.5,
       options: options,
       affinityMap: affinityMap,
@@ -263,7 +305,11 @@ class OnboardingNotifier extends StateNotifier<OnboardingState> {
   /// Computes intermediate scores from a subset of answers (used for dynamic Q3).
   Map<String, double> _computeIntermediateScores(List<int> answers) {
     final scores = <String, double>{};
-    for (var i = 0; i < answers.length && i < miniAssessmentQuestions.length; i++) {
+    for (
+      var i = 0;
+      i < answers.length && i < miniAssessmentQuestions.length;
+      i++
+    ) {
       if (answers[i] < 0) continue;
       final question = miniAssessmentQuestions[i];
       final scoreSet = question.affinityMap[answers[i]];
@@ -346,8 +392,9 @@ class OnboardingNotifier extends StateNotifier<OnboardingState> {
         : 0.0;
 
     // Set the recommended commitment category
-    final recommendedCategory =
-        CommitmentCategory.recommendedForArchetype(bestArchetype);
+    final recommendedCategory = CommitmentCategory.recommendedForArchetype(
+      bestArchetype,
+    );
 
     state = state.copyWith(
       primaryArchetypeId: bestArchetype,
@@ -383,9 +430,9 @@ class OnboardingNotifier extends StateNotifier<OnboardingState> {
     final id = state.primaryArchetypeId;
     if (id == null) return null;
     return Archetype.allArchetypes.cast<Archetype?>().firstWhere(
-          (a) => a?.name == id,
-          orElse: () => null,
-        );
+      (a) => a?.name == id,
+      orElse: () => null,
+    );
   }
 
   // ---------------------------------------------------------------------------
@@ -534,10 +581,7 @@ class MiniAssessmentQuestion {
 
 /// Positive and negative archetype affinities for a single answer option.
 class ArchetypeScoreSet {
-  const ArchetypeScoreSet({
-    required this.positive,
-    this.negative = const [],
-  });
+  const ArchetypeScoreSet({required this.positive, this.negative = const []});
 
   /// Archetypes that gain points when this answer is selected.
   final List<String> positive;

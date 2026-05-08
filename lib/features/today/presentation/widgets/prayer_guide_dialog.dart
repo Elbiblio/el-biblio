@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:confetti/confetti.dart';
-import '../../../../core/di/app_providers.dart';
 import '../../../today/domain/models/daily_anchors.dart';
 import '../../../commitments/domain/models/commitment_journey.dart';
 import 'breathing_meditation_widget.dart';
@@ -30,17 +29,25 @@ class PrayerGuideDialog extends ConsumerStatefulWidget {
   final ActiveJourney? activeJourney;
   final CommitmentJourney? commitmentJourney;
 
-  static void show(BuildContext context, Virtue virtue, VoidCallback onMarkDone, {bool showQuickStart = true, ActiveJourney? activeJourney, CommitmentJourney? commitmentJourney}) {
+  static void show(
+    BuildContext context,
+    Virtue virtue,
+    VoidCallback onMarkDone, {
+    bool showQuickStart = true,
+    ActiveJourney? activeJourney,
+    CommitmentJourney? commitmentJourney,
+  }) {
     Navigator.of(context).push(
       PageRouteBuilder(
         opaque: false,
-        pageBuilder: (context, animation, secondaryAnimation) => PrayerGuideDialog(
-          virtue: virtue,
-          onMarkDone: onMarkDone,
-          showQuickStart: showQuickStart,
-          activeJourney: activeJourney,
-          commitmentJourney: commitmentJourney,
-        ),
+        pageBuilder: (context, animation, secondaryAnimation) =>
+            PrayerGuideDialog(
+              virtue: virtue,
+              onMarkDone: onMarkDone,
+              showQuickStart: showQuickStart,
+              activeJourney: activeJourney,
+              commitmentJourney: commitmentJourney,
+            ),
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
           return FadeTransition(opacity: animation, child: child);
         },
@@ -62,7 +69,9 @@ class _PrayerGuideDialogState extends ConsumerState<PrayerGuideDialog> {
   void initState() {
     super.initState();
     _pageController = PageController();
-    _confettiController = ConfettiController(duration: const Duration(seconds: 2));
+    _confettiController = ConfettiController(
+      duration: const Duration(seconds: 2),
+    );
   }
 
   @override
@@ -93,9 +102,6 @@ class _PrayerGuideDialogState extends ConsumerState<PrayerGuideDialog> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final virtueColor = _getVirtueColor(widget.virtue.type);
-    final settings = ref.watch(settingsProvider);
-    final userName = settings.lifestyle.isNotEmpty ? '' : ''; // placeholder
-    // Use the stored name if available
     final greeting = _timeGreeting();
 
     return Scaffold(
@@ -121,7 +127,10 @@ class _PrayerGuideDialogState extends ConsumerState<PrayerGuideDialog> {
               children: [
                 // Top bar
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
@@ -129,7 +138,9 @@ class _PrayerGuideDialogState extends ConsumerState<PrayerGuideDialog> {
                         onPressed: () => Navigator.of(context).pop(),
                         icon: Icon(
                           Icons.close_rounded,
-                          color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                          color: theme.colorScheme.onSurface.withValues(
+                            alpha: 0.5,
+                          ),
                         ),
                       ),
                       // 3 dots
@@ -155,7 +166,9 @@ class _PrayerGuideDialogState extends ConsumerState<PrayerGuideDialog> {
                         child: Text(
                           'Done',
                           style: TextStyle(
-                            color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                            color: theme.colorScheme.onSurface.withValues(
+                              alpha: 0.5,
+                            ),
                             fontSize: 14,
                           ),
                         ),
@@ -168,7 +181,8 @@ class _PrayerGuideDialogState extends ConsumerState<PrayerGuideDialog> {
                 Expanded(
                   child: PageView(
                     controller: _pageController,
-                    onPageChanged: (index) => setState(() => _currentPage = index),
+                    onPageChanged: (index) =>
+                        setState(() => _currentPage = index),
                     physics: const ClampingScrollPhysics(),
                     children: [
                       _buildStep1Breathe(theme, virtueColor, greeting),
@@ -205,7 +219,11 @@ class _PrayerGuideDialogState extends ConsumerState<PrayerGuideDialog> {
   // Step 1: Breathe & Center
   // ---------------------------------------------------------------------------
 
-  Widget _buildStep1Breathe(ThemeData theme, Color virtueColor, String greeting) {
+  Widget _buildStep1Breathe(
+    ThemeData theme,
+    Color virtueColor,
+    String greeting,
+  ) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 32),
       child: Column(
@@ -317,33 +335,37 @@ class _PrayerGuideDialogState extends ConsumerState<PrayerGuideDialog> {
           const SizedBox(height: 24),
 
           // Prayer bullets
-          ...steps.map((step) => Padding(
-            padding: const EdgeInsets.only(bottom: 12),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  margin: const EdgeInsets.only(top: 6),
-                  width: 6,
-                  height: 6,
-                  decoration: BoxDecoration(
-                    color: virtueColor.withValues(alpha: 0.6),
-                    shape: BoxShape.circle,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    step,
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      height: 1.4,
-                      color: theme.colorScheme.onSurface.withValues(alpha: 0.75),
+          ...steps.map(
+            (step) => Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    margin: const EdgeInsets.only(top: 6),
+                    width: 6,
+                    height: 6,
+                    decoration: BoxDecoration(
+                      color: virtueColor.withValues(alpha: 0.6),
+                      shape: BoxShape.circle,
                     ),
                   ),
-                ),
-              ],
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      step,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        height: 1.4,
+                        color: theme.colorScheme.onSurface.withValues(
+                          alpha: 0.75,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
-          )),
+          ),
 
           const SizedBox(height: 8),
 
@@ -395,9 +417,7 @@ class _PrayerGuideDialogState extends ConsumerState<PrayerGuideDialog> {
     final focusText = journey?.baseRequirement != null
         ? journey!.baseRequirement!
         : widget.virtue.focusPrompt;
-    final titleText = journey != null
-        ? 'Your Commitment'
-        : 'Your Focus Today';
+    final titleText = journey != null ? 'Your Commitment' : 'Your Focus Today';
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 32),

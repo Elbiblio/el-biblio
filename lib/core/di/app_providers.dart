@@ -36,6 +36,9 @@ import '../../features/mission/domain/models/service_opportunity.dart';
 import '../../features/mvp/application/mvp_notifier.dart';
 import '../../features/mvp/application/mvp_state.dart';
 import '../../features/mvp/data/mvp_repository.dart';
+import '../../features/vision/application/vision_notifier.dart';
+import '../../features/vision/application/vision_state.dart';
+import '../../features/vision/data/vision_repository.dart';
 import '../../features/commitments/data/graduated_commitment_repository.dart';
 import '../../features/today/application/commitment_notifier.dart';
 import '../../features/today/application/daily_anchors_notifier.dart';
@@ -148,6 +151,22 @@ final mvpRepositoryProvider = Provider<MvpRepository>((ref) {
 final mvpProvider = StateNotifierProvider<MvpNotifier, MvpState>((ref) {
   return MvpNotifier(
     ref.watch(mvpRepositoryProvider),
+    ref.watch(notificationServiceProvider),
+  );
+});
+
+final visionRepositoryProvider = Provider<VisionRepository>((ref) {
+  return VisionRepository(
+    ref.watch(authenticatedDioClientProvider),
+    ref.watch(loggerProvider),
+  );
+});
+
+final visionProvider = StateNotifierProvider<VisionNotifier, VisionState>((
+  ref,
+) {
+  return VisionNotifier(
+    ref.watch(visionRepositoryProvider),
     ref.watch(notificationServiceProvider),
   );
 });

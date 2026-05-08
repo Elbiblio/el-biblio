@@ -36,9 +36,7 @@ class _GrowTogetherScreenState extends ConsumerState<GrowTogetherScreen> {
     final nextAction = mission.nextAction;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Grow Together'),
-      ),
+      appBar: AppBar(title: const Text('Grow Together')),
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.fromLTRB(24, 12, 24, 120),
@@ -72,7 +70,9 @@ class _GrowTogetherScreenState extends ConsumerState<GrowTogetherScreen> {
                     'Choose one trusted person, share your next step, and check in each week.',
                     style: theme.textTheme.bodyMedium?.copyWith(
                       height: 1.5,
-                      color: theme.colorScheme.onSurface.withValues(alpha: 0.72),
+                      color: theme.colorScheme.onSurface.withValues(
+                        alpha: 0.72,
+                      ),
                     ),
                   ),
                 ],
@@ -88,7 +88,9 @@ class _GrowTogetherScreenState extends ConsumerState<GrowTogetherScreen> {
 
             // --- Partner search/invite section ---
             Text(
-              partner == null ? 'Find your accountability partner' : 'Add another partner',
+              partner == null
+                  ? 'Find your accountability partner'
+                  : 'Add another partner',
               style: theme.textTheme.titleMedium?.copyWith(
                 fontWeight: FontWeight.w700,
               ),
@@ -122,7 +124,8 @@ class _GrowTogetherScreenState extends ConsumerState<GrowTogetherScreen> {
                     : IconButton(
                         icon: const Icon(Icons.arrow_forward_rounded),
                         onPressed: _searchController.text.trim().isNotEmpty
-                            ? () => _searchPartner(_searchController.text.trim())
+                            ? () =>
+                                  _searchPartner(_searchController.text.trim())
                             : null,
                       ),
                 border: OutlineInputBorder(
@@ -140,7 +143,9 @@ class _GrowTogetherScreenState extends ConsumerState<GrowTogetherScreen> {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: theme.colorScheme.errorContainer.withValues(alpha: 0.3),
+                  color: theme.colorScheme.errorContainer.withValues(
+                    alpha: 0.3,
+                  ),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Text(
@@ -154,7 +159,9 @@ class _GrowTogetherScreenState extends ConsumerState<GrowTogetherScreen> {
 
             if (_searchResults.isNotEmpty) ...[
               const SizedBox(height: 12),
-              ..._searchResults.map((user) => _buildSearchResultCard(theme, user)),
+              ..._searchResults.map(
+                (user) => _buildSearchResultCard(theme, user),
+              ),
             ],
 
             // Invite option when user not found
@@ -163,7 +170,9 @@ class _GrowTogetherScreenState extends ConsumerState<GrowTogetherScreen> {
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: theme.colorScheme.primaryContainer.withValues(alpha: 0.2),
+                  color: theme.colorScheme.primaryContainer.withValues(
+                    alpha: 0.2,
+                  ),
                   borderRadius: BorderRadius.circular(14),
                   border: Border.all(
                     color: theme.colorScheme.primary.withValues(alpha: 0.15),
@@ -174,12 +183,15 @@ class _GrowTogetherScreenState extends ConsumerState<GrowTogetherScreen> {
                   children: [
                     Row(
                       children: [
-                        Icon(Icons.person_add_alt_1_rounded, size: 20,
-                            color: theme.colorScheme.primary),
+                        Icon(
+                          Icons.person_add_alt_1_rounded,
+                          size: 20,
+                          color: theme.colorScheme.primary,
+                        ),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            'Not on El-Biblio yet',
+                            'Not on Elbiblio yet',
                             style: theme.textTheme.titleSmall?.copyWith(
                               fontWeight: FontWeight.w700,
                             ),
@@ -189,9 +201,11 @@ class _GrowTogetherScreenState extends ConsumerState<GrowTogetherScreen> {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      'We\'ll send them an invite to join you on El-Biblio as your accountability partner.',
+                      'We\'ll send them an invite to join you on Elbiblio as your accountability partner.',
                       style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                        color: theme.colorScheme.onSurface.withValues(
+                          alpha: 0.6,
+                        ),
                         height: 1.4,
                       ),
                     ),
@@ -208,7 +222,9 @@ class _GrowTogetherScreenState extends ConsumerState<GrowTogetherScreen> {
                     Text(
                       'Partners who miss 3 check-ins are automatically removed to keep accountability strong.',
                       style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurface.withValues(alpha: 0.35),
+                        color: theme.colorScheme.onSurface.withValues(
+                          alpha: 0.35,
+                        ),
                         fontSize: 11,
                       ),
                     ),
@@ -258,7 +274,9 @@ class _GrowTogetherScreenState extends ConsumerState<GrowTogetherScreen> {
                       nextAction.description,
                       style: theme.textTheme.bodyMedium?.copyWith(
                         height: 1.45,
-                        color: theme.colorScheme.onSurface.withValues(alpha: 0.68),
+                        color: theme.colorScheme.onSurface.withValues(
+                          alpha: 0.68,
+                        ),
                       ),
                     ),
                     const SizedBox(height: 14),
@@ -277,7 +295,7 @@ class _GrowTogetherScreenState extends ConsumerState<GrowTogetherScreen> {
   }
 
   Widget _buildSearchResultCard(ThemeData theme, Map<String, dynamic> user) {
-    final name = user['name'] as String? ?? 'El-Biblio User';
+    final name = user['name'] as String? ?? 'Elbiblio User';
     final userId = user['id'];
 
     return Container(
@@ -315,7 +333,7 @@ class _GrowTogetherScreenState extends ConsumerState<GrowTogetherScreen> {
                   ),
                 ),
                 Text(
-                  'El-Biblio member',
+                  'Elbiblio member',
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
                   ),
@@ -374,17 +392,19 @@ class _GrowTogetherScreenState extends ConsumerState<GrowTogetherScreen> {
   Future<void> _sendPartnerRequest(dynamic userId, String name) async {
     try {
       final dio = ref.read(dioClientProvider);
-      await dio.post('/partnerships', data: {
-        'partner_user_id': userId,
-        'partner_type': 'peer',
-      });
+      await dio.post(
+        '/partnerships',
+        data: {'partner_user_id': userId, 'partner_type': 'peer'},
+      );
 
       // Also save locally for immediate display
-      await ref.read(missionProvider.notifier).savePartner(
-        name: name,
-        relationship: 'Accountability Partner',
-        contact: '',
-      );
+      await ref
+          .read(missionProvider.notifier)
+          .savePartner(
+            name: name,
+            relationship: 'Accountability Partner',
+            contact: '',
+          );
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -408,20 +428,27 @@ class _GrowTogetherScreenState extends ConsumerState<GrowTogetherScreen> {
 
       // Determine if email or phone
       final isEmail = contact.contains('@');
-      await dio.post('/partnerships', data: {
-        if (isEmail) 'partner_email': contact,
-        if (!isEmail) 'partner_phone': contact,
-        'partner_type': 'peer',
-      });
+      await dio.post(
+        '/partnerships',
+        data: {
+          if (isEmail) 'partner_email': contact,
+          if (!isEmail) 'partner_phone': contact,
+          'partner_type': 'peer',
+        },
+      );
 
       // Also share the invite link
       Share.share(
-        'I\'m using El-Biblio to grow spiritually and I\'d like you to be my accountability partner. Download it here: https://elbiblio.com',
+        'I\'m using Elbiblio to grow spiritually and I\'d like you to be my accountability partner. Download it here: https://elbiblio.com',
       );
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Invitation sent! They\'ll be notified when they join.')),
+        const SnackBar(
+          content: Text(
+            'Invitation sent! They\'ll be notified when they join.',
+          ),
+        ),
       );
       setState(() {
         _showInviteOption = false;
@@ -436,7 +463,7 @@ class _GrowTogetherScreenState extends ConsumerState<GrowTogetherScreen> {
   }
 }
 
-/// Section that finds existing El-Biblio users from device contacts and offers
+/// Section that finds existing Elbiblio users from device contacts and offers
 /// to add them as accountability partners directly — no email search needed.
 class _ContactsPartnerSection extends ConsumerStatefulWidget {
   @override
@@ -466,7 +493,7 @@ class _ContactsPartnerSectionState
           ),
           const SizedBox(height: 6),
           Text(
-            'We\'ll privately check if any of your contacts are already on El-Biblio.',
+            'We\'ll privately check if any of your contacts are already on Elbiblio.',
             style: theme.textTheme.bodySmall?.copyWith(
               color: theme.colorScheme.onSurface.withValues(alpha: 0.55),
               height: 1.4,
@@ -484,7 +511,8 @@ class _ContactsPartnerSectionState
                     },
               icon: contactState.isImporting
                   ? const SizedBox(
-                      width: 16, height: 16,
+                      width: 16,
+                      height: 16,
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
                   : const Icon(Icons.contacts_rounded, size: 18),
@@ -527,7 +555,7 @@ class _ContactsPartnerSectionState
             const SizedBox(width: 12),
             Expanded(
               child: Text(
-                'None of your contacts are on El-Biblio yet. '
+                'None of your contacts are on Elbiblio yet. '
                 'Invite them using the search above.',
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
@@ -552,7 +580,7 @@ class _ContactsPartnerSectionState
             ),
             const SizedBox(width: 6),
             Text(
-              '${potentialContacts.length} contact${potentialContacts.length == 1 ? '' : 's'} on El-Biblio',
+              '${potentialContacts.length} contact${potentialContacts.length == 1 ? '' : 's'} on Elbiblio',
               style: theme.textTheme.titleSmall?.copyWith(
                 fontWeight: FontWeight.w700,
                 color: theme.colorScheme.primary,
@@ -625,7 +653,7 @@ class _ContactPartnerCard extends ConsumerWidget {
                     ),
                     const SizedBox(width: 3),
                     Text(
-                      'El-Biblio member',
+                      'Elbiblio member',
                       style: theme.textTheme.bodySmall?.copyWith(
                         color: theme.colorScheme.primary,
                         fontSize: 11,
@@ -647,8 +675,10 @@ class _ContactPartnerCard extends ConsumerWidget {
             FilledButton(
               onPressed: () => _addAsPartner(context, ref),
               style: FilledButton.styleFrom(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 8,
+                ),
                 minimumSize: Size.zero,
                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
               ),
@@ -662,12 +692,14 @@ class _ContactPartnerCard extends ConsumerWidget {
   Future<void> _addAsPartner(BuildContext context, WidgetRef ref) async {
     try {
       final dio = ref.read(dioClientProvider);
-      await dio.post('/partnerships', data: {
-        'partner_user_id': contact.id,
-        'partner_type': 'peer',
-      });
+      await dio.post(
+        '/partnerships',
+        data: {'partner_user_id': contact.id, 'partner_type': 'peer'},
+      );
 
-      await ref.read(missionProvider.notifier).savePartnerEnhanced(
+      await ref
+          .read(missionProvider.notifier)
+          .savePartnerEnhanced(
             name: contact.displayName,
             relationship: 'Accountability Partner',
             contact: contact.email ?? contact.phoneNumber ?? '',
@@ -682,7 +714,9 @@ class _ContactPartnerCard extends ConsumerWidget {
     } catch (e) {
       if (!context.mounted) return;
       // Still save locally even if API fails
-      await ref.read(missionProvider.notifier).savePartnerEnhanced(
+      await ref
+          .read(missionProvider.notifier)
+          .savePartnerEnhanced(
             name: contact.displayName,
             relationship: 'Accountability Partner',
             contact: contact.email ?? contact.phoneNumber ?? '',
@@ -722,7 +756,9 @@ class _PartnerSummaryCard extends ConsumerWidget {
             children: [
               CircleAvatar(
                 radius: 22,
-                backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.12),
+                backgroundColor: theme.colorScheme.primary.withValues(
+                  alpha: 0.12,
+                ),
                 child: Text(
                   partner.name.substring(0, 1).toUpperCase(),
                   style: TextStyle(
@@ -745,7 +781,9 @@ class _PartnerSummaryCard extends ConsumerWidget {
                     Text(
                       partner.relationship,
                       style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurface.withValues(alpha: 0.65),
+                        color: theme.colorScheme.onSurface.withValues(
+                          alpha: 0.65,
+                        ),
                       ),
                     ),
                   ],
@@ -768,8 +806,10 @@ class _PartnerSummaryCard extends ConsumerWidget {
               if (partner.weeklyStreak > 0) ...[
                 const SizedBox(width: 8),
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 3,
+                  ),
                   decoration: BoxDecoration(
                     color: Colors.orange.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(20),
@@ -777,8 +817,11 @@ class _PartnerSummaryCard extends ConsumerWidget {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.local_fire_department_rounded,
-                          size: 13, color: Colors.orange.shade700),
+                      Icon(
+                        Icons.local_fire_department_rounded,
+                        size: 13,
+                        color: Colors.orange.shade700,
+                      ),
                       const SizedBox(width: 3),
                       Text(
                         '${partner.weeklyStreak}w',

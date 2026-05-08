@@ -2,6 +2,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 
 import '../../core/constants/app_routes.dart';
 import '../../core/services/haptic_service.dart';
@@ -84,37 +85,47 @@ class _FloatingBottomNav extends StatelessWidget {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      _NavItem(
-                        icon: Icons.today_rounded,
-                        label: 'Today',
-                        isSelected:
-                            location == AppRoutes.today ||
-                            location == AppRoutes.root,
-                        onTap: () => context.go(AppRoutes.today),
+                      Expanded(
+                        child: _NavItem(
+                          icon: LucideIcons.sun,
+                          label: 'Today',
+                          isSelected:
+                              location == AppRoutes.today ||
+                              location == AppRoutes.root,
+                          onTap: () => context.go(AppRoutes.today),
+                        ),
                       ),
-                      _NavItem(
-                        icon: Icons.flag_rounded,
-                        label: 'Challenge',
-                        isSelected: location.startsWith(AppRoutes.mvpChallenge),
-                        onTap: () => context.go(AppRoutes.mvpChallenge),
+                      Expanded(
+                        child: _NavItem(
+                          icon: LucideIcons.messagesSquare,
+                          label: 'Reflect',
+                          isSelected: location.startsWith(AppRoutes.reflect),
+                          onTap: () => context.go(AppRoutes.reflect),
+                        ),
                       ),
-                      _NavItem(
-                        icon: Icons.groups_rounded,
-                        label: 'Tribes',
-                        isSelected: location.startsWith(AppRoutes.mvpTribes),
-                        onTap: () => context.go(AppRoutes.mvpTribes),
+                      Expanded(
+                        child: _NavItem(
+                          icon: LucideIcons.flag,
+                          label: 'Commit',
+                          isSelected: location.startsWith(AppRoutes.commit),
+                          onTap: () => context.go(AppRoutes.commit),
+                        ),
                       ),
-                      _NavItem(
-                        icon: Icons.help_rounded,
-                        label: 'Questions',
-                        isSelected: location.startsWith(AppRoutes.mvpQuestions),
-                        onTap: () => context.go(AppRoutes.mvpQuestions),
+                      Expanded(
+                        child: _NavItem(
+                          icon: LucideIcons.users,
+                          label: 'Tribe',
+                          isSelected: location.startsWith(AppRoutes.tribe),
+                          onTap: () => context.go(AppRoutes.tribe),
+                        ),
                       ),
-                      _NavItem(
-                        icon: Icons.person_rounded,
-                        label: 'Profile',
-                        isSelected: location.startsWith(AppRoutes.profile),
-                        onTap: () => context.go(AppRoutes.profile),
+                      Expanded(
+                        child: _NavItem(
+                          icon: LucideIcons.sprout,
+                          label: 'Grow',
+                          isSelected: location.startsWith(AppRoutes.grow),
+                          onTap: () => context.go(AppRoutes.grow),
+                        ),
                       ),
                     ],
                   ),
@@ -153,25 +164,26 @@ class _NavItem extends StatelessWidget {
         onTap();
       },
       borderRadius: BorderRadius.circular(16),
-      child: SizedBox(
-        width: 64,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 8.0),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, color: color, size: 24),
-              const SizedBox(height: 4),
-              Text(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 2),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, color: color, size: 23),
+            const SizedBox(height: 4),
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
                 label,
+                maxLines: 1,
                 style: TextStyle(
                   color: color,
                   fontSize: 10,
                   fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );

@@ -51,11 +51,10 @@ class _TheNoiseViewState extends State<TheNoiseView>
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               const SizedBox(height: 40),
-              // Noise icons grid
               _buildNoiseGrid(context),
               const SizedBox(height: 40),
               Text(
-                'The world is louder\nthan ever.',
+                'Faith gets crowded out\none small pull at a time.',
                 textAlign: TextAlign.center,
                 style: textTheme.headlineMedium?.copyWith(
                   fontWeight: FontWeight.w700,
@@ -64,7 +63,7 @@ class _TheNoiseViewState extends State<TheNoiseView>
               ),
               const SizedBox(height: 20),
               Text(
-                'Notifications. Feeds. Opinions. Endless scrolling.\nAll competing for your soul\'s attention.',
+                'Elbiblio is built around a simpler rhythm: know your season, join a circle, keep one commitment, and return each day.',
                 textAlign: TextAlign.center,
                 style: textTheme.bodyLarge?.copyWith(
                   color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
@@ -73,7 +72,10 @@ class _TheNoiseViewState extends State<TheNoiseView>
               ),
               const SizedBox(height: 32),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 14,
+                ),
                 decoration: BoxDecoration(
                   color: theme.colorScheme.error.withValues(alpha: 0.08),
                   borderRadius: BorderRadius.circular(12),
@@ -89,7 +91,7 @@ class _TheNoiseViewState extends State<TheNoiseView>
                     const SizedBox(width: 10),
                     Flexible(
                       child: Text(
-                        'The average person checks their phone 96 times a day.',
+                        'The goal is not more content. It is consistency, belonging, and emotional support.',
                         style: textTheme.bodyMedium?.copyWith(
                           color: theme.colorScheme.error.withValues(alpha: 0.8),
                           fontWeight: FontWeight.w500,
@@ -110,12 +112,12 @@ class _TheNoiseViewState extends State<TheNoiseView>
   Widget _buildNoiseGrid(BuildContext context) {
     final theme = Theme.of(context);
     final items = [
-      (Icons.notifications_active, 'Notifications'),
-      (Icons.rss_feed, 'Feeds'),
-      (Icons.chat_bubble_outline, 'Messages'),
-      (Icons.play_circle_outline, 'Videos'),
-      (Icons.newspaper, 'News'),
-      (Icons.thumb_up_alt_outlined, 'Likes'),
+      (Icons.explore_outlined, 'Identity'),
+      (Icons.groups_outlined, 'Tribe'),
+      (Icons.flag_outlined, 'Commit'),
+      (Icons.check_circle_outline, 'Return'),
+      (Icons.chat_bubble_outline, 'Reflect'),
+      (Icons.spa_outlined, 'Grow'),
     ];
 
     return Wrap(

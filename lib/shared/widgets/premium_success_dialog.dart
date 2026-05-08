@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'surface_card.dart';
+import 'vision_illustration.dart';
 
 class PremiumSuccessDialog {
   const PremiumSuccessDialog._();
@@ -20,39 +21,22 @@ class PremiumSuccessDialog {
         final colorScheme = theme.colorScheme;
 
         return Dialog(
-          insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          insetPadding: const EdgeInsets.symmetric(
+            horizontal: 20,
+            vertical: 24,
+          ),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
           child: SurfaceCard(
             padding: const EdgeInsets.all(20),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Container(
-                  width: 72,
-                  height: 72,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [
-                        colorScheme.primary.withValues(alpha: 0.95),
-                        colorScheme.tertiary.withValues(alpha: 0.85),
-                      ],
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: colorScheme.primary.withValues(alpha: 0.25),
-                        blurRadius: 18,
-                        offset: const Offset(0, 10),
-                      ),
-                    ],
-                  ),
-                  child: const Icon(
-                    Icons.check_rounded,
-                    color: Colors.white,
-                    size: 38,
-                  ),
+                const VisionIllustration(
+                  asset: VisionIllustrationAsset.completion,
+                  size: 96,
+                  semanticLabel: 'Completion',
                 ),
                 const SizedBox(height: 16),
                 Text(
@@ -115,39 +99,22 @@ class PremiumFailureDialog {
         final colorScheme = theme.colorScheme;
 
         return Dialog(
-          insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          insetPadding: const EdgeInsets.symmetric(
+            horizontal: 20,
+            vertical: 24,
+          ),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
           child: SurfaceCard(
             padding: const EdgeInsets.all(20),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Container(
-                  width: 72,
-                  height: 72,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [
-                        colorScheme.error.withValues(alpha: 0.95),
-                        colorScheme.errorContainer.withValues(alpha: 0.9),
-                      ],
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: colorScheme.error.withValues(alpha: 0.22),
-                        blurRadius: 18,
-                        offset: const Offset(0, 10),
-                      ),
-                    ],
-                  ),
-                  child: const Icon(
-                    Icons.close_rounded,
-                    color: Colors.white,
-                    size: 36,
-                  ),
+                const VisionIllustration(
+                  asset: VisionIllustrationAsset.protection,
+                  size: 96,
+                  semanticLabel: 'Needs attention',
                 ),
                 const SizedBox(height: 16),
                 Text(

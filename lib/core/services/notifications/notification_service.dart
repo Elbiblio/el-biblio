@@ -328,9 +328,11 @@ class NotificationService {
           payload == 'journey_completed' ||
           payload == 'partner_check_in_request') {
         _goToRoute(AppRoutes.today);
-      } else if (payload == 'mvp_commitment_check_in' ||
+      } else if (payload == 'commitment_check_in' ||
+          payload.startsWith('commitment_check_in:') ||
+          payload == 'mvp_commitment_check_in' ||
           payload.startsWith('mvp_commitment_check_in:')) {
-        _goToRoute(AppRoutes.mvpChallenge);
+        _goToRoute(AppRoutes.commit);
       } else if (payload == 'grow_together') {
         _goToRoute(AppRoutes.growTogether);
       } else if (payload == 'companion_partner_checkin') {
@@ -1486,6 +1488,20 @@ class NotificationService {
     required String commitmentTitle,
     required String dailyAction,
     required int nudgeCount,
+  }) {
+    return scheduleCommitmentNudges(
+      commitmentId: commitmentId,
+      commitmentTitle: commitmentTitle,
+      dailyAction: dailyAction,
+      nudgeCount: nudgeCount,
+    );
+  }
+
+  Future<void> scheduleCommitmentNudges({
+    required int commitmentId,
+    required String commitmentTitle,
+    required String dailyAction,
+    required int nudgeCount,
   }) async {
     try {
       await initialize();
@@ -1500,7 +1516,7 @@ class NotificationService {
           : (spanMinutes / (boundedCount - 1)).round();
 
       const androidDetails = AndroidNotificationDetails(
-        'mvp_commitment_nudges',
+        'commitment_nudges',
         'Commitment nudges',
         channelDescription:
             'Gentle prompts to return to your active commitment',
@@ -1519,7 +1535,7 @@ class NotificationService {
         presentAlert: true,
         presentBadge: true,
         presentSound: true,
-        threadIdentifier: 'mvp_commitment_nudges',
+        threadIdentifier: 'commitment_nudges',
         interruptionLevel: InterruptionLevel.timeSensitive,
       );
 
@@ -1541,13 +1557,11 @@ class NotificationService {
           scheduledDate: _resolveScheduleTime(scheduledTime),
           notificationDetails: details,
           androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-          payload: 'mvp_commitment_check_in:$commitmentId',
+          payload: 'commitment_check_in:$commitmentId',
         );
       }
     } catch (e) {
-      debugPrint(
-        'NotificationService: Error scheduling MVP commitment nudges: $e',
-      );
+      debugPrint('NotificationService: Error scheduling commitment nudges: $e');
     }
   }
 
