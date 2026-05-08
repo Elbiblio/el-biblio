@@ -37,6 +37,7 @@ class MissionState {
     MissionFocusType? focus,
     List<MissionAction>? actions,
     AccountabilityPartner? accountabilityPartner,
+    bool clearAccountabilityPartner = false,
     List<PersonCommitment>? personCommitments,
     List<GenerosityRecord>? generosityRecords,
     List<EvangelismConversation>? evangelismConversations,
@@ -44,7 +45,9 @@ class MissionState {
     return MissionState(
       focus: focus ?? this.focus,
       actions: actions ?? this.actions,
-      accountabilityPartner: accountabilityPartner ?? this.accountabilityPartner,
+      accountabilityPartner: clearAccountabilityPartner
+          ? null
+          : (accountabilityPartner ?? this.accountabilityPartner),
       personCommitments: personCommitments ?? this.personCommitments,
       generosityRecords: generosityRecords ?? this.generosityRecords,
       evangelismConversations: evangelismConversations ?? this.evangelismConversations,

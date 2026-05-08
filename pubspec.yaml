@@ -58,6 +58,9 @@ dependencies:
   connectivity_plus: ^6.1.0
   uuid: ^4.5.1
   app_usage: ^4.1.0
+  geolocator: ^13.0.1
+  flutter_map: ^7.0.2
+  latlong2: ^0.9.1
   # flutter_native_splash has a native Android FlutterNativeSplashPlugin class
   # that Flutter's Gradle plugin includes in GeneratedPluginRegistrant.java.
   # Dev dependencies don't get their AARs on the compile classpath, causing

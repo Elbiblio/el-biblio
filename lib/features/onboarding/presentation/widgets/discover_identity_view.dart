@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/services/haptic_service.dart';
 import '../../../../core/theme/app_animations.dart';
+import '../../../../shared/widgets/light_rays_reveal.dart';
 import '../../application/onboarding_notifier.dart';
 
 /// Step 3: Your Identity — 3-question mini-assessment with inline archetype reveal.
@@ -365,10 +366,16 @@ class _DiscoverIdentityViewState extends ConsumerState<DiscoverIdentityView>
                       ),
                     ),
                     const SizedBox(height: 4),
-                    Text(
-                      archetype.name,
-                      style: textTheme.headlineMedium?.copyWith(
-                        fontWeight: FontWeight.w800,
+                    LightRaysReveal(
+                      delay: const Duration(milliseconds: 250),
+                      maxOpacity: 0.5,
+                      rayCount: 12,
+                      expandBeyond: 80,
+                      child: Text(
+                        archetype.name,
+                        style: textTheme.headlineMedium?.copyWith(
+                          fontWeight: FontWeight.w800,
+                        ),
                       ),
                     ),
                     const SizedBox(height: 4),

@@ -350,19 +350,21 @@ class _JourneyCard extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 8),
-                  Row(
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 6,
                     children: [
                       _Tag(
                         label: 'Growing in ${journey.virtueAlignment}',
                         color: _virtueColor(journey.virtueAlignment),
                       ),
-                      if (journey.hasMilestones) ...[
-                        const SizedBox(width: 8),
+                      if (journey.hasMilestones)
                         _Tag(
                           label: '${journey.milestoneCount} deepening${journey.milestoneCount > 1 ? 's' : ''}',
                           color: theme.colorScheme.secondary,
                         ),
-                      ],
+                      if (journey.source != CommitmentSource.remote)
+                        _OfflineSourceChip(source: journey.source),
                     ],
                   ),
                 ],
@@ -399,6 +401,44 @@ class _JourneyCard extends StatelessWidget {
       'gratitude' => Icons.favorite,
       _ => Icons.star,
     };
+  }
+}
+
+/// Discreet chip indicating a journey came from cache or the bundled fallback
+/// rather than a live backend fetch.
+class _OfflineSourceChip extends StatelessWidget {
+  const _OfflineSourceChip({required this.source});
+
+  final CommitmentSource source;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final label = source == CommitmentSource.remoteCache ? 'Cached' : 'Offline';
+    final color = theme.colorScheme.onSurface.withValues(alpha: 0.6);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.6),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.cloud_off_outlined, size: 12, color: color),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w500,
+              color: color,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 

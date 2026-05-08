@@ -5,6 +5,8 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/di/app_providers.dart';
 import '../../../../core/constants/app_routes.dart';
 import '../../../../core/theme/app_theme_tokens.dart';
+import '../../../../shared/widgets/light_rays_reveal.dart';
+import '../../../../shared/widgets/skeleton_loader.dart';
 
 class DailyVerseCard extends ConsumerWidget {
   const DailyVerseCard({
@@ -26,10 +28,17 @@ class DailyVerseCard extends ConsumerWidget {
     final error = verseState.error;
 
     if (isLoading) {
-      return const SizedBox(
-        height: 150,
-        child: Center(
-          child: CircularProgressIndicator(),
+      return const Padding(
+        padding: EdgeInsets.only(bottom: 24),
+        child: SkeletonLoader(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SkeletonText(width: 90, height: 12),
+              SizedBox(height: 12),
+              SkeletonCard(height: 140, borderRadius: 24),
+            ],
+          ),
         ),
       );
     }
@@ -109,36 +118,41 @@ class DailyVerseCard extends ConsumerWidget {
             ),
             child: InkWell(
               onTap: () {
-                // Navigate to the specific verse in Bible reader
-                final reference = dailyVerse.reference;
-                // Parse reference like "John 3:16" or "Psalm 23:1"
-                final parts = reference.split(' ');
-                if (parts.length >= 2) {
-                  final bookName = parts[0];
-                  final chapterVerse = parts[1];
-                  final cvParts = chapterVerse.split(':');
-                  if (cvParts.length == 2) {
-                    final chapter = int.tryParse(cvParts[0]);
-                    final verse = int.tryParse(cvParts[1]);
-                    if (chapter != null && verse != null) {
-                      context.push(
-                        '${AppRoutes.bibleReader}?book=$bookName&chapter=$chapter&verse=$verse',
-                      );
-                    }
+                // Parse "John 3:16", "Psalm 23:1", "1 Corinthians 13:4",
+                // "Song of Solomon 2:1", or "John 3:16-17". Book name may
+                // include a leading numeral or multiple words.
+                final reference = dailyVerse.reference.trim();
+                final match = RegExp(
+                  r'^((?:\d\s+)?[A-Za-z]+(?:\s+[A-Za-z]+)*)\s+(\d+):(\d+)(?:-\d+)?$',
+                ).firstMatch(reference);
+                if (match != null) {
+                  final bookName = match.group(1)!;
+                  final chapter = int.tryParse(match.group(2)!);
+                  final verse = int.tryParse(match.group(3)!);
+                  if (chapter != null && verse != null) {
+                    context.push(
+                      '${AppRoutes.bibleReader}?book=$bookName&chapter=$chapter&verse=$verse',
+                    );
                   }
                 }
               },
               borderRadius: BorderRadius.circular(24),
               child: Column(
                 children: [
-                  Text(
-                    '"${dailyVerse.text}"',
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                      fontSize: 18,
-                      fontStyle: FontStyle.italic,
-                      height: 1.6,
-                      color: theme.colorScheme.onSurface,
+                  LightRaysReveal(
+                    delay: const Duration(milliseconds: 250),
+                    rayCount: 6,
+                    maxOpacity: 0.25,
+                    rotate: false,
+                    child: Text(
+                      '"${dailyVerse.text}"',
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                        fontSize: 18,
+                        fontStyle: FontStyle.italic,
+                        height: 1.6,
+                        color: theme.colorScheme.onSurface,
+                      ),
                     ),
                   ),
                   const SizedBox(height: 16),

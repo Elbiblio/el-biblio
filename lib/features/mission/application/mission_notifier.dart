@@ -248,6 +248,49 @@ class MissionNotifier extends StateNotifier<MissionState> {
     );
   }
 
+  /// Sets the user's chosen companion as their AI accountability partner.
+  /// Overrides any existing partner (including a prior AI partner). Schedules
+  /// the Friday weekly check-in notification which routes to the companion
+  /// accountability thread when tapped.
+  Future<void> enableAiAccountabilityPartner({
+    required String companionCode,
+    required String companionDisplayName,
+  }) async {
+    final partner = AccountabilityPartner.aiCompanion(
+      companionCode: companionCode,
+      displayName: companionDisplayName,
+    );
+    state = state.copyWith(accountabilityPartner: partner);
+    await _settingsNotifier.setAccountabilityPartner(partner);
+
+    unawaited(
+      _notificationService.scheduleWeeklyPartnerCheckInReminder(
+        partnerName: companionDisplayName,
+        isAiCompanion: true,
+      ),
+    );
+
+    _analytics.track(
+      AppAnalyticsEvent.accountabilityPartnerSaved,
+      properties: {
+        'partner_type': PartnerType.aiCompanion.name,
+        'companion_code': companionCode,
+      },
+    );
+  }
+
+  /// Clears only the AI accountability partner. No-op if current partner is
+  /// a human. Used when the user sets up a human partner later — the AI slot
+  /// is released automatically via `savePartner()` below, but this exposes
+  /// a manual "step down" affordance too.
+  Future<void> disableAiAccountabilityPartner() async {
+    final current = state.accountabilityPartner;
+    if (current == null || !current.isAiCompanion) return;
+    state = state.copyWith(clearAccountabilityPartner: true);
+    await _settingsNotifier.clearAccountabilityPartner();
+    unawaited(_notificationService.cancelWeeklyPartnerCheckInReminder());
+  }
+
   Future<void> savePartner({
     required String name,
     required String relationship,

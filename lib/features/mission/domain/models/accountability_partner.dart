@@ -10,6 +10,7 @@ class AccountabilityPartner {
     this.partnerType = PartnerType.peer,
     this.pendingCheckInRequest,
     this.weeklyStreak = 0,
+    this.companionCode,
   });
 
   final String name;
@@ -20,6 +21,27 @@ class AccountabilityPartner {
   final PartnerType partnerType;
   final CheckInRequest? pendingCheckInRequest;
   final int weeklyStreak;
+
+  /// Set only for AI-companion partners. Maps to `CompanionCharacter.code`
+  /// (`raziel` / `naomi` / `james`). Null for human partners.
+  final String? companionCode;
+
+  bool get isAiCompanion => partnerType == PartnerType.aiCompanion;
+
+  /// Factory for an AI accountability partner. Contact is empty — the chat
+  /// thread IS the contact surface.
+  factory AccountabilityPartner.aiCompanion({
+    required String companionCode,
+    required String displayName,
+  }) {
+    return AccountabilityPartner(
+      name: displayName,
+      relationship: 'Companion',
+      contact: '',
+      partnerType: PartnerType.aiCompanion,
+      companionCode: companionCode,
+    );
+  }
 
   factory AccountabilityPartner.fromMap(Map<String, dynamic> map) {
     return AccountabilityPartner(
@@ -35,6 +57,7 @@ class AccountabilityPartner {
           ? null
           : CheckInRequest.fromMap(map['pendingCheckInRequest'] as Map<String, dynamic>),
       weeklyStreak: map['weeklyStreak'] as int? ?? 0,
+      companionCode: map['companionCode'] as String?,
     );
   }
 
@@ -48,6 +71,7 @@ class AccountabilityPartner {
       'partnerType': partnerType.name,
       'pendingCheckInRequest': pendingCheckInRequest?.toMap(),
       'weeklyStreak': weeklyStreak,
+      'companionCode': companionCode,
     };
   }
 
@@ -60,6 +84,7 @@ class AccountabilityPartner {
     PartnerType? partnerType,
     CheckInRequest? pendingCheckInRequest,
     int? weeklyStreak,
+    String? companionCode,
   }) {
     return AccountabilityPartner(
       name: name ?? this.name,
@@ -70,6 +95,7 @@ class AccountabilityPartner {
       partnerType: partnerType ?? this.partnerType,
       pendingCheckInRequest: pendingCheckInRequest ?? this.pendingCheckInRequest,
       weeklyStreak: weeklyStreak ?? this.weeklyStreak,
+      companionCode: companionCode ?? this.companionCode,
     );
   }
 }

@@ -415,7 +415,8 @@ class _AccountabilityCheckInSheetState
                   const SizedBox(height: 12),
                   ...request.verifiedCommitments.map((commitmentId) {
                     final commitment = weeklyPlan?.weeklyCommitments
-                        .firstWhere((c) => c.id == commitmentId);
+                        .where((c) => c.id == commitmentId)
+                        .firstOrNull;
                     if (commitment == null) return const SizedBox.shrink();
 
                     final isVerified = verifiedCommitments.contains(commitmentId);

@@ -2,8 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import '../../../../core/constants/app_routes.dart';
 import '../../application/faith_questions_notifier.dart';
+import '../../../companion/application/companion_notifier.dart';
+import '../../../companion/domain/models/companion_character.dart';
 import '../../../games/presentation/widgets/game_hub_card.dart';
+
+String _entryLineFor(CompanionCharacter c) => switch (c) {
+      CompanionCharacter.raziel => 'I\'d rather sit with a real question',
+      CompanionCharacter.naomi => 'Doubt is not the enemy of faith',
+      CompanionCharacter.james => 'We work through it, not around it',
+    };
 
 class FaithQuestionsHubScreen extends ConsumerWidget {
   const FaithQuestionsHubScreen({super.key});
@@ -56,6 +65,40 @@ class FaithQuestionsHubScreen extends ConsumerWidget {
                 ),
               ),
               const SizedBox(height: 28),
+
+              // Ask the companion — hard-questions mode. Only shown once a
+              // companion has been selected; routes into a dedicated chat
+              // thread whose backend prompt mode is tuned for doubt, honest
+              // questions, and nuance over platitudes.
+              Consumer(builder: (context, ref, _) {
+                final character = ref.watch(
+                  companionProvider.select((s) => s.activeCharacter),
+                );
+                if (character == null) return const SizedBox.shrink();
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 16),
+                  child: GameHubCard(
+                    title: 'Ask ${character.displayName}',
+                    subtitle:
+                        'Bring your hard questions — nuance over platitudes',
+                    icon: LucideIcons.messageCircle,
+                    color: const Color(0xFF7C3AED),
+                    onTap: () {
+                      final uri =
+                          '${AppRoutes.companionChat}?thread=hard-questions&mode=hard_questions&title=${Uri.encodeQueryComponent('Hard questions')}';
+                      context.push(uri);
+                    },
+                    trailing: Text(
+                      _entryLineFor(character),
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: isDark ? Colors.white60 : Colors.black54,
+                      ),
+                    ),
+                  ),
+                );
+              }),
 
               // Explore Questions card
               GameHubCard(

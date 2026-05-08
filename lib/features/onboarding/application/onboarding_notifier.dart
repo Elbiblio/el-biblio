@@ -1,9 +1,14 @@
+import 'dart:convert';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/application/settings_notifier.dart';
 import '../../../core/di/app_providers.dart';
 import '../../../core/storage/app_settings.dart';
 import '../../assessment/domain/models/archetype.dart';
 import '../../commitments/domain/models/commitment_category.dart';
+import '../../companion/domain/models/christian_life_baseline.dart';
 import '../../mission/domain/models/mission_focus.dart';
 import '../../today/domain/models/daily_anchors.dart';
 import 'onboarding_state.dart';
@@ -11,32 +16,68 @@ import 'onboarding_state.dart';
 final onboardingProvider =
     StateNotifierProvider<OnboardingNotifier, OnboardingState>((ref) {
   final settings = ref.read(settingsProvider);
-  return OnboardingNotifier(settings);
+  final settingsNotifier = ref.read(settingsProvider.notifier);
+  return OnboardingNotifier(settings, settingsNotifier);
 });
 
 class OnboardingNotifier extends StateNotifier<OnboardingState> {
-  OnboardingNotifier(AppSettings settings)
-      : super(
-          OnboardingState(
-            step: OnboardingStep.theProblem,
-            lifestyle: 'Student',
-            morningTime: '07:30',
-            eveningTime: '21:00',
-            morningReminderEnabled: true,
-            eveningReminderEnabled: true,
-            primaryVirtue: settings.primaryVirtue,
-            socialPresenceOptIn: false,
-            contactsImported: false,
-            primaryMissionFocus: settings.primaryMissionFocus,
-          ),
-        );
+  OnboardingNotifier(AppSettings settings, [this._settingsNotifier])
+      : super(_initialState(settings));
+
+  /// Optional so pure-unit tests can instantiate the notifier without a
+  /// real `SettingsNotifier`. Null-case: persistence no-ops silently.
+  final SettingsNotifier? _settingsNotifier;
+
+  static OnboardingState _initialState(AppSettings settings) {
+    // Rehydrate if user is mid-onboarding and a draft exists. Completed
+    // users never rehydrate — the draft is wiped on signup success.
+    if (!settings.onboardingCompleted && settings.onboardingDraft != null) {
+      try {
+        final decoded =
+            jsonDecode(settings.onboardingDraft!) as Map<String, dynamic>;
+        return OnboardingState.fromJson(decoded);
+      } catch (e) {
+        debugPrint('OnboardingNotifier: draft rehydrate failed: $e');
+      }
+    }
+    return OnboardingState(
+      step: OnboardingStep.theProblem,
+      lifestyle: 'Student',
+      morningTime: '07:30',
+      eveningTime: '21:00',
+      morningReminderEnabled: true,
+      eveningReminderEnabled: true,
+      primaryVirtue: settings.primaryVirtue,
+      socialPresenceOptIn: false,
+      contactsImported: false,
+      primaryMissionFocus: settings.primaryMissionFocus,
+    );
+  }
+
+  @override
+  set state(OnboardingState value) {
+    super.state = value;
+    // Fire-and-forget. Fails are debug-logged but not awaited — onboarding
+    // UI stays responsive; worst case a single mutation misses disk and the
+    // next mutation re-persists the whole state anyway.
+    _persistDraft();
+  }
+
+  Future<void> _persistDraft() async {
+    final notifier = _settingsNotifier;
+    if (notifier == null) return;
+    try {
+      await notifier.setOnboardingDraft(jsonEncode(state.toJson()));
+    } catch (e) {
+      debugPrint('OnboardingNotifier: draft persist failed: $e');
+    }
+  }
 
   void next() {
     final nextStep = switch (state.step) {
       OnboardingStep.theProblem => OnboardingStep.theSolution,
       OnboardingStep.theSolution => OnboardingStep.yourIdentity,
-      OnboardingStep.yourIdentity => OnboardingStep.yourPath,
-      OnboardingStep.yourPath => OnboardingStep.yourAccount,
+      OnboardingStep.yourIdentity => OnboardingStep.yourAccount,
       OnboardingStep.yourAccount => OnboardingStep.yourAccount,
     };
 
@@ -48,8 +89,7 @@ class OnboardingNotifier extends StateNotifier<OnboardingState> {
       OnboardingStep.theProblem => OnboardingStep.theProblem,
       OnboardingStep.theSolution => OnboardingStep.theProblem,
       OnboardingStep.yourIdentity => OnboardingStep.theSolution,
-      OnboardingStep.yourPath => OnboardingStep.yourIdentity,
-      OnboardingStep.yourAccount => OnboardingStep.yourPath,
+      OnboardingStep.yourAccount => OnboardingStep.yourIdentity,
     };
 
     state = state.copyWith(step: previousStep);
@@ -373,10 +413,11 @@ class OnboardingNotifier extends StateNotifier<OnboardingState> {
   // ---------------------------------------------------------------------------
 
   void setCommitmentCategory(String category) {
+    final normalized = CommitmentCategory.normalizeStorageValue(category);
     state = state.copyWith(
-      commitmentCategory: category,
+      commitmentCategory: normalized,
       primaryMissionFocus: _recommendedMissionFocus(
-        CommitmentCategory.fromString(category),
+        CommitmentCategory.fromString(normalized),
       ).name,
     );
   }
@@ -428,6 +469,34 @@ class OnboardingNotifier extends StateNotifier<OnboardingState> {
 
   void toggleEveningReminder(bool enabled) {
     state = state.copyWith(eveningReminderEnabled: enabled);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Christian-Life Baseline setters
+  // ---------------------------------------------------------------------------
+
+  void setBibleReadingCadence(BibleReadingCadence value) {
+    state = state.copyWith(bibleReadingCadence: value);
+  }
+
+  void setLastChurchAttendance(ChurchAttendance value) {
+    state = state.copyWith(lastChurchAttendance: value);
+  }
+
+  void setPrayerRhythm(PrayerRhythm value) {
+    state = state.copyWith(prayerRhythm: value);
+  }
+
+  void setSovereigntyScore(int value) {
+    state = state.copyWith(sovereigntyScore: value.clamp(1, 5));
+  }
+
+  void setCharityScore(int value) {
+    state = state.copyWith(charityScore: value.clamp(1, 5));
+  }
+
+  void setTrustScore(int value) {
+    state = state.copyWith(trustScore: value.clamp(1, 5));
   }
 
   void setPrimaryVirtue(VirtueType value) {

@@ -93,17 +93,20 @@ class DailyFocusCard extends ConsumerWidget {
               ],
             ),
             const SizedBox(height: 8),
-            GestureDetector(
-              onTap: () => context.push(AppRoutes.callingProfile),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.primary.withValues(alpha: isDark ? 0.15 : 0.08),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: theme.colorScheme.primary.withValues(alpha: isDark ? 0.25 : 0.15),
+            Semantics(
+              button: true,
+              label: 'Open calling profile for $archetypeName',
+              child: GestureDetector(
+                onTap: () => context.push(AppRoutes.callingProfile),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.primary.withValues(alpha: isDark ? 0.15 : 0.08),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: theme.colorScheme.primary.withValues(alpha: isDark ? 0.25 : 0.15),
+                    ),
                   ),
-                ),
                 child: Row(
                   children: [
                     Expanded(
@@ -137,6 +140,7 @@ class DailyFocusCard extends ConsumerWidget {
                 ),
               ),
             ),
+            ),
             const SizedBox(height: 20),
           ],
 
@@ -154,7 +158,10 @@ class DailyFocusCard extends ConsumerWidget {
           
           // Current Action Summary (when not all done)
           if (currentPhase >= 0) ...[
-            GestureDetector(
+            Semantics(
+              button: true,
+              label: _getCurrentPhaseTitle(currentPhase),
+              child: GestureDetector(
               onTap: _getPhaseCallback(currentPhase),
               child: Container(
                 padding: const EdgeInsets.all(16),
@@ -220,8 +227,9 @@ class DailyFocusCard extends ConsumerWidget {
                 ),
               ),
             ),
+            ),
           ],
-          
+
           // All done celebration (when all phases complete)
           if (currentPhase < 0) ...[
             Container(

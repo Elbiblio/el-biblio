@@ -4,6 +4,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../../../../core/services/tts_service.dart';
+import '../../../companion/application/companion_notifier.dart';
+import '../../../companion/domain/models/companion_character.dart';
+import '../../../companion/domain/models/companion_mood.dart';
+import '../../../companion/presentation/widgets/companion_orb.dart';
 import '../../application/spiritual_aid_notifier.dart';
 import '../../domain/models/verse_moment.dart';
 import '../widgets/verse_reveal_animation.dart';
@@ -323,50 +327,10 @@ class _SpeakToMeScreenState extends ConsumerState<SpeakToMeScreen>
             ),
           ],
 
-          // Explanation
+          // Explanation — rendered in the companion's voice when one is selected.
           if (verse.explanation != null) ...[
             const SizedBox(height: 24),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.lightbulb_rounded,
-                        color: Colors.amber.shade300,
-                        size: 18,
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        'Understanding',
-                        style: TextStyle(
-                          color: Colors.amber.shade300,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    verse.explanation!,
-                    style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.8),
-                      fontSize: 14,
-                      height: 1.6,
-                    ),
-                  ),
-                ],
-              ),
-            ),
+            _ExplanationCard(explanation: verse.explanation!),
           ] else if (state.isExplanationLoading) ...[
             const SizedBox(height: 24),
             const SizedBox(
@@ -552,5 +516,106 @@ class _SpeakToMeScreenState extends ConsumerState<SpeakToMeScreen>
     if (diff.inDays < 1) return '${diff.inHours}h ago';
     if (diff.inDays < 7) return '${diff.inDays}d ago';
     return '${date.month}/${date.day}/${date.year}';
+  }
+}
+
+/// Renders the verse explanation. When a companion is selected, swaps the
+/// generic "Understanding" header for the companion's orb + name + tagline
+/// so the explanation reads as *their* voice speaking to the user.
+class _ExplanationCard extends ConsumerWidget {
+  const _ExplanationCard({required this.explanation});
+
+  final String explanation;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final character = ref.watch(
+      companionProvider.select((s) => s.activeCharacter),
+    );
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (character != null)
+            _CompanionHeader(character: character)
+          else
+            Row(
+              children: [
+                Icon(
+                  Icons.lightbulb_rounded,
+                  color: Colors.amber.shade300,
+                  size: 18,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  'Understanding',
+                  style: TextStyle(
+                    color: Colors.amber.shade300,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          const SizedBox(height: 10),
+          Text(
+            explanation,
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.85),
+              fontSize: 14,
+              height: 1.6,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CompanionHeader extends StatelessWidget {
+  const _CompanionHeader({required this.character});
+  final CompanionCharacter character;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        CompanionOrb(
+          character: character,
+          mood: CompanionMood.warm,
+          size: 28,
+        ),
+        const SizedBox(width: 10),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              '${character.displayName} reflects',
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            Text(
+              character.tagline,
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.55),
+                fontSize: 11,
+                letterSpacing: 0.8,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
   }
 }

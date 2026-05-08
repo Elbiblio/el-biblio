@@ -41,4 +41,8 @@ class AppRoutes {
   static const faithQuestionsQuiz = '/faith-questions/quiz';
   static const faithQuestionsQuizResults = '/faith-questions/quiz-results';
   static const weeklyAssessment = '/weekly-assessment';
+  static const companion = '/companion';
+  static const companionChat = '/companion/chat';
+  static const companionSelect = '/companion/select';
+  static const churchesNearby = '/churches/nearby';
 }

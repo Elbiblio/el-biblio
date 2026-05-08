@@ -88,6 +88,7 @@ enum PartnerType {
   peer,
   mentor,
   mentee,
+  aiCompanion,
 }
 
 extension PartnerTypeX on PartnerType {
@@ -99,6 +100,8 @@ extension PartnerTypeX on PartnerType {
         return 'Mentor';
       case PartnerType.mentee:
         return 'Mentee';
+      case PartnerType.aiCompanion:
+        return 'AI companion';
     }
   }
 
@@ -110,6 +113,8 @@ extension PartnerTypeX on PartnerType {
         return 'Someone who guides and supports you';
       case PartnerType.mentee:
         return 'Someone you are mentoring';
+      case PartnerType.aiCompanion:
+        return 'Your chosen spiritual companion, walking with you until a human partner joins';
     }
   }
 
@@ -119,6 +124,9 @@ extension PartnerTypeX on PartnerType {
         return PartnerType.mentor;
       case 'mentee':
         return PartnerType.mentee;
+      case 'aiCompanion':
+      case 'ai_companion':
+        return PartnerType.aiCompanion;
       case 'peer':
       default:
         return PartnerType.peer;

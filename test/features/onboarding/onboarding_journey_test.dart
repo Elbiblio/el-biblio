@@ -25,16 +25,13 @@ void main() {
 
     test('Onboarding can advance through steps', () {
       expect(notifier.state.step, OnboardingStep.theProblem);
-      
+
       notifier.next();
       expect(notifier.state.step, OnboardingStep.theSolution);
-      
+
       notifier.next();
       expect(notifier.state.step, OnboardingStep.yourIdentity);
-      
-      notifier.next();
-      expect(notifier.state.step, OnboardingStep.yourPath);
-      
+
       notifier.next();
       expect(notifier.state.step, OnboardingStep.yourAccount);
     });

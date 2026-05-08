@@ -3,13 +3,20 @@ import 'dart:convert';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:logger/logger.dart';
 
+import '../../../core/network/dio_client.dart';
 import '../domain/models/commitment_journey.dart';
 
 /// Repository for managing commitment journeys with prayer intentions,
 /// milestones, and daily progress tracking.
+///
+/// Journey definitions come from the backend catalog at
+/// `GET /commitment-journeys/catalog`. The last successful response is
+/// cached on disk so cold starts without network still work. A bundled
+/// hardcoded list is used as a final fallback.
 class CommitmentJourneyRepository {
-  CommitmentJourneyRepository(this._logger);
+  CommitmentJourneyRepository(this._dio, this._logger);
 
+  final DioClient? _dio;
   final Logger _logger;
   Box<String>? _box;
 
@@ -17,6 +24,7 @@ class CommitmentJourneyRepository {
   static const _activeJourneyKey = 'journey_active';
   static const _completedJourneysKey = 'journeys_completed';
   static const _partnerResponseKey = 'partner_response';
+  static const _catalogCacheKey = 'catalog_cache_v1';
 
   Future<Box<String>> _getBox() async {
     if (_box != null && _box!.isOpen) return _box!;
@@ -119,7 +127,7 @@ class CommitmentJourneyRepository {
       final box = await _getBox();
       final json = box.get(_completedJourneysKey);
       if (json == null || json.isEmpty) return [];
-      
+
       final list = jsonDecode(json) as List<dynamic>;
       return list
           .map((e) => ActiveJourney.fromJson(e as Map<String, dynamic>))
@@ -131,9 +139,43 @@ class CommitmentJourneyRepository {
   }
 
   /// Get available journeys for selection.
-  /// In a real app, this would come from the backend API.
+  ///
+  /// Resolution order:
+  /// 1. Remote `GET /commitment-journeys/catalog` — tagged `remote`.
+  /// 2. On network error: last cached remote response — tagged `remoteCache`.
+  /// 3. If no cache exists: bundled hardcoded list — tagged `offlineFallback`.
   Future<List<CommitmentJourney>> getAvailableJourneys() async {
-    // Return sample journeys - in production, fetch from API
+    if (_dio != null) {
+      try {
+        final response = await _dio.get<dynamic>('/commitment-journeys/catalog');
+        final data = response.data;
+        if (data is Map<String, dynamic>) {
+          final payload = data['data'];
+          List<dynamic>? rawJourneys;
+          if (payload is Map<String, dynamic> && payload['journeys'] is List) {
+            rawJourneys = payload['journeys'] as List<dynamic>;
+          } else if (payload is List) {
+            rawJourneys = payload;
+          }
+          if (rawJourneys != null && rawJourneys.isNotEmpty) {
+            final journeys = rawJourneys
+                .map((j) => CommitmentJourney.fromJson(
+                      j as Map<String, dynamic>,
+                      overrideSource: CommitmentSource.remote,
+                    ))
+                .toList();
+            await _saveCatalogCache(rawJourneys);
+            return journeys;
+          }
+        }
+      } catch (e) {
+        _logger.w('Commitment catalog remote fetch failed, trying cache: $e');
+      }
+    }
+
+    final cached = await _loadCatalogCache();
+    if (cached.isNotEmpty) return cached;
+
     return _sampleJourneys;
   }
 
@@ -152,7 +194,7 @@ class CommitmentJourneyRepository {
     String? virtueFocus,
   }) async {
     final all = await getAvailableJourneys();
-    
+
     if (struggles == null || struggles.isEmpty) {
       return all;
     }
@@ -228,7 +270,34 @@ class CommitmentJourneyRepository {
     await box.put(_completedJourneysKey, jsonEncode(list));
   }
 
-  // Sample data for development - will be replaced with API calls
+  Future<void> _saveCatalogCache(List<dynamic> rawJourneys) async {
+    try {
+      final box = await _getBox();
+      await box.put(_catalogCacheKey, jsonEncode(rawJourneys));
+    } catch (e) {
+      _logger.w('Failed to cache commitment catalog: $e');
+    }
+  }
+
+  Future<List<CommitmentJourney>> _loadCatalogCache() async {
+    try {
+      final box = await _getBox();
+      final raw = box.get(_catalogCacheKey);
+      if (raw == null || raw.isEmpty) return const [];
+      final list = jsonDecode(raw) as List<dynamic>;
+      return list
+          .map((j) => CommitmentJourney.fromJson(
+                j as Map<String, dynamic>,
+                overrideSource: CommitmentSource.remoteCache,
+              ))
+          .toList();
+    } catch (e) {
+      _logger.w('Failed to load commitment catalog cache: $e');
+      return const [];
+    }
+  }
+
+  // Bundled hardcoded fallback — used only when both remote + cache are empty.
   static final List<CommitmentJourney> _sampleJourneys = [
     // 3-Day Seeds
     CommitmentJourney(
@@ -244,6 +313,7 @@ class CommitmentJourneyRepository {
         'Set your alarm 15 minutes earlier',
         'Use the app if that helps you focus',
       ],
+      source: CommitmentSource.offlineFallback,
     ),
     CommitmentJourney(
       id: 'seed_gratitude_journal',
@@ -258,8 +328,9 @@ class CommitmentJourneyRepository {
         'Include small things: a warm meal, a kind word',
         'Thank God for each item specifically',
       ],
+      source: CommitmentSource.offlineFallback,
     ),
-    
+
     // 10-Day Paths
     CommitmentJourney(
       id: 'path_social_fast',
@@ -286,6 +357,7 @@ class CommitmentJourneyRepository {
         'Tell close friends how to reach you',
         'Fill the void with prayer or scripture',
       ],
+      source: CommitmentSource.offlineFallback,
     ),
     CommitmentJourney(
       id: 'path_generosity',
@@ -307,8 +379,9 @@ class CommitmentJourneyRepository {
         'Look for the overlooked person each day',
         'Give without expecting thanks',
       ],
+      source: CommitmentSource.offlineFallback,
     ),
-    
+
     // 40-Day Journeys
     CommitmentJourney(
       id: 'journey_fasting',
@@ -331,7 +404,7 @@ class CommitmentJourneyRepository {
         ),
         CommitmentMilestone(
           day: 30,
-          description: ' intensified practice',
+          description: 'Intensified practice',
           newRequirement: 'Fast until 3pm daily, two full days per week',
         ),
       ],
@@ -340,6 +413,7 @@ class CommitmentJourneyRepository {
         'Use hunger pangs as prayer reminders',
         'Break fast with gratitude, not gluttony',
       ],
+      source: CommitmentSource.offlineFallback,
     ),
     CommitmentJourney(
       id: 'journey_scripture',
@@ -371,6 +445,7 @@ class CommitmentJourneyRepository {
         'Write down questions that arise',
         'Let Scripture read you, not just you reading it',
       ],
+      source: CommitmentSource.offlineFallback,
     ),
     CommitmentJourney(
       id: 'journey_service',
@@ -402,6 +477,7 @@ class CommitmentJourneyRepository {
         'Look for needs in your existing circles first',
         'Serve without seeking recognition',
       ],
+      source: CommitmentSource.offlineFallback,
     ),
   ];
 }

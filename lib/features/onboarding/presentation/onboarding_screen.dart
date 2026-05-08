@@ -13,7 +13,6 @@ import 'widgets/responsive_layout_builder.dart';
 import 'widgets/the_noise_view.dart';
 import 'widgets/the_solution_view.dart';
 import 'widgets/discover_identity_view.dart';
-import 'widgets/your_path_view.dart';
 import 'widgets/your_account_view.dart';
 
 class OnboardingScreen extends ConsumerWidget {
@@ -27,7 +26,6 @@ class OnboardingScreen extends ConsumerWidget {
       OnboardingStep.theProblem => 'The Noise',
       OnboardingStep.theSolution => 'The Solution',
       OnboardingStep.yourIdentity => 'Your Identity',
-      OnboardingStep.yourPath => 'Your Path',
       OnboardingStep.yourAccount => 'Your Account',
     };
   }
@@ -37,9 +35,8 @@ class OnboardingScreen extends ConsumerWidget {
       OnboardingStep.theProblem => 'There must be a better way',
       OnboardingStep.theSolution => 'Show me my identity',
       OnboardingStep.yourIdentity => _canAdvanceFromAssessment(state)
-          ? 'See my path'
+          ? 'Create my account'
           : 'Answer all questions',
-      OnboardingStep.yourPath => 'Almost there',
       OnboardingStep.yourAccount => 'Begin my clarity journey',
     };
   }
@@ -54,9 +51,6 @@ class OnboardingScreen extends ConsumerWidget {
     if (state.step == OnboardingStep.yourIdentity) {
       return _canAdvanceFromAssessment(state);
     }
-    if (state.step == OnboardingStep.yourPath) {
-      return state.commitmentCategory != null;
-    }
     return true;
   }
 
@@ -69,7 +63,6 @@ class OnboardingScreen extends ConsumerWidget {
       OnboardingStep.theProblem => const TheNoiseView(),
       OnboardingStep.theSolution => const TheSolutionView(),
       OnboardingStep.yourIdentity => const DiscoverIdentityView(),
-      OnboardingStep.yourPath => const YourPathView(),
       OnboardingStep.yourAccount => YourAccountView(
           onSignUp: (name, email, phone) =>
               _handleSignUp(context, ref, name, email, phone),
@@ -87,10 +80,39 @@ class OnboardingScreen extends ConsumerWidget {
     final onboardingState = ref.read(onboardingProvider);
 
     HapticFeedback.mediumImpact();
-    CelebrationService.instance.playOnboardingCompletion(context);
 
-    // Complete onboarding settings first
-    await ref.read(settingsProvider.notifier).completeOnboarding(
+    // Signup FIRST — if it fails, we don't mark onboarding complete.
+    final success = await ref.read(authProvider.notifier).signUpWithDetails(
+          name: name,
+          email: email,
+          phone: phone,
+        );
+
+    if (!success) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Could not create your account. Please try again.'),
+        ),
+      );
+      return;
+    }
+
+    // Wipe any scheduled notifications left over from a previous tenant of
+    // this device (shared phone, re-install, test accounts) so ids cannot
+    // fire at the new user. Downstream calls below re-register the ones
+    // this session actually wants.
+    await ref.read(notificationServiceProvider).cancelAll();
+
+    // Wipe the mid-onboarding draft so a future app-kill can't rehydrate
+    // stale in-progress state over a completed account.
+    await ref.read(settingsProvider.notifier).clearOnboardingDraft();
+
+    // Atomic bundle: both pre-onboarding + onboarding flags land in a single
+    // disk write. A crash between the two writes previously could leave
+    // hasCompletedPreOnboarding=true and onboardingCompleted=false, stranding
+    // the user on a dead route.
+    await ref.read(settingsProvider.notifier).persistOnboardingBundle(
           primaryVirtue: onboardingState.primaryVirtue,
           lifestyle: onboardingState.lifestyle,
           morningTime: onboardingState.morningTime,
@@ -103,23 +125,11 @@ class OnboardingScreen extends ConsumerWidget {
           commitmentCategory: onboardingState.commitmentCategory,
           primaryMissionFocus: onboardingState.primaryMissionFocus,
           personalDistractions: onboardingState.personalDistractions,
+          christianLifeBaseline: onboardingState.baselineOrNull,
         );
-
-    // Signup with account details
-    final success = await ref.read(authProvider.notifier).signUpWithDetails(
-          name: name,
-          email: email,
-          phone: phone,
-        );
-
-    if (success) {
-      await ref.read(settingsProvider.notifier).completePreOnboarding(
-            name: name,
-            phone: phone,
-          );
-    }
 
     if (!context.mounted) return;
+    CelebrationService.instance.playOnboardingCompletion(context);
     context.go(AppRoutes.postOnboarding);
   }
 

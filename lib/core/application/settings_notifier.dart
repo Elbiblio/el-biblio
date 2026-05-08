@@ -1,9 +1,11 @@
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../features/assessment/application/calling_profile_service.dart';
 import '../../features/assessment/domain/models/archetype.dart';
 import '../../features/assessment/domain/models/weekly_plan.dart';
 import '../../features/commitments/domain/models/commitment_category.dart';
+import '../../features/companion/domain/models/christian_life_baseline.dart';
 import '../../features/mission/domain/models/accountability_partner.dart';
 import '../../features/mission/domain/models/kingdom_action_models.dart';
 import '../../features/mission/domain/models/mission_action.dart';
@@ -80,6 +82,101 @@ class SettingsNotifier extends StateNotifier<AppSettings> {
     await _persistWithRetry(newSettings);
   }
 
+  /// Atomic write that finalizes both pre-onboarding + onboarding flags
+  /// plus all pre-signup selections in a single persist. Replaces the
+  /// previous two-call (`completePreOnboarding` + `completeOnboarding`)
+  /// sequence so a crash mid-flight can't leave the two flags split.
+  Future<void> persistOnboardingBundle({
+    required VirtueType primaryVirtue,
+    required String lifestyle,
+    required String morningTime,
+    required String eveningTime,
+    required bool morningReminderEnabled,
+    required bool eveningReminderEnabled,
+    required bool socialPresenceOptIn,
+    required bool contactsImported,
+    String? primaryArchetypeId,
+    String? commitmentCategory,
+    String? primaryMissionFocus,
+    List<String> personalDistractions = const [],
+    ChristianLifeBaseline? christianLifeBaseline,
+  }) async {
+    final normalizedCommitmentCategory = commitmentCategory == null
+        ? null
+        : CommitmentCategory.normalizeStorageValue(commitmentCategory);
+    final normalizedMissionFocus = primaryMissionFocus == null
+        ? null
+        : MissionFocusTypeX.normalizeStorageValue(primaryMissionFocus);
+
+    var newSettings = state.copyWith(
+      hasCompletedPreOnboarding: true,
+      onboardingCompleted: true,
+      primaryVirtue: primaryVirtue,
+      lifestyle: lifestyle,
+      morningTime: morningTime,
+      eveningTime: eveningTime,
+      morningReminderEnabled: morningReminderEnabled,
+      eveningReminderEnabled: eveningReminderEnabled,
+      socialPresenceOptIn: socialPresenceOptIn,
+      contactsImported: contactsImported,
+      primaryArchetypeId: primaryArchetypeId,
+      commitmentCategory: normalizedCommitmentCategory,
+      primaryMissionFocus: normalizedMissionFocus,
+      christianLifeBaseline: christianLifeBaseline,
+    );
+
+    if (primaryArchetypeId != null && normalizedCommitmentCategory != null) {
+      final archetype = Archetype.allArchetypes
+          .firstWhere((a) => a.name == primaryArchetypeId);
+
+      final effectiveMissionFocus = normalizedMissionFocus ??
+          _recommendedMissionFocus(
+            CommitmentCategory.values.firstWhere(
+              (c) => c.name == normalizedCommitmentCategory,
+              orElse: () => CommitmentCategory.growth,
+            ),
+          ).name;
+
+      if (normalizedMissionFocus == null) {
+        newSettings =
+            newSettings.copyWith(primaryMissionFocus: effectiveMissionFocus);
+      }
+
+      final callingProfile = _callingProfileService.generateProfile(
+        archetype: archetype,
+        commitmentCategory: normalizedCommitmentCategory,
+        missionFocus: effectiveMissionFocus,
+        personalDistractions: personalDistractions,
+      );
+
+      final now = DateTime.now();
+      final weekStart = _startOfWeek(now);
+      final weeklyPlan = _callingProfileService.generateWeeklyPlan(
+        profile: callingProfile,
+        weekStart: weekStart,
+        morningTime: morningTime,
+        eveningTime: eveningTime,
+      );
+
+      newSettings = newSettings.copyWith(
+        callingProfile: callingProfile,
+        currentWeeklyPlan: weeklyPlan,
+      );
+    }
+
+    state = newSettings;
+    await _persistWithRetry(newSettings);
+    _syncNotifications(newSettings);
+    _analytics.track(
+      AppAnalyticsEvent.onboardingCompleted,
+      properties: {
+        'primary_archetype': primaryArchetypeId,
+        'commitment_category': normalizedCommitmentCategory,
+        'mission_focus': normalizedMissionFocus,
+      },
+    );
+  }
+
   Future<void> completeOnboarding({
     required VirtueType primaryVirtue,
     required String lifestyle,
@@ -93,6 +190,7 @@ class SettingsNotifier extends StateNotifier<AppSettings> {
     String? commitmentCategory,
     String? primaryMissionFocus,
     List<String> personalDistractions = const [],
+    ChristianLifeBaseline? christianLifeBaseline,
   }) async {
     final normalizedCommitmentCategory = commitmentCategory == null
         ? null
@@ -113,6 +211,7 @@ class SettingsNotifier extends StateNotifier<AppSettings> {
       primaryArchetypeId: primaryArchetypeId,
       commitmentCategory: normalizedCommitmentCategory,
       primaryMissionFocus: normalizedMissionFocus,
+      christianLifeBaseline: christianLifeBaseline,
     );
 
     // Generate calling profile and weekly plan if we have archetype data
@@ -427,6 +526,58 @@ class SettingsNotifier extends StateNotifier<AppSettings> {
     await _persistWithRetry(next);
   }
 
+  Future<void> setCompanionCharacter(String code) async {
+    final next = state.copyWith(companionCharacterCode: code);
+    state = next;
+    await _persistWithRetry(next);
+  }
+
+  Future<void> setChristianLifeBaseline(ChristianLifeBaseline baseline) async {
+    final next = state.copyWith(christianLifeBaseline: baseline);
+    state = next;
+    await _persistWithRetry(next);
+  }
+
+  /// Record the Phase 2 habit-catalog selections. These are orthogonal to
+  /// archetype-derived distractions — they reflect the user's own report
+  /// of what they already practice and what they're working against.
+  Future<void> setGoodHabits(List<String> keys) async {
+    final next = state.copyWith(goodHabits: keys);
+    state = next;
+    await _persistWithRetry(next);
+  }
+
+  Future<void> setStruggles(List<String> keys) async {
+    final next = state.copyWith(struggles: keys);
+    state = next;
+    await _persistWithRetry(next);
+  }
+
+  Future<void> setAccountabilityCadence(String cadence) async {
+    final normalized = cadence == 'weekly' ? 'weekly' : 'daily';
+    final next = state.copyWith(accountabilityCadence: normalized);
+    state = next;
+    await _persistWithRetry(next);
+  }
+
+  /// Persist the serialized onboarding draft. Called on every
+  /// `OnboardingNotifier` state mutation so app-kill mid-onboarding doesn't
+  /// lose baseline answers or archetype selections.
+  Future<void> setOnboardingDraft(String draft) async {
+    final next = state.copyWith(onboardingDraft: draft);
+    state = next;
+    await _storage.save(next);
+  }
+
+  /// Wipe the onboarding draft. Called after signup succeeds so a completed
+  /// user can never rehydrate stale in-progress state on next launch.
+  Future<void> clearOnboardingDraft() async {
+    if (state.onboardingDraft == null) return;
+    final next = state.copyWith(clearOnboardingDraft: true);
+    state = next;
+    await _storage.save(next);
+  }
+
   Future<void> markAssessmentPromptSeen() async {
     final next = state.copyWith(hasSeenAssessmentPrompt: true);
     state = next;
@@ -451,6 +602,22 @@ class SettingsNotifier extends StateNotifier<AppSettings> {
 
   Future<void> setMissionActions(List<MissionAction> actions) async {
     final next = state.copyWith(missionActions: actions);
+    state = next;
+    await _storage.save(next);
+  }
+
+  /// Merges user-selected distractions into the calling profile.
+  /// Adds to (not replaces) any archetype-derived distractions already present.
+  Future<void> setPersonalDistractions(List<String> distractions) async {
+    final profile = state.callingProfile;
+    if (profile == null || distractions.isEmpty) return;
+    final merged = {
+      ...profile.personalDistractions,
+      ...distractions,
+    }.toList();
+    final next = state.copyWith(
+      callingProfile: profile.copyWith(personalDistractions: merged),
+    );
     state = next;
     await _storage.save(next);
   }
@@ -526,6 +693,12 @@ class SettingsNotifier extends StateNotifier<AppSettings> {
     await _storage.save(next);
   }
 
+  Future<void> clearAccountabilityPartner() async {
+    final next = state.copyWith(clearAccountabilityPartner: true);
+    state = next;
+    await _storage.save(next);
+  }
+
   Future<void> updatePhoneSetupCompleted(bool completed) async {
     final next = state.copyWith(hasCompletedPhoneSetup: completed);
     state = next;
@@ -597,6 +770,10 @@ class SettingsNotifier extends StateNotifier<AppSettings> {
       scheduledTime: fourPm,
       payload: 'check_in_reminder',
       actionLabels: ['I did this', 'Journal'],
+      // Recur every day at this wall-clock time. Without this the 4pm nudge
+      // fires once and is gone — the user only gets reminded on the exact
+      // day the schedule was set.
+      matchDateTimeComponents: DateTimeComponents.time,
     );
   }
 

@@ -1,11 +1,15 @@
+import '../../companion/domain/models/christian_life_baseline.dart';
 import '../../today/domain/models/daily_anchors.dart';
 
+/// Phase 1 — the pre-signup portion of onboarding. Four screens only.
+/// Baseline, habits, struggles, commitment, companion, reminders all move
+/// to Phase 2/3 (post-signup) so the user gets through signup fast and
+/// the deeper work happens inside an authenticated session.
 enum OnboardingStep {
-  theProblem, // was: theNoise
-  theSolution, // merges: clarityPromise + fourPillars
-  yourIdentity, // merges: discoverIdentity + identityRevealed
-  yourPath, // merges: startingCommitment + lifestyleSetup
-  yourAccount, // merges: ready + pre-onboarding signup
+  theProblem, // The Noise
+  theSolution, // Deeper signal — clarity + pillars
+  yourIdentity, // 3-question mini-assessment + inline archetype reveal
+  yourAccount, // Signup (merges ready + pre-onboarding signup)
 }
 
 class OnboardingState {
@@ -29,6 +33,12 @@ class OnboardingState {
     this.fullName,
     this.phone,
     this.personalDistractions = const [],
+    this.bibleReadingCadence,
+    this.lastChurchAttendance,
+    this.prayerRhythm,
+    this.sovereigntyScore = 3,
+    this.charityScore = 3,
+    this.trustScore = 3,
   });
 
   final OnboardingStep step;
@@ -67,17 +77,121 @@ class OnboardingState {
   /// User-selected personal distractions/addictions.
   final List<String> personalDistractions;
 
+  /// Christian-Life Baseline — honest self-snapshot collected on step 5.
+  final BibleReadingCadence? bibleReadingCadence;
+  final ChurchAttendance? lastChurchAttendance;
+  final PrayerRhythm? prayerRhythm;
+  final int sovereigntyScore;
+  final int charityScore;
+  final int trustScore;
+
+  bool get hasBaselineAnswers =>
+      bibleReadingCadence != null &&
+      lastChurchAttendance != null &&
+      prayerRhythm != null;
+
+  ChristianLifeBaseline? get baselineOrNull {
+    if (!hasBaselineAnswers) return null;
+    return ChristianLifeBaseline(
+      bibleReadingCadence: bibleReadingCadence!,
+      lastChurchAttendance: lastChurchAttendance!,
+      prayerRhythm: prayerRhythm!,
+      sovereigntyScore: sovereigntyScore,
+      charityScore: charityScore,
+      trustScore: trustScore,
+      capturedAt: DateTime.now(),
+    );
+  }
+
   bool get isLastStep => step == OnboardingStep.yourAccount;
 
   int get currentStepIndex => switch (step) {
         OnboardingStep.theProblem => 0,
         OnboardingStep.theSolution => 1,
         OnboardingStep.yourIdentity => 2,
-        OnboardingStep.yourPath => 3,
-        OnboardingStep.yourAccount => 4,
+        OnboardingStep.yourAccount => 3,
       };
 
-  int get totalSteps => 5;
+  int get totalSteps => 4;
+
+  Map<String, dynamic> toJson() => {
+        'step': step.name,
+        'lifestyle': lifestyle,
+        'morningTime': morningTime,
+        'eveningTime': eveningTime,
+        'morningReminderEnabled': morningReminderEnabled,
+        'eveningReminderEnabled': eveningReminderEnabled,
+        'primaryVirtue': primaryVirtue.name,
+        'socialPresenceOptIn': socialPresenceOptIn,
+        'contactsImported': contactsImported,
+        'miniAssessmentAnswers': miniAssessmentAnswers,
+        'assessmentConfidence': assessmentConfidence,
+        'tiebreakerShown': tiebreakerShown,
+        'primaryArchetypeId': primaryArchetypeId,
+        'commitmentCategory': commitmentCategory,
+        'primaryMissionFocus': primaryMissionFocus,
+        'email': email,
+        'fullName': fullName,
+        'phone': phone,
+        'personalDistractions': personalDistractions,
+        'bibleReadingCadence': bibleReadingCadence?.storageValue,
+        'lastChurchAttendance': lastChurchAttendance?.storageValue,
+        'prayerRhythm': prayerRhythm?.storageValue,
+        'sovereigntyScore': sovereigntyScore,
+        'charityScore': charityScore,
+        'trustScore': trustScore,
+      };
+
+  factory OnboardingState.fromJson(Map<String, dynamic> map) {
+    final stepName = map['step'] as String?;
+    final step = OnboardingStep.values.firstWhere(
+      (s) => s.name == stepName,
+      orElse: () => OnboardingStep.theProblem,
+    );
+    return OnboardingState(
+      step: step,
+      lifestyle: map['lifestyle'] as String? ?? 'Student',
+      morningTime: map['morningTime'] as String? ?? '07:30',
+      eveningTime: map['eveningTime'] as String? ?? '21:00',
+      morningReminderEnabled: map['morningReminderEnabled'] as bool? ?? true,
+      eveningReminderEnabled: map['eveningReminderEnabled'] as bool? ?? true,
+      primaryVirtue: VirtueTypeX.fromStorage(map['primaryVirtue'] as String?) ??
+          VirtueType.humility,
+      socialPresenceOptIn: map['socialPresenceOptIn'] as bool? ?? false,
+      contactsImported: map['contactsImported'] as bool? ?? false,
+      miniAssessmentAnswers: (map['miniAssessmentAnswers'] as List<dynamic>?)
+              ?.map((e) => (e as num).toInt())
+              .toList() ??
+          const [],
+      assessmentConfidence:
+          (map['assessmentConfidence'] as num?)?.toDouble() ?? 0.0,
+      tiebreakerShown: map['tiebreakerShown'] as bool? ?? false,
+      primaryArchetypeId: map['primaryArchetypeId'] as String?,
+      commitmentCategory: map['commitmentCategory'] as String?,
+      primaryMissionFocus: map['primaryMissionFocus'] as String?,
+      email: map['email'] as String?,
+      fullName: map['fullName'] as String?,
+      phone: map['phone'] as String?,
+      personalDistractions: (map['personalDistractions'] as List<dynamic>?)
+              ?.map((e) => e.toString())
+              .toList() ??
+          const [],
+      bibleReadingCadence: map['bibleReadingCadence'] == null
+          ? null
+          : BibleReadingCadenceX.fromStorage(
+              map['bibleReadingCadence'] as String?),
+      lastChurchAttendance: map['lastChurchAttendance'] == null
+          ? null
+          : ChurchAttendanceX.fromStorage(
+              map['lastChurchAttendance'] as String?),
+      prayerRhythm: map['prayerRhythm'] == null
+          ? null
+          : PrayerRhythmX.fromStorage(map['prayerRhythm'] as String?),
+      sovereigntyScore: (map['sovereigntyScore'] as num?)?.toInt() ?? 3,
+      charityScore: (map['charityScore'] as num?)?.toInt() ?? 3,
+      trustScore: (map['trustScore'] as num?)?.toInt() ?? 3,
+    );
+  }
 
   OnboardingState copyWith({
     OnboardingStep? step,
@@ -99,6 +213,12 @@ class OnboardingState {
     String? fullName,
     String? phone,
     List<String>? personalDistractions,
+    BibleReadingCadence? bibleReadingCadence,
+    ChurchAttendance? lastChurchAttendance,
+    PrayerRhythm? prayerRhythm,
+    int? sovereigntyScore,
+    int? charityScore,
+    int? trustScore,
   }) {
     return OnboardingState(
       step: step ?? this.step,
@@ -120,6 +240,12 @@ class OnboardingState {
       fullName: fullName ?? this.fullName,
       phone: phone ?? this.phone,
       personalDistractions: personalDistractions ?? this.personalDistractions,
+      bibleReadingCadence: bibleReadingCadence ?? this.bibleReadingCadence,
+      lastChurchAttendance: lastChurchAttendance ?? this.lastChurchAttendance,
+      prayerRhythm: prayerRhythm ?? this.prayerRhythm,
+      sovereigntyScore: sovereigntyScore ?? this.sovereigntyScore,
+      charityScore: charityScore ?? this.charityScore,
+      trustScore: trustScore ?? this.trustScore,
     );
   }
 }

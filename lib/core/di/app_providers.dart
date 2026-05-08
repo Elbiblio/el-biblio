@@ -452,7 +452,10 @@ final graduatedCommitmentProvider = StateNotifierProvider<
 // Commitment Journey providers (3/10/40-day journeys with prayer intentions)
 final commitmentJourneyRepositoryProvider =
     Provider<CommitmentJourneyRepository>((ref) {
-  return CommitmentJourneyRepository(ref.watch(loggerProvider));
+  return CommitmentJourneyRepository(
+    ref.watch(authenticatedDioClientProvider),
+    ref.watch(loggerProvider),
+  );
 });
 
 final commitmentJourneyProvider = StateNotifierProvider<

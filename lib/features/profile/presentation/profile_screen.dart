@@ -8,6 +8,7 @@ import '../../../core/constants/app_routes.dart';
 import '../../../core/theme/app_theme_mode.dart';
 import '../../../core/theme/app_theme_tokens.dart';
 import '../../../core/theme/app_text_styles.dart';
+import '../../../shared/widgets/skeleton_loader.dart';
 import 'widgets/tts_settings_widget.dart';
 import 'widgets/achievements_dialog.dart';
 import 'widgets/weekly_progress_chart.dart';
@@ -992,8 +993,37 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     if (profileState.isLoading && profileState.profile == null && authState.user == null) {
       return Scaffold(
         backgroundColor: backgroundColor,
-        body: Center(
-          child: CircularProgressIndicator(color: accentColor),
+        body: const SafeArea(
+          child: SkeletonLoader(
+            child: Padding(
+              padding: EdgeInsets.all(24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      SkeletonCircle(size: 64),
+                      SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            SkeletonText(width: 180, height: 20),
+                            SizedBox(height: 8),
+                            SkeletonText(width: 120, height: 14),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: 24),
+                  SkeletonCard(height: 96, borderRadius: 16),
+                  SkeletonCard(height: 120, borderRadius: 16),
+                  SkeletonCard(height: 160, borderRadius: 16),
+                ],
+              ),
+            ),
+          ),
         ),
       );
     }

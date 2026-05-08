@@ -63,7 +63,11 @@
       "Bash(find /c/dev/elbiblio-app/flutter-app -type f \\\\\\(-name *.kt -o -name *.java -o -name *.swift -o -name *.m \\\\\\))",
       "Bash(git -C \"C:/dev/elbiblio-app/flutter-app/.claude/worktrees/agent-a2c546a2\" diff --stat HEAD)",
       "Bash(git -C \"C:/dev/elbiblio-app/flutter-app/.claude/worktrees/agent-a575d79d\" diff --stat HEAD)",
-      "Bash(git -C \"C:/dev/elbiblio-app/flutter-app/.claude/worktrees/agent-a21ed0d0\" diff --stat HEAD)"
+      "Bash(git -C \"C:/dev/elbiblio-app/flutter-app/.claude/worktrees/agent-a21ed0d0\" diff --stat HEAD)",
+      "Bash(rtk git *)",
+      "Bash(grep -E \"\\\\.dart$\")",
+      "Bash(awk '{print $NF}')",
+      "Bash(grep -v \"^[^:]*:\\\\s*//\")"
     ]
   }
 }

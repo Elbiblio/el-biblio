@@ -1,5 +1,11 @@
 import 'commitment_category.dart';
 
+/// Where a journey definition was sourced from at load time.
+/// `remote` = fetched from the backend catalog this session.
+/// `remoteCache` = fetched on a prior session, replayed from disk cache.
+/// `offlineFallback` = bundled hardcoded fallback (no network and no cache).
+enum CommitmentSource { remote, remoteCache, offlineFallback }
+
 /// Duration options for commitment journeys.
 enum CommitmentDuration {
   seed3Day(3, '3-Day Seed', 'Begin something new with God'),
@@ -71,6 +77,7 @@ class CommitmentJourney {
     this.baseRequirement,
     this.encouragement,
     this.failureGrace,
+    this.source = CommitmentSource.offlineFallback,
   });
 
   final String id;
@@ -85,6 +92,7 @@ class CommitmentJourney {
   final String? baseRequirement; // What to do on day 1
   final String? encouragement; // Shown on completion
   final String? failureGrace; // Shown if failed
+  final CommitmentSource source;
 
   int get totalDays => duration.days;
   bool get hasMilestones => milestones.isNotEmpty;
@@ -125,6 +133,7 @@ class CommitmentJourney {
     String? baseRequirement,
     String? encouragement,
     String? failureGrace,
+    CommitmentSource? source,
   }) {
     return CommitmentJourney(
       id: id ?? this.id,
@@ -139,6 +148,7 @@ class CommitmentJourney {
       baseRequirement: baseRequirement ?? this.baseRequirement,
       encouragement: encouragement ?? this.encouragement,
       failureGrace: failureGrace ?? this.failureGrace,
+      source: source ?? this.source,
     );
   }
 
@@ -156,10 +166,23 @@ class CommitmentJourney {
       'baseRequirement': baseRequirement,
       'encouragement': encouragement,
       'failureGrace': failureGrace,
+      'source': source.name,
     };
   }
 
-  factory CommitmentJourney.fromJson(Map<String, dynamic> json) {
+  factory CommitmentJourney.fromJson(
+    Map<String, dynamic> json, {
+    CommitmentSource? overrideSource,
+  }) {
+    CommitmentSource source = CommitmentSource.offlineFallback;
+    if (overrideSource != null) {
+      source = overrideSource;
+    } else if (json['source'] is String) {
+      source = CommitmentSource.values.firstWhere(
+        (s) => s.name == json['source'],
+        orElse: () => CommitmentSource.offlineFallback,
+      );
+    }
     return CommitmentJourney(
       id: json['id'] as String,
       title: json['title'] as String,
@@ -185,6 +208,7 @@ class CommitmentJourney {
       baseRequirement: json['baseRequirement'] as String?,
       encouragement: json['encouragement'] as String?,
       failureGrace: json['failureGrace'] as String?,
+      source: source,
     );
   }
 }

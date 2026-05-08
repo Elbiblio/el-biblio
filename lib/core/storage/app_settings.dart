@@ -3,11 +3,13 @@ import 'package:flutter/material.dart';
 import '../../features/assessment/domain/models/calling_profile.dart';
 import '../../features/assessment/domain/models/weekly_plan.dart';
 import '../../features/commitments/domain/models/commitment_category.dart';
+import '../../features/companion/domain/models/christian_life_baseline.dart';
 import '../../features/mission/domain/models/accountability_partner.dart';
 import '../../features/mission/domain/models/kingdom_action_models.dart';
 import '../../features/mission/domain/models/mission_action.dart';
 import '../../features/mission/domain/models/mission_focus.dart';
 import '../../features/mission/domain/models/person_profile.dart';
+import '../../features/onboarding/domain/habit_catalog.dart';
 import '../../features/today/domain/models/daily_anchors.dart';
 import '../theme/app_theme_mode.dart';
 
@@ -52,6 +54,12 @@ class AppSettings {
     this.personCommitments = const [],
     this.generosityRecords = const [],
     this.evangelismConversations = const [],
+    this.companionCharacterCode,
+    this.christianLifeBaseline,
+    this.goodHabits = const [],
+    this.struggles = const [],
+    this.accountabilityCadence = 'daily',
+    this.onboardingDraft,
   });
 
   final AppThemeMode themeMode;
@@ -94,6 +102,33 @@ class AppSettings {
   final List<GenerosityRecord> generosityRecords;
   final List<EvangelismConversation> evangelismConversations;
 
+  /// Selected companion persona — `raziel` | `naomi` | `james`.
+  /// Null until the user picks one (or skips, which sets Naomi as default).
+  final String? companionCharacterCode;
+
+  /// Honest snapshot of the user's Christian-life habits, captured during
+  /// onboarding. Drives first-commitment sizing and companion opening tone.
+  final ChristianLifeBaseline? christianLifeBaseline;
+
+  /// Virtues the user already practices (habit-catalog keys).
+  /// Named during Phase 2 onboarding so the app starts from strength,
+  /// not deficit.
+  final List<String> goodHabits;
+
+  /// Struggles the user is currently working against (habit-catalog keys).
+  /// Deduped — "sexual_impurity" covers pornography / lust / nudes as one
+  /// moral axis. Drives verse selection and commitment recommendations.
+  final List<String> struggles;
+
+  /// Cadence the accountability partner is pinged at: `daily` (default)
+  /// or `weekly` (earned only when baseline is already strong).
+  final String accountabilityCadence;
+
+  /// Serialized `OnboardingState` (JSON) persisted on every mutation while
+  /// the user is mid-onboarding. Rehydrated on app relaunch if
+  /// `onboardingCompleted == false`. Cleared after signup success.
+  final String? onboardingDraft;
+
   factory AppSettings.defaults() {
     return const AppSettings(
       themeMode: AppThemeMode.adaptive,
@@ -135,6 +170,12 @@ class AppSettings {
       personCommitments: [],
       generosityRecords: [],
       evangelismConversations: [],
+      companionCharacterCode: null,
+      christianLifeBaseline: null,
+      goodHabits: [],
+      struggles: [],
+      accountabilityCadence: 'daily',
+      onboardingDraft: null,
     );
   }
 
@@ -270,6 +311,27 @@ class AppSettings {
               .map((item) => EvangelismConversation.fromMap(Map<String, dynamic>.from(item)))
               .toList() ??
           const [],
+      companionCharacterCode: map['companionCharacterCode'] as String?,
+      christianLifeBaseline: map['christianLifeBaseline'] is Map
+          ? ChristianLifeBaseline.fromMap(
+              Map<String, dynamic>.from(map['christianLifeBaseline'] as Map),
+            )
+          : null,
+      goodHabits: (map['goodHabits'] as List<dynamic>?)
+              ?.map((e) => e.toString())
+              .where(kGoodHabitKeys.contains)
+              .toList() ??
+          const [],
+      struggles: (map['struggles'] as List<dynamic>?)
+              ?.map((e) => e.toString())
+              .where(kStruggleKeys.contains)
+              .toList() ??
+          const [],
+      accountabilityCadence:
+          (map['accountabilityCadence'] as String?) == 'weekly'
+              ? 'weekly'
+              : 'daily',
+      onboardingDraft: map['onboardingDraft'] as String?,
     );
   }
 
@@ -321,6 +383,12 @@ class AppSettings {
       'personCommitments': personCommitments.map((item) => item.toMap()).toList(),
       'generosityRecords': generosityRecords.map((item) => item.toMap()).toList(),
       'evangelismConversations': evangelismConversations.map((item) => item.toMap()).toList(),
+      'companionCharacterCode': companionCharacterCode,
+      'christianLifeBaseline': christianLifeBaseline?.toMap(),
+      'goodHabits': goodHabits,
+      'struggles': struggles,
+      'accountabilityCadence': accountabilityCadence,
+      'onboardingDraft': onboardingDraft,
     };
   }
 
@@ -364,6 +432,16 @@ class AppSettings {
     List<PersonCommitment>? personCommitments,
     List<GenerosityRecord>? generosityRecords,
     List<EvangelismConversation>? evangelismConversations,
+    String? companionCharacterCode,
+    ChristianLifeBaseline? christianLifeBaseline,
+    List<String>? goodHabits,
+    List<String>? struggles,
+    String? accountabilityCadence,
+    String? onboardingDraft,
+    bool clearCompanionCharacter = false,
+    bool clearChristianLifeBaseline = false,
+    bool clearAccountabilityPartner = false,
+    bool clearOnboardingDraft = false,
   }) {
     return AppSettings(
       themeMode: themeMode ?? this.themeMode,
@@ -395,7 +473,9 @@ class AppSettings {
       commitmentCategory: commitmentCategory ?? this.commitmentCategory,
       primaryMissionFocus: primaryMissionFocus ?? this.primaryMissionFocus,
       missionActions: missionActions ?? this.missionActions,
-      accountabilityPartner: accountabilityPartner ?? this.accountabilityPartner,
+      accountabilityPartner: clearAccountabilityPartner
+          ? null
+          : (accountabilityPartner ?? this.accountabilityPartner),
       personProfiles: personProfiles ?? this.personProfiles,
       hasSeenCommitmentWelcome: hasSeenCommitmentWelcome ?? this.hasSeenCommitmentWelcome,
       hasCompletedPostOnboarding: hasCompletedPostOnboarding ?? this.hasCompletedPostOnboarding,
@@ -406,6 +486,19 @@ class AppSettings {
       personCommitments: personCommitments ?? this.personCommitments,
       generosityRecords: generosityRecords ?? this.generosityRecords,
       evangelismConversations: evangelismConversations ?? this.evangelismConversations,
+      companionCharacterCode: clearCompanionCharacter
+          ? null
+          : (companionCharacterCode ?? this.companionCharacterCode),
+      christianLifeBaseline: clearChristianLifeBaseline
+          ? null
+          : (christianLifeBaseline ?? this.christianLifeBaseline),
+      goodHabits: goodHabits ?? this.goodHabits,
+      struggles: struggles ?? this.struggles,
+      accountabilityCadence:
+          accountabilityCadence ?? this.accountabilityCadence,
+      onboardingDraft: clearOnboardingDraft
+          ? null
+          : (onboardingDraft ?? this.onboardingDraft),
     );
   }
 }

@@ -109,9 +109,14 @@ class CommitmentJourneyNotifier extends StateNotifier<CommitmentJourneyState> {
   }
 
   /// Start a new journey with a prayer intention.
+  ///
+  /// Single entry point used by both `journey_selection_screen` and the
+  /// post-onboarding flow. The `source` tag lets analytics (and future
+  /// milestone resumption) distinguish where the journey began.
   Future<void> startJourney({
     required String journeyId,
     required String prayerIntention,
+    String source = 'selection',
   }) async {
     state = state.copyWith(isLoading: true, clearError: true);
     try {

@@ -324,6 +324,11 @@ class NotificationService {
         _goToRoute(AppRoutes.today);
       } else if (payload == 'grow_together') {
         _goToRoute(AppRoutes.growTogether);
+      } else if (payload == 'companion_partner_checkin') {
+        final week = _isoWeekKey(DateTime.now());
+        _goToRoute(
+          '${AppRoutes.companionChat}?thread=partner-checkin-$week&mode=accountability&title=${Uri.encodeQueryComponent('Weekly check-in')}',
+        );
       }
     } catch (e) {
       debugPrint('NotificationService: Navigation error: $e');
@@ -343,6 +348,17 @@ class NotificationService {
   }
   
   static final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+
+  /// ISO week key (`YYYY-Www`). Used to scope the companion accountability
+  /// thread per week — each Friday opens a fresh thread, avoiding runaway
+  /// context from prior weeks.
+  static String _isoWeekKey(DateTime date) {
+    final thursday = date.add(Duration(days: 4 - date.weekday));
+    final firstDayOfYear = DateTime(thursday.year, 1, 1);
+    final dayOfYear = thursday.difference(firstDayOfYear).inDays + 1;
+    final week = ((dayOfYear - 1) ~/ 7) + 1;
+    return '${thursday.year}-W${week.toString().padLeft(2, '0')}';
+  }
 
   tz.TZDateTime _resolveScheduleTime(DateTime scheduledTime) {
     try {
@@ -399,6 +415,7 @@ class NotificationService {
     DateTime? scheduledTime,
     String? payload,
     List<String>? actionLabels,
+    DateTimeComponents? matchDateTimeComponents,
   }) async {
     try {
       await initialize();
@@ -454,6 +471,7 @@ class NotificationService {
           scheduledDate: _resolveScheduleTime(scheduledTime),
           notificationDetails: notificationDetails,
           androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+          matchDateTimeComponents: matchDateTimeComponents,
           payload: payload,
         );
       } else {
@@ -660,6 +678,21 @@ class NotificationService {
     await _localNotificationsPlugin.cancel(id: id);
   }
 
+  /// Wipe every scheduled notification owned by this install.
+  ///
+  /// Call at a login / signup boundary so IDs left over from a previous
+  /// tenant of the device (shared phone, re-install, test accounts) cannot
+  /// fire at the new user. The caller is responsible for re-scheduling any
+  /// notifications the new session still wants.
+  Future<void> cancelAll() async {
+    try {
+      await initialize();
+      await _localNotificationsPlugin.cancelAll();
+    } catch (e) {
+      debugPrint('NotificationService: cancelAll failed: $e');
+    }
+  }
+
   Future<void> scheduleDailyReminders({
     required String morningTime,
     required String eveningTime,
@@ -715,6 +748,7 @@ class NotificationService {
 
   Future<void> scheduleWeeklyPartnerCheckInReminder({
     required String partnerName,
+    bool isAiCompanion = false,
   }) async {
     try {
       await initialize();
@@ -773,7 +807,9 @@ class NotificationService {
         ),
         androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
         matchDateTimeComponents: DateTimeComponents.dayOfWeekAndTime,
-        payload: 'grow_together',
+        payload: isAiCompanion
+            ? 'companion_partner_checkin'
+            : 'grow_together',
       );
 
       debugPrint(
@@ -793,6 +829,189 @@ class NotificationService {
       debugPrint(
         'NotificationService: Error cancelling weekly partner check-in: $e',
       );
+    }
+  }
+
+  // ─── Companion daily verse ───────────────────────────────────────────────
+  // One gentle verse a day, drawn from the companion's preferred book order.
+  // The client schedules the shell; content (verse text + reference) is
+  // resolved server-side or from the on-device verse pool so the companion
+  // voice stays consistent with the active character.
+
+  static const int companionDailyVerseId = 7000;
+
+  Future<void> scheduleCompanionDailyVerse({
+    required String companionCode,
+    required String companionDisplayName,
+    required String deliveryTime,
+    required String verseReference,
+    required String verseText,
+  }) async {
+    try {
+      await initialize();
+      await _localNotificationsPlugin.cancel(id: companionDailyVerseId);
+
+      final scheduledDateTime = _parseTime(deliveryTime);
+
+      final androidDetails = AndroidNotificationDetails(
+        'companion_daily_verse',
+        'Daily Verse from your Companion',
+        channelDescription:
+            'A daily Scripture nudge in your companion\'s voice',
+        importance: Importance.high,
+        priority: Priority.high,
+        color: const Color(0xFF638B6C),
+        channelShowBadge: true,
+        enableVibration: true,
+        playSound: true,
+        styleInformation: BigTextStyleInformation(
+          verseText,
+          htmlFormatBigText: false,
+          contentTitle: '$companionDisplayName · $verseReference',
+          htmlFormatContentTitle: false,
+          summaryText: 'El-Biblio',
+        ),
+      );
+
+      const iosDetails = DarwinNotificationDetails(
+        presentAlert: true,
+        presentBadge: true,
+        presentSound: true,
+        threadIdentifier: 'companion_daily_verse',
+        interruptionLevel: InterruptionLevel.timeSensitive,
+      );
+
+      final notificationDetails = NotificationDetails(
+        android: androidDetails,
+        iOS: iosDetails,
+      );
+
+      await _localNotificationsPlugin.zonedSchedule(
+        id: companionDailyVerseId,
+        title: '$companionDisplayName · $verseReference',
+        body: verseText,
+        scheduledDate: _resolveScheduleTime(scheduledDateTime),
+        notificationDetails: notificationDetails,
+        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+        matchDateTimeComponents: DateTimeComponents.time,
+        payload: 'companion_daily_verse:$companionCode',
+      );
+
+      debugPrint(
+        'NotificationService: Scheduled companion daily verse ($companionCode) at $deliveryTime',
+      );
+    } catch (e) {
+      debugPrint(
+        'NotificationService: Error scheduling companion daily verse: $e',
+      );
+    }
+  }
+
+  Future<void> cancelCompanionDailyVerse() async {
+    try {
+      await _localNotificationsPlugin.cancel(id: companionDailyVerseId);
+    } catch (e) {
+      debugPrint(
+        'NotificationService: Error cancelling companion daily verse: $e',
+      );
+    }
+  }
+
+  // ─── Adaptive accountability partner check-in ────────────────────────────
+  // Default cadence is DAILY. If the user's baseline spiritual level is
+  // already strong, we step down to weekly so the nudge doesn't feel noisy.
+
+  /// Schedule the partner check-in at the cadence the user earns.
+  /// [cadence] is 'daily' or 'weekly'. Daily fires every evening at 7pm;
+  /// weekly fires every Friday at 7pm (legacy behaviour).
+  Future<void> scheduleAccountabilityPartnerCheckIn({
+    required String partnerName,
+    required String cadence,
+    bool isAiCompanion = false,
+  }) async {
+    if (cadence == 'weekly') {
+      await scheduleWeeklyPartnerCheckInReminder(
+        partnerName: partnerName,
+        isAiCompanion: isAiCompanion,
+      );
+      return;
+    }
+
+    // Cancel first; if zonedSchedule throws we end up with zero schedules on
+    // the shared id rather than two cadences firing in parallel.
+    bool cancelled = false;
+    try {
+      await initialize();
+      await _localNotificationsPlugin.cancel(id: weeklyPartnerCheckInId);
+      cancelled = true;
+
+      final now = tz.TZDateTime.now(tz.local);
+      var scheduledDate = tz.TZDateTime(
+        tz.local,
+        now.year,
+        now.month,
+        now.day,
+        19,
+        0,
+        0,
+      );
+      if (!scheduledDate.isAfter(now.add(const Duration(minutes: 5)))) {
+        scheduledDate = scheduledDate.add(const Duration(days: 1));
+      }
+
+      final androidDetails = AndroidNotificationDetails(
+        'accountability_daily',
+        'Daily Partner Check-in',
+        channelDescription:
+            'Daily nudge to share today\'s walk with your accountability partner',
+        importance: Importance.defaultImportance,
+        priority: Priority.defaultPriority,
+        color: const Color(0xFF638B6C),
+        channelShowBadge: true,
+        enableVibration: true,
+        playSound: true,
+        styleInformation: BigTextStyleInformation(
+          'One small share a day — a win, a struggle, a prayer — keeps you both walking together.',
+          htmlFormatBigText: false,
+          summaryText: 'El-Biblio',
+        ),
+      );
+
+      const iosDetails = DarwinNotificationDetails(
+        presentAlert: true,
+        presentBadge: true,
+        presentSound: true,
+        threadIdentifier: 'accountability_daily',
+      );
+
+      await _localNotificationsPlugin.zonedSchedule(
+        id: weeklyPartnerCheckInId,
+        title: 'Check in with $partnerName',
+        body: 'How did today go? A quick share keeps you both moving.',
+        scheduledDate: scheduledDate,
+        notificationDetails: NotificationDetails(
+          android: androidDetails,
+          iOS: iosDetails,
+        ),
+        // Use exactAllowWhileIdle for reliability parity with morning/evening
+        // anchors; an evening partner nudge that silently slips past the user
+        // defeats the whole cadence.
+        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+        matchDateTimeComponents: DateTimeComponents.time,
+        payload: isAiCompanion
+            ? 'companion_partner_checkin'
+            : 'grow_together',
+      );
+
+      debugPrint(
+        'NotificationService: Scheduled daily partner check-in at 7pm',
+      );
+    } catch (e) {
+      debugPrint(
+        'NotificationService: Error scheduling daily partner check-in: $e (cancelled=$cancelled)',
+      );
+      // If we cancelled but never successfully scheduled, the id is now empty
+      // — which is the safe state. No second cadence can double-fire.
     }
   }
 

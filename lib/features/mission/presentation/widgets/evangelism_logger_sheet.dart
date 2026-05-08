@@ -341,22 +341,26 @@ class _EvangelismLoggerSheetState extends ConsumerState<EvangelismLoggerSheet> {
             ),
           ),
           const SizedBox(height: 8),
-          ..._responseOptions.entries.map((entry) {
-            final isSelected = _selectedResponse == entry.key;
-            return RadioListTile<String>(
-              title: Text(
-                entry.value,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  fontWeight: isSelected ? FontWeight.w600 : null,
-                ),
-              ),
-              value: entry.key,
-              groupValue: _selectedResponse,
-              onChanged: (value) => setState(() => _selectedResponse = value),
-              contentPadding: EdgeInsets.zero,
-              dense: true,
-            );
-          }),
+          RadioGroup<String>(
+            groupValue: _selectedResponse,
+            onChanged: (value) => setState(() => _selectedResponse = value),
+            child: Column(
+              children: _responseOptions.entries.map((entry) {
+                final isSelected = _selectedResponse == entry.key;
+                return RadioListTile<String>(
+                  title: Text(
+                    entry.value,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      fontWeight: isSelected ? FontWeight.w600 : null,
+                    ),
+                  ),
+                  value: entry.key,
+                  contentPadding: EdgeInsets.zero,
+                  dense: true,
+                );
+              }).toList(),
+            ),
+          ),
           const SizedBox(height: 20),
 
           // Prayer requests

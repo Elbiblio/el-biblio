@@ -39,6 +39,8 @@ import '../../features/app_lock/presentation/screens/app_lock_setup_screen.dart'
 import '../../features/app_lock/presentation/screens/app_lock_limit_reached_screen.dart';
 import '../../features/social/presentation/invite_screen.dart';
 import '../../features/commitments/presentation/screens/commitment_journey_screen_new.dart';
+import '../../features/companion/presentation/screens/companion_chat_screen.dart';
+import '../../features/churches/presentation/screens/church_finder_screen.dart';
 import '../../features/commitments/presentation/screens/journey_selection_screen.dart';
 import '../../features/commitments/presentation/screens/commitment_active_screen.dart';
 import '../../features/commitments/presentation/screens/commitment_completion_screen.dart';
@@ -110,6 +112,11 @@ final _routerRefreshProvider = Provider<_RouterRefreshNotifier>((ref) {
     authProvider.select((value) => value.isAuthenticated),
     (_, __) => notifier.trigger(),
   );
+
+  // Intentionally NOT listening to `accountabilityCadence`, `christianLifeBaseline`,
+  // `goodHabits`, `struggles`, or `onboardingDraft` — those shape content, not
+  // routing. Listening to them would trigger spurious GoRouter rebuilds on
+  // every onboarding keystroke. Keep the listen-set narrow.
 
   ref.onDispose(notifier.dispose);
   return notifier;
@@ -320,6 +327,29 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: AppRoutes.weeklyAssessment,
         parentNavigatorKey: _rootNavigatorKey,
         builder: (context, state) => const WeeklyAssessmentScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.companionChat,
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) {
+          final thread =
+              state.uri.queryParameters['thread'] ?? 'default';
+          final mode = state.uri.queryParameters['mode'] ?? 'default';
+          final title = state.uri.queryParameters['title'];
+          final extra = state.extra as Map<String, dynamic>?;
+          final seed = extra?['seedAssistantOpener'] as String?;
+          return CompanionChatScreen(
+            threadKey: thread,
+            mode: mode,
+            title: title,
+            seedAssistantOpener: seed,
+          );
+        },
+      ),
+      GoRoute(
+        path: AppRoutes.churchesNearby,
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) => const ChurchFinderScreen(),
       ),
       GoRoute(
         path: '${AppRoutes.meditation}/session',

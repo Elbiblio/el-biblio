@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_routes.dart';
 import '../../../core/di/app_providers.dart';
 import '../domain/models/mission_focus.dart';
+import 'widgets/accountability_check_in_sheet.dart';
 import 'widgets/mission_hub_sections.dart';
 
 class MissionHubScreen extends ConsumerWidget {
@@ -239,7 +240,8 @@ class MissionHubScreen extends ConsumerWidget {
                             ),
                           ),
                           TextButton(
-                            onPressed: () => context.push(AppRoutes.growTogether),
+                            onPressed: () =>
+                                AccountabilityCheckInSheet.show(context),
                             child: const Text('Check in'),
                           ),
                         ],

@@ -10,6 +10,8 @@ import '../../../../core/storage/app_settings.dart';
 import '../../../../core/storage/settings_storage.dart';
 import '../../../../core/theme/app_theme_tokens.dart';
 import '../../commitments/presentation/widgets/commitment_welcome_dialog.dart';
+import '../../companion/presentation/widgets/ai_partner_invite_card.dart';
+import '../../companion/presentation/widgets/companion_bubble.dart';
 import '../domain/models/daily_anchors.dart';
 import 'widgets/assessment_prompt_widget.dart';
 import 'widgets/commitment_completion_dialog.dart';
@@ -26,6 +28,7 @@ import 'widgets/recalibration_suggestion_dialog.dart';
 import 'widgets/soul_care_dialog.dart';
 import 'widgets/spiritual_pulse_widget.dart';
 import 'widgets/time_diagnose_suggestion_dialog.dart';
+import 'widgets/pending_checkin_card.dart';
 import 'widgets/today_header.dart';
 import 'widgets/weekly_plan_prompt_card.dart';
 import 'widgets/weekly_section_widget.dart';
@@ -214,6 +217,21 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
               _adaptiveSection(
                 layout: layout,
                 child: TodayHeader(onHelpTap: _showQuickHelp),
+              ),
+              if (settings.companionCharacterCode != null)
+                _adaptiveSection(
+                  layout: layout,
+                  child: const CompanionBubble(),
+                ),
+              if (settings.companionCharacterCode != null &&
+                  settings.accountabilityPartner == null)
+                _adaptiveSection(
+                  layout: layout,
+                  child: const AiPartnerInviteCard(),
+                ),
+              _adaptiveSection(
+                layout: layout,
+                child: const PendingCheckInCard(),
               ),
               _adaptiveSection(
                 layout: layout,
