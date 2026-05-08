@@ -188,8 +188,10 @@ class NotificationService {
           _handleJournalAction(context, payload);
           break;
         case _actionCommitmentView:
+          _goToRoute(AppRoutes.commit);
+          break;
         case _actionCommitmentDone:
-          _goToRoute(AppRoutes.today);
+          _handleIDidThis(context, payload);
           break;
         default:
           break;
@@ -1529,11 +1531,24 @@ class NotificationService {
         playSound: true,
         channelShowBadge: true,
         visibility: NotificationVisibility.public,
+        actions: <AndroidNotificationAction>[
+          AndroidNotificationAction(
+            _actionCommitmentDone,
+            'I did this',
+            showsUserInterface: true,
+          ),
+          AndroidNotificationAction(
+            _actionCommitmentView,
+            'View',
+            showsUserInterface: true,
+          ),
+        ],
       );
 
       const iosDetails = DarwinNotificationDetails(
         presentAlert: true,
         presentBadge: true,
+        categoryIdentifier: _commitmentCategory,
         presentSound: true,
         threadIdentifier: 'commitment_nudges',
         interruptionLevel: InterruptionLevel.timeSensitive,

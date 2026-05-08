@@ -428,6 +428,60 @@ class TribePulse {
   );
 }
 
+class VisionNotificationItem {
+  const VisionNotificationItem({
+    required this.id,
+    required this.kind,
+    required this.title,
+    required this.body,
+    required this.createdAt,
+    required this.read,
+    this.actionLabel,
+    this.route,
+    this.iconKey = 'bell',
+    this.hangoutId,
+    this.commitmentId,
+    this.reflectionId,
+  });
+
+  final int id;
+  final String kind;
+  final String title;
+  final String body;
+  final DateTime createdAt;
+  final bool read;
+  final String? actionLabel;
+  final String? route;
+  final String iconKey;
+  final int? hangoutId;
+  final int? commitmentId;
+  final int? reflectionId;
+
+  IconData get icon => GrowthJourneyEvent.iconForKey(iconKey);
+
+  factory VisionNotificationItem.fromJson(Map<String, dynamic> json) {
+    final payload = Map<String, dynamic>.from(
+      json['payload'] as Map? ?? const {},
+    );
+    return VisionNotificationItem(
+      id: int.tryParse(json['id']?.toString() ?? '') ?? 0,
+      kind: payload['kind'] as String? ?? 'notification',
+      title: payload['title'] as String? ?? 'Something new on ElBiblio',
+      body: payload['body'] as String? ?? 'Open ElBiblio when you are ready.',
+      createdAt:
+          DateTime.tryParse(json['created_at']?.toString() ?? '') ??
+          DateTime.now(),
+      read: json['read_at'] != null,
+      actionLabel: payload['action_label'] as String?,
+      route: payload['route'] as String?,
+      iconKey: payload['icon_key'] as String? ?? 'bell',
+      hangoutId: (payload['hangout_id'] as num?)?.toInt(),
+      commitmentId: (payload['commitment_id'] as num?)?.toInt(),
+      reflectionId: (payload['reflection_id'] as num?)?.toInt(),
+    );
+  }
+}
+
 enum GrowthJourneyEventType {
   compassComplete(
     'compass_complete',
@@ -527,6 +581,8 @@ class GrowthJourneyEvent {
       'heart-handshake' => LucideIcons.heartHandshake,
       'send' => LucideIcons.send,
       'calendar-heart' => LucideIcons.calendarHeart,
+      'bell' => LucideIcons.bell,
+      'radio' => LucideIcons.radio,
       _ => LucideIcons.sparkles,
     };
   }

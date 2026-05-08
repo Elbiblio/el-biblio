@@ -7,6 +7,7 @@ class AppRoutes {
   static const assessment = '/assessment';
   static const timeDiagnose = '/time-diagnose';
   static const today = '/today';
+  static const notifications = '/notifications';
   static const reflect = '/reflect';
   static const commit = '/commit';
   static const tribe = '/tribe';

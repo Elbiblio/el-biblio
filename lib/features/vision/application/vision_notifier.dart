@@ -7,10 +7,23 @@ import 'vision_state.dart';
 
 class VisionNotifier extends StateNotifier<VisionState> {
   VisionNotifier(this._repository, this._notificationService)
-    : super(const VisionState());
+    : super(const VisionState()) {
+    _notificationService.setDailyCheckInActionHandler(() async {
+      final completed = await checkIn();
+      if (!completed) {
+        throw StateError('No active commitment check-in was completed.');
+      }
+    });
+  }
 
   final VisionRepository _repository;
   final NotificationService _notificationService;
+
+  @override
+  void dispose() {
+    _notificationService.setDailyCheckInActionHandler(null);
+    super.dispose();
+  }
 
   Future<void> load({bool force = false}) async {
     if (!force &&
@@ -38,6 +51,10 @@ class VisionNotifier extends StateNotifier<VisionState> {
           ? const <WeeklyRitualReflection>[]
           : await _repository.weeklyRitual(bootstrap.primaryTribe!.tribe.id);
       final hangouts = await _repository.visibleHangouts();
+      final notifications = await _repository.notifications();
+      final unreadNotificationCount = notifications
+          .where((item) => !item.read)
+          .length;
 
       state = state.copyWith(
         isLoading: false,
@@ -55,6 +72,8 @@ class VisionNotifier extends StateNotifier<VisionState> {
         tribePulse: tribePulse,
         weeklyReflections: weeklyReflections,
         hangouts: hangouts,
+        notifications: notifications,
+        unreadNotificationCount: unreadNotificationCount,
         journeyEvents: bootstrap.journeyEvents.isNotEmpty
             ? bootstrap.journeyEvents
             : _buildJourneyEvents(
@@ -136,6 +155,29 @@ class VisionNotifier extends StateNotifier<VisionState> {
       return true;
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString());
+      return false;
+    }
+  }
+
+  Future<bool> updateNudges(int nudgeCount) async {
+    final active = state.activeCommitment;
+    if (active == null) return false;
+
+    try {
+      final membership = await _repository.updateNudges(
+        commitmentId: active.plan.id,
+        nudgeCount: nudgeCount,
+      );
+      await _notificationService.scheduleCommitmentNudges(
+        commitmentId: membership.plan.id,
+        commitmentTitle: membership.plan.title,
+        dailyAction: membership.plan.dailyAction,
+        nudgeCount: membership.nudgeCountPerDay,
+      );
+      state = state.copyWith(activeCommitment: membership);
+      return true;
+    } catch (e) {
+      state = state.copyWith(error: e.toString());
       return false;
     }
   }
@@ -303,6 +345,51 @@ class VisionNotifier extends StateNotifier<VisionState> {
     } catch (e) {
       state = state.copyWith(error: e.toString());
     }
+  }
+
+  Future<void> loadNotifications() async {
+    final notifications = await _repository.notifications();
+    state = state.copyWith(
+      notifications: notifications,
+      unreadNotificationCount: notifications.where((item) => !item.read).length,
+    );
+  }
+
+  Future<void> markNotificationRead(VisionNotificationItem item) async {
+    if (!item.read) {
+      await _repository.markNotificationRead(item.id);
+    }
+    state = state.copyWith(
+      notifications: state.notifications
+          .map(
+            (notification) => notification.id == item.id
+                ? VisionNotificationItem(
+                    id: notification.id,
+                    kind: notification.kind,
+                    title: notification.title,
+                    body: notification.body,
+                    createdAt: notification.createdAt,
+                    read: true,
+                    actionLabel: notification.actionLabel,
+                    route: notification.route,
+                    iconKey: notification.iconKey,
+                    hangoutId: notification.hangoutId,
+                    commitmentId: notification.commitmentId,
+                    reflectionId: notification.reflectionId,
+                  )
+                : notification,
+          )
+          .toList(),
+      unreadNotificationCount:
+          (state.unreadNotificationCount - (item.read ? 0 : 1))
+              .clamp(0, 999)
+              .toInt(),
+    );
+  }
+
+  Future<void> markAllNotificationsRead() async {
+    await _repository.markAllNotificationsRead();
+    await loadNotifications();
   }
 
   Future<bool> answerDailyQuestion(String answer) async {

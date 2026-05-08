@@ -28,6 +28,7 @@ import '../../features/mission/presentation/screens/service_opportunities_screen
 import '../../features/onboarding/presentation/onboarding_screen.dart';
 import '../../features/vision/presentation/screens/commit_screen.dart';
 import '../../features/vision/presentation/screens/grow_screen.dart';
+import '../../features/vision/presentation/screens/notifications_screen.dart';
 import '../../features/vision/presentation/screens/reflect_screen.dart';
 import '../../features/vision/presentation/screens/today_screen.dart';
 import '../../features/vision/presentation/screens/tribe_screen.dart';
@@ -395,6 +396,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             path: AppRoutes.today,
             pageBuilder: (context, state) =>
                 _fadePage(child: const TodayScreen()),
+          ),
+          GoRoute(
+            path: AppRoutes.notifications,
+            pageBuilder: (context, state) =>
+                _fadePage(child: const NotificationsScreen()),
           ),
           GoRoute(
             path: AppRoutes.reflect,

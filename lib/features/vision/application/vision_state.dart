@@ -17,6 +17,8 @@ class VisionState {
     this.tribePulse = TribePulse.empty,
     this.hangouts = const [],
     this.weeklyReflections = const [],
+    this.notifications = const [],
+    this.unreadNotificationCount = 0,
   });
 
   final bool isLoading;
@@ -34,6 +36,8 @@ class VisionState {
   final TribePulse tribePulse;
   final List<CommitmentHangout> hangouts;
   final List<WeeklyRitualReflection> weeklyReflections;
+  final List<VisionNotificationItem> notifications;
+  final int unreadNotificationCount;
 
   VisionState copyWith({
     bool? isLoading,
@@ -55,6 +59,8 @@ class VisionState {
     TribePulse? tribePulse,
     List<CommitmentHangout>? hangouts,
     List<WeeklyRitualReflection>? weeklyReflections,
+    List<VisionNotificationItem>? notifications,
+    int? unreadNotificationCount,
   }) {
     return VisionState(
       isLoading: isLoading ?? this.isLoading,
@@ -80,6 +86,9 @@ class VisionState {
       tribePulse: tribePulse ?? this.tribePulse,
       hangouts: hangouts ?? this.hangouts,
       weeklyReflections: weeklyReflections ?? this.weeklyReflections,
+      notifications: notifications ?? this.notifications,
+      unreadNotificationCount:
+          unreadNotificationCount ?? this.unreadNotificationCount,
     );
   }
 }

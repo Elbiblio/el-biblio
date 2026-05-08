@@ -118,6 +118,17 @@ class VisionRepository {
     return CommitmentSeason.fromJson(_payloadMap(response.data));
   }
 
+  Future<CommitmentSeason> updateNudges({
+    required int commitmentId,
+    required int nudgeCount,
+  }) async {
+    final response = await _dio.put<Map<String, dynamic>>(
+      '/commitments/$commitmentId/nudges',
+      data: {'nudge_count_per_day': nudgeCount},
+    );
+    return CommitmentSeason.fromJson(_payloadMap(response.data));
+  }
+
   Future<CommitmentSeason> checkIn({
     required int commitmentId,
     String? note,
@@ -233,6 +244,55 @@ class VisionRepository {
       '/reflections/$reflectionId/reactions',
       data: {'reaction_type': reactionType},
     );
+  }
+
+  Future<List<VisionNotificationItem>> notifications() async {
+    try {
+      final response = await _dio.get<Map<String, dynamic>>(
+        '/notifications/user',
+        queryParameters: {'per_page': 30},
+      );
+      final data = _payload(response.data);
+      final list = data is Map && data['data'] is List
+          ? data['data'] as List<dynamic>
+          : data is List
+          ? data
+          : const <dynamic>[];
+      return list
+          .whereType<Map>()
+          .map(
+            (item) => VisionNotificationItem.fromJson(
+              Map<String, dynamic>.from(item),
+            ),
+          )
+          .toList();
+    } catch (e) {
+      _logger.w('Vision notifications failed: $e');
+      return const [];
+    }
+  }
+
+  Future<int> unreadNotificationCount() async {
+    try {
+      final response = await _dio.get<Map<String, dynamic>>(
+        '/notifications/unread-count',
+      );
+      final data = _payloadMap(response.data);
+      return (data['count'] as num?)?.toInt() ?? 0;
+    } catch (e) {
+      _logger.w('Vision unread notification count failed: $e');
+      return 0;
+    }
+  }
+
+  Future<void> markNotificationRead(int notificationId) async {
+    await _dio.post<Map<String, dynamic>>(
+      '/notifications/$notificationId/read',
+    );
+  }
+
+  Future<void> markAllNotificationsRead() async {
+    await _dio.post<Map<String, dynamic>>('/notifications/mark-all-read');
   }
 
   Future<void> answerDailyQuestion({

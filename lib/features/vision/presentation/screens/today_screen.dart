@@ -50,11 +50,18 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
             child: ListView(
               padding: const EdgeInsets.fromLTRB(20, 20, 20, 120),
               children: [
-                Text(
-                  'Today',
-                  style: theme.textTheme.headlineMedium?.copyWith(
-                    fontWeight: FontWeight.w800,
-                  ),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Today',
+                        style: theme.textTheme.headlineMedium?.copyWith(
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                    _NotificationButton(),
+                  ],
                 ),
                 const SizedBox(height: 6),
                 Text(
@@ -94,6 +101,24 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
       return 'You returned today. Reflect when you are ready.';
     }
     return 'One commitment. One check-in. One small return.';
+  }
+}
+
+class _NotificationButton extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final count = ref.watch(visionProvider).unreadNotificationCount;
+    final theme = Theme.of(context);
+    return IconButton(
+      tooltip: 'Notifications',
+      onPressed: () => context.go(AppRoutes.notifications),
+      icon: Badge(
+        isLabelVisible: count > 0,
+        label: Text(count > 9 ? '9+' : '$count'),
+        backgroundColor: theme.colorScheme.primary,
+        child: const Icon(LucideIcons.bell),
+      ),
+    );
   }
 }
 
