@@ -3,8 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../application/onboarding_notifier.dart';
 import '../../../commitments/domain/models/commitment_category.dart';
+import '../../../../core/di/app_providers.dart';
 
-/// Step 5: Your Account — setup summary + signup form (merged from ready_view
+/// Step 5: Your Account - setup summary + signup form (merged from ready_view
 /// and pre_onboarding_screen).
 class YourAccountView extends ConsumerStatefulWidget {
   const YourAccountView({super.key, required this.onSignUp});
@@ -26,6 +27,7 @@ class _YourAccountViewState extends ConsumerState<YourAccountView>
   final _emailFocusNode = FocusNode();
   final _phoneFocusNode = FocusNode();
   bool _isLoading = false;
+  bool _countryDetected = false;
 
   late final AnimationController _controller;
   late final Animation<double> _fadeIn;
@@ -39,6 +41,21 @@ class _YourAccountViewState extends ConsumerState<YourAccountView>
     );
     _fadeIn = CurvedAnimation(parent: _controller, curve: Curves.easeOut);
     _controller.forward();
+    _detectCountry();
+  }
+
+  Future<void> _detectCountry() async {
+    if (_countryDetected) return;
+    try {
+      final countryCode = await ref
+          .read(countryServiceProvider)
+          .detectCountryCode();
+      if (!mounted) return;
+      _countryCodeController.text = countryCode;
+      _countryDetected = true;
+    } catch (_) {
+      // Keep the editable +1 fallback.
+    }
   }
 
   @override

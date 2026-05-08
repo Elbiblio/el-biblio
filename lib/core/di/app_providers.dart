@@ -472,10 +472,7 @@ final pushTokenProvider =
 
 // Country service provider
 final countryServiceProvider = Provider<CountryService>((ref) {
-  return CountryService(
-    ref.watch(dioClientProvider),
-    ref.watch(loggerProvider),
-  );
+  return CountryService(ref.watch(loggerProvider));
 });
 
 // XP service provider
