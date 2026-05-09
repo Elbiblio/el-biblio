@@ -449,7 +449,7 @@ class VisionNotifier extends StateNotifier<VisionState> {
         GrowthJourneyEvent(
           type: GrowthJourneyEventType.tribeJoined,
           title: GrowthJourneyEventType.tribeJoined.title,
-          subtitle: tribe.tribe.name,
+          subtitle: tribe.tribe.displayName,
           occurredAt: now,
           iconKey: GrowthJourneyEventType.tribeJoined.iconKey,
         ),

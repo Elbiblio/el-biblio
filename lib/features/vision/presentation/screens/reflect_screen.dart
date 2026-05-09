@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
@@ -9,6 +8,7 @@ import '../../../../core/di/app_providers.dart';
 import '../../../../shared/widgets/vision_illustration.dart';
 import '../../application/vision_state.dart';
 import '../../domain/vision_models.dart';
+import '../widgets/reflection_feed_widgets.dart';
 import '../widgets/vision_panel.dart';
 import 'hangout_room_screen.dart';
 
@@ -78,9 +78,9 @@ class _ReflectScreenState extends ConsumerState<ReflectScreen> {
                 ),
               )
             else ...[
-              _ReflectionComposer(controller: _controller),
+              VisionReflectionComposer(controller: _controller),
               const SizedBox(height: 16),
-              _FeedList(),
+              const VisionReflectionFeed(),
               const SizedBox(height: 16),
               _HangoutPanel(),
             ],
@@ -459,191 +459,4 @@ class _HangoutScope {
   final int? id;
   final String label;
   final IconData icon;
-}
-
-class _ReflectionComposer extends ConsumerWidget {
-  const _ReflectionComposer({required this.controller});
-
-  final TextEditingController controller;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final state = ref.watch(visionProvider);
-    final active = state.activeCommitment;
-    if (active == null) return const SizedBox.shrink();
-
-    if (!active.checkedInToday) {
-      return VisionPanel(
-        icon: LucideIcons.checkCircle,
-        title: 'Return today first',
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'You can read the feed now. Share after you complete today.',
-            ),
-            const SizedBox(height: 12),
-            FilledButton.icon(
-              onPressed: () async {
-                final completed = await ref
-                    .read(visionProvider.notifier)
-                    .checkIn();
-                if (!context.mounted || completed) return;
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text(
-                      'We could not complete today. Please try again.',
-                    ),
-                  ),
-                );
-              },
-              icon: const Icon(LucideIcons.checkCircle, size: 18),
-              label: const Text('Mark today\'s return'),
-            ),
-          ],
-        ),
-      );
-    }
-
-    if (state.reflectionPostedToday) {
-      return const VisionPanel(
-        icon: LucideIcons.messageCircle,
-        title: 'Reflection shared',
-        child: Text('Your reflection for today is posted.'),
-      );
-    }
-
-    return VisionPanel(
-      icon: LucideIcons.messageCircle,
-      title: 'Share one honest reflection',
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Visible only to this commitment circle as ${state.visibilityAlias}. Keep it honest, brief, and human.',
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: controller,
-            minLines: 3,
-            maxLines: 5,
-            maxLength: 500,
-            maxLengthEnforcement: MaxLengthEnforcement.enforced,
-            decoration: const InputDecoration(
-              hintText: 'What felt hard, hopeful, or honest today?',
-              border: OutlineInputBorder(),
-            ),
-          ),
-          FilledButton.icon(
-            onPressed: () async {
-              final posted = await ref
-                  .read(visionProvider.notifier)
-                  .postReflection(controller.text);
-              if (!context.mounted) return;
-              if (!posted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text(
-                      'We could not post this reflection. Please try again.',
-                    ),
-                  ),
-                );
-                return;
-              }
-              controller.clear();
-            },
-            icon: const Icon(LucideIcons.send, size: 18),
-            label: const Text('Post reflection'),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _FeedList extends ConsumerWidget {
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final feed = ref.watch(visionProvider).feed;
-    if (feed.isEmpty) {
-      return const VisionPanel(
-        icon: LucideIcons.messagesSquare,
-        title: 'Reflection feed',
-        child: Text(
-          'No reflections yet. The feed grows one honest post at a time.',
-        ),
-      );
-    }
-
-    return VisionPanel(
-      icon: LucideIcons.messagesSquare,
-      title: 'Commitment reflections',
-      child: Column(
-        children: feed.map((item) => _ReflectionCard(item: item)).toList(),
-      ),
-    );
-  }
-}
-
-class _ReflectionCard extends ConsumerWidget {
-  const _ReflectionCard({required this.item});
-
-  final CommitmentReflection item;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final theme = Theme.of(context);
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface.withValues(alpha: 0.72),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: theme.colorScheme.outline.withValues(alpha: 0.12),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              CircleAvatar(
-                radius: 16,
-                child: Text(
-                  item.alias.isEmpty ? '?' : item.alias[0].toUpperCase(),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  item.alias,
-                  style: theme.textTheme.labelLarge?.copyWith(
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ),
-              if (item.reactionCount > 0)
-                Text(
-                  '${item.reactionCount}',
-                  style: theme.textTheme.labelMedium,
-                ),
-              IconButton(
-                tooltip: 'Support',
-                icon: const Icon(LucideIcons.heartHandshake),
-                onPressed: () => ref
-                    .read(visionProvider.notifier)
-                    .reactToReflection(item, 'support'),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Text(
-            item.content,
-            style: theme.textTheme.bodyMedium?.copyWith(height: 1.45),
-          ),
-        ],
-      ),
-    );
-  }
 }

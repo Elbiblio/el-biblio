@@ -57,6 +57,35 @@ void main() {
       expect(GrowthJourneyEvent.iconForKey('unknown'), LucideIcons.sparkles);
     });
 
+    test('tribe and reflection public profile display cleanly', () {
+      final tribe = TribeIdentity.fromJson({
+        'id': 1,
+        'name': 'Watchman Circle',
+        'slug': 'watchman-circle',
+        'description': 'A steady tribe.',
+        'icon_key': 'compass',
+      });
+      final reflection = CommitmentReflection.fromJson({
+        'id': 2,
+        'author_alias': 'Quiet Walker',
+        'content': 'I returned.',
+        'created_at': '2026-05-09T12:00:00Z',
+        'reaction_counts': {'support': 2},
+        'author_profile': {
+          'member_since': '2026-03-29',
+          'tribe_name': 'Watchman Circle',
+          'completed_challenges_count': 1,
+          'current_streak_count': 3,
+        },
+      });
+
+      expect(tribe.displayName, 'Watchman');
+      expect(reflection.authorTribeDisplayName, 'Watchman');
+      expect(reflection.authorCompletedChallengesCount, 1);
+      expect(reflection.authorCurrentStreakCount, 3);
+      expect(reflection.reactionCount, 2);
+    });
+
     test('tribe pulse parses aggregate activity safely', () {
       final pulse = TribePulse.fromJson({
         'today': {

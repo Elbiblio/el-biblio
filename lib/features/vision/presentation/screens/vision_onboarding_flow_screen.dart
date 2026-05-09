@@ -199,7 +199,7 @@ class _VisionOnboardingFlowScreenState
                         children: state.recommendedTribes.map((tribe) {
                           return RadioListTile<TribeIdentity>(
                             value: tribe,
-                            title: Text(tribe.name),
+                            title: Text(tribe.displayName),
                             subtitle: Text(tribe.description),
                           );
                         }).toList(),
@@ -394,7 +394,10 @@ class _CompassChoice extends StatelessWidget {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(tribe.name, style: theme.textTheme.titleSmall),
+                            Text(
+                              tribe.displayName,
+                              style: theme.textTheme.titleSmall,
+                            ),
                             const SizedBox(height: 3),
                             Text(
                               tribe.description,

@@ -50,7 +50,7 @@ class _GrowScreenState extends ConsumerState<GrowScreen> {
           const SizedBox(height: 8),
           Text(
             _seasonLine(
-              state.primaryTribe?.tribe.name,
+              state.primaryTribe?.tribe.displayName,
               state.activeCommitment?.plan.title,
             ),
           ),

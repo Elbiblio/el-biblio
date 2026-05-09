@@ -41,6 +41,8 @@ class TribeIdentity {
   final String? matchReason;
   final List<String> matchedArchetypes;
 
+  String get displayName => displayTribeName(name);
+
   factory TribeIdentity.fromJson(Map<String, dynamic> json) {
     return TribeIdentity(
       id: (json['id'] as num?)?.toInt() ?? 0,
@@ -178,6 +180,10 @@ class CommitmentReflection {
     required this.content,
     required this.createdAt,
     this.reactionCount = 0,
+    this.authorMemberSince,
+    this.authorTribeName,
+    this.authorCompletedChallengesCount = 0,
+    this.authorCurrentStreakCount = 0,
   });
 
   final int id;
@@ -185,11 +191,23 @@ class CommitmentReflection {
   final String content;
   final DateTime createdAt;
   final int reactionCount;
+  final DateTime? authorMemberSince;
+  final String? authorTribeName;
+  final int authorCompletedChallengesCount;
+  final int authorCurrentStreakCount;
+
+  String get authorTribeDisplayName =>
+      displayTribeName(authorTribeName ?? '').isEmpty
+      ? 'No tribe yet'
+      : displayTribeName(authorTribeName ?? '');
 
   factory CommitmentReflection.fromJson(Map<String, dynamic> json) {
     final reactions = json['reactions'];
     final reactionCounts = Map<String, dynamic>.from(
       json['reaction_counts'] as Map? ?? const {},
+    );
+    final authorProfile = Map<String, dynamic>.from(
+      json['author_profile'] as Map? ?? const {},
     );
     return CommitmentReflection(
       id: (json['id'] as num?)?.toInt() ?? 0,
@@ -209,8 +227,31 @@ class CommitmentReflection {
           : reactions is List
           ? reactions.length
           : 0,
+      authorMemberSince: DateTime.tryParse(
+        authorProfile['member_since']?.toString() ??
+            json['author_member_since']?.toString() ??
+            '',
+      ),
+      authorTribeName:
+          authorProfile['tribe_name'] as String? ??
+          json['author_tribe_name'] as String?,
+      authorCompletedChallengesCount:
+          (authorProfile['completed_challenges_count'] as num?)?.toInt() ??
+          (json['author_completed_challenges_count'] as num?)?.toInt() ??
+          0,
+      authorCurrentStreakCount:
+          (authorProfile['current_streak_count'] as num?)?.toInt() ??
+          (json['author_current_streak_count'] as num?)?.toInt() ??
+          0,
     );
   }
+}
+
+String displayTribeName(String name) {
+  return name.trim().replaceFirst(
+    RegExp(r'\s+Circle$', caseSensitive: false),
+    '',
+  );
 }
 
 class WeeklyRitualReflection {

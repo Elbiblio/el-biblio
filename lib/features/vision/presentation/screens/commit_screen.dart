@@ -6,6 +6,7 @@ import '../../../../core/di/app_providers.dart';
 import '../../../../shared/widgets/premium_success_dialog.dart';
 import '../../../../shared/widgets/vision_illustration.dart';
 import '../../domain/vision_models.dart';
+import '../widgets/reflection_feed_widgets.dart';
 import '../widgets/vision_panel.dart';
 
 class CommitScreen extends ConsumerStatefulWidget {
@@ -16,8 +17,10 @@ class CommitScreen extends ConsumerStatefulWidget {
 }
 
 class _CommitScreenState extends ConsumerState<CommitScreen> {
+  final _reflectionController = TextEditingController();
   int _selectedNudges = 3;
   String _selectedCategory = 'all';
+  final Set<int> _pinnedReflectionIds = {};
 
   @override
   void initState() {
@@ -28,46 +31,64 @@ class _CommitScreenState extends ConsumerState<CommitScreen> {
   }
 
   @override
+  void dispose() {
+    _reflectionController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final state = ref.watch(visionProvider);
     final active = state.activeCommitment;
-    final theme = Theme.of(context);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Commit')),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 12, 20, 120),
-        children: [
-          _CommitHeader(active: active),
-          const SizedBox(height: 16),
-          if (active != null) ...[
-            _ActiveCommitment(active: active),
-            const SizedBox(height: 20),
-            _AccountabilityAssistantPanel(active: active),
-            const SizedBox(height: 20),
-            VisionPanel(
-              icon: LucideIcons.lock,
-              title: 'One commitment at a time',
-              child: Text(
-                'Continue this path before beginning another. This keeps your daily rhythm simple.',
-                style: theme.textTheme.bodyMedium,
-              ),
+      appBar: AppBar(
+        title: const Text('Commit'),
+        actions: [
+          if (active != null)
+            IconButton(
+              tooltip: 'Browse commitments',
+              onPressed: () =>
+                  _showCommitmentLibrary(state.recommendedCommitments, active),
+              icon: const Icon(LucideIcons.layoutGrid),
             ),
-          ] else ...[
-            _NudgeEducationPanel(onLearnMore: _showNudgeHelp),
-            const SizedBox(height: 16),
-            _CategoryRail(
-              categories: _categoriesFor(state.recommendedCommitments),
-              selected: _selectedCategory,
-              onSelected: (category) =>
-                  setState(() => _selectedCategory = category),
-            ),
-            const SizedBox(height: 16),
-            ..._visibleCommitments(
-              state.recommendedCommitments,
-            ).map(_buildCommitmentOption),
-          ],
         ],
+      ),
+      body: RefreshIndicator(
+        onRefresh: () => ref.read(visionProvider.notifier).load(force: true),
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 120),
+          children: [
+            _CommitHeader(active: active),
+            const SizedBox(height: 16),
+            if (active != null) ...[
+              _ActiveCommitment(active: active, showCheckInAction: false),
+              const SizedBox(height: 16),
+              VisionReflectionComposer(controller: _reflectionController),
+              const SizedBox(height: 16),
+              VisionReflectionFeed(
+                title: 'Your commitment feed',
+                pinnedIds: _pinnedReflectionIds,
+                onTogglePinned: _togglePinnedReflection,
+              ),
+              const SizedBox(height: 16),
+              _AccountabilityAssistantPanel(active: active),
+            ] else ...[
+              _NudgeEducationPanel(onLearnMore: _showNudgeHelp),
+              const SizedBox(height: 16),
+              _CategoryRail(
+                categories: _categoriesFor(state.recommendedCommitments),
+                selected: _selectedCategory,
+                onSelected: (category) =>
+                    setState(() => _selectedCategory = category),
+              ),
+              const SizedBox(height: 16),
+              ..._visibleCommitments(
+                state.recommendedCommitments,
+              ).map(_buildCommitmentOption),
+            ],
+          ],
+        ),
       ),
     );
   }
@@ -186,6 +207,29 @@ class _CommitScreenState extends ConsumerState<CommitScreen> {
       context: context,
       showDragHandle: true,
       builder: (context) => const _NudgeHelpSheet(),
+    );
+  }
+
+  void _togglePinnedReflection(CommitmentReflection reflection) {
+    setState(() {
+      if (_pinnedReflectionIds.contains(reflection.id)) {
+        _pinnedReflectionIds.remove(reflection.id);
+      } else {
+        _pinnedReflectionIds.add(reflection.id);
+      }
+    });
+  }
+
+  void _showCommitmentLibrary(
+    List<CommitmentPlan> commitments,
+    CommitmentSeason active,
+  ) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (context) =>
+          _CommitmentLibrarySheet(commitments: commitments, active: active),
     );
   }
 
@@ -466,6 +510,134 @@ class _NudgeHelpSheet extends StatelessWidget {
   }
 }
 
+class _CommitmentLibrarySheet extends StatelessWidget {
+  const _CommitmentLibrarySheet({
+    required this.commitments,
+    required this.active,
+  });
+
+  final List<CommitmentPlan> commitments;
+  final CommitmentSeason active;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return DraggableScrollableSheet(
+      expand: false,
+      initialChildSize: 0.74,
+      minChildSize: 0.38,
+      maxChildSize: 0.92,
+      builder: (context, controller) {
+        return ListView(
+          controller: controller,
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+          children: [
+            Text(
+              'Commitment paths',
+              style: theme.textTheme.headlineSmall?.copyWith(
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Stay with one path at a time. Keep this library close for your next season.',
+              style: theme.textTheme.bodyMedium?.copyWith(height: 1.42),
+            ),
+            const SizedBox(height: 16),
+            ...commitments.map(
+              (plan) => _CommitmentLibraryCard(
+                plan: plan,
+                isActive: plan.id == active.plan.id,
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _CommitmentLibraryCard extends StatelessWidget {
+  const _CommitmentLibraryCard({required this.plan, required this.isActive});
+
+  final CommitmentPlan plan;
+  final bool isActive;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: isActive
+            ? theme.colorScheme.primaryContainer.withValues(alpha: 0.18)
+            : theme.colorScheme.surface.withValues(alpha: 0.72),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: isActive
+              ? theme.colorScheme.primary.withValues(alpha: 0.28)
+              : theme.colorScheme.outline.withValues(alpha: 0.12),
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _CategoryIcon(category: plan.category),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        plan.title,
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                    if (isActive) const Icon(LucideIcons.checkCircle, size: 18),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  plan.description,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodySmall,
+                ),
+                const SizedBox(height: 10),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    _MetaPill(
+                      icon: LucideIcons.calendarDays,
+                      label: '${plan.durationDays} days',
+                    ),
+                    _MetaPill(
+                      icon: LucideIcons.bell,
+                      label: '${plan.nudgeMin}-${plan.nudgeMax} nudges',
+                    ),
+                    if (isActive)
+                      const _MetaPill(
+                        icon: LucideIcons.flag,
+                        label: 'Current path',
+                      ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _CommitmentWalkthroughSheet extends StatefulWidget {
   const _CommitmentWalkthroughSheet({
     required this.plan,
@@ -727,9 +899,13 @@ class _FaithWalkthroughPreview extends StatelessWidget {
 }
 
 class _ActiveCommitment extends ConsumerWidget {
-  const _ActiveCommitment({required this.active});
+  const _ActiveCommitment({
+    required this.active,
+    this.showCheckInAction = true,
+  });
 
   final CommitmentSeason active;
+  final bool showCheckInAction;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -750,6 +926,14 @@ class _ActiveCommitment extends ConsumerWidget {
                 Icon(LucideIcons.checkCircle, size: 18),
                 SizedBox(width: 8),
                 Text('You returned today.'),
+              ],
+            )
+          else if (!showCheckInAction)
+            const Row(
+              children: [
+                Icon(LucideIcons.clock3, size: 18),
+                SizedBox(width: 8),
+                Text('Today is still open.'),
               ],
             )
           else

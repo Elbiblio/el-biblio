@@ -249,7 +249,7 @@ class _TribePulsePreview extends ConsumerWidget {
     final returned = state.tribePulse.returnedCount;
     return VisionPanel(
       icon: LucideIcons.users,
-      title: tribe.tribe.name,
+      title: tribe.tribe.displayName,
       child: Text(
         returned > 0
             ? '$returned people in your tribe returned today.'

@@ -55,7 +55,7 @@ class _TribeScreenState extends ConsumerState<TribeScreen> {
         padding: const EdgeInsets.fromLTRB(20, 12, 20, 120),
         children: [
           Text(
-            state.primaryTribe?.tribe.name ?? 'Find your circle',
+            state.primaryTribe?.tribe.displayName ?? 'Find your tribe',
             style: theme.textTheme.headlineSmall?.copyWith(
               fontWeight: FontWeight.w800,
             ),
@@ -125,7 +125,7 @@ class _TribeScreenState extends ConsumerState<TribeScreen> {
                       const SizedBox(width: 10),
                       Expanded(
                         child: Text(
-                          tribe.name,
+                          tribe.displayName,
                           style: theme.textTheme.titleMedium?.copyWith(
                             fontWeight: FontWeight.w800,
                           ),
@@ -188,7 +188,7 @@ class _TribeScreenState extends ConsumerState<TribeScreen> {
                             }
                             await PremiumSuccessDialog.show(
                               context,
-                              title: 'You joined ${tribe.name}',
+                              title: 'You joined ${tribe.displayName}',
                               message:
                                   'Your commitment and reflections now have a place of belonging.',
                               primaryActionText: 'Continue',
@@ -225,10 +225,20 @@ class _WeeklyReflectionHub extends ConsumerWidget {
     final state = ref.watch(visionProvider);
     final tribe = state.primaryTribe;
     final theme = Theme.of(context);
+    final bookmarkedCount = state.weeklyReflections
+        .where((item) => item.bookmarkedByMe)
+        .length;
 
     return VisionPanel(
       icon: LucideIcons.calendarHeart,
-      title: 'Weekly reflection hub',
+      title: 'Weekend reflection',
+      trailing: tribe == null
+          ? null
+          : TextButton.icon(
+              onPressed: () => _openHub(context),
+              icon: const Icon(LucideIcons.arrowUpRight, size: 16),
+              label: const Text('Open'),
+            ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -237,12 +247,86 @@ class _WeeklyReflectionHub extends ConsumerWidget {
           else ...[
             Text(
               _isWeekend
-                  ? 'Open this weekend for ${tribe.tribe.name}. Reflections stay for one month unless bookmarked.'
-                  : 'The hub opens on Saturday and Sunday. You can still read and bookmark reflections.',
+                  ? 'A slower place for what this week formed in ${tribe.tribe.displayName}.'
+                  : 'It opens Saturday and Sunday. Read or save anything you want to carry forward.',
               style: theme.textTheme.bodyMedium,
             ),
-            if (_isWeekend) ...[
-              const SizedBox(height: 12),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _WeeklyPill(
+                  icon: LucideIcons.messageCircle,
+                  label: '${state.weeklyReflections.length} shared',
+                ),
+                _WeeklyPill(
+                  icon: LucideIcons.bookmark,
+                  label: '$bookmarkedCount saved',
+                ),
+                _WeeklyPill(
+                  icon: _isWeekend ? LucideIcons.unlock : LucideIcons.lock,
+                  label: _isWeekend ? 'Open now' : 'Weekend',
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  void _openHub(BuildContext context) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (context) =>
+          _WeeklyReflectionSheet(controller: controller, isWeekend: _isWeekend),
+    );
+  }
+}
+
+class _WeeklyReflectionSheet extends ConsumerWidget {
+  const _WeeklyReflectionSheet({
+    required this.controller,
+    required this.isWeekend,
+  });
+
+  final TextEditingController controller;
+  final bool isWeekend;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final state = ref.watch(visionProvider);
+    final tribe = state.primaryTribe;
+    final theme = Theme.of(context);
+
+    return DraggableScrollableSheet(
+      expand: false,
+      initialChildSize: 0.78,
+      minChildSize: 0.42,
+      maxChildSize: 0.94,
+      builder: (context, scrollController) {
+        return ListView(
+          controller: scrollController,
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+          children: [
+            Text(
+              'Weekend reflection',
+              style: theme.textTheme.headlineSmall?.copyWith(
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              tribe == null
+                  ? 'Join a tribe to share a weekend reflection.'
+                  : 'A weekly pause for ${tribe.tribe.displayName}. Save what you want to keep close.',
+              style: theme.textTheme.bodyMedium?.copyWith(height: 1.42),
+            ),
+            if (tribe != null && isWeekend) ...[
+              const SizedBox(height: 16),
               TextField(
                 controller: controller,
                 minLines: 2,
@@ -276,7 +360,7 @@ class _WeeklyReflectionHub extends ConsumerWidget {
                 label: const Text('Post weekly reflection'),
               ),
             ],
-            const SizedBox(height: 14),
+            const SizedBox(height: 18),
             if (state.weeklyReflections.isEmpty)
               const Text('No weekly reflections yet.')
             else
@@ -304,6 +388,33 @@ class _WeeklyReflectionHub extends ConsumerWidget {
                 ),
               ),
           ],
+        );
+      },
+    );
+  }
+}
+
+class _WeeklyPill extends StatelessWidget {
+  const _WeeklyPill({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface.withValues(alpha: 0.78),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14),
+          const SizedBox(width: 6),
+          Text(label, style: theme.textTheme.labelSmall),
         ],
       ),
     );

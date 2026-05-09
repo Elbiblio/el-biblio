@@ -9,6 +9,7 @@ class AssessmentApiRepository extends BaseRepository {
 
   final DioClient _client;
   static const String _endpoint = '/compass-assessments';
+  static const String _legacyEndpoint = '/compass_assessments';
 
   Future<void> submitAssessment(Map<String, dynamic> payload) {
     return guard(() async {
@@ -18,6 +19,20 @@ class AssessmentApiRepository extends BaseRepository {
       );
 
       final statusCode = response.statusCode ?? 500;
+      if (statusCode == 404) {
+        final fallback = await _client.post<Map<String, dynamic>>(
+          _legacyEndpoint,
+          data: payload,
+        );
+        final fallbackStatusCode = fallback.statusCode ?? 500;
+        if (fallbackStatusCode < 400) {
+          return;
+        }
+        throw NetworkException(
+          'Unable to sync assessment right now.',
+          fallback.data,
+        );
+      }
       if (statusCode >= 400) {
         throw NetworkException(
           'Unable to sync assessment right now.',
