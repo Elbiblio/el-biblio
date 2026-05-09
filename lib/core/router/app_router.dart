@@ -29,7 +29,6 @@ import '../../features/onboarding/presentation/onboarding_screen.dart';
 import '../../features/vision/presentation/screens/commit_screen.dart';
 import '../../features/vision/presentation/screens/grow_screen.dart';
 import '../../features/vision/presentation/screens/notifications_screen.dart';
-import '../../features/vision/presentation/screens/reflect_screen.dart';
 import '../../features/vision/presentation/screens/today_screen.dart';
 import '../../features/vision/presentation/screens/tribe_screen.dart';
 import '../../features/vision/presentation/screens/vision_onboarding_flow_screen.dart';
@@ -404,8 +403,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           ),
           GoRoute(
             path: AppRoutes.reflect,
-            pageBuilder: (context, state) =>
-                _fadePage(child: const ReflectScreen()),
+            redirect: (context, state) => AppRoutes.commit,
           ),
           GoRoute(
             path: AppRoutes.commit,

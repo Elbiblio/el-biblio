@@ -191,12 +191,12 @@ class _NotificationCard extends ConsumerWidget {
 
     final route = item.route;
     if (route != null && route.isNotEmpty) {
-      context.go(route);
+      context.go(route == AppRoutes.reflect ? AppRoutes.commit : route);
       return;
     }
 
     context.go(
-      item.kind == 'hangout_started' ? AppRoutes.tribe : AppRoutes.reflect,
+      item.kind == 'hangout_started' ? AppRoutes.tribe : AppRoutes.commit,
     );
   }
 }

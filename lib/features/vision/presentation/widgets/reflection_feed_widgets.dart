@@ -150,7 +150,9 @@ class VisionReflectionFeed extends ConsumerWidget {
     return VisionPanel(
       icon: LucideIcons.messagesSquare,
       title: title,
-      trailing: pinnedIds.isEmpty ? null : Text('${pinnedIds.length} pinned'),
+      trailing: pinnedIds.isEmpty
+          ? null
+          : Text('${pinnedIds.length} pinned for now'),
       child: Column(
         children: ordered
             .map(
@@ -224,7 +226,7 @@ class VisionReflectionCard extends ConsumerWidget {
               ),
               if (onTogglePinned != null)
                 IconButton(
-                  tooltip: isPinned ? 'Unpin' : 'Pin',
+                  tooltip: isPinned ? 'Unpin for now' : 'Pin for now',
                   icon: Icon(
                     isPinned ? Icons.push_pin : LucideIcons.pin,
                     size: 20,

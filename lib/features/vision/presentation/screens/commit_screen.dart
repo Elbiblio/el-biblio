@@ -43,11 +43,11 @@ class _CommitScreenState extends ConsumerState<CommitScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Commit'),
+        title: const Text('Path'),
         actions: [
           if (active != null)
             IconButton(
-              tooltip: 'Browse commitments',
+              tooltip: 'Browse paths',
               onPressed: () =>
                   _showCommitmentLibrary(state.recommendedCommitments, active),
               icon: const Icon(LucideIcons.layoutGrid),
@@ -67,7 +67,7 @@ class _CommitScreenState extends ConsumerState<CommitScreen> {
               VisionReflectionComposer(controller: _reflectionController),
               const SizedBox(height: 16),
               VisionReflectionFeed(
-                title: 'Your commitment feed',
+                title: 'Your path feed',
                 pinnedIds: _pinnedReflectionIds,
                 onTogglePinned: _togglePinnedReflection,
               ),
@@ -319,7 +319,7 @@ class _CommitHeader extends StatelessWidget {
                 Text(
                   hasActive
                       ? 'One return today is enough. The app should support your faithfulness, not crowd it.'
-                      : 'Commitments are the center of ElBiblio: a concrete practice, a gentle nudge rhythm, and a private reflection circle.',
+                      : 'Choose a concrete practice, a gentle nudge rhythm, and a private reflection feed.',
                   style: theme.textTheme.bodyMedium?.copyWith(height: 1.42),
                 ),
               ],
@@ -533,7 +533,7 @@ class _CommitmentLibrarySheet extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
           children: [
             Text(
-              'Commitment paths',
+              'Path library',
               style: theme.textTheme.headlineSmall?.copyWith(
                 fontWeight: FontWeight.w900,
               ),
@@ -933,7 +933,7 @@ class _ActiveCommitment extends ConsumerWidget {
               children: [
                 Icon(LucideIcons.clock3, size: 18),
                 SizedBox(width: 8),
-                Text('Today is still open.'),
+                Text('Today is still open. Return when you can.'),
               ],
             )
           else

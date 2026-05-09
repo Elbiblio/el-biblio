@@ -50,7 +50,16 @@ class _TribeScreenState extends ConsumerState<TribeScreen> {
     final theme = Theme.of(context);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Tribe')),
+      appBar: AppBar(
+        title: const Text('Tribe'),
+        actions: [
+          IconButton(
+            tooltip: 'How I appear',
+            onPressed: _openVisibilitySettings,
+            icon: const Icon(LucideIcons.settings2),
+          ),
+        ],
+      ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(20, 12, 20, 120),
         children: [
@@ -80,27 +89,6 @@ class _TribeScreenState extends ConsumerState<TribeScreen> {
           _PulsePanel(),
           const SizedBox(height: 14),
           _WeeklyReflectionHub(controller: _weeklyController),
-          const SizedBox(height: 14),
-          _ActionPanel(
-            mode: _mode,
-            controller: _aliasController,
-            onModeChanged: (mode) => setState(() => _mode = mode),
-            onSave: () async {
-              final saved = await ref
-                  .read(visionProvider.notifier)
-                  .setVisibility(_mode, alias: _aliasController.text);
-              if (!context.mounted) return;
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(
-                    saved
-                        ? 'Visibility updated.'
-                        : 'We could not save visibility. Please try again.',
-                  ),
-                ),
-              );
-            },
-          ),
           const SizedBox(height: 18),
           ...state.recommendedTribes.map((tribe) {
             final joined = state.primaryTribe?.tribe.id == tribe.id;
@@ -206,6 +194,82 @@ class _TribeScreenState extends ConsumerState<TribeScreen> {
           }),
         ],
       ),
+    );
+  }
+
+  void _openVisibilitySettings() {
+    var localMode = _mode;
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (sheetContext) {
+        final bottom = MediaQuery.of(sheetContext).viewInsets.bottom;
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return Padding(
+              padding: EdgeInsets.fromLTRB(20, 0, 20, bottom + 24),
+              child: ListView(
+                shrinkWrap: true,
+                children: [
+                  Text(
+                    'How I appear',
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Choose the name people see in your tribe and path feed.',
+                  ),
+                  const SizedBox(height: 16),
+                  VisibilityModePicker(
+                    value: localMode,
+                    onChanged: (mode) => setModalState(() => localMode = mode),
+                  ),
+                  if (localMode == VisibilityMode.nickname ||
+                      localMode == VisibilityMode.public) ...[
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: _aliasController,
+                      maxLength: 50,
+                      decoration: const InputDecoration(
+                        labelText: 'Display name',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 12),
+                  FilledButton.icon(
+                    onPressed: () async {
+                      setState(() => _mode = localMode);
+                      final saved = await ref
+                          .read(visionProvider.notifier)
+                          .setVisibility(
+                            localMode,
+                            alias: _aliasController.text,
+                          );
+                      if (!mounted || !context.mounted) return;
+                      Navigator.of(sheetContext).pop();
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            saved
+                                ? 'Visibility updated.'
+                                : 'We could not save visibility. Please try again.',
+                          ),
+                        ),
+                      );
+                    },
+                    icon: const Icon(LucideIcons.check, size: 18),
+                    label: const Text('Save'),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
     );
   }
 }
@@ -466,55 +530,6 @@ class _PulsePanel extends ConsumerWidget {
                 label: const Text('Retake compass'),
               ),
             ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ActionPanel extends StatelessWidget {
-  const _ActionPanel({
-    required this.mode,
-    required this.controller,
-    required this.onModeChanged,
-    required this.onSave,
-  });
-
-  final VisibilityMode mode;
-  final TextEditingController controller;
-  final ValueChanged<VisibilityMode> onModeChanged;
-  final Future<void> Function() onSave;
-
-  @override
-  Widget build(BuildContext context) {
-    return VisionPanel(
-      icon: LucideIcons.eye,
-      title: 'Visibility',
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'This is how people in your tribe and commitment feed will know you.',
-            style: Theme.of(context).textTheme.bodyMedium,
-          ),
-          const SizedBox(height: 12),
-          VisibilityModePicker(value: mode, onChanged: onModeChanged),
-          if (mode == VisibilityMode.nickname ||
-              mode == VisibilityMode.public) ...[
-            const SizedBox(height: 12),
-            TextField(
-              controller: controller,
-              maxLength: 50,
-              decoration: const InputDecoration(
-                labelText: 'Display name',
-                border: OutlineInputBorder(),
-              ),
-            ),
-          ],
-          Align(
-            alignment: Alignment.centerRight,
-            child: TextButton(onPressed: onSave, child: const Text('Save')),
           ),
         ],
       ),

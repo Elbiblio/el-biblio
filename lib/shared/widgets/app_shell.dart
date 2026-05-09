@@ -97,17 +97,11 @@ class _FloatingBottomNav extends StatelessWidget {
                       ),
                       Expanded(
                         child: _NavItem(
-                          icon: LucideIcons.messagesSquare,
-                          label: 'Reflect',
-                          isSelected: location.startsWith(AppRoutes.reflect),
-                          onTap: () => context.go(AppRoutes.reflect),
-                        ),
-                      ),
-                      Expanded(
-                        child: _NavItem(
                           icon: LucideIcons.flag,
-                          label: 'Commit',
-                          isSelected: location.startsWith(AppRoutes.commit),
+                          label: 'Path',
+                          isSelected:
+                              location.startsWith(AppRoutes.commit) ||
+                              location.startsWith(AppRoutes.reflect),
                           onTap: () => context.go(AppRoutes.commit),
                         ),
                       ),

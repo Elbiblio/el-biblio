@@ -20,6 +20,8 @@ class _VisionOnboardingFlowScreenState
     extends ConsumerState<VisionOnboardingFlowScreen> {
   final _controller = PageController();
   final _aliasController = TextEditingController();
+  final _whenController = TextEditingController();
+  final _obstacleController = TextEditingController();
   VisibilityMode _mode = VisibilityMode.anonymous;
   TribeIdentity? _tribe;
   CommitmentPlan? _commitment;
@@ -38,6 +40,8 @@ class _VisionOnboardingFlowScreenState
   void dispose() {
     _controller.dispose();
     _aliasController.dispose();
+    _whenController.dispose();
+    _obstacleController.dispose();
     super.dispose();
   }
 
@@ -137,7 +141,7 @@ class _VisionOnboardingFlowScreenState
       body: SafeArea(
         child: Column(
           children: [
-            LinearProgressIndicator(value: (_page + 1) / 4),
+            LinearProgressIndicator(value: (_page + 1) / 5),
             Expanded(
               child: PageView(
                 controller: _controller,
@@ -208,53 +212,68 @@ class _VisionOnboardingFlowScreenState
                   ),
                   _Page(
                     icon: LucideIcons.flag,
-                    title: 'Choose a commitment',
+                    title: 'Choose a path',
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        RadioGroup<CommitmentPlan>(
-                          groupValue: _commitment,
-                          onChanged: (value) {
-                            setState(() {
-                              _commitment = value;
-                              _nudges = (_commitment?.nudgeMin ?? 3).clamp(
-                                3,
-                                10,
-                              );
-                            });
-                          },
-                          child: Column(
-                            children: state.recommendedCommitments.map((
-                              commitment,
-                            ) {
-                              return RadioListTile<CommitmentPlan>(
-                                value: commitment,
-                                title: Text(commitment.title),
-                                subtitle: Text(
-                                  '${commitment.durationDays} days',
-                                ),
-                              );
-                            }).toList(),
+                        Text(
+                          'Pick one concrete practice for this season. You can keep the rest for later.',
+                          style: theme.textTheme.bodyMedium,
+                        ),
+                        const SizedBox(height: 14),
+                        ...state.recommendedCommitments.map(
+                          (commitment) => _OnboardingCommitmentCard(
+                            commitment: commitment,
+                            selected: _commitment?.id == commitment.id,
+                            onTap: () {
+                              setState(() {
+                                _commitment = commitment;
+                                _nudges = commitment.nudgeMin.clamp(3, 10);
+                              });
+                            },
                           ),
                         ),
                         const SizedBox(height: 8),
+                        _OnboardingNudgePanel(
+                          commitment: _commitment,
+                          nudges: _nudges,
+                          onChanged: (value) => setState(() => _nudges = value),
+                        ),
+                      ],
+                    ),
+                  ),
+                  _Page(
+                    icon: LucideIcons.clock3,
+                    title: 'Plan your first return',
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
                         Text(
-                          'Daily nudges: $_nudges',
-                          style: theme.textTheme.titleSmall,
+                          'A rough plan is enough. You are not promising a perfect day; you are making the next return easier to notice.',
+                          style: theme.textTheme.bodyMedium,
                         ),
-                        Slider(
-                          value: _nudges.toDouble(),
-                          min: (_commitment?.nudgeMin ?? 3).toDouble(),
-                          max: (_commitment?.nudgeMax ?? 10).toDouble(),
-                          divisions:
-                              ((_commitment?.nudgeMax ?? 10) -
-                                      (_commitment?.nudgeMin ?? 3))
-                                  .clamp(1, 10),
-                          onChanged: _commitment == null
-                              ? null
-                              : (value) =>
-                                    setState(() => _nudges = value.round()),
+                        const SizedBox(height: 16),
+                        TextField(
+                          controller: _whenController,
+                          decoration: const InputDecoration(
+                            labelText: 'When will you usually do this?',
+                            hintText: 'After morning prayer, lunch, or work',
+                            border: OutlineInputBorder(),
+                          ),
                         ),
+                        const SizedBox(height: 12),
+                        TextField(
+                          controller: _obstacleController,
+                          minLines: 2,
+                          maxLines: 3,
+                          decoration: const InputDecoration(
+                            labelText: 'What might get in the way?',
+                            hintText: 'Tiredness, scrolling, rushing, doubt',
+                            border: OutlineInputBorder(),
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                        _ImplementationCue(commitment: _commitment),
                       ],
                     ),
                   ),
@@ -280,7 +299,7 @@ class _VisionOnboardingFlowScreenState
                     child: FilledButton(
                       onPressed: !_canContinue
                           ? null
-                          : _page == 3
+                          : _page == 4
                           ? _finish
                           : () => _controller.nextPage(
                               duration: const Duration(milliseconds: 250),
@@ -291,7 +310,7 @@ class _VisionOnboardingFlowScreenState
                               dimension: 20,
                               child: CircularProgressIndicator(strokeWidth: 2),
                             )
-                          : Text(_page == 3 ? 'Begin' : 'Continue'),
+                          : Text(_page == 4 ? 'Begin' : 'Continue'),
                     ),
                   ),
                 ],
@@ -299,6 +318,207 @@ class _VisionOnboardingFlowScreenState
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _OnboardingCommitmentCard extends StatelessWidget {
+  const _OnboardingCommitmentCard({
+    required this.commitment,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final CommitmentPlan commitment;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(8),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: selected
+                ? theme.colorScheme.primaryContainer.withValues(alpha: 0.24)
+                : theme.colorScheme.surface.withValues(alpha: 0.72),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: selected
+                  ? theme.colorScheme.primary.withValues(alpha: 0.4)
+                  : theme.colorScheme.outline.withValues(alpha: 0.14),
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    _commitmentIcon(commitment.category),
+                    color: theme.colorScheme.primary,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      commitment.title,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                  Icon(
+                    selected ? LucideIcons.checkCircle : LucideIcons.circle,
+                    size: 18,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                commitment.description,
+                style: theme.textTheme.bodySmall?.copyWith(height: 1.35),
+              ),
+              const SizedBox(height: 10),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  _CommitmentPill(
+                    icon: LucideIcons.calendarDays,
+                    label: '${commitment.durationDays} days',
+                  ),
+                  _CommitmentPill(
+                    icon: LucideIcons.bell,
+                    label:
+                        '${commitment.nudgeMin}-${commitment.nudgeMax} nudges',
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _OnboardingNudgePanel extends StatelessWidget {
+  const _OnboardingNudgePanel({
+    required this.commitment,
+    required this.nudges,
+    required this.onChanged,
+  });
+
+  final CommitmentPlan? commitment;
+  final int nudges;
+  final ValueChanged<int> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final plan = commitment;
+    if (plan == null) {
+      return const Text('Choose a path to set your nudge rhythm.');
+    }
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.primaryContainer.withValues(alpha: 0.16),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '$nudges gentle nudges per day',
+            style: theme.textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Nudges are return points, not pressure. Start with a rhythm you can respect.',
+            style: theme.textTheme.bodySmall,
+          ),
+          Slider(
+            value: nudges.toDouble(),
+            min: plan.nudgeMin.toDouble(),
+            max: plan.nudgeMax.toDouble(),
+            divisions: (plan.nudgeMax - plan.nudgeMin).clamp(1, 10),
+            label: '$nudges',
+            onChanged: (value) => onChanged(value.round()),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ImplementationCue extends StatelessWidget {
+  const _ImplementationCue({required this.commitment});
+
+  final CommitmentPlan? commitment;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.primaryContainer.withValues(alpha: 0.18),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: theme.colorScheme.primary.withValues(alpha: 0.12),
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(LucideIcons.bell, color: theme.colorScheme.primary, size: 20),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              commitment == null
+                  ? 'Your first nudge will simply help you notice the next return.'
+                  : 'When the nudge comes, do this one thing: ${commitment!.dailyAction}',
+              style: theme.textTheme.bodyMedium?.copyWith(height: 1.4),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CommitmentPill extends StatelessWidget {
+  const _CommitmentPill({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface.withValues(alpha: 0.78),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14),
+          const SizedBox(width: 5),
+          Text(label, style: theme.textTheme.labelSmall),
+        ],
       ),
     );
   }
@@ -444,4 +664,14 @@ class _Page extends StatelessWidget {
       ],
     );
   }
+}
+
+IconData _commitmentIcon(String category) {
+  return switch (category.toLowerCase()) {
+    'discipline' => LucideIcons.shield,
+    'prayer' => LucideIcons.flame,
+    'gratitude' => LucideIcons.sparkles,
+    'forgiveness' => LucideIcons.heartHandshake,
+    _ => LucideIcons.sprout,
+  };
 }

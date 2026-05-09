@@ -124,13 +124,20 @@ class _JourneyTimeline extends ConsumerWidget {
   }
 }
 
-class _DailyQuestion extends ConsumerWidget {
+class _DailyQuestion extends ConsumerStatefulWidget {
   const _DailyQuestion({required this.controller});
 
   final TextEditingController controller;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_DailyQuestion> createState() => _DailyQuestionState();
+}
+
+class _DailyQuestionState extends ConsumerState<_DailyQuestion> {
+  bool _showPerspective = false;
+
+  @override
+  Widget build(BuildContext context) {
     final question = ref.watch(visionProvider).dailyQuestion;
     if (question == null) {
       return const VisionPanel(
@@ -152,26 +159,9 @@ class _DailyQuestion extends ConsumerWidget {
               context,
             ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
           ),
-          const SizedBox(height: 18),
-          _InsightSection(
-            title: 'Concise explanation',
-            body: question.conciseExplanation,
-          ),
-          _InsightSection(
-            title: 'Spiritual insight',
-            body: question.spiritualInsight,
-          ),
-          _InsightSection(
-            title: 'Practical perspective',
-            body: question.practicalPerspective,
-          ),
-          _InsightSection(
-            title: 'Real-world context',
-            body: question.realWorldContext,
-          ),
           const SizedBox(height: 12),
           TextField(
-            controller: controller,
+            controller: widget.controller,
             enabled: !question.answeredToday,
             minLines: 2,
             maxLines: 4,
@@ -181,43 +171,99 @@ class _DailyQuestion extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 10),
-          FilledButton.tonalIcon(
-            onPressed: question.answeredToday
-                ? null
-                : () async {
-                    final saved = await ref
-                        .read(visionProvider.notifier)
-                        .answerDailyQuestion(controller.text);
-                    if (!context.mounted) return;
-                    if (!saved) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text(
-                            'We could not save your answer. Please try again.',
-                          ),
-                        ),
-                      );
-                      return;
-                    }
-                    await PremiumSuccessDialog.show(
-                      context,
-                      title: 'Answer saved',
-                      message:
-                          'Today\'s question is now part of your growth story.',
-                    );
-                    controller.clear();
-                  },
-            icon: Icon(
-              question.answeredToday
-                  ? LucideIcons.checkCircle
-                  : LucideIcons.bookmark,
-              size: 18,
-            ),
-            label: Text(
-              question.answeredToday ? 'Answered today' : 'Save answer',
-            ),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              FilledButton.tonalIcon(
+                onPressed: question.answeredToday
+                    ? null
+                    : () async {
+                        final saved = await ref
+                            .read(visionProvider.notifier)
+                            .answerDailyQuestion(widget.controller.text);
+                        if (!context.mounted) return;
+                        if (!saved) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                'We could not save your answer. Please try again.',
+                              ),
+                            ),
+                          );
+                          return;
+                        }
+                        setState(() => _showPerspective = true);
+                        await PremiumSuccessDialog.show(
+                          context,
+                          title: 'Answer saved',
+                          message:
+                              'Today\'s question is now part of your growth story.',
+                        );
+                        widget.controller.clear();
+                      },
+                icon: Icon(
+                  question.answeredToday
+                      ? LucideIcons.checkCircle
+                      : LucideIcons.bookmark,
+                  size: 18,
+                ),
+                label: Text(
+                  question.answeredToday ? 'Answered today' : 'Save answer',
+                ),
+              ),
+              TextButton.icon(
+                onPressed: () => setState(() => _showPerspective = true),
+                icon: const Icon(LucideIcons.bookOpen, size: 18),
+                label: const Text('Read perspective'),
+              ),
+            ],
           ),
+          if (question.answeredToday || _showPerspective) ...[
+            const SizedBox(height: 18),
+            _InsightSection(
+              title: 'Concise explanation',
+              body: question.conciseExplanation,
+            ),
+            _InsightSection(
+              title: 'Spiritual insight',
+              body: question.spiritualInsight,
+            ),
+            _InsightSection(
+              title: 'Practical perspective',
+              body: question.practicalPerspective,
+            ),
+            _InsightSection(
+              title: 'Real-world context',
+              body: question.realWorldContext,
+            ),
+            const _ApplicationPrompt(),
+          ],
         ],
+      ),
+    );
+  }
+}
+
+class _ApplicationPrompt extends StatelessWidget {
+  const _ApplicationPrompt();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.primaryContainer.withValues(alpha: 0.18),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: theme.colorScheme.primary.withValues(alpha: 0.12),
+        ),
+      ),
+      child: Text(
+        'Help me apply this today: name the smallest faithful action you can still take in the next hour.',
+        style: theme.textTheme.bodyMedium?.copyWith(height: 1.4),
       ),
     );
   }
