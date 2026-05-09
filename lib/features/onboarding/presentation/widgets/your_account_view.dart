@@ -10,7 +10,13 @@ import '../../../../core/di/app_providers.dart';
 class YourAccountView extends ConsumerStatefulWidget {
   const YourAccountView({super.key, required this.onSignUp});
 
-  final Future<void> Function(String name, String email, String phone) onSignUp;
+  final Future<void> Function(
+    String name,
+    String email,
+    String phone,
+    String ageBand,
+  )
+  onSignUp;
 
   @override
   ConsumerState<YourAccountView> createState() => _YourAccountViewState();
@@ -26,6 +32,7 @@ class _YourAccountViewState extends ConsumerState<YourAccountView>
   final _nameFocusNode = FocusNode();
   final _emailFocusNode = FocusNode();
   final _phoneFocusNode = FocusNode();
+  String? _ageBand;
   bool _isLoading = false;
   bool _countryDetected = false;
 
@@ -84,6 +91,7 @@ class _YourAccountViewState extends ConsumerState<YourAccountView>
         _nameController.text.trim(),
         _emailController.text.trim(),
         fullPhone,
+        _ageBand!,
       );
     } finally {
       if (mounted) {
@@ -292,6 +300,50 @@ class _YourAccountViewState extends ConsumerState<YourAccountView>
                       final emailRegex = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
                       if (!emailRegex.hasMatch(value.trim())) {
                         return 'Please enter a valid email address';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 24),
+
+                  // Age range
+                  Text(
+                    'Age range',
+                    style: textTheme.labelSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: theme.colorScheme.onSurface.withValues(alpha: 0.4),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  DropdownButtonFormField<String>(
+                    initialValue: _ageBand,
+                    decoration: InputDecoration(
+                      border: InputBorder.none,
+                      enabledBorder: UnderlineInputBorder(
+                        borderSide: BorderSide(
+                          color: theme.colorScheme.onSurface.withValues(
+                            alpha: 0.2,
+                          ),
+                        ),
+                      ),
+                      focusedBorder: UnderlineInputBorder(
+                        borderSide: BorderSide(
+                          color: theme.colorScheme.primary,
+                        ),
+                      ),
+                      hintText: 'Choose your range',
+                    ),
+                    items: const [
+                      DropdownMenuItem(value: '13_17', child: Text('13-17')),
+                      DropdownMenuItem(value: '18_24', child: Text('18-24')),
+                      DropdownMenuItem(value: '25_34', child: Text('25-34')),
+                      DropdownMenuItem(value: '35_49', child: Text('35-49')),
+                      DropdownMenuItem(value: '50_plus', child: Text('50+')),
+                    ],
+                    onChanged: (value) => setState(() => _ageBand = value),
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Please choose your age range';
                       }
                       return null;
                     },

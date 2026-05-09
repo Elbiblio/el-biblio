@@ -30,22 +30,24 @@ class User {
   factory User.fromJson(Map<String, dynamic> json) {
     return User(
       id: json['id'].toString(),
-      email: json['email'] as String? ?? '', // Handle optional email from UserResource
+      email:
+          json['email'] as String? ??
+          '', // Handle optional email from UserResource
       firstName: json['first_name'] as String?,
       lastName: json['last_name'] as String?,
       phone: json['phone'] as String?,
       avatar: json['avatar'] as String?,
       role: json['role'] as String?,
       points: json['points'] as int?,
-      lastSeen: json['last_seen'] != null 
-          ? DateTime.parse(json['last_seen'] as String) 
+      lastSeen: json['last_seen'] != null
+          ? DateTime.parse(json['last_seen'] as String)
           : null,
       totalActiveTime: json['total_active_time'] as int?,
-      createdAt: json['created_at'] != null 
-          ? DateTime.parse(json['created_at'] as String) 
+      createdAt: json['created_at'] != null
+          ? DateTime.parse(json['created_at'] as String)
           : null,
-      updatedAt: json['updated_at'] != null 
-          ? DateTime.parse(json['updated_at'] as String) 
+      updatedAt: json['updated_at'] != null
+          ? DateTime.parse(json['updated_at'] as String)
           : null,
     );
   }
@@ -58,7 +60,8 @@ class User {
   }
 
   /// Returns true if this user is a guest account
-  bool get isGuest => email.startsWith('guest_') && email.endsWith('@guest.elbiblio.com');
+  bool get isGuest =>
+      email.startsWith('guest_') && email.endsWith('@guest.elbiblio.com');
 }
 
 class SignUpData {
@@ -69,6 +72,7 @@ class SignUpData {
   final String? phone;
   final String? avatar;
   final String? primaryLanguage;
+  final String? ageBand;
 
   const SignUpData({
     required this.email,
@@ -78,6 +82,7 @@ class SignUpData {
     this.phone,
     this.avatar,
     this.primaryLanguage,
+    this.ageBand,
   });
 }
 
@@ -85,10 +90,7 @@ class AuthResponse {
   final User user;
   final String token;
 
-  const AuthResponse({
-    required this.user,
-    required this.token,
-  });
+  const AuthResponse({required this.user, required this.token});
 
   factory AuthResponse.fromJson(Map<String, dynamic> json) {
     return AuthResponse(

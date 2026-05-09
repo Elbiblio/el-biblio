@@ -304,7 +304,12 @@ class DailyGrowthQuestion {
     required this.spiritualInsight,
     required this.practicalPerspective,
     required this.realWorldContext,
+    this.dailyLivingGuide,
+    this.actionSteps = const [],
+    this.scriptureRefs = const [],
+    this.packQuestions = const [],
     this.category,
+    this.position,
     this.answer,
     this.answeredToday = false,
   });
@@ -315,11 +320,17 @@ class DailyGrowthQuestion {
   final String spiritualInsight;
   final String practicalPerspective;
   final String realWorldContext;
+  final String? dailyLivingGuide;
+  final List<DailyFaithActionStep> actionSteps;
+  final List<String> scriptureRefs;
+  final List<DailyGrowthQuestion> packQuestions;
   final String? category;
+  final int? position;
   final String? answer;
   final bool answeredToday;
 
   factory DailyGrowthQuestion.fromJson(Map<String, dynamic> json) {
+    final packRaw = json['questions'];
     return DailyGrowthQuestion(
       id: (json['id'] as num?)?.toInt() ?? 0,
       question:
@@ -328,13 +339,39 @@ class DailyGrowthQuestion {
       spiritualInsight: json['spiritual_insight'] as String? ?? '',
       practicalPerspective: json['practical_perspective'] as String? ?? '',
       realWorldContext: json['real_world_context'] as String? ?? '',
+      dailyLivingGuide: json['daily_living_guide'] as String?,
+      actionSteps: (json['action_steps'] as List<dynamic>? ?? const [])
+          .whereType<Map>()
+          .map(
+            (item) =>
+                DailyFaithActionStep.fromJson(Map<String, dynamic>.from(item)),
+          )
+          .toList(),
+      scriptureRefs: (json['scripture_refs'] as List<dynamic>? ?? const [])
+          .map((item) => item.toString())
+          .toList(),
+      packQuestions: packRaw is List
+          ? packRaw
+                .whereType<Map>()
+                .map(
+                  (item) => DailyGrowthQuestion.fromJson(
+                    Map<String, dynamic>.from(item),
+                  ),
+                )
+                .toList()
+          : const [],
       category: json['category'] as String?,
+      position: (json['position'] as num?)?.toInt(),
       answer: json['answer'] as String?,
       answeredToday: json['answered_today'] as bool? ?? false,
     );
   }
 
-  DailyGrowthQuestion copyWith({String? answer, bool? answeredToday}) {
+  DailyGrowthQuestion copyWith({
+    String? answer,
+    bool? answeredToday,
+    List<DailyGrowthQuestion>? packQuestions,
+  }) {
     return DailyGrowthQuestion(
       id: id,
       question: question,
@@ -342,9 +379,37 @@ class DailyGrowthQuestion {
       spiritualInsight: spiritualInsight,
       practicalPerspective: practicalPerspective,
       realWorldContext: realWorldContext,
+      dailyLivingGuide: dailyLivingGuide,
+      actionSteps: actionSteps,
+      scriptureRefs: scriptureRefs,
+      packQuestions: packQuestions ?? this.packQuestions,
       category: category,
+      position: position,
       answer: answer ?? this.answer,
       answeredToday: answeredToday ?? this.answeredToday,
+    );
+  }
+}
+
+class DailyFaithActionStep {
+  const DailyFaithActionStep({
+    required this.label,
+    required this.instruction,
+    required this.why,
+    this.minutes,
+  });
+
+  final String label;
+  final String instruction;
+  final String why;
+  final int? minutes;
+
+  factory DailyFaithActionStep.fromJson(Map<String, dynamic> json) {
+    return DailyFaithActionStep(
+      label: json['label'] as String? ?? 'Practice',
+      instruction: json['instruction'] as String? ?? '',
+      why: json['why'] as String? ?? '',
+      minutes: (json['minutes'] as num?)?.toInt(),
     );
   }
 }

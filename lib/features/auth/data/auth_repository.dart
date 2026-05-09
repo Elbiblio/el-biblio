@@ -22,6 +22,7 @@ class AuthRepository {
           'phone': data.phone,
           'avatar': data.avatar,
           'primary_language': data.primaryLanguage ?? 'en',
+          if (data.ageBand != null) 'user_settings': {'age_band': data.ageBand},
         },
       );
 
@@ -66,10 +67,7 @@ class AuthRepository {
     try {
       final response = await _dioClient.post<Map<String, dynamic>>(
         '/auth/login',
-        data: {
-          'email': email,
-          'password': password,
-        },
+        data: {'email': email, 'password': password},
       );
 
       if (response.data == null) {
@@ -77,7 +75,7 @@ class AuthRepository {
       }
 
       final responseData = response.data!;
-      
+
       if (responseData['success'] == false) {
         throw Exception(responseData['message'] ?? 'Login failed');
       }
@@ -96,7 +94,8 @@ class AuthRepository {
   Future<AuthResponse> createGuestAccount() async {
     // Bypass API call and create a local guest account for onboarding flow
     final timestampStr = DateTime.now().millisecondsSinceEpoch.toString();
-    final suffix = '${_randomString(6)}${timestampStr.substring(timestampStr.length - 4)}';
+    final suffix =
+        '${_randomString(6)}${timestampStr.substring(timestampStr.length - 4)}';
     final email = 'guest_$suffix@guest.elbiblio.com';
 
     _logger.i('[Auth] Creating local guest account with email: $email');
@@ -111,13 +110,11 @@ class AuthRepository {
     );
 
     // Return a mock auth response
-    return AuthResponse(
-      token: 'guest_token_$suffix',
-      user: user,
-    );
+    return AuthResponse(token: 'guest_token_$suffix', user: user);
   }
 
-  Future<User> updateUserProfile(String userId, {
+  Future<User> updateUserProfile(
+    String userId, {
     String? firstName,
     String? lastName,
     String? email,
@@ -126,7 +123,7 @@ class AuthRepository {
   }) async {
     try {
       final data = <String, dynamic>{};
-      
+
       if (firstName != null) data['first_name'] = firstName;
       if (lastName != null) data['last_name'] = lastName;
       if (email != null) data['email'] = email;
@@ -143,7 +140,7 @@ class AuthRepository {
       }
 
       final responseData = response.data!;
-      
+
       if (responseData['success'] == false) {
         throw Exception(responseData['message'] ?? 'Profile update failed');
       }
@@ -169,7 +166,10 @@ class AuthRepository {
     const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
     final random = Random.secure();
     return String.fromCharCodes(
-      Iterable.generate(length, (_) => chars.codeUnitAt(random.nextInt(chars.length))),
+      Iterable.generate(
+        length,
+        (_) => chars.codeUnitAt(random.nextInt(chars.length)),
+      ),
     );
   }
 }

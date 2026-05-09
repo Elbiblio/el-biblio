@@ -399,19 +399,35 @@ class VisionNotifier extends StateNotifier<VisionState> {
     await loadNotifications();
   }
 
-  Future<bool> answerDailyQuestion(String answer) async {
+  Future<bool> answerDailyQuestion(
+    String answer, {
+    DailyGrowthQuestion? selectedQuestion,
+  }) async {
     final question = state.dailyQuestion;
-    if (question == null || answer.trim().isEmpty) return false;
+    final target = selectedQuestion ?? question;
+    if (question == null || target == null || answer.trim().isEmpty) {
+      return false;
+    }
 
     try {
       await _repository.answerDailyQuestion(
-        questionId: question.id,
+        questionId: target.id,
         answer: answer,
       );
+      final updatedPack = question.packQuestions
+          .map(
+            (item) => item.id == target.id
+                ? item.copyWith(answer: answer.trim(), answeredToday: true)
+                : item,
+          )
+          .toList();
       state = state.copyWith(
-        dailyQuestion: question.copyWith(
-          answer: answer.trim(),
-          answeredToday: true,
+        dailyQuestion: (question.id == target.id ? target : question).copyWith(
+          answer: question.id == target.id ? answer.trim() : question.answer,
+          answeredToday: question.id == target.id
+              ? true
+              : question.answeredToday,
+          packQuestions: updatedPack,
         ),
       );
       return true;

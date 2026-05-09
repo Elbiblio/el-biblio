@@ -9,7 +9,8 @@ import '../data/auth_repository.dart';
 import '../domain/models/auth_models.dart';
 
 class AuthNotifier extends StateNotifier<AuthState> {
-  AuthNotifier(this._repository, this._dioClient, [this._pushTokenNotifier]) : super(const AuthState());
+  AuthNotifier(this._repository, this._dioClient, [this._pushTokenNotifier])
+    : super(const AuthState());
 
   final AuthRepository _repository;
   final DioClient _dioClient;
@@ -23,7 +24,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
     try {
       state = state.copyWith(isLoading: true);
-      
+
       final prefs = await SharedPreferences.getInstance();
       final storedToken = prefs.getString(_tokenKey);
       final storedUserData = prefs.getString(_userKey);
@@ -33,10 +34,10 @@ class AuthNotifier extends StateNotifier<AuthState> {
         try {
           final userJson = jsonDecode(storedUserData) as Map<String, dynamic>;
           final user = User.fromJson(userJson);
-          
+
           // Update DioClient with stored token
           _dioClient.updateAuthToken(storedToken);
-          
+
           state = state.copyWith(
             token: storedToken,
             user: user,
@@ -60,7 +61,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
           final credentials = jsonDecode(guestCreds) as Map<String, dynamic>;
           final email = credentials['email'] as String;
           final password = credentials['password'] as String;
-          
+
           final authResponse = await _repository.login(email, password);
           state = state.copyWith(
             token: authResponse.token,
@@ -70,8 +71,12 @@ class AuthNotifier extends StateNotifier<AuthState> {
             isInitialized: true,
             isLoading: false,
           );
-          
-          await _saveAuthData(authResponse.token, authResponse.user, credentials);
+
+          await _saveAuthData(
+            authResponse.token,
+            authResponse.user,
+            credentials,
+          );
           return;
         } catch (e) {
           await prefs.remove(_guestCredentialsKey);
@@ -92,13 +97,16 @@ class AuthNotifier extends StateNotifier<AuthState> {
     required String name,
     required String email,
     required String phone,
+    String? ageBand,
   }) async {
     try {
       state = state.copyWith(isLoading: true, error: null);
 
       final nameParts = name.trim().split(' ');
       final firstName = nameParts.first;
-      final lastName = nameParts.length > 1 ? nameParts.sublist(1).join(' ') : '';
+      final lastName = nameParts.length > 1
+          ? nameParts.sublist(1).join(' ')
+          : '';
 
       // Generate a secure password
       final timestamp = DateTime.now().millisecondsSinceEpoch.toString();
@@ -113,10 +121,11 @@ class AuthNotifier extends StateNotifier<AuthState> {
         lastName: lastName.isNotEmpty ? lastName : null,
         phone: phone,
         primaryLanguage: 'en',
+        ageBand: ageBand,
       );
 
       final authResponse = await _repository.signUp(signUpData);
-      
+
       state = state.copyWith(
         token: authResponse.token,
         user: authResponse.user,
@@ -126,10 +135,10 @@ class AuthNotifier extends StateNotifier<AuthState> {
       );
 
       await _saveAuthData(authResponse.token, authResponse.user, null);
-      
+
       // Sync push token after successful authentication
       await _syncPushToken(authResponse.user.id);
-      
+
       return true;
     } catch (e) {
       String errorMessage = 'Signup failed';
@@ -137,7 +146,8 @@ class AuthNotifier extends StateNotifier<AuthState> {
         final msg = e.toString().replaceFirst('Exception: ', '');
         // Check for common validation messages
         if (msg.contains('email') && msg.contains('taken')) {
-          errorMessage = 'This email is already taken. Please use a different email.';
+          errorMessage =
+              'This email is already taken. Please use a different email.';
         } else if (msg.contains('email') && msg.contains('valid')) {
           errorMessage = 'Please enter a valid email address.';
         } else if (msg.contains('Invalid response format')) {
@@ -146,10 +156,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
           errorMessage = msg;
         }
       }
-      state = state.copyWith(
-        isLoading: false,
-        error: errorMessage,
-      );
+      state = state.copyWith(isLoading: false, error: errorMessage);
       return false;
     }
   }
@@ -159,7 +166,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
       state = state.copyWith(isLoading: true, error: null);
 
       final authResponse = await _repository.createGuestAccount();
-      
+
       // Save guest credentials for potential re-login
       final guestCredentials = {
         'email': authResponse.user.email,
@@ -174,7 +181,11 @@ class AuthNotifier extends StateNotifier<AuthState> {
         isLoading: false,
       );
 
-      await _saveAuthData(authResponse.token, authResponse.user, guestCredentials);
+      await _saveAuthData(
+        authResponse.token,
+        authResponse.user,
+        guestCredentials,
+      );
       return true;
     } catch (e) {
       state = state.copyWith(
@@ -208,10 +219,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
         avatar: avatar,
       );
 
-      state = state.copyWith(
-        user: updatedUser,
-        isLoading: false,
-      );
+      state = state.copyWith(user: updatedUser, isLoading: false);
 
       // Save updated user data
       if (state.token != null) {
@@ -233,12 +241,12 @@ class AuthNotifier extends StateNotifier<AuthState> {
       await prefs.remove(_tokenKey);
       await prefs.remove(_userKey);
       await prefs.remove(_guestCredentialsKey);
-      
+
       _dioClient.updateAuthToken(null);
-      
+
       // Clear push token state
       _pushTokenNotifier?.clearToken();
-      
+
       state = const AuthState();
     } catch (e) {
       state = state.copyWith(error: 'Logout failed: ${e.toString()}');
@@ -248,17 +256,17 @@ class AuthNotifier extends StateNotifier<AuthState> {
   /// Sync push token with backend after authentication
   Future<void> _syncPushToken(String userId) async {
     if (_pushTokenNotifier == null) return;
-    
+
     try {
       final pushTokenState = _pushTokenNotifier.state;
       final token = pushTokenState.currentToken;
-      
+
       if (token != null && token.isNotEmpty) {
         await _pushTokenNotifier.syncTokenToBackend(
           userId: userId,
           token: token,
         );
-        
+
         // Subscribe to user-specific topics
         await _pushTokenNotifier.subscribeToUserTopics(userId);
       }
@@ -272,16 +280,23 @@ class AuthNotifier extends StateNotifier<AuthState> {
     state = state.copyWith(error: null);
   }
 
-  Future<void> _saveAuthData(String token, User user, Map<String, dynamic>? guestCredentials) async {
+  Future<void> _saveAuthData(
+    String token,
+    User user,
+    Map<String, dynamic>? guestCredentials,
+  ) async {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(_tokenKey, token);
       await prefs.setString(_userKey, jsonEncode(user.toJson()));
-      
+
       if (guestCredentials != null) {
-        await prefs.setString(_guestCredentialsKey, jsonEncode(guestCredentials));
+        await prefs.setString(
+          _guestCredentialsKey,
+          jsonEncode(guestCredentials),
+        );
       }
-      
+
       // Update DioClient with authentication token
       _dioClient.updateAuthToken(token);
     } catch (e) {

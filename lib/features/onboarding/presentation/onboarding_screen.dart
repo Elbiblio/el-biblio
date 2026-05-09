@@ -65,8 +65,8 @@ class OnboardingScreen extends ConsumerWidget {
       OnboardingStep.theSolution => const TheSolutionView(),
       OnboardingStep.yourIdentity => const DiscoverIdentityView(),
       OnboardingStep.yourAccount => YourAccountView(
-        onSignUp: (name, email, phone) =>
-            _handleSignUp(context, ref, name, email, phone),
+        onSignUp: (name, email, phone, ageBand) =>
+            _handleSignUp(context, ref, name, email, phone, ageBand),
       ),
     };
   }
@@ -77,6 +77,7 @@ class OnboardingScreen extends ConsumerWidget {
     String name,
     String email,
     String phone,
+    String ageBand,
   ) async {
     final onboardingState = ref.read(onboardingProvider);
 
@@ -85,7 +86,12 @@ class OnboardingScreen extends ConsumerWidget {
     // Signup FIRST — if it fails, we don't mark onboarding complete.
     final success = await ref
         .read(authProvider.notifier)
-        .signUpWithDetails(name: name, email: email, phone: phone);
+        .signUpWithDetails(
+          name: name,
+          email: email,
+          phone: phone,
+          ageBand: ageBand,
+        );
 
     if (!success) {
       if (!context.mounted) return;
