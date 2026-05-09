@@ -203,36 +203,22 @@ class VisionReflectionCard extends ConsumerWidget {
               InkWell(
                 borderRadius: BorderRadius.circular(999),
                 onTap: () => _showPublicProfile(context, item),
-                child: CircleAvatar(
-                  radius: 16,
-                  child: Text(
-                    item.alias.isEmpty ? '?' : item.alias[0].toUpperCase(),
+                child: Tooltip(
+                  message: 'View public profile',
+                  child: CircleAvatar(
+                    radius: 16,
+                    child: Text(
+                      item.alias.isEmpty ? '?' : item.alias[0].toUpperCase(),
+                    ),
                   ),
                 ),
               ),
               const SizedBox(width: 10),
               Expanded(
-                child: InkWell(
-                  onTap: () => _showPublicProfile(context, item),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        item.alias,
-                        style: theme.textTheme.labelLarge?.copyWith(
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        _profileLine(item),
-                        style: theme.textTheme.labelSmall?.copyWith(
-                          color: theme.colorScheme.onSurface.withValues(
-                            alpha: 0.62,
-                          ),
-                        ),
-                      ),
-                    ],
+                child: Text(
+                  item.alias,
+                  style: theme.textTheme.labelLarge?.copyWith(
+                    fontWeight: FontWeight.w800,
                   ),
                 ),
               ),
@@ -275,16 +261,6 @@ class VisionReflectionCard extends ConsumerWidget {
       showDragHandle: true,
       builder: (context) => _PublicProfileSheet(item: item),
     );
-  }
-
-  String _profileLine(CommitmentReflection item) {
-    final parts = <String>[
-      item.authorTribeDisplayName,
-      _memberSinceLabel(item.authorMemberSince),
-      '${item.authorCompletedChallengesCount} completed',
-      '${item.authorCurrentStreakCount} day streak',
-    ];
-    return parts.where((part) => part.trim().isNotEmpty).join(' · ');
   }
 }
 
