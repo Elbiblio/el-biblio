@@ -17,6 +17,7 @@ class CommitScreen extends ConsumerStatefulWidget {
 
 class _CommitScreenState extends ConsumerState<CommitScreen> {
   int _selectedNudges = 3;
+  String _selectedCategory = 'all';
 
   @override
   void initState() {
@@ -37,29 +38,8 @@ class _CommitScreenState extends ConsumerState<CommitScreen> {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(20, 12, 20, 120),
         children: [
-          Text(
-            active == null ? 'Choose one path' : 'Keep your commitment',
-            style: theme.textTheme.headlineSmall?.copyWith(
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            active == null
-                ? 'A time-bound commitment gives your growth a concrete shape. Before you begin, you will see exactly how nudges and check-ins work.'
-                : 'Your daily return is simple, specific, and supported.',
-          ),
-          const SizedBox(height: 18),
-          if (active == null) ...[
-            const Center(
-              child: VisionIllustration(
-                asset: VisionIllustrationAsset.commitment,
-                size: 118,
-                semanticLabel: 'Commitment',
-              ),
-            ),
-            const SizedBox(height: 18),
-          ],
+          _CommitHeader(active: active),
+          const SizedBox(height: 16),
           if (active != null) ...[
             _ActiveCommitment(active: active),
             const SizedBox(height: 20),
@@ -74,7 +54,18 @@ class _CommitScreenState extends ConsumerState<CommitScreen> {
               ),
             ),
           ] else ...[
-            ...state.recommendedCommitments.map(_buildCommitmentOption),
+            _NudgeEducationPanel(onLearnMore: _showNudgeHelp),
+            const SizedBox(height: 16),
+            _CategoryRail(
+              categories: _categoriesFor(state.recommendedCommitments),
+              selected: _selectedCategory,
+              onSelected: (category) =>
+                  setState(() => _selectedCategory = category),
+            ),
+            const SizedBox(height: 16),
+            ..._visibleCommitments(
+              state.recommendedCommitments,
+            ).map(_buildCommitmentOption),
           ],
         ],
       ),
@@ -87,9 +78,11 @@ class _CommitScreenState extends ConsumerState<CommitScreen> {
     final max = plan.nudgeMax;
     final nudges = _selectedNudges.clamp(min, max);
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 180),
+      curve: Curves.easeOut,
+      margin: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: theme.colorScheme.surface.withValues(alpha: 0.86),
         borderRadius: BorderRadius.circular(8),
@@ -100,30 +93,62 @@ class _CommitScreenState extends ConsumerState<CommitScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            plan.title,
-            style: theme.textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(plan.description),
-          const SizedBox(height: 12),
-          Text(
-            '${plan.durationDays} days. One daily return. Reflections open after you check in.',
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurface.withValues(alpha: 0.66),
-              height: 1.35,
-            ),
-          ),
-          const SizedBox(height: 12),
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Icon(LucideIcons.bell, size: 18),
-              const SizedBox(width: 8),
-              Expanded(child: Text('$nudges gentle nudges per day')),
+              _CategoryIcon(category: plan.category),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        _MetaPill(
+                          icon: LucideIcons.calendarDays,
+                          label: '${plan.durationDays} days',
+                        ),
+                        _MetaPill(
+                          icon: LucideIcons.bell,
+                          label: '${plan.nudgeMin}-${plan.nudgeMax} nudges',
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      plan.title,
+                      style: theme.textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w900,
+                        height: 1.05,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ],
           ),
+          const SizedBox(height: 12),
+          Text(plan.description, style: theme.textTheme.bodyMedium),
+          const SizedBox(height: 14),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.primaryContainer.withValues(alpha: 0.2),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(
+              plan.dailyAction,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                fontWeight: FontWeight.w700,
+                height: 1.35,
+              ),
+            ),
+          ),
+          const SizedBox(height: 14),
+          _NudgeSelectorHeader(nudges: nudges, onHelp: _showNudgeHelp),
           Slider(
             value: nudges.toDouble(),
             min: min.toDouble(),
@@ -138,10 +163,29 @@ class _CommitScreenState extends ConsumerState<CommitScreen> {
                 ? null
                 : () => _showCommitmentWalkthrough(plan, nudges),
             icon: const Icon(LucideIcons.compass, size: 18),
-            label: const Text('Walk me through this'),
+            label: const Text('Review and begin'),
           ),
         ],
       ),
+    );
+  }
+
+  List<String> _categoriesFor(List<CommitmentPlan> plans) {
+    return ['all', ...plans.map((plan) => plan.category).toSet()];
+  }
+
+  List<CommitmentPlan> _visibleCommitments(List<CommitmentPlan> plans) {
+    if (_selectedCategory == 'all') return plans;
+    return plans
+        .where((plan) => plan.category == _selectedCategory)
+        .toList(growable: false);
+  }
+
+  void _showNudgeHelp() {
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => const _NudgeHelpSheet(),
     );
   }
 
@@ -184,6 +228,240 @@ class _CommitScreenState extends ConsumerState<CommitScreen> {
       message:
           'Your digital accountability assistant is ready. The nudge is a hand on your shoulder, not a verdict on your soul.',
       primaryActionText: 'Continue',
+    );
+  }
+}
+
+class _CommitHeader extends StatelessWidget {
+  const _CommitHeader({required this.active});
+
+  final CommitmentSeason? active;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final hasActive = active != null;
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.primaryContainer.withValues(alpha: 0.24),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: theme.colorScheme.primary.withValues(alpha: 0.16),
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const VisionIllustration(
+            asset: VisionIllustrationAsset.commitment,
+            size: 86,
+            semanticLabel: 'Commitment',
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  hasActive ? 'Keep the path' : 'Choose one path',
+                  style: theme.textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.w900,
+                    height: 1.02,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  hasActive
+                      ? 'One return today is enough. The app should support your faithfulness, not crowd it.'
+                      : 'Commitments are the center of ElBiblio: a concrete practice, a gentle nudge rhythm, and a private reflection circle.',
+                  style: theme.textTheme.bodyMedium?.copyWith(height: 1.42),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _NudgeEducationPanel extends StatelessWidget {
+  const _NudgeEducationPanel({required this.onLearnMore});
+
+  final VoidCallback onLearnMore;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return VisionPanel(
+      icon: LucideIcons.bellRing,
+      title: 'Nudges are accountability, not pressure',
+      trailing: IconButton(
+        tooltip: 'Learn about nudges',
+        onPressed: onLearnMore,
+        icon: const Icon(LucideIcons.helpCircle, size: 20),
+      ),
+      child: Text(
+        'Pick the rhythm you can respect. If three nudges are not enough, increase support and use the faith walkthrough to name what this practice is forming in you.',
+        style: theme.textTheme.bodyMedium?.copyWith(height: 1.45),
+      ),
+    );
+  }
+}
+
+class _CategoryRail extends StatelessWidget {
+  const _CategoryRail({
+    required this.categories,
+    required this.selected,
+    required this.onSelected,
+  });
+
+  final List<String> categories;
+  final String selected;
+  final ValueChanged<String> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: categories.map((category) {
+          final isSelected = selected == category;
+          return Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: ChoiceChip(
+              selected: isSelected,
+              label: Text(_categoryLabel(category)),
+              avatar: Icon(_categoryIcon(category), size: 16),
+              onSelected: (_) => onSelected(category),
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+}
+
+class _CategoryIcon extends StatelessWidget {
+  const _CategoryIcon({required this.category});
+
+  final String category;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      width: 48,
+      height: 48,
+      decoration: BoxDecoration(
+        color: theme.colorScheme.primary.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Icon(_categoryIcon(category), color: theme.colorScheme.primary),
+    );
+  }
+}
+
+class _MetaPill extends StatelessWidget {
+  const _MetaPill({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface.withValues(alpha: 0.78),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(
+          color: theme.colorScheme.outline.withValues(alpha: 0.12),
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14),
+          const SizedBox(width: 5),
+          Text(label, style: theme.textTheme.labelSmall),
+        ],
+      ),
+    );
+  }
+}
+
+class _NudgeSelectorHeader extends StatelessWidget {
+  const _NudgeSelectorHeader({required this.nudges, required this.onHelp});
+
+  final int nudges;
+  final VoidCallback onHelp;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            '$nudges gentle nudges per day',
+            style: theme.textTheme.labelLarge?.copyWith(
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ),
+        IconButton(
+          tooltip: 'How nudges work',
+          onPressed: onHelp,
+          icon: const Icon(LucideIcons.helpCircle, size: 20),
+        ),
+      ],
+    );
+  }
+}
+
+class _NudgeHelpSheet extends StatelessWidget {
+  const _NudgeHelpSheet();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'How nudges work',
+            style: theme.textTheme.headlineSmall?.copyWith(
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const SizedBox(height: 10),
+          const _ExpectationRow(
+            icon: LucideIcons.bell,
+            title: 'They interrupt forgetfulness',
+            body:
+                'A nudge is a small return point. Tap it, do the action, then check in.',
+          ),
+          const _ExpectationRow(
+            icon: LucideIcons.heartHandshake,
+            title: 'They are not shame',
+            body:
+                'Missing a nudge is information, not condemnation. Increase support when your season needs more structure.',
+          ),
+          const _ExpectationRow(
+            icon: LucideIcons.sprout,
+            title: 'They can teach',
+            body:
+                'The faith walkthrough names the virtue being formed and the vice being weakened.',
+          ),
+        ],
+      ),
     );
   }
 }
@@ -577,5 +855,30 @@ class _AccountabilityAssistantPanel extends ConsumerWidget {
       'Faithfulness is formed through return.',
       'Small repeated acts tell the soul what matters and make growth possible without performance.',
     ),
+  };
+}
+
+String _categoryLabel(String category) {
+  return switch (category.toLowerCase()) {
+    'all' => 'All paths',
+    'discipline' => 'Discipline',
+    'prayer' => 'Prayer',
+    'gratitude' => 'Gratitude',
+    'forgiveness' => 'Forgiveness',
+    _ =>
+      category.isEmpty
+          ? 'Growth'
+          : '${category[0].toUpperCase()}${category.substring(1)}',
+  };
+}
+
+IconData _categoryIcon(String category) {
+  return switch (category.toLowerCase()) {
+    'discipline' => LucideIcons.shield,
+    'prayer' => LucideIcons.flame,
+    'gratitude' => LucideIcons.sparkles,
+    'forgiveness' => LucideIcons.heartHandshake,
+    'all' => LucideIcons.layoutGrid,
+    _ => LucideIcons.sprout,
   };
 }

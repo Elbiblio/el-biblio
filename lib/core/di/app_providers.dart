@@ -8,6 +8,7 @@ import '../../features/auth/application/auth_notifier.dart';
 import '../../features/auth/data/auth_repository.dart';
 import '../../features/auth/domain/models/auth_models.dart';
 import '../../features/assessment/application/calling_profile_service.dart';
+import '../../features/assessment/application/assessment_notifier.dart';
 import '../../features/assessment/data/assessment_api_repository.dart';
 import '../../features/bible/application/bible_notifier.dart';
 import '../../features/bible/application/bible_reading_notifier.dart';
@@ -168,6 +169,19 @@ final visionProvider = StateNotifierProvider<VisionNotifier, VisionState>((
   return VisionNotifier(
     ref.watch(visionRepositoryProvider),
     ref.watch(notificationServiceProvider),
+    topArchetypes: () {
+      final assessment = ref.read(assessmentProvider);
+      final settings = ref.read(settingsProvider);
+      final names = <String>[
+        ...assessment.selectedArchetypes.map((archetype) => archetype.name),
+        if (settings.primaryArchetypeId?.isNotEmpty == true)
+          settings.primaryArchetypeId!,
+      ];
+      return {
+        for (final name in names)
+          if (name.trim().isNotEmpty) name.trim(),
+      }.toList();
+    },
   );
 });
 

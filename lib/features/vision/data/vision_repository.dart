@@ -37,10 +37,13 @@ class VisionRepository {
     }
   }
 
-  Future<List<TribeIdentity>> recommendedTribes() async {
+  Future<List<TribeIdentity>> recommendedTribes({
+    List<String> archetypes = const [],
+  }) async {
     try {
       final response = await _dio.get<Map<String, dynamic>>(
         '/tribes/recommended',
+        queryParameters: {if (archetypes.isNotEmpty) 'archetypes': archetypes},
       );
       final list = _payloadList(response.data);
       final tribes = list

@@ -6,8 +6,12 @@ import '../domain/vision_models.dart';
 import 'vision_state.dart';
 
 class VisionNotifier extends StateNotifier<VisionState> {
-  VisionNotifier(this._repository, this._notificationService)
-    : super(const VisionState()) {
+  VisionNotifier(
+    this._repository,
+    this._notificationService, {
+    List<String> Function()? topArchetypes,
+  }) : _topArchetypes = topArchetypes ?? (() => const <String>[]),
+       super(const VisionState()) {
     _notificationService.setDailyCheckInActionHandler(() async {
       final completed = await checkIn();
       if (!completed) {
@@ -18,6 +22,7 @@ class VisionNotifier extends StateNotifier<VisionState> {
 
   final VisionRepository _repository;
   final NotificationService _notificationService;
+  final List<String> Function() _topArchetypes;
 
   @override
   void dispose() {
@@ -37,7 +42,9 @@ class VisionNotifier extends StateNotifier<VisionState> {
     state = state.copyWith(isLoading: true, clearError: true);
     try {
       final bootstrap = await _repository.bootstrap();
-      final tribes = await _repository.recommendedTribes();
+      final tribes = await _repository.recommendedTribes(
+        archetypes: _topArchetypes(),
+      );
       final commitments = await _repository.recommendedCommitments(
         tribeId: bootstrap.primaryTribe?.tribe.id,
       );

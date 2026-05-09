@@ -135,6 +135,38 @@ class _TribeScreenState extends ConsumerState<TribeScreen> {
                   ),
                   const SizedBox(height: 8),
                   Text(tribe.description),
+                  if (tribe.matchReason?.isNotEmpty == true) ...[
+                    const SizedBox(height: 12),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.primaryContainer.withValues(
+                          alpha: 0.22,
+                        ),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(
+                            LucideIcons.compass,
+                            size: 18,
+                            color: theme.colorScheme.primary,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              tribe.matchReason!,
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                height: 1.35,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 12),
                   FilledButton.tonalIcon(
                     onPressed: joined

@@ -27,6 +27,9 @@ class TribeIdentity {
     required this.slug,
     required this.description,
     required this.iconKey,
+    this.matchScore = 0,
+    this.matchReason,
+    this.matchedArchetypes = const [],
   });
 
   final int id;
@@ -34,6 +37,9 @@ class TribeIdentity {
   final String slug;
   final String description;
   final String iconKey;
+  final int matchScore;
+  final String? matchReason;
+  final List<String> matchedArchetypes;
 
   factory TribeIdentity.fromJson(Map<String, dynamic> json) {
     return TribeIdentity(
@@ -42,6 +48,13 @@ class TribeIdentity {
       slug: json['slug'] as String? ?? '',
       description: json['description'] as String? ?? '',
       iconKey: json['icon_key'] as String? ?? 'users',
+      matchScore: (json['match_score'] as num?)?.toInt() ?? 0,
+      matchReason: json['match_reason'] as String?,
+      matchedArchetypes:
+          (json['matched_archetypes'] as List<dynamic>? ?? const [])
+              .map((item) => item.toString())
+              .where((item) => item.isNotEmpty)
+              .toList(),
     );
   }
 }
