@@ -49,20 +49,34 @@ platform :ios do
       keychain_password: keychain_password
     )
     
-    begin
-      import_certificate(
-        certificate_path: "signing/ios_dist.p12",
-        certificate_password: ENV["IOS_P12_PASSWORD"].to_s,
-        keychain_name: keychain_name,
-        keychain_password: keychain_password
-      )
-    rescue
-      import_certificate(
-        certificate_path: "signing/ios_dist.p12",
-        certificate_password: "",
-        keychain_name: keychain_name,
-        keychain_password: keychain_password
-      )
+    p12_passwords = [
+      ["IOS_P12_PASSWORD", ENV["IOS_P12_PASSWORD"].to_s],
+      ["IOS_KEYCHAIN_PASSWORD", ENV["IOS_KEYCHAIN_PASSWORD"].to_s],
+      ["empty password", ""]
+    ].uniq { |_label, password| password }
+
+    p12_imported = false
+    last_p12_error = nil
+    p12_passwords.each do |label, password|
+      next if label != "empty password" && password.empty?
+
+      begin
+        import_certificate(
+          certificate_path: "signing/ios_dist.p12",
+          certificate_password: password,
+          keychain_name: keychain_name,
+          keychain_password: keychain_password
+        )
+        UI.message("Imported ios_dist.p12 using #{label}.")
+        p12_imported = true
+        break
+      rescue => e
+        last_p12_error = e
+      end
+    end
+
+    unless p12_imported
+      UI.user_error!("Failed to import ios_dist.p12 with IOS_P12_PASSWORD, IOS_KEYCHAIN_PASSWORD, or an empty password. Last error: #{last_p12_error}")
     end
     
     identities_output = sh("security find-identity -p codesigning -v || true")
@@ -70,7 +84,7 @@ platform :ios do
 
     identity_line = identities_output.lines.find { |l| l.include?("Apple Distribution") }
     unless identity_line
-      UI.user_error!("Could not find an 'Apple Distribution' signing identity in the keychain. Ensure ios_dist.p12 contains a valid Apple Distribution certificate with a private key, and that IOS_KEYCHAIN_PASSWORD matches the .p12 export password.")
+      UI.user_error!("Could not find an 'Apple Distribution' signing identity in the keychain. Ensure ios_dist.p12 contains a valid Apple Distribution certificate with a private key, and that the stored .p12 password secret matches the certificate export password.")
     end
 
     identity = identity_line[/[A-F0-9]{40}/]
