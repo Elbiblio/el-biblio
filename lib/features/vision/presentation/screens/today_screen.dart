@@ -7,7 +7,9 @@ import '../../../../core/constants/app_routes.dart';
 import '../../../../core/di/app_providers.dart';
 import '../../../../core/theme/app_theme_tokens.dart';
 import '../../../../core/services/celebration_service.dart';
+import '../../../../core/storage/app_settings.dart';
 import '../../../../shared/widgets/premium_success_dialog.dart';
+import '../../domain/vision_models.dart';
 import '../widgets/vision_panel.dart';
 
 class TodayScreen extends ConsumerStatefulWidget {
@@ -79,10 +81,25 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                     ),
                   )
                 else ...[
+                  if (state.error?.isNotEmpty == true) ...[
+                    VisionPanel(
+                      icon: LucideIcons.wifiOff,
+                      title: state.isReadOnly
+                          ? 'Reconnect to continue'
+                          : 'Something needs a retry',
+                      child: Text(
+                        state.error!,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          height: 1.45,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                  ],
                   _DailyLoopHero(),
                   const SizedBox(height: 14),
                   if (state.activeCommitment?.checkedInToday ?? false) ...[
-                    _AfterReturnPanel(),
+                    _AfterCheckInPanel(),
                     const SizedBox(height: 14),
                   ],
                   _AmbientSupportPanel(),
@@ -101,9 +118,9 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
 
   String _headline(bool checkedInToday) {
     if (checkedInToday) {
-      return 'You returned today. Let the next step stay light.';
+      return 'You checked in today. Let the next step stay light.';
     }
-    return 'One commitment. One check-in. One small return.';
+    return 'One commitment. One daily check-in. One faithful step.';
   }
 }
 
@@ -130,15 +147,16 @@ class _DailyLoopHero extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(visionProvider);
     final active = state.activeCommitment;
+    final settings = ref.watch(settingsProvider);
     final theme = Theme.of(context);
 
     if (active == null) {
       return _LoopHeroCard(
         icon: LucideIcons.flag,
-        title: 'Choose one path',
+        title: 'Choose one commitment',
         body:
-            'Start with a concrete practice, a gentle nudge rhythm, and a private reflection feed.',
-        primaryLabel: 'Find a path',
+            'Start with a concrete practice, a gentle nudge rhythm, and a private commitment reflection feed.',
+        primaryLabel: 'Find commitment',
         primaryIcon: LucideIcons.arrowRight,
         onPrimary: () => context.go(AppRoutes.commit),
       );
@@ -147,12 +165,12 @@ class _DailyLoopHero extends ConsumerWidget {
     if (active.checkedInToday && !state.reflectionPostedToday) {
       return _LoopHeroCard(
         icon: LucideIcons.messageCircle,
-        title: 'Return complete',
+        title: 'Check-in complete',
         body:
-            'Share one honest sentence with people walking the same path, or let today stay quiet.',
-        primaryLabel: 'Share on Path',
+            'Share one honest sentence with people keeping the same commitment, or let today stay quiet.',
+        primaryLabel: 'Reflect',
         primaryIcon: LucideIcons.send,
-        onPrimary: () => context.go(AppRoutes.commit),
+        onPrimary: () => context.go(AppRoutes.reflect),
         secondaryLabel: 'Stay quiet today',
         onSecondary: () => ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -165,10 +183,10 @@ class _DailyLoopHero extends ConsumerWidget {
     if (active.checkedInToday) {
       return _LoopHeroCard(
         icon: LucideIcons.checkCircle,
-        title: 'You returned today',
+        title: 'Checked in today',
         body:
-            'Your path is cared for. Read support when you want it, then move gently back into the day.',
-        primaryLabel: 'Open Path',
+            'Your commitment is cared for. Read support when you want it, then move gently back into the day.',
+        primaryLabel: 'Open commitment',
         primaryIcon: LucideIcons.flag,
         onPrimary: () => context.go(AppRoutes.commit),
       );
@@ -185,6 +203,10 @@ class _DailyLoopHero extends ConsumerWidget {
             active.plan.dailyAction,
             style: theme.textTheme.bodyLarge?.copyWith(height: 1.45),
           ),
+          if (_hasPlanContextFor(active, settings)) ...[
+            const SizedBox(height: 12),
+            _RememberedPlanPanel(active: active, settings: settings),
+          ],
           const SizedBox(height: 14),
           LinearProgressIndicator(value: active.progress),
           const SizedBox(height: 14),
@@ -211,20 +233,85 @@ class _DailyLoopHero extends ConsumerWidget {
                     );
                     await PremiumSuccessDialog.show(
                       context,
-                      title: 'You returned today',
+                      title: 'Checked in today',
                       message:
                           'Your commitment is checked in. Share a reflection only if it helps you stay honest.',
-                      primaryActionText: 'Open Path',
-                      onPrimaryAction: () => context.go(AppRoutes.commit),
+                      primaryActionText: 'Reflect',
+                      onPrimaryAction: () => context.go(AppRoutes.reflect),
                     );
                   },
             icon: const Icon(LucideIcons.checkCircle, size: 18),
-            label: const Text('Mark today\'s return'),
+            label: const Text('Check in for today'),
           ),
         ],
       ),
     );
   }
+}
+
+class _RememberedPlanPanel extends StatelessWidget {
+  const _RememberedPlanPanel({required this.active, required this.settings});
+
+  final CommitmentSeason active;
+  final AppSettings settings;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final when = _planWhenFor(active, settings);
+    final obstacle = _planObstacleFor(active, settings);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface.withValues(alpha: 0.72),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: theme.colorScheme.outline.withValues(alpha: 0.12),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Remember your plan',
+            style: theme.textTheme.labelLarge?.copyWith(
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          if (when?.isNotEmpty == true) Text('Usually: $when'),
+          if (obstacle?.isNotEmpty == true) Text('Watch for: $obstacle'),
+        ],
+      ),
+    );
+  }
+}
+
+bool _hasPlanContextFor(CommitmentSeason active, AppSettings settings) {
+  return _planWhenFor(active, settings)?.isNotEmpty == true ||
+      _planObstacleFor(active, settings)?.isNotEmpty == true;
+}
+
+String? _planWhenFor(CommitmentSeason active, AppSettings settings) {
+  if (active.firstCheckInPlanWhen?.trim().isNotEmpty == true) {
+    return active.firstCheckInPlanWhen!.trim();
+  }
+  if (settings.firstCheckInPlanCommitmentId == active.plan.id) {
+    final value = settings.firstCheckInPlanWhen?.trim();
+    return value?.isNotEmpty == true ? value : null;
+  }
+  return null;
+}
+
+String? _planObstacleFor(CommitmentSeason active, AppSettings settings) {
+  if (active.firstCheckInPlanObstacle?.trim().isNotEmpty == true) {
+    return active.firstCheckInPlanObstacle!.trim();
+  }
+  if (settings.firstCheckInPlanCommitmentId == active.plan.id) {
+    final value = settings.firstCheckInPlanObstacle?.trim();
+    return value?.isNotEmpty == true ? value : null;
+  }
+  return null;
 }
 
 class _LoopHeroCard extends StatelessWidget {
@@ -296,7 +383,7 @@ class _LoopHeroCard extends StatelessWidget {
   }
 }
 
-class _AfterReturnPanel extends ConsumerWidget {
+class _AfterCheckInPanel extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(visionProvider);
@@ -308,7 +395,7 @@ class _AfterReturnPanel extends ConsumerWidget {
 
     return VisionPanel(
       icon: LucideIcons.sparkles,
-      title: 'After your return',
+      title: 'After your check-in',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -337,7 +424,7 @@ class _AfterReturnPanel extends ConsumerWidget {
           ),
           const SizedBox(height: 10),
           Text(
-            'Everything here is optional. The daily return is the center.',
+            'Everything here is optional. The daily check-in is the center.',
             style: theme.textTheme.bodySmall,
           ),
         ],
@@ -351,7 +438,14 @@ class _AmbientSupportPanel extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(visionProvider);
     final tribe = state.primaryTribe;
-    final liveHangout = state.hangouts.where((item) => item.canJoin).isNotEmpty;
+    final liveHangout =
+        tribe != null &&
+        state.hangouts.any(
+          (item) =>
+              item.canJoin &&
+              item.scopeType == 'tribe' &&
+              item.scopeId == tribe.tribe.id,
+        );
     final returned = state.tribePulse.returnedCount;
 
     return VisionPanel(
@@ -364,7 +458,9 @@ class _AmbientSupportPanel extends ConsumerWidget {
             Row(
               children: [
                 const Expanded(
-                  child: Text('Belonging gives your path a place to grow.'),
+                  child: Text(
+                    'Belonging gives your commitment a place to grow.',
+                  ),
                 ),
                 TextButton(
                   onPressed: () => context.go(AppRoutes.tribe),
@@ -383,7 +479,7 @@ class _AmbientSupportPanel extends ConsumerWidget {
                 ),
                 _AmbientPill(
                   icon: LucideIcons.checkCircle,
-                  label: returned > 0 ? '$returned returned' : 'Quiet today',
+                  label: returned > 0 ? '$returned checked in' : 'Quiet today',
                 ),
                 if (liveHangout)
                   const _AmbientPill(

@@ -9,6 +9,7 @@ import '../../features/auth/data/auth_repository.dart';
 import '../../features/auth/domain/models/auth_models.dart';
 import '../../features/assessment/application/calling_profile_service.dart';
 import '../../features/assessment/application/assessment_notifier.dart';
+import '../../features/assessment/application/pending_compass_sync_service.dart';
 import '../../features/assessment/data/assessment_api_repository.dart';
 import '../../features/bible/application/bible_notifier.dart';
 import '../../features/bible/application/bible_reading_notifier.dart';
@@ -34,12 +35,10 @@ import '../../features/commitments/data/commitment_journey_repository.dart';
 import '../../features/mission/application/service_opportunity_notifier.dart';
 import '../../features/mission/data/service_opportunity_repository.dart';
 import '../../features/mission/domain/models/service_opportunity.dart';
-import '../../features/mvp/application/mvp_notifier.dart';
-import '../../features/mvp/application/mvp_state.dart';
-import '../../features/mvp/data/mvp_repository.dart';
 import '../../features/vision/application/vision_notifier.dart';
 import '../../features/vision/application/vision_state.dart';
 import '../../features/vision/data/vision_repository.dart';
+import '../../features/vision/domain/vision_models.dart';
 import '../../features/commitments/data/graduated_commitment_repository.dart';
 import '../../features/today/application/commitment_notifier.dart';
 import '../../features/today/application/daily_anchors_notifier.dart';
@@ -142,18 +141,56 @@ final assessmentApiRepositoryProvider = Provider<AssessmentApiRepository>((
   );
 });
 
-final mvpRepositoryProvider = Provider<MvpRepository>((ref) {
-  return MvpRepository(
-    ref.watch(authenticatedDioClientProvider),
-    ref.watch(loggerProvider),
-  );
+final pendingCompassSyncServiceProvider = Provider<PendingCompassSyncService>((
+  ref,
+) {
+  return PendingCompassSyncService(ref.watch(loggerProvider));
 });
 
-final mvpProvider = StateNotifierProvider<MvpNotifier, MvpState>((ref) {
-  return MvpNotifier(
-    ref.watch(mvpRepositoryProvider),
-    ref.watch(notificationServiceProvider),
+final pendingCompassSyncProvider = Provider<void>((ref) {
+  final service = ref.watch(pendingCompassSyncServiceProvider);
+  var isSyncing = false;
+
+  Future<void> attemptSync() async {
+    if (isSyncing) return;
+
+    final auth = ref.read(authProvider);
+    final payload = ref.read(settingsProvider).pendingCompassSubmission;
+    if (!auth.isAuthenticated || auth.token?.isNotEmpty != true) return;
+    if (payload == null || payload.isEmpty) return;
+
+    isSyncing = true;
+    try {
+      await service.trySync(
+        isAuthenticated: auth.isAuthenticated,
+        payload: payload,
+        submit: (submission) => ref
+            .read(assessmentApiRepositoryProvider)
+            .submitAssessment(submission),
+        clear: ref
+            .read(settingsProvider.notifier)
+            .clearPendingCompassSubmission,
+      );
+    } finally {
+      isSyncing = false;
+    }
+  }
+
+  ref.listen<AuthState>(authProvider, (previous, next) {
+    if (next.isAuthenticated && previous?.token != next.token) {
+      Future.microtask(attemptSync);
+    }
+  });
+  ref.listen<Map<String, dynamic>?>(
+    settingsProvider.select((settings) => settings.pendingCompassSubmission),
+    (_, next) {
+      if (next != null && next.isNotEmpty) {
+        Future.microtask(attemptSync);
+      }
+    },
   );
+
+  Future.microtask(attemptSync);
 });
 
 final visionRepositoryProvider = Provider<VisionRepository>((ref) {
@@ -174,6 +211,7 @@ final visionProvider = StateNotifierProvider<VisionNotifier, VisionState>((
       final settings = ref.read(settingsProvider);
       final names = <String>[
         ...assessment.selectedArchetypes.map((archetype) => archetype.name),
+        ...settings.selectedArchetypeIds,
         if (settings.primaryArchetypeId?.isNotEmpty == true)
           settings.primaryArchetypeId!,
       ];
@@ -181,6 +219,26 @@ final visionProvider = StateNotifierProvider<VisionNotifier, VisionState>((
         for (final name in names)
           if (name.trim().isNotEmpty) name.trim(),
       }.toList();
+    },
+    saveFirstCheckInPlan:
+        ({required int commitmentId, String? when, String? obstacle}) {
+          return ref
+              .read(settingsProvider.notifier)
+              .setFirstCheckInPlan(
+                commitmentId: commitmentId,
+                when: when,
+                obstacle: obstacle,
+              );
+        },
+    localPlanContext: (commitmentId) {
+      final settings = ref.read(settingsProvider);
+      if (settings.firstCheckInPlanCommitmentId != commitmentId) {
+        return const CommitmentPlanContext();
+      }
+      return CommitmentPlanContext(
+        when: settings.firstCheckInPlanWhen,
+        obstacle: settings.firstCheckInPlanObstacle,
+      );
     },
   );
 });

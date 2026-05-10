@@ -6,22 +6,22 @@ import 'api_cache_interceptor.dart';
 
 class DioClient {
   DioClient(this._logger, {String? baseUrl, String? authToken})
-      : _dio = Dio(
-          BaseOptions(
-            baseUrl: baseUrl ?? 'https://api.elbiblio.com/api',
-            connectTimeout: const Duration(seconds: 15),
-            receiveTimeout: const Duration(seconds: 15),
-            sendTimeout: const Duration(seconds: 15),
-            responseType: ResponseType.json,
-            headers: {
-              'Accept': 'application/json',
-              'Content-Type': 'application/json',
-              'User-Agent': 'ElBiblio-Agent/1.0',
-              if (authToken != null) 'Authorization': 'Bearer $authToken',
-            },
-            validateStatus: (status) => status != null && status < 500,
-          ),
-        ) {
+    : _dio = Dio(
+        BaseOptions(
+          baseUrl: baseUrl ?? 'https://api.elbiblio.com/api',
+          connectTimeout: const Duration(seconds: 15),
+          receiveTimeout: const Duration(seconds: 15),
+          sendTimeout: const Duration(seconds: 15),
+          responseType: ResponseType.json,
+          headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+            'User-Agent': 'ElBiblio-Agent/1.0',
+            if (authToken != null) 'Authorization': 'Bearer $authToken',
+          },
+          validateStatus: (status) => status != null && status < 400,
+        ),
+      ) {
     _dio.interceptors.addAll(<Interceptor>[
       ApiCacheInterceptor(),
       InterceptorsWrapper(
@@ -30,7 +30,9 @@ class DioClient {
           handler.next(options);
         },
         onResponse: (response, handler) {
-          _logger.d('[Dio] Response ${response.statusCode} ${response.requestOptions.path}');
+          _logger.d(
+            '[Dio] Response ${response.statusCode} ${response.requestOptions.path}',
+          );
           handler.next(response);
         },
         onError: (error, handler) {
@@ -39,12 +41,15 @@ class DioClient {
             error: error,
             stackTrace: error.stackTrace,
           );
-          
+
           // Provide better error messages
-          String errorMessage = 'Network request failed';
+          String errorMessage =
+              _messageFromResponse(error.response?.data) ??
+              'Network request failed';
           switch (error.type) {
             case DioExceptionType.connectionTimeout:
-              errorMessage = 'Connection timeout. Please check your internet connection.';
+              errorMessage =
+                  'Connection timeout. Please check your internet connection.';
               break;
             case DioExceptionType.sendTimeout:
               errorMessage = 'Request timeout. Please try again.';
@@ -53,32 +58,46 @@ class DioClient {
               errorMessage = 'Server response timeout. Please try again.';
               break;
             case DioExceptionType.connectionError:
-              errorMessage = 'No internet connection. Please check your network settings.';
+              errorMessage =
+                  'No internet connection. Please check your network settings.';
               break;
             case DioExceptionType.badCertificate:
-              errorMessage = 'SSL certificate error. Please check your device\'s date and time settings.';
+              errorMessage =
+                  'SSL certificate error. Please check your device\'s date and time settings.';
               break;
             case DioExceptionType.badResponse:
               final statusCode = error.response?.statusCode;
               if (statusCode != null) {
                 switch (statusCode) {
                   case 401:
-                    errorMessage = 'Authentication failed. Please log in again.';
+                    errorMessage =
+                        _messageFromResponse(error.response?.data) ??
+                        'Authentication failed. Please log in again.';
                     break;
                   case 403:
-                    errorMessage = 'Access forbidden. You don\'t have permission to access this resource.';
+                    errorMessage =
+                        _messageFromResponse(error.response?.data) ??
+                        'Access forbidden. You don\'t have permission to access this resource.';
                     break;
                   case 404:
-                    errorMessage = 'Resource not found.';
+                    errorMessage =
+                        _messageFromResponse(error.response?.data) ??
+                        'Resource not found.';
                     break;
                   case 429:
-                    errorMessage = 'Too many requests. Please wait and try again.';
+                    errorMessage =
+                        _messageFromResponse(error.response?.data) ??
+                        'Too many requests. Please wait and try again.';
                     break;
                   case 500:
-                    errorMessage = 'Server error. Please try again later.';
+                    errorMessage =
+                        _messageFromResponse(error.response?.data) ??
+                        'Server error. Please try again later.';
                     break;
                   default:
-                    errorMessage = 'Server error ($statusCode). Please try again.';
+                    errorMessage =
+                        _messageFromResponse(error.response?.data) ??
+                        'Server error ($statusCode). Please try again.';
                 }
               }
               break;
@@ -89,7 +108,7 @@ class DioClient {
               errorMessage = 'Unknown network error occurred.';
               break;
           }
-          
+
           // Create a new error with better message
           final betterError = DioException(
             requestOptions: error.requestOptions,
@@ -98,7 +117,7 @@ class DioClient {
             error: errorMessage,
             stackTrace: error.stackTrace,
           );
-          
+
           handler.next(betterError);
         },
       ),
@@ -134,10 +153,7 @@ class DioClient {
     try {
       return await _dio.get<T>(path, queryParameters: queryParameters);
     } on DioException catch (error) {
-      throw NetworkException(
-        error.message ?? 'Network request failed.',
-        error.response?.data,
-      );
+      throw _networkExceptionFor(error);
     }
   }
 
@@ -149,12 +165,14 @@ class DioClient {
   }) async {
     try {
       final options = headers != null ? Options(headers: headers) : null;
-      return await _dio.post<T>(path, data: data, queryParameters: queryParameters, options: options);
-    } on DioException catch (error) {
-      throw NetworkException(
-        error.message ?? 'Network request failed.',
-        error.response?.data,
+      return await _dio.post<T>(
+        path,
+        data: data,
+        queryParameters: queryParameters,
+        options: options,
       );
+    } on DioException catch (error) {
+      throw _networkExceptionFor(error);
     }
   }
 
@@ -164,12 +182,13 @@ class DioClient {
     Map<String, dynamic>? queryParameters,
   }) async {
     try {
-      return await _dio.put<T>(path, data: data, queryParameters: queryParameters);
-    } on DioException catch (error) {
-      throw NetworkException(
-        error.message ?? 'Network request failed.',
-        error.response?.data,
+      return await _dio.put<T>(
+        path,
+        data: data,
+        queryParameters: queryParameters,
       );
+    } on DioException catch (error) {
+      throw _networkExceptionFor(error);
     }
   }
 
@@ -179,12 +198,47 @@ class DioClient {
     Map<String, dynamic>? queryParameters,
   }) async {
     try {
-      return await _dio.delete<T>(path, data: data, queryParameters: queryParameters);
+      return await _dio.delete<T>(
+        path,
+        data: data,
+        queryParameters: queryParameters,
+      );
     } on DioException catch (error) {
-      throw NetworkException(
-        error.message ?? 'Network request failed.',
-        error.response?.data,
+      throw _networkExceptionFor(error);
+    }
+  }
+
+  NetworkException _networkExceptionFor(DioException error) {
+    final statusCode = error.response?.statusCode;
+    final message =
+        _messageFromResponse(error.response?.data) ??
+        error.message ??
+        'Network request failed.';
+    if (statusCode != null) {
+      return ApiRequestException(
+        statusCode: statusCode,
+        message: message,
+        details: error.response?.data,
       );
     }
+    return NetworkException(message, error.response?.data);
+  }
+
+  static String? _messageFromResponse(dynamic data) {
+    if (data is Map) {
+      final direct = data['message'] ?? data['error'];
+      if (direct is String && direct.trim().isNotEmpty) {
+        return direct.trim();
+      }
+      final errors = data['errors'];
+      if (errors is Map && errors.isNotEmpty) {
+        final first = errors.values.first;
+        if (first is List && first.isNotEmpty) {
+          return first.first.toString();
+        }
+        return first.toString();
+      }
+    }
+    return null;
   }
 }

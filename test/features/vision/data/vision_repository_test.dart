@@ -1,0 +1,41 @@
+import 'package:dio/dio.dart';
+import 'package:elbiblio/core/errors/app_exception.dart';
+import 'package:elbiblio/core/network/dio_client.dart';
+import 'package:elbiblio/features/vision/data/vision_repository.dart';
+import 'package:elbiblio/features/vision/domain/vision_models.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:logger/logger.dart';
+
+void main() {
+  test(
+    'bootstrap enters read-only error state without fabricated data',
+    () async {
+      final repository = VisionRepository(
+        _OfflineDioClient(),
+        Logger(level: Level.off),
+      );
+
+      final bootstrap = await repository.bootstrap();
+
+      expect(bootstrap.dataSource, VisionDataSource.error);
+      expect(bootstrap.dataSource.isReadOnly, isTrue);
+      expect(bootstrap.primaryTribe, isNull);
+      expect(bootstrap.activeCommitment, isNull);
+      expect(bootstrap.dailyQuestion, isNull);
+      expect(bootstrap.journeyEvents, isEmpty);
+      expect(bootstrap.errorMessage, contains('offline'));
+    },
+  );
+}
+
+class _OfflineDioClient extends DioClient {
+  _OfflineDioClient() : super(Logger(level: Level.off));
+
+  @override
+  Future<Response<T>> get<T>(
+    String path, {
+    Map<String, dynamic>? queryParameters,
+  }) async {
+    throw NetworkException('offline');
+  }
+}

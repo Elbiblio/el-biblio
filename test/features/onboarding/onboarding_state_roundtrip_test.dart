@@ -22,8 +22,9 @@ void main() {
       );
 
       final encoded = jsonEncode(state.toJson());
-      final decoded =
-          OnboardingState.fromJson(jsonDecode(encoded) as Map<String, dynamic>);
+      final decoded = OnboardingState.fromJson(
+        jsonDecode(encoded) as Map<String, dynamic>,
+      );
 
       expect(decoded.step, state.step);
       expect(decoded.lifestyle, state.lifestyle);
@@ -46,10 +47,23 @@ void main() {
         primaryVirtue: VirtueType.faith,
         socialPresenceOptIn: true,
         contactsImported: true,
-        miniAssessmentAnswers: [2, 1, 3],
-        assessmentConfidence: 0.73,
-        tiebreakerShown: true,
         primaryArchetypeId: 'Reformer',
+        exactAge: 29,
+        selectedArchetypeIds: ['Reformer', 'Watchman'],
+        compassAssessmentData: {
+          'Reformer': OnboardingCompassData(
+            instances: 10,
+            fears: 'many',
+            maturity: 45,
+          ),
+          'Watchman': OnboardingCompassData(
+            instances: 3,
+            fears: 'some',
+            maturity: 28,
+          ),
+        },
+        spiritualAgeScore: 37,
+        spiritualAgeStage: 'Child',
         commitmentCategory: 'discipline',
         primaryMissionFocus: 'faithSharing',
         email: 'a@b.com',
@@ -69,10 +83,32 @@ void main() {
       );
 
       expect(decoded.step, state.step);
-      expect(decoded.miniAssessmentAnswers, state.miniAssessmentAnswers);
-      expect(decoded.assessmentConfidence, state.assessmentConfidence);
-      expect(decoded.tiebreakerShown, state.tiebreakerShown);
       expect(decoded.primaryArchetypeId, state.primaryArchetypeId);
+      expect(decoded.exactAge, isNull);
+      expect(decoded.derivedAgeBand, isNull);
+      expect(decoded.selectedArchetypeIds, state.selectedArchetypeIds);
+      expect(decoded.compassAssessmentData['Reformer']?.fears, 'many');
+      expect(decoded.spiritualAgeScore, 37);
+      expect(decoded.spiritualAgeStage, 'Child');
+      expect(decoded.hasFullCompassResult, isFalse);
+      expect(state.compassSubmissionPayload['age_band'], '25_34');
+      expect(state.compassSubmissionPayload['selected_path'], 'development');
+      expect(state.compassSubmissionPayload['selected_tasks'], [
+        'dev_1',
+        'dev_2',
+        'dev_3',
+      ]);
+      expect(
+        state.compassSubmissionPayload,
+        containsPair('metadata', isA<Map<String, dynamic>>()),
+      );
+      final metadata =
+          state.compassSubmissionPayload['metadata'] as Map<String, dynamic>;
+      expect(metadata['action_plan'], isA<Map<String, dynamic>>());
+      expect(
+        metadata['primary_archetype_profile'],
+        isA<Map<String, dynamic>>(),
+      );
       expect(decoded.commitmentCategory, state.commitmentCategory);
       expect(decoded.primaryMissionFocus, state.primaryMissionFocus);
       expect(decoded.email, state.email);
@@ -92,7 +128,6 @@ void main() {
       expect(decoded.step, OnboardingStep.theProblem);
       expect(decoded.lifestyle, 'Student');
       expect(decoded.primaryVirtue, VirtueType.humility);
-      expect(decoded.miniAssessmentAnswers, isEmpty);
       expect(decoded.sovereigntyScore, 3);
     });
   });

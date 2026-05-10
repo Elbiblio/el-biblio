@@ -25,12 +25,16 @@ void main() {
         'completed_days_count': 3,
         'nudge_count_per_day': 5,
         'last_check_in_at': DateTime.now().toIso8601String(),
+        'check_in_plan_when': 'After lunch',
+        'check_in_plan_obstacle': 'Scrolling when tired',
       });
 
       expect(season.checkedInToday, isTrue);
       expect(season.progress, 0.1);
       expect(season.nudgeCountPerDay, 5);
       expect(season.plan.title, '30 Days Gratitude');
+      expect(season.firstCheckInPlanWhen, 'After lunch');
+      expect(season.firstCheckInPlanObstacle, 'Scrolling when tired');
     });
 
     test('journey icon mapping covers known milestone keys', () {
@@ -54,10 +58,11 @@ void main() {
         GrowthJourneyEvent.iconForKey('calendar-heart'),
         LucideIcons.calendarHeart,
       );
+      expect(GrowthJourneyEvent.iconForKey('radio'), LucideIcons.radio);
       expect(GrowthJourneyEvent.iconForKey('unknown'), LucideIcons.sparkles);
     });
 
-    test('tribe and reflection public profile display cleanly', () {
+    test('tribe and reflection visible profile display cleanly', () {
       final tribe = TribeIdentity.fromJson({
         'id': 1,
         'name': 'Watchman Circle',
@@ -90,6 +95,7 @@ void main() {
       final pulse = TribePulse.fromJson({
         'today': {
           'returned_count': 4,
+          'checked_in_count': 5,
           'active_members_count': 18,
           'reflection_count': 7,
           'support_count': 14,
@@ -103,9 +109,62 @@ void main() {
         ],
       });
 
-      expect(pulse.returnedCount, 4);
+      expect(pulse.returnedCount, 5);
       expect(pulse.activeMembersCount, 18);
       expect(pulse.items.single.text, '4 people completed Day 30 today.');
+    });
+
+    test('tribe hangout and LiveKit absence parse safely', () {
+      final hangout = CommitmentHangout.fromJson({
+        'id': 9,
+        'title': 'Tribe check-in room',
+        'status': 'live',
+        'participant_count': 8,
+        'max_participants': 8,
+        'scope_type': 'tribe',
+        'scope_id': 3,
+        'can_join': false,
+        'livekit': null,
+      });
+      final event = GrowthJourneyEvent.fromJson({
+        'type': 'tribe_hangout_joined',
+        'title': 'Tribe hangout',
+        'subtitle': 'You joined a live gathering with your tribe.',
+        'icon_key': 'radio',
+      });
+
+      expect(hangout.liveKit, isNull);
+      expect(hangout.canJoin, isFalse);
+      expect(event.type, GrowthJourneyEventType.tribeHangoutJoined);
+      expect(event.icon, LucideIcons.radio);
+    });
+
+    test('daily growth question tolerates malformed age-band payloads', () {
+      final question = DailyGrowthQuestion.fromJson({
+        'id': 'not-a-number',
+        'questions': [
+          {
+            'question': 'Where do you need courage today?',
+            'action_steps': [
+              {'label': 'Pray', 'minutes': 'later'},
+              'bad step',
+            ],
+          },
+          'bad nested question',
+        ],
+        'scripture_refs': [123, 'Romans 8:1'],
+        'position': 'first',
+      });
+
+      expect(question.id, 0);
+      expect(question.question, 'What is one faithful step today?');
+      expect(
+        question.packQuestions.single.question,
+        'Where do you need courage today?',
+      );
+      expect(question.packQuestions.single.actionSteps.single.minutes, isNull);
+      expect(question.scriptureRefs, ['123', 'Romans 8:1']);
+      expect(question.position, isNull);
     });
   });
 }

@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import 'package:permission_handler/permission_handler.dart' as permissions;
 
 import '../../../../core/di/app_providers.dart';
 import '../../../../shared/widgets/premium_success_dialog.dart';
 import '../../../../shared/widgets/vision_illustration.dart';
 import '../../domain/vision_models.dart';
-import '../widgets/reflection_feed_widgets.dart';
 import '../widgets/vision_panel.dart';
 
 class CommitScreen extends ConsumerStatefulWidget {
@@ -17,10 +17,8 @@ class CommitScreen extends ConsumerStatefulWidget {
 }
 
 class _CommitScreenState extends ConsumerState<CommitScreen> {
-  final _reflectionController = TextEditingController();
   int _selectedNudges = 3;
   String _selectedCategory = 'all';
-  final Set<int> _pinnedReflectionIds = {};
 
   @override
   void initState() {
@@ -32,7 +30,6 @@ class _CommitScreenState extends ConsumerState<CommitScreen> {
 
   @override
   void dispose() {
-    _reflectionController.dispose();
     super.dispose();
   }
 
@@ -43,11 +40,11 @@ class _CommitScreenState extends ConsumerState<CommitScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Path'),
+        title: const Text('Commit'),
         actions: [
           if (active != null)
             IconButton(
-              tooltip: 'Browse paths',
+              tooltip: 'Browse commitments',
               onPressed: () =>
                   _showCommitmentLibrary(state.recommendedCommitments, active),
               icon: const Icon(LucideIcons.layoutGrid),
@@ -61,16 +58,22 @@ class _CommitScreenState extends ConsumerState<CommitScreen> {
           children: [
             _CommitHeader(active: active),
             const SizedBox(height: 16),
-            if (active != null) ...[
-              _ActiveCommitment(active: active, showCheckInAction: false),
+            if (state.error?.isNotEmpty == true) ...[
+              _LaunchIssuePanel(message: state.error!),
               const SizedBox(height: 16),
-              VisionReflectionComposer(controller: _reflectionController),
-              const SizedBox(height: 16),
-              VisionReflectionFeed(
-                title: 'Your path feed',
-                pinnedIds: _pinnedReflectionIds,
-                onTogglePinned: _togglePinnedReflection,
+            ],
+            if (state.notificationWarning?.isNotEmpty == true) ...[
+              _LaunchIssuePanel(
+                icon: LucideIcons.bellOff,
+                title: 'Nudges need attention',
+                message: state.notificationWarning!,
               ),
+              const SizedBox(height: 16),
+            ],
+            if (active != null) ...[
+              _ActiveCommitment(active: active, showCheckInAction: true),
+              const SizedBox(height: 16),
+              _NotificationRecoveryPanel(),
               const SizedBox(height: 16),
               _AccountabilityAssistantPanel(active: active),
             ] else ...[
@@ -83,9 +86,19 @@ class _CommitScreenState extends ConsumerState<CommitScreen> {
                     setState(() => _selectedCategory = category),
               ),
               const SizedBox(height: 16),
-              ..._visibleCommitments(
-                state.recommendedCommitments,
-              ).map(_buildCommitmentOption),
+              if (state.recommendedCommitments.isEmpty)
+                _LaunchIssuePanel(
+                  icon: LucideIcons.wifiOff,
+                  title: state.isReadOnly
+                      ? 'Reconnect to choose a commitment'
+                      : 'Commitment catalog unavailable',
+                  message:
+                      'We will not show sample commitments as if they were real. Try again when ElBiblio can reach the launch catalog.',
+                )
+              else
+                ..._visibleCommitments(
+                  state.recommendedCommitments,
+                ).map(_buildCommitmentOption),
             ],
           ],
         ),
@@ -210,16 +223,6 @@ class _CommitScreenState extends ConsumerState<CommitScreen> {
     );
   }
 
-  void _togglePinnedReflection(CommitmentReflection reflection) {
-    setState(() {
-      if (_pinnedReflectionIds.contains(reflection.id)) {
-        _pinnedReflectionIds.remove(reflection.id);
-      } else {
-        _pinnedReflectionIds.add(reflection.id);
-      }
-    });
-  }
-
   void _showCommitmentLibrary(
     List<CommitmentPlan> commitments,
     CommitmentSeason active,
@@ -244,10 +247,15 @@ class _CommitScreenState extends ConsumerState<CommitScreen> {
       builder: (context) => _CommitmentWalkthroughSheet(
         plan: plan,
         initialNudges: initialNudges,
-        onJoin: (nudges) async {
+        onJoin: (nudges, planWhen, planObstacle) async {
           final joined = await ref
               .read(visionProvider.notifier)
-              .joinCommitment(plan, nudges);
+              .joinCommitment(
+                plan,
+                nudges,
+                planWhen: planWhen,
+                planObstacle: planObstacle,
+              );
           if (context.mounted) {
             Navigator.of(context).pop(joined);
           }
@@ -272,6 +280,31 @@ class _CommitScreenState extends ConsumerState<CommitScreen> {
       message:
           'Your digital accountability assistant is ready. The nudge is a hand on your shoulder, not a verdict on your soul.',
       primaryActionText: 'Continue',
+    );
+  }
+}
+
+class _LaunchIssuePanel extends StatelessWidget {
+  const _LaunchIssuePanel({
+    required this.message,
+    this.title = 'Something needs a retry',
+    this.icon = LucideIcons.alertCircle,
+  });
+
+  final String title;
+  final String message;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return VisionPanel(
+      icon: icon,
+      title: title,
+      child: Text(
+        message,
+        style: theme.textTheme.bodyMedium?.copyWith(height: 1.45),
+      ),
     );
   }
 }
@@ -309,7 +342,7 @@ class _CommitHeader extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  hasActive ? 'Keep the path' : 'Choose one path',
+                  hasActive ? 'Keep the commitment' : 'Choose one commitment',
                   style: theme.textTheme.headlineSmall?.copyWith(
                     fontWeight: FontWeight.w900,
                     height: 1.02,
@@ -318,8 +351,8 @@ class _CommitHeader extends StatelessWidget {
                 const SizedBox(height: 8),
                 Text(
                   hasActive
-                      ? 'One return today is enough. The app should support your faithfulness, not crowd it.'
-                      : 'Choose a concrete practice, a gentle nudge rhythm, and a private reflection feed.',
+                      ? 'One check-in today is enough. The app should support your faithfulness, not crowd it.'
+                      : 'Choose a concrete practice, a gentle nudge rhythm, and a time-bound season.',
                   style: theme.textTheme.bodyMedium?.copyWith(height: 1.42),
                 ),
               ],
@@ -351,6 +384,74 @@ class _NudgeEducationPanel extends StatelessWidget {
         'Pick the rhythm you can respect. If three nudges are not enough, increase support and use the faith walkthrough to name what this practice is forming in you.',
         style: theme.textTheme.bodyMedium?.copyWith(height: 1.45),
       ),
+    );
+  }
+}
+
+class _NotificationRecoveryPanel extends ConsumerStatefulWidget {
+  @override
+  ConsumerState<_NotificationRecoveryPanel> createState() =>
+      _NotificationRecoveryPanelState();
+}
+
+class _NotificationRecoveryPanelState
+    extends ConsumerState<_NotificationRecoveryPanel> {
+  late Future<bool> _enabledFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _enabledFuture = ref
+        .read(notificationServiceProvider)
+        .areNotificationsEnabled();
+  }
+
+  Future<void> _requestAgain() async {
+    final granted = await ref
+        .read(notificationServiceProvider)
+        .requestPermissions();
+    if (!granted) {
+      await permissions.openAppSettings();
+    }
+    if (mounted) {
+      setState(() {
+        _enabledFuture = ref
+            .read(notificationServiceProvider)
+            .areNotificationsEnabled();
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<bool>(
+      future: _enabledFuture,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done ||
+            snapshot.data != false) {
+          return const SizedBox.shrink();
+        }
+        final theme = Theme.of(context);
+        return VisionPanel(
+          icon: LucideIcons.bellOff,
+          title: 'Turn nudges back on',
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Your commitment is still active, but device notifications look disabled. Turn them on so ElBiblio can remind you at the moments you chose.',
+                style: theme.textTheme.bodyMedium?.copyWith(height: 1.45),
+              ),
+              const SizedBox(height: 12),
+              FilledButton.tonalIcon(
+                onPressed: _requestAgain,
+                icon: const Icon(LucideIcons.bellRing, size: 18),
+                label: const Text('Enable nudges'),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }
@@ -490,7 +591,7 @@ class _NudgeHelpSheet extends StatelessWidget {
             icon: LucideIcons.bell,
             title: 'They interrupt forgetfulness',
             body:
-                'A nudge is a small return point. Tap it, do the action, then check in.',
+                'A nudge is a small check-in point. Tap it, do the action, then check in.',
           ),
           const _ExpectationRow(
             icon: LucideIcons.heartHandshake,
@@ -533,14 +634,14 @@ class _CommitmentLibrarySheet extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
           children: [
             Text(
-              'Path library',
+              'Commitment library',
               style: theme.textTheme.headlineSmall?.copyWith(
                 fontWeight: FontWeight.w900,
               ),
             ),
             const SizedBox(height: 8),
             Text(
-              'Stay with one path at a time. Keep this library close for your next season.',
+              'Stay with one commitment at a time. Keep this library close for your next season.',
               style: theme.textTheme.bodyMedium?.copyWith(height: 1.42),
             ),
             const SizedBox(height: 16),
@@ -625,7 +726,7 @@ class _CommitmentLibraryCard extends StatelessWidget {
                     if (isActive)
                       const _MetaPill(
                         icon: LucideIcons.flag,
-                        label: 'Current path',
+                        label: 'Current commitment',
                       ),
                   ],
                 ),
@@ -647,7 +748,8 @@ class _CommitmentWalkthroughSheet extends StatefulWidget {
 
   final CommitmentPlan plan;
   final int initialNudges;
-  final Future<void> Function(int nudges) onJoin;
+  final Future<void> Function(int nudges, String planWhen, String planObstacle)
+  onJoin;
 
   @override
   State<_CommitmentWalkthroughSheet> createState() =>
@@ -657,6 +759,8 @@ class _CommitmentWalkthroughSheet extends StatefulWidget {
 class _CommitmentWalkthroughSheetState
     extends State<_CommitmentWalkthroughSheet> {
   late int _nudges;
+  late final TextEditingController _whenController;
+  late final TextEditingController _obstacleController;
   bool _joining = false;
 
   @override
@@ -666,6 +770,15 @@ class _CommitmentWalkthroughSheetState
       widget.plan.nudgeMin,
       widget.plan.nudgeMax,
     );
+    _whenController = TextEditingController();
+    _obstacleController = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    _whenController.dispose();
+    _obstacleController.dispose();
+    super.dispose();
   }
 
   @override
@@ -706,9 +819,36 @@ class _CommitmentWalkthroughSheetState
             icon: LucideIcons.messageCircle,
             title: 'What happens after',
             body:
-                'Once you return, you can share one short reflection with people on the same path.',
+                'Once you check in, you can share one short reflection with people keeping the same commitment.',
           ),
           const SizedBox(height: 8),
+          Text(
+            'Your first check-in plan',
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 8),
+          TextField(
+            controller: _whenController,
+            decoration: const InputDecoration(
+              labelText: 'When will you usually do this?',
+              hintText: 'After prayer, lunch, work, or bedtime',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: _obstacleController,
+            minLines: 2,
+            maxLines: 3,
+            decoration: const InputDecoration(
+              labelText: 'What might get in the way?',
+              hintText: 'Tiredness, scrolling, rushing, doubt',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          const SizedBox(height: 14),
           Text(
             'Nudge rhythm',
             style: theme.textTheme.titleMedium?.copyWith(
@@ -740,7 +880,11 @@ class _CommitmentWalkthroughSheetState
                 ? null
                 : () async {
                     setState(() => _joining = true);
-                    await widget.onJoin(_nudges);
+                    await widget.onJoin(
+                      _nudges,
+                      _whenController.text,
+                      _obstacleController.text,
+                    );
                     if (mounted) {
                       setState(() => _joining = false);
                     }
@@ -793,7 +937,7 @@ class _SampleNudgeCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'A quiet return is still a return. ${plan.dailyAction}',
+                  'A quiet check-in is still faithful. ${plan.dailyAction}',
                   style: theme.textTheme.bodyMedium?.copyWith(height: 1.35),
                 ),
                 const SizedBox(height: 8),
@@ -909,6 +1053,20 @@ class _ActiveCommitment extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final settings = ref.watch(settingsProvider);
+    final localPlanMatches =
+        settings.firstCheckInPlanCommitmentId == active.plan.id;
+    final planWhen = active.firstCheckInPlanWhen?.trim().isNotEmpty == true
+        ? active.firstCheckInPlanWhen!.trim()
+        : localPlanMatches
+        ? settings.firstCheckInPlanWhen?.trim()
+        : null;
+    final planObstacle =
+        active.firstCheckInPlanObstacle?.trim().isNotEmpty == true
+        ? active.firstCheckInPlanObstacle!.trim()
+        : localPlanMatches
+        ? settings.firstCheckInPlanObstacle?.trim()
+        : null;
     return VisionPanel(
       icon: LucideIcons.checkCircle,
       title: active.plan.title,
@@ -917,6 +1075,10 @@ class _ActiveCommitment extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(active.plan.dailyAction),
+          if (_hasPlanContext(planWhen, planObstacle)) ...[
+            const SizedBox(height: 12),
+            _FirstCheckInPlanCue(when: planWhen, obstacle: planObstacle),
+          ],
           const SizedBox(height: 12),
           LinearProgressIndicator(value: active.progress),
           const SizedBox(height: 12),
@@ -925,7 +1087,7 @@ class _ActiveCommitment extends ConsumerWidget {
               children: [
                 Icon(LucideIcons.checkCircle, size: 18),
                 SizedBox(width: 8),
-                Text('You returned today.'),
+                Text('Checked in today.'),
               ],
             )
           else if (!showCheckInAction)
@@ -933,7 +1095,7 @@ class _ActiveCommitment extends ConsumerWidget {
               children: [
                 Icon(LucideIcons.clock3, size: 18),
                 SizedBox(width: 8),
-                Text('Today is still open. Return when you can.'),
+                Text('Today is still open. Check in when you can.'),
               ],
             )
           else
@@ -952,12 +1114,52 @@ class _ActiveCommitment extends ConsumerWidget {
                 );
               },
               icon: const Icon(LucideIcons.checkCircle, size: 18),
-              label: const Text('Mark today\'s return'),
+              label: const Text('Check in for today'),
             ),
         ],
       ),
     );
   }
+}
+
+class _FirstCheckInPlanCue extends StatelessWidget {
+  const _FirstCheckInPlanCue({this.when, this.obstacle});
+
+  final String? when;
+  final String? obstacle;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.primaryContainer.withValues(alpha: 0.18),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: theme.colorScheme.primary.withValues(alpha: 0.12),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Your plan',
+            style: theme.textTheme.labelLarge?.copyWith(
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          if (when?.isNotEmpty == true) Text('Usually: $when'),
+          if (obstacle?.isNotEmpty == true) Text('Watch for: $obstacle'),
+        ],
+      ),
+    );
+  }
+}
+
+bool _hasPlanContext(String? when, String? obstacle) {
+  return when?.isNotEmpty == true || obstacle?.isNotEmpty == true;
 }
 
 class _AccountabilityAssistantPanel extends ConsumerWidget {
@@ -983,7 +1185,7 @@ class _AccountabilityAssistantPanel extends ConsumerWidget {
         children: [
           Text(
             active.checkedInToday
-                ? 'The nudge did its work today: it helped you return, then got out of the way.'
+                ? 'The nudge did its work today: it helped you check in, then got out of the way.'
                 : 'If the first nudges pass by, you are not failing. You may need clearer support for this season.',
             style: theme.textTheme.bodyMedium?.copyWith(height: 1.45),
           ),
@@ -1021,7 +1223,7 @@ class _AccountabilityAssistantPanel extends ConsumerWidget {
   return switch (category.toLowerCase()) {
     'discipline' => (
       'Discipline protects attention.',
-      'A fast is not contempt for desire. It trains the soul to notice what has been ruling it and return freely to God.',
+      'A fast is not contempt for desire. It trains the soul to notice what has been ruling it and turn freely to God.',
     ),
     'prayer' => (
       'Prayer keeps the heart turned.',
@@ -1033,10 +1235,10 @@ class _AccountabilityAssistantPanel extends ConsumerWidget {
     ),
     'forgiveness' => (
       'Forgiveness releases the grip of resentment.',
-      'It does not excuse harm. It opens a path where bitterness no longer gets to form your spirit.',
+      'It does not excuse harm. It opens a way where bitterness no longer gets to form your spirit.',
     ),
     _ => (
-      'Faithfulness is formed through return.',
+      'Faithfulness is formed through daily check-in.',
       'Small repeated acts tell the soul what matters and make growth possible without performance.',
     ),
   };
@@ -1044,7 +1246,7 @@ class _AccountabilityAssistantPanel extends ConsumerWidget {
 
 String _categoryLabel(String category) {
   return switch (category.toLowerCase()) {
-    'all' => 'All paths',
+    'all' => 'All commitments',
     'discipline' => 'Discipline',
     'prayer' => 'Prayer',
     'gratitude' => 'Gratitude',

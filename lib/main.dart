@@ -19,99 +19,106 @@ import 'features/bible/data/services/enhanced_bible_database_service.dart';
 Future<void> main() async {
   try {
     WidgetsFlutterBinding.ensureInitialized();
-    
+
     // Initialize timeago locales to prevent warnings
     timeago.setLocaleMessages('en', timeago.EnMessages());
     timeago.setLocaleMessages('en_US', timeago.EnMessages());
-    
+
     // Initialize Firebase only on mobile platforms with error handling
     if (!kIsWeb) {
       try {
         await Firebase.initializeApp();
       } catch (e) {
-        debugPrint('Firebase initialization failed (continuing without Firebase): $e');
+        debugPrint(
+          'Firebase initialization failed (continuing without Firebase): $e',
+        );
         // Continue without Firebase - this shouldn't block the app
       }
     }
-    
+
     // Configure window for desktop platforms (Windows, macOS, Linux)
-    if (!kIsWeb && (defaultTargetPlatform == TargetPlatform.windows || 
-        defaultTargetPlatform == TargetPlatform.linux || defaultTargetPlatform == TargetPlatform.macOS)) {
+    if (!kIsWeb &&
+        (defaultTargetPlatform == TargetPlatform.windows ||
+            defaultTargetPlatform == TargetPlatform.linux ||
+            defaultTargetPlatform == TargetPlatform.macOS)) {
       await windowManager.ensureInitialized();
-      
+
       // Set tablet-like dimensions (portrait mode)
       await windowManager.setSize(const Size(450, 800));
       await windowManager.setMinimumSize(const Size(400, 700));
       await windowManager.setMaximumSize(const Size(500, 900));
-      
+
       // Center the window on screen
       await windowManager.center();
-      
+
       // Set window title
       await windowManager.setTitle('El-Biblio');
-      
+
       // Restrict to portrait mode by preventing landscape resizing
       await SystemChrome.setPreferredOrientations([
         DeviceOrientation.portraitUp,
         DeviceOrientation.portraitDown,
       ]);
     }
-    
+
     // Initialize SQLite FFI only on desktop platforms
-    if (!kIsWeb && (defaultTargetPlatform == TargetPlatform.windows || 
-        defaultTargetPlatform == TargetPlatform.linux || defaultTargetPlatform == TargetPlatform.macOS)) {
+    if (!kIsWeb &&
+        (defaultTargetPlatform == TargetPlatform.windows ||
+            defaultTargetPlatform == TargetPlatform.linux ||
+            defaultTargetPlatform == TargetPlatform.macOS)) {
       sqfliteFfiInit();
       databaseFactory = databaseFactoryFfi;
     }
-    
+
     // Initialize core services first
     await HiveService.initialize();
-    
+
     // Initialize XP service
     await XPService.instance.initialize();
 
     runApp(const ProviderScope(child: CompassApp()));
-    
+
     // Defer heavy initialization to after app is running
     _deferredInitialization();
-    
   } catch (e, stackTrace) {
     debugPrint('App initialization failed: $e');
     debugPrint('Stack trace: $stackTrace');
-    
+
     // Show error screen instead of hanging on splash
-    runApp(MaterialApp(
-      home: Scaffold(
-        body: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(Icons.error_outline, size: 64, color: Colors.red),
-                const SizedBox(height: 16),
-                const Text(
-                  'Initialization Error',
-                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  'Failed to initialize the app: $e',
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(fontSize: 16),
-                ),
-                const SizedBox(height: 16),
-                const Text(
-                  'Please restart the app or contact support.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 14, color: Colors.grey),
-                ),
-              ],
+    runApp(
+      MaterialApp(
+        home: Scaffold(
+          body: Center(
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.error_outline, size: 64, color: Colors.red),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Initialization Error',
+                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Failed to initialize the app: $e',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(fontSize: 16),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Please restart the app or contact support.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 14, color: Colors.grey),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
       ),
-    ));
+    );
   }
 }
 
@@ -128,7 +135,7 @@ Future<void> _deferredInitialization() async {
         // Continue without notifications
       }
     });
-    
+
     // Defer Bible database initialization - just ensure default DB is copied
     // Don't create a standalone service here; the provider-managed instance
     // (bibleDatabaseServiceProvider) handles lifecycle. We only need to
@@ -157,6 +164,7 @@ class CompassApp extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final appTheme = ref.watch(themeProvider);
     final router = ref.watch(appRouterProvider);
+    ref.watch(pendingCompassSyncProvider);
     final textScaleFactor =
         WidgetsBinding.instance.platformDispatcher.textScaleFactor;
 

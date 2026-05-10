@@ -48,14 +48,20 @@ void main() {
         capturedAt: DateTime.utc(2026, 4, 23, 12),
       );
 
-      final settings =
-          AppSettings.defaults().copyWith(christianLifeBaseline: baseline);
+      final settings = AppSettings.defaults().copyWith(
+        christianLifeBaseline: baseline,
+      );
       final restored = AppSettings.fromMap(settings.toMap());
       final restoredBaseline = restored.christianLifeBaseline!;
 
-      expect(restoredBaseline.bibleReadingCadence, baseline.bibleReadingCadence);
       expect(
-          restoredBaseline.lastChurchAttendance, baseline.lastChurchAttendance);
+        restoredBaseline.bibleReadingCadence,
+        baseline.bibleReadingCadence,
+      );
+      expect(
+        restoredBaseline.lastChurchAttendance,
+        baseline.lastChurchAttendance,
+      );
       expect(restoredBaseline.prayerRhythm, baseline.prayerRhythm);
       expect(restoredBaseline.sovereigntyScore, baseline.sovereigntyScore);
       expect(restoredBaseline.charityScore, baseline.charityScore);
@@ -63,14 +69,59 @@ void main() {
     });
 
     test('onboardingDraft string preserved and clearable', () {
-      final withDraft =
-          AppSettings.defaults().copyWith(onboardingDraft: '{"step":"x"}');
-      expect(AppSettings.fromMap(withDraft.toMap()).onboardingDraft,
-          '{"step":"x"}');
+      final withDraft = AppSettings.defaults().copyWith(
+        onboardingDraft: '{"step":"x"}',
+      );
+      expect(
+        AppSettings.fromMap(withDraft.toMap()).onboardingDraft,
+        '{"step":"x"}',
+      );
 
       final cleared = withDraft.copyWith(clearOnboardingDraft: true);
       expect(cleared.onboardingDraft, isNull);
       expect(AppSettings.fromMap(cleared.toMap()).onboardingDraft, isNull);
+    });
+
+    test('pending compass submission round-trips and is clearable', () {
+      final payload = {
+        'primary_archetype': 'Watchman',
+        'spiritual_age_score': 48,
+        'age_band': '25_34',
+      };
+      final withPending = AppSettings.defaults().copyWith(
+        pendingCompassSubmission: payload,
+      );
+
+      expect(
+        AppSettings.fromMap(withPending.toMap()).pendingCompassSubmission,
+        payload,
+      );
+
+      final cleared = withPending.copyWith(clearPendingCompassSubmission: true);
+      expect(cleared.pendingCompassSubmission, isNull);
+      expect(
+        AppSettings.fromMap(cleared.toMap()).pendingCompassSubmission,
+        isNull,
+      );
+    });
+
+    test('first check-in plan round-trips and is clearable', () {
+      final settings = AppSettings.defaults().copyWith(
+        firstCheckInPlanCommitmentId: 12,
+        firstCheckInPlanWhen: 'After lunch',
+        firstCheckInPlanObstacle: 'Scrolling when tired',
+      );
+
+      final restored = AppSettings.fromMap(settings.toMap());
+
+      expect(restored.firstCheckInPlanCommitmentId, 12);
+      expect(restored.firstCheckInPlanWhen, 'After lunch');
+      expect(restored.firstCheckInPlanObstacle, 'Scrolling when tired');
+
+      final cleared = restored.copyWith(clearFirstCheckInPlan: true);
+      expect(cleared.firstCheckInPlanCommitmentId, isNull);
+      expect(cleared.firstCheckInPlanWhen, isNull);
+      expect(cleared.firstCheckInPlanObstacle, isNull);
     });
   });
 }

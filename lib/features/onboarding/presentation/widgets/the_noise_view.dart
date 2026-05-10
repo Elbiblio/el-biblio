@@ -51,19 +51,19 @@ class _TheNoiseViewState extends State<TheNoiseView>
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               const SizedBox(height: 40),
-              _buildNoiseGrid(context),
-              const SizedBox(height: 40),
+              _buildOpeningMark(context),
+              const SizedBox(height: 34),
               Text(
-                'Faith gets crowded out\none small pull at a time.',
+                'A spiritual home for the season you are in.',
                 textAlign: TextAlign.center,
                 style: textTheme.headlineMedium?.copyWith(
-                  fontWeight: FontWeight.w700,
-                  height: 1.2,
+                  fontWeight: FontWeight.w800,
+                  height: 1.14,
                 ),
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 18),
               Text(
-                'Elbiblio is built around a simpler rhythm: know your season, join a circle, keep one commitment, and return each day.',
+                'Know your spiritual age, join a tribe, keep one commitment, check in daily, and share the real struggle in a way that helps you grow.',
                 textAlign: TextAlign.center,
                 style: textTheme.bodyLarge?.copyWith(
                   color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
@@ -91,7 +91,7 @@ class _TheNoiseViewState extends State<TheNoiseView>
                     const SizedBox(width: 10),
                     Flexible(
                       child: Text(
-                        'The goal is not more content. It is consistency, belonging, and emotional support.',
+                        'The goal is not more content. It is a faithful rhythm of identity, belonging, commitment, reflection, and growth.',
                         style: textTheme.bodyMedium?.copyWith(
                           color: theme.colorScheme.error.withValues(alpha: 0.8),
                           fontWeight: FontWeight.w500,
@@ -109,51 +109,46 @@ class _TheNoiseViewState extends State<TheNoiseView>
     );
   }
 
-  Widget _buildNoiseGrid(BuildContext context) {
+  Widget _buildOpeningMark(BuildContext context) {
     final theme = Theme.of(context);
-    final items = [
-      (Icons.explore_outlined, 'Identity'),
-      (Icons.groups_outlined, 'Tribe'),
-      (Icons.flag_outlined, 'Commit'),
-      (Icons.check_circle_outline, 'Return'),
-      (Icons.chat_bubble_outline, 'Reflect'),
-      (Icons.spa_outlined, 'Grow'),
-    ];
-
-    return Wrap(
-      spacing: 12,
-      runSpacing: 12,
-      alignment: WrapAlignment.center,
-      children: items.map((item) {
-        return Container(
-          width: 96,
-          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+    return Container(
+      width: 168,
+      height: 168,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: RadialGradient(
+          colors: [
+            theme.colorScheme.primary.withValues(alpha: 0.18),
+            theme.colorScheme.primary.withValues(alpha: 0.04),
+            Colors.transparent,
+          ],
+        ),
+      ),
+      child: Center(
+        child: Container(
+          width: 104,
+          height: 104,
           decoration: BoxDecoration(
-            color: theme.colorScheme.onSurface.withValues(alpha: 0.04),
-            borderRadius: BorderRadius.circular(12),
+            shape: BoxShape.circle,
+            color: theme.colorScheme.surface,
             border: Border.all(
-              color: theme.colorScheme.onSurface.withValues(alpha: 0.08),
+              color: theme.colorScheme.primary.withValues(alpha: 0.2),
             ),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                item.$1,
-                size: 24,
-                color: theme.colorScheme.onSurface.withValues(alpha: 0.4),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                item.$2,
-                style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: theme.colorScheme.onSurface.withValues(alpha: 0.4),
-                ),
+            boxShadow: [
+              BoxShadow(
+                color: theme.colorScheme.primary.withValues(alpha: 0.08),
+                blurRadius: 28,
+                offset: const Offset(0, 14),
               ),
             ],
           ),
-        );
-      }).toList(),
+          child: Icon(
+            Icons.eco_outlined,
+            color: theme.colorScheme.primary,
+            size: 42,
+          ),
+        ),
+      ),
     );
   }
 }

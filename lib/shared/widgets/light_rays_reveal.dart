@@ -70,7 +70,9 @@ class _LightRaysRevealState extends State<LightRaysReveal>
     Future.delayed(widget.delay, () {
       if (!mounted) return;
       _fadeController.forward();
-      if (widget.rotate) _spinController.repeat();
+      final reducedMotion =
+          MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+      if (widget.rotate && !reducedMotion) _spinController.repeat();
     });
   }
 
@@ -83,8 +85,11 @@ class _LightRaysRevealState extends State<LightRaysReveal>
 
   @override
   Widget build(BuildContext context) {
-    final color = widget.rayColor ??
+    final color =
+        widget.rayColor ??
         Theme.of(context).colorScheme.primary.withValues(alpha: 1.0);
+    final reducedMotion =
+        MediaQuery.maybeOf(context)?.disableAnimations ?? false;
 
     return AnimatedBuilder(
       animation: Listenable.merge([_fadeController, _spinController]),
@@ -104,7 +109,9 @@ class _LightRaysRevealState extends State<LightRaysReveal>
                         painter: _LightRaysPainter(
                           color: color,
                           rayCount: widget.rayCount,
-                          rotation: _spinController.value * 2 * math.pi,
+                          rotation: reducedMotion
+                              ? 0
+                              : _spinController.value * 2 * math.pi,
                           expand: widget.expandBeyond,
                         ),
                       ),
@@ -138,8 +145,7 @@ class _LightRaysPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height / 2);
-    final radius =
-        math.max(size.width, size.height) / 2 + expand;
+    final radius = math.max(size.width, size.height) / 2 + expand;
 
     // Halo — soft radial glow seating the rays.
     final haloPaint = Paint()
@@ -179,10 +185,7 @@ class _LightRaysPainter extends CustomPainter {
 
       final paint = Paint()
         ..shader = RadialGradient(
-          colors: [
-            color.withValues(alpha: 0.55),
-            color.withValues(alpha: 0.0),
-          ],
+          colors: [color.withValues(alpha: 0.55), color.withValues(alpha: 0.0)],
           stops: const [0.0, 1.0],
         ).createShader(Rect.fromCircle(center: center, radius: radius));
       canvas.drawPath(path, paint);

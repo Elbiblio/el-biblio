@@ -20,7 +20,7 @@ import '../storage/settings_storage.dart';
 
 class SettingsNotifier extends StateNotifier<AppSettings> {
   SettingsNotifier(this._storage, this._analytics, this._callingProfileService)
-      : super(AppSettings.defaults()) {
+    : super(AppSettings.defaults()) {
     NotificationService().setDailyCheckInActionHandler(() async {
       await registerDailyCheckIn(DateTime.now());
     });
@@ -31,7 +31,11 @@ class SettingsNotifier extends StateNotifier<AppSettings> {
   final AppAnalyticsService _analytics;
   final CallingProfileService _callingProfileService;
 
-  AppSettings _unlockBadge(AppSettings current, String id, DateTime unlockedAt) {
+  AppSettings _unlockBadge(
+    AppSettings current,
+    String id,
+    DateTime unlockedAt,
+  ) {
     if (current.unlockedBadges.containsKey(id)) {
       return current;
     }
@@ -96,8 +100,12 @@ class SettingsNotifier extends StateNotifier<AppSettings> {
     required bool socialPresenceOptIn,
     required bool contactsImported,
     String? primaryArchetypeId,
+    List<String> selectedArchetypeIds = const [],
     String? commitmentCategory,
     String? primaryMissionFocus,
+    String? ageBand,
+    int spiritualAgeScore = 0,
+    String spiritualAgeStage = 'Infant',
     List<String> personalDistractions = const [],
     ChristianLifeBaseline? christianLifeBaseline,
   }) async {
@@ -120,16 +128,22 @@ class SettingsNotifier extends StateNotifier<AppSettings> {
       socialPresenceOptIn: socialPresenceOptIn,
       contactsImported: contactsImported,
       primaryArchetypeId: primaryArchetypeId,
+      selectedArchetypeIds: selectedArchetypeIds,
       commitmentCategory: normalizedCommitmentCategory,
       primaryMissionFocus: normalizedMissionFocus,
+      ageBand: ageBand,
+      spiritualAgeScore: spiritualAgeScore,
+      spiritualAgeStage: spiritualAgeStage,
       christianLifeBaseline: christianLifeBaseline,
     );
 
     if (primaryArchetypeId != null && normalizedCommitmentCategory != null) {
-      final archetype = Archetype.allArchetypes
-          .firstWhere((a) => a.name == primaryArchetypeId);
+      final archetype = Archetype.allArchetypes.firstWhere(
+        (a) => a.name == primaryArchetypeId,
+      );
 
-      final effectiveMissionFocus = normalizedMissionFocus ??
+      final effectiveMissionFocus =
+          normalizedMissionFocus ??
           _recommendedMissionFocus(
             CommitmentCategory.values.firstWhere(
               (c) => c.name == normalizedCommitmentCategory,
@@ -138,8 +152,9 @@ class SettingsNotifier extends StateNotifier<AppSettings> {
           ).name;
 
       if (normalizedMissionFocus == null) {
-        newSettings =
-            newSettings.copyWith(primaryMissionFocus: effectiveMissionFocus);
+        newSettings = newSettings.copyWith(
+          primaryMissionFocus: effectiveMissionFocus,
+        );
       }
 
       final callingProfile = _callingProfileService.generateProfile(
@@ -171,8 +186,12 @@ class SettingsNotifier extends StateNotifier<AppSettings> {
       AppAnalyticsEvent.onboardingCompleted,
       properties: {
         'primary_archetype': primaryArchetypeId,
+        'top_archetypes': selectedArchetypeIds,
         'commitment_category': normalizedCommitmentCategory,
         'mission_focus': normalizedMissionFocus,
+        'age_band': ageBand,
+        'spiritual_age_score': spiritualAgeScore,
+        'spiritual_age_stage': spiritualAgeStage,
       },
     );
   }
@@ -216,11 +235,13 @@ class SettingsNotifier extends StateNotifier<AppSettings> {
 
     // Generate calling profile and weekly plan if we have archetype data
     if (primaryArchetypeId != null && normalizedCommitmentCategory != null) {
-      final archetype = Archetype.allArchetypes
-          .firstWhere((a) => a.name == primaryArchetypeId);
+      final archetype = Archetype.allArchetypes.firstWhere(
+        (a) => a.name == primaryArchetypeId,
+      );
 
       // Auto-derive mission focus from commitment category if not explicitly set
-      final effectiveMissionFocus = normalizedMissionFocus ??
+      final effectiveMissionFocus =
+          normalizedMissionFocus ??
           _recommendedMissionFocus(
             CommitmentCategory.values.firstWhere(
               (c) => c.name == normalizedCommitmentCategory,
@@ -230,7 +251,9 @@ class SettingsNotifier extends StateNotifier<AppSettings> {
 
       // Persist the derived mission focus
       if (normalizedMissionFocus == null) {
-        newSettings = newSettings.copyWith(primaryMissionFocus: effectiveMissionFocus);
+        newSettings = newSettings.copyWith(
+          primaryMissionFocus: effectiveMissionFocus,
+        );
       }
 
       final callingProfile = _callingProfileService.generateProfile(
@@ -269,12 +292,8 @@ class SettingsNotifier extends StateNotifier<AppSettings> {
     );
   }
 
-  Future<void> setVirtueFocus({
-    required VirtueType primaryVirtue,
-  }) async {
-    final next = state.copyWith(
-      primaryVirtue: primaryVirtue,
-    );
+  Future<void> setVirtueFocus({required VirtueType primaryVirtue}) async {
+    final next = state.copyWith(primaryVirtue: primaryVirtue);
     state = next;
     await _storage.save(next);
   }
@@ -314,7 +333,9 @@ class SettingsNotifier extends StateNotifier<AppSettings> {
 
     // Add selected assessment tasks as weekly commitments
     if (selectedTaskIds != null && selectedTaskIds.isNotEmpty) {
-      final additionalCommitments = _createCommitmentsFromTaskIds(selectedTaskIds);
+      final additionalCommitments = _createCommitmentsFromTaskIds(
+        selectedTaskIds,
+      );
       weeklyPlan = weeklyPlan.copyWith(
         weeklyCommitments: [
           ...weeklyPlan.weeklyCommitments,
@@ -365,30 +386,48 @@ class SettingsNotifier extends StateNotifier<AppSettings> {
     // Simplified mapping - in production, this would look up from a catalog
     if (taskId.startsWith('dev_')) {
       switch (taskId) {
-        case 'dev_1': return 'Read one book about your specific talent';
-        case 'dev_2': return 'Find a mentor in your area of calling';
-        case 'dev_3': return 'Start a journal tracking your growth';
-        case 'dev_4': return 'Take a course related to your archetype';
-        case 'dev_5': return 'Find an accountability partner';
-        default: return 'Development task';
+        case 'dev_1':
+          return 'Read one book about your specific talent';
+        case 'dev_2':
+          return 'Find a mentor in your area of calling';
+        case 'dev_3':
+          return 'Start a journal tracking your growth';
+        case 'dev_4':
+          return 'Take a course related to your archetype';
+        case 'dev_5':
+          return 'Find an accountability partner';
+        default:
+          return 'Development task';
       }
     } else if (taskId.startsWith('eng_')) {
       switch (taskId) {
-        case 'eng_1': return 'Volunteer in your local church';
-        case 'eng_2': return 'Start a small group or initiative';
-        case 'eng_3': return 'Offer your skills to a non-profit';
-        case 'eng_4': return 'Mentor someone younger in faith';
-        case 'eng_5': return 'Take on a new responsibility at work';
-        default: return 'Engagement task';
+        case 'eng_1':
+          return 'Volunteer in your local church';
+        case 'eng_2':
+          return 'Start a small group or initiative';
+        case 'eng_3':
+          return 'Offer your skills to a non-profit';
+        case 'eng_4':
+          return 'Mentor someone younger in faith';
+        case 'eng_5':
+          return 'Take on a new responsibility at work';
+        default:
+          return 'Engagement task';
       }
     } else if (taskId.startsWith('rec_')) {
       switch (taskId) {
-        case 'rec_1': return 'Set boundaries around your time';
-        case 'rec_2': return 'Take a sabbatical or retreat';
-        case 'rec_3': return 'Evaluate your current commitments';
-        case 'rec_4': return 'Reconnect with your core motivation';
-        case 'rec_5': return 'Simplify your commitments';
-        default: return 'Recalibration task';
+        case 'rec_1':
+          return 'Set boundaries around your time';
+        case 'rec_2':
+          return 'Take a sabbatical or retreat';
+        case 'rec_3':
+          return 'Evaluate your current commitments';
+        case 'rec_4':
+          return 'Reconnect with your core motivation';
+        case 'rec_5':
+          return 'Simplify your commitments';
+        default:
+          return 'Recalibration task';
       }
     }
     return 'Assessment task';
@@ -451,7 +490,9 @@ class SettingsNotifier extends StateNotifier<AppSettings> {
       longestStreakCount: nextLongestStreak,
       lastCheckIn: normalized,
       lastIntegrityScore: integrityScore ?? state.lastIntegrityScore,
-      lastIntegrityDate: integrityScore != null ? normalized : state.lastIntegrityDate,
+      lastIntegrityDate: integrityScore != null
+          ? normalized
+          : state.lastIntegrityDate,
     );
 
     // -----------------------------------------------------------------------
@@ -486,24 +527,18 @@ class SettingsNotifier extends StateNotifier<AppSettings> {
 
     state = next;
     await _storage.save(next);
-    
+
     // Award XP for daily check-in
     await XPService.instance.addXP(
       type: XPActivityType.dailyCheckIn,
       description: 'Daily check-in completed',
-      metadata: {
-        'date': normalized.toIso8601String(),
-        'streak': streak,
-      },
+      metadata: {'date': normalized.toIso8601String(), 'streak': streak},
     );
     _analytics.track(
       AppAnalyticsEvent.dailyCheckInCompleted,
-      properties: {
-        'date': normalized,
-        'streak': streak,
-      },
+      properties: {'date': normalized, 'streak': streak},
     );
-    
+
     // Reschedule notifications to cancel the 4pm reminder since they've checked in
     _syncNotifications(next);
   }
@@ -578,6 +613,51 @@ class SettingsNotifier extends StateNotifier<AppSettings> {
     await _storage.save(next);
   }
 
+  Future<void> setPendingCompassSubmission(Map<String, dynamic> payload) async {
+    final next = state.copyWith(pendingCompassSubmission: payload);
+    state = next;
+    await _storage.save(next);
+  }
+
+  Future<void> clearPendingCompassSubmission() async {
+    if (state.pendingCompassSubmission == null) return;
+    final next = state.copyWith(clearPendingCompassSubmission: true);
+    state = next;
+    await _storage.save(next);
+  }
+
+  Future<void> setFirstCheckInPlan({
+    required int commitmentId,
+    String? when,
+    String? obstacle,
+  }) async {
+    final normalizedWhen = when?.trim();
+    final normalizedObstacle = obstacle?.trim();
+    final next = state.copyWith(
+      firstCheckInPlanCommitmentId: commitmentId,
+      firstCheckInPlanWhen: normalizedWhen == null || normalizedWhen.isEmpty
+          ? ''
+          : normalizedWhen,
+      firstCheckInPlanObstacle:
+          normalizedObstacle == null || normalizedObstacle.isEmpty
+          ? ''
+          : normalizedObstacle,
+    );
+    state = next;
+    await _storage.save(next);
+  }
+
+  Future<void> clearFirstCheckInPlan() async {
+    if (state.firstCheckInPlanCommitmentId == null &&
+        state.firstCheckInPlanWhen == null &&
+        state.firstCheckInPlanObstacle == null) {
+      return;
+    }
+    final next = state.copyWith(clearFirstCheckInPlan: true);
+    state = next;
+    await _storage.save(next);
+  }
+
   Future<void> markAssessmentPromptSeen() async {
     final next = state.copyWith(hasSeenAssessmentPrompt: true);
     state = next;
@@ -611,10 +691,7 @@ class SettingsNotifier extends StateNotifier<AppSettings> {
   Future<void> setPersonalDistractions(List<String> distractions) async {
     final profile = state.callingProfile;
     if (profile == null || distractions.isEmpty) return;
-    final merged = {
-      ...profile.personalDistractions,
-      ...distractions,
-    }.toList();
+    final merged = {...profile.personalDistractions, ...distractions}.toList();
     final next = state.copyWith(
       callingProfile: profile.copyWith(personalDistractions: merged),
     );
@@ -714,8 +791,10 @@ class SettingsNotifier extends StateNotifier<AppSettings> {
     final next = state.copyWith(
       morningTime: morningTime ?? state.morningTime,
       eveningTime: eveningTime ?? state.eveningTime,
-      morningReminderEnabled: morningReminderEnabled ?? state.morningReminderEnabled,
-      eveningReminderEnabled: eveningReminderEnabled ?? state.eveningReminderEnabled,
+      morningReminderEnabled:
+          morningReminderEnabled ?? state.morningReminderEnabled,
+      eveningReminderEnabled:
+          eveningReminderEnabled ?? state.eveningReminderEnabled,
     );
     state = next;
     await _storage.save(next);
@@ -724,7 +803,7 @@ class SettingsNotifier extends StateNotifier<AppSettings> {
 
   Future<void> _syncNotifications(AppSettings settings) async {
     final notificationService = NotificationService();
-    
+
     // Check permissions before scheduling
     await notificationService.requestPermissions();
     // For now, we just continue with scheduling since permissions are handled differently
@@ -740,28 +819,37 @@ class SettingsNotifier extends StateNotifier<AppSettings> {
     await _scheduleCheckInReminder(settings, notificationService);
   }
 
-  Future<void> _scheduleCheckInReminder(AppSettings settings, NotificationService notificationService) async {
+  Future<void> _scheduleCheckInReminder(
+    AppSettings settings,
+    NotificationService notificationService,
+  ) async {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
-    
+
     // Check if user has already checked in today
-    final hasCheckedInToday = settings.lastCheckIn != null && 
-        DateTime(settings.lastCheckIn!.year, settings.lastCheckIn!.month, settings.lastCheckIn!.day) == today;
-    
+    final hasCheckedInToday =
+        settings.lastCheckIn != null &&
+        DateTime(
+              settings.lastCheckIn!.year,
+              settings.lastCheckIn!.month,
+              settings.lastCheckIn!.day,
+            ) ==
+            today;
+
     if (hasCheckedInToday) {
       // Cancel the 4pm reminder if they've already checked in
       await notificationService.cancelNotification(3);
       return;
     }
-    
+
     // Schedule 4pm reminder for today or next valid day
     DateTime fourPm = DateTime(now.year, now.month, now.day, 16, 0, 0);
-    
+
     // If 4pm has already passed today, schedule for tomorrow
     if (!now.isBefore(fourPm)) {
       fourPm = fourPm.add(const Duration(days: 1));
     }
-    
+
     await notificationService.scheduleNotificationWithActions(
       id: 3, // Check-in reminder ID
       title: 'Daily Commitment',
@@ -802,7 +890,9 @@ class SettingsNotifier extends StateNotifier<AppSettings> {
     await _storage.save(next);
   }
 
-  Future<void> setEvangelismConversations(List<EvangelismConversation> conversations) async {
+  Future<void> setEvangelismConversations(
+    List<EvangelismConversation> conversations,
+  ) async {
     final next = state.copyWith(evangelismConversations: conversations);
     state = next;
     await _storage.save(next);

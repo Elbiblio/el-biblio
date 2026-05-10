@@ -954,7 +954,7 @@ class _PostOnboardingFlowScreenState
                 _summaryRow(
                   theme,
                   icon: Icons.route_outlined,
-                  label: 'Path',
+                  label: 'Commit',
                   value:
                       '${category.icon} ${category.label} — ${category.tagline}',
                 ),

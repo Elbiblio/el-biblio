@@ -70,9 +70,14 @@ class _GrowHubScreenState extends ConsumerState<GrowHubScreen> {
               delegate: SliverChildListDelegate([
                 // Growth Summary Card
                 _GrowthSummaryCard(
-                  archetype: profile?.archetypeName ?? settings.callingProfile?.archetypeIdentity ?? 'Discoverer',
+                  archetype:
+                      profile?.archetypeName ??
+                      settings.callingProfile?.archetypeIdentity ??
+                      'Discoverer',
                   streakDays: settings.streakCount,
-                  completedActions: settings.missionActions.where((a) => a.isCompleted).length,
+                  completedActions: settings.missionActions
+                      .where((a) => a.isCompleted)
+                      .length,
                   onTap: () => context.push('/alignment/profile'),
                 ),
 
@@ -234,8 +239,8 @@ class _GrowHubScreenState extends ConsumerState<GrowHubScreen> {
                 _GrowHubCard(
                   icon: Icons.person_add_rounded,
                   iconColor: colorScheme.tertiary,
-                  title: 'Invite Friends',
-                  subtitle: 'Share El-Biblio with others.',
+                  title: 'Invite someone',
+                  subtitle: 'Share ElBiblio with someone who wants to grow.',
                   onTap: () => context.push(AppRoutes.invite),
                 ),
 
@@ -246,7 +251,8 @@ class _GrowHubScreenState extends ConsumerState<GrowHubScreen> {
                     icon: LucideIcons.briefcase,
                     iconColor: colorScheme.outline,
                     title: 'Career & Calling',
-                    subtitle: 'See how your identity shapes your professional life.',
+                    subtitle:
+                        'See how your identity shapes your professional life.',
                     onTap: () => context.push('/alignment/career'),
                   ),
                 ],
@@ -328,7 +334,9 @@ class _GrowthSummaryCard extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: colorScheme.onPrimaryContainer.withValues(alpha: 0.1),
+                    color: colorScheme.onPrimaryContainer.withValues(
+                      alpha: 0.1,
+                    ),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Icon(
@@ -352,7 +360,9 @@ class _GrowthSummaryCard extends StatelessWidget {
                       Text(
                         archetype,
                         style: theme.textTheme.bodySmall?.copyWith(
-                          color: colorScheme.onPrimaryContainer.withValues(alpha: 0.8),
+                          color: colorScheme.onPrimaryContainer.withValues(
+                            alpha: 0.8,
+                          ),
                         ),
                       ),
                     ],
@@ -475,11 +485,7 @@ class _GrowHubCard extends StatelessWidget {
                   color: iconColor.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Icon(
-                  icon,
-                  color: iconColor,
-                  size: 24,
-                ),
+                child: Icon(icon, color: iconColor, size: 24),
               ),
               const SizedBox(width: 16),
               Expanded(

@@ -85,7 +85,7 @@ class MvpNotifier extends StateNotifier<MvpState> {
         commitmentId: challenge.id,
         nudgeCount: nudges,
       );
-      await _notificationService.scheduleMvpCommitmentNudges(
+      await _notificationService.scheduleCommitmentNudges(
         commitmentId: membership.challenge.id,
         commitmentTitle: membership.challenge.title,
         dailyAction: membership.challenge.dailyAction,

@@ -8,7 +8,22 @@ import '../../../core/di/app_providers.dart';
 import '../domain/models/social_models.dart';
 
 class InviteScreen extends ConsumerStatefulWidget {
-  const InviteScreen({super.key});
+  const InviteScreen({
+    super.key,
+    this.source,
+    this.tribeId,
+    this.hangoutId,
+    this.commitmentId,
+    this.scopeType,
+    this.scopeId,
+  });
+
+  final String? source;
+  final int? tribeId;
+  final int? hangoutId;
+  final int? commitmentId;
+  final String? scopeType;
+  final int? scopeId;
 
   @override
   ConsumerState<InviteScreen> createState() => _InviteScreenState();
@@ -21,13 +36,34 @@ class _InviteScreenState extends ConsumerState<InviteScreen> {
   final Set<String> _selectedContactIds = {};
   bool _isInviting = false;
 
+  String get _contextLabel {
+    return switch (widget.source) {
+      'hangout' => 'this tribe hangout',
+      'tribe' => 'your tribe',
+      'commitment' => 'your commitment',
+      _ => 'ElBiblio',
+    };
+  }
+
+  String get _inviteMessage {
+    return switch (widget.source) {
+      'hangout' =>
+        'I am in a tribe hangout on ElBiblio. Join when you want prayer, encouragement, or a small honest room.',
+      'tribe' => 'I am growing with a tribe on ElBiblio and thought of you.',
+      'commitment' =>
+        'I am keeping a commitment on ElBiblio and would value your support.',
+      _ => 'I thought ElBiblio might help your spiritual growth.',
+    };
+  }
+
+  int get _inviteCount =>
+      _selectedContactIds.length +
+      (_emailController.text.trim().isNotEmpty ? 1 : 0) +
+      (_phoneController.text.trim().isNotEmpty ? 1 : 0);
+
   @override
   void initState() {
     super.initState();
-    // Load contacts when screen opens
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(contactProvider.notifier).importContacts();
-    });
   }
 
   @override
@@ -40,33 +76,50 @@ class _InviteScreenState extends ConsumerState<InviteScreen> {
 
   List<Contact> _getFilteredContacts(List<Contact> contacts) {
     final query = _searchController.text.toLowerCase();
-    
+
     // Filter contacts that have email or phone
-    final contactsWithContactInfo = contacts.where((contact) => 
-      contact.email != null || contact.phoneNumber != null
-    ).toList();
-    
+    final contactsWithContactInfo = contacts
+        .where(
+          (contact) =>
+              contact.deviceId != null &&
+              (contact.email != null || contact.phoneNumber != null),
+        )
+        .toList();
+
     // Apply search filter
     if (query.isEmpty) {
       return contactsWithContactInfo;
     }
-    
-    return contactsWithContactInfo.where((contact) =>
-      contact.displayName.toLowerCase().contains(query) ||
-      (contact.email?.toLowerCase().contains(query) ?? false) ||
-      (contact.phoneNumber?.contains(query) ?? false)
-    ).toList();
+
+    return contactsWithContactInfo
+        .where(
+          (contact) =>
+              contact.displayName.toLowerCase().contains(query) ||
+              (contact.email?.toLowerCase().contains(query) ?? false) ||
+              (contact.phoneNumber?.contains(query) ?? false),
+        )
+        .toList();
   }
 
   Future<void> _sendInvitations() async {
+    final manualEmail = _emailController.text.trim();
+    final manualPhone = _phoneController.text.trim();
     final contactState = ref.read(contactProvider);
-    final selectedContacts = contactState.deviceContacts.where((contact) =>
-      _selectedContactIds.contains(contact.deviceId)
-    ).toList();
+    final selectedContacts = contactState.deviceContacts
+        .where(
+          (contact) =>
+              contact.deviceId != null &&
+              _selectedContactIds.contains(contact.deviceId),
+        )
+        .toList();
 
-    if (selectedContacts.isEmpty && _emailController.text.isEmpty && _phoneController.text.isEmpty) {
+    if (selectedContacts.isEmpty &&
+        manualEmail.isEmpty &&
+        manualPhone.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please select contacts or enter email/phone')),
+        const SnackBar(
+          content: Text('Please select contacts or enter email/phone'),
+        ),
       );
       return;
     }
@@ -82,7 +135,18 @@ class _InviteScreenState extends ConsumerState<InviteScreen> {
       // Invite selected contacts
       for (final contact in selectedContacts) {
         try {
-          await ref.read(contactProvider.notifier).invite(contact);
+          await ref
+              .read(contactProvider.notifier)
+              .invite(
+                contact,
+                message: _inviteMessage,
+                contextType: widget.source,
+                tribeId: widget.tribeId,
+                hangoutId: widget.hangoutId,
+                commitmentId: widget.commitmentId,
+                scopeType: widget.scopeType,
+                scopeId: widget.scopeId,
+              );
           successCount++;
         } catch (_) {
           failureCount++;
@@ -90,27 +154,49 @@ class _InviteScreenState extends ConsumerState<InviteScreen> {
       }
 
       // Invite manual entries
-      if (_emailController.text.isNotEmpty) {
+      if (manualEmail.isNotEmpty) {
         try {
           final emailContact = Contact(
             displayName: 'Manual Email',
-            email: _emailController.text.trim(),
+            email: manualEmail,
             isAnonymous: false,
           );
-          await ref.read(contactProvider.notifier).invite(emailContact);
+          await ref
+              .read(contactProvider.notifier)
+              .invite(
+                emailContact,
+                message: _inviteMessage,
+                contextType: widget.source,
+                tribeId: widget.tribeId,
+                hangoutId: widget.hangoutId,
+                commitmentId: widget.commitmentId,
+                scopeType: widget.scopeType,
+                scopeId: widget.scopeId,
+              );
           successCount++;
         } catch (_) {
           failureCount++;
         }
       }
-      if (_phoneController.text.isNotEmpty) {
+      if (manualPhone.isNotEmpty) {
         try {
           final phoneContact = Contact(
             displayName: 'Manual Phone',
-            phoneNumber: _phoneController.text.trim(),
+            phoneNumber: manualPhone,
             isAnonymous: false,
           );
-          await ref.read(contactProvider.notifier).invite(phoneContact);
+          await ref
+              .read(contactProvider.notifier)
+              .invite(
+                phoneContact,
+                message: _inviteMessage,
+                contextType: widget.source,
+                tribeId: widget.tribeId,
+                hangoutId: widget.hangoutId,
+                commitmentId: widget.commitmentId,
+                scopeType: widget.scopeType,
+                scopeId: widget.scopeId,
+              );
           successCount++;
         } catch (_) {
           failureCount++;
@@ -128,7 +214,7 @@ class _InviteScreenState extends ConsumerState<InviteScreen> {
             ),
           ),
         );
-        
+
         // Clear selections
         setState(() {
           _selectedContactIds.clear();
@@ -139,7 +225,9 @@ class _InviteScreenState extends ConsumerState<InviteScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to send invitations: ${e.toString()}')),
+          SnackBar(
+            content: Text('Failed to send invitations: ${e.toString()}'),
+          ),
         );
       }
     } finally {
@@ -155,19 +243,22 @@ class _InviteScreenState extends ConsumerState<InviteScreen> {
   Widget build(BuildContext context) {
     final contactState = ref.watch(contactProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    
+
     final filteredContacts = _getFilteredContacts(contactState.deviceContacts);
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Invite Friends'),
+        title: const Text('Invite someone'),
         backgroundColor: isDark ? const Color(0xFF101822) : Colors.white,
         foregroundColor: isDark ? Colors.white : Colors.black,
         elevation: 0,
       ),
-      backgroundColor: isDark ? const Color(0xFF0F1419) : const Color(0xFFF8F9FA),
+      backgroundColor: isDark
+          ? const Color(0xFF0F1419)
+          : const Color(0xFFF8F9FA),
       body: Column(
         children: [
+          _InviteContextBanner(label: _contextLabel, message: _inviteMessage),
           // Search Bar
           Padding(
             padding: const EdgeInsets.all(16.0),
@@ -185,7 +276,7 @@ class _InviteScreenState extends ConsumerState<InviteScreen> {
               onChanged: (value) => setState(() {}),
             ),
           ),
-          
+
           // Contacts List or Loading
           Expanded(
             child: contactState.isImporting
@@ -206,25 +297,37 @@ class _InviteScreenState extends ConsumerState<InviteScreen> {
                                 ),
                                 const SizedBox(width: 6),
                                 Text(
-                                  'Friends on El-Biblio',
-                                  style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                                    fontWeight: FontWeight.w700,
-                                    color: Theme.of(context).colorScheme.primary,
-                                  ),
+                                  'People already on ElBiblio',
+                                  style: Theme.of(context).textTheme.labelLarge
+                                      ?.copyWith(
+                                        fontWeight: FontWeight.w700,
+                                        color: Theme.of(
+                                          context,
+                                        ).colorScheme.primary,
+                                      ),
                                 ),
                                 const SizedBox(width: 6),
                                 Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 2,
+                                  ),
                                   decoration: BoxDecoration(
-                                    color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.12),
+                                    color: Theme.of(context).colorScheme.primary
+                                        .withValues(alpha: 0.12),
                                     borderRadius: BorderRadius.circular(10),
                                   ),
                                   child: Text(
                                     '${contactState.potentialContacts.length}',
-                                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                                      color: Theme.of(context).colorScheme.primary,
-                                      fontWeight: FontWeight.w700,
-                                    ),
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .labelSmall
+                                        ?.copyWith(
+                                          color: Theme.of(
+                                            context,
+                                          ).colorScheme.primary,
+                                          fontWeight: FontWeight.w700,
+                                        ),
                                   ),
                                 ),
                               ],
@@ -232,32 +335,43 @@ class _InviteScreenState extends ConsumerState<InviteScreen> {
                           ),
                         ),
                         SliverList(
-                          delegate: SliverChildBuilderDelegate(
-                            (context, index) {
-                              final contact = contactState.potentialContacts[index];
-                              return _PotentialContactTile(
-                                contact: contact,
-                                onConnect: () => ref.read(contactProvider.notifier).connect(contact),
-                                onAddAsPartner: () {
-                                  ref.read(missionProvider.notifier).savePartnerEnhanced(
-                                    name: contact.displayName,
-                                    relationship: 'Accountability Partner',
-                                    contact: contact.email ?? contact.phoneNumber ?? '',
-                                  );
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text('${contact.displayName} added as your accountability partner!'),
-                                      action: SnackBarAction(
-                                        label: 'View',
-                                        onPressed: () => context.push(AppRoutes.growTogether),
-                                      ),
+                          delegate: SliverChildBuilderDelegate((
+                            context,
+                            index,
+                          ) {
+                            final contact =
+                                contactState.potentialContacts[index];
+                            return _PotentialContactTile(
+                              contact: contact,
+                              onConnect: () => ref
+                                  .read(contactProvider.notifier)
+                                  .connect(contact),
+                              onAddAsPartner: () {
+                                ref
+                                    .read(missionProvider.notifier)
+                                    .savePartnerEnhanced(
+                                      name: contact.displayName,
+                                      relationship: 'Accountability Partner',
+                                      contact:
+                                          contact.email ??
+                                          contact.phoneNumber ??
+                                          '',
+                                    );
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                      '${contact.displayName} added as your accountability partner!',
                                     ),
-                                  );
-                                },
-                              );
-                            },
-                            childCount: contactState.potentialContacts.length,
-                          ),
+                                    action: SnackBarAction(
+                                      label: 'View',
+                                      onPressed: () =>
+                                          context.push(AppRoutes.growTogether),
+                                    ),
+                                  ),
+                                );
+                              },
+                            );
+                          }, childCount: contactState.potentialContacts.length),
                         ),
                         SliverToBoxAdapter(
                           child: Padding(
@@ -267,15 +381,20 @@ class _InviteScreenState extends ConsumerState<InviteScreen> {
                                 Icon(
                                   Icons.person_add_alt_1_rounded,
                                   size: 16,
-                                  color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+                                  color: Theme.of(context).colorScheme.onSurface
+                                      .withValues(alpha: 0.6),
                                 ),
                                 const SizedBox(width: 6),
                                 Text(
-                                  'Invite Others',
-                                  style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                                    fontWeight: FontWeight.w700,
-                                    color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
-                                  ),
+                                  'Invite someone new',
+                                  style: Theme.of(context).textTheme.labelLarge
+                                      ?.copyWith(
+                                        fontWeight: FontWeight.w700,
+                                        color: Theme.of(context)
+                                            .colorScheme
+                                            .onSurface
+                                            .withValues(alpha: 0.6),
+                                      ),
                                 ),
                               ],
                             ),
@@ -284,9 +403,7 @@ class _InviteScreenState extends ConsumerState<InviteScreen> {
                       ],
                       // ── Device contacts to invite ──────────────────────────
                       if (contactState.deviceContacts.isEmpty)
-                        SliverFillRemaining(
-                          child: _buildEmptyState(context),
-                        )
+                        SliverFillRemaining(child: _buildEmptyState(context))
                       else if (filteredContacts.isEmpty)
                         SliverFillRemaining(
                           child: _buildNoSearchResults(context),
@@ -295,51 +412,55 @@ class _InviteScreenState extends ConsumerState<InviteScreen> {
                         SliverPadding(
                           padding: const EdgeInsets.symmetric(horizontal: 16.0),
                           sliver: SliverList(
-                            delegate: SliverChildBuilderDelegate(
-                              (context, index) {
-                                final contact = filteredContacts[index];
-                                final isSelected = _selectedContactIds.contains(contact.deviceId);
-                                return Padding(
-                                  padding: const EdgeInsets.only(bottom: 8),
-                                  child: ContactTile(
-                                    contact: contact,
-                                    isSelected: isSelected,
-                                    onTap: () {
-                                      setState(() {
-                                        if (isSelected) {
-                                          _selectedContactIds.remove(contact.deviceId!);
-                                        } else {
-                                          _selectedContactIds.add(contact.deviceId!);
-                                        }
-                                      });
-                                    },
-                                  ),
-                                );
-                              },
-                              childCount: filteredContacts.length,
-                            ),
+                            delegate: SliverChildBuilderDelegate((
+                              context,
+                              index,
+                            ) {
+                              final contact = filteredContacts[index];
+                              final isSelected = _selectedContactIds.contains(
+                                contact.deviceId,
+                              );
+                              return Padding(
+                                padding: const EdgeInsets.only(bottom: 8),
+                                child: ContactTile(
+                                  contact: contact,
+                                  isSelected: isSelected,
+                                  onTap: () {
+                                    setState(() {
+                                      if (isSelected) {
+                                        _selectedContactIds.remove(
+                                          contact.deviceId!,
+                                        );
+                                      } else {
+                                        _selectedContactIds.add(
+                                          contact.deviceId!,
+                                        );
+                                      }
+                                    });
+                                  },
+                                ),
+                              );
+                            }, childCount: filteredContacts.length),
                           ),
                         ),
                     ],
                   ),
           ),
-          
+
           // Manual Invite Section
           Container(
             padding: const EdgeInsets.all(16.0),
             decoration: BoxDecoration(
               color: isDark ? const Color(0xFF1A1F2E) : Colors.white,
               border: Border(
-                top: BorderSide(
-                  color: Colors.grey.withValues(alpha: 0.2),
-                ),
+                top: BorderSide(color: Colors.grey.withValues(alpha: 0.2)),
               ),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Invite manually',
+                  'Invite by email or phone',
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.w600,
                   ),
@@ -351,14 +472,20 @@ class _InviteScreenState extends ConsumerState<InviteScreen> {
                       child: TextField(
                         controller: _emailController,
                         keyboardType: TextInputType.emailAddress,
+                        onChanged: (_) => setState(() {}),
                         decoration: InputDecoration(
                           hintText: 'Email',
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(8),
                           ),
                           filled: true,
-                          fillColor: isDark ? const Color(0xFF0F1419) : Colors.grey.shade100,
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          fillColor: isDark
+                              ? const Color(0xFF0F1419)
+                              : Colors.grey.shade100,
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 8,
+                          ),
                         ),
                       ),
                     ),
@@ -367,14 +494,20 @@ class _InviteScreenState extends ConsumerState<InviteScreen> {
                       child: TextField(
                         controller: _phoneController,
                         keyboardType: TextInputType.phone,
+                        onChanged: (_) => setState(() {}),
                         decoration: InputDecoration(
                           hintText: 'Phone',
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(8),
                           ),
                           filled: true,
-                          fillColor: isDark ? const Color(0xFF0F1419) : Colors.grey.shade100,
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          fillColor: isDark
+                              ? const Color(0xFF0F1419)
+                              : Colors.grey.shade100,
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 8,
+                          ),
                         ),
                       ),
                     ),
@@ -383,7 +516,7 @@ class _InviteScreenState extends ConsumerState<InviteScreen> {
               ],
             ),
           ),
-          
+
           // Send Button
           Container(
             padding: const EdgeInsets.all(16.0),
@@ -408,7 +541,9 @@ class _InviteScreenState extends ConsumerState<InviteScreen> {
                             height: 20,
                             child: CircularProgressIndicator(
                               strokeWidth: 2,
-                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                Colors.white,
+                              ),
                             ),
                           ),
                           SizedBox(width: 12),
@@ -416,8 +551,11 @@ class _InviteScreenState extends ConsumerState<InviteScreen> {
                         ],
                       )
                     : Text(
-                        'Send Invitations (${_selectedContactIds.length + (_emailController.text.isNotEmpty || _phoneController.text.isNotEmpty ? 1 : 0)})',
-                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                        'Send invites ($_inviteCount)',
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
               ),
             ),
@@ -441,23 +579,24 @@ class _InviteScreenState extends ConsumerState<InviteScreen> {
             ),
             const SizedBox(height: 16),
             Text(
-              'No contacts found',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                color: Colors.grey.shade600,
-              ),
+              'Invite someone into your circle',
+              style: Theme.of(
+                context,
+              ).textTheme.titleLarge?.copyWith(color: Colors.grey.shade600),
             ),
             const SizedBox(height: 8),
             Text(
-              'Make sure contacts have email or phone numbers',
+              'Import contacts only if you want to choose from your address book. You can also invite by email or phone below.',
               textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: Colors.grey.shade500,
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(color: Colors.grey.shade500),
             ),
             const SizedBox(height: 24),
             ElevatedButton(
-              onPressed: () => ref.read(contactProvider.notifier).importContacts(),
-              child: const Text('Import Contacts'),
+              onPressed: () =>
+                  ref.read(contactProvider.notifier).importContacts(),
+              child: const Text('Import contacts'),
             ),
           ],
         ),
@@ -476,20 +615,57 @@ class _InviteScreenState extends ConsumerState<InviteScreen> {
             const SizedBox(height: 16),
             Text(
               'No contacts found',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                color: Colors.grey.shade600,
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.titleLarge?.copyWith(color: Colors.grey.shade600),
             ),
             const SizedBox(height: 8),
             Text(
               'Try a different name, email, or phone number.',
               textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: Colors.grey.shade500,
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(color: Colors.grey.shade500),
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _InviteContextBanner extends StatelessWidget {
+  const _InviteContextBanner({required this.label, required this.message});
+
+  final String label;
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.primaryContainer.withValues(alpha: 0.22),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: theme.colorScheme.primary.withValues(alpha: 0.12),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Invite into $label',
+            style: theme.textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(message, style: theme.textTheme.bodySmall),
+        ],
       ),
     );
   }
@@ -532,7 +708,9 @@ class _PotentialContactTile extends StatelessWidget {
                 ? ClipOval(
                     child: Image.memory(
                       Uint8List.fromList(contact.avatar!),
-                      width: 44, height: 44, fit: BoxFit.cover,
+                      width: 44,
+                      height: 44,
+                      fit: BoxFit.cover,
                     ),
                   )
                 : Text(
@@ -583,7 +761,10 @@ class _PotentialContactTile extends StatelessWidget {
               FilledButton(
                 onPressed: onConnect,
                 style: FilledButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
                   minimumSize: Size.zero,
                   tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 ),
@@ -593,7 +774,10 @@ class _PotentialContactTile extends StatelessWidget {
               TextButton(
                 onPressed: onAddAsPartner,
                 style: TextButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 2,
+                  ),
                   minimumSize: Size.zero,
                   tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 ),
@@ -629,21 +813,21 @@ class ContactTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    
+
     return Container(
       margin: const EdgeInsets.only(bottom: 8.0),
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF1A1F2E) : Colors.white,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: isSelected 
+          color: isSelected
               ? Theme.of(context).colorScheme.primary
               : Colors.grey.withValues(alpha: 0.2),
         ),
       ),
       child: ListTile(
         leading: CircleAvatar(
-          backgroundColor: isSelected 
+          backgroundColor: isSelected
               ? Theme.of(context).colorScheme.primary
               : Theme.of(context).colorScheme.primaryContainer,
           child: contact.avatar != null
@@ -656,11 +840,11 @@ class ContactTile extends StatelessWidget {
                   ),
                 )
               : Text(
-                  contact.displayName.isNotEmpty 
+                  contact.displayName.isNotEmpty
                       ? contact.displayName[0].toUpperCase()
                       : '?',
                   style: TextStyle(
-                    color: isSelected 
+                    color: isSelected
                         ? Colors.white
                         : Theme.of(context).colorScheme.primary,
                     fontWeight: FontWeight.bold,
@@ -693,10 +877,7 @@ class ContactTile extends StatelessWidget {
                 Icons.check_circle,
                 color: Theme.of(context).colorScheme.primary,
               )
-            : Icon(
-                Icons.circle_outlined,
-                color: Colors.grey.shade400,
-              ),
+            : Icon(Icons.circle_outlined, color: Colors.grey.shade400),
         onTap: onTap,
       ),
     );

@@ -53,7 +53,7 @@ class _TheSolutionViewState extends State<TheSolutionView>
       _PillarData(
         icon: Icons.groups_outlined,
         title: 'Tribe belonging',
-        subtitle: 'Join a circle shaped by your growth path.',
+        subtitle: 'Join a circle shaped by your growth season.',
         color: palette.commitmentColor,
         interval: const Interval(0.35, 0.65, curve: Curves.easeOutCubic),
       ),
@@ -67,7 +67,8 @@ class _TheSolutionViewState extends State<TheSolutionView>
       _PillarData(
         icon: Icons.chat_bubble_outline,
         title: 'Shared reflection',
-        subtitle: 'Post one honest reflection with people on the same path.',
+        subtitle:
+            'Post one honest reflection with people keeping the same commitment.',
         color: palette.primary,
         interval: const Interval(0.55, 0.85, curve: Curves.easeOutCubic),
       ),
@@ -84,27 +85,14 @@ class _TheSolutionViewState extends State<TheSolutionView>
             opacity: _headerFade,
             child: Column(
               children: [
-                Container(
-                  width: 64,
-                  height: 64,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: theme.colorScheme.primary.withValues(alpha: 0.1),
-                  ),
-                  child: Icon(
-                    Icons.light_mode_outlined,
-                    size: 32,
-                    color: theme.colorScheme.primary,
-                  ),
-                ),
-                const SizedBox(height: 24),
                 LightRaysReveal(
                   delay: const Duration(milliseconds: 200),
                   maxOpacity: 0.42,
+                  rotate: false,
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 24),
                     child: Text(
-                      'There is a quieter\nway to grow.',
+                      'A quieter rhythm\nfor real growth.',
                       textAlign: TextAlign.center,
                       style: textTheme.headlineMedium?.copyWith(
                         fontWeight: FontWeight.w700,
@@ -114,21 +102,14 @@ class _TheSolutionViewState extends State<TheSolutionView>
                   ),
                 ),
                 const SizedBox(height: 18),
-                LightRaysReveal(
-                  delay: const Duration(milliseconds: 900),
-                  maxOpacity: 0.3,
-                  rayCount: 8,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    child: Text(
-                      'Identity leads to belonging. Belonging supports commitment. Commitment creates reflection. Reflection deepens growth.',
-                      textAlign: TextAlign.center,
-                      style: textTheme.bodyLarge?.copyWith(
-                        color: theme.colorScheme.onSurface.withValues(
-                          alpha: 0.6,
-                        ),
-                        height: 1.5,
-                      ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: Text(
+                    'Identity leads to belonging. Belonging supports commitment. Commitment creates reflection. Reflection deepens growth.',
+                    textAlign: TextAlign.center,
+                    style: textTheme.bodyLarge?.copyWith(
+                      color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                      height: 1.5,
                     ),
                   ),
                 ),
@@ -169,7 +150,7 @@ class _TheSolutionViewState extends State<TheSolutionView>
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: pillar.color.withValues(alpha: 0.06),
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(8),
         border: Border.all(color: pillar.color.withValues(alpha: 0.15)),
       ),
       child: Row(
@@ -180,7 +161,7 @@ class _TheSolutionViewState extends State<TheSolutionView>
             height: 44,
             decoration: BoxDecoration(
               color: pillar.color.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(8),
             ),
             child: Icon(pillar.icon, color: pillar.color, size: 24),
           ),

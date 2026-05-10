@@ -56,6 +56,8 @@ class _GrowScreenState extends ConsumerState<GrowScreen> {
             ),
           ),
           const SizedBox(height: 18),
+          _SpiritualAgeStory(),
+          const SizedBox(height: 16),
           _JourneyTimeline(),
           const SizedBox(height: 16),
           const _DailyQuestion(),
@@ -69,7 +71,27 @@ class _GrowScreenState extends ConsumerState<GrowScreen> {
       return 'Walking with $tribe through $commitment.';
     }
     if (tribe != null) return 'Walking with $tribe.';
-    return 'Your story begins with belonging and one faithful path.';
+    return 'Your story begins with belonging and one faithful commitment.';
+  }
+}
+
+class _SpiritualAgeStory extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final settings = ref.watch(settingsProvider);
+    final theme = Theme.of(context);
+    final stage = settings.spiritualAgeStage;
+    final score = settings.spiritualAgeScore;
+
+    return VisionPanel(
+      icon: LucideIcons.sprout,
+      title: score > 0 ? 'Spiritual age: $stage' : 'Spiritual growth',
+      trailing: score > 0 ? Text('$score/100') : null,
+      child: Text(
+        'Faith grows like a seed in soil: planted by the Holy Spirit, rooted through hidden seasons, pruned through struggle, and made fruitful in due season. Physical strain, mental heaviness, addiction, money pressure, relationship wounds, and spiritual dryness can all become places where maturity is formed with God.',
+        style: theme.textTheme.bodyMedium?.copyWith(height: 1.48),
+      ),
+    );
   }
 }
 
@@ -81,7 +103,9 @@ class _JourneyTimeline extends ConsumerWidget {
       icon: Icons.route_rounded,
       title: 'Story so far',
       child: events.isEmpty
-          ? const Text('Join a tribe and commitment to begin your story.')
+          ? const Text(
+              'Your story will appear here after ElBiblio receives real journey events from your compass, tribe, commitment, check-ins, and reflections.',
+            )
           : Column(
               children: events.map((event) {
                 return Padding(

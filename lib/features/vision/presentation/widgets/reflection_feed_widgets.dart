@@ -11,11 +11,11 @@ class VisionReflectionComposer extends ConsumerWidget {
   const VisionReflectionComposer({
     super.key,
     required this.controller,
-    this.showReturnButton = true,
+    this.showCheckInButton = true,
   });
 
   final TextEditingController controller;
-  final bool showReturnButton;
+  final bool showCheckInButton;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -26,14 +26,14 @@ class VisionReflectionComposer extends ConsumerWidget {
     if (!active.checkedInToday) {
       return VisionPanel(
         icon: LucideIcons.checkCircle,
-        title: 'Return today first',
+        title: 'Check in today first',
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
               'You can read the feed now. Share after you complete today.',
             ),
-            if (showReturnButton) ...[
+            if (showCheckInButton) ...[
               const SizedBox(height: 12),
               FilledButton.icon(
                 onPressed: () async {
@@ -50,7 +50,7 @@ class VisionReflectionComposer extends ConsumerWidget {
                   );
                 },
                 icon: const Icon(LucideIcons.checkCircle, size: 18),
-                label: const Text('Mark today\'s return'),
+                label: const Text('Check in for today'),
               ),
             ],
           ],
@@ -204,9 +204,9 @@ class VisionReflectionCard extends ConsumerWidget {
             children: [
               InkWell(
                 borderRadius: BorderRadius.circular(999),
-                onTap: () => _showPublicProfile(context, item),
+                onTap: () => _showVisibleProfile(context, item),
                 child: Tooltip(
-                  message: 'View public profile',
+                  message: 'View visible profile',
                   child: CircleAvatar(
                     radius: 16,
                     child: Text(
@@ -239,11 +239,35 @@ class VisionReflectionCard extends ConsumerWidget {
                   style: theme.textTheme.labelMedium,
                 ),
               IconButton(
-                tooltip: 'Support',
-                icon: const Icon(LucideIcons.heartHandshake),
+                tooltip: item.supportedByMe ? 'Remove support' : 'Support',
+                color: item.supportedByMe ? theme.colorScheme.primary : null,
+                icon: Icon(
+                  item.supportedByMe
+                      ? Icons.favorite
+                      : LucideIcons.heartHandshake,
+                ),
                 onPressed: () => ref
                     .read(visionProvider.notifier)
                     .reactToReflection(item, 'support'),
+              ),
+              PopupMenuButton<String>(
+                tooltip: 'Reflection actions',
+                icon: const Icon(LucideIcons.moreHorizontal),
+                onSelected: (reason) => _reportReflection(context, ref, reason),
+                itemBuilder: (context) => const [
+                  PopupMenuItem(
+                    value: 'unsafe_or_crisis',
+                    child: Text('Report safety concern'),
+                  ),
+                  PopupMenuItem(
+                    value: 'shaming_or_harmful',
+                    child: Text('Report harmful response'),
+                  ),
+                  PopupMenuItem(
+                    value: 'spam_or_misuse',
+                    child: Text('Report spam or misuse'),
+                  ),
+                ],
               ),
             ],
           ),
@@ -257,17 +281,37 @@ class VisionReflectionCard extends ConsumerWidget {
     );
   }
 
-  void _showPublicProfile(BuildContext context, CommitmentReflection item) {
+  void _showVisibleProfile(BuildContext context, CommitmentReflection item) {
     showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
-      builder: (context) => _PublicProfileSheet(item: item),
+      builder: (context) => _VisibleProfileSheet(item: item),
+    );
+  }
+
+  Future<void> _reportReflection(
+    BuildContext context,
+    WidgetRef ref,
+    String reason,
+  ) async {
+    final reported = await ref
+        .read(visionProvider.notifier)
+        .reportReflection(item, reason);
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          reported
+              ? 'Thanks. We will review this reflection.'
+              : 'We could not send the report. Please try again.',
+        ),
+      ),
     );
   }
 }
 
-class _PublicProfileSheet extends StatelessWidget {
-  const _PublicProfileSheet({required this.item});
+class _VisibleProfileSheet extends StatelessWidget {
+  const _VisibleProfileSheet({required this.item});
 
   final CommitmentReflection item;
 
@@ -311,15 +355,6 @@ class _PublicProfileSheet extends StatelessWidget {
               _ProfileMetric(
                 icon: LucideIcons.users,
                 label: item.authorTribeDisplayName,
-              ),
-              _ProfileMetric(
-                icon: LucideIcons.trophy,
-                label:
-                    '${item.authorCompletedChallengesCount} commitments completed',
-              ),
-              _ProfileMetric(
-                icon: LucideIcons.flame,
-                label: '${item.authorCurrentStreakCount} day streak',
               ),
             ],
           ),

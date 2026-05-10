@@ -29,6 +29,7 @@ import '../../features/onboarding/presentation/onboarding_screen.dart';
 import '../../features/vision/presentation/screens/commit_screen.dart';
 import '../../features/vision/presentation/screens/grow_screen.dart';
 import '../../features/vision/presentation/screens/notifications_screen.dart';
+import '../../features/vision/presentation/screens/reflect_screen.dart';
 import '../../features/vision/presentation/screens/today_screen.dart';
 import '../../features/vision/presentation/screens/tribe_screen.dart';
 import '../../features/vision/presentation/screens/vision_onboarding_flow_screen.dart';
@@ -36,6 +37,7 @@ import '../../features/profile/presentation/about_screen.dart';
 import '../../features/profile/presentation/profile_screen.dart';
 import '../../features/profile/presentation/reminder_settings_screen.dart';
 import '../../features/social/presentation/grow_together_screen.dart';
+import '../../features/social/presentation/invite_acceptance_screen.dart';
 import '../../features/time_diagnose/presentation/screens/time_diagnose_start_screen.dart';
 import '../../features/time_diagnose/presentation/screens/time_diagnose_configure_screen.dart';
 import '../../features/time_diagnose/presentation/screens/time_diagnose_analysis_screen.dart';
@@ -220,7 +222,24 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/invite',
         parentNavigatorKey: _rootNavigatorKey,
-        builder: (context, state) => const InviteScreen(),
+        builder: (context, state) => InviteScreen(
+          source: state.uri.queryParameters['source'],
+          tribeId: int.tryParse(state.uri.queryParameters['tribe_id'] ?? ''),
+          hangoutId: int.tryParse(
+            state.uri.queryParameters['hangout_id'] ?? '',
+          ),
+          commitmentId: int.tryParse(
+            state.uri.queryParameters['commitment_id'] ?? '',
+          ),
+          scopeType: state.uri.queryParameters['scope_type'],
+          scopeId: int.tryParse(state.uri.queryParameters['scope_id'] ?? ''),
+        ),
+      ),
+      GoRoute(
+        path: '/invite/:token',
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) =>
+            InviteAcceptanceScreen(token: state.pathParameters['token'] ?? ''),
       ),
       GoRoute(
         path: AppRoutes.commitmentJourney,
@@ -403,7 +422,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           ),
           GoRoute(
             path: AppRoutes.reflect,
-            redirect: (context, state) => AppRoutes.commit,
+            pageBuilder: (context, state) =>
+                _fadePage(child: const ReflectScreen()),
           ),
           GoRoute(
             path: AppRoutes.commit,
@@ -573,9 +593,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       final loc = state.matchedLocation;
       final isOnboarding = loc == AppRoutes.onboarding;
       final isPostOnboarding = loc == AppRoutes.postOnboarding;
+      final isInvitePreview =
+          state.uri.pathSegments.length == 2 &&
+          state.uri.pathSegments.first == 'invite';
 
       if (auth.isInitialized && !auth.isAuthenticated) {
-        return isOnboarding ? null : AppRoutes.onboarding;
+        return isOnboarding || isInvitePreview ? null : AppRoutes.onboarding;
       }
 
       // Root redirect
@@ -589,12 +612,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 
       // Guard: must complete onboarding first
       if (!settings.onboardingCompleted) {
-        return isOnboarding ? null : AppRoutes.onboarding;
+        return isOnboarding || isInvitePreview ? null : AppRoutes.onboarding;
       }
 
       // Guard: must complete post-onboarding before accessing the app
       if (!settings.hasCompletedPostOnboarding) {
-        return isPostOnboarding ? null : AppRoutes.postOnboarding;
+        return isPostOnboarding || isInvitePreview
+            ? null
+            : AppRoutes.postOnboarding;
       }
 
       // Already completed — redirect away from onboarding screens

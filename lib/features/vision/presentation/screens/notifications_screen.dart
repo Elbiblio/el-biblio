@@ -70,7 +70,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  'Support, hangouts, and the moments that help you return together.',
+                  'Support, hangouts, and the moments that help you keep growing together.',
                   style: theme.textTheme.bodyMedium?.copyWith(
                     color: theme.colorScheme.onSurface.withValues(alpha: 0.62),
                     height: 1.45,
@@ -191,7 +191,7 @@ class _NotificationCard extends ConsumerWidget {
 
     final route = item.route;
     if (route != null && route.isNotEmpty) {
-      context.go(route == AppRoutes.reflect ? AppRoutes.commit : route);
+      context.go(route);
       return;
     }
 

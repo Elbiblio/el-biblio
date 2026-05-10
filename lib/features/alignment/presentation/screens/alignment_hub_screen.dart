@@ -69,8 +69,8 @@ class _AlignmentHubScreenState extends ConsumerState<AlignmentHubScreen> {
                 Text(
                   'CLARITY ALIGNMENT',
                   style: Theme.of(context).textTheme.sectionHeader.copyWith(
-                        color: tokens.palette.primary,
-                      ),
+                    color: tokens.palette.primary,
+                  ),
                 ),
                 const SizedBox(height: 4),
                 Text(
@@ -91,7 +91,7 @@ class _AlignmentHubScreenState extends ConsumerState<AlignmentHubScreen> {
                       : 'Discover Your Archetype',
                   subtitle: profile != null
                       ? profile.description
-                      : 'Take the spiritual identity assessment to discover your unique gifts and clarity path.',
+                      : 'Take the spiritual compass to discover your gifts and growth direction.',
                   onTap: () => context.push('/alignment/profile'),
                 ),
                 const SizedBox(height: 12),
@@ -137,7 +137,9 @@ class _AlignmentHubScreenState extends ConsumerState<AlignmentHubScreen> {
                             vertical: 4,
                           ),
                           decoration: BoxDecoration(
-                            color: const Color(0xFFFF6B35).withValues(alpha: 0.1),
+                            color: const Color(
+                              0xFFFF6B35,
+                            ).withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: Text(
@@ -178,8 +180,8 @@ class _AlignmentHubScreenState extends ConsumerState<AlignmentHubScreen> {
                 Text(
                   'QUICK ACTIONS',
                   style: Theme.of(context).textTheme.sectionHeader.copyWith(
-                        color: tokens.palette.textTertiary,
-                      ),
+                    color: tokens.palette.textTertiary,
+                  ),
                 ),
                 const SizedBox(height: 12),
                 Row(

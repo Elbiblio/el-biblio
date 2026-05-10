@@ -23,7 +23,7 @@ class ContactRepository extends BaseRepository {
   Future<void> init() async {
     try {
       final token = _dioClient.currentAuthToken;
-      
+
       // For guest users, use default salt and skip API call
       if (isGuestToken(token)) {
         _logger.w('Guest user detected, using default hash salt');
@@ -37,11 +37,12 @@ class ContactRepository extends BaseRepository {
       if (cachedSalt != null && cachedSalt.trim().isNotEmpty) {
         _hashSalt = cachedSalt;
       }
-      
+
       final response = await _dioClient.get('/public/mobile-config');
       final raw = response.data;
       final data = raw is Map<String, dynamic> ? raw['data'] : null;
-      if (data is Map<String, dynamic> && data['contacts'] is Map<String, dynamic>) {
+      if (data is Map<String, dynamic> &&
+          data['contacts'] is Map<String, dynamic>) {
         final remoteSalt = data['contacts']['hash_salt']?.toString();
         if (remoteSalt != null && remoteSalt.trim().isNotEmpty) {
           _hashSalt = remoteSalt;
@@ -73,7 +74,7 @@ class ContactRepository extends BaseRepository {
       if (c.phones.isNotEmpty) {
         phone = c.phones.first.normalizedNumber;
       }
-      
+
       String? email;
       if (c.emails.isNotEmpty) {
         email = c.emails.first.address;
@@ -105,7 +106,7 @@ class ContactRepository extends BaseRepository {
       _logger.w('Hash salt is missing, using default');
     }
     final salt = _hashSalt ?? 'salty_compass_os_default';
-    
+
     String normalized = value.toLowerCase().trim();
     if (isPhone) {
       // Remove all non-digit and non-plus characters
@@ -118,15 +119,17 @@ class ContactRepository extends BaseRepository {
   }
 
   // Find matches on the server
-  Future<List<Contact>> findPotentialContacts(List<Contact> deviceContacts) async {
+  Future<List<Contact>> findPotentialContacts(
+    List<Contact> deviceContacts,
+  ) async {
     final token = _dioClient.currentAuthToken;
-    
+
     // For guest users, return empty list since social features require real accounts
     if (isGuestToken(token)) {
       _logger.w('Guest user detected, social features not available');
       return [];
     }
-    
+
     final hashes = <String>[];
     final contactMap = <String, Contact>{};
 
@@ -158,35 +161,43 @@ class ContactRepository extends BaseRepository {
         throw Exception('Invalid server response while finding contacts');
       }
       if (payload['success'] != true) {
-        throw Exception(payload['message']?.toString() ?? 'Failed to find contacts');
+        throw Exception(
+          payload['message']?.toString() ?? 'Failed to find contacts',
+        );
       }
       final data = payload['data'];
-      final matches = data is Map<String, dynamic> ? data['potential_contacts'] : null;
+      final matches = data is Map<String, dynamic>
+          ? data['potential_contacts']
+          : null;
       if (matches is! List) {
         return [];
       }
-      
+
       return matches
           .whereType<Map>()
           .map((json) => Map<String, dynamic>.from(json))
           .where((match) => match['contact_hash'] != null)
           .map((match) {
-        final hash = match['contact_hash']?.toString();
-        final idRaw = match['id'];
-        final deviceContact = contactMap[hash];
-        
-        return Contact(
-          id: idRaw is int ? idRaw : int.tryParse(idRaw?.toString() ?? ''),
-          contactHash: hash,
-          displayName: deviceContact?.displayName ?? match['display_name'] ?? 'Unknown',
-          status: ContactStatus.pending,
-          // Merge other fields from device if available
-          deviceId: deviceContact?.deviceId,
-          phoneNumber: deviceContact?.phoneNumber,
-          email: deviceContact?.email,
-          avatar: deviceContact?.avatar,
-        );
-      }).toList();
+            final hash = match['contact_hash']?.toString();
+            final idRaw = match['id'];
+            final deviceContact = contactMap[hash];
+
+            return Contact(
+              id: idRaw is int ? idRaw : int.tryParse(idRaw?.toString() ?? ''),
+              contactHash: hash,
+              displayName:
+                  deviceContact?.displayName ??
+                  match['display_name'] ??
+                  'Unknown',
+              status: ContactStatus.pending,
+              // Merge other fields from device if available
+              deviceId: deviceContact?.deviceId,
+              phoneNumber: deviceContact?.phoneNumber,
+              email: deviceContact?.email,
+              avatar: deviceContact?.avatar,
+            );
+          })
+          .toList();
     } catch (e) {
       _logger.e('Error finding contacts', error: e);
       rethrow;
@@ -196,13 +207,13 @@ class ContactRepository extends BaseRepository {
   // Connect with found contacts
   Future<List<Contact>> connectContacts(List<Contact> contacts) async {
     final token = _dioClient.currentAuthToken;
-    
+
     // For guest users, return empty list since social features require real accounts
     if (isGuestToken(token)) {
       _logger.w('Guest user detected, social features not available');
       return [];
     }
-    
+
     final connections = contacts.map((c) {
       return {
         'id': c.id,
@@ -223,7 +234,9 @@ class ContactRepository extends BaseRepository {
         throw Exception('Invalid server response while creating connections');
       }
       if (payload['success'] != true) {
-        throw Exception(payload['message']?.toString() ?? 'Failed to create connections');
+        throw Exception(
+          payload['message']?.toString() ?? 'Failed to create connections',
+        );
       }
 
       final data = payload['data'];
@@ -243,15 +256,27 @@ class ContactRepository extends BaseRepository {
   }
 
   // Invite a contact
-  Future<ContactInvitation> inviteContact(Contact contact) async {
+  Future<ContactInvitation> inviteContact(
+    Contact contact, {
+    String? message,
+    String? contextType,
+    int? tribeId,
+    int? hangoutId,
+    int? commitmentId,
+    String? scopeType,
+    int? scopeId,
+  }) async {
     final token = _dioClient.currentAuthToken;
-    
+
     // For guest users, throw exception since social features require real accounts
     if (isGuestToken(token)) {
       _logger.w('Guest user detected, social features not available');
-      throw GuestUserException('Social features not available for guest users', 'invite_contact');
+      throw GuestUserException(
+        'Social features not available for guest users',
+        'invite_contact',
+      );
     }
-    
+
     try {
       Response response;
       if (contact.email != null) {
@@ -260,6 +285,15 @@ class ContactRepository extends BaseRepository {
           data: {
             'email': contact.email,
             'is_anonymous': true, // Default for El-Biblio
+            ..._inviteContextPayload(
+              message: message,
+              contextType: contextType,
+              tribeId: tribeId,
+              hangoutId: hangoutId,
+              commitmentId: commitmentId,
+              scopeType: scopeType,
+              scopeId: scopeId,
+            ),
           },
         );
       } else if (contact.phoneNumber != null) {
@@ -268,6 +302,15 @@ class ContactRepository extends BaseRepository {
           data: {
             'phone': _normalizePhone(contact.phoneNumber!),
             'is_anonymous': true,
+            ..._inviteContextPayload(
+              message: message,
+              contextType: contextType,
+              tribeId: tribeId,
+              hangoutId: hangoutId,
+              commitmentId: commitmentId,
+              scopeType: scopeType,
+              scopeId: scopeId,
+            ),
           },
         );
       } else {
@@ -279,7 +322,9 @@ class ContactRepository extends BaseRepository {
         throw Exception('Invalid invitation response');
       }
       if (payload['success'] != true) {
-        throw Exception(payload['message']?.toString() ?? 'Failed to send invitation');
+        throw Exception(
+          payload['message']?.toString() ?? 'Failed to send invitation',
+        );
       }
 
       final data = payload['data'];
@@ -294,9 +339,13 @@ class ContactRepository extends BaseRepository {
       }
 
       return ContactInvitation(
-        id: invitationId is int ? invitationId : int.parse(invitationId.toString()),
-        invitedEmail: data['invited_email']?.toString() ?? data['email']?.toString(),
-        invitedPhone: data['invited_phone']?.toString() ?? data['phone']?.toString(),
+        id: invitationId is int
+            ? invitationId
+            : int.parse(invitationId.toString()),
+        invitedEmail:
+            data['invited_email']?.toString() ?? data['email']?.toString(),
+        invitedPhone:
+            data['invited_phone']?.toString() ?? data['phone']?.toString(),
         status: data['status']?.toString() ?? 'pending',
         invitationUrl: data['invitation_url']?.toString(),
         expiresAt: DateTime.parse(expiresAtRaw.toString()),
@@ -307,7 +356,93 @@ class ContactRepository extends BaseRepository {
     }
   }
 
+  Future<InvitationPreview> previewInvitation(String token) async {
+    final response = await _dioClient.get(
+      '/invitations/preview/${Uri.encodeComponent(token)}',
+    );
+    final payload = response.data;
+    if (payload is! Map<String, dynamic>) {
+      throw Exception('Invalid invitation preview response');
+    }
+    if (payload['success'] != true) {
+      throw Exception(
+        payload['message']?.toString() ?? 'Invitation is not available',
+      );
+    }
+    final data = payload['data'];
+    if (data is! Map<String, dynamic>) {
+      throw Exception('Missing invitation preview');
+    }
+
+    return InvitationPreview.fromMap(data);
+  }
+
   String _normalizePhone(String phone) {
     return phone.replaceAll(RegExp(r'[^0-9+]'), '');
+  }
+
+  Map<String, dynamic> _inviteContextPayload({
+    String? message,
+    String? contextType,
+    int? tribeId,
+    int? hangoutId,
+    int? commitmentId,
+    String? scopeType,
+    int? scopeId,
+  }) {
+    final payload = <String, dynamic>{
+      if (message != null && message.trim().isNotEmpty)
+        'message': message.trim(),
+      if (contextType != null && contextType.trim().isNotEmpty)
+        'context_type': contextType.trim(),
+      if (tribeId != null) 'tribe_id': tribeId,
+      if (hangoutId != null) 'hangout_id': hangoutId,
+      if (commitmentId != null) 'commitment_id': commitmentId,
+      if (scopeType != null && scopeType.trim().isNotEmpty)
+        'scope_type': scopeType.trim(),
+      if (scopeId != null) 'scope_id': scopeId,
+    };
+    return payload;
+  }
+}
+
+class InvitationPreview {
+  const InvitationPreview({
+    required this.token,
+    required this.inviterName,
+    required this.destinationType,
+    required this.destinationLabel,
+    required this.privacyNote,
+    required this.context,
+    this.message,
+    this.expiresAt,
+  });
+
+  final String token;
+  final String inviterName;
+  final String destinationType;
+  final String destinationLabel;
+  final String privacyNote;
+  final Map<String, dynamic> context;
+  final String? message;
+  final DateTime? expiresAt;
+
+  factory InvitationPreview.fromMap(Map<String, dynamic> map) {
+    final context = map['context'];
+
+    return InvitationPreview(
+      token: map['token']?.toString() ?? '',
+      inviterName: map['inviter_name']?.toString() ?? 'Someone on ElBiblio',
+      destinationType: map['destination_type']?.toString() ?? 'app',
+      destinationLabel: map['destination_label']?.toString() ?? 'ElBiblio',
+      privacyNote:
+          map['privacy_note']?.toString() ??
+          'You control what profile details you share after signup.',
+      message: map['message']?.toString(),
+      expiresAt: DateTime.tryParse(map['expires_at']?.toString() ?? ''),
+      context: context is Map<String, dynamic>
+          ? context
+          : Map<String, dynamic>.from(context as Map? ?? const {}),
+    );
   }
 }

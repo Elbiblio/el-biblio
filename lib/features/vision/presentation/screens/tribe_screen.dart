@@ -11,6 +11,7 @@ import '../../../../shared/widgets/vision_illustration.dart';
 import '../../domain/vision_models.dart';
 import '../widgets/visibility_mode_picker.dart';
 import '../widgets/vision_panel.dart';
+import 'hangout_room_screen.dart';
 
 class TribeScreen extends ConsumerStatefulWidget {
   const TribeScreen({super.key});
@@ -86,9 +87,13 @@ class _TribeScreenState extends ConsumerState<TribeScreen> {
             ),
             const SizedBox(height: 18),
           ],
+          _CompassContextPanel(),
+          const SizedBox(height: 14),
           _PulsePanel(),
           const SizedBox(height: 14),
           _WeeklyReflectionHub(controller: _weeklyController),
+          const SizedBox(height: 14),
+          _TribeHangoutPanel(),
           const SizedBox(height: 18),
           ...state.recommendedTribes.map((tribe) {
             final joined = state.primaryTribe?.tribe.id == tribe.id;
@@ -220,7 +225,7 @@ class _TribeScreenState extends ConsumerState<TribeScreen> {
                   ),
                   const SizedBox(height: 8),
                   const Text(
-                    'Choose the name people see in your tribe and path feed.',
+                    'Choose the name people see in your tribe and commitment feed.',
                   ),
                   const SizedBox(height: 16),
                   VisibilityModePicker(
@@ -270,6 +275,36 @@ class _TribeScreenState extends ConsumerState<TribeScreen> {
           },
         );
       },
+    );
+  }
+}
+
+class _CompassContextPanel extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final settings = ref.watch(settingsProvider);
+    if (settings.spiritualAgeScore <= 0 &&
+        settings.selectedArchetypeIds.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    final theme = Theme.of(context);
+    final archetypes = settings.selectedArchetypeIds.isNotEmpty
+        ? settings.selectedArchetypeIds.take(2).join(' + ')
+        : settings.primaryArchetypeId ?? 'your compass';
+
+    return VisionPanel(
+      icon: LucideIcons.compass,
+      title: 'Compass context',
+      trailing: TextButton.icon(
+        onPressed: () => context.push('${AppRoutes.assessment}/compass'),
+        icon: const Icon(LucideIcons.refreshCw, size: 16),
+        label: const Text('Retake'),
+      ),
+      child: Text(
+        'Your current compass is $archetypes, with spiritual age ${settings.spiritualAgeStage}. Retake it when your season changes; tribe recommendations should follow your latest formation.',
+        style: theme.textTheme.bodyMedium?.copyWith(height: 1.42),
+      ),
     );
   }
 }
@@ -498,13 +533,13 @@ class _PulsePanel extends ConsumerWidget {
         children: [
           if (state.primaryTribe == null)
             const Text(
-              'Join a tribe to see daily check-ins and shared returns.',
+              'Join a tribe to see daily check-ins and shared reflections.',
             )
           else if (pulse.items.isEmpty)
             Text(
               pulse.returnedCount > 0
-                  ? '${pulse.returnedCount} people returned today.'
-                  : 'Your tribe pulse will appear as people return today.',
+                  ? '${pulse.returnedCount} people checked in today.'
+                  : 'Your tribe pulse will appear as people check in today.',
             )
           else
             ...pulse.items.map(
@@ -518,9 +553,16 @@ class _PulsePanel extends ConsumerWidget {
           Row(
             children: [
               OutlinedButton.icon(
-                onPressed: () => context.push(AppRoutes.invite),
+                onPressed: () {
+                  final tribeId = state.primaryTribe?.tribe.id;
+                  context.push(
+                    tribeId == null
+                        ? AppRoutes.invite
+                        : '${AppRoutes.invite}?source=tribe&tribe_id=$tribeId',
+                  );
+                },
                 icon: const Icon(LucideIcons.send, size: 18),
-                label: const Text('Invite'),
+                label: const Text('Invite someone'),
               ),
               const SizedBox(width: 8),
               TextButton.icon(
@@ -530,6 +572,219 @@ class _PulsePanel extends ConsumerWidget {
                 label: const Text('Retake compass'),
               ),
             ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TribeHangoutPanel extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final state = ref.watch(visionProvider);
+    final tribe = state.primaryTribe;
+    final hangouts = tribe == null
+        ? const <CommitmentHangout>[]
+        : state.hangouts
+              .where(
+                (item) =>
+                    item.scopeType == 'tribe' && item.scopeId == tribe.tribe.id,
+              )
+              .toList(growable: false);
+
+    return VisionPanel(
+      icon: LucideIcons.radio,
+      title: 'Tribe hangouts',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (tribe == null)
+            const Text('Join a tribe to start or join live audio gatherings.')
+          else if (hangouts.isEmpty)
+            Text(
+              'No live gatherings in ${tribe.tribe.displayName} yet. Start one when your tribe needs voice, prayer, or encouragement.',
+            )
+          else
+            ...hangouts.map((hangout) => _TribeHangoutCard(hangout: hangout)),
+          const SizedBox(height: 12),
+          OutlinedButton.icon(
+            onPressed: tribe == null ? null : () => _showCreate(context, ref),
+            icon: const Icon(LucideIcons.plus, size: 18),
+            label: const Text('Start tribe hangout'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showCreate(BuildContext context, WidgetRef ref) async {
+    final tribe = ref.read(visionProvider).primaryTribe;
+    if (tribe == null) return;
+
+    final titleController = TextEditingController(text: 'Tribe check-in room');
+    var maxParticipants = 8.0;
+    final created = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: const Text('Start tribe hangout'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              TextField(
+                controller: titleController,
+                maxLength: 80,
+                decoration: const InputDecoration(
+                  labelText: 'Title',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text('Max people: ${maxParticipants.round()}'),
+              Slider(
+                value: maxParticipants,
+                min: 2,
+                max: 50,
+                divisions: 48,
+                onChanged: (value) => setState(() => maxParticipants = value),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text('Start'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (created != true || !context.mounted) {
+      titleController.dispose();
+      return;
+    }
+
+    final hangout = await ref
+        .read(visionProvider.notifier)
+        .createCommitmentHangout(
+          title: titleController.text,
+          scopeType: 'tribe',
+          scopeId: tribe.tribe.id,
+          maxParticipants: maxParticipants.round(),
+        );
+    titleController.dispose();
+    if (!context.mounted) return;
+    if (hangout?.liveKit?.isValid == true) {
+      await Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => HangoutRoomScreen(
+            hangout: hangout!,
+            credentials: hangout.liveKit!,
+            onLeave: () =>
+                ref.read(visionProvider.notifier).leaveHangout(hangout.id),
+          ),
+        ),
+      );
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          hangout == null
+              ? 'We could not start this tribe hangout.'
+              : 'Tribe hangout started, but audio credentials were unavailable.',
+        ),
+      ),
+    );
+  }
+}
+
+class _TribeHangoutCard extends ConsumerWidget {
+  const _TribeHangoutCard({required this.hangout});
+
+  final CommitmentHangout hangout;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final full = hangout.participantCount >= hangout.maxParticipants;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface.withValues(alpha: 0.74),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: theme.colorScheme.outline.withValues(alpha: 0.12),
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            hangout.status == 'live' ? LucideIcons.radio : LucideIcons.clock3,
+            color: theme.colorScheme.primary,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  hangout.title,
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  full
+                      ? 'Room is full'
+                      : '${hangout.participantCount}/${hangout.maxParticipants} joined',
+                  style: theme.textTheme.bodySmall,
+                ),
+              ],
+            ),
+          ),
+          FilledButton.tonal(
+            onPressed: hangout.canJoin
+                ? () async {
+                    final joined = await ref
+                        .read(visionProvider.notifier)
+                        .joinHangout(hangout);
+                    if (!context.mounted) return;
+                    if (joined?.liveKit?.isValid == true) {
+                      await Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => HangoutRoomScreen(
+                            hangout: joined!,
+                            credentials: joined.liveKit!,
+                            onLeave: () => ref
+                                .read(visionProvider.notifier)
+                                .leaveHangout(joined.id),
+                          ),
+                        ),
+                      );
+                      return;
+                    }
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          full
+                              ? 'This tribe hangout is full.'
+                              : 'We could not join this tribe hangout.',
+                        ),
+                      ),
+                    );
+                  }
+                : null,
+            child: const Text('Join'),
           ),
         ],
       ),

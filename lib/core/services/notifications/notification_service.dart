@@ -69,6 +69,7 @@ class NotificationService {
   static const int eveningReminderId = 1002;
 
   bool _initialized = false;
+  bool _platformAvailable = true;
   Future<void> Function()? _dailyCheckInActionHandler;
   final StreamController<NotificationActionEvent> _actionEventsController =
       StreamController<NotificationActionEvent>.broadcast();
@@ -159,7 +160,18 @@ class NotificationService {
 
       _initialized = true;
     } catch (e, stackTrace) {
-      debugPrint('NotificationService: Initialization failed: $e\n$stackTrace');
+      _platformAvailable = false;
+      _initialized = true;
+      if (e.toString().contains('LateInitializationError') ||
+          e.runtimeType.toString().contains('LateInitializationError')) {
+        debugPrint(
+          'NotificationService: platform notifications unavailable in this environment.',
+        );
+      } else {
+        debugPrint(
+          'NotificationService: Initialization failed: $e\n$stackTrace',
+        );
+      }
     }
   }
 
@@ -1191,22 +1203,57 @@ class NotificationService {
     }
   }
 
-  Future<void> requestPermissions() async {
-    if (Platform.isIOS) {
-      await _localNotificationsPlugin
-          .resolvePlatformSpecificImplementation<
-            IOSFlutterLocalNotificationsPlugin
-          >()
-          ?.requestPermissions(alert: true, badge: true, sound: true);
-    } else if (Platform.isAndroid) {
-      final AndroidFlutterLocalNotificationsPlugin? androidImplementation =
-          _localNotificationsPlugin
-              .resolvePlatformSpecificImplementation<
-                AndroidFlutterLocalNotificationsPlugin
-              >();
+  Future<bool> requestPermissions() async {
+    try {
+      await initialize();
+      if (!_platformAvailable) return false;
 
-      await androidImplementation?.requestNotificationsPermission();
+      if (Platform.isIOS) {
+        await _localNotificationsPlugin
+            .resolvePlatformSpecificImplementation<
+              IOSFlutterLocalNotificationsPlugin
+            >()
+            ?.requestPermissions(alert: true, badge: true, sound: true);
+        return areNotificationsEnabled();
+      } else if (Platform.isAndroid) {
+        final AndroidFlutterLocalNotificationsPlugin? androidImplementation =
+            _localNotificationsPlugin
+                .resolvePlatformSpecificImplementation<
+                  AndroidFlutterLocalNotificationsPlugin
+                >();
+
+        await androidImplementation?.requestNotificationsPermission();
+        return areNotificationsEnabled();
+      }
+    } catch (e) {
+      debugPrint('NotificationService: Error requesting permissions: $e');
     }
+    return false;
+  }
+
+  Future<bool> areNotificationsEnabled() async {
+    try {
+      await initialize();
+      if (!_platformAvailable) return true;
+      if (Platform.isAndroid) {
+        final implementation = _localNotificationsPlugin
+            .resolvePlatformSpecificImplementation<
+              AndroidFlutterLocalNotificationsPlugin
+            >();
+        return await implementation?.areNotificationsEnabled() ?? true;
+      }
+      if (Platform.isIOS) {
+        final implementation = _localNotificationsPlugin
+            .resolvePlatformSpecificImplementation<
+              IOSFlutterLocalNotificationsPlugin
+            >();
+        final permissions = await implementation?.checkPermissions();
+        return permissions?.isEnabled ?? true;
+      }
+    } catch (e) {
+      debugPrint('NotificationService: Error checking permissions: $e');
+    }
+    return true;
   }
 
   Stream<String> get pushTokenStream => const Stream.empty();
@@ -1485,28 +1532,18 @@ class NotificationService {
     }
   }
 
-  Future<void> scheduleMvpCommitmentNudges({
+  Future<bool> scheduleCommitmentNudges({
     required int commitmentId,
     required String commitmentTitle,
     required String dailyAction,
     required int nudgeCount,
-  }) {
-    return scheduleCommitmentNudges(
-      commitmentId: commitmentId,
-      commitmentTitle: commitmentTitle,
-      dailyAction: dailyAction,
-      nudgeCount: nudgeCount,
-    );
-  }
-
-  Future<void> scheduleCommitmentNudges({
-    required int commitmentId,
-    required String commitmentTitle,
-    required String dailyAction,
-    required int nudgeCount,
+    bool startTomorrow = false,
+    String? planWhen,
+    String? planObstacle,
   }) async {
     try {
       await initialize();
+      await cancelCommitmentNudges(commitmentId);
 
       final boundedCount = nudgeCount.clamp(3, 10);
       final now = DateTime.now();
@@ -1521,7 +1558,7 @@ class NotificationService {
         'commitment_nudges',
         'Commitment nudges',
         channelDescription:
-            'Gentle prompts to return to your active commitment',
+            'Gentle prompts to check in with your active commitment',
         importance: Importance.high,
         priority: Priority.high,
         color: Color(0xFF638B6C),
@@ -1561,6 +1598,9 @@ class NotificationService {
 
       for (var i = 0; i < boundedCount; i++) {
         var scheduledTime = start.add(Duration(minutes: stepMinutes * i));
+        if (startTomorrow) {
+          scheduledTime = scheduledTime.add(const Duration(days: 1));
+        }
         if (scheduledTime.isBefore(now.add(const Duration(minutes: 2)))) {
           scheduledTime = scheduledTime.add(const Duration(days: 1));
         }
@@ -1568,15 +1608,50 @@ class NotificationService {
         await _localNotificationsPlugin.zonedSchedule(
           id: 7000 + commitmentId * 10 + i,
           title: commitmentTitle,
-          body: dailyAction,
+          body: _commitmentNudgeBody(
+            dailyAction: dailyAction,
+            planWhen: planWhen,
+            planObstacle: planObstacle,
+          ),
           scheduledDate: _resolveScheduleTime(scheduledTime),
           notificationDetails: details,
           androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+          matchDateTimeComponents: DateTimeComponents.time,
           payload: 'commitment_check_in:$commitmentId',
         );
       }
+      return true;
     } catch (e) {
       debugPrint('NotificationService: Error scheduling commitment nudges: $e');
+      return false;
+    }
+  }
+
+  String _commitmentNudgeBody({
+    required String dailyAction,
+    String? planWhen,
+    String? planObstacle,
+  }) {
+    final when = planWhen?.trim();
+    final obstacle = planObstacle?.trim();
+    final parts = <String>[
+      dailyAction,
+      if (when != null && when.isNotEmpty) 'Your plan: $when.',
+      if (obstacle != null && obstacle.isNotEmpty) 'Watch for: $obstacle.',
+    ];
+    return parts.join(' ');
+  }
+
+  Future<void> cancelCommitmentNudges(int commitmentId) async {
+    try {
+      await initialize();
+      for (var i = 0; i < 10; i++) {
+        await _localNotificationsPlugin.cancel(
+          id: 7000 + commitmentId * 10 + i,
+        );
+      }
+    } catch (e) {
+      debugPrint('NotificationService: Error cancelling commitment nudges: $e');
     }
   }
 

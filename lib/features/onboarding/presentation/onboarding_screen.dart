@@ -23,8 +23,8 @@ class OnboardingScreen extends ConsumerWidget {
 
   String _stepTitle(OnboardingStep step) {
     return switch (step) {
-      OnboardingStep.theProblem => 'Daily Return',
-      OnboardingStep.theSolution => 'The Path',
+      OnboardingStep.theProblem => 'Daily Check-in',
+      OnboardingStep.theSolution => 'The Rhythm',
       OnboardingStep.yourIdentity => 'Spiritual Compass',
       OnboardingStep.yourAccount => 'Create Account',
     };
@@ -32,20 +32,18 @@ class OnboardingScreen extends ConsumerWidget {
 
   String _getPrimaryButtonLabel(OnboardingState state) {
     return switch (state.step) {
-      OnboardingStep.theProblem => 'Show me the path',
+      OnboardingStep.theProblem => 'Show me the rhythm',
       OnboardingStep.theSolution => 'Find my compass',
       OnboardingStep.yourIdentity =>
         _canAdvanceFromAssessment(state)
             ? 'Create my account'
-            : 'Answer all questions',
+            : 'Complete my compass',
       OnboardingStep.yourAccount => 'Continue to tribe and commitment',
     };
   }
 
   bool _canAdvanceFromAssessment(OnboardingState state) {
-    return state.miniAssessmentAnswers.length >= 3 &&
-        !state.miniAssessmentAnswers.contains(-1) &&
-        state.primaryArchetypeId != null;
+    return state.hasFullCompassResult;
   }
 
   bool _canAdvance(OnboardingState state) {
@@ -65,8 +63,8 @@ class OnboardingScreen extends ConsumerWidget {
       OnboardingStep.theSolution => const TheSolutionView(),
       OnboardingStep.yourIdentity => const DiscoverIdentityView(),
       OnboardingStep.yourAccount => YourAccountView(
-        onSignUp: (name, email, phone, ageBand) =>
-            _handleSignUp(context, ref, name, email, phone, ageBand),
+        onSignUp: (name, email, phone) =>
+            _handleSignUp(context, ref, name, email, phone),
       ),
     };
   }
@@ -77,9 +75,9 @@ class OnboardingScreen extends ConsumerWidget {
     String name,
     String email,
     String phone,
-    String ageBand,
   ) async {
     final onboardingState = ref.read(onboardingProvider);
+    final ageBand = onboardingState.derivedAgeBand;
 
     HapticFeedback.mediumImpact();
 
@@ -107,6 +105,11 @@ class OnboardingScreen extends ConsumerWidget {
     // this session actually wants.
     await ref.read(notificationServiceProvider).cancelAll();
 
+    final compassPayload = onboardingState.compassSubmissionPayload;
+    await ref
+        .read(settingsProvider.notifier)
+        .setPendingCompassSubmission(compassPayload);
+
     // Wipe the mid-onboarding draft so a future app-kill can't rehydrate
     // stale in-progress state over a completed account.
     await ref.read(settingsProvider.notifier).clearOnboardingDraft();
@@ -127,11 +130,25 @@ class OnboardingScreen extends ConsumerWidget {
           socialPresenceOptIn: onboardingState.socialPresenceOptIn,
           contactsImported: onboardingState.contactsImported,
           primaryArchetypeId: onboardingState.primaryArchetypeId,
+          selectedArchetypeIds: onboardingState.selectedArchetypeIds,
           commitmentCategory: onboardingState.commitmentCategory,
           primaryMissionFocus: onboardingState.primaryMissionFocus,
+          ageBand: onboardingState.derivedAgeBand,
+          spiritualAgeScore: onboardingState.spiritualAgeScore,
+          spiritualAgeStage: onboardingState.spiritualAgeStage,
           personalDistractions: onboardingState.personalDistractions,
           christianLifeBaseline: onboardingState.baselineOrNull,
         );
+
+    try {
+      await ref
+          .read(assessmentApiRepositoryProvider)
+          .submitAssessment(compassPayload);
+      await ref.read(settingsProvider.notifier).clearPendingCompassSubmission();
+    } catch (_) {
+      // Keep the payload in settings so it is not lost; signup should not be
+      // blocked by a transient assessment write.
+    }
 
     if (!context.mounted) return;
     CelebrationService.instance.playOnboardingCompletion(context);

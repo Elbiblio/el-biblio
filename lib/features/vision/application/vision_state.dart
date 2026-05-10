@@ -19,6 +19,8 @@ class VisionState {
     this.weeklyReflections = const [],
     this.notifications = const [],
     this.unreadNotificationCount = 0,
+    this.dataSource = VisionDataSource.remote,
+    this.notificationWarning,
   });
 
   final bool isLoading;
@@ -38,6 +40,10 @@ class VisionState {
   final List<WeeklyRitualReflection> weeklyReflections;
   final List<VisionNotificationItem> notifications;
   final int unreadNotificationCount;
+  final VisionDataSource dataSource;
+  final String? notificationWarning;
+
+  bool get isReadOnly => dataSource.isReadOnly;
 
   VisionState copyWith({
     bool? isLoading,
@@ -61,6 +67,9 @@ class VisionState {
     List<WeeklyRitualReflection>? weeklyReflections,
     List<VisionNotificationItem>? notifications,
     int? unreadNotificationCount,
+    VisionDataSource? dataSource,
+    String? notificationWarning,
+    bool clearNotificationWarning = false,
   }) {
     return VisionState(
       isLoading: isLoading ?? this.isLoading,
@@ -89,6 +98,10 @@ class VisionState {
       notifications: notifications ?? this.notifications,
       unreadNotificationCount:
           unreadNotificationCount ?? this.unreadNotificationCount,
+      dataSource: dataSource ?? this.dataSource,
+      notificationWarning: clearNotificationWarning
+          ? null
+          : notificationWarning ?? this.notificationWarning,
     );
   }
 }

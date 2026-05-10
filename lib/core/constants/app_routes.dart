@@ -14,9 +14,6 @@ class AppRoutes {
   static const legacyChallenge = '/challenge';
   static const legacyTribes = '/tribes';
   static const legacyQuestions = '/questions';
-  static const mvpChallenge = legacyChallenge;
-  static const mvpTribes = legacyTribes;
-  static const mvpQuestions = legacyQuestions;
   static const act = '/act';
   static const actHistory = '/act/history';
   static const actOpportunities = '/act/opportunities';

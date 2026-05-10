@@ -27,9 +27,10 @@ class ContactNotifier extends StateNotifier<ContactState> {
       try {
         matches = await _repository.findPotentialContacts(deviceContacts);
       } catch (e) {
-        discoveryError = 'Contacts imported, but failed to sync matches: ${e.toString()}';
+        discoveryError =
+            'Contacts imported, but failed to sync matches: ${e.toString()}';
       }
-      
+
       // 3. Store device contacts for invite functionality
       state = state.copyWith(
         potentialContacts: matches,
@@ -50,20 +51,23 @@ class ContactNotifier extends StateNotifier<ContactState> {
   Future<void> connect(Contact contact) async {
     try {
       await _repository.connectContacts([contact]);
-      
+
       // Move from potential to connected
       final updatedPotential = state.potentialContacts
           .where((c) => c.contactHash != contact.contactHash)
           .toList();
-          
-      final updatedConnected = [...state.connectedContacts, contact.copyWith(status: ContactStatus.connected)];
+
+      final updatedConnected = [
+        ...state.connectedContacts,
+        contact.copyWith(status: ContactStatus.connected),
+      ];
 
       state = state.copyWith(
         potentialContacts: updatedPotential,
         connectedContacts: updatedConnected,
         error: null,
       );
-      
+
       // Award XP for social connection
       await XPService.instance.addXP(
         type: XPActivityType.socialConnection,
@@ -78,18 +82,20 @@ class ContactNotifier extends StateNotifier<ContactState> {
       state = state.copyWith(error: 'Failed to connect: ${e.toString()}');
     }
   }
-  
+
   Future<void> connectAll(List<Contact> contacts) async {
-     try {
+    try {
       await _repository.connectContacts(contacts);
-      
+
       final hashSet = contacts.map((c) => c.contactHash).toSet();
-      
+
       final updatedPotential = state.potentialContacts
           .where((c) => !hashSet.contains(c.contactHash))
           .toList();
-          
-      final newConnected = contacts.map((c) => c.copyWith(status: ContactStatus.connected));
+
+      final newConnected = contacts.map(
+        (c) => c.copyWith(status: ContactStatus.connected),
+      );
       final updatedConnected = [...state.connectedContacts, ...newConnected];
 
       state = state.copyWith(
@@ -97,7 +103,7 @@ class ContactNotifier extends StateNotifier<ContactState> {
         connectedContacts: updatedConnected,
         error: null,
       );
-      
+
       // Award XP for each social connection
       for (final contact in contacts) {
         await XPService.instance.addXP(
@@ -116,12 +122,31 @@ class ContactNotifier extends StateNotifier<ContactState> {
     }
   }
 
-  Future<void> invite(Contact contact) async {
+  Future<void> invite(
+    Contact contact, {
+    String? message,
+    String? contextType,
+    int? tribeId,
+    int? hangoutId,
+    int? commitmentId,
+    String? scopeType,
+    int? scopeId,
+  }) async {
     try {
-      await _repository.inviteContact(contact);
+      await _repository.inviteContact(
+        contact,
+        message: message,
+        contextType: contextType,
+        tribeId: tribeId,
+        hangoutId: hangoutId,
+        commitmentId: commitmentId,
+        scopeType: scopeType,
+        scopeId: scopeId,
+      );
       // Removed local state update for deviceContacts since they are no longer in state
     } catch (e) {
       state = state.copyWith(error: 'Failed to invite: ${e.toString()}');
+      rethrow;
     }
   }
 }

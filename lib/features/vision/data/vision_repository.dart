@@ -14,24 +14,32 @@ class VisionRepository {
       final response = await _dio.get<Map<String, dynamic>>(
         '/vision/bootstrap',
       );
-      return _parseBootstrap(_payloadMap(response.data));
+      return _parseBootstrap(
+        _payloadMap(response.data),
+        dataSource: VisionDataSource.remote,
+      );
     } catch (_) {
       try {
         final response = await _dio.get<Map<String, dynamic>>('/mvp/bootstrap');
-        return _parseBootstrap(_payloadMap(response.data));
+        return _parseBootstrap(
+          _payloadMap(response.data),
+          dataSource: VisionDataSource.compatibility,
+        );
       } catch (e, st) {
         _logger.w(
-          'Vision bootstrap failed, using read-only fallback',
+          'Vision bootstrap failed, entering read-only error state',
           error: e,
           stackTrace: st,
         );
-        return const VisionBootstrap(
+        return VisionBootstrap(
           visibilityMode: VisibilityMode.anonymous,
           visibilityAlias: 'Anonymous',
           primaryTribe: null,
           activeCommitment: null,
-          dailyQuestion: _fallbackQuestion,
-          journeyEvents: [],
+          dailyQuestion: null,
+          journeyEvents: const [],
+          dataSource: VisionDataSource.error,
+          errorMessage: _friendlyError(e),
         );
       }
     }
@@ -52,10 +60,10 @@ class VisionRepository {
             (item) => TribeIdentity.fromJson(Map<String, dynamic>.from(item)),
           )
           .toList();
-      return tribes.isEmpty ? _fallbackTribes : tribes;
+      return tribes;
     } catch (e) {
       _logger.w('Vision recommended tribes failed: $e');
-      return _fallbackTribes;
+      rethrow;
     }
   }
 
@@ -103,20 +111,28 @@ class VisionRepository {
             (item) => CommitmentPlan.fromJson(Map<String, dynamic>.from(item)),
           )
           .toList();
-      return commitments.isEmpty ? _fallbackCommitments : commitments;
+      return commitments;
     } catch (e) {
       _logger.w('Vision recommended commitments failed: $e');
-      return _fallbackCommitments;
+      rethrow;
     }
   }
 
   Future<CommitmentSeason> joinCommitment({
     required int commitmentId,
     required int nudgeCount,
+    String? planWhen,
+    String? planObstacle,
   }) async {
     final response = await _dio.post<Map<String, dynamic>>(
       '/commitments/$commitmentId/join',
-      data: {'nudge_count_per_day': nudgeCount},
+      data: {
+        'nudge_count_per_day': nudgeCount,
+        if (planWhen != null && planWhen.trim().isNotEmpty)
+          'check_in_plan_when': planWhen.trim(),
+        if (planObstacle != null && planObstacle.trim().isNotEmpty)
+          'check_in_plan_obstacle': planObstacle.trim(),
+      },
     );
     return CommitmentSeason.fromJson(_payloadMap(response.data));
   }
@@ -246,6 +262,26 @@ class VisionRepository {
     await _dio.post<Map<String, dynamic>>(
       '/reflections/$reflectionId/reactions',
       data: {'reaction_type': reactionType},
+    );
+  }
+
+  Future<void> reportReflection({
+    required int reflectionId,
+    required String reason,
+  }) async {
+    await _dio.post<Map<String, dynamic>>(
+      '/reflections/$reflectionId/report',
+      data: {'reason': reason.trim()},
+    );
+  }
+
+  Future<void> reportHangout({
+    required int hangoutId,
+    required String reason,
+  }) async {
+    await _dio.post<Map<String, dynamic>>(
+      '/hangouts/$hangoutId/report',
+      data: {'reason': reason.trim()},
     );
   }
 
@@ -397,7 +433,10 @@ class VisionRepository {
     return CommitmentHangout.fromJson(_payloadMap(response.data));
   }
 
-  VisionBootstrap _parseBootstrap(Map<String, dynamic> data) {
+  VisionBootstrap _parseBootstrap(
+    Map<String, dynamic> data, {
+    required VisionDataSource dataSource,
+  }) {
     final user = Map<String, dynamic>.from(data['user'] as Map? ?? const {});
     final activeRaw = data['active_commitment'];
     final activeList =
@@ -433,6 +472,7 @@ class VisionRepository {
             )
           : null,
       journeyEvents: _parseJourneyEvents(data),
+      dataSource: dataSource,
     );
   }
 
@@ -490,6 +530,8 @@ class VisionBootstrap {
     required this.activeCommitment,
     required this.dailyQuestion,
     this.journeyEvents = const [],
+    this.dataSource = VisionDataSource.remote,
+    this.errorMessage,
   });
 
   final VisibilityMode visibilityMode;
@@ -498,6 +540,8 @@ class VisionBootstrap {
   final CommitmentSeason? activeCommitment;
   final DailyGrowthQuestion? dailyQuestion;
   final List<GrowthJourneyEvent> journeyEvents;
+  final VisionDataSource dataSource;
+  final String? errorMessage;
 }
 
 class CommitmentFeedResult {
@@ -510,73 +554,13 @@ class CommitmentFeedResult {
   final bool postedToday;
 }
 
-const _fallbackTribes = [
-  TribeIdentity(
-    id: 1,
-    name: 'Watchman Circle',
-    slug: 'watchman-circle',
-    description: 'For people rebuilding attention, vigilance, and prayer.',
-    iconKey: 'compass',
-  ),
-  TribeIdentity(
-    id: 2,
-    name: 'Healer Circle',
-    slug: 'healer-circle',
-    description: 'For people walking through repair, forgiveness, and hope.',
-    iconKey: 'heart-handshake',
-  ),
-  TribeIdentity(
-    id: 3,
-    name: 'Cultivator Circle',
-    slug: 'cultivator-circle',
-    description: 'For people growing slowly through faithfulness and presence.',
-    iconKey: 'sparkles',
-  ),
-];
-
-const _fallbackCommitments = [
-  CommitmentPlan(
-    id: 1,
-    title: '30-Day Social Media Fast',
-    description: 'Create space for prayer, attention, and real connection.',
-    durationDays: 30,
-    category: 'discipline',
-    dailyAction:
-        'Stay off social media today and use one urge as a prompt to pray.',
-    nudgeMin: 3,
-    nudgeMax: 10,
-  ),
-  CommitmentPlan(
-    id: 2,
-    title: '30 Days of Gratitude',
-    description: 'Practice daily gratitude in small, honest moments.',
-    durationDays: 30,
-    category: 'gratitude',
-    dailyAction: 'Name one concrete gift from today and thank God for it.',
-    nudgeMin: 3,
-    nudgeMax: 10,
-  ),
-  CommitmentPlan(
-    id: 3,
-    title: '+5 Minutes Daily Prayer',
-    description: 'Add five focused minutes of prayer each day for one month.',
-    durationDays: 30,
-    category: 'prayer',
-    dailyAction:
-        'Pray for five focused minutes before moving to the next thing.',
-    nudgeMin: 3,
-    nudgeMax: 10,
-  ),
-];
-
-const _fallbackQuestion = DailyGrowthQuestion(
-  id: 0,
-  question: 'What is one faithful step I can take today?',
-  conciseExplanation:
-      'Spiritual growth usually begins with the next honest step.',
-  spiritualInsight: 'God meets return, not performance.',
-  practicalPerspective: 'Choose one small action that can be completed today.',
-  realWorldContext:
-      'When life is noisy, small obedience keeps the soul oriented.',
-  category: 'daily',
-);
+String _friendlyError(Object error) {
+  final text = error.toString();
+  const marker = 'message: ';
+  final index = text.indexOf(marker);
+  if (index >= 0) {
+    final message = text.substring(index + marker.length).split(',').first;
+    if (message.trim().isNotEmpty) return message.trim();
+  }
+  return 'We could not reach ElBiblio right now. Please try again.';
+}

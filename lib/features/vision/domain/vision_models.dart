@@ -1,11 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 
+enum VisionDataSource {
+  remote,
+  compatibility,
+  offlineFallback,
+  error;
+
+  bool get isReadOnly => this == offlineFallback || this == error;
+}
+
 enum VisibilityMode {
   anonymous('anonymous', 'Anonymous'),
   initials('initials', 'Initials'),
   nickname('nickname', 'Nickname'),
-  public('public', 'Public profile');
+  public('public', 'Visible profile');
 
   const VisibilityMode(this.value, this.label);
 
@@ -45,7 +54,7 @@ class TribeIdentity {
 
   factory TribeIdentity.fromJson(Map<String, dynamic> json) {
     return TribeIdentity(
-      id: (json['id'] as num?)?.toInt() ?? 0,
+      id: _intFromJson(json['id']) ?? 0,
       name: json['name'] as String? ?? 'Spiritual Tribe',
       slug: json['slug'] as String? ?? '',
       description: json['description'] as String? ?? '',
@@ -136,6 +145,8 @@ class CommitmentSeason {
     required this.completedDaysCount,
     required this.nudgeCountPerDay,
     this.lastCheckInAt,
+    this.firstCheckInPlanWhen,
+    this.firstCheckInPlanObstacle,
   });
 
   final CommitmentPlan plan;
@@ -143,6 +154,8 @@ class CommitmentSeason {
   final int completedDaysCount;
   final int nudgeCountPerDay;
   final DateTime? lastCheckInAt;
+  final String? firstCheckInPlanWhen;
+  final String? firstCheckInPlanObstacle;
 
   bool get checkedInToday {
     final last = lastCheckInAt;
@@ -169,8 +182,17 @@ class CommitmentSeason {
       lastCheckInAt: DateTime.tryParse(
         json['last_check_in_at']?.toString() ?? '',
       ),
+      firstCheckInPlanWhen: json['check_in_plan_when'] as String?,
+      firstCheckInPlanObstacle: json['check_in_plan_obstacle'] as String?,
     );
   }
+}
+
+class CommitmentPlanContext {
+  const CommitmentPlanContext({this.when, this.obstacle});
+
+  final String? when;
+  final String? obstacle;
 }
 
 class CommitmentReflection {
@@ -184,6 +206,7 @@ class CommitmentReflection {
     this.authorTribeName,
     this.authorCompletedChallengesCount = 0,
     this.authorCurrentStreakCount = 0,
+    this.myReactionType,
   });
 
   final int id;
@@ -195,6 +218,10 @@ class CommitmentReflection {
   final String? authorTribeName;
   final int authorCompletedChallengesCount;
   final int authorCurrentStreakCount;
+  final String? myReactionType;
+
+  bool get supportedByMe =>
+      myReactionType != null && myReactionType!.isNotEmpty;
 
   String get authorTribeDisplayName =>
       displayTribeName(authorTribeName ?? '').isEmpty
@@ -243,8 +270,18 @@ class CommitmentReflection {
           (authorProfile['current_streak_count'] as num?)?.toInt() ??
           (json['author_current_streak_count'] as num?)?.toInt() ??
           0,
+      myReactionType:
+          json['my_reaction_type'] as String? ??
+          json['current_user_reaction'] as String? ??
+          json['my_reaction'] as String? ??
+          _firstString(json['my_reactions']),
     );
   }
+}
+
+String? _firstString(Object? value) {
+  if (value is List && value.isNotEmpty) return value.first?.toString();
+  return null;
 }
 
 String displayTribeName(String name) {
@@ -332,7 +369,7 @@ class DailyGrowthQuestion {
   factory DailyGrowthQuestion.fromJson(Map<String, dynamic> json) {
     final packRaw = json['questions'];
     return DailyGrowthQuestion(
-      id: (json['id'] as num?)?.toInt() ?? 0,
+      id: _intFromJson(json['id']) ?? 0,
       question:
           json['question'] as String? ?? 'What is one faithful step today?',
       conciseExplanation: json['concise_explanation'] as String? ?? '',
@@ -361,7 +398,7 @@ class DailyGrowthQuestion {
                 .toList()
           : const [],
       category: json['category'] as String?,
-      position: (json['position'] as num?)?.toInt(),
+      position: _intFromJson(json['position']),
       answer: json['answer'] as String?,
       answeredToday: json['answered_today'] as bool? ?? false,
     );
@@ -391,6 +428,11 @@ class DailyGrowthQuestion {
   }
 }
 
+int? _intFromJson(Object? value) {
+  if (value is num) return value.toInt();
+  return null;
+}
+
 class DailyFaithActionStep {
   const DailyFaithActionStep({
     required this.label,
@@ -409,7 +451,7 @@ class DailyFaithActionStep {
       label: json['label'] as String? ?? 'Practice',
       instruction: json['instruction'] as String? ?? '',
       why: json['why'] as String? ?? '',
-      minutes: (json['minutes'] as num?)?.toInt(),
+      minutes: _intFromJson(json['minutes']),
     );
   }
 }
@@ -442,7 +484,7 @@ class CommitmentHangout {
   factory CommitmentHangout.fromJson(Map<String, dynamic> json) {
     return CommitmentHangout(
       id: (json['id'] as num?)?.toInt() ?? 0,
-      title: json['title'] as String? ?? 'Commitment hangout',
+      title: json['title'] as String? ?? 'Tribe hangout',
       status: json['status'] as String? ?? 'scheduled',
       participantCount: (json['participant_count'] as num?)?.toInt() ?? 0,
       maxParticipants: (json['max_participants'] as num?)?.toInt() ?? 8,
@@ -499,7 +541,7 @@ class TribePulseItem {
 
   factory TribePulseItem.fromJson(Map<String, dynamic> json) {
     return TribePulseItem(
-      text: json['text'] as String? ?? 'Your tribe is returning today.',
+      text: json['text'] as String? ?? 'Your tribe is checking in today.',
       iconKey: json['icon_key'] as String? ?? 'users',
       type: json['type'] as String? ?? 'activity',
       createdAt: DateTime.tryParse(json['created_at']?.toString() ?? ''),
@@ -530,7 +572,10 @@ class TribePulse {
         .toList();
 
     return TribePulse(
-      returnedCount: (today['returned_count'] as num?)?.toInt() ?? 0,
+      returnedCount:
+          (today['checked_in_count'] as num?)?.toInt() ??
+          (today['returned_count'] as num?)?.toInt() ??
+          0,
       activeMembersCount: (today['active_members_count'] as num?)?.toInt() ?? 0,
       reflectionCount: (today['reflection_count'] as num?)?.toInt() ?? 0,
       supportCount: (today['support_count'] as num?)?.toInt() ?? 0,
@@ -617,13 +662,13 @@ enum GrowthJourneyEventType {
   commitmentJoined(
     'commitment_joined',
     'Commitment joined',
-    'You chose a concrete path for this season.',
+    'You chose a concrete commitment for this season.',
     'flag',
   ),
   dailyCommitmentComplete(
     'daily_commitment_complete',
-    'Daily return',
-    'You returned today.',
+    'Daily check-in',
+    'You checked in today.',
     'check-circle',
   ),
   reflectionPosted(
@@ -635,7 +680,7 @@ enum GrowthJourneyEventType {
   supportGiven(
     'support_given',
     'Support given',
-    'You encouraged someone on the path.',
+    'You encouraged someone keeping a commitment.',
     'heart-handshake',
   ),
   inviteSent(
@@ -649,6 +694,12 @@ enum GrowthJourneyEventType {
     'Weekly reflection',
     'You marked the week with your tribe.',
     'calendar-heart',
+  ),
+  tribeHangoutJoined(
+    'tribe_hangout_joined',
+    'Tribe hangout',
+    'You joined a live gathering with your tribe.',
+    'radio',
   );
 
   const GrowthJourneyEventType(

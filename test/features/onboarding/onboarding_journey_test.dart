@@ -39,32 +39,52 @@ void main() {
     test('Onboarding can go back through steps', () {
       notifier.next();
       notifier.next();
-      
+
       expect(notifier.state.step, OnboardingStep.yourIdentity);
-      
+
       notifier.back();
       expect(notifier.state.step, OnboardingStep.theSolution);
-      
+
       notifier.back();
       expect(notifier.state.step, OnboardingStep.theProblem);
     });
 
-    test('Mini assessment answers are tracked', () {
-      notifier.answerMiniAssessment(0, 1);
-      notifier.answerMiniAssessment(1, 2);
-      notifier.answerMiniAssessment(2, 3);
-      
-      expect(notifier.state.miniAssessmentAnswers, [1, 2, 3]);
+    test('Full compass derives age band, archetype, and spiritual age', () {
+      notifier.setExactAge(29);
+      notifier.toggleCompassArchetype('Reformer');
+      notifier.toggleCompassArchetype('Watchman');
+      notifier.saveCompassArchetypeAssessment('Reformer', 10, 'many');
+      notifier.saveCompassArchetypeAssessment('Watchman', 3, 'some');
+
+      expect(notifier.state.derivedAgeBand, '25_34');
+      expect(notifier.state.primaryArchetypeId, 'Reformer');
+      expect(notifier.state.selectedArchetypeIds.first, 'Reformer');
+      expect(notifier.state.spiritualAgeScore, greaterThan(0));
+      expect(notifier.state.spiritualAgeStage, isNotEmpty);
+      expect(notifier.state.hasFullCompassResult, isTrue);
+      expect(notifier.state.selectedCompassPath, isNotEmpty);
+      expect(notifier.state.selectedCompassTasks, hasLength(3));
+      expect(
+        notifier.state.compassSubmissionPayload['metadata'],
+        containsPair('action_plan', isA<Map<String, dynamic>>()),
+      );
     });
-test('Commitment category normalizes legacy values', () {
+
+    test('Commitment category normalizes legacy values', () {
       notifier.setCommitmentCategory('Compassionate');
-      expect(notifier.state.commitmentCategory, CommitmentCategory.charity.name);
-      
+      expect(
+        notifier.state.commitmentCategory,
+        CommitmentCategory.charity.name,
+      );
+
       notifier.setCommitmentCategory('creative');
       expect(notifier.state.commitmentCategory, CommitmentCategory.growth.name);
-      
+
       notifier.setCommitmentCategory('Practical');
-      expect(notifier.state.commitmentCategory, CommitmentCategory.discipline.name);
+      expect(
+        notifier.state.commitmentCategory,
+        CommitmentCategory.discipline.name,
+      );
     });
 
     test('Lifestyle can be set', () {

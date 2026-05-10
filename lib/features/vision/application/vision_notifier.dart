@@ -10,7 +10,16 @@ class VisionNotifier extends StateNotifier<VisionState> {
     this._repository,
     this._notificationService, {
     List<String> Function()? topArchetypes,
+    Future<void> Function({
+      required int commitmentId,
+      String? when,
+      String? obstacle,
+    })?
+    saveFirstCheckInPlan,
+    CommitmentPlanContext Function(int commitmentId)? localPlanContext,
   }) : _topArchetypes = topArchetypes ?? (() => const <String>[]),
+       _saveFirstCheckInPlan = saveFirstCheckInPlan,
+       _localPlanContext = localPlanContext,
        super(const VisionState()) {
     _notificationService.setDailyCheckInActionHandler(() async {
       final completed = await checkIn();
@@ -23,6 +32,13 @@ class VisionNotifier extends StateNotifier<VisionState> {
   final VisionRepository _repository;
   final NotificationService _notificationService;
   final List<String> Function() _topArchetypes;
+  final Future<void> Function({
+    required int commitmentId,
+    String? when,
+    String? obstacle,
+  })?
+  _saveFirstCheckInPlan;
+  final CommitmentPlanContext Function(int commitmentId)? _localPlanContext;
 
   @override
   void dispose() {
@@ -42,12 +58,15 @@ class VisionNotifier extends StateNotifier<VisionState> {
     state = state.copyWith(isLoading: true, clearError: true);
     try {
       final bootstrap = await _repository.bootstrap();
-      final tribes = await _repository.recommendedTribes(
-        archetypes: _topArchetypes(),
-      );
-      final commitments = await _repository.recommendedCommitments(
-        tribeId: bootstrap.primaryTribe?.tribe.id,
-      );
+      final readOnly = bootstrap.dataSource.isReadOnly;
+      final tribes = readOnly
+          ? const <TribeIdentity>[]
+          : await _repository.recommendedTribes(archetypes: _topArchetypes());
+      final commitments = readOnly
+          ? const <CommitmentPlan>[]
+          : await _repository.recommendedCommitments(
+              tribeId: bootstrap.primaryTribe?.tribe.id,
+            );
       final feedResult = bootstrap.activeCommitment == null
           ? const CommitmentFeedResult(reflections: [], postedToday: false)
           : await _repository.feed(bootstrap.activeCommitment!.plan.id);
@@ -81,13 +100,10 @@ class VisionNotifier extends StateNotifier<VisionState> {
         hangouts: hangouts,
         notifications: notifications,
         unreadNotificationCount: unreadNotificationCount,
-        journeyEvents: bootstrap.journeyEvents.isNotEmpty
-            ? bootstrap.journeyEvents
-            : _buildJourneyEvents(
-                bootstrap.primaryTribe,
-                bootstrap.activeCommitment,
-              ),
+        journeyEvents: bootstrap.journeyEvents,
         reflectionPostedToday: feedResult.postedToday,
+        dataSource: bootstrap.dataSource,
+        error: bootstrap.errorMessage,
       );
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString());
@@ -116,6 +132,14 @@ class VisionNotifier extends StateNotifier<VisionState> {
         visibilityMode: state.visibilityMode,
         displayAlias: state.visibilityAlias,
       );
+      if (state.isReadOnly) {
+        state = state.copyWith(
+          isLoading: false,
+          error:
+              'Reconnect before joining a tribe. Offline recommendations are read-only.',
+        );
+        return false;
+      }
       final commitments = await _repository.recommendedCommitments(
         tribeId: tribe.id,
       );
@@ -125,7 +149,6 @@ class VisionNotifier extends StateNotifier<VisionState> {
         recommendedCommitments: commitments,
         tribePulse: await _repository.tribePulse(tribe.id),
         weeklyReflections: await _repository.weeklyRitual(tribe.id),
-        journeyEvents: _buildJourneyEvents(membership, state.activeCommitment),
       );
       return true;
     } catch (e) {
@@ -134,30 +157,58 @@ class VisionNotifier extends StateNotifier<VisionState> {
     }
   }
 
-  Future<bool> joinCommitment(CommitmentPlan plan, int nudges) async {
+  Future<bool> joinCommitment(
+    CommitmentPlan plan,
+    int nudges, {
+    String? planWhen,
+    String? planObstacle,
+  }) async {
     state = state.copyWith(isLoading: true, clearError: true);
     try {
+      if (state.isReadOnly) {
+        state = state.copyWith(
+          isLoading: false,
+          error:
+              'Reconnect before starting a commitment. Offline recommendations are read-only.',
+        );
+        return false;
+      }
       final membership = await _repository.joinCommitment(
         commitmentId: plan.id,
         nudgeCount: nudges,
+        planWhen: planWhen,
+        planObstacle: planObstacle,
       );
+      await _saveFirstCheckInPlan?.call(
+        commitmentId: membership.plan.id,
+        when: membership.firstCheckInPlanWhen ?? planWhen,
+        obstacle: membership.firstCheckInPlanObstacle ?? planObstacle,
+      );
+      String? notificationWarning;
       try {
-        await _notificationService.scheduleCommitmentNudges(
+        final scheduled = await _notificationService.scheduleCommitmentNudges(
           commitmentId: membership.plan.id,
           commitmentTitle: membership.plan.title,
           dailyAction: membership.plan.dailyAction,
           nudgeCount: membership.nudgeCountPerDay,
+          planWhen: membership.firstCheckInPlanWhen ?? planWhen,
+          planObstacle: membership.firstCheckInPlanObstacle ?? planObstacle,
         );
-      } catch (_) {
-        // Notification setup should not trap a user after the server has joined
-        // the commitment. They can still keep the path inside the app.
+        if (!scheduled) {
+          notificationWarning =
+              'Commitment joined, but device nudges could not be scheduled. You can still check in from the app.';
+        }
+      } catch (e) {
+        notificationWarning =
+            'Commitment joined, but device nudges could not be scheduled. You can still check in from the app.';
       }
       state = state.copyWith(
         isLoading: false,
         activeCommitment: membership,
         feed: const [],
         hangouts: await _repository.visibleHangouts(),
-        journeyEvents: _buildJourneyEvents(state.primaryTribe, membership),
+        notificationWarning: notificationWarning,
+        clearNotificationWarning: notificationWarning == null,
       );
       return true;
     } catch (e) {
@@ -175,13 +226,23 @@ class VisionNotifier extends StateNotifier<VisionState> {
         commitmentId: active.plan.id,
         nudgeCount: nudgeCount,
       );
-      await _notificationService.scheduleCommitmentNudges(
+      final localContext = _localPlanContext?.call(membership.plan.id);
+      final scheduled = await _notificationService.scheduleCommitmentNudges(
         commitmentId: membership.plan.id,
         commitmentTitle: membership.plan.title,
         dailyAction: membership.plan.dailyAction,
         nudgeCount: membership.nudgeCountPerDay,
+        planWhen: membership.firstCheckInPlanWhen ?? localContext?.when,
+        planObstacle:
+            membership.firstCheckInPlanObstacle ?? localContext?.obstacle,
       );
-      state = state.copyWith(activeCommitment: membership);
+      state = state.copyWith(
+        activeCommitment: membership,
+        notificationWarning: scheduled
+            ? null
+            : 'Nudge settings saved, but device notifications could not be scheduled.',
+        clearNotificationWarning: scheduled,
+      );
       return true;
     } catch (e) {
       state = state.copyWith(error: e.toString());
@@ -198,11 +259,31 @@ class VisionNotifier extends StateNotifier<VisionState> {
       final membership = await _repository.checkIn(
         commitmentId: active.plan.id,
       );
-      state = state.copyWith(
-        isLoading: false,
-        activeCommitment: membership,
-        journeyEvents: _buildJourneyEvents(state.primaryTribe, membership),
-      );
+      try {
+        final localContext = _localPlanContext?.call(membership.plan.id);
+        final scheduled = await _notificationService.scheduleCommitmentNudges(
+          commitmentId: membership.plan.id,
+          commitmentTitle: membership.plan.title,
+          dailyAction: membership.plan.dailyAction,
+          nudgeCount: membership.nudgeCountPerDay,
+          startTomorrow: true,
+          planWhen: membership.firstCheckInPlanWhen ?? localContext?.when,
+          planObstacle:
+              membership.firstCheckInPlanObstacle ?? localContext?.obstacle,
+        );
+        if (!scheduled) {
+          state = state.copyWith(
+            notificationWarning:
+                'Checked in, but tomorrow\'s nudges could not be refreshed.',
+          );
+        }
+      } catch (_) {
+        state = state.copyWith(
+          notificationWarning:
+              'Checked in, but tomorrow\'s nudges could not be refreshed.',
+        );
+      }
+      state = state.copyWith(isLoading: false, activeCommitment: membership);
       return true;
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString());
@@ -235,16 +316,6 @@ class VisionNotifier extends StateNotifier<VisionState> {
       state = state.copyWith(
         feed: [reflection, ...state.feed],
         reflectionPostedToday: true,
-        journeyEvents: [
-          GrowthJourneyEvent(
-            type: GrowthJourneyEventType.reflectionPosted,
-            title: GrowthJourneyEventType.reflectionPosted.title,
-            subtitle: GrowthJourneyEventType.reflectionPosted.subtitle,
-            occurredAt: DateTime.now(),
-            iconKey: GrowthJourneyEventType.reflectionPosted.iconKey,
-          ),
-          ...state.journeyEvents,
-        ],
       );
       return true;
     } catch (e) {
@@ -266,16 +337,6 @@ class VisionNotifier extends StateNotifier<VisionState> {
       );
       state = state.copyWith(
         weeklyReflections: [reflection, ...state.weeklyReflections],
-        journeyEvents: [
-          GrowthJourneyEvent(
-            type: GrowthJourneyEventType.weeklyRitualPosted,
-            title: GrowthJourneyEventType.weeklyRitualPosted.title,
-            subtitle: GrowthJourneyEventType.weeklyRitualPosted.subtitle,
-            occurredAt: DateTime.now(),
-            iconKey: GrowthJourneyEventType.weeklyRitualPosted.iconKey,
-          ),
-          ...state.journeyEvents,
-        ],
       );
       return true;
     } catch (e) {
@@ -448,50 +509,43 @@ class VisionNotifier extends StateNotifier<VisionState> {
     await refreshFeed();
   }
 
-  List<GrowthJourneyEvent> _buildJourneyEvents(
-    TribeMembership? tribe,
-    CommitmentSeason? commitment,
-  ) {
-    final now = DateTime.now();
-    return [
-      GrowthJourneyEvent(
-        type: GrowthJourneyEventType.compassComplete,
-        title: GrowthJourneyEventType.compassComplete.title,
-        subtitle: GrowthJourneyEventType.compassComplete.subtitle,
-        occurredAt: now,
-        iconKey: GrowthJourneyEventType.compassComplete.iconKey,
-      ),
-      if (tribe != null)
-        GrowthJourneyEvent(
-          type: GrowthJourneyEventType.tribeJoined,
-          title: GrowthJourneyEventType.tribeJoined.title,
-          subtitle: tribe.tribe.displayName,
-          occurredAt: now,
-          iconKey: GrowthJourneyEventType.tribeJoined.iconKey,
-        ),
-      if (commitment != null)
-        GrowthJourneyEvent(
-          type: GrowthJourneyEventType.commitmentJoined,
-          title: GrowthJourneyEventType.commitmentJoined.title,
-          subtitle: commitment.plan.title,
-          occurredAt: now,
-          iconKey: GrowthJourneyEventType.commitmentJoined.iconKey,
-        ),
-      if (commitment?.checkedInToday ?? false)
-        GrowthJourneyEvent(
-          type: GrowthJourneyEventType.dailyCommitmentComplete,
-          title: GrowthJourneyEventType.dailyCommitmentComplete.title,
-          subtitle: GrowthJourneyEventType.dailyCommitmentComplete.subtitle,
-          occurredAt: now,
-          iconKey: GrowthJourneyEventType.dailyCommitmentComplete.iconKey,
-        ),
-    ];
+  Future<bool> reportReflection(
+    CommitmentReflection reflection,
+    String reason,
+  ) async {
+    final normalized = reason.trim();
+    if (normalized.isEmpty) return false;
+    try {
+      await _repository.reportReflection(
+        reflectionId: reflection.id,
+        reason: normalized,
+      );
+      return true;
+    } catch (e) {
+      state = state.copyWith(error: e.toString());
+      return false;
+    }
+  }
+
+  Future<bool> reportHangout(CommitmentHangout hangout, String reason) async {
+    final normalized = reason.trim();
+    if (normalized.isEmpty) return false;
+    try {
+      await _repository.reportHangout(
+        hangoutId: hangout.id,
+        reason: normalized,
+      );
+      return true;
+    } catch (e) {
+      state = state.copyWith(error: e.toString());
+      return false;
+    }
   }
 
   String _aliasFor(VisibilityMode mode, String? alias) {
     return switch (mode) {
       VisibilityMode.public =>
-        alias?.trim().isNotEmpty == true ? alias!.trim() : 'Public profile',
+        alias?.trim().isNotEmpty == true ? alias!.trim() : 'Visible profile',
       VisibilityMode.nickname =>
         alias?.trim().isNotEmpty == true ? alias!.trim() : 'Friend',
       VisibilityMode.initials =>

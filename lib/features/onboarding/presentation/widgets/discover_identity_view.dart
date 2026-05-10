@@ -1,150 +1,41 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/services/haptic_service.dart';
-import '../../../../core/theme/app_animations.dart';
 import '../../../../shared/widgets/light_rays_reveal.dart';
+import '../../../assessment/domain/models/archetype.dart';
 import '../../application/onboarding_notifier.dart';
+import '../../application/onboarding_state.dart';
 
-/// Step 3: Your Identity — 3-question mini-assessment with inline archetype reveal.
-///
-/// Supports an optional 4th tiebreaker question when the top 2 archetypes
-/// are too close after the first 3 questions.
-class DiscoverIdentityView extends ConsumerStatefulWidget {
+/// Step 3: Full spiritual compass. The exact age is private and only used
+/// to derive an age band for age-aware questions after signup.
+class DiscoverIdentityView extends ConsumerWidget {
   const DiscoverIdentityView({super.key});
 
-  @override
-  ConsumerState<DiscoverIdentityView> createState() =>
-      _DiscoverIdentityViewState();
-}
+  static const _instanceOptions = <int, String>{
+    0: 'Not yet',
+    3: 'A few times',
+    10: 'Often',
+    40: 'A practiced pattern',
+    90: 'A deep pattern',
+  };
 
-class _DiscoverIdentityViewState extends ConsumerState<DiscoverIdentityView>
-    with SingleTickerProviderStateMixin {
-  int _currentQuestion = 0;
-  late final AnimationController _revealController;
-  late final Animation<double> _revealScale;
-  late final Animation<double> _revealFade;
-  bool _revealTriggered = false;
-  bool _showingTiebreaker = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _revealController = AnimationController(
-      vsync: this,
-      duration: AppAnimations.reveal,
-    );
-    _revealScale = Tween<double>(begin: 0.7, end: 1.0).animate(
-      CurvedAnimation(
-        parent: _revealController,
-        curve: AppAnimations.bounceCurve,
-      ),
-    );
-    _revealFade = CurvedAnimation(
-      parent: _revealController,
-      curve: const Interval(0.2, 1.0, curve: Curves.easeOut),
-    );
-  }
+  static const _fearOptions = <String, String>{
+    'none': 'I am just noticing this',
+    'some': 'I have wrestled with it',
+    'many': 'It has shaped a season',
+    'overcome': 'I have grown through it',
+  };
 
   @override
-  void dispose() {
-    _revealController.dispose();
-    super.dispose();
-  }
-
-  void _triggerReveal() {
-    if (!_revealTriggered) {
-      _revealTriggered = true;
-      HapticService.milestone();
-      _revealController.forward();
-    }
-  }
-
-  /// Returns a confidence label based on the assessment score spread.
-  String _confidenceLabel(double confidence) {
-    if (confidence >= 0.5) return 'Clear signal';
-    if (confidence >= 0.3) return 'Steady signal';
-    return 'Gentle signal';
-  }
-
-  @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final textTheme = theme.textTheme;
     final state = ref.watch(onboardingProvider);
     final notifier = ref.read(onboardingProvider.notifier);
-    const questions = OnboardingNotifier.miniAssessmentQuestions;
-
-    // Determine total questions including possible tiebreaker
-    final baseQuestionCount = questions.length; // 3
-
-    // Determine which question to show
-    final MiniAssessmentQuestion question;
-    if (_showingTiebreaker) {
-      final tiebreaker = notifier.getTiebreakerQuestion();
-      if (tiebreaker != null) {
-        question = tiebreaker;
-      } else {
-        question = questions[_currentQuestion.clamp(0, baseQuestionCount - 1)];
-      }
-    } else if (_currentQuestion == 2) {
-      question = notifier.getDynamicQuestion3();
-    } else {
-      question = questions[_currentQuestion.clamp(0, baseQuestionCount - 1)];
-    }
-
-    final archetype = notifier.primaryArchetype;
-
-    // Check if current question has been answered
-    final questionIndex = _showingTiebreaker ? 3 : _currentQuestion;
-    final hasAnswer =
-        state.miniAssessmentAnswers.length > questionIndex &&
-        state.miniAssessmentAnswers[questionIndex] >= 0;
-    final selectedIndex = hasAnswer
-        ? state.miniAssessmentAnswers[questionIndex]
-        : -1;
-
-    // Assessment is complete when archetype is determined AND no tiebreaker needed
-    final hasThreeAnswers =
-        state.miniAssessmentAnswers.length >= 3 &&
-        state.miniAssessmentAnswers.take(3).every((a) => a >= 0);
-    final needsTiebreaker = hasThreeAnswers && notifier.needsTiebreaker;
-    final assessmentComplete =
-        hasThreeAnswers &&
-        archetype != null &&
-        !needsTiebreaker &&
-        !_showingTiebreaker;
-
-    // Check if tiebreaker just completed
-    final tiebreakerComplete =
-        _showingTiebreaker &&
-        state.miniAssessmentAnswers.length >= 4 &&
-        state.miniAssessmentAnswers[3] >= 0 &&
-        archetype != null;
-
-    // Trigger reveal when fully done
-    if (assessmentComplete || tiebreakerComplete) {
-      _triggerReveal();
-    }
-
-    // Auto-show tiebreaker after Q3 completes
-    if (needsTiebreaker && !_showingTiebreaker && !state.tiebreakerShown) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
-          setState(() {
-            _showingTiebreaker = true;
-          });
-          notifier.markTiebreakerShown();
-        }
-      });
-    }
-
-    final totalQuestions = _showingTiebreaker
-        ? baseQuestionCount + 1
-        : baseQuestionCount;
-    final displayQuestionNum = _showingTiebreaker
-        ? baseQuestionCount + 1
-        : _currentQuestion + 1;
+    final selected = state.selectedArchetypeIds;
+    final primary = notifier.primaryArchetype;
 
     return SingleChildScrollView(
       physics: const BouncingScrollPhysics(),
@@ -152,390 +43,366 @@ class _DiscoverIdentityViewState extends ConsumerState<DiscoverIdentityView>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const SizedBox(height: 16),
-          // Question progress
-          Row(
-            children: [
-              for (var i = 0; i < totalQuestions; i++) ...[
-                if (i > 0) const SizedBox(width: 8),
-                Expanded(
-                  child: AnimatedContainer(
-                    duration: AppAnimations.fast,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(2),
-                      color: i < displayQuestionNum
-                          ? theme.colorScheme.primary
-                          : theme.colorScheme.onSurface.withValues(alpha: 0.1),
-                    ),
-                  ),
+          const SizedBox(height: 12),
+          Center(
+            child: LightRaysReveal(
+              rotate: false,
+              maxOpacity: 0.28,
+              rayCount: 9,
+              child: Text(
+                'Your spirit grows in seasons.',
+                textAlign: TextAlign.center,
+                style: textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.w800,
+                  height: 1.16,
                 ),
-              ],
-            ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Start with your age privately, then name the ways God has already been forming you. We only store the age band.',
+            textAlign: TextAlign.center,
+            style: textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.62),
+              height: 1.48,
+            ),
+          ),
+          const SizedBox(height: 24),
+          _AgeField(
+            initialAge: state.exactAge,
+            onChanged: notifier.setExactAge,
+          ),
+          const SizedBox(height: 24),
+          Text(
+            'Choose up to three compass markers',
+            style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
           ),
           const SizedBox(height: 8),
           Text(
-            _showingTiebreaker
-                ? 'One last thought'
-                : 'Question $displayQuestionNum of $totalQuestions',
-            style: textTheme.labelMedium?.copyWith(
-              color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+            'Pick what feels recognizable, not impressive.',
+            style: textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.55),
             ),
           ),
-          const SizedBox(height: 24),
-          Text(
-            question.question,
-            style: textTheme.titleLarge?.copyWith(
-              fontWeight: FontWeight.w600,
-              height: 1.3,
-            ),
-          ),
-          const SizedBox(height: 24),
-          // Answer options
-          ...List.generate(question.options.length, (index) {
-            final isSelected = selectedIndex == index;
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: Material(
-                color: Colors.transparent,
-                child: InkWell(
-                  onTap: () {
-                    HapticService.selection();
-                    notifier.answerMiniAssessment(questionIndex, index);
-                    // Auto-advance after a short delay
-                    if (!_showingTiebreaker &&
-                        _currentQuestion < baseQuestionCount - 1) {
-                      Future.delayed(const Duration(milliseconds: 400), () {
-                        if (mounted) {
-                          setState(() {
-                            _currentQuestion++;
-                          });
-                        }
-                      });
-                    }
-                  },
-                  borderRadius: BorderRadius.circular(12),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 200),
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: isSelected
-                          ? theme.colorScheme.primary.withValues(alpha: 0.1)
-                          : theme.colorScheme.onSurface.withValues(alpha: 0.03),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: isSelected
-                            ? theme.colorScheme.primary.withValues(alpha: 0.4)
-                            : theme.colorScheme.onSurface.withValues(
-                                alpha: 0.1,
-                              ),
-                        width: isSelected ? 1.5 : 1,
-                      ),
-                    ),
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 28,
-                          height: 28,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: isSelected
-                                ? theme.colorScheme.primary
-                                : Colors.transparent,
-                            border: Border.all(
-                              color: isSelected
-                                  ? theme.colorScheme.primary
-                                  : theme.colorScheme.onSurface.withValues(
-                                      alpha: 0.3,
-                                    ),
-                              width: 1.5,
-                            ),
-                          ),
-                          child: isSelected
-                              ? const Icon(
-                                  Icons.check,
-                                  size: 16,
-                                  color: Colors.white,
-                                )
-                              : Center(
-                                  child: Text(
-                                    String.fromCharCode(65 + index),
-                                    style: textTheme.labelMedium?.copyWith(
-                                      color: theme.colorScheme.onSurface
-                                          .withValues(alpha: 0.5),
-                                    ),
-                                  ),
-                                ),
-                        ),
-                        const SizedBox(width: 14),
-                        Expanded(
-                          child: Text(
-                            question.options[index],
-                            style: textTheme.bodyMedium?.copyWith(
-                              fontWeight: isSelected
-                                  ? FontWeight.w600
-                                  : FontWeight.w400,
-                              color: isSelected
-                                  ? theme.colorScheme.primary
-                                  : theme.colorScheme.onSurface.withValues(
-                                      alpha: 0.8,
-                                    ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            );
-          }),
-          // Back button for questions 2+ (not during tiebreaker)
-          if (_currentQuestion > 0 &&
-              !assessmentComplete &&
-              !tiebreakerComplete &&
-              !_showingTiebreaker) ...[
-            const SizedBox(height: 8),
-            Center(
-              child: TextButton.icon(
-                onPressed: () {
-                  setState(() {
-                    _currentQuestion--;
-                  });
+          const SizedBox(height: 14),
+          ...Archetype.allArchetypes.map(
+            (archetype) => Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: _ArchetypeTile(
+                archetype: archetype,
+                selected: selected.contains(archetype.name),
+                onTap: () {
+                  HapticService.selection();
+                  notifier.toggleCompassArchetype(archetype.name);
                 },
-                icon: const Icon(Icons.arrow_back, size: 16),
-                label: const Text('Previous question'),
               ),
             ),
+          ),
+          if (selected.isNotEmpty) ...[
+            const SizedBox(height: 24),
+            Text(
+              'Calibrate your spiritual age',
+              style: textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'For each marker, tell the truth about practice and struggle. Growth is measured by formation, not years.',
+              style: textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.58),
+                height: 1.45,
+              ),
+            ),
+            const SizedBox(height: 14),
+            ...selected.map((name) {
+              final archetype = Archetype.allArchetypes.firstWhere(
+                (item) => item.name == name,
+              );
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 14),
+                child: _CompassCalibrationCard(
+                  archetype: archetype,
+                  data: state.compassAssessmentData[name],
+                  onChanged: (instances, fears) => notifier
+                      .saveCompassArchetypeAssessment(name, instances, fears),
+                ),
+              );
+            }),
           ],
-          // Inline archetype reveal
-          if (assessmentComplete || tiebreakerComplete) ...[
-            const SizedBox(height: 32),
-            AnimatedBuilder(
-              animation: _revealController,
-              builder: (context, child) {
-                return Opacity(opacity: _revealFade.value, child: child);
-              },
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      theme.colorScheme.primary.withValues(alpha: 0.08),
-                      theme.colorScheme.primary.withValues(alpha: 0.02),
-                    ],
-                  ),
-                  borderRadius: BorderRadius.circular(18),
-                  border: Border.all(
-                    color: theme.colorScheme.primary.withValues(alpha: 0.2),
-                  ),
-                ),
-                child: Column(
-                  children: [
-                    // Animated archetype badge
-                    ScaleTransition(
-                      scale: _revealScale,
-                      child: Container(
-                        width: 80,
-                        height: 80,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          gradient: LinearGradient(
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                            colors: [
-                              theme.colorScheme.primary.withValues(alpha: 0.15),
-                              theme.colorScheme.primary.withValues(alpha: 0.05),
-                            ],
-                          ),
-                          border: Border.all(
-                            color: theme.colorScheme.primary.withValues(
-                              alpha: 0.3,
-                            ),
-                            width: 2,
-                          ),
-                        ),
-                        child: Center(
-                          child: Text(
-                            archetype.name[0],
-                            style: textTheme.displaySmall?.copyWith(
-                              fontWeight: FontWeight.w700,
-                              color: theme.colorScheme.primary,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      'Your compass points toward',
-                      style: textTheme.bodyMedium?.copyWith(
-                        color: theme.colorScheme.onSurface.withValues(
-                          alpha: 0.5,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    LightRaysReveal(
-                      delay: const Duration(milliseconds: 250),
-                      maxOpacity: 0.5,
-                      rayCount: 12,
-                      expandBeyond: 80,
-                      child: Text(
-                        archetype.name,
-                        style: textTheme.headlineMedium?.copyWith(
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 6,
-                      ),
-                      decoration: BoxDecoration(
-                        color: theme.colorScheme.primary.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Text(
-                        'The ${archetype.identity}',
-                        style: textTheme.labelLarge?.copyWith(
-                          color: theme.colorScheme.primary,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    // Confidence indicator
-                    Text(
-                      _confidenceLabel(state.assessmentConfidence),
-                      style: textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.primary.withValues(alpha: 0.7),
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    // Strengths
-                    _buildSection(
-                      context,
-                      icon: Icons.star_outline,
-                      title: 'How you tend to grow',
-                      content: archetype.strengths,
-                      color: theme.colorScheme.primary,
-                    ),
-                    const SizedBox(height: 14),
-                    // Inversion strategy / spiritual path
-                    if (archetype.inversionStrategy.isNotEmpty)
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(14),
-                        decoration: BoxDecoration(
-                          color: theme.colorScheme.primary.withValues(
-                            alpha: 0.06,
-                          ),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: theme.colorScheme.primary.withValues(
-                              alpha: 0.12,
-                            ),
-                          ),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Icon(
-                                  Icons.lightbulb_outline,
-                                  size: 18,
-                                  color: theme.colorScheme.primary,
-                                ),
-                                const SizedBox(width: 8),
-                                Text(
-                                  'Growth invitation',
-                                  style: textTheme.labelLarge?.copyWith(
-                                    fontWeight: FontWeight.w600,
-                                    color: theme.colorScheme.primary,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 10),
-                            Text(
-                              archetype.inversionStrategy,
-                              style: textTheme.bodySmall?.copyWith(
-                                color: theme.colorScheme.onSurface.withValues(
-                                  alpha: 0.7,
-                                ),
-                                height: 1.5,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    const SizedBox(height: 10),
-                    Text(
-                      'You can retake the compass later as your season changes.',
-                      textAlign: TextAlign.center,
-                      style: textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurface.withValues(
-                          alpha: 0.4,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
+          if (state.hasFullCompassResult && primary != null) ...[
+            const SizedBox(height: 20),
+            _CompassResultStory(primary: primary, state: state),
           ],
           const SizedBox(height: 24),
         ],
       ),
     );
   }
+}
 
-  Widget _buildSection(
-    BuildContext context, {
-    required IconData icon,
-    required String title,
-    required String content,
-    required Color color,
-  }) {
+class _AgeField extends StatefulWidget {
+  const _AgeField({required this.initialAge, required this.onChanged});
+
+  final int? initialAge;
+  final ValueChanged<int?> onChanged;
+
+  @override
+  State<_AgeField> createState() => _AgeFieldState();
+}
+
+class _AgeFieldState extends State<_AgeField> {
+  late final TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.initialAge?.toString());
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.04),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withValues(alpha: 0.1)),
+    return TextFormField(
+      controller: _controller,
+      keyboardType: TextInputType.number,
+      inputFormatters: [
+        FilteringTextInputFormatter.digitsOnly,
+        LengthLimitingTextInputFormatter(3),
+      ],
+      decoration: InputDecoration(
+        labelText: 'Age',
+        helperText: 'Private. Used only to derive your question age band.',
+        prefixIcon: const Icon(Icons.lock_outline),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+      onChanged: (value) {
+        final age = int.tryParse(value);
+        widget.onChanged(age);
+      },
+      validator: (value) {
+        final age = int.tryParse(value ?? '');
+        if (age == null || age < 13 || age > 120) {
+          return 'Enter an age between 13 and 120';
+        }
+        return null;
+      },
+      style: theme.textTheme.titleMedium,
+    );
+  }
+}
+
+class _ArchetypeTile extends StatelessWidget {
+  const _ArchetypeTile({
+    required this.archetype,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final Archetype archetype;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(8),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: selected
+                ? theme.colorScheme.primary.withValues(alpha: 0.08)
+                : theme.colorScheme.onSurface.withValues(alpha: 0.025),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: selected
+                  ? theme.colorScheme.primary.withValues(alpha: 0.42)
+                  : theme.colorScheme.onSurface.withValues(alpha: 0.08),
+            ),
+          ),
+          child: Row(
             children: [
-              Icon(icon, size: 18, color: color),
-              const SizedBox(width: 8),
-              Text(
-                title,
-                style: theme.textTheme.labelLarge?.copyWith(
-                  fontWeight: FontWeight.w600,
-                  color: color,
+              Icon(
+                selected ? Icons.check_circle : Icons.radio_button_unchecked,
+                color: selected
+                    ? theme.colorScheme.primary
+                    : theme.colorScheme.onSurface.withValues(alpha: 0.35),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '${archetype.name} - ${archetype.identity}',
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      archetype.strengths.split(',').first,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurface.withValues(
+                          alpha: 0.58,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 10),
+        ),
+      ),
+    );
+  }
+}
+
+class _CompassCalibrationCard extends StatelessWidget {
+  const _CompassCalibrationCard({
+    required this.archetype,
+    required this.data,
+    required this.onChanged,
+  });
+
+  final Archetype archetype;
+  final OnboardingCompassData? data;
+  final void Function(int instances, String fears) onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final instances = data?.instances ?? 0;
+    final fears = data?.fears ?? 'none';
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: theme.colorScheme.onSurface.withValues(alpha: 0.09),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: theme.colorScheme.shadow.withValues(alpha: 0.04),
+            blurRadius: 16,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
           Text(
-            content.replaceAll(';', '\n\u2022').replaceAll(', ', '\n\u2022 '),
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+            archetype.name,
+            style: theme.textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 12),
+          DropdownButtonFormField<int>(
+            initialValue: instances,
+            decoration: const InputDecoration(
+              labelText: 'How often has this shown up?',
+              border: OutlineInputBorder(),
+            ),
+            items: DiscoverIdentityView._instanceOptions.entries
+                .map(
+                  (entry) => DropdownMenuItem(
+                    value: entry.key,
+                    child: Text(entry.value),
+                  ),
+                )
+                .toList(),
+            onChanged: (value) => onChanged(value ?? instances, fears),
+          ),
+          const SizedBox(height: 12),
+          DropdownButtonFormField<String>(
+            initialValue: fears,
+            decoration: const InputDecoration(
+              labelText: 'How have you met its struggle?',
+              border: OutlineInputBorder(),
+            ),
+            items: DiscoverIdentityView._fearOptions.entries
+                .map(
+                  (entry) => DropdownMenuItem(
+                    value: entry.key,
+                    child: Text(entry.value),
+                  ),
+                )
+                .toList(),
+            onChanged: (value) => onChanged(instances, value ?? fears),
+          ),
+          if (data != null) ...[
+            const SizedBox(height: 12),
+            LinearProgressIndicator(
+              value: data!.maturity / 100,
+              minHeight: 6,
+              borderRadius: BorderRadius.circular(3),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _CompassResultStory extends StatelessWidget {
+  const _CompassResultStory({required this.primary, required this.state});
+
+  final Archetype primary;
+  final OnboardingState state;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.primary.withValues(alpha: 0.07),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: theme.colorScheme.primary.withValues(alpha: 0.18),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Your compass points toward ${primary.name}',
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Spiritual age: ${state.spiritualAgeStage}',
+            style: theme.textTheme.labelLarge?.copyWith(
+              color: theme.colorScheme.primary,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Everyone grows in spirit like a child learning to become mature. The soul struggles on that journey: physical pressure, mental heaviness, addiction, money strain, relational wounds, and hidden spiritual battles can all become part of formation. When the Holy Spirit is received, the heart is like soil with a planted seed. Some seasons are quiet roots, some are pruning, and some bear fruit in due season.',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.68),
               height: 1.5,
             ),
           ),

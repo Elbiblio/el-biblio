@@ -8,6 +8,11 @@ import '../../core/constants/app_routes.dart';
 import '../../core/services/haptic_service.dart';
 import '../../core/theme/app_theme_tokens.dart';
 
+@visibleForTesting
+bool isShellRouteSelected(String location, String route) {
+  return location == route || location.startsWith('$route/');
+}
+
 class AppShell extends ConsumerWidget {
   const AppShell({super.key, required this.child});
 
@@ -49,7 +54,7 @@ class _FloatingBottomNav extends StatelessWidget {
             constraints: BoxConstraints(
               maxWidth: (MediaQuery.of(context).size.width * 0.92).clamp(
                 0,
-                420,
+                460,
               ),
             ),
             child: ClipRRect(
@@ -98,18 +103,33 @@ class _FloatingBottomNav extends StatelessWidget {
                       Expanded(
                         child: _NavItem(
                           icon: LucideIcons.flag,
-                          label: 'Path',
-                          isSelected:
-                              location.startsWith(AppRoutes.commit) ||
-                              location.startsWith(AppRoutes.reflect),
+                          label: 'Commit',
+                          isSelected: isShellRouteSelected(
+                            location,
+                            AppRoutes.commit,
+                          ),
                           onTap: () => context.go(AppRoutes.commit),
+                        ),
+                      ),
+                      Expanded(
+                        child: _NavItem(
+                          icon: LucideIcons.messageCircle,
+                          label: 'Reflect',
+                          isSelected: isShellRouteSelected(
+                            location,
+                            AppRoutes.reflect,
+                          ),
+                          onTap: () => context.go(AppRoutes.reflect),
                         ),
                       ),
                       Expanded(
                         child: _NavItem(
                           icon: LucideIcons.users,
                           label: 'Tribe',
-                          isSelected: location.startsWith(AppRoutes.tribe),
+                          isSelected: isShellRouteSelected(
+                            location,
+                            AppRoutes.tribe,
+                          ),
                           onTap: () => context.go(AppRoutes.tribe),
                         ),
                       ),
@@ -117,7 +137,10 @@ class _FloatingBottomNav extends StatelessWidget {
                         child: _NavItem(
                           icon: LucideIcons.sprout,
                           label: 'Grow',
-                          isSelected: location.startsWith(AppRoutes.grow),
+                          isSelected: isShellRouteSelected(
+                            location,
+                            AppRoutes.grow,
+                          ),
                           onTap: () => context.go(AppRoutes.grow),
                         ),
                       ),

@@ -1,6 +1,6 @@
-import 'dart:math';
 import 'package:logger/logger.dart';
 
+import '../../../core/errors/app_exception.dart';
 import '../../../core/network/dio_client.dart';
 import '../domain/models/auth_models.dart';
 
@@ -92,25 +92,10 @@ class AuthRepository {
   }
 
   Future<AuthResponse> createGuestAccount() async {
-    // Bypass API call and create a local guest account for onboarding flow
-    final timestampStr = DateTime.now().millisecondsSinceEpoch.toString();
-    final suffix =
-        '${_randomString(6)}${timestampStr.substring(timestampStr.length - 4)}';
-    final email = 'guest_$suffix@guest.elbiblio.com';
-
-    _logger.i('[Auth] Creating local guest account with email: $email');
-
-    // Create a mock user and auth response without server call
-    final user = User(
-      id: 'guest_$suffix',
-      email: email,
-      firstName: 'Guest',
-      lastName: suffix,
-      createdAt: DateTime.now(),
+    throw GuestUserException(
+      'Guest mode is unavailable for launch. Please create an account to continue.',
+      'guest_auth_disabled',
     );
-
-    // Return a mock auth response
-    return AuthResponse(token: 'guest_token_$suffix', user: user);
   }
 
   Future<User> updateUserProfile(
@@ -160,16 +145,5 @@ class AuthRepository {
       _logger.e('Profile update error', error: e);
       rethrow;
     }
-  }
-
-  String _randomString(int length) {
-    const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
-    final random = Random.secure();
-    return String.fromCharCodes(
-      Iterable.generate(
-        length,
-        (_) => chars.codeUnitAt(random.nextInt(chars.length)),
-      ),
-    );
   }
 }

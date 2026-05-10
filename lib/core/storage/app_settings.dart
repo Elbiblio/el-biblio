@@ -51,6 +51,14 @@ class AppSettings {
     required this.callingProfile,
     required this.currentWeeklyPlan,
     required this.spiritualPulseByDate,
+    this.ageBand,
+    this.selectedArchetypeIds = const [],
+    this.spiritualAgeScore = 0,
+    this.spiritualAgeStage = 'Infant',
+    this.pendingCompassSubmission,
+    this.firstCheckInPlanCommitmentId,
+    this.firstCheckInPlanWhen,
+    this.firstCheckInPlanObstacle,
     this.personCommitments = const [],
     this.generosityRecords = const [],
     this.evangelismConversations = const [],
@@ -98,6 +106,14 @@ class AppSettings {
   final CallingProfile? callingProfile;
   final WeeklyPlan? currentWeeklyPlan;
   final Map<String, SpiritualPulseResponse> spiritualPulseByDate;
+  final String? ageBand;
+  final List<String> selectedArchetypeIds;
+  final int spiritualAgeScore;
+  final String spiritualAgeStage;
+  final Map<String, dynamic>? pendingCompassSubmission;
+  final int? firstCheckInPlanCommitmentId;
+  final String? firstCheckInPlanWhen;
+  final String? firstCheckInPlanObstacle;
   final List<PersonCommitment> personCommitments;
   final List<GenerosityRecord> generosityRecords;
   final List<EvangelismConversation> evangelismConversations;
@@ -167,6 +183,14 @@ class AppSettings {
       callingProfile: null,
       currentWeeklyPlan: null,
       spiritualPulseByDate: {},
+      ageBand: null,
+      selectedArchetypeIds: [],
+      spiritualAgeScore: 0,
+      spiritualAgeStage: 'Infant',
+      pendingCompassSubmission: null,
+      firstCheckInPlanCommitmentId: null,
+      firstCheckInPlanWhen: null,
+      firstCheckInPlanObstacle: null,
       personCommitments: [],
       generosityRecords: [],
       evangelismConversations: [],
@@ -187,34 +211,29 @@ class AppSettings {
     final unlockedBadgesRaw = map['unlockedBadges'];
     final unlockedBadges = unlockedBadgesRaw is Map
         ? unlockedBadgesRaw.map(
-            (key, value) => MapEntry(
-              key.toString(),
-              value.toString(),
-            ),
+            (key, value) => MapEntry(key.toString(), value.toString()),
           )
         : <String, String>{};
     final missionActionsRaw = map['missionActions'];
     final missionActions = missionActionsRaw is List
         ? missionActionsRaw
-            .whereType<Map>()
-            .map(
-              (item) => MissionAction.fromMap(
-                Map<String, dynamic>.from(item),
-              ),
-            )
-            .toList()
+              .whereType<Map>()
+              .map(
+                (item) =>
+                    MissionAction.fromMap(Map<String, dynamic>.from(item)),
+              )
+              .toList()
         : <MissionAction>[];
     final accountabilityPartnerRaw = map['accountabilityPartner'];
     final personProfilesRaw = map['personProfiles'];
     final personProfiles = personProfilesRaw is List
         ? personProfilesRaw
-            .whereType<Map>()
-            .map(
-              (item) => PersonProfile.fromMap(
-                Map<String, dynamic>.from(item),
-              ),
-            )
-            .toList()
+              .whereType<Map>()
+              .map(
+                (item) =>
+                    PersonProfile.fromMap(Map<String, dynamic>.from(item)),
+              )
+              .toList()
         : <PersonProfile>[];
     final spiritualPulseRaw = map['spiritualPulseByDate'];
     final spiritualPulseByDate = spiritualPulseRaw is Map
@@ -227,9 +246,10 @@ class AppSettings {
             ),
           )
         : <String, SpiritualPulseResponse>{};
-    final normalizedCommitmentCategory = CommitmentCategory.normalizeStorageValue(
-      map['commitmentCategory'] as String?,
-    );
+    final normalizedCommitmentCategory =
+        CommitmentCategory.normalizeStorageValue(
+          map['commitmentCategory'] as String?,
+        );
     final normalizedMissionFocus = MissionFocusTypeX.normalizeStorageValue(
       map['primaryMissionFocus'] as String?,
     );
@@ -248,7 +268,8 @@ class AppSettings {
       morningReminderEnabled: map['morningReminderEnabled'] as bool? ?? true,
       eveningReminderEnabled: map['eveningReminderEnabled'] as bool? ?? true,
       primaryVirtue:
-          VirtueTypeX.fromStorage(map['primaryVirtue'] as String?) ?? VirtueType.humility,
+          VirtueTypeX.fromStorage(map['primaryVirtue'] as String?) ??
+          VirtueType.humility,
       streakCount: map['streakCount'] as int? ?? 0,
       longestStreakCount: map['longestStreakCount'] as int? ?? 0,
       lastCheckIn: map['lastCheckIn'] == null
@@ -266,7 +287,8 @@ class AppSettings {
       contactsImported: map['contactsImported'] as bool? ?? false,
       bibleFontSize: (map['bibleFontSize'] as num?)?.toDouble() ?? 16.0,
       hasCompletedPhoneSetup: map['hasCompletedPhoneSetup'] as bool? ?? false,
-      hasCompletedPreOnboarding: map['hasCompletedPreOnboarding'] as bool? ?? false,
+      hasCompletedPreOnboarding:
+          map['hasCompletedPreOnboarding'] as bool? ?? false,
       hasSeenAssessmentPrompt: map['hasSeenAssessmentPrompt'] as bool? ?? false,
       selectedTTSVoice: map['selectedTTSVoice'] as String? ?? 'default',
       lastPrayerGuideDate: map['lastPrayerGuideDate'] == null
@@ -286,29 +308,63 @@ class AppSettings {
             )
           : null,
       personProfiles: personProfiles,
-      hasSeenCommitmentWelcome: map['hasSeenCommitmentWelcome'] as bool? ?? false,
-      hasCompletedPostOnboarding: map['hasCompletedPostOnboarding'] as bool? ?? false,
+      hasSeenCommitmentWelcome:
+          map['hasSeenCommitmentWelcome'] as bool? ?? false,
+      hasCompletedPostOnboarding:
+          map['hasCompletedPostOnboarding'] as bool? ?? false,
       hasSeenTodayWelcome: map['hasSeenTodayWelcome'] as bool? ?? false,
       callingProfile: map['callingProfile'] is Map
-          ? CallingProfile.fromMap(Map<String, dynamic>.from(map['callingProfile'] as Map))
+          ? CallingProfile.fromMap(
+              Map<String, dynamic>.from(map['callingProfile'] as Map),
+            )
           : null,
       currentWeeklyPlan: map['currentWeeklyPlan'] is Map
-          ? WeeklyPlan.fromMap(Map<String, dynamic>.from(map['currentWeeklyPlan'] as Map))
+          ? WeeklyPlan.fromMap(
+              Map<String, dynamic>.from(map['currentWeeklyPlan'] as Map),
+            )
           : null,
       spiritualPulseByDate: spiritualPulseByDate,
-      personCommitments: (map['personCommitments'] as List<dynamic>?)
-              ?.whereType<Map>()
-              .map((item) => PersonCommitment.fromMap(Map<String, dynamic>.from(item)))
+      ageBand: map['ageBand'] as String?,
+      selectedArchetypeIds:
+          (map['selectedArchetypeIds'] as List<dynamic>?)
+              ?.map((e) => e.toString())
               .toList() ??
           const [],
-      generosityRecords: (map['generosityRecords'] as List<dynamic>?)
+      spiritualAgeScore: (map['spiritualAgeScore'] as num?)?.toInt() ?? 0,
+      spiritualAgeStage: map['spiritualAgeStage'] as String? ?? 'Infant',
+      pendingCompassSubmission: map['pendingCompassSubmission'] is Map
+          ? Map<String, dynamic>.from(map['pendingCompassSubmission'] as Map)
+          : null,
+      firstCheckInPlanCommitmentId:
+          (map['firstCheckInPlanCommitmentId'] as num?)?.toInt(),
+      firstCheckInPlanWhen: map['firstCheckInPlanWhen'] as String?,
+      firstCheckInPlanObstacle: map['firstCheckInPlanObstacle'] as String?,
+      personCommitments:
+          (map['personCommitments'] as List<dynamic>?)
               ?.whereType<Map>()
-              .map((item) => GenerosityRecord.fromMap(Map<String, dynamic>.from(item)))
+              .map(
+                (item) =>
+                    PersonCommitment.fromMap(Map<String, dynamic>.from(item)),
+              )
               .toList() ??
           const [],
-      evangelismConversations: (map['evangelismConversations'] as List<dynamic>?)
+      generosityRecords:
+          (map['generosityRecords'] as List<dynamic>?)
               ?.whereType<Map>()
-              .map((item) => EvangelismConversation.fromMap(Map<String, dynamic>.from(item)))
+              .map(
+                (item) =>
+                    GenerosityRecord.fromMap(Map<String, dynamic>.from(item)),
+              )
+              .toList() ??
+          const [],
+      evangelismConversations:
+          (map['evangelismConversations'] as List<dynamic>?)
+              ?.whereType<Map>()
+              .map(
+                (item) => EvangelismConversation.fromMap(
+                  Map<String, dynamic>.from(item),
+                ),
+              )
               .toList() ??
           const [],
       companionCharacterCode: map['companionCharacterCode'] as String?,
@@ -317,20 +373,22 @@ class AppSettings {
               Map<String, dynamic>.from(map['christianLifeBaseline'] as Map),
             )
           : null,
-      goodHabits: (map['goodHabits'] as List<dynamic>?)
+      goodHabits:
+          (map['goodHabits'] as List<dynamic>?)
               ?.map((e) => e.toString())
               .where(kGoodHabitKeys.contains)
               .toList() ??
           const [],
-      struggles: (map['struggles'] as List<dynamic>?)
+      struggles:
+          (map['struggles'] as List<dynamic>?)
               ?.map((e) => e.toString())
               .where(kStruggleKeys.contains)
               .toList() ??
           const [],
       accountabilityCadence:
           (map['accountabilityCadence'] as String?) == 'weekly'
-              ? 'weekly'
-              : 'daily',
+          ? 'weekly'
+          : 'daily',
       onboardingDraft: map['onboardingDraft'] as String?,
     );
   }
@@ -353,7 +411,8 @@ class AppSettings {
       'lastIntegrityScore': lastIntegrityScore,
       'lastIntegrityDate': lastIntegrityDate?.toIso8601String(),
       'unlockedBadges': unlockedBadges,
-      'lastRecalibrationPromptDate': lastRecalibrationPromptDate?.toIso8601String(),
+      'lastRecalibrationPromptDate': lastRecalibrationPromptDate
+          ?.toIso8601String(),
       'socialPresenceOptIn': socialPresenceOptIn,
       'contactsImported': contactsImported,
       'bibleFontSize': bibleFontSize,
@@ -380,9 +439,23 @@ class AppSettings {
       'spiritualPulseByDate': spiritualPulseByDate.map(
         (key, value) => MapEntry(key, value.toJson()),
       ),
-      'personCommitments': personCommitments.map((item) => item.toMap()).toList(),
-      'generosityRecords': generosityRecords.map((item) => item.toMap()).toList(),
-      'evangelismConversations': evangelismConversations.map((item) => item.toMap()).toList(),
+      'ageBand': ageBand,
+      'selectedArchetypeIds': selectedArchetypeIds,
+      'spiritualAgeScore': spiritualAgeScore,
+      'spiritualAgeStage': spiritualAgeStage,
+      'pendingCompassSubmission': pendingCompassSubmission,
+      'firstCheckInPlanCommitmentId': firstCheckInPlanCommitmentId,
+      'firstCheckInPlanWhen': firstCheckInPlanWhen,
+      'firstCheckInPlanObstacle': firstCheckInPlanObstacle,
+      'personCommitments': personCommitments
+          .map((item) => item.toMap())
+          .toList(),
+      'generosityRecords': generosityRecords
+          .map((item) => item.toMap())
+          .toList(),
+      'evangelismConversations': evangelismConversations
+          .map((item) => item.toMap())
+          .toList(),
       'companionCharacterCode': companionCharacterCode,
       'christianLifeBaseline': christianLifeBaseline?.toMap(),
       'goodHabits': goodHabits,
@@ -429,6 +502,14 @@ class AppSettings {
     CallingProfile? callingProfile,
     WeeklyPlan? currentWeeklyPlan,
     Map<String, SpiritualPulseResponse>? spiritualPulseByDate,
+    String? ageBand,
+    List<String>? selectedArchetypeIds,
+    int? spiritualAgeScore,
+    String? spiritualAgeStage,
+    Map<String, dynamic>? pendingCompassSubmission,
+    int? firstCheckInPlanCommitmentId,
+    String? firstCheckInPlanWhen,
+    String? firstCheckInPlanObstacle,
     List<PersonCommitment>? personCommitments,
     List<GenerosityRecord>? generosityRecords,
     List<EvangelismConversation>? evangelismConversations,
@@ -442,6 +523,8 @@ class AppSettings {
     bool clearChristianLifeBaseline = false,
     bool clearAccountabilityPartner = false,
     bool clearOnboardingDraft = false,
+    bool clearPendingCompassSubmission = false,
+    bool clearFirstCheckInPlan = false,
   }) {
     return AppSettings(
       themeMode: themeMode ?? this.themeMode,
@@ -450,8 +533,10 @@ class AppSettings {
       lifestyle: lifestyle ?? this.lifestyle,
       morningTime: morningTime ?? this.morningTime,
       eveningTime: eveningTime ?? this.eveningTime,
-      morningReminderEnabled: morningReminderEnabled ?? this.morningReminderEnabled,
-      eveningReminderEnabled: eveningReminderEnabled ?? this.eveningReminderEnabled,
+      morningReminderEnabled:
+          morningReminderEnabled ?? this.morningReminderEnabled,
+      eveningReminderEnabled:
+          eveningReminderEnabled ?? this.eveningReminderEnabled,
       primaryVirtue: primaryVirtue ?? this.primaryVirtue,
       streakCount: streakCount ?? this.streakCount,
       longestStreakCount: longestStreakCount ?? this.longestStreakCount,
@@ -464,9 +549,12 @@ class AppSettings {
       socialPresenceOptIn: socialPresenceOptIn ?? this.socialPresenceOptIn,
       contactsImported: contactsImported ?? this.contactsImported,
       bibleFontSize: bibleFontSize ?? this.bibleFontSize,
-      hasCompletedPhoneSetup: hasCompletedPhoneSetup ?? this.hasCompletedPhoneSetup,
-      hasCompletedPreOnboarding: hasCompletedPreOnboarding ?? this.hasCompletedPreOnboarding,
-      hasSeenAssessmentPrompt: hasSeenAssessmentPrompt ?? this.hasSeenAssessmentPrompt,
+      hasCompletedPhoneSetup:
+          hasCompletedPhoneSetup ?? this.hasCompletedPhoneSetup,
+      hasCompletedPreOnboarding:
+          hasCompletedPreOnboarding ?? this.hasCompletedPreOnboarding,
+      hasSeenAssessmentPrompt:
+          hasSeenAssessmentPrompt ?? this.hasSeenAssessmentPrompt,
       selectedTTSVoice: selectedTTSVoice ?? this.selectedTTSVoice,
       lastPrayerGuideDate: lastPrayerGuideDate ?? this.lastPrayerGuideDate,
       primaryArchetypeId: primaryArchetypeId ?? this.primaryArchetypeId,
@@ -477,15 +565,34 @@ class AppSettings {
           ? null
           : (accountabilityPartner ?? this.accountabilityPartner),
       personProfiles: personProfiles ?? this.personProfiles,
-      hasSeenCommitmentWelcome: hasSeenCommitmentWelcome ?? this.hasSeenCommitmentWelcome,
-      hasCompletedPostOnboarding: hasCompletedPostOnboarding ?? this.hasCompletedPostOnboarding,
+      hasSeenCommitmentWelcome:
+          hasSeenCommitmentWelcome ?? this.hasSeenCommitmentWelcome,
+      hasCompletedPostOnboarding:
+          hasCompletedPostOnboarding ?? this.hasCompletedPostOnboarding,
       hasSeenTodayWelcome: hasSeenTodayWelcome ?? this.hasSeenTodayWelcome,
       callingProfile: callingProfile ?? this.callingProfile,
       currentWeeklyPlan: currentWeeklyPlan ?? this.currentWeeklyPlan,
       spiritualPulseByDate: spiritualPulseByDate ?? this.spiritualPulseByDate,
+      ageBand: ageBand ?? this.ageBand,
+      selectedArchetypeIds: selectedArchetypeIds ?? this.selectedArchetypeIds,
+      spiritualAgeScore: spiritualAgeScore ?? this.spiritualAgeScore,
+      spiritualAgeStage: spiritualAgeStage ?? this.spiritualAgeStage,
+      pendingCompassSubmission: clearPendingCompassSubmission
+          ? null
+          : (pendingCompassSubmission ?? this.pendingCompassSubmission),
+      firstCheckInPlanCommitmentId: clearFirstCheckInPlan
+          ? null
+          : (firstCheckInPlanCommitmentId ?? this.firstCheckInPlanCommitmentId),
+      firstCheckInPlanWhen: clearFirstCheckInPlan
+          ? null
+          : (firstCheckInPlanWhen ?? this.firstCheckInPlanWhen),
+      firstCheckInPlanObstacle: clearFirstCheckInPlan
+          ? null
+          : (firstCheckInPlanObstacle ?? this.firstCheckInPlanObstacle),
       personCommitments: personCommitments ?? this.personCommitments,
       generosityRecords: generosityRecords ?? this.generosityRecords,
-      evangelismConversations: evangelismConversations ?? this.evangelismConversations,
+      evangelismConversations:
+          evangelismConversations ?? this.evangelismConversations,
       companionCharacterCode: clearCompanionCharacter
           ? null
           : (companionCharacterCode ?? this.companionCharacterCode),

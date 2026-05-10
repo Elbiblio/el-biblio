@@ -5,6 +5,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 
 import '../../../../core/constants/app_routes.dart';
 import '../../../../core/di/app_providers.dart';
+import '../../application/vision_state.dart';
 import '../../domain/vision_models.dart';
 import '../widgets/visibility_mode_picker.dart';
 
@@ -105,6 +106,8 @@ class _VisionOnboardingFlowScreenState
     final commitmentJoined = await notifier.joinCommitment(
       _commitment!,
       _nudges,
+      planWhen: _whenController.text,
+      planObstacle: _obstacleController.text,
     );
     if (!commitmentJoined) {
       if (mounted) setState(() => _isFinishing = false);
@@ -181,75 +184,89 @@ class _VisionOnboardingFlowScreenState
                   _Page(
                     icon: LucideIcons.compass,
                     title: 'Your spiritual compass',
-                    child: _CompassChoice(
-                      selectedIndex: _identityIndex,
-                      archetypeId: settings.primaryArchetypeId,
-                      tribes: state.recommendedTribes,
-                      onSelected: (index, tribe) {
-                        setState(() {
-                          _identityIndex = index;
-                          _tribe = tribe;
-                        });
-                      },
+                    child: _OnboardingRecoveryGate(
+                      state: state,
+                      child: _CompassChoice(
+                        selectedIndex: _identityIndex,
+                        archetypeId: settings.primaryArchetypeId,
+                        tribes: state.recommendedTribes,
+                        onSelected: (index, tribe) {
+                          setState(() {
+                            _identityIndex = index;
+                            _tribe = tribe;
+                          });
+                        },
+                      ),
                     ),
                   ),
                   _Page(
                     icon: LucideIcons.users,
                     title: 'Join a tribe',
-                    child: RadioGroup<TribeIdentity>(
-                      groupValue: _tribe,
-                      onChanged: (value) => setState(() => _tribe = value),
-                      child: Column(
-                        children: state.recommendedTribes.map((tribe) {
-                          return RadioListTile<TribeIdentity>(
-                            value: tribe,
-                            title: Text(tribe.displayName),
-                            subtitle: Text(tribe.description),
-                          );
-                        }).toList(),
+                    child: _OnboardingRecoveryGate(
+                      state: state,
+                      emptyMessage:
+                          'We could not load real tribe recommendations. Reconnect and try again before beginning.',
+                      child: RadioGroup<TribeIdentity>(
+                        groupValue: _tribe,
+                        onChanged: (value) => setState(() => _tribe = value),
+                        child: Column(
+                          children: state.recommendedTribes.map((tribe) {
+                            return RadioListTile<TribeIdentity>(
+                              value: tribe,
+                              title: Text(tribe.displayName),
+                              subtitle: Text(tribe.description),
+                            );
+                          }).toList(),
+                        ),
                       ),
                     ),
                   ),
                   _Page(
                     icon: LucideIcons.flag,
-                    title: 'Choose a path',
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Pick one concrete practice for this season. You can keep the rest for later.',
-                          style: theme.textTheme.bodyMedium,
-                        ),
-                        const SizedBox(height: 14),
-                        ...state.recommendedCommitments.map(
-                          (commitment) => _OnboardingCommitmentCard(
-                            commitment: commitment,
-                            selected: _commitment?.id == commitment.id,
-                            onTap: () {
-                              setState(() {
-                                _commitment = commitment;
-                                _nudges = commitment.nudgeMin.clamp(3, 10);
-                              });
-                            },
+                    title: 'Choose a commitment',
+                    child: _OnboardingRecoveryGate(
+                      state: state,
+                      emptyMessage:
+                          'We could not load the real commitment catalog. Reconnect and try again before beginning.',
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Pick one concrete practice for this season. You can keep the rest for later.',
+                            style: theme.textTheme.bodyMedium,
                           ),
-                        ),
-                        const SizedBox(height: 8),
-                        _OnboardingNudgePanel(
-                          commitment: _commitment,
-                          nudges: _nudges,
-                          onChanged: (value) => setState(() => _nudges = value),
-                        ),
-                      ],
+                          const SizedBox(height: 14),
+                          ...state.recommendedCommitments.map(
+                            (commitment) => _OnboardingCommitmentCard(
+                              commitment: commitment,
+                              selected: _commitment?.id == commitment.id,
+                              onTap: () {
+                                setState(() {
+                                  _commitment = commitment;
+                                  _nudges = commitment.nudgeMin.clamp(3, 10);
+                                });
+                              },
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          _OnboardingNudgePanel(
+                            commitment: _commitment,
+                            nudges: _nudges,
+                            onChanged: (value) =>
+                                setState(() => _nudges = value),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                   _Page(
                     icon: LucideIcons.clock3,
-                    title: 'Plan your first return',
+                    title: 'Plan your first check-in',
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'A rough plan is enough. You are not promising a perfect day; you are making the next return easier to notice.',
+                          'A rough plan is enough. You are not promising a perfect day; you are making the next check-in easier to notice.',
                           style: theme.textTheme.bodyMedium,
                         ),
                         const SizedBox(height: 16),
@@ -318,6 +335,65 @@ class _VisionOnboardingFlowScreenState
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _OnboardingRecoveryGate extends StatelessWidget {
+  const _OnboardingRecoveryGate({
+    required this.state,
+    required this.child,
+    this.emptyMessage,
+  });
+
+  final VisionState state;
+  final Widget child;
+  final String? emptyMessage;
+
+  @override
+  Widget build(BuildContext context) {
+    final error = state.error;
+    final isReadOnly = state.isReadOnly;
+    final hasAnyRecommendation =
+        state.recommendedTribes.isNotEmpty ||
+        state.recommendedCommitments.isNotEmpty;
+    if (error?.isNotEmpty == true || (isReadOnly && !hasAnyRecommendation)) {
+      return _OnboardingIssue(
+        message:
+            error ??
+            emptyMessage ??
+            'Reconnect before continuing. This launch flow needs real tribe and commitment data.',
+      );
+    }
+    return child;
+  }
+}
+
+class _OnboardingIssue extends StatelessWidget {
+  const _OnboardingIssue({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.errorContainer.withValues(alpha: 0.28),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: theme.colorScheme.error.withValues(alpha: 0.18),
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(LucideIcons.wifiOff, color: theme.colorScheme.error),
+          const SizedBox(width: 10),
+          Expanded(child: Text(message)),
+        ],
       ),
     );
   }
@@ -424,7 +500,7 @@ class _OnboardingNudgePanel extends StatelessWidget {
   Widget build(BuildContext context) {
     final plan = commitment;
     if (plan == null) {
-      return const Text('Choose a path to set your nudge rhythm.');
+      return const Text('Choose a commitment to set your nudge rhythm.');
     }
     final theme = Theme.of(context);
     return Container(
@@ -444,7 +520,7 @@ class _OnboardingNudgePanel extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           Text(
-            'Nudges are return points, not pressure. Start with a rhythm you can respect.',
+            'Nudges are check-in points, not pressure. Start with a rhythm you can respect.',
             style: theme.textTheme.bodySmall,
           ),
           Slider(
@@ -486,7 +562,7 @@ class _ImplementationCue extends StatelessWidget {
           Expanded(
             child: Text(
               commitment == null
-                  ? 'Your first nudge will simply help you notice the next return.'
+                  ? 'Your first nudge will simply help you notice the next check-in.'
                   : 'When the nudge comes, do this one thing: ${commitment!.dailyAction}',
               style: theme.textTheme.bodyMedium?.copyWith(height: 1.4),
             ),
@@ -542,7 +618,7 @@ class _CompassChoice extends StatelessWidget {
     final theme = Theme.of(context);
     if (tribes.isEmpty) {
       return const Text(
-        'Your identity assessment helps connect your current season with a tribe and commitment that can support real growth.',
+        'Your spiritual compass helps connect your current season with a tribe and commitment that can support real growth.',
       );
     }
 
