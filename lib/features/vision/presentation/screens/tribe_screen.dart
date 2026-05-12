@@ -694,6 +694,10 @@ class _TribeHangoutPanel extends ConsumerWidget {
       );
       return;
     }
+    if (hangout != null) {
+      await ref.read(visionProvider.notifier).leaveHangout(hangout.id);
+      if (!context.mounted) return;
+    }
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
@@ -773,6 +777,12 @@ class _TribeHangoutCard extends ConsumerWidget {
                       );
                       return;
                     }
+                    if (joined != null) {
+                      await ref
+                          .read(visionProvider.notifier)
+                          .leaveHangout(joined.id);
+                      if (!context.mounted) return;
+                    }
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
                         content: Text(
@@ -784,7 +794,7 @@ class _TribeHangoutCard extends ConsumerWidget {
                     );
                   }
                 : null,
-            child: const Text('Join'),
+            child: Text(hangout.joinedByMe ? 'Rejoin' : 'Join'),
           ),
         ],
       ),

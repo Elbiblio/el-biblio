@@ -189,7 +189,11 @@ class VisionRepository {
       );
     } catch (e) {
       _logger.w('Vision feed failed: $e');
-      return const CommitmentFeedResult(reflections: [], postedToday: false);
+      return CommitmentFeedResult(
+        reflections: const [],
+        postedToday: false,
+        errorMessage: _friendlyError(e),
+      );
     }
   }
 
@@ -548,10 +552,12 @@ class CommitmentFeedResult {
   const CommitmentFeedResult({
     required this.reflections,
     required this.postedToday,
+    this.errorMessage,
   });
 
   final List<CommitmentReflection> reflections;
   final bool postedToday;
+  final String? errorMessage;
 }
 
 String _friendlyError(Object error) {

@@ -103,7 +103,7 @@ class VisionNotifier extends StateNotifier<VisionState> {
         journeyEvents: bootstrap.journeyEvents,
         reflectionPostedToday: feedResult.postedToday,
         dataSource: bootstrap.dataSource,
-        error: bootstrap.errorMessage,
+        error: bootstrap.errorMessage ?? feedResult.errorMessage,
       );
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString());
@@ -298,19 +298,22 @@ class VisionNotifier extends StateNotifier<VisionState> {
     state = state.copyWith(
       feed: feed.reflections,
       reflectionPostedToday: feed.postedToday,
+      error: feed.errorMessage,
+      clearError: feed.errorMessage == null,
     );
   }
 
   Future<bool> postReflection(String content) async {
     final active = state.activeCommitment;
-    if (active == null || content.trim().isEmpty || content.length > 500) {
+    final trimmed = content.trim();
+    if (active == null || trimmed.isEmpty || trimmed.length > 500) {
       return false;
     }
 
     try {
       final reflection = await _repository.postReflection(
         commitmentId: active.plan.id,
-        content: content.trim(),
+        content: trimmed,
         alias: state.visibilityAlias,
       );
       state = state.copyWith(
@@ -406,9 +409,11 @@ class VisionNotifier extends StateNotifier<VisionState> {
     try {
       final updated = await _repository.leaveHangout(hangoutId);
       state = state.copyWith(
-        hangouts: state.hangouts
-            .map((item) => item.id == updated.id ? updated : item)
-            .toList(),
+        hangouts: updated.status == 'ended'
+            ? state.hangouts.where((item) => item.id != updated.id).toList()
+            : state.hangouts
+                  .map((item) => item.id == updated.id ? updated : item)
+                  .toList(),
       );
     } catch (e) {
       state = state.copyWith(error: e.toString());
@@ -498,15 +503,21 @@ class VisionNotifier extends StateNotifier<VisionState> {
     }
   }
 
-  Future<void> reactToReflection(
+  Future<bool> reactToReflection(
     CommitmentReflection reflection,
     String reactionType,
   ) async {
-    await _repository.reactToReflection(
-      reflectionId: reflection.id,
-      reactionType: reactionType,
-    );
-    await refreshFeed();
+    try {
+      await _repository.reactToReflection(
+        reflectionId: reflection.id,
+        reactionType: reactionType,
+      );
+      await refreshFeed();
+      return true;
+    } catch (e) {
+      state = state.copyWith(error: e.toString());
+      return false;
+    }
   }
 
   Future<bool> reportReflection(

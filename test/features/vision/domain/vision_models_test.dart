@@ -9,7 +9,7 @@ void main() {
       expect(VisibilityMode.fromValue('unexpected'), VisibilityMode.anonymous);
     });
 
-    test('commitment season detects today check-in and progress', () {
+    test('commitment season trusts server check-in status and progress', () {
       final season = CommitmentSeason.fromJson({
         'challenge': {
           'id': 7,
@@ -24,12 +24,13 @@ void main() {
         'current_day': 4,
         'completed_days_count': 3,
         'nudge_count_per_day': 5,
+        'checked_in_today': false,
         'last_check_in_at': DateTime.now().toIso8601String(),
         'check_in_plan_when': 'After lunch',
         'check_in_plan_obstacle': 'Scrolling when tired',
       });
 
-      expect(season.checkedInToday, isTrue);
+      expect(season.checkedInToday, isFalse);
       expect(season.progress, 0.1);
       expect(season.nudgeCountPerDay, 5);
       expect(season.plan.title, '30 Days Gratitude');
@@ -123,7 +124,8 @@ void main() {
         'max_participants': 8,
         'scope_type': 'tribe',
         'scope_id': 3,
-        'can_join': false,
+        'can_join': true,
+        'joined_by_me': true,
         'livekit': null,
       });
       final event = GrowthJourneyEvent.fromJson({
@@ -134,7 +136,8 @@ void main() {
       });
 
       expect(hangout.liveKit, isNull);
-      expect(hangout.canJoin, isFalse);
+      expect(hangout.canJoin, isTrue);
+      expect(hangout.joinedByMe, isTrue);
       expect(event.type, GrowthJourneyEventType.tribeHangoutJoined);
       expect(event.icon, LucideIcons.radio);
     });

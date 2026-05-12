@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -29,6 +31,7 @@ class _HangoutRoomScreenState extends ConsumerState<HangoutRoomScreen> {
   late final lk.Room _room;
   bool _connecting = true;
   bool _micEnabled = false;
+  bool _leaveRequested = false;
   String? _error;
 
   @override
@@ -43,6 +46,10 @@ class _HangoutRoomScreenState extends ConsumerState<HangoutRoomScreen> {
   void dispose() {
     _room.removeListener(_onRoomChanged);
     _room.disconnect();
+    if (!_leaveRequested) {
+      _leaveRequested = true;
+      unawaited(_callOnLeave());
+    }
     _room.dispose();
     super.dispose();
   }
@@ -53,6 +60,7 @@ class _HangoutRoomScreenState extends ConsumerState<HangoutRoomScreen> {
 
   Future<void> _connect() async {
     final permission = await Permission.microphone.request();
+    if (!mounted) return;
     if (!permission.isGranted) {
       setState(() {
         _connecting = false;
@@ -85,9 +93,19 @@ class _HangoutRoomScreenState extends ConsumerState<HangoutRoomScreen> {
   }
 
   Future<void> _leave() async {
+    if (_leaveRequested) return;
+    _leaveRequested = true;
     await _room.disconnect();
-    await widget.onLeave?.call();
-    if (mounted) Navigator.of(context).pop();
+    unawaited(_callOnLeave());
+    if (mounted) context.pop();
+  }
+
+  Future<void> _callOnLeave() async {
+    try {
+      await widget.onLeave?.call();
+    } catch (_) {
+      // Leaving should never trap the user inside the room UI.
+    }
   }
 
   @override
@@ -95,109 +113,117 @@ class _HangoutRoomScreenState extends ConsumerState<HangoutRoomScreen> {
     final theme = Theme.of(context);
     final participantCount = _room.remoteParticipants.length + 1;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.hangout.title),
-        actions: [
-          IconButton(
-            tooltip: 'Invite someone',
-            onPressed: () => context.push(
-              '${AppRoutes.invite}?source=hangout&hangout_id=${widget.hangout.id}&scope_type=${Uri.encodeQueryComponent(widget.hangout.scopeType)}&scope_id=${widget.hangout.scopeId ?? ''}',
+    return PopScope(
+      canPop: _leaveRequested,
+      onPopInvokedWithResult: (didPop, _) async {
+        if (!didPop) await _leave();
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(widget.hangout.title),
+          actions: [
+            IconButton(
+              tooltip: 'Invite someone',
+              onPressed: () => context.push(
+                '${AppRoutes.invite}?source=hangout&hangout_id=${widget.hangout.id}&scope_type=${Uri.encodeQueryComponent(widget.hangout.scopeType)}&scope_id=${widget.hangout.scopeId ?? ''}',
+              ),
+              icon: const Icon(LucideIcons.send),
             ),
-            icon: const Icon(LucideIcons.send),
-          ),
-          PopupMenuButton<String>(
-            tooltip: 'Room safety',
-            icon: const Icon(LucideIcons.shieldAlert),
-            onSelected: _reportHangout,
-            itemBuilder: (context) => const [
-              PopupMenuItem(
-                value: 'unsafe_or_crisis',
-                child: Text('Report safety concern'),
-              ),
-              PopupMenuItem(
-                value: 'harassment_or_shame',
-                child: Text('Report harassment'),
-              ),
-              PopupMenuItem(
-                value: 'spam_or_misuse',
-                child: Text('Report spam or misuse'),
-              ),
-            ],
-          ),
-        ],
-      ),
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                _roomTitle(),
-                style: theme.textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.w800,
+            PopupMenuButton<String>(
+              tooltip: 'Room safety',
+              icon: const Icon(LucideIcons.shieldAlert),
+              onSelected: _reportHangout,
+              itemBuilder: (context) => const [
+                PopupMenuItem(
+                  value: 'unsafe_or_crisis',
+                  child: Text('Report safety concern'),
                 ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                _connecting
-                    ? 'Connecting to audio...'
-                    : _error ??
-                          '$participantCount people are in the room. Speak gently and keep it honest.',
-                style: theme.textTheme.bodyMedium,
-              ),
-              const SizedBox(height: 14),
-              _RoomAgreementPanel(error: _error),
-              const SizedBox(height: 28),
-              Expanded(
-                child: Center(
-                  child: CircleAvatar(
-                    radius: 74,
-                    child: Icon(
-                      _error == null ? LucideIcons.radio : LucideIcons.wifiOff,
-                      size: 54,
-                    ),
+                PopupMenuItem(
+                  value: 'harassment_or_shame',
+                  child: Text('Report harassment'),
+                ),
+                PopupMenuItem(
+                  value: 'spam_or_misuse',
+                  child: Text('Report spam or misuse'),
+                ),
+              ],
+            ),
+          ],
+        ),
+        body: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _roomTitle(),
+                  style: theme.textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.w800,
                   ),
                 ),
-              ),
-              Row(
-                children: [
-                  Expanded(
-                    child: FilledButton.tonalIcon(
-                      onPressed: _connecting
-                          ? null
-                          : _error != null
-                          ? openAppSettings
-                          : _toggleMic,
-                      icon: Icon(
-                        _error != null
-                            ? LucideIcons.settings
-                            : _micEnabled
-                            ? LucideIcons.mic
-                            : LucideIcons.micOff,
-                        size: 18,
-                      ),
-                      label: Text(
-                        _error != null
-                            ? 'Open settings'
-                            : _micEnabled
-                            ? 'Mute'
-                            : 'Unmute',
+                const SizedBox(height: 8),
+                Text(
+                  _connecting
+                      ? 'Connecting to audio...'
+                      : _error ??
+                            '$participantCount people are in the room. Speak gently and keep it honest.',
+                  style: theme.textTheme.bodyMedium,
+                ),
+                const SizedBox(height: 14),
+                _RoomAgreementPanel(error: _error),
+                const SizedBox(height: 28),
+                Expanded(
+                  child: Center(
+                    child: CircleAvatar(
+                      radius: 74,
+                      child: Icon(
+                        _error == null
+                            ? LucideIcons.radio
+                            : LucideIcons.wifiOff,
+                        size: 54,
                       ),
                     ),
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: FilledButton.icon(
-                      onPressed: _leave,
-                      icon: const Icon(LucideIcons.phoneOff, size: 18),
-                      label: const Text('Leave'),
+                ),
+                Row(
+                  children: [
+                    Expanded(
+                      child: FilledButton.tonalIcon(
+                        onPressed: _connecting
+                            ? null
+                            : _error != null
+                            ? openAppSettings
+                            : _toggleMic,
+                        icon: Icon(
+                          _error != null
+                              ? LucideIcons.settings
+                              : _micEnabled
+                              ? LucideIcons.mic
+                              : LucideIcons.micOff,
+                          size: 18,
+                        ),
+                        label: Text(
+                          _error != null
+                              ? 'Open settings'
+                              : _micEnabled
+                              ? 'Mute'
+                              : 'Unmute',
+                        ),
+                      ),
                     ),
-                  ),
-                ],
-              ),
-            ],
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: FilledButton.icon(
+                        onPressed: _leaveRequested ? null : _leave,
+                        icon: const Icon(LucideIcons.phoneOff, size: 18),
+                        label: const Text('Leave'),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       ),

@@ -145,6 +145,7 @@ class CommitmentSeason {
     required this.completedDaysCount,
     required this.nudgeCountPerDay,
     this.lastCheckInAt,
+    this.checkedInTodayOverride,
     this.firstCheckInPlanWhen,
     this.firstCheckInPlanObstacle,
   });
@@ -154,10 +155,13 @@ class CommitmentSeason {
   final int completedDaysCount;
   final int nudgeCountPerDay;
   final DateTime? lastCheckInAt;
+  final bool? checkedInTodayOverride;
   final String? firstCheckInPlanWhen;
   final String? firstCheckInPlanObstacle;
 
   bool get checkedInToday {
+    final override = checkedInTodayOverride;
+    if (override != null) return override;
     final last = lastCheckInAt;
     if (last == null) return false;
     final now = DateTime.now();
@@ -182,6 +186,7 @@ class CommitmentSeason {
       lastCheckInAt: DateTime.tryParse(
         json['last_check_in_at']?.toString() ?? '',
       ),
+      checkedInTodayOverride: json['checked_in_today'] as bool?,
       firstCheckInPlanWhen: json['check_in_plan_when'] as String?,
       firstCheckInPlanObstacle: json['check_in_plan_obstacle'] as String?,
     );
@@ -465,6 +470,7 @@ class CommitmentHangout {
     required this.maxParticipants,
     required this.canJoin,
     required this.scopeType,
+    this.joinedByMe = false,
     this.startsAt,
     this.scopeId,
     this.liveKit,
@@ -477,6 +483,7 @@ class CommitmentHangout {
   final int maxParticipants;
   final bool canJoin;
   final String scopeType;
+  final bool joinedByMe;
   final int? scopeId;
   final DateTime? startsAt;
   final LiveKitRoomCredentials? liveKit;
@@ -490,6 +497,7 @@ class CommitmentHangout {
       maxParticipants: (json['max_participants'] as num?)?.toInt() ?? 8,
       canJoin: json['can_join'] as bool? ?? false,
       scopeType: json['scope_type'] as String? ?? 'commitment',
+      joinedByMe: json['joined_by_me'] as bool? ?? false,
       scopeId: (json['scope_id'] as num?)?.toInt(),
       startsAt: DateTime.tryParse(json['starts_at']?.toString() ?? ''),
       liveKit: json['livekit'] is Map

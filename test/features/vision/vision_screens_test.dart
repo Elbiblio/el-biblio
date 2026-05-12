@@ -336,6 +336,11 @@ class _FakeVisionRepository implements VisionRepository {
   }
 
   @override
+  Future<CommitmentHangout> leaveHangout(int hangoutId) async {
+    return _liveHangout(canJoin: true);
+  }
+
+  @override
   Future<void> reactToReflection({
     required int reflectionId,
     required String reactionType,
@@ -414,7 +419,10 @@ CommitmentSeason _season({required bool checkedInToday}) {
   );
 }
 
-CommitmentHangout _liveHangout({required bool canJoin}) {
+CommitmentHangout _liveHangout({
+  required bool canJoin,
+  bool joinedByMe = false,
+}) {
   return CommitmentHangout(
     id: 99,
     title: 'Tribe check-in room',
@@ -423,6 +431,7 @@ CommitmentHangout _liveHangout({required bool canJoin}) {
     maxParticipants: 8,
     canJoin: canJoin,
     scopeType: 'tribe',
+    joinedByMe: joinedByMe,
     scopeId: _watchmanTribe.id,
     liveKit: null,
   );

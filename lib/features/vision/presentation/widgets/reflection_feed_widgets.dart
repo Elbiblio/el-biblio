@@ -246,9 +246,19 @@ class VisionReflectionCard extends ConsumerWidget {
                       ? Icons.favorite
                       : LucideIcons.heartHandshake,
                 ),
-                onPressed: () => ref
-                    .read(visionProvider.notifier)
-                    .reactToReflection(item, 'support'),
+                onPressed: () async {
+                  final reacted = await ref
+                      .read(visionProvider.notifier)
+                      .reactToReflection(item, 'support');
+                  if (!context.mounted || reacted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text(
+                        'We could not update support. Please try again.',
+                      ),
+                    ),
+                  );
+                },
               ),
               PopupMenuButton<String>(
                 tooltip: 'Reflection actions',

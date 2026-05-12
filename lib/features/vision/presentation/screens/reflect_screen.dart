@@ -48,6 +48,14 @@ class _ReflectScreenState extends ConsumerState<ReflectScreen> {
           children: [
             _ReflectHeader(state: state),
             const SizedBox(height: 16),
+            if (state.error?.isNotEmpty == true) ...[
+              VisionPanel(
+                icon: LucideIcons.wifiOff,
+                title: 'Reflection feed needs a retry',
+                child: Text(state.error!),
+              ),
+              const SizedBox(height: 16),
+            ],
             if (active == null)
               VisionPanel(
                 icon: LucideIcons.lock,

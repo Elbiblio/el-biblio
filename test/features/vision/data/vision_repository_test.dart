@@ -26,6 +26,22 @@ void main() {
       expect(bootstrap.errorMessage, contains('offline'));
     },
   );
+
+  test(
+    'feed preserves a friendly error instead of silently emptying',
+    () async {
+      final repository = VisionRepository(
+        _OfflineDioClient(),
+        Logger(level: Level.off),
+      );
+
+      final result = await repository.feed(7);
+
+      expect(result.reflections, isEmpty);
+      expect(result.postedToday, isFalse);
+      expect(result.errorMessage, contains('offline'));
+    },
+  );
 }
 
 class _OfflineDioClient extends DioClient {
