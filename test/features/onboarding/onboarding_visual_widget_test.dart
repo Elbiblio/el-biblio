@@ -22,9 +22,10 @@ void main() {
         );
 
         expect(
-          find.text('A spiritual home for the season you are in.'),
+          find.text('Make room for the life God is forming in you.'),
           findsOneWidget,
         );
+        expect(find.text('Elbiblio'), findsOneWidget);
         expect(tester.takeException(), isNull);
       },
     );

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-/// Step 1: The Noise — hooks the user by showing the problem.
+/// Step 1: a clean first impression that frames the daily rhythm.
 class TheNoiseView extends StatefulWidget {
   const TheNoiseView({super.key});
 
@@ -40,115 +40,333 @@ class _TheNoiseViewState extends State<TheNoiseView>
     final theme = Theme.of(context);
     final textTheme = theme.textTheme;
 
-    return SingleChildScrollView(
-      physics: const BouncingScrollPhysics(),
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-      child: FadeTransition(
-        opacity: _fadeIn,
-        child: SlideTransition(
-          position: _slideUp,
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const SizedBox(height: 40),
-              _buildOpeningMark(context),
-              const SizedBox(height: 34),
-              Text(
-                'A spiritual home for the season you are in.',
-                textAlign: TextAlign.center,
-                style: textTheme.headlineMedium?.copyWith(
-                  fontWeight: FontWeight.w800,
-                  height: 1.14,
-                ),
-              ),
-              const SizedBox(height: 18),
-              Text(
-                'Know your spiritual age, join a tribe, keep one commitment, check in daily, and share the real struggle in a way that helps you grow.',
-                textAlign: TextAlign.center,
-                style: textTheme.bodyLarge?.copyWith(
-                  color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
-                  height: 1.5,
-                ),
-              ),
-              const SizedBox(height: 32),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 14,
-                ),
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.error.withValues(alpha: 0.08),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxHeight < 720;
+        final verticalPadding = compact ? 18.0 : 28.0;
+
+        return SingleChildScrollView(
+          physics: const BouncingScrollPhysics(),
+          padding: EdgeInsets.fromLTRB(24, verticalPadding, 24, 24),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              minHeight: constraints.maxHeight - verticalPadding - 24,
+            ),
+            child: FadeTransition(
+              opacity: _fadeIn,
+              child: SlideTransition(
+                position: _slideUp,
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(
-                      Icons.warning_amber_rounded,
-                      color: theme.colorScheme.error.withValues(alpha: 0.7),
-                      size: 20,
-                    ),
-                    const SizedBox(width: 10),
-                    Flexible(
-                      child: Text(
-                        'The goal is not more content. It is a faithful rhythm of identity, belonging, commitment, reflection, and growth.',
-                        style: textTheme.bodyMedium?.copyWith(
-                          color: theme.colorScheme.error.withValues(alpha: 0.8),
-                          fontWeight: FontWeight.w500,
-                        ),
+                    const _BrandLockup(),
+                    SizedBox(height: compact ? 28 : 40),
+                    _RhythmHero(height: compact ? 166 : 202),
+                    SizedBox(height: compact ? 26 : 34),
+                    Text(
+                      'Make room for the life God is forming in you.',
+                      style: textTheme.headlineMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        height: 1.08,
                       ),
                     ),
+                    const SizedBox(height: 14),
+                    Text(
+                      'A clean daily rhythm for faith, focus, and the people who help you keep going.',
+                      style: textTheme.bodyLarge?.copyWith(
+                        color: theme.colorScheme.onSurface.withValues(
+                          alpha: 0.68,
+                        ),
+                        height: 1.45,
+                      ),
+                    ),
+                    SizedBox(height: compact ? 20 : 28),
+                    const _OutcomeStrip(),
                   ],
                 ),
               ),
-              const SizedBox(height: 40),
-            ],
+            ),
           ),
+        );
+      },
+    );
+  }
+}
+
+class _BrandLockup extends StatelessWidget {
+  const _BrandLockup();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Row(
+      children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(8),
+          child: Image.asset(
+            'assets/images/penheart.png',
+            width: 38,
+            height: 38,
+            fit: BoxFit.cover,
+          ),
+        ),
+        const SizedBox(width: 12),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Elbiblio',
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w800,
+                height: 1,
+              ),
+            ),
+            const SizedBox(height: 3),
+            Text(
+              'Daily spiritual rhythm',
+              style: theme.textTheme.labelMedium?.copyWith(
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.58),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _RhythmHero extends StatelessWidget {
+  const _RhythmHero({required this.height});
+
+  final double height;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final primary = theme.colorScheme.primary;
+
+    return Container(
+      height: height,
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: theme.colorScheme.outline.withValues(alpha: 0.16),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: primary.withValues(alpha: 0.08),
+            blurRadius: 30,
+            offset: const Offset(0, 18),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(8),
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            Positioned.fill(
+              child: CustomPaint(
+                painter: _RhythmPathPainter(
+                  color: primary.withValues(alpha: 0.58),
+                  quietColor: theme.colorScheme.onSurface.withValues(
+                    alpha: 0.08,
+                  ),
+                ),
+              ),
+            ),
+            Positioned(
+              left: 28,
+              bottom: 26,
+              child: _SignalNode(icon: Icons.explore_outlined, color: primary),
+            ),
+            Positioned(
+              right: 32,
+              top: 28,
+              child: _SignalNode(
+                icon: Icons.groups_2_outlined,
+                color: theme.colorScheme.secondary,
+              ),
+            ),
+            Positioned(
+              right: 42,
+              bottom: 28,
+              child: _SignalNode(
+                icon: Icons.flag_outlined,
+                color: theme.colorScheme.tertiary,
+              ),
+            ),
+            Container(
+              width: 92,
+              height: 92,
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surface,
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: primary.withValues(alpha: 0.18),
+                  width: 1.4,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: primary.withValues(alpha: 0.16),
+                    blurRadius: 28,
+                    offset: const Offset(0, 14),
+                  ),
+                ],
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(14),
+                child: Image.asset('assets/images/penheart.png'),
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
+}
 
-  Widget _buildOpeningMark(BuildContext context) {
-    final theme = Theme.of(context);
+class _SignalNode extends StatelessWidget {
+  const _SignalNode({required this.icon, required this.color});
+
+  final IconData icon;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
     return Container(
-      width: 168,
-      height: 168,
+      width: 42,
+      height: 42,
       decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.92),
         shape: BoxShape.circle,
-        gradient: RadialGradient(
-          colors: [
-            theme.colorScheme.primary.withValues(alpha: 0.18),
-            theme.colorScheme.primary.withValues(alpha: 0.04),
-            Colors.transparent,
-          ],
+        border: Border.all(color: color.withValues(alpha: 0.18)),
+      ),
+      child: Icon(icon, size: 22, color: color),
+    );
+  }
+}
+
+class _OutcomeStrip extends StatelessWidget {
+  const _OutcomeStrip();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Row(
+      children: [
+        Expanded(
+          child: _OutcomeTile(icon: Icons.explore_outlined, label: 'Compass'),
+        ),
+        SizedBox(width: 10),
+        Expanded(
+          child: _OutcomeTile(icon: Icons.flag_outlined, label: 'Commit'),
+        ),
+        SizedBox(width: 10),
+        Expanded(
+          child: _OutcomeTile(icon: Icons.groups_2_outlined, label: 'Tribe'),
+        ),
+      ],
+    );
+  }
+}
+
+class _OutcomeTile extends StatelessWidget {
+  const _OutcomeTile({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Container(
+      height: 70,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface.withValues(alpha: 0.74),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: theme.colorScheme.outline.withValues(alpha: 0.14),
         ),
       ),
-      child: Center(
-        child: Container(
-          width: 104,
-          height: 104,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: theme.colorScheme.surface,
-            border: Border.all(
-              color: theme.colorScheme.primary.withValues(alpha: 0.2),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, size: 20, color: theme.colorScheme.primary),
+          const SizedBox(height: 6),
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.labelMedium?.copyWith(
+              fontWeight: FontWeight.w700,
             ),
-            boxShadow: [
-              BoxShadow(
-                color: theme.colorScheme.primary.withValues(alpha: 0.08),
-                blurRadius: 28,
-                offset: const Offset(0, 14),
-              ),
-            ],
           ),
-          child: Icon(
-            Icons.eco_outlined,
-            color: theme.colorScheme.primary,
-            size: 42,
-          ),
-        ),
+        ],
       ),
     );
+  }
+}
+
+class _RhythmPathPainter extends CustomPainter {
+  const _RhythmPathPainter({required this.color, required this.quietColor});
+
+  final Color color;
+  final Color quietColor;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final baseline = size.height * 0.56;
+    final path = Path()
+      ..moveTo(size.width * 0.1, baseline)
+      ..cubicTo(
+        size.width * 0.28,
+        size.height * 0.2,
+        size.width * 0.48,
+        size.height * 0.86,
+        size.width * 0.66,
+        baseline,
+      )
+      ..cubicTo(
+        size.width * 0.76,
+        size.height * 0.42,
+        size.width * 0.84,
+        size.height * 0.32,
+        size.width * 0.92,
+        size.height * 0.38,
+      );
+
+    final quietPaint = Paint()
+      ..color = quietColor
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 18
+      ..strokeCap = StrokeCap.round;
+    canvas.drawPath(path, quietPaint);
+
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.4
+      ..strokeCap = StrokeCap.round;
+    canvas.drawPath(path, paint);
+
+    final nodePaint = Paint()..color = color;
+    for (final offset in [
+      Offset(size.width * 0.1, baseline),
+      Offset(size.width * 0.66, baseline),
+      Offset(size.width * 0.92, size.height * 0.38),
+    ]) {
+      canvas.drawCircle(offset, 4.5, nodePaint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _RhythmPathPainter oldDelegate) {
+    return oldDelegate.color != color || oldDelegate.quietColor != quietColor;
   }
 }

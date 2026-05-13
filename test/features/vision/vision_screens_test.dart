@@ -75,6 +75,25 @@ void main() {
       expect(find.text('Share one honest reflection'), findsNothing);
     });
 
+    testWidgets('Reflect check-in unlocks the composer in the same flow', (
+      tester,
+    ) async {
+      final repository = _FakeVisionRepository(
+        activeCommitment: _season(checkedInToday: false),
+      );
+
+      await tester.pumpVisionScreen(
+        const ReflectScreen(),
+        repository: repository,
+      );
+      await tester.tap(find.text('Check in for today'));
+      await tester.pumpAndSettle();
+
+      expect(repository.checkInCount, 1);
+      expect(find.text('Checked in today'), findsOneWidget);
+      expect(find.text('Share one honest reflection'), findsOneWidget);
+    });
+
     testWidgets(
       'Reflect lets a checked-in season post when no reflection exists',
       (tester) async {
@@ -103,6 +122,42 @@ void main() {
         );
       },
     );
+
+    testWidgets('Reflect posts a trimmed reflection as the visible alias', (
+      tester,
+    ) async {
+      final repository = _FakeVisionRepository(
+        activeCommitment: _season(checkedInToday: true),
+        feedResult: const CommitmentFeedResult(
+          reflections: [],
+          postedToday: false,
+        ),
+      );
+
+      await tester.pumpVisionScreen(
+        const ReflectScreen(),
+        repository: repository,
+      );
+      await tester.drag(find.byType(ListView), const Offset(0, -260));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(
+        find.byType(TextField).last,
+        '  I chose patience before replying.  ',
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Post reflection'));
+      await tester.pumpAndSettle();
+
+      expect(
+        repository.postedReflectionContent,
+        'I chose patience before replying.',
+      );
+      expect(repository.postedReflectionAlias, 'Quiet Walker');
+      expect(find.text('Reflection shared'), findsOneWidget);
+      expect(find.text('I chose patience before replying.'), findsOneWidget);
+    });
 
     testWidgets('Reflect shows posted state and existing reflection', (
       tester,
@@ -140,10 +195,12 @@ void main() {
         const TribeScreen(),
         repository: repository,
       );
+
+      expect(find.text('Watchman'), findsWidgets);
+
       await tester.scrollUntilVisible(find.text('Tribe hangouts'), 180);
       await tester.pumpAndSettle();
 
-      expect(find.text('Watchman'), findsWidgets);
       expect(find.text('Tribe hangouts'), findsOneWidget);
       expect(
         find.text(
@@ -152,6 +209,21 @@ void main() {
         findsOneWidget,
       );
       expect(find.text('Start tribe hangout'), findsOneWidget);
+    });
+
+    testWidgets('Tribe hides the current tribe from other recommendations', (
+      tester,
+    ) async {
+      final repository = _FakeVisionRepository(primaryTribe: _tribeMembership);
+
+      await tester.pumpVisionScreen(
+        const TribeScreen(),
+        repository: repository,
+      );
+
+      expect(find.text('Primary tribe'), findsOneWidget);
+      expect(find.text('Other tribes'), findsNothing);
+      expect(find.widgetWithText(FilledButton, 'Joined'), findsNothing);
     });
 
     testWidgets('Tribe leads with recommendations before joining', (
@@ -360,7 +432,24 @@ void main() {
         await tester.pumpAndSettle();
         await tester.tap(find.text('Start tribe hangout'));
         await tester.pumpAndSettle();
+
+        await tester.enterText(find.byType(TextField).last, '');
+        await tester.pumpAndSettle();
+        expect(
+          tester
+              .widget<FilledButton>(find.widgetWithText(FilledButton, 'Start'))
+              .enabled,
+          isFalse,
+        );
+
         await tester.enterText(find.byType(TextField).last, 'Prayer room');
+        await tester.pumpAndSettle();
+        expect(
+          tester
+              .widget<FilledButton>(find.widgetWithText(FilledButton, 'Start'))
+              .enabled,
+          isTrue,
+        );
         await tester.tap(find.widgetWithText(FilledButton, 'Start'));
         await tester.pumpAndSettle();
 
@@ -463,6 +552,9 @@ class _FakeVisionRepository implements VisionRepository {
   String? createdHangoutScopeType;
   int? createdHangoutScopeId;
   int? createdHangoutMaxParticipants;
+  int checkInCount = 0;
+  String? postedReflectionContent;
+  String? postedReflectionAlias;
 
   @override
   Future<VisionBootstrap> bootstrap() async {
@@ -551,7 +643,25 @@ class _FakeVisionRepository implements VisionRepository {
     required int commitmentId,
     String? note,
   }) async {
+    checkInCount += 1;
     return _season(checkedInToday: true);
+  }
+
+  @override
+  Future<CommitmentReflection> postReflection({
+    required int commitmentId,
+    required String content,
+    required String alias,
+  }) async {
+    postedReflectionContent = content.trim();
+    postedReflectionAlias = alias;
+    return CommitmentReflection(
+      id: 77,
+      alias: alias,
+      content: content.trim(),
+      createdAt: DateTime(2026, 5, 13, 9),
+      authorTribeName: _watchmanTribe.name,
+    );
   }
 
   @override

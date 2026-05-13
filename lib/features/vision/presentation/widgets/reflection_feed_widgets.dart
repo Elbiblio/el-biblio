@@ -87,26 +87,34 @@ class VisionReflectionComposer extends ConsumerWidget {
               border: OutlineInputBorder(),
             ),
           ),
-          FilledButton.icon(
-            onPressed: () async {
-              final posted = await ref
-                  .read(visionProvider.notifier)
-                  .postReflection(controller.text);
-              if (!context.mounted) return;
-              if (!posted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text(
-                      'We could not post this reflection. Please try again.',
-                    ),
-                  ),
-                );
-                return;
-              }
-              controller.clear();
+          ValueListenableBuilder<TextEditingValue>(
+            valueListenable: controller,
+            builder: (context, value, child) {
+              final canPost = value.text.trim().isNotEmpty;
+              return FilledButton.icon(
+                onPressed: canPost
+                    ? () async {
+                        final posted = await ref
+                            .read(visionProvider.notifier)
+                            .postReflection(controller.text);
+                        if (!context.mounted) return;
+                        if (!posted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                'We could not post this reflection. Please try again.',
+                              ),
+                            ),
+                          );
+                          return;
+                        }
+                        controller.clear();
+                      }
+                    : null,
+                icon: const Icon(LucideIcons.send, size: 18),
+                label: const Text('Post reflection'),
+              );
             },
-            icon: const Icon(LucideIcons.send, size: 18),
-            label: const Text('Post reflection'),
           ),
         ],
       ),

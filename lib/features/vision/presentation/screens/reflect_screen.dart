@@ -5,6 +5,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 
 import '../../../../core/constants/app_routes.dart';
 import '../../../../core/di/app_providers.dart';
+import '../../../../core/theme/app_theme_tokens.dart';
 import '../../../../shared/widgets/vision_illustration.dart';
 import '../../application/vision_state.dart';
 import '../widgets/reflection_feed_widgets.dart';
@@ -23,9 +24,10 @@ class _ReflectScreenState extends ConsumerState<ReflectScreen> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback(
-      (_) => ref.read(visionProvider.notifier).load(),
-    );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ref.read(visionProvider.notifier).load();
+    });
   }
 
   @override
@@ -38,57 +40,78 @@ class _ReflectScreenState extends ConsumerState<ReflectScreen> {
   Widget build(BuildContext context) {
     final state = ref.watch(visionProvider);
     final active = state.activeCommitment;
+    final theme = Theme.of(context);
+    final tokens = theme.tokens;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Reflect')),
-      body: RefreshIndicator(
-        onRefresh: () => ref.read(visionProvider.notifier).load(force: true),
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 120),
-          children: [
-            _ReflectHeader(state: state),
-            const SizedBox(height: 16),
-            if (state.error?.isNotEmpty == true) ...[
-              VisionPanel(
-                icon: LucideIcons.wifiOff,
-                title: 'Reflection feed needs a retry',
-                child: Text(state.error!),
-              ),
-              const SizedBox(height: 16),
-            ],
-            if (active == null)
-              VisionPanel(
-                icon: LucideIcons.lock,
-                title: 'Join a commitment to open the room',
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Center(
-                      child: VisionIllustration(
-                        asset: VisionIllustrationAsset.protection,
-                        size: 86,
-                        semanticLabel: 'Commitment required',
-                      ),
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: tokens.pageGradient,
+          ),
+        ),
+        child: SafeArea(
+          bottom: false,
+          child: RefreshIndicator(
+            onRefresh: () =>
+                ref.read(visionProvider.notifier).load(force: true),
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 120),
+              children: [
+                _ReflectHeader(state: state),
+                const SizedBox(height: 14),
+                if (state.error?.isNotEmpty == true) ...[
+                  VisionPanel(
+                    icon: LucideIcons.wifiOff,
+                    title: 'Reflection feed needs a retry',
+                    child: Text(
+                      state.error!,
+                      style: theme.textTheme.bodyMedium?.copyWith(height: 1.45),
                     ),
-                    const SizedBox(height: 12),
-                    const Text(
-                      'Reflect is intentionally scoped. You share with people walking the same commitment, not a public crowd.',
+                  ),
+                  const SizedBox(height: 14),
+                ],
+                if (active == null)
+                  VisionPanel(
+                    icon: LucideIcons.lock,
+                    title: 'Join a commitment to open the room',
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Center(
+                          child: VisionIllustration(
+                            asset: VisionIllustrationAsset.protection,
+                            size: 86,
+                            semanticLabel: 'Commitment required',
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          'Reflect is intentionally scoped. You share with people walking the same commitment, not a public crowd.',
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: tokens.palette.textSecondary,
+                            height: 1.45,
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                        FilledButton.icon(
+                          onPressed: () => context.go(AppRoutes.commit),
+                          icon: const Icon(LucideIcons.flag, size: 18),
+                          label: const Text('Choose commitment'),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 14),
-                    FilledButton.icon(
-                      onPressed: () => context.go(AppRoutes.commit),
-                      icon: const Icon(LucideIcons.flag, size: 18),
-                      label: const Text('Choose commitment'),
-                    ),
-                  ],
-                ),
-              )
-            else ...[
-              VisionReflectionComposer(controller: _controller),
-              const SizedBox(height: 16),
-              const VisionReflectionFeed(),
-            ],
-          ],
+                  )
+                else ...[
+                  VisionReflectionComposer(controller: _controller),
+                  const SizedBox(height: 16),
+                  const VisionReflectionFeed(),
+                ],
+              ],
+            ),
+          ),
         ),
       ),
     );
@@ -103,43 +126,54 @@ class _ReflectHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final tokens = theme.tokens;
     final active = state.activeCommitment;
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.fromLTRB(20, 18, 18, 20),
       decoration: BoxDecoration(
-        color: theme.colorScheme.primaryContainer.withValues(alpha: 0.22),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: theme.colorScheme.primary.withValues(alpha: 0.14),
+        color: tokens.palette.paper.withValues(
+          alpha: theme.brightness == Brightness.dark ? 0.82 : 0.9,
         ),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: tokens.palette.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(
-                LucideIcons.messagesSquare,
-                color: theme.colorScheme.primary,
-              ),
-              const SizedBox(width: 10),
               Expanded(
-                child: Text(
-                  'Reflect together',
-                  style: theme.textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.w900,
-                    height: 1.05,
-                  ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Reflect together',
+                      style: theme.textTheme.headlineMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        height: 1.05,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      active == null
+                          ? 'A quieter reflection space opens after you choose a commitment.'
+                          : 'A private feed for ${active.plan.title}. Check in first, then share one honest sentence if it helps.',
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: tokens.palette.textSecondary,
+                        height: 1.42,
+                      ),
+                    ),
+                  ],
                 ),
               ),
+              const SizedBox(width: 14),
+              const VisionIllustration(
+                asset: VisionIllustrationAsset.growth,
+                size: 84,
+                semanticLabel: 'Reflect together',
+              ),
             ],
-          ),
-          const SizedBox(height: 10),
-          Text(
-            active == null
-                ? 'A quieter reflection space opens after you choose a commitment.'
-                : 'A private feed for ${active.plan.title}. Check in first, then share one honest sentence if it helps.',
-            style: theme.textTheme.bodyMedium?.copyWith(height: 1.45),
           ),
           if (active != null) ...[
             const SizedBox(height: 14),

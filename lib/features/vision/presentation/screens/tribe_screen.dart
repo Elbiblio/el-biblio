@@ -327,13 +327,16 @@ class _RecommendedTribesList extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(visionProvider);
     final theme = Theme.of(context);
+    final currentTribeId = state.primaryTribe?.tribe.id;
+    final tribes = state.recommendedTribes
+        .where((tribe) => tribe.id != currentTribeId)
+        .toList(growable: false);
 
-    if (state.recommendedTribes.isEmpty) {
+    if (tribes.isEmpty) {
+      if (state.primaryTribe != null) return const SizedBox.shrink();
       return VisionPanel(
         icon: LucideIcons.users,
-        title: state.primaryTribe == null
-            ? 'Tribe recommendations'
-            : 'Other tribes',
+        title: 'Tribe recommendations',
         child: Text(
           state.isReadOnly
               ? 'Reconnect to see real tribe recommendations.'
@@ -353,9 +356,7 @@ class _RecommendedTribesList extends ConsumerWidget {
           ),
         ),
         const SizedBox(height: 10),
-        ...state.recommendedTribes.map(
-          (tribe) => _RecommendedTribeCard(tribe: tribe),
-        ),
+        ...tribes.map((tribe) => _RecommendedTribeCard(tribe: tribe)),
       ],
     );
   }
@@ -985,13 +986,24 @@ class _CreateHangoutDialogState extends State<_CreateHangoutDialog> {
   var _maxParticipants = 8.0;
 
   @override
+  void initState() {
+    super.initState();
+    _titleController.addListener(_onTitleChanged);
+  }
+
+  @override
   void dispose() {
+    _titleController.removeListener(_onTitleChanged);
     _titleController.dispose();
     super.dispose();
   }
 
+  void _onTitleChanged() => setState(() {});
+
   @override
   Widget build(BuildContext context) {
+    final canStart = _titleController.text.trim().isNotEmpty;
+
     return AlertDialog(
       title: const Text('Start tribe hangout'),
       content: SingleChildScrollView(
@@ -1025,14 +1037,16 @@ class _CreateHangoutDialogState extends State<_CreateHangoutDialog> {
           child: const Text('Cancel'),
         ),
         FilledButton(
-          onPressed: () {
-            Navigator.of(context).pop(
-              _CreateHangoutRequest(
-                title: _titleController.text,
-                maxParticipants: _maxParticipants.round(),
-              ),
-            );
-          },
+          onPressed: canStart
+              ? () {
+                  Navigator.of(context).pop(
+                    _CreateHangoutRequest(
+                      title: _titleController.text.trim(),
+                      maxParticipants: _maxParticipants.round(),
+                    ),
+                  );
+                }
+              : null,
           child: const Text('Start'),
         ),
       ],

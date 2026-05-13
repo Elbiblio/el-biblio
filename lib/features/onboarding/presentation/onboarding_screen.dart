@@ -32,7 +32,7 @@ class OnboardingScreen extends ConsumerWidget {
 
   String _getPrimaryButtonLabel(OnboardingState state) {
     return switch (state.step) {
-      OnboardingStep.theProblem => 'Show me the rhythm',
+      OnboardingStep.theProblem => 'Begin the rhythm',
       OnboardingStep.theSolution => 'Find my compass',
       OnboardingStep.yourIdentity =>
         _canAdvanceFromAssessment(state)
@@ -183,35 +183,41 @@ class OnboardingScreen extends ConsumerWidget {
     return Scaffold(
       backgroundColor: Colors.transparent,
       extendBodyBehindAppBar: false,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        surfaceTintColor: Colors.transparent,
-        centerTitle: isDesktop,
-        title: Text(
-          _stepTitle(state.step),
-          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-            fontWeight: FontWeight.w400,
-            fontSize: 24.0,
-          ),
-        ),
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(2),
-          child: Container(
-            margin: const EdgeInsets.symmetric(horizontal: horizontalPadding),
-            child: LinearProgressIndicator(
-              value: (state.currentStepIndex + 1) / state.totalSteps,
-              backgroundColor: Theme.of(
-                context,
-              ).colorScheme.outline.withValues(alpha: 0.1),
-              valueColor: AlwaysStoppedAnimation<Color>(
-                Theme.of(context).colorScheme.primary.withValues(alpha: 0.6),
+      appBar: state.step == OnboardingStep.theProblem
+          ? null
+          : AppBar(
+              backgroundColor: Colors.transparent,
+              elevation: 0,
+              surfaceTintColor: Colors.transparent,
+              centerTitle: isDesktop,
+              title: Text(
+                _stepTitle(state.step),
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 20.0,
+                ),
               ),
-              borderRadius: BorderRadius.circular(1),
+              bottom: PreferredSize(
+                preferredSize: const Size.fromHeight(2),
+                child: Container(
+                  margin: const EdgeInsets.symmetric(
+                    horizontal: horizontalPadding,
+                  ),
+                  child: LinearProgressIndicator(
+                    value: (state.currentStepIndex + 1) / state.totalSteps,
+                    backgroundColor: Theme.of(
+                      context,
+                    ).colorScheme.outline.withValues(alpha: 0.1),
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      Theme.of(
+                        context,
+                      ).colorScheme.primary.withValues(alpha: 0.6),
+                    ),
+                    borderRadius: BorderRadius.circular(1),
+                  ),
+                ),
+              ),
             ),
-          ),
-        ),
-      ),
       body: AnimatedSwitcher(
         duration: _duration,
         switchInCurve: _curve,
@@ -230,12 +236,16 @@ class OnboardingScreen extends ConsumerWidget {
               stops: const [0.0, 0.55, 1.0],
             ),
           ),
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: contentMaxWidth),
-              child: Padding(
-                padding: const EdgeInsets.only(bottom: 0),
-                child: _stepContent(context, ref, state),
+          child: SafeArea(
+            top: state.step == OnboardingStep.theProblem,
+            bottom: false,
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: contentMaxWidth),
+                child: Padding(
+                  padding: const EdgeInsets.only(bottom: 0),
+                  child: _stepContent(context, ref, state),
+                ),
               ),
             ),
           ),
@@ -262,6 +272,32 @@ class OnboardingScreen extends ConsumerWidget {
     WidgetRef ref,
   ) {
     final canAdvance = _canAdvance(state);
+
+    if (state.step == OnboardingStep.theProblem) {
+      return Container(
+        padding: EdgeInsets.fromLTRB(
+          ResponsiveSpacing.getHorizontalPadding(context),
+          14,
+          ResponsiveSpacing.getHorizontalPadding(context),
+          16,
+        ),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.94),
+        ),
+        child: SafeArea(
+          top: false,
+          child: SizedBox(
+            height: 56,
+            child: PrimaryButton(
+              label: _getPrimaryButtonLabel(state),
+              icon: Icons.arrow_forward_rounded,
+              onPressed: canAdvance ? notifier.next : null,
+              expanded: true,
+            ),
+          ),
+        ),
+      );
+    }
 
     return Container(
       padding: EdgeInsets.all(ResponsiveSpacing.getHorizontalPadding(context)),
