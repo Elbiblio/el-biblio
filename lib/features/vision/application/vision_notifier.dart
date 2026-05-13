@@ -111,11 +111,15 @@ class VisionNotifier extends StateNotifier<VisionState> {
   }
 
   Future<bool> setVisibility(VisibilityMode mode, {String? alias}) async {
+    final normalizedAlias = _aliasFor(mode, alias);
     try {
-      await _repository.updateVisibility(visibilityMode: mode, alias: alias);
+      await _repository.updateVisibility(
+        visibilityMode: mode,
+        alias: mode == VisibilityMode.anonymous ? null : normalizedAlias,
+      );
       state = state.copyWith(
         visibilityMode: mode,
-        visibilityAlias: _aliasFor(mode, alias),
+        visibilityAlias: normalizedAlias,
       );
       return true;
     } catch (e) {
@@ -125,6 +129,14 @@ class VisionNotifier extends StateNotifier<VisionState> {
   }
 
   Future<bool> joinTribe(TribeIdentity tribe) async {
+    if (state.isReadOnly) {
+      state = state.copyWith(
+        error:
+            'Reconnect before joining a tribe. Offline recommendations are read-only.',
+      );
+      return false;
+    }
+
     state = state.copyWith(isLoading: true, clearError: true);
     try {
       final membership = await _repository.joinTribe(
@@ -132,14 +144,6 @@ class VisionNotifier extends StateNotifier<VisionState> {
         visibilityMode: state.visibilityMode,
         displayAlias: state.visibilityAlias,
       );
-      if (state.isReadOnly) {
-        state = state.copyWith(
-          isLoading: false,
-          error:
-              'Reconnect before joining a tribe. Offline recommendations are read-only.',
-        );
-        return false;
-      }
       final commitments = await _repository.recommendedCommitments(
         tribeId: tribe.id,
       );
@@ -329,14 +333,15 @@ class VisionNotifier extends StateNotifier<VisionState> {
 
   Future<bool> postWeeklyReflection(String content) async {
     final tribe = state.primaryTribe?.tribe;
-    if (tribe == null || content.trim().isEmpty || content.length > 500) {
+    final trimmed = content.trim();
+    if (tribe == null || trimmed.isEmpty || trimmed.length > 500) {
       return false;
     }
 
     try {
       final reflection = await _repository.postWeeklyRitual(
         tribeId: tribe.id,
-        content: content.trim(),
+        content: trimmed,
       );
       state = state.copyWith(
         weeklyReflections: [reflection, ...state.weeklyReflections],
@@ -559,9 +564,26 @@ class VisionNotifier extends StateNotifier<VisionState> {
         alias?.trim().isNotEmpty == true ? alias!.trim() : 'Visible profile',
       VisibilityMode.nickname =>
         alias?.trim().isNotEmpty == true ? alias!.trim() : 'Friend',
-      VisibilityMode.initials =>
-        alias?.trim().isNotEmpty == true ? alias!.trim() : 'EB',
+      VisibilityMode.initials => _initialsFor(alias) ?? 'EB',
       VisibilityMode.anonymous => 'Anonymous',
     };
+  }
+
+  String? _initialsFor(String? alias) {
+    final normalized = alias?.trim();
+    if (normalized == null || normalized.isEmpty) return null;
+
+    final words = normalized
+        .split(RegExp(r'\s+'))
+        .where((word) => word.isNotEmpty)
+        .toList(growable: false);
+    if (words.isEmpty) return null;
+
+    final initials = words.length == 1
+        ? words.single.substring(0, words.single.length < 2 ? 1 : 2)
+        : words.take(2).map((word) => word[0]).join();
+    final cleaned = initials.replaceAll(RegExp(r'[^A-Za-z0-9]'), '');
+    if (cleaned.isEmpty) return null;
+    return cleaned.toUpperCase();
   }
 }

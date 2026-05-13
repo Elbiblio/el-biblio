@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 class AppTypography {
   const AppTypography._();
@@ -12,12 +13,11 @@ class AppTypography {
       FontWeight weight,
       double letterSpacing,
     ) {
-      return TextStyle(
+      return GoogleFonts.inter(
         fontSize: size * clampedScale,
         height: height,
         fontWeight: weight,
         letterSpacing: letterSpacing,
-        fontFamily: 'Inter',
       );
     }
 
@@ -27,12 +27,11 @@ class AppTypography {
       FontWeight weight,
       double letterSpacing,
     ) {
-      return TextStyle(
+      return GoogleFonts.instrumentSerif(
         fontSize: size * clampedScale,
         height: height,
         fontWeight: weight,
         letterSpacing: letterSpacing,
-        fontFamily: 'InstrumentSerif',
       );
     }
 

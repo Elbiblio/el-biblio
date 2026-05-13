@@ -2,6 +2,8 @@ import 'package:elbiblio/core/theme/app_typography.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   test('app typography uses stable spacing and readable UI body styles', () {
     final textTheme = AppTypography.textTheme(1);
     final styles = [
@@ -26,8 +28,8 @@ void main() {
       expect(style?.letterSpacing, 0);
     }
 
-    expect(textTheme.bodyMedium?.fontFamily, 'Inter');
-    expect(textTheme.titleMedium?.fontFamily, 'Inter');
-    expect(textTheme.headlineMedium?.fontFamily, 'InstrumentSerif');
+    expect(textTheme.bodyMedium?.fontFamily, startsWith('Inter'));
+    expect(textTheme.titleMedium?.fontFamily, startsWith('Inter'));
+    expect(textTheme.headlineMedium?.fontFamily, startsWith('InstrumentSerif'));
   });
 }

@@ -5,6 +5,7 @@ import 'package:elbiblio/features/vision/application/vision_notifier.dart';
 import 'package:elbiblio/features/vision/data/vision_repository.dart';
 import 'package:elbiblio/features/vision/domain/vision_models.dart';
 import 'package:elbiblio/features/vision/presentation/screens/commit_screen.dart';
+import 'package:elbiblio/features/vision/presentation/screens/grow_screen.dart';
 import 'package:elbiblio/features/vision/presentation/screens/reflect_screen.dart';
 import 'package:elbiblio/features/vision/presentation/screens/tribe_screen.dart';
 import 'package:flutter/material.dart';
@@ -139,6 +140,8 @@ void main() {
         const TribeScreen(),
         repository: repository,
       );
+      await tester.scrollUntilVisible(find.text('Tribe hangouts'), 180);
+      await tester.pumpAndSettle();
 
       expect(find.text('Watchman'), findsWidgets);
       expect(find.text('Tribe hangouts'), findsOneWidget);
@@ -151,6 +154,77 @@ void main() {
       expect(find.text('Start tribe hangout'), findsOneWidget);
     });
 
+    testWidgets('Tribe leads with recommendations before joining', (
+      tester,
+    ) async {
+      final repository = _FakeVisionRepository(
+        activeCommitment: null,
+        primaryTribe: null,
+      );
+
+      await tester.pumpVisionScreen(
+        const TribeScreen(),
+        repository: repository,
+      );
+
+      expect(find.text('Find your tribe'), findsOneWidget);
+      expect(find.text('Recommended tribes'), findsOneWidget);
+      expect(find.text('Watchman'), findsOneWidget);
+      expect(find.text('Join tribe'), findsOneWidget);
+      expect(find.text('What opens after joining'), findsOneWidget);
+      expect(find.text('Tribe hangouts'), findsNothing);
+    });
+
+    testWidgets('Tribe joins a recommendation and reveals joined workflow', (
+      tester,
+    ) async {
+      final repository = _FakeVisionRepository(
+        activeCommitment: null,
+        primaryTribe: null,
+      );
+
+      await tester.pumpVisionScreen(
+        const TribeScreen(),
+        repository: repository,
+      );
+      await tester.tap(find.text('Join tribe'));
+      await tester.pumpAndSettle();
+
+      expect(repository.joinedTribeIds, [1]);
+      expect(find.text('You joined Watchman'), findsOneWidget);
+
+      await tester.tap(find.text('Continue'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Primary tribe'), findsOneWidget);
+
+      await tester.scrollUntilVisible(find.text('Tribe hangouts'), 180);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Tribe hangouts'), findsOneWidget);
+    });
+
+    testWidgets('Tribe visibility initials save normalized initials', (
+      tester,
+    ) async {
+      final repository = _FakeVisionRepository(primaryTribe: _tribeMembership);
+
+      await tester.pumpVisionScreen(
+        const TribeScreen(),
+        repository: repository,
+      );
+      await tester.tap(find.byTooltip('How I appear'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Initials'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Save'));
+      await tester.pumpAndSettle();
+
+      expect(repository.savedVisibilityMode, VisibilityMode.initials);
+      expect(repository.savedVisibilityAlias, 'QW');
+      expect(find.text('Visibility updated.'), findsOneWidget);
+    });
+
     testWidgets('Tribe shows a live hangout card', (tester) async {
       final repository = _FakeVisionRepository(
         primaryTribe: _tribeMembership,
@@ -161,6 +235,8 @@ void main() {
         const TribeScreen(),
         repository: repository,
       );
+      await tester.scrollUntilVisible(find.text('Tribe check-in room'), 180);
+      await tester.pumpAndSettle();
 
       expect(find.text('Tribe check-in room'), findsOneWidget);
       expect(find.text('3/8 joined'), findsOneWidget);
@@ -171,6 +247,49 @@ void main() {
         isTrue,
       );
     });
+
+    testWidgets(
+      'Tribe enables rejoin for joined hangout even when canJoin is false',
+      (tester) async {
+        final repository = _FakeVisionRepository(
+          primaryTribe: _tribeMembership,
+          hangouts: [
+            _liveHangout(
+              canJoin: false,
+              joinedByMe: true,
+              participantCount: 8,
+              maxParticipants: 8,
+            ),
+          ],
+        );
+
+        await tester.pumpVisionScreen(
+          const TribeScreen(),
+          repository: repository,
+        );
+        await tester.scrollUntilVisible(
+          find.widgetWithText(FilledButton, 'Rejoin'),
+          180,
+        );
+        await tester.pumpAndSettle();
+
+        expect(
+          tester
+              .widget<FilledButton>(find.widgetWithText(FilledButton, 'Rejoin'))
+              .enabled,
+          isTrue,
+        );
+
+        await tester.tap(find.widgetWithText(FilledButton, 'Rejoin'));
+        await tester.pumpAndSettle();
+
+        expect(
+          find.text('We could not join this tribe hangout.'),
+          findsOneWidget,
+        );
+        expect(find.text('This tribe hangout is full.'), findsNothing);
+      },
+    );
 
     testWidgets('Tribe surfaces LiveKit absence after joining a hangout', (
       tester,
@@ -185,7 +304,10 @@ void main() {
         const TribeScreen(),
         repository: repository,
       );
-      await tester.ensureVisible(find.widgetWithText(FilledButton, 'Join'));
+      await tester.scrollUntilVisible(
+        find.widgetWithText(FilledButton, 'Join'),
+        180,
+      );
       await tester.pumpAndSettle();
       await tester.tap(find.widgetWithText(FilledButton, 'Join'));
       await tester.pumpAndSettle();
@@ -209,7 +331,10 @@ void main() {
         const TribeScreen(),
         repository: repository,
       );
-      await tester.ensureVisible(find.widgetWithText(FilledButton, 'Join'));
+      await tester.scrollUntilVisible(
+        find.widgetWithText(FilledButton, 'Join'),
+        180,
+      );
       await tester.pumpAndSettle();
       await tester.tap(find.widgetWithText(FilledButton, 'Join'));
       await tester.pumpAndSettle();
@@ -218,6 +343,61 @@ void main() {
         find.text('We could not join this tribe hangout.'),
         findsOneWidget,
       );
+    });
+
+    testWidgets(
+      'Tribe creates a hangout and surfaces missing audio credentials',
+      (tester) async {
+        final repository = _FakeVisionRepository(
+          primaryTribe: _tribeMembership,
+        );
+
+        await tester.pumpVisionScreen(
+          const TribeScreen(),
+          repository: repository,
+        );
+        await tester.scrollUntilVisible(find.text('Tribe hangouts'), 180);
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Start tribe hangout'));
+        await tester.pumpAndSettle();
+        await tester.enterText(find.byType(TextField).last, 'Prayer room');
+        await tester.tap(find.widgetWithText(FilledButton, 'Start'));
+        await tester.pumpAndSettle();
+
+        expect(repository.createdHangoutTitle, 'Prayer room');
+        expect(repository.createdHangoutScopeType, 'tribe');
+        expect(repository.createdHangoutScopeId, _watchmanTribe.id);
+        expect(repository.createdHangoutMaxParticipants, 8);
+        expect(
+          find.text(
+            'Tribe hangout started, but audio credentials were unavailable.',
+          ),
+          findsOneWidget,
+        );
+      },
+    );
+
+    testWidgets('Grow saves a daily question answer through the runtime flow', (
+      tester,
+    ) async {
+      final repository = _FakeVisionRepository(dailyQuestion: _dailyQuestion);
+
+      await tester.pumpVisionScreen(const GrowScreen(), repository: repository);
+      await tester.scrollUntilVisible(find.text(_dailyQuestion.question), 180);
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Your answer for today'),
+        'I will practice patience before replying.',
+      );
+      await tester.tap(find.text('Save answer'));
+      await tester.pumpAndSettle();
+
+      expect(repository.savedQuestionId, _dailyQuestion.id);
+      expect(
+        repository.savedQuestionAnswer,
+        'I will practice patience before replying.',
+      );
+      expect(find.text('Answer saved'), findsOneWidget);
     });
   });
 }
@@ -256,6 +436,7 @@ class _FakeVisionRepository implements VisionRepository {
     List<CommitmentHangout> hangouts = const [],
     CommitmentHangout? joinedHangout,
     Object? joinHangoutError,
+    DailyGrowthQuestion? dailyQuestion,
   }) : _activeCommitment = activeCommitment,
        _primaryTribe = primaryTribe,
        _feedResult =
@@ -263,14 +444,25 @@ class _FakeVisionRepository implements VisionRepository {
            const CommitmentFeedResult(reflections: [], postedToday: false),
        _hangouts = hangouts,
        _joinedHangout = joinedHangout,
-       _joinHangoutError = joinHangoutError;
+       _joinHangoutError = joinHangoutError,
+       _dailyQuestion = dailyQuestion;
 
   final CommitmentSeason? _activeCommitment;
-  final TribeMembership? _primaryTribe;
+  TribeMembership? _primaryTribe;
   final CommitmentFeedResult _feedResult;
   final List<CommitmentHangout> _hangouts;
   final CommitmentHangout? _joinedHangout;
   final Object? _joinHangoutError;
+  final DailyGrowthQuestion? _dailyQuestion;
+  final List<int> joinedTribeIds = [];
+  VisibilityMode? savedVisibilityMode;
+  String? savedVisibilityAlias;
+  int? savedQuestionId;
+  String? savedQuestionAnswer;
+  String? createdHangoutTitle;
+  String? createdHangoutScopeType;
+  int? createdHangoutScopeId;
+  int? createdHangoutMaxParticipants;
 
   @override
   Future<VisionBootstrap> bootstrap() async {
@@ -279,7 +471,7 @@ class _FakeVisionRepository implements VisionRepository {
       visibilityAlias: 'Quiet Walker',
       primaryTribe: _primaryTribe,
       activeCommitment: _activeCommitment,
-      dailyQuestion: null,
+      dailyQuestion: _dailyQuestion,
     );
   }
 
@@ -297,6 +489,40 @@ class _FakeVisionRepository implements VisionRepository {
 
   @override
   Future<CommitmentFeedResult> feed(int commitmentId) async => _feedResult;
+
+  @override
+  Future<TribeMembership> joinTribe({
+    required int tribeId,
+    required VisibilityMode visibilityMode,
+    String? displayAlias,
+  }) async {
+    joinedTribeIds.add(tribeId);
+    final tribe = tribeId == _watchmanTribe.id
+        ? _watchmanTribe
+        : TribeIdentity(
+            id: tribeId,
+            name: 'Joined tribe',
+            slug: 'joined-tribe',
+            description: 'A joined tribe.',
+            iconKey: 'circle',
+          );
+    _primaryTribe = TribeMembership(
+      tribe: tribe,
+      visibilityMode: visibilityMode,
+      displayAlias: displayAlias ?? 'Anonymous',
+      isPrimary: true,
+    );
+    return _primaryTribe!;
+  }
+
+  @override
+  Future<void> updateVisibility({
+    required VisibilityMode visibilityMode,
+    String? alias,
+  }) async {
+    savedVisibilityMode = visibilityMode;
+    savedVisibilityAlias = alias;
+  }
 
   @override
   Future<TribePulse> tribePulse(int tribeId) async {
@@ -345,6 +571,41 @@ class _FakeVisionRepository implements VisionRepository {
     required int reflectionId,
     required String reactionType,
   }) async {}
+
+  @override
+  Future<CommitmentHangout> createHangout({
+    required String title,
+    required String scopeType,
+    int? scopeId,
+    required int maxParticipants,
+    bool startNow = true,
+  }) async {
+    createdHangoutTitle = title.trim();
+    createdHangoutScopeType = scopeType;
+    createdHangoutScopeId = scopeId;
+    createdHangoutMaxParticipants = maxParticipants;
+    return CommitmentHangout(
+      id: 123,
+      title: title.trim(),
+      status: 'live',
+      participantCount: 1,
+      maxParticipants: maxParticipants,
+      canJoin: false,
+      scopeType: scopeType,
+      scopeId: scopeId,
+      joinedByMe: true,
+      liveKit: null,
+    );
+  }
+
+  @override
+  Future<void> answerDailyQuestion({
+    required int questionId,
+    required String answer,
+  }) async {
+    savedQuestionId = questionId;
+    savedQuestionAnswer = answer.trim();
+  }
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
@@ -402,6 +663,16 @@ final _reflection = CommitmentReflection(
   authorCurrentStreakCount: 3,
 );
 
+const _dailyQuestion = DailyGrowthQuestion(
+  id: 51,
+  question: 'Where did grace ask you to slow down today?',
+  conciseExplanation: 'A plain prompt for noticing one faithful moment.',
+  spiritualInsight: 'Patience is often practiced before it is felt.',
+  practicalPerspective: 'Name the moment, then choose one next response.',
+  realWorldContext: 'Daily reflection is easier when it starts small.',
+  dailyLivingGuide: 'Pause before the next reply that feels urgent.',
+);
+
 CommitmentSeason _season({required bool checkedInToday}) {
   final now = DateTime.now();
   return CommitmentSeason(
@@ -422,13 +693,15 @@ CommitmentSeason _season({required bool checkedInToday}) {
 CommitmentHangout _liveHangout({
   required bool canJoin,
   bool joinedByMe = false,
+  int participantCount = 3,
+  int maxParticipants = 8,
 }) {
   return CommitmentHangout(
     id: 99,
     title: 'Tribe check-in room',
     status: 'live',
-    participantCount: 3,
-    maxParticipants: 8,
+    participantCount: participantCount,
+    maxParticipants: maxParticipants,
     canJoin: canJoin,
     scopeType: 'tribe',
     joinedByMe: joinedByMe,

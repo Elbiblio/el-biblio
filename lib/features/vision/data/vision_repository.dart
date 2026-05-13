@@ -321,7 +321,7 @@ class VisionRepository {
         '/notifications/unread-count',
       );
       final data = _payloadMap(response.data);
-      return (data['count'] as num?)?.toInt() ?? 0;
+      return int.tryParse(data['count']?.toString() ?? '') ?? 0;
     } catch (e) {
       _logger.w('Vision unread notification count failed: $e');
       return 0;
@@ -510,7 +510,8 @@ class VisionRepository {
   }
 
   dynamic _payload(Map<String, dynamic>? response) {
-    return response == null ? null : response['data'];
+    if (response == null) return null;
+    return response.containsKey('data') ? response['data'] : response;
   }
 
   Map<String, dynamic> _payloadMap(Map<String, dynamic>? response) {

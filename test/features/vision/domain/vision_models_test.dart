@@ -115,6 +115,59 @@ void main() {
       expect(pulse.items.single.text, '4 people completed Day 30 today.');
     });
 
+    test('tribe payloads tolerate string ids and loose booleans', () {
+      final tribe = TribeIdentity.fromJson({
+        'id': '12',
+        'name': 'Watchman Circle',
+        'slug': 'watchman-circle',
+        'description': 'A steady tribe.',
+        'icon_key': 'users',
+        'match_score': '88',
+      });
+      final membership = TribeMembership.fromJson({
+        'tribe': {'id': '12', 'name': 'Watchman Circle'},
+        'visibility_mode': 'nickname',
+        'display_alias': 'Quiet Walker',
+        'is_primary': '1',
+      });
+      final hangout = CommitmentHangout.fromJson({
+        'id': '42',
+        'title': 'Prayer room',
+        'participant_count': '3',
+        'max_participants': '8',
+        'scope_type': 'tribe',
+        'scope_id': '12',
+        'can_join': 'true',
+        'joined_by_me': 0,
+      });
+      final pulse = TribePulse.fromJson({
+        'today': {
+          'checked_in_count': '5',
+          'active_members_count': '18',
+          'reflection_count': '7',
+          'support_count': '14',
+        },
+      });
+      final weekly = WeeklyRitualReflection.fromJson({
+        'id': '4',
+        'author_alias': 'Quiet Walker',
+        'content': 'The week taught patience.',
+        'bookmarked_by_me': 'true',
+      });
+
+      expect(tribe.id, 12);
+      expect(tribe.matchScore, 88);
+      expect(membership.isPrimary, isTrue);
+      expect(hangout.id, 42);
+      expect(hangout.scopeId, 12);
+      expect(hangout.canJoin, isTrue);
+      expect(hangout.joinedByMe, isFalse);
+      expect(pulse.returnedCount, 5);
+      expect(pulse.activeMembersCount, 18);
+      expect(weekly.id, 4);
+      expect(weekly.bookmarkedByMe, isTrue);
+    });
+
     test('tribe hangout and LiveKit absence parse safely', () {
       final hangout = CommitmentHangout.fromJson({
         'id': 9,

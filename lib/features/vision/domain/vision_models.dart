@@ -59,7 +59,7 @@ class TribeIdentity {
       slug: json['slug'] as String? ?? '',
       description: json['description'] as String? ?? '',
       iconKey: json['icon_key'] as String? ?? 'users',
-      matchScore: (json['match_score'] as num?)?.toInt() ?? 0,
+      matchScore: _intFromJson(json['match_score']) ?? 0,
       matchReason: json['match_reason'] as String?,
       matchedArchetypes:
           (json['matched_archetypes'] as List<dynamic>? ?? const [])
@@ -92,7 +92,7 @@ class TribeMembership {
         json['visibility_mode'] as String?,
       ),
       displayAlias: json['display_alias'] as String? ?? 'Anonymous',
-      isPrimary: json['is_primary'] as bool? ?? false,
+      isPrimary: _boolFromJson(json['is_primary']) ?? false,
     );
   }
 }
@@ -123,14 +123,14 @@ class CommitmentPlan {
   factory CommitmentPlan.fromJson(Map<String, dynamic> json) {
     final tribeRaw = json['tribe'];
     return CommitmentPlan(
-      id: (json['id'] as num?)?.toInt() ?? 0,
+      id: _intFromJson(json['id']) ?? 0,
       title: json['title'] as String? ?? 'Commitment',
       description: json['description'] as String? ?? '',
-      durationDays: (json['duration_days'] as num?)?.toInt() ?? 30,
+      durationDays: _intFromJson(json['duration_days']) ?? 30,
       category: json['category'] as String? ?? 'growth',
       dailyAction: json['daily_action'] as String? ?? '',
-      nudgeMin: (json['nudge_min'] as num?)?.toInt() ?? 3,
-      nudgeMax: (json['nudge_max'] as num?)?.toInt() ?? 10,
+      nudgeMin: _intFromJson(json['nudge_min']) ?? 3,
+      nudgeMax: _intFromJson(json['nudge_max']) ?? 10,
       tribe: tribeRaw is Map
           ? TribeIdentity.fromJson(Map<String, dynamic>.from(tribeRaw))
           : null,
@@ -180,13 +180,13 @@ class CommitmentSeason {
       plan: CommitmentPlan.fromJson(
         Map<String, dynamic>.from(json['challenge'] as Map? ?? const {}),
       ),
-      currentDay: (json['current_day'] as num?)?.toInt() ?? 1,
-      completedDaysCount: (json['completed_days_count'] as num?)?.toInt() ?? 0,
-      nudgeCountPerDay: (json['nudge_count_per_day'] as num?)?.toInt() ?? 3,
+      currentDay: _intFromJson(json['current_day']) ?? 1,
+      completedDaysCount: _intFromJson(json['completed_days_count']) ?? 0,
+      nudgeCountPerDay: _intFromJson(json['nudge_count_per_day']) ?? 3,
       lastCheckInAt: DateTime.tryParse(
         json['last_check_in_at']?.toString() ?? '',
       ),
-      checkedInTodayOverride: json['checked_in_today'] as bool?,
+      checkedInTodayOverride: _boolFromJson(json['checked_in_today']),
       firstCheckInPlanWhen: json['check_in_plan_when'] as String?,
       firstCheckInPlanObstacle: json['check_in_plan_obstacle'] as String?,
     );
@@ -242,7 +242,7 @@ class CommitmentReflection {
       json['author_profile'] as Map? ?? const {},
     );
     return CommitmentReflection(
-      id: (json['id'] as num?)?.toInt() ?? 0,
+      id: _intFromJson(json['id']) ?? 0,
       alias:
           json['author_alias'] as String? ??
           json['visibility_alias'] as String? ??
@@ -254,7 +254,7 @@ class CommitmentReflection {
       reactionCount: reactionCounts.isNotEmpty
           ? reactionCounts.values.fold<int>(
               0,
-              (sum, value) => sum + ((value as num?)?.toInt() ?? 0),
+              (sum, value) => sum + (_intFromJson(value) ?? 0),
             )
           : reactions is List
           ? reactions.length
@@ -268,12 +268,12 @@ class CommitmentReflection {
           authorProfile['tribe_name'] as String? ??
           json['author_tribe_name'] as String?,
       authorCompletedChallengesCount:
-          (authorProfile['completed_challenges_count'] as num?)?.toInt() ??
-          (json['author_completed_challenges_count'] as num?)?.toInt() ??
+          _intFromJson(authorProfile['completed_challenges_count']) ??
+          _intFromJson(json['author_completed_challenges_count']) ??
           0,
       authorCurrentStreakCount:
-          (authorProfile['current_streak_count'] as num?)?.toInt() ??
-          (json['author_current_streak_count'] as num?)?.toInt() ??
+          _intFromJson(authorProfile['current_streak_count']) ??
+          _intFromJson(json['author_current_streak_count']) ??
           0,
       myReactionType:
           json['my_reaction_type'] as String? ??
@@ -315,14 +315,14 @@ class WeeklyRitualReflection {
 
   factory WeeklyRitualReflection.fromJson(Map<String, dynamic> json) {
     return WeeklyRitualReflection(
-      id: (json['id'] as num?)?.toInt() ?? 0,
+      id: _intFromJson(json['id']) ?? 0,
       alias: json['author_alias'] as String? ?? 'Anonymous',
       content: json['content'] as String? ?? '',
       createdAt:
           DateTime.tryParse(json['created_at']?.toString() ?? '') ??
           DateTime.now(),
       expiresAt: DateTime.tryParse(json['expires_at']?.toString() ?? ''),
-      bookmarkedByMe: json['bookmarked_by_me'] as bool? ?? false,
+      bookmarkedByMe: _boolFromJson(json['bookmarked_by_me']) ?? false,
     );
   }
 
@@ -405,7 +405,7 @@ class DailyGrowthQuestion {
       category: json['category'] as String?,
       position: _intFromJson(json['position']),
       answer: json['answer'] as String?,
-      answeredToday: json['answered_today'] as bool? ?? false,
+      answeredToday: _boolFromJson(json['answered_today']) ?? false,
     );
   }
 
@@ -435,6 +435,18 @@ class DailyGrowthQuestion {
 
 int? _intFromJson(Object? value) {
   if (value is num) return value.toInt();
+  if (value is String) return int.tryParse(value.trim());
+  return null;
+}
+
+bool? _boolFromJson(Object? value) {
+  if (value is bool) return value;
+  if (value is num) return value != 0;
+  if (value is String) {
+    final normalized = value.trim().toLowerCase();
+    if (normalized == 'true' || normalized == '1') return true;
+    if (normalized == 'false' || normalized == '0') return false;
+  }
   return null;
 }
 
@@ -490,15 +502,15 @@ class CommitmentHangout {
 
   factory CommitmentHangout.fromJson(Map<String, dynamic> json) {
     return CommitmentHangout(
-      id: (json['id'] as num?)?.toInt() ?? 0,
+      id: _intFromJson(json['id']) ?? 0,
       title: json['title'] as String? ?? 'Tribe hangout',
       status: json['status'] as String? ?? 'scheduled',
-      participantCount: (json['participant_count'] as num?)?.toInt() ?? 0,
-      maxParticipants: (json['max_participants'] as num?)?.toInt() ?? 8,
-      canJoin: json['can_join'] as bool? ?? false,
+      participantCount: _intFromJson(json['participant_count']) ?? 0,
+      maxParticipants: _intFromJson(json['max_participants']) ?? 8,
+      canJoin: _boolFromJson(json['can_join']) ?? false,
       scopeType: json['scope_type'] as String? ?? 'commitment',
-      joinedByMe: json['joined_by_me'] as bool? ?? false,
-      scopeId: (json['scope_id'] as num?)?.toInt(),
+      joinedByMe: _boolFromJson(json['joined_by_me']) ?? false,
+      scopeId: _intFromJson(json['scope_id']),
       startsAt: DateTime.tryParse(json['starts_at']?.toString() ?? ''),
       liveKit: json['livekit'] is Map
           ? LiveKitRoomCredentials.fromJson(
@@ -581,12 +593,12 @@ class TribePulse {
 
     return TribePulse(
       returnedCount:
-          (today['checked_in_count'] as num?)?.toInt() ??
-          (today['returned_count'] as num?)?.toInt() ??
+          _intFromJson(today['checked_in_count']) ??
+          _intFromJson(today['returned_count']) ??
           0,
-      activeMembersCount: (today['active_members_count'] as num?)?.toInt() ?? 0,
-      reflectionCount: (today['reflection_count'] as num?)?.toInt() ?? 0,
-      supportCount: (today['support_count'] as num?)?.toInt() ?? 0,
+      activeMembersCount: _intFromJson(today['active_members_count']) ?? 0,
+      reflectionCount: _intFromJson(today['reflection_count']) ?? 0,
+      supportCount: _intFromJson(today['support_count']) ?? 0,
       items: items,
     );
   }
@@ -647,9 +659,9 @@ class VisionNotificationItem {
       actionLabel: payload['action_label'] as String?,
       route: payload['route'] as String?,
       iconKey: payload['icon_key'] as String? ?? 'bell',
-      hangoutId: (payload['hangout_id'] as num?)?.toInt(),
-      commitmentId: (payload['commitment_id'] as num?)?.toInt(),
-      reflectionId: (payload['reflection_id'] as num?)?.toInt(),
+      hangoutId: _intFromJson(payload['hangout_id']),
+      commitmentId: _intFromJson(payload['commitment_id']),
+      reflectionId: _intFromJson(payload['reflection_id']),
     );
   }
 }

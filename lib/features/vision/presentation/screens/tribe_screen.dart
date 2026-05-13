@@ -6,8 +6,10 @@ import 'package:lucide_icons/lucide_icons.dart';
 
 import '../../../../core/constants/app_routes.dart';
 import '../../../../core/di/app_providers.dart';
+import '../../../../core/theme/app_theme_tokens.dart';
 import '../../../../shared/widgets/premium_success_dialog.dart';
 import '../../../../shared/widgets/vision_illustration.dart';
+import '../../application/vision_state.dart';
 import '../../domain/vision_models.dart';
 import '../widgets/visibility_mode_picker.dart';
 import '../widgets/vision_panel.dart';
@@ -28,13 +30,12 @@ class _TribeScreenState extends ConsumerState<TribeScreen> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final state = ref.read(visionProvider);
-      _mode = state.visibilityMode;
-      _aliasController.text = state.visibilityAlias == 'Anonymous'
-          ? ''
-          : state.visibilityAlias;
-      ref.read(visionProvider.notifier).load();
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+      _syncVisibilityFields(ref.read(visionProvider));
+      await ref.read(visionProvider.notifier).load();
+      if (!mounted) return;
+      _syncVisibilityFields(ref.read(visionProvider));
     });
   }
 
@@ -45,159 +46,82 @@ class _TribeScreenState extends ConsumerState<TribeScreen> {
     super.dispose();
   }
 
+  void _syncVisibilityFields(VisionState state) {
+    final alias = state.visibilityAlias == 'Anonymous'
+        ? ''
+        : state.visibilityAlias;
+    setState(() {
+      _mode = state.visibilityMode;
+      if (_aliasController.text != alias) {
+        _aliasController.text = alias;
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(visionProvider);
     final theme = Theme.of(context);
+    final tokens = theme.tokens;
+    final hasTribe = state.primaryTribe != null;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Tribe'),
-        actions: [
-          IconButton(
-            tooltip: 'How I appear',
-            onPressed: _openVisibilitySettings,
-            icon: const Icon(LucideIcons.settings2),
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: tokens.pageGradient,
           ),
-        ],
-      ),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 12, 20, 120),
-        children: [
-          Text(
-            state.primaryTribe?.tribe.displayName ?? 'Find your tribe',
-            style: theme.textTheme.headlineSmall?.copyWith(
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            state.primaryTribe == null
-                ? 'Tribe is belonging before performance.'
-                : 'Posting as ${state.primaryTribe!.displayAlias}.',
-          ),
-          const SizedBox(height: 18),
-          if (state.primaryTribe == null) ...[
-            const Center(
-              child: VisionIllustration(
-                asset: VisionIllustrationAsset.belonging,
-                size: 118,
-                semanticLabel: 'Belonging',
-              ),
-            ),
-            const SizedBox(height: 18),
-          ],
-          _CompassContextPanel(),
-          const SizedBox(height: 14),
-          _PulsePanel(),
-          const SizedBox(height: 14),
-          _WeeklyReflectionHub(controller: _weeklyController),
-          const SizedBox(height: 14),
-          _TribeHangoutPanel(),
-          const SizedBox(height: 18),
-          ...state.recommendedTribes.map((tribe) {
-            final joined = state.primaryTribe?.tribe.id == tribe.id;
-            return Container(
-              margin: const EdgeInsets.only(bottom: 12),
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(
-                  color: theme.colorScheme.outline.withValues(alpha: 0.12),
+        ),
+        child: SafeArea(
+          bottom: false,
+          child: RefreshIndicator(
+            onRefresh: () =>
+                ref.read(visionProvider.notifier).load(force: true),
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 120),
+              children: [
+                _TribeHero(
+                  state: state,
+                  onVisibilityPressed: _openVisibilitySettings,
                 ),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(
-                        GrowthJourneyEvent.iconForKey(tribe.iconKey),
-                        color: theme.colorScheme.primary,
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          tribe.displayName,
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Text(tribe.description),
-                  if (tribe.matchReason?.isNotEmpty == true) ...[
-                    const SizedBox(height: 12),
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: theme.colorScheme.primaryContainer.withValues(
-                          alpha: 0.22,
-                        ),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Icon(
-                            LucideIcons.compass,
-                            size: 18,
-                            color: theme.colorScheme.primary,
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              tribe.matchReason!,
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                height: 1.35,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
+                if (state.error?.isNotEmpty == true) ...[
+                  const SizedBox(height: 14),
+                  VisionPanel(
+                    icon: LucideIcons.wifiOff,
+                    title: state.isReadOnly
+                        ? 'Reconnect to join a tribe'
+                        : 'Tribe needs a retry',
+                    child: Text(
+                      state.error!,
+                      style: theme.textTheme.bodyMedium?.copyWith(height: 1.45),
                     ),
-                  ],
-                  const SizedBox(height: 12),
-                  FilledButton.tonalIcon(
-                    onPressed: joined
-                        ? null
-                        : () async {
-                            final joined = await ref
-                                .read(visionProvider.notifier)
-                                .joinTribe(tribe);
-                            if (!context.mounted) return;
-                            if (!joined) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text(
-                                    'We could not join this tribe. Please try again.',
-                                  ),
-                                ),
-                              );
-                              return;
-                            }
-                            await PremiumSuccessDialog.show(
-                              context,
-                              title: 'You joined ${tribe.displayName}',
-                              message:
-                                  'Your commitment and reflections now have a place of belonging.',
-                              primaryActionText: 'Continue',
-                            );
-                          },
-                    icon: Icon(
-                      joined ? LucideIcons.checkCircle : LucideIcons.users,
-                      size: 18,
-                    ),
-                    label: Text(joined ? 'Joined' : 'Join tribe'),
                   ),
                 ],
-              ),
-            );
-          }),
-        ],
+                const SizedBox(height: 14),
+                _CompassContextPanel(),
+                if (!hasTribe) ...[
+                  const SizedBox(height: 14),
+                  _RecommendedTribesList(),
+                  const SizedBox(height: 14),
+                  const _TribeFeaturePreview(),
+                ] else ...[
+                  const SizedBox(height: 14),
+                  _PulsePanel(),
+                  const SizedBox(height: 14),
+                  _TribeHangoutPanel(),
+                  const SizedBox(height: 14),
+                  _WeeklyReflectionHub(controller: _weeklyController),
+                  if (state.recommendedTribes.isNotEmpty) ...[
+                    const SizedBox(height: 18),
+                    _RecommendedTribesList(),
+                  ],
+                ],
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -275,6 +199,377 @@ class _TribeScreenState extends ConsumerState<TribeScreen> {
           },
         );
       },
+    );
+  }
+}
+
+class _TribeHero extends StatelessWidget {
+  const _TribeHero({required this.state, required this.onVisibilityPressed});
+
+  final VisionState state;
+  final VoidCallback onVisibilityPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final tokens = theme.tokens;
+    final tribe = state.primaryTribe;
+    final hasTribe = tribe != null;
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(20, 18, 18, 20),
+      decoration: BoxDecoration(
+        color: tokens.palette.paper.withValues(
+          alpha: theme.brightness == Brightness.dark ? 0.82 : 0.9,
+        ),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: tokens.palette.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      hasTribe ? tribe.tribe.displayName : 'Find your tribe',
+                      style: theme.textTheme.headlineMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        height: 1.05,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      hasTribe
+                          ? 'Posting as ${tribe.displayAlias}. Belonging gives your commitment a place to be witnessed.'
+                          : 'Belonging before performance. Choose the circle that matches your formation season.',
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: tokens.palette.textSecondary,
+                        height: 1.42,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 14),
+              const VisionIllustration(
+                asset: VisionIllustrationAsset.belonging,
+                size: 86,
+                semanticLabel: 'Belonging',
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              _TribePill(
+                icon: hasTribe ? LucideIcons.users : LucideIcons.compass,
+                label: hasTribe ? 'Primary tribe' : 'Recommendations',
+              ),
+              _TribePill(
+                icon: LucideIcons.eye,
+                label: state.visibilityMode.label,
+              ),
+              if (hasTribe)
+                _TribePill(icon: LucideIcons.user, label: tribe.displayAlias),
+              IconButton.filledTonal(
+                tooltip: 'How I appear',
+                onPressed: onVisibilityPressed,
+                icon: const Icon(LucideIcons.settings2, size: 18),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TribePill extends StatelessWidget {
+  const _TribePill({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface.withValues(alpha: 0.78),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(
+          color: theme.colorScheme.outline.withValues(alpha: 0.1),
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: theme.colorScheme.primary),
+          const SizedBox(width: 6),
+          Text(label, style: theme.textTheme.labelSmall),
+        ],
+      ),
+    );
+  }
+}
+
+class _RecommendedTribesList extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final state = ref.watch(visionProvider);
+    final theme = Theme.of(context);
+
+    if (state.recommendedTribes.isEmpty) {
+      return VisionPanel(
+        icon: LucideIcons.users,
+        title: state.primaryTribe == null
+            ? 'Tribe recommendations'
+            : 'Other tribes',
+        child: Text(
+          state.isReadOnly
+              ? 'Reconnect to see real tribe recommendations.'
+              : 'No tribe recommendations are available yet.',
+          style: theme.textTheme.bodyMedium?.copyWith(height: 1.45),
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          state.primaryTribe == null ? 'Recommended tribes' : 'Other tribes',
+          style: theme.textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        const SizedBox(height: 10),
+        ...state.recommendedTribes.map(
+          (tribe) => _RecommendedTribeCard(tribe: tribe),
+        ),
+      ],
+    );
+  }
+}
+
+class _RecommendedTribeCard extends ConsumerWidget {
+  const _RecommendedTribeCard({required this.tribe});
+
+  final TribeIdentity tribe;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final state = ref.watch(visionProvider);
+    final theme = Theme.of(context);
+    final joined = state.primaryTribe?.tribe.id == tribe.id;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: theme.tokens.palette.paper.withValues(
+          alpha: theme.brightness == Brightness.dark ? 0.78 : 0.9,
+        ),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: theme.tokens.palette.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.primary.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  GrowthJourneyEvent.iconForKey(tribe.iconKey),
+                  color: theme.colorScheme.primary,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  tribe.displayName,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              if (tribe.matchScore > 0)
+                Text(
+                  '${tribe.matchScore}%',
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    color: theme.colorScheme.primary,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            tribe.description,
+            style: theme.textTheme.bodyMedium?.copyWith(height: 1.42),
+          ),
+          if (tribe.matchReason?.isNotEmpty == true) ...[
+            const SizedBox(height: 12),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.primary.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    LucideIcons.compass,
+                    size: 18,
+                    color: theme.colorScheme.primary,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      tribe.matchReason!,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.tokens.palette.textSecondary,
+                        height: 1.35,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+          const SizedBox(height: 12),
+          FilledButton.tonalIcon(
+            onPressed: joined || state.isLoading
+                ? null
+                : () async {
+                    final joined = await ref
+                        .read(visionProvider.notifier)
+                        .joinTribe(tribe);
+                    if (!context.mounted) return;
+                    if (!joined) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            'We could not join this tribe. Please try again.',
+                          ),
+                        ),
+                      );
+                      return;
+                    }
+                    await PremiumSuccessDialog.show(
+                      context,
+                      title: 'You joined ${tribe.displayName}',
+                      message:
+                          'Your commitment and reflections now have a place of belonging.',
+                      primaryActionText: 'Continue',
+                    );
+                  },
+            icon: Icon(
+              joined ? LucideIcons.checkCircle : LucideIcons.users,
+              size: 18,
+            ),
+            label: Text(joined ? 'Joined' : 'Join tribe'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TribeFeaturePreview extends StatelessWidget {
+  const _TribeFeaturePreview();
+
+  @override
+  Widget build(BuildContext context) {
+    return const VisionPanel(
+      icon: LucideIcons.sparkles,
+      title: 'What opens after joining',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _FeaturePreviewRow(
+            icon: LucideIcons.activity,
+            title: 'Daily pulse',
+            body: 'See check-ins and small signs of life in your circle.',
+          ),
+          _FeaturePreviewRow(
+            icon: LucideIcons.calendarHeart,
+            title: 'Weekend reflection',
+            body: 'Mark what the week formed and save what you want to carry.',
+          ),
+          _FeaturePreviewRow(
+            icon: LucideIcons.radio,
+            title: 'Live hangouts',
+            body: 'Start or join voice rooms for prayer and encouragement.',
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FeaturePreviewRow extends StatelessWidget {
+  const _FeaturePreviewRow({
+    required this.icon,
+    required this.title,
+    required this.body,
+  });
+
+  final IconData icon;
+  final String title;
+  final String body;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 18, color: theme.colorScheme.primary),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: theme.textTheme.labelLarge?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  body,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.tokens.palette.textSecondary,
+                    height: 1.35,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -550,7 +845,9 @@ class _PulsePanel extends ConsumerWidget {
               ),
             ),
           const SizedBox(height: 12),
-          Row(
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
             children: [
               OutlinedButton.icon(
                 onPressed: () {
@@ -564,7 +861,6 @@ class _PulsePanel extends ConsumerWidget {
                 icon: const Icon(LucideIcons.send, size: 18),
                 label: const Text('Invite someone'),
               ),
-              const SizedBox(width: 8),
               TextButton.icon(
                 onPressed: () =>
                     context.push('${AppRoutes.assessment}/compass'),
@@ -622,64 +918,21 @@ class _TribeHangoutPanel extends ConsumerWidget {
     final tribe = ref.read(visionProvider).primaryTribe;
     if (tribe == null) return;
 
-    final titleController = TextEditingController(text: 'Tribe check-in room');
-    var maxParticipants = 8.0;
-    final created = await showDialog<bool>(
+    final request = await showDialog<_CreateHangoutRequest>(
       context: context,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (context, setState) => AlertDialog(
-          title: const Text('Start tribe hangout'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              TextField(
-                controller: titleController,
-                maxLength: 80,
-                decoration: const InputDecoration(
-                  labelText: 'Title',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 12),
-              Text('Max people: ${maxParticipants.round()}'),
-              Slider(
-                value: maxParticipants,
-                min: 2,
-                max: 50,
-                divisions: 48,
-                onChanged: (value) => setState(() => maxParticipants = value),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(false),
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.of(dialogContext).pop(true),
-              child: const Text('Start'),
-            ),
-          ],
-        ),
-      ),
+      builder: (_) => const _CreateHangoutDialog(),
     );
 
-    if (created != true || !context.mounted) {
-      titleController.dispose();
-      return;
-    }
+    if (request == null || !context.mounted) return;
 
     final hangout = await ref
         .read(visionProvider.notifier)
         .createCommitmentHangout(
-          title: titleController.text,
+          title: request.title,
           scopeType: 'tribe',
           scopeId: tribe.tribe.id,
-          maxParticipants: maxParticipants.round(),
+          maxParticipants: request.maxParticipants,
         );
-    titleController.dispose();
     if (!context.mounted) return;
     if (hangout?.liveKit?.isValid == true) {
       await Navigator.of(context).push(
@@ -710,6 +963,83 @@ class _TribeHangoutPanel extends ConsumerWidget {
   }
 }
 
+class _CreateHangoutRequest {
+  const _CreateHangoutRequest({
+    required this.title,
+    required this.maxParticipants,
+  });
+
+  final String title;
+  final int maxParticipants;
+}
+
+class _CreateHangoutDialog extends StatefulWidget {
+  const _CreateHangoutDialog();
+
+  @override
+  State<_CreateHangoutDialog> createState() => _CreateHangoutDialogState();
+}
+
+class _CreateHangoutDialogState extends State<_CreateHangoutDialog> {
+  final _titleController = TextEditingController(text: 'Tribe check-in room');
+  var _maxParticipants = 8.0;
+
+  @override
+  void dispose() {
+    _titleController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Start tribe hangout'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            TextField(
+              controller: _titleController,
+              maxLength: 80,
+              decoration: const InputDecoration(
+                labelText: 'Title',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text('Max people: ${_maxParticipants.round()}'),
+            Slider(
+              value: _maxParticipants,
+              min: 2,
+              max: 50,
+              divisions: 48,
+              onChanged: (value) => setState(() => _maxParticipants = value),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: () {
+            Navigator.of(context).pop(
+              _CreateHangoutRequest(
+                title: _titleController.text,
+                maxParticipants: _maxParticipants.round(),
+              ),
+            );
+          },
+          child: const Text('Start'),
+        ),
+      ],
+    );
+  }
+}
+
 class _TribeHangoutCard extends ConsumerWidget {
   const _TribeHangoutCard({required this.hangout});
 
@@ -719,6 +1049,8 @@ class _TribeHangoutCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final full = hangout.participantCount >= hangout.maxParticipants;
+    final canEnter = hangout.canJoin || hangout.joinedByMe;
+    final blockedBecauseFull = full && !hangout.joinedByMe;
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(14),
@@ -748,7 +1080,7 @@ class _TribeHangoutCard extends ConsumerWidget {
                 ),
                 const SizedBox(height: 3),
                 Text(
-                  full
+                  blockedBecauseFull
                       ? 'Room is full'
                       : '${hangout.participantCount}/${hangout.maxParticipants} joined',
                   style: theme.textTheme.bodySmall,
@@ -757,7 +1089,7 @@ class _TribeHangoutCard extends ConsumerWidget {
             ),
           ),
           FilledButton.tonal(
-            onPressed: hangout.canJoin
+            onPressed: canEnter
                 ? () async {
                     final joined = await ref
                         .read(visionProvider.notifier)
@@ -786,7 +1118,7 @@ class _TribeHangoutCard extends ConsumerWidget {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
                         content: Text(
-                          full
+                          blockedBecauseFull
                               ? 'This tribe hangout is full.'
                               : 'We could not join this tribe hangout.',
                         ),

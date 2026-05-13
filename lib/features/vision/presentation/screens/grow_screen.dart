@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 
+import '../../../../core/constants/app_routes.dart';
 import '../../../../core/di/app_providers.dart';
+import '../../../../core/theme/app_theme_tokens.dart';
 import '../../../../shared/widgets/premium_success_dialog.dart';
 import '../../../../shared/widgets/vision_illustration.dart';
+import '../../application/vision_state.dart';
 import '../../domain/vision_models.dart';
 import '../widgets/vision_panel.dart';
 
@@ -28,39 +32,153 @@ class _GrowScreenState extends ConsumerState<GrowScreen> {
   Widget build(BuildContext context) {
     final state = ref.watch(visionProvider);
     final theme = Theme.of(context);
+    final tokens = theme.tokens;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Grow')),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 12, 20, 120),
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: tokens.pageGradient,
+          ),
+        ),
+        child: SafeArea(
+          bottom: false,
+          child: RefreshIndicator(
+            onRefresh: () =>
+                ref.read(visionProvider.notifier).load(force: true),
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 120),
+              children: [
+                _GrowHero(state: state),
+                if (state.error?.isNotEmpty == true) ...[
+                  const SizedBox(height: 14),
+                  VisionPanel(
+                    icon: LucideIcons.wifiOff,
+                    title: state.isReadOnly
+                        ? 'Reconnect to keep growing'
+                        : 'Growth story needs a retry',
+                    child: Text(
+                      state.error!,
+                      style: theme.textTheme.bodyMedium?.copyWith(height: 1.45),
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 14),
+                _SpiritualAgeStory(),
+                const SizedBox(height: 14),
+                _JourneyTimeline(),
+                const SizedBox(height: 14),
+                const _DailyQuestion(),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _GrowHero extends ConsumerWidget {
+  const _GrowHero({required this.state});
+
+  final VisionState state;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final settings = ref.watch(settingsProvider);
+    final tribeName = state.primaryTribe?.tribe.displayName;
+    final commitmentTitle = state.activeCommitment?.plan.title;
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(20, 18, 18, 20),
+      decoration: BoxDecoration(
+        color: theme.tokens.palette.paper.withValues(
+          alpha: theme.brightness == Brightness.dark ? 0.82 : 0.9,
+        ),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: theme.tokens.palette.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Your growth journey',
-            style: theme.textTheme.headlineSmall?.copyWith(
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            _seasonLine(
-              state.primaryTribe?.tribe.displayName,
-              state.activeCommitment?.plan.title,
-            ),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Grow',
+                      style: theme.textTheme.headlineMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        height: 1.05,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      _seasonLine(tribeName, commitmentTitle),
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: theme.tokens.palette.textSecondary,
+                        height: 1.42,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 14),
+              const VisionIllustration(
+                asset: VisionIllustrationAsset.growth,
+                size: 92,
+                semanticLabel: 'Growth journey',
+              ),
+            ],
           ),
           const SizedBox(height: 18),
-          const Center(
-            child: VisionIllustration(
-              asset: VisionIllustrationAsset.growth,
-              size: 104,
-              semanticLabel: 'Growth journey',
-            ),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _GrowStatusPill(
+                icon: LucideIcons.sprout,
+                label: settings.spiritualAgeScore > 0
+                    ? '${settings.spiritualAgeStage} ${settings.spiritualAgeScore}/100'
+                    : 'Compass waiting',
+              ),
+              _GrowStatusPill(
+                icon: LucideIcons.users,
+                label: tribeName ?? 'No tribe yet',
+              ),
+              _GrowStatusPill(
+                icon: LucideIcons.flag,
+                label: commitmentTitle ?? 'No commitment yet',
+              ),
+            ],
           ),
-          const SizedBox(height: 18),
-          _SpiritualAgeStory(),
-          const SizedBox(height: 16),
-          _JourneyTimeline(),
-          const SizedBox(height: 16),
-          const _DailyQuestion(),
+          if (tribeName == null || commitmentTitle == null) ...[
+            const SizedBox(height: 16),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                if (tribeName == null)
+                  FilledButton.tonalIcon(
+                    onPressed: () => context.go(AppRoutes.tribe),
+                    icon: const Icon(LucideIcons.users, size: 18),
+                    label: const Text('Find tribe'),
+                  ),
+                if (commitmentTitle == null)
+                  FilledButton.tonalIcon(
+                    onPressed: () => context.go(AppRoutes.commit),
+                    icon: const Icon(LucideIcons.flag, size: 18),
+                    label: const Text('Choose commitment'),
+                  ),
+              ],
+            ),
+          ],
         ],
       ),
     );
@@ -68,10 +186,45 @@ class _GrowScreenState extends ConsumerState<GrowScreen> {
 
   String _seasonLine(String? tribe, String? commitment) {
     if (tribe != null && commitment != null) {
-      return 'Walking with $tribe through $commitment.';
+      return 'Your current season is $commitment, held with $tribe.';
     }
-    if (tribe != null) return 'Walking with $tribe.';
-    return 'Your story begins with belonging and one faithful commitment.';
+    if (tribe != null) {
+      return 'Belonging is in place with $tribe. Choose one daily practice when you are ready.';
+    }
+    if (commitment != null) {
+      return 'Your practice is $commitment. A tribe can give it a place to be witnessed.';
+    }
+    return 'Belonging, commitment, reflection, and one honest question form the path.';
+  }
+}
+
+class _GrowStatusPill extends StatelessWidget {
+  const _GrowStatusPill({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface.withValues(alpha: 0.78),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(
+          color: theme.colorScheme.outline.withValues(alpha: 0.1),
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: theme.colorScheme.primary),
+          const SizedBox(width: 6),
+          Text(label, style: theme.textTheme.labelSmall),
+        ],
+      ),
+    );
   }
 }
 
@@ -85,11 +238,90 @@ class _SpiritualAgeStory extends ConsumerWidget {
 
     return VisionPanel(
       icon: LucideIcons.sprout,
-      title: score > 0 ? 'Spiritual age: $stage' : 'Spiritual growth',
+      title: score > 0 ? 'Spiritual age: $stage' : 'Formation rhythm',
       trailing: score > 0 ? Text('$score/100') : null,
-      child: Text(
-        'Faith grows like a seed in soil: planted by the Holy Spirit, rooted through hidden seasons, pruned through struggle, and made fruitful in due season. Physical strain, mental heaviness, addiction, money pressure, relationship wounds, and spiritual dryness can all become places where maturity is formed with God.',
-        style: theme.textTheme.bodyMedium?.copyWith(height: 1.48),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Faith grows like a seed in soil: rooted quietly, pruned honestly, and made fruitful in due season.',
+            style: theme.textTheme.bodyMedium?.copyWith(height: 1.48),
+          ),
+          const SizedBox(height: 14),
+          const _FormationStep(
+            icon: LucideIcons.sprout,
+            title: 'Rooted',
+            body: 'Hidden seasons still count. Quiet obedience is not wasted.',
+          ),
+          const _FormationStep(
+            icon: LucideIcons.scissors,
+            title: 'Pruned',
+            body:
+                'Pressure, wounds, dryness, and desire can become places where maturity is formed with God.',
+          ),
+          const _FormationStep(
+            icon: LucideIcons.flower2,
+            title: 'Fruitful',
+            body:
+                'Growth becomes visible as patience, truth, courage, and love.',
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FormationStep extends StatelessWidget {
+  const _FormationStep({
+    required this.icon,
+    required this.title,
+    required this.body,
+  });
+
+  final IconData icon;
+  final String title;
+  final String body;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 30,
+            height: 30,
+            decoration: BoxDecoration(
+              color: theme.colorScheme.primary.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(icon, size: 16, color: theme.colorScheme.primary),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: theme.textTheme.labelLarge?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  body,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.tokens.palette.textSecondary,
+                    height: 1.35,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -99,12 +331,30 @@ class _JourneyTimeline extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final events = ref.watch(visionProvider).journeyEvents;
+    final theme = Theme.of(context);
     return VisionPanel(
-      icon: Icons.route_rounded,
+      icon: LucideIcons.map,
       title: 'Story so far',
       child: events.isEmpty
-          ? const Text(
-              'Your story will appear here after ElBiblio receives real journey events from your compass, tribe, commitment, check-ins, and reflections.',
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Your milestones will appear as the rhythm becomes lived: compass, tribe, commitment, check-ins, reflections, and support.',
+                  style: theme.textTheme.bodyMedium?.copyWith(height: 1.45),
+                ),
+                const SizedBox(height: 12),
+                const Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    _TimelineSeed(label: 'Compass'),
+                    _TimelineSeed(label: 'Tribe'),
+                    _TimelineSeed(label: 'Commitment'),
+                    _TimelineSeed(label: 'Check-ins'),
+                  ],
+                ),
+              ],
             )
           : Column(
               children: events.map((event) {
@@ -115,7 +365,14 @@ class _JourneyTimeline extends ConsumerWidget {
                     children: [
                       CircleAvatar(
                         radius: 18,
-                        child: Icon(event.icon, size: 18),
+                        backgroundColor: theme.colorScheme.primary.withValues(
+                          alpha: 0.12,
+                        ),
+                        child: Icon(
+                          event.icon,
+                          size: 18,
+                          color: theme.colorScheme.primary,
+                        ),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
@@ -124,11 +381,18 @@ class _JourneyTimeline extends ConsumerWidget {
                           children: [
                             Text(
                               event.title,
-                              style: Theme.of(context).textTheme.titleSmall
-                                  ?.copyWith(fontWeight: FontWeight.w800),
+                              style: theme.textTheme.titleSmall?.copyWith(
+                                fontWeight: FontWeight.w800,
+                              ),
                             ),
                             const SizedBox(height: 2),
-                            Text(event.subtitle),
+                            Text(
+                              event.subtitle,
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: theme.tokens.palette.textSecondary,
+                                height: 1.35,
+                              ),
+                            ),
                           ],
                         ),
                       ),
@@ -137,6 +401,26 @@ class _JourneyTimeline extends ConsumerWidget {
                 );
               }).toList(),
             ),
+    );
+  }
+}
+
+class _TimelineSeed extends StatelessWidget {
+  const _TimelineSeed({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Chip(
+      visualDensity: VisualDensity.compact,
+      avatar: Icon(
+        LucideIcons.circle,
+        size: 12,
+        color: theme.colorScheme.primary,
+      ),
+      label: Text(label),
     );
   }
 }
@@ -193,8 +477,10 @@ class _DailyQuestionState extends ConsumerState<_DailyQuestion> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Three prompts for today. Answer one deeply, or work through all three slowly.',
-            style: Theme.of(context).textTheme.bodyMedium,
+            'Answer one deeply, or move through the set slowly. The point is attention, not completion.',
+            style: Theme.of(
+              context,
+            ).textTheme.bodyMedium?.copyWith(height: 1.42),
           ),
           const SizedBox(height: 12),
           for (final question in questions) ...[
@@ -266,35 +552,56 @@ class _DailyQuestionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final tokens = theme.tokens;
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: theme.colorScheme.primaryContainer.withValues(alpha: 0.18),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: theme.colorScheme.primary.withValues(alpha: 0.12),
+        color: tokens.palette.surface.withValues(
+          alpha: theme.brightness == Brightness.dark ? 0.74 : 0.9,
         ),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: tokens.palette.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Question ${question.position ?? ''}'.trim(),
-            style: theme.textTheme.labelLarge?.copyWith(
-              color: theme.colorScheme.primary,
-              fontWeight: FontWeight.w800,
-            ),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _QuestionPill(
+                icon: LucideIcons.helpCircle,
+                label: 'Question ${question.position ?? ''}'.trim(),
+              ),
+              if (question.category?.isNotEmpty == true)
+                _QuestionPill(
+                  icon: LucideIcons.bookOpen,
+                  label: question.category!,
+                ),
+              if (question.answeredToday)
+                const _QuestionPill(
+                  icon: LucideIcons.checkCircle,
+                  label: 'Answered today',
+                ),
+            ],
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 10),
           Text(
             question.question,
-            style: theme.textTheme.titleMedium?.copyWith(
+            style: theme.textTheme.titleLarge?.copyWith(
               fontWeight: FontWeight.w800,
-              height: 1.25,
+              height: 1.18,
             ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 14),
+          Text(
+            'Write plainly. One honest sentence is enough.',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: tokens.palette.textSecondary,
+            ),
+          ),
+          const SizedBox(height: 8),
           TextField(
             controller: controller,
             enabled: !question.answeredToday,
@@ -332,7 +639,7 @@ class _DailyQuestionCard extends StatelessWidget {
           if (expanded) ...[
             const SizedBox(height: 18),
             _InsightSection(
-              title: 'Brief commentary',
+              title: 'Commentary',
               body: question.conciseExplanation,
             ),
             _InsightSection(
@@ -351,6 +658,38 @@ class _DailyQuestionCard extends StatelessWidget {
             if (question.scriptureRefs.isNotEmpty)
               _ScriptureRefs(refs: question.scriptureRefs),
           ],
+        ],
+      ),
+    );
+  }
+}
+
+class _QuestionPill extends StatelessWidget {
+  const _QuestionPill({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.primary.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 13, color: theme.colorScheme.primary),
+          const SizedBox(width: 5),
+          Text(
+            label,
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: theme.colorScheme.primary,
+            ),
+          ),
         ],
       ),
     );
@@ -387,10 +726,21 @@ class _ActionSteps extends StatelessWidget {
                 children: [
                   CircleAvatar(
                     radius: 13,
-                    child: Text(
-                      step.minutes == null ? '-' : '${step.minutes}',
-                      style: theme.textTheme.labelSmall,
+                    backgroundColor: theme.colorScheme.primary.withValues(
+                      alpha: 0.12,
                     ),
+                    child: step.minutes == null
+                        ? Icon(
+                            LucideIcons.check,
+                            size: 14,
+                            color: theme.colorScheme.primary,
+                          )
+                        : Text(
+                            '${step.minutes}',
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              color: theme.colorScheme.primary,
+                            ),
+                          ),
                   ),
                   const SizedBox(width: 10),
                   Expanded(
@@ -480,7 +830,7 @@ class _InsightSection extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 4),
-          Text(body, style: theme.textTheme.bodyLarge?.copyWith(height: 1.45)),
+          Text(body, style: theme.textTheme.bodyMedium?.copyWith(height: 1.45)),
         ],
       ),
     );
