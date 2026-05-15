@@ -158,55 +158,102 @@ class _VisionOnboardingFlowScreenState
   }
 
   _CompassSignal get _compassSignal {
-    final answers = [
-      _pressurePattern,
-      _postponedPattern,
-      _peopleNeedPattern,
-      _formationPattern,
-    ].whereType<String>().join('|');
-    if (answers.contains('protect') || answers.contains('attention')) {
-      return const _CompassSignal(
-        archetype: 'Watchman',
-        season: 'Guarded attention',
-        supportScore: 72,
-        suggestedTone: AccountabilityTone.firm,
-      );
+    const archetypeOrder = [
+      'Artisan',
+      'Watchman',
+      'Cultivator',
+      'Sower',
+      'Welcomer',
+      'Pillar',
+      'Sentinel',
+      'Bridgebuilder',
+      'Healer',
+      'Harvester',
+      'Reformer',
+      'Architect',
+    ];
+    final scores = {for (final archetype in archetypeOrder) archetype: 0};
+
+    void addScore(String? archetype, int score) {
+      if (archetype == null || !scores.containsKey(archetype)) return;
+      scores[archetype] = scores[archetype]! + score;
     }
-    if (answers.contains('people') || answers.contains('repair')) {
-      return const _CompassSignal(
-        archetype: 'Bridgebuilder',
-        season: 'Relational repair',
-        supportScore: 58,
-        suggestedTone: AccountabilityTone.balanced,
-      );
-    }
-    if (answers.contains('care') || answers.contains('mercy')) {
-      return const _CompassSignal(
-        archetype: 'Healer',
-        season: 'Restorative presence',
-        supportScore: 46,
-        suggestedTone: AccountabilityTone.gentle,
-      );
-    }
-    if (answers.contains('begin') || answers.contains('courage')) {
-      return const _CompassSignal(
-        archetype: 'Pioneer',
-        season: 'Courageous beginning',
-        supportScore: 64,
-        suggestedTone: AccountabilityTone.balanced,
-      );
-    }
-    return const _CompassSignal(
-      archetype: 'Cultivator',
-      season: 'Steady formation',
-      supportScore: 52,
-      suggestedTone: AccountabilityTone.balanced,
+
+    addScore(_currentSeason, 5);
+    addScore(_pressurePattern, 3);
+    addScore(_postponedPattern, 3);
+    addScore(_peopleNeedPattern, 2);
+    addScore(_formationPattern, 4);
+
+    final ranked = List<String>.from(archetypeOrder)
+      ..sort((a, b) {
+        final byScore = scores[b]!.compareTo(scores[a]!);
+        if (byScore != 0) return byScore;
+        return archetypeOrder.indexOf(a).compareTo(archetypeOrder.indexOf(b));
+      });
+    final primary = ranked.first;
+    final primaryScore = scores[primary] ?? 0;
+
+    return _CompassSignal(
+      archetype: primary,
+      topArchetypes: ranked.take(3).where((name) => scores[name]! > 0).toList(),
+      season: _seasonNameFor(primary),
+      supportScore: (42 + (primaryScore * 4)).clamp(42, 92).toInt(),
+      suggestedTone: _toneFor(primary, primaryScore),
     );
   }
 
-  void _goNext(AccountabilityTone originalTone) {
+  String _seasonNameFor(String archetype) {
+    return switch (archetype) {
+      'Artisan' => 'Creative devotion',
+      'Watchman' => 'Guarded attention',
+      'Cultivator' => 'Patient formation',
+      'Sower' => 'Courageous beginning',
+      'Welcomer' => 'Honest hospitality',
+      'Pillar' => 'Hidden faithfulness',
+      'Sentinel' => 'Prayer into action',
+      'Bridgebuilder' => 'Relational repair',
+      'Healer' => 'Restorative presence',
+      'Harvester' => 'Fruitful stewardship',
+      'Reformer' => 'Constructive justice',
+      'Architect' => 'Open-handed order',
+      _ => 'Steady formation',
+    };
+  }
+
+  AccountabilityTone _toneFor(String archetype, int score) {
+    if (score >= 10 &&
+        const {
+          'Watchman',
+          'Reformer',
+          'Architect',
+          'Harvester',
+        }.contains(archetype)) {
+      return AccountabilityTone.firm;
+    }
+    if (const {'Healer', 'Welcomer', 'Pillar'}.contains(archetype)) {
+      return AccountabilityTone.gentle;
+    }
+    return AccountabilityTone.balanced;
+  }
+
+  Future<void> _goNext(AccountabilityTone originalTone) async {
     if (_page == 1 && _tone == originalTone) {
       setState(() => _tone = _compassSignal.suggestedTone);
+    }
+    if (_page == 1) {
+      final signal = _compassSignal;
+      await ref.read(visionProvider.notifier).loadRecommendationsForArchetypes([
+        signal.archetype,
+      ]);
+      if (!mounted) return;
+      final recommendations = ref.read(visionProvider).recommendedTribes;
+      if (recommendations.isNotEmpty) {
+        setState(() {
+          _tribe = recommendations.first;
+          _identityIndex = 0;
+        });
+      }
     }
     _controller.nextPage(
       duration: const Duration(milliseconds: 250),
@@ -475,9 +522,11 @@ class _CompassSignal {
     required this.season,
     required this.supportScore,
     required this.suggestedTone,
+    this.topArchetypes = const [],
   });
 
   final String archetype;
+  final List<String> topArchetypes;
   final String season;
   final int supportScore;
   final AccountabilityTone suggestedTone;
@@ -490,10 +539,18 @@ class _SeasonQuestionView extends StatelessWidget {
   final ValueChanged<String> onChanged;
 
   static const _options = [
-    ('attention', 'I need to rebuild attention and quiet'),
-    ('relationships', 'I need healing or honesty in relationships'),
-    ('discipline', 'I need structure for a practice I keep dropping'),
-    ('courage', 'I need courage to begin what I keep delaying'),
+    ('Artisan', 'I need my creativity to become worship, not comparison'),
+    ('Watchman', 'I need to rebuild attention, vigilance, and quiet'),
+    ('Cultivator', 'I need patience, rest, and ordinary faithfulness'),
+    ('Sower', 'I need courage to begin what I keep delaying'),
+    ('Welcomer', 'I need warmer belonging with better boundaries'),
+    ('Pillar', 'I need to serve faithfully without disappearing'),
+    ('Sentinel', 'I need to turn insight and prayer into action'),
+    ('Bridgebuilder', 'I need repair, peace, and honest connection'),
+    ('Healer', 'I need healing, forgiveness, or supported hope'),
+    ('Harvester', 'I need fruitfulness without metrics becoming my master'),
+    ('Reformer', 'I need holy frustration to become constructive change'),
+    ('Architect', 'I need order without control or perfectionism'),
   ];
 
   @override
@@ -546,10 +603,10 @@ class _CompassPatternView extends StatelessWidget {
           title: 'When pressure rises, I usually...',
           value: pressurePattern,
           options: const [
-            ('withdraw', 'Withdraw and go quiet'),
-            ('control', 'Try to control everything'),
-            ('people', 'Carry everyone else'),
-            ('protect', 'Protect attention and boundaries'),
+            ('Sentinel', 'Withdraw, observe, and process alone'),
+            ('Architect', 'Try to control every variable'),
+            ('Healer', 'Absorb everyone else\'s pain'),
+            ('Watchman', 'Protect attention and boundaries'),
           ],
           onChanged: onPressureChanged,
         ),
@@ -557,10 +614,10 @@ class _CompassPatternView extends StatelessWidget {
           title: 'The thing I keep postponing is...',
           value: postponedPattern,
           options: const [
-            ('begin', 'Beginning the thing I know matters'),
-            ('attention', 'Putting my phone down'),
-            ('repair', 'Having an honest conversation'),
-            ('care', 'Receiving care instead of only giving it'),
+            ('Sower', 'Beginning the thing I know matters'),
+            ('Artisan', 'Finishing one creation before chasing novelty'),
+            ('Bridgebuilder', 'Having an honest conversation'),
+            ('Pillar', 'Taking a step for my own calling'),
           ],
           onChanged: onPostponedChanged,
         ),
@@ -568,21 +625,21 @@ class _CompassPatternView extends StatelessWidget {
           title: 'People often come to me when they need...',
           value: peopleNeedPattern,
           options: const [
-            ('wisdom', 'A thoughtful next step'),
-            ('mercy', 'Mercy and presence'),
-            ('courage', 'Courage to move'),
-            ('repair', 'Peace across tension'),
+            ('Cultivator', 'Patient care and steady encouragement'),
+            ('Welcomer', 'Warmth, welcome, and belonging'),
+            ('Reformer', 'Courage to name what must change'),
+            ('Harvester', 'Momentum, mobilizing, and celebration'),
           ],
           onChanged: onPeopleNeedChanged,
         ),
         _QuestionBlock(
-          title: 'The pattern I want God to form in me is...',
+          title: 'The distortion I most want God to interrupt is...',
           value: formationPattern,
           options: const [
-            ('steady', 'Steady daily faithfulness'),
-            ('attention', 'Clearer attention'),
-            ('people', 'Honest belonging'),
-            ('begin', 'Courageous obedience'),
+            ('Welcomer', 'People-pleasing and avoiding truth'),
+            ('Harvester', 'Measuring my worth by output or results'),
+            ('Reformer', 'Outrage, bitterness, or tearing down'),
+            ('Architect', 'Perfectionism and control disguised as order'),
           ],
           onChanged: onFormationChanged,
         ),
@@ -703,11 +760,11 @@ class _TribeRecommendationCards extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Belonging gives the commitment a place to be witnessed. Choose the circle that best fits this season.',
+          'Belonging gives the commitment a place to be witnessed. This is your strongest match for this season; you can reassess later.',
           style: theme.textTheme.bodyMedium?.copyWith(height: 1.45),
         ),
         const SizedBox(height: 14),
-        ...tribes.take(3).map((tribe) {
+        ...tribes.take(1).map((tribe) {
           final isSelected = selected?.id == tribe.id;
           return Padding(
             padding: const EdgeInsets.only(bottom: 12),

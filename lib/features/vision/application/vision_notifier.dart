@@ -130,6 +130,27 @@ class VisionNotifier extends StateNotifier<VisionState> {
     }
   }
 
+  Future<void> loadRecommendationsForArchetypes(List<String> archetypes) async {
+    if (state.isReadOnly) return;
+    state = state.copyWith(isLoading: true, clearError: true);
+    try {
+      final tribes = await _repository.recommendedTribes(
+        archetypes: archetypes,
+      );
+      final tribeId = state.primaryTribe?.tribe.id;
+      final commitments = await _repository.recommendedCommitments(
+        tribeId: tribeId,
+      );
+      state = state.copyWith(
+        isLoading: false,
+        recommendedTribes: tribes,
+        recommendedCommitments: commitments,
+      );
+    } catch (e) {
+      state = state.copyWith(isLoading: false, error: e.toString());
+    }
+  }
+
   Future<bool> setVisibility(VisibilityMode mode, {String? alias}) async {
     final normalizedAlias = _aliasFor(mode, alias);
     try {
