@@ -19,6 +19,10 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: write
+  actions: write
+
 jobs:
   prepare-build:
     runs-on: ubuntu-latest
@@ -132,13 +136,13 @@ jobs:
             exit 0
           fi
 
-          KEEP=50
-          echo "Fetching active artifacts..."
+          KEEP=12
+          echo "Fetching active mobile build artifacts..."
           gh api \
             -H "Accept: application/vnd.github+json" \
             /repos/${{ github.repository }}/actions/artifacts \
             --paginate \
-            --jq '.artifacts[] | select(.expired==false) | "\(.created_at) \(.id) \(.name)"' \
+            --jq '.artifacts[] | select(.expired==false) | select(.name | test("^(android-apk|android-aab|ios-ipa|ios-fastlane-logs|windows-build|build-logs|artifact-storage-check)-")) | "\(.created_at)\t\(.id)\t\(.name)"' \
             > artifacts.txt || {
               echo "Failed to list artifacts; skipping pruning."
               exit 0
@@ -153,7 +157,7 @@ jobs:
 
           DELETE_COUNT=$((TOTAL - KEEP))
           echo "Pruning $DELETE_COUNT oldest artifacts..."
-          sort artifacts.txt | head -n "$DELETE_COUNT" | while read -r CREATED ID NAME; do
+          sort artifacts.txt | head -n "$DELETE_COUNT" | while IFS=$'\t' read -r CREATED ID NAME; do
             echo "Deleting artifact $ID ($NAME, created $CREATED)..."
             gh api \
               --method DELETE \
@@ -177,14 +181,6 @@ jobs:
             echo "Error: Not enough disk space on runner (need at least ${MIN_FREE_MB} MB free)."
             exit 1
           fi
-
-      - name: Verify artifact storage availability
-        if: steps.versioning.outputs.version_changed == 'true'
-        uses: actions/upload-artifact@v4
-        with:
-          name: artifact-storage-check-${{ github.run_id }}
-          path: pubspec.yaml
-          retention-days: 1
 
   build-android:
     needs: prepare-build
@@ -453,28 +449,18 @@ jobs:
           APK_SIZE=$(du -h "$APK" | cut -f1)
           echo "✓ Found APK: $(basename $APK) ($APK_SIZE)"
 
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: android-apk-${{ needs.prepare-build.outputs.build_id }}
-          path: ${{ steps.find-files.outputs.apk_path }}
-          retention-days: 30
-          compression-level: 0  # APK already compressed
-
-      - name: Upload AAB
+      - name: Verify Play Console credentials
         if: steps.find-files.outputs.aab_path
-        uses: actions/upload-artifact@v4
-        with:
-          name: android-aab-${{ needs.prepare-build.outputs.build_id }}
-          path: ${{ steps.find-files.outputs.aab_path }}
-          retention-days: 30
-          compression-level: 0
+        run: |
+          set -euo pipefail
+
+          if [ -z "${GOOGLE_PLAY_SERVICE_ACCOUNT_JSON:-}" ] || [ ! -f "$GOOGLE_PLAY_SERVICE_ACCOUNT_JSON" ]; then
+            echo "Error: GOOGLE_PLAY_SERVICE_ACCOUNT_JSON is not set or the file is missing."
+            exit 1
+          fi
 
       - name: Upload AAB to Play Console (internal track)
-        # Non-fatal: a missing service account or Play API error must not
-        # prevent the AAB artifact (already uploaded above) from being usable.
         if: steps.find-files.outputs.aab_path
-        continue-on-error: true
         env:
           PACKAGE_NAME: com.elbiblio.app
         run: |
@@ -497,6 +483,25 @@ jobs:
             --skip_upload_images true \
             --skip_upload_screenshots true \
             --release_status "draft"
+
+      - name: Upload APK artifact
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-apk-${{ needs.prepare-build.outputs.build_id }}
+          path: ${{ steps.find-files.outputs.apk_path }}
+          retention-days: 3
+          compression-level: 0  # APK already compressed
+
+      - name: Upload AAB artifact
+        if: steps.find-files.outputs.aab_path
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-aab-${{ needs.prepare-build.outputs.build_id }}
+          path: ${{ steps.find-files.outputs.aab_path }}
+          retention-days: 3
+          compression-level: 0
 
       - name: Cleanup
         if: always()
@@ -1007,11 +1012,12 @@ jobs:
           echo "✓ IPA created successfully: $IPA_SIZE"
 
       - name: Upload IPA
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: ios-ipa-${{ needs.prepare-build.outputs.build_id }}
           path: ios/build/export/Elbiblio.ipa
-          retention-days: 30
+          retention-days: 3
           compression-level: 0
 
       - name: Upload Fastlane logs (iOS)
@@ -1023,7 +1029,7 @@ jobs:
             ios/fastlane/report.xml
             ios/fastlane/Preview.html
             ~/Library/Logs/gym/*.log
-          retention-days: 14
+          retention-days: 3
           if-no-files-found: ignore
 
       - name: Debug iOS keychains and profiles on failure
@@ -1091,11 +1097,12 @@ jobs:
           Write-Host "Windows build packaged successfully"
 
       - name: Upload Windows build
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: windows-build-${{ needs.prepare-build.outputs.build_id }}
           path: build/elbiblio-windows-${{ needs.prepare-build.outputs.version_name }}.zip
-          retention-days: 30
+          retention-days: 3
           compression-level: 0
 
   create-release:
@@ -1118,6 +1125,7 @@ jobs:
         with:
           name: android-apk-${{ needs.prepare-build.outputs.build_id }}
           path: artifacts/android
+        continue-on-error: true
 
       - name: Download Android AAB
         uses: actions/download-artifact@v4
@@ -1131,6 +1139,7 @@ jobs:
         with:
           name: windows-build-${{ needs.prepare-build.outputs.build_id }}
           path: artifacts/windows
+        continue-on-error: true
 
       - name: Download iOS IPA
         uses: actions/download-artifact@v4
@@ -1138,6 +1147,36 @@ jobs:
           name: ios-ipa-${{ needs.prepare-build.outputs.build_id }}
           path: artifacts/ios
         continue-on-error: true
+
+      - name: Collect release files
+        id: release-files
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+
+          files=(
+            artifacts/android/*.apk
+            artifacts/android-aab/*.aab
+            artifacts/windows/*.zip
+            artifacts/ios/*.ipa
+          )
+
+          if [ "${#files[@]}" -eq 0 ]; then
+            echo "No uploaded build artifacts were available. Creating release notes without binary attachments."
+            {
+              echo "files<<EOF"
+              echo ""
+              echo "EOF"
+            } >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          printf '%s\n' "${files[@]}"
+          {
+            echo "files<<EOF"
+            printf '%s\n' "${files[@]}"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -1147,10 +1186,6 @@ jobs:
           draft: false
           prerelease: false
           generate_release_notes: true
-          files: |
-            artifacts/android/*.apk
-            artifacts/android-aab/*.aab
-            artifacts/windows/*.zip
-            artifacts/ios/*.ipa
+          files: ${{ steps.release-files.outputs.files }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
