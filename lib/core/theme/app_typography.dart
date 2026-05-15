@@ -21,13 +21,13 @@ class AppTypography {
       );
     }
 
-    TextStyle ceremonial(
+    TextStyle brand(
       double size,
       double height,
       FontWeight weight,
       double letterSpacing,
     ) {
-      return GoogleFonts.instrumentSerif(
+      return GoogleFonts.sora(
         fontSize: size * clampedScale,
         height: height,
         fontWeight: weight,
@@ -36,12 +36,12 @@ class AppTypography {
     }
 
     return TextTheme(
-      displayLarge: ceremonial(36, 1.2, FontWeight.w700, 0),
-      displayMedium: ceremonial(30, 1.25, FontWeight.w600, 0),
-      displaySmall: ceremonial(24, 1.3, FontWeight.w600, 0),
-      headlineLarge: ceremonial(24, 1.33, FontWeight.w600, 0),
-      headlineMedium: ceremonial(20, 1.4, FontWeight.w600, 0),
-      headlineSmall: ceremonial(18, 1.33, FontWeight.w500, 0),
+      displayLarge: brand(36, 1.2, FontWeight.w700, 0),
+      displayMedium: brand(30, 1.25, FontWeight.w600, 0),
+      displaySmall: brand(24, 1.3, FontWeight.w600, 0),
+      headlineLarge: brand(24, 1.33, FontWeight.w600, 0),
+      headlineMedium: brand(20, 1.4, FontWeight.w600, 0),
+      headlineSmall: brand(18, 1.33, FontWeight.w500, 0),
       titleLarge: ui(18, 1.4, FontWeight.w700, 0),
       titleMedium: ui(16, 1.4, FontWeight.w600, 0),
       titleSmall: ui(14, 1.4, FontWeight.w600, 0),

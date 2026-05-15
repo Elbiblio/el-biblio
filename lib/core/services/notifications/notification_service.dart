@@ -11,6 +11,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../constants/app_routes.dart';
+import '../../models/accountability_tone.dart';
 import '../../../features/today/domain/models/daily_anchors.dart';
 
 enum NotificationActionOutcome { success, fallbackNavigation, failed }
@@ -1540,35 +1541,39 @@ class NotificationService {
     bool startTomorrow = false,
     String? planWhen,
     String? planObstacle,
+    AccountabilityTone accountabilityTone = AccountabilityTone.balanced,
   }) async {
     try {
       await initialize();
       await cancelCommitmentNudges(commitmentId);
 
-      final boundedCount = nudgeCount.clamp(3, 10);
+      final boundedCount = _boundedCommitmentNudgeCount(
+        nudgeCount,
+        accountabilityTone,
+      );
       final now = DateTime.now();
-      final start = DateTime(now.year, now.month, now.day, 8);
-      final end = DateTime(now.year, now.month, now.day, 20);
-      final spanMinutes = end.difference(start).inMinutes;
-      final stepMinutes = boundedCount <= 1
-          ? spanMinutes
+      final window = _commitmentNudgeWindow(now, planWhen, accountabilityTone);
+      final spanMinutes = window.$2.difference(window.$1).inMinutes;
+      final stepMinutes = boundedCount <= 1 || spanMinutes <= 0
+          ? 0
           : (spanMinutes / (boundedCount - 1)).round();
+      final isFirm = accountabilityTone == AccountabilityTone.firm;
 
-      const androidDetails = AndroidNotificationDetails(
+      final androidDetails = AndroidNotificationDetails(
         'commitment_nudges',
         'Commitment nudges',
         channelDescription:
             'Gentle prompts to check in with your active commitment',
-        importance: Importance.high,
-        priority: Priority.high,
-        color: Color(0xFF638B6C),
-        ledColor: Color(0xFF638B6C),
-        enableLights: true,
-        enableVibration: true,
-        playSound: true,
+        importance: isFirm ? Importance.high : Importance.defaultImportance,
+        priority: isFirm ? Priority.high : Priority.defaultPriority,
+        color: const Color(0xFF638B6C),
+        ledColor: const Color(0xFF638B6C),
+        enableLights: isFirm,
+        enableVibration: isFirm,
+        playSound: isFirm,
         channelShowBadge: true,
         visibility: NotificationVisibility.public,
-        actions: <AndroidNotificationAction>[
+        actions: const <AndroidNotificationAction>[
           AndroidNotificationAction(
             _actionCommitmentDone,
             'I did this',
@@ -1582,22 +1587,24 @@ class NotificationService {
         ],
       );
 
-      const iosDetails = DarwinNotificationDetails(
+      final iosDetails = DarwinNotificationDetails(
         presentAlert: true,
         presentBadge: true,
         categoryIdentifier: _commitmentCategory,
-        presentSound: true,
+        presentSound: isFirm,
         threadIdentifier: 'commitment_nudges',
-        interruptionLevel: InterruptionLevel.timeSensitive,
+        interruptionLevel: isFirm
+            ? InterruptionLevel.timeSensitive
+            : InterruptionLevel.active,
       );
 
-      const details = NotificationDetails(
+      final details = NotificationDetails(
         android: androidDetails,
         iOS: iosDetails,
       );
 
       for (var i = 0; i < boundedCount; i++) {
-        var scheduledTime = start.add(Duration(minutes: stepMinutes * i));
+        var scheduledTime = window.$1.add(Duration(minutes: stepMinutes * i));
         if (startTomorrow) {
           scheduledTime = scheduledTime.add(const Duration(days: 1));
         }
@@ -1640,6 +1647,61 @@ class NotificationService {
       if (obstacle != null && obstacle.isNotEmpty) 'Watch for: $obstacle.',
     ];
     return parts.join(' ');
+  }
+
+  int _boundedCommitmentNudgeCount(int requested, AccountabilityTone tone) {
+    return switch (tone) {
+      AccountabilityTone.gentle => requested.clamp(1, 3),
+      AccountabilityTone.balanced => requested.clamp(3, 6),
+      AccountabilityTone.firm => requested.clamp(4, 10),
+    };
+  }
+
+  (DateTime, DateTime) _commitmentNudgeWindow(
+    DateTime now,
+    String? planWhen,
+    AccountabilityTone tone,
+  ) {
+    final anchorHour = _planAnchorHour(planWhen);
+    final startHourRaw = switch (tone) {
+      AccountabilityTone.gentle => (anchorHour - 1).clamp(7, 20),
+      AccountabilityTone.balanced => (anchorHour - 3).clamp(7, 19),
+      AccountabilityTone.firm => 8,
+    };
+    final startHour = startHourRaw.toInt();
+    final endHourRaw = switch (tone) {
+      AccountabilityTone.gentle => (anchorHour + 1).clamp(startHour + 1, 21),
+      AccountabilityTone.balanced => (anchorHour + 3).clamp(startHour + 1, 21),
+      AccountabilityTone.firm => 20,
+    };
+    final endHour = endHourRaw.toInt();
+    return (
+      DateTime(now.year, now.month, now.day, startHour),
+      DateTime(now.year, now.month, now.day, endHour),
+    );
+  }
+
+  int _planAnchorHour(String? planWhen) {
+    final value = planWhen?.toLowerCase() ?? '';
+    if (value.contains('morning') ||
+        value.contains('prayer') ||
+        value.contains('breakfast')) {
+      return 8;
+    }
+    if (value.contains('lunch') || value.contains('midday')) {
+      return 12;
+    }
+    if (value.contains('work') ||
+        value.contains('school') ||
+        value.contains('afternoon')) {
+      return 16;
+    }
+    if (value.contains('bed') ||
+        value.contains('night') ||
+        value.contains('evening')) {
+      return 20;
+    }
+    return 14;
   }
 
   Future<void> cancelCommitmentNudges(int commitmentId) async {

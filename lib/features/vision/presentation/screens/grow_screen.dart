@@ -6,7 +6,6 @@ import 'package:lucide_icons/lucide_icons.dart';
 import '../../../../core/constants/app_routes.dart';
 import '../../../../core/di/app_providers.dart';
 import '../../../../core/theme/app_theme_tokens.dart';
-import '../../../../shared/widgets/premium_success_dialog.dart';
 import '../../../../shared/widgets/vision_illustration.dart';
 import '../../application/vision_state.dart';
 import '../../domain/vision_models.dart';
@@ -518,12 +517,9 @@ class _DailyQuestionState extends ConsumerState<_DailyQuestion> {
                   return;
                 }
                 setState(() => _expandedQuestionIds.add(question.id));
-                await PremiumSuccessDialog.show(
+                ScaffoldMessenger.of(
                   context,
-                  title: 'Answer saved',
-                  message:
-                      'This question is now part of today\'s growth story.',
-                );
+                ).showSnackBar(const SnackBar(content: Text('Answer saved')));
               },
             ),
             if (question != questions.last) const SizedBox(height: 12),

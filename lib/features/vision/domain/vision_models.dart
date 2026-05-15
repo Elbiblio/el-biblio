@@ -97,6 +97,50 @@ class TribeMembership {
   }
 }
 
+class TribeGameLeaderboardEntry {
+  const TribeGameLeaderboardEntry({
+    required this.rank,
+    required this.tribeName,
+    required this.gameTitle,
+    required this.score,
+    this.tribeId,
+    this.periodLabel = 'This week',
+    this.metricLabel = 'points',
+  });
+
+  final int rank;
+  final int? tribeId;
+  final String tribeName;
+  final String gameTitle;
+  final int score;
+  final String periodLabel;
+  final String metricLabel;
+
+  String get tribeDisplayName => displayTribeName(tribeName);
+
+  factory TribeGameLeaderboardEntry.fromJson(Map<String, dynamic> json) {
+    final tribe = Map<String, dynamic>.from(json['tribe'] as Map? ?? const {});
+    return TribeGameLeaderboardEntry(
+      rank: _intFromJson(json['rank']) ?? 0,
+      tribeId: _intFromJson(json['tribe_id'] ?? tribe['id']),
+      tribeName:
+          json['tribe_name'] as String? ??
+          tribe['name'] as String? ??
+          'Spiritual Tribe',
+      gameTitle:
+          json['game_title'] as String? ??
+          json['game'] as String? ??
+          'Scripture Games',
+      score: _intFromJson(json['score'] ?? json['points']) ?? 0,
+      periodLabel:
+          json['period_label'] as String? ??
+          json['period'] as String? ??
+          'This week',
+      metricLabel: json['metric_label'] as String? ?? 'points',
+    );
+  }
+}
+
 class CommitmentPlan {
   const CommitmentPlan({
     required this.id,

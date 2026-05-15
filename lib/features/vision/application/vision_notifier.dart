@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/models/accountability_tone.dart';
 import '../../../core/services/notifications/notification_service.dart';
 import '../data/vision_repository.dart';
 import '../domain/vision_models.dart';
@@ -17,9 +18,18 @@ class VisionNotifier extends StateNotifier<VisionState> {
     })?
     saveFirstCheckInPlan,
     CommitmentPlanContext Function(int commitmentId)? localPlanContext,
+    AccountabilityTone Function()? accountabilityTone,
+    Future<void> Function({
+      required DateTime startedAt,
+      CommitmentMonthlyReviewOutcome? outcome,
+    })?
+    startCommitmentReviewSeason,
   }) : _topArchetypes = topArchetypes ?? (() => const <String>[]),
        _saveFirstCheckInPlan = saveFirstCheckInPlan,
        _localPlanContext = localPlanContext,
+       _accountabilityTone =
+           accountabilityTone ?? (() => AccountabilityTone.balanced),
+       _startCommitmentReviewSeason = startCommitmentReviewSeason,
        super(const VisionState()) {
     _notificationService.setDailyCheckInActionHandler(() async {
       final completed = await checkIn();
@@ -39,6 +49,12 @@ class VisionNotifier extends StateNotifier<VisionState> {
   })?
   _saveFirstCheckInPlan;
   final CommitmentPlanContext Function(int commitmentId)? _localPlanContext;
+  final AccountabilityTone Function() _accountabilityTone;
+  final Future<void> Function({
+    required DateTime startedAt,
+    CommitmentMonthlyReviewOutcome? outcome,
+  })?
+  _startCommitmentReviewSeason;
 
   @override
   void dispose() {
@@ -76,6 +92,9 @@ class VisionNotifier extends StateNotifier<VisionState> {
       final weeklyReflections = bootstrap.primaryTribe == null
           ? const <WeeklyRitualReflection>[]
           : await _repository.weeklyRitual(bootstrap.primaryTribe!.tribe.id);
+      final gameLeaderboard = readOnly
+          ? const <TribeGameLeaderboardEntry>[]
+          : await _repository.gameLeaderboard();
       final hangouts = await _repository.visibleHangouts();
       final notifications = await _repository.notifications();
       final unreadNotificationCount = notifications
@@ -97,6 +116,7 @@ class VisionNotifier extends StateNotifier<VisionState> {
         clearDailyQuestion: bootstrap.dailyQuestion == null,
         tribePulse: tribePulse,
         weeklyReflections: weeklyReflections,
+        gameLeaderboard: gameLeaderboard,
         hangouts: hangouts,
         notifications: notifications,
         unreadNotificationCount: unreadNotificationCount,
@@ -153,6 +173,7 @@ class VisionNotifier extends StateNotifier<VisionState> {
         recommendedCommitments: commitments,
         tribePulse: await _repository.tribePulse(tribe.id),
         weeklyReflections: await _repository.weeklyRitual(tribe.id),
+        gameLeaderboard: await _repository.gameLeaderboard(),
       );
       return true;
     } catch (e) {
@@ -177,16 +198,30 @@ class VisionNotifier extends StateNotifier<VisionState> {
         );
         return false;
       }
+      final tone = _accountabilityTone();
+      final seasonStartedAt = DateTime.now();
+      final nextReviewAt = DateTime(
+        seasonStartedAt.year,
+        seasonStartedAt.month + 1,
+        seasonStartedAt.day,
+      );
       final membership = await _repository.joinCommitment(
         commitmentId: plan.id,
         nudgeCount: nudges,
         planWhen: planWhen,
         planObstacle: planObstacle,
+        accountabilityTone: tone,
+        seasonStartedAt: seasonStartedAt,
+        nextReviewAt: nextReviewAt,
       );
       await _saveFirstCheckInPlan?.call(
         commitmentId: membership.plan.id,
         when: membership.firstCheckInPlanWhen ?? planWhen,
         obstacle: membership.firstCheckInPlanObstacle ?? planObstacle,
+      );
+      await _startCommitmentReviewSeason?.call(
+        startedAt: seasonStartedAt,
+        outcome: CommitmentMonthlyReviewOutcome.continuePractice,
       );
       String? notificationWarning;
       try {
@@ -197,6 +232,7 @@ class VisionNotifier extends StateNotifier<VisionState> {
           nudgeCount: membership.nudgeCountPerDay,
           planWhen: membership.firstCheckInPlanWhen ?? planWhen,
           planObstacle: membership.firstCheckInPlanObstacle ?? planObstacle,
+          accountabilityTone: tone,
         );
         if (!scheduled) {
           notificationWarning =
@@ -231,6 +267,7 @@ class VisionNotifier extends StateNotifier<VisionState> {
         nudgeCount: nudgeCount,
       );
       final localContext = _localPlanContext?.call(membership.plan.id);
+      final tone = _accountabilityTone();
       final scheduled = await _notificationService.scheduleCommitmentNudges(
         commitmentId: membership.plan.id,
         commitmentTitle: membership.plan.title,
@@ -239,6 +276,7 @@ class VisionNotifier extends StateNotifier<VisionState> {
         planWhen: membership.firstCheckInPlanWhen ?? localContext?.when,
         planObstacle:
             membership.firstCheckInPlanObstacle ?? localContext?.obstacle,
+        accountabilityTone: tone,
       );
       state = state.copyWith(
         activeCommitment: membership,
@@ -265,6 +303,7 @@ class VisionNotifier extends StateNotifier<VisionState> {
       );
       try {
         final localContext = _localPlanContext?.call(membership.plan.id);
+        final tone = _accountabilityTone();
         final scheduled = await _notificationService.scheduleCommitmentNudges(
           commitmentId: membership.plan.id,
           commitmentTitle: membership.plan.title,
@@ -274,6 +313,7 @@ class VisionNotifier extends StateNotifier<VisionState> {
           planWhen: membership.firstCheckInPlanWhen ?? localContext?.when,
           planObstacle:
               membership.firstCheckInPlanObstacle ?? localContext?.obstacle,
+          accountabilityTone: tone,
         );
         if (!scheduled) {
           state = state.copyWith(

@@ -13,6 +13,7 @@ import '../../features/mission/domain/models/mission_focus.dart';
 import '../../features/mission/domain/models/person_profile.dart';
 import '../services/analytics/app_analytics_service.dart';
 import '../../features/today/domain/models/daily_anchors.dart';
+import '../models/accountability_tone.dart';
 import '../services/notifications/notification_service.dart';
 import '../services/xp_service.dart';
 import '../storage/app_settings.dart';
@@ -108,6 +109,7 @@ class SettingsNotifier extends StateNotifier<AppSettings> {
     String spiritualAgeStage = 'Infant',
     List<String> personalDistractions = const [],
     ChristianLifeBaseline? christianLifeBaseline,
+    AccountabilityTone accountabilityTone = AccountabilityTone.balanced,
   }) async {
     final normalizedCommitmentCategory = commitmentCategory == null
         ? null
@@ -135,6 +137,7 @@ class SettingsNotifier extends StateNotifier<AppSettings> {
       spiritualAgeScore: spiritualAgeScore,
       spiritualAgeStage: spiritualAgeStage,
       christianLifeBaseline: christianLifeBaseline,
+      accountabilityTone: accountabilityTone,
     );
 
     if (primaryArchetypeId != null && normalizedCommitmentCategory != null) {
@@ -192,6 +195,7 @@ class SettingsNotifier extends StateNotifier<AppSettings> {
         'age_band': ageBand,
         'spiritual_age_score': spiritualAgeScore,
         'spiritual_age_stage': spiritualAgeStage,
+        'accountability_tone': accountabilityTone.storageValue,
       },
     );
   }
@@ -595,6 +599,36 @@ class SettingsNotifier extends StateNotifier<AppSettings> {
     await _persistWithRetry(next);
   }
 
+  Future<void> setAccountabilityTone(AccountabilityTone tone) async {
+    final next = state.copyWith(accountabilityTone: tone);
+    state = next;
+    await _persistWithRetry(next);
+  }
+
+  Future<void> setCompassSeasonSignal({
+    required String archetype,
+    required int supportScore,
+    required AccountabilityTone accountabilityTone,
+  }) async {
+    final boundedScore = supportScore.clamp(0, 100).toInt();
+    final next = state.copyWith(
+      primaryArchetypeId: archetype,
+      selectedArchetypeIds: [archetype],
+      spiritualAgeScore: boundedScore,
+      spiritualAgeStage: _formationStageForSupport(boundedScore),
+      accountabilityTone: accountabilityTone,
+    );
+    state = next;
+    await _persistWithRetry(next);
+  }
+
+  String _formationStageForSupport(int supportScore) {
+    if (supportScore >= 72) return 'Structured';
+    if (supportScore >= 58) return 'Strengthening';
+    if (supportScore >= 45) return 'Forming';
+    return 'Restoring';
+  }
+
   /// Persist the serialized onboarding draft. Called on every
   /// `OnboardingNotifier` state mutation so app-kill mid-onboarding doesn't
   /// lose baseline answers or archetype selections.
@@ -642,6 +676,47 @@ class SettingsNotifier extends StateNotifier<AppSettings> {
           normalizedObstacle == null || normalizedObstacle.isEmpty
           ? ''
           : normalizedObstacle,
+    );
+    state = next;
+    await _storage.save(next);
+  }
+
+  Future<void> startCommitmentReviewSeason({
+    required DateTime startedAt,
+    CommitmentMonthlyReviewOutcome? outcome,
+  }) async {
+    final normalizedStart = DateTime(
+      startedAt.year,
+      startedAt.month,
+      startedAt.day,
+    );
+    final next = state.copyWith(
+      currentCommitmentSeasonStartedAt: normalizedStart,
+      nextCommitmentReviewAt: DateTime(
+        normalizedStart.year,
+        normalizedStart.month + 1,
+        normalizedStart.day,
+      ),
+      commitmentMonthlyReviewOutcome: outcome,
+    );
+    state = next;
+    await _storage.save(next);
+  }
+
+  Future<void> completeCommitmentMonthlyReview(
+    CommitmentMonthlyReviewOutcome outcome, {
+    DateTime? reviewedAt,
+  }) async {
+    final day = reviewedAt ?? DateTime.now();
+    final normalized = DateTime(day.year, day.month, day.day);
+    final next = state.copyWith(
+      lastCommitmentReviewAt: normalized,
+      nextCommitmentReviewAt: DateTime(
+        normalized.year,
+        normalized.month + 1,
+        normalized.day,
+      ),
+      commitmentMonthlyReviewOutcome: outcome,
     );
     state = next;
     await _storage.save(next);

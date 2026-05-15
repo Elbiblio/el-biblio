@@ -4,6 +4,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:permission_handler/permission_handler.dart' as permissions;
 
 import '../../../../core/di/app_providers.dart';
+import '../../../../core/models/accountability_tone.dart';
 import '../../../../shared/widgets/premium_success_dialog.dart';
 import '../../../../shared/widgets/vision_illustration.dart';
 import '../../domain/vision_models.dart';
@@ -72,6 +73,8 @@ class _CommitScreenState extends ConsumerState<CommitScreen> {
             ],
             if (active != null) ...[
               _ActiveCommitment(active: active, showCheckInAction: true),
+              const SizedBox(height: 16),
+              _MonthlyReviewPanel(active: active),
               const SizedBox(height: 16),
               _NotificationRecoveryPanel(),
               const SizedBox(height: 16),
@@ -452,6 +455,84 @@ class _NotificationRecoveryPanelState
           ),
         );
       },
+    );
+  }
+}
+
+class _MonthlyReviewPanel extends ConsumerWidget {
+  const _MonthlyReviewPanel({required this.active});
+
+  final CommitmentSeason active;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final settings = ref.watch(settingsProvider);
+    final reviewAt =
+        settings.nextCommitmentReviewAt ??
+        DateTime.now().add(const Duration(days: 30));
+    final now = DateTime.now();
+    final due = !reviewAt.isAfter(now);
+    final theme = Theme.of(context);
+
+    return VisionPanel(
+      icon: LucideIcons.calendarClock,
+      title: due ? 'Monthly review is ready' : 'Monthly review',
+      trailing: Text('${reviewAt.month}/${reviewAt.day}'),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            due
+                ? 'Choose whether this commitment should continue, deepen, or make room for a new focus.'
+                : 'Daily practice stays stable. At review time, you choose whether to continue, deepen, or switch focus.',
+            style: theme.textTheme.bodyMedium?.copyWith(height: 1.45),
+          ),
+          if (due) ...[
+            const SizedBox(height: 12),
+            const Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _ReviewAction(
+                  label: 'Continue',
+                  outcome: CommitmentMonthlyReviewOutcome.continuePractice,
+                ),
+                _ReviewAction(
+                  label: 'Deepen slightly',
+                  outcome: CommitmentMonthlyReviewOutcome.deepen,
+                ),
+                _ReviewAction(
+                  label: 'Switch focus',
+                  outcome: CommitmentMonthlyReviewOutcome.switchFocus,
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _ReviewAction extends ConsumerWidget {
+  const _ReviewAction({required this.label, required this.outcome});
+
+  final String label;
+  final CommitmentMonthlyReviewOutcome outcome;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return FilledButton.tonal(
+      onPressed: () async {
+        await ref
+            .read(settingsProvider.notifier)
+            .completeCommitmentMonthlyReview(outcome);
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Monthly review saved: $label.')),
+        );
+      },
+      child: Text(label),
     );
   }
 }
@@ -1170,6 +1251,7 @@ class _AccountabilityAssistantPanel extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
+    final tone = ref.watch(settingsProvider).accountabilityTone;
     final canIncrease = active.nudgeCountPerDay < active.plan.nudgeMax;
     final suggested = (active.nudgeCountPerDay + 2).clamp(
       active.plan.nudgeMin,
@@ -1179,14 +1261,14 @@ class _AccountabilityAssistantPanel extends ConsumerWidget {
     return VisionPanel(
       icon: LucideIcons.bellRing,
       title: 'Your accountability assistant',
-      trailing: Text('${active.nudgeCountPerDay}/day'),
+      trailing: Text('${tone.label} - ${active.nudgeCountPerDay}/day'),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             active.checkedInToday
                 ? 'The nudge did its work today: it helped you check in, then got out of the way.'
-                : 'If the first nudges pass by, you are not failing. You may need clearer support for this season.',
+                : _missedDayCopy(tone),
             style: theme.textTheme.bodyMedium?.copyWith(height: 1.45),
           ),
           const SizedBox(height: 12),
@@ -1217,6 +1299,17 @@ class _AccountabilityAssistantPanel extends ConsumerWidget {
       ),
     );
   }
+}
+
+String _missedDayCopy(AccountabilityTone tone) {
+  return switch (tone) {
+    AccountabilityTone.gentle =>
+      'What made today hard? Notice the obstacle first; then choose one small return.',
+    AccountabilityTone.balanced =>
+      'Choose one support adjustment before the day slips away: check in now, increase nudges, or name the obstacle.',
+    AccountabilityTone.firm =>
+      'Recommit before continuing tomorrow. The structure is here to hold the line with you.',
+  };
 }
 
 (String, String) _faithInsightFor(String category) {

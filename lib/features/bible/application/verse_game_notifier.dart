@@ -6,9 +6,20 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../domain/models/bible_content.dart';
 import '../data/bible_repository.dart';
 import '../data/static_books.dart';
+import '../../games/data/game_score_repository.dart';
 import '../../../core/di/app_providers.dart';
 
-enum GameState { ready, loading, playing, checking, success, failed, gameOver, sessionComplete }
+enum GameState {
+  ready,
+  loading,
+  playing,
+  checking,
+  success,
+  failed,
+  gameOver,
+  sessionComplete,
+}
+
 enum GameMode { arrange, guess }
 
 enum DifficultyLevel { beginner, easy, medium, hard, expert }
@@ -37,11 +48,11 @@ class VerseGameState {
   final List<String> originalWords;
   final List<String> shuffledWords;
   final List<int> selectedIndices;
-  
+
   // Guess mode specific
   final String? missingWord;
   final List<String> guessOptions;
-  
+
   final GameState state;
   final int timeLeft;
   final int currentQuestionIndex;
@@ -124,42 +135,165 @@ class VerseGameNotifier extends StateNotifier<VerseGameState> {
   final Random _random = Random();
   Timer? _timer;
   List<BibleVerseContent> _sessionQuestions = [];
+  bool _scoreSubmittedForSession = false;
 
   // Cross-session tracking for Play Again
   int _difficultyBonus = 0; // Increases when player scores well
   int _lastSessionCorrect = 0;
   int _lastSessionTotal = 0;
   final Set<String> _allSessionUsedVerses = {}; // Persists across Play Again
-  
+
   // Difficulty progression configuration
   static final List<VerseDifficulty> _difficultyLevels = [
-    VerseDifficulty(level: 1, category: DifficultyLevel.beginner, complexityScore: 0.0, maxWords: 5, timeLimit: 30, hintCount: 3),
-    VerseDifficulty(level: 2, category: DifficultyLevel.beginner, complexityScore: 0.2, maxWords: 6, timeLimit: 28, hintCount: 2),
-    VerseDifficulty(level: 3, category: DifficultyLevel.easy, complexityScore: 0.4, maxWords: 7, timeLimit: 25, hintCount: 2),
-    VerseDifficulty(level: 4, category: DifficultyLevel.easy, complexityScore: 0.6, maxWords: 8, timeLimit: 23, hintCount: 1),
-    VerseDifficulty(level: 5, category: DifficultyLevel.medium, complexityScore: 0.8, maxWords: 10, timeLimit: 20, hintCount: 1),
-    VerseDifficulty(level: 6, category: DifficultyLevel.medium, complexityScore: 1.0, maxWords: 12, timeLimit: 18, hintCount: 1),
-    VerseDifficulty(level: 7, category: DifficultyLevel.hard, complexityScore: 1.2, maxWords: 15, timeLimit: 16, hintCount: 0),
-    VerseDifficulty(level: 8, category: DifficultyLevel.hard, complexityScore: 1.4, maxWords: 18, timeLimit: 14, hintCount: 0),
-    VerseDifficulty(level: 9, category: DifficultyLevel.expert, complexityScore: 1.6, maxWords: 20, timeLimit: 12, hintCount: 0),
-    VerseDifficulty(level: 10, category: DifficultyLevel.expert, complexityScore: 1.8, maxWords: 25, timeLimit: 10, hintCount: 0),
+    VerseDifficulty(
+      level: 1,
+      category: DifficultyLevel.beginner,
+      complexityScore: 0.0,
+      maxWords: 5,
+      timeLimit: 30,
+      hintCount: 3,
+    ),
+    VerseDifficulty(
+      level: 2,
+      category: DifficultyLevel.beginner,
+      complexityScore: 0.2,
+      maxWords: 6,
+      timeLimit: 28,
+      hintCount: 2,
+    ),
+    VerseDifficulty(
+      level: 3,
+      category: DifficultyLevel.easy,
+      complexityScore: 0.4,
+      maxWords: 7,
+      timeLimit: 25,
+      hintCount: 2,
+    ),
+    VerseDifficulty(
+      level: 4,
+      category: DifficultyLevel.easy,
+      complexityScore: 0.6,
+      maxWords: 8,
+      timeLimit: 23,
+      hintCount: 1,
+    ),
+    VerseDifficulty(
+      level: 5,
+      category: DifficultyLevel.medium,
+      complexityScore: 0.8,
+      maxWords: 10,
+      timeLimit: 20,
+      hintCount: 1,
+    ),
+    VerseDifficulty(
+      level: 6,
+      category: DifficultyLevel.medium,
+      complexityScore: 1.0,
+      maxWords: 12,
+      timeLimit: 18,
+      hintCount: 1,
+    ),
+    VerseDifficulty(
+      level: 7,
+      category: DifficultyLevel.hard,
+      complexityScore: 1.2,
+      maxWords: 15,
+      timeLimit: 16,
+      hintCount: 0,
+    ),
+    VerseDifficulty(
+      level: 8,
+      category: DifficultyLevel.hard,
+      complexityScore: 1.4,
+      maxWords: 18,
+      timeLimit: 14,
+      hintCount: 0,
+    ),
+    VerseDifficulty(
+      level: 9,
+      category: DifficultyLevel.expert,
+      complexityScore: 1.6,
+      maxWords: 20,
+      timeLimit: 12,
+      hintCount: 0,
+    ),
+    VerseDifficulty(
+      level: 10,
+      category: DifficultyLevel.expert,
+      complexityScore: 1.8,
+      maxWords: 25,
+      timeLimit: 10,
+      hintCount: 0,
+    ),
   ];
-  
+
   // Common biblical words for complexity calculation
   static const Set<String> _commonBiblicalWords = {
-    'lord', 'god', 'jesus', 'christ', 'spirit', 'holy', 'father', 'son', 'heaven', 'earth',
-    'faith', 'hope', 'love', 'peace', 'grace', 'mercy', 'truth', 'light', 'darkness', 'sin',
-    'said', 'shall', 'will', 'come', 'go', 'see', 'know', 'believe', 'trust', 'heart',
-    'man', 'woman', 'child', 'people', 'israel', 'jerusalem', 'temple', 'king', 'kingdom'
+    'lord',
+    'god',
+    'jesus',
+    'christ',
+    'spirit',
+    'holy',
+    'father',
+    'son',
+    'heaven',
+    'earth',
+    'faith',
+    'hope',
+    'love',
+    'peace',
+    'grace',
+    'mercy',
+    'truth',
+    'light',
+    'darkness',
+    'sin',
+    'said',
+    'shall',
+    'will',
+    'come',
+    'go',
+    'see',
+    'know',
+    'believe',
+    'trust',
+    'heart',
+    'man',
+    'woman',
+    'child',
+    'people',
+    'israel',
+    'jerusalem',
+    'temple',
+    'king',
+    'kingdom',
   };
-  
+
   static const Set<String> _complexWords = {
-    'righteousness', 'sanctification', 'redemption', 'justification', 'propitiation',
-    'omnipotent', 'omniscient', 'omnipresent', 'immutable', 'infinite', 'eternal',
-    'sovereignty', 'providence', 'eschatology', 'hermeneutics', 'exegesis',
-    'soteriology', 'hamartiology', 'pneumatology', 'ecclesiology', 'angelology'
+    'righteousness',
+    'sanctification',
+    'redemption',
+    'justification',
+    'propitiation',
+    'omnipotent',
+    'omniscient',
+    'omnipresent',
+    'immutable',
+    'infinite',
+    'eternal',
+    'sovereignty',
+    'providence',
+    'eschatology',
+    'hermeneutics',
+    'exegesis',
+    'soteriology',
+    'hamartiology',
+    'pneumatology',
+    'ecclesiology',
+    'angelology',
   };
-  
+
   // Base popular verses loaded from asset file
   List<Map<String, dynamic>> _baseGameVerses = [];
   static const List<Map<String, dynamic>> _defaultBaseVerses = [
@@ -174,34 +308,39 @@ class VerseGameNotifier extends StateNotifier<VerseGameState> {
     {'book': '1CO', 'chapter': 13, 'verse': 4},
     {'book': 'EPH', 'chapter': 2, 'verse': 8},
   ];
-  
+
   // Calculate verse complexity score
   double _calculateVerseComplexity(String text) {
     final words = text.toLowerCase().split(RegExp(r'\s+'));
     double complexity = 0.0;
-    
+
     // Base complexity from word count
     complexity += words.length * 0.02;
-    
+
     // Average word length complexity
-    final avgWordLength = words.map((w) => w.length).reduce((a, b) => a + b) / words.length;
+    final avgWordLength =
+        words.map((w) => w.length).reduce((a, b) => a + b) / words.length;
     complexity += (avgWordLength - 4) * 0.1;
-    
+
     // Complex words bonus
-    final complexWordCount = words.where((w) => _complexWords.contains(w)).length;
+    final complexWordCount = words
+        .where((w) => _complexWords.contains(w))
+        .length;
     complexity += complexWordCount * 0.3;
-    
+
     // Common words reduction (makes verse easier)
-    final commonWordCount = words.where((w) => _commonBiblicalWords.contains(w)).length;
+    final commonWordCount = words
+        .where((w) => _commonBiblicalWords.contains(w))
+        .length;
     complexity -= commonWordCount * 0.05;
-    
+
     // Sentence structure complexity (punctuation indicates complex sentences)
     final punctuationCount = text.replaceAll(RegExp(r'\w'), '').length;
     complexity += punctuationCount * 0.1;
-    
+
     return max(0.0, complexity);
   }
-  
+
   // Get appropriate difficulty level based on player progress
   VerseDifficulty _getCurrentDifficulty() {
     final baseLevel = (state.currentQuestionIndex / 2).ceil().clamp(1, 10);
@@ -223,20 +362,22 @@ class VerseGameNotifier extends StateNotifier<VerseGameState> {
 
     return _difficultyLevels[adjustedLevel - 1];
   }
-  
+
   // Check if verse is appropriate for current difficulty
-  bool _isVerseAppropriateForDifficulty(BibleVerseContent verse, VerseDifficulty difficulty) {
+  bool _isVerseAppropriateForDifficulty(
+    BibleVerseContent verse,
+    VerseDifficulty difficulty,
+  ) {
     final complexity = _calculateVerseComplexity(verse.text);
     final wordCount = verse.text.split(RegExp(r'\s+')).length;
-    
+
     // Verse should be within acceptable range for this difficulty
     final complexityDiff = (complexity - difficulty.complexityScore).abs();
     final wordDiff = (wordCount - difficulty.maxWords).abs();
-    
+
     // Allow some flexibility but prefer closer matches
     return complexityDiff <= 0.5 && wordDiff <= 5;
   }
-  
 
   VerseGameNotifier(this._repository, this._ref) : super(VerseGameState()) {
     _prepareSession();
@@ -258,6 +399,7 @@ class VerseGameNotifier extends StateNotifier<VerseGameState> {
       comboMultiplier: 1,
       isBonusRound: false,
     );
+    _scoreSubmittedForSession = false;
 
     _sessionQuestions = await _buildSessionQuestions();
 
@@ -285,6 +427,7 @@ class VerseGameNotifier extends StateNotifier<VerseGameState> {
       comboMultiplier: 1,
       isBonusRound: false,
     );
+    _scoreSubmittedForSession = false;
 
     _sessionQuestions = await _buildSessionQuestions();
 
@@ -300,7 +443,7 @@ class VerseGameNotifier extends StateNotifier<VerseGameState> {
     for (int i = 0; i < state.totalQuestions; i++) {
       final targetDifficulty = _difficultyLevels[(i ~/ 2).clamp(0, 9)];
       BibleVerseContent? selectedVerse;
-      
+
       // Try to find verses from completed chapters first
       for (final ref in completedRefs) {
         try {
@@ -309,14 +452,20 @@ class VerseGameNotifier extends StateNotifier<VerseGameState> {
             ref.bookAbbr,
             ref.chapter,
           );
-          
+
           // Filter verses appropriate for this difficulty and not used yet
           final appropriate = chapterVerses
-              .where((v) => !usedVerses.contains(v.reference ?? '${ref.bookAbbr}-${v.chapter}-${v.verse}'))
+              .where(
+                (v) => !usedVerses.contains(
+                  v.reference ?? '${ref.bookAbbr}-${v.chapter}-${v.verse}',
+                ),
+              )
               .where((v) => v.text.trim().split(RegExp(r'\s+')).length >= 4)
-              .where((v) => _isVerseAppropriateForDifficulty(v, targetDifficulty))
+              .where(
+                (v) => _isVerseAppropriateForDifficulty(v, targetDifficulty),
+              )
               .toList();
-          
+
           if (appropriate.isNotEmpty) {
             appropriate.shuffle(_random);
             selectedVerse = appropriate.first;
@@ -326,11 +475,15 @@ class VerseGameNotifier extends StateNotifier<VerseGameState> {
           // skip invalid chapter sources
         }
       }
-      
+
       // Fallback to base verses if needed
       if (selectedVerse == null) {
         final availableFallbacks = _baseGameVerses
-            .where((f) => !usedVerses.contains('${f['book']}-${f['chapter']}-${f['verse']}'))
+            .where(
+              (f) => !usedVerses.contains(
+                '${f['book']}-${f['chapter']}-${f['verse']}',
+              ),
+            )
             .toList();
         availableFallbacks.shuffle(_random);
 
@@ -356,18 +509,29 @@ class VerseGameNotifier extends StateNotifier<VerseGameState> {
 
       // Final fallback if everything fails (very unlikely)
       if (selectedVerse == null && _baseGameVerses.isNotEmpty) {
-         final fallback = _baseGameVerses[_random.nextInt(_baseGameVerses.length)];
-         try {
-           final verses = await _repository.getVerses('eng_rv_vpl', fallback['book'] as String, fallback['chapter'] as int);
-           if (verses.isNotEmpty) {
-             selectedVerse = verses.firstWhere((v) => v.verse == fallback['verse'], orElse: () => verses.first);
-           }
-         } catch (_) {}
+        final fallback =
+            _baseGameVerses[_random.nextInt(_baseGameVerses.length)];
+        try {
+          final verses = await _repository.getVerses(
+            'eng_rv_vpl',
+            fallback['book'] as String,
+            fallback['chapter'] as int,
+          );
+          if (verses.isNotEmpty) {
+            selectedVerse = verses.firstWhere(
+              (v) => v.verse == fallback['verse'],
+              orElse: () => verses.first,
+            );
+          }
+        } catch (_) {}
       }
 
       if (selectedVerse != null) {
         questions.add(selectedVerse);
-        usedVerses.add(selectedVerse.reference ?? '${selectedVerse.bookId}-${selectedVerse.chapter}-${selectedVerse.verse}');
+        usedVerses.add(
+          selectedVerse.reference ??
+              '${selectedVerse.bookId}-${selectedVerse.chapter}-${selectedVerse.verse}',
+        );
       }
     }
 
@@ -385,13 +549,23 @@ class VerseGameNotifier extends StateNotifier<VerseGameState> {
 
   Future<void> _loadBaseGameVerses() async {
     try {
-      final jsonString = await rootBundle.loadString('assets/game/verse_game_base.json');
+      final jsonString = await rootBundle.loadString(
+        'assets/game/verse_game_base.json',
+      );
       final decoded = json.decode(jsonString);
       if (decoded is List) {
         _baseGameVerses = decoded
             .whereType<Map>()
-            .map((entry) => entry.map((key, value) => MapEntry(key.toString(), value)))
-            .where((entry) => entry.containsKey('book') && entry.containsKey('chapter') && entry.containsKey('verse'))
+            .map(
+              (entry) =>
+                  entry.map((key, value) => MapEntry(key.toString(), value)),
+            )
+            .where(
+              (entry) =>
+                  entry.containsKey('book') &&
+                  entry.containsKey('chapter') &&
+                  entry.containsKey('verse'),
+            )
             .toList();
       }
     } catch (_) {
@@ -495,7 +669,7 @@ class VerseGameNotifier extends StateNotifier<VerseGameState> {
     }
 
     state = state.copyWith(state: GameState.loading);
-    
+
     try {
       if (_sessionQuestions.isEmpty) {
         state = state.copyWith(state: GameState.gameOver);
@@ -503,7 +677,8 @@ class VerseGameNotifier extends StateNotifier<VerseGameState> {
       }
 
       final targetVerse =
-          _sessionQuestions[(state.currentQuestionIndex - 1) % _sessionQuestions.length];
+          _sessionQuestions[(state.currentQuestionIndex - 1) %
+              _sessionQuestions.length];
 
       // Alternate modes to ensure both are always represented in each session.
       final mode = state.currentQuestionIndex.isOdd
@@ -518,13 +693,16 @@ class VerseGameNotifier extends StateNotifier<VerseGameState> {
   void _setupQuestion(BibleVerseContent verse, GameMode mode) {
     // Check if this is a bonus round (every 5th question)
     final isBonusRound = (state.currentQuestionIndex % 5) == 0;
-    
+
     // Get current difficulty based on progress
     final difficulty = _getCurrentDifficulty();
-    
+
     // Split text keeping punctuation attached to words
-    final rawWords = verse.text.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
-    
+    final rawWords = verse.text
+        .split(RegExp(r'\s+'))
+        .where((w) => w.isNotEmpty)
+        .toList();
+
     // For arrange mode, we might need to group words if there are too many
     // to fit the difficulty's maxWords constraint.
     List<String> gameWords = [];
@@ -534,12 +712,14 @@ class VerseGameNotifier extends StateNotifier<VerseGameState> {
       // Group words together to fit the maxWords constraint
       int targetCount = difficulty.maxWords;
       int wordsPerGroup = (rawWords.length / targetCount).ceil();
-      
+
       for (int i = 0; i < rawWords.length; i += wordsPerGroup) {
-        int end = (i + wordsPerGroup < rawWords.length) ? i + wordsPerGroup : rawWords.length;
+        int end = (i + wordsPerGroup < rawWords.length)
+            ? i + wordsPerGroup
+            : rawWords.length;
         gameWords.add(rawWords.sublist(i, end).join(' '));
       }
-      
+
       // If we still have too many groups (due to rounding), merge the last ones
       while (gameWords.length > targetCount) {
         String last = gameWords.removeLast();
@@ -547,19 +727,19 @@ class VerseGameNotifier extends StateNotifier<VerseGameState> {
         gameWords[newLastIndex] = '${gameWords[newLastIndex]} $last';
       }
     }
-    
+
     if (mode == GameMode.arrange) {
       final shuffled = List<String>.from(gameWords)..shuffle(_random);
-      
+
       // Ensure it's actually shuffled (not the same as original)
       if (shuffled.join(' ') == gameWords.join(' ') && gameWords.length > 1) {
-         shuffled.shuffle(_random); 
-         // If still same, manually swap first two
-         if (shuffled.join(' ') == gameWords.join(' ')) {
-             final temp = shuffled[0];
-             shuffled[0] = shuffled[1];
-             shuffled[1] = temp;
-         }
+        shuffled.shuffle(_random);
+        // If still same, manually swap first two
+        if (shuffled.join(' ') == gameWords.join(' ')) {
+          final temp = shuffled[0];
+          shuffled[0] = shuffled[1];
+          shuffled[1] = temp;
+        }
       }
 
       state = state.copyWith(
@@ -578,47 +758,50 @@ class VerseGameNotifier extends StateNotifier<VerseGameState> {
     } else {
       // Guess mode setup
       if (gameWords.isEmpty) return; // Guard against empty verses
-      
+
       // We want to pick a single word for guess mode, not a grouped phrase
       // So we use rawWords instead of gameWords for selecting the missing word
-      
+
       // Pick a random important word to remove (longer than 3 chars if possible)
       // Strip punctuation for length check and the actual missing word string
-      final cleanRawWords = rawWords.map((w) => w.replaceAll(RegExp(r'[^\w]'), '')).toList();
-      
-      final candidateIndices = List<int>.generate(rawWords.length, (i) => i)
-          .where((i) => cleanRawWords[i].length > 3)
+      final cleanRawWords = rawWords
+          .map((w) => w.replaceAll(RegExp(r'[^\w]'), ''))
           .toList();
-          
-      final removeIndex = candidateIndices.isNotEmpty 
+
+      final candidateIndices = List<int>.generate(
+        rawWords.length,
+        (i) => i,
+      ).where((i) => cleanRawWords[i].length > 3).toList();
+
+      final removeIndex = candidateIndices.isNotEmpty
           ? candidateIndices[_random.nextInt(candidateIndices.length)]
           : _random.nextInt(rawWords.length);
-          
+
       final originalWordWithPunc = rawWords[removeIndex];
       final missingWordClean = cleanRawWords[removeIndex];
-      
+
       // Extract punctuation to keep it around the blank
       final RegExp wordRegExp = RegExp(r'\w+');
       final match = wordRegExp.firstMatch(originalWordWithPunc);
       String prefix = '';
       String suffix = '';
-      
+
       if (match != null) {
         prefix = originalWordWithPunc.substring(0, match.start);
         suffix = originalWordWithPunc.substring(match.end);
       }
-      
+
       // Generate some fake options (in a real app, these would come from a biblical corpus)
       final distractors = _generateDistractors(
         correctWord: missingWordClean,
         localWords: cleanRawWords,
       );
       final options = [missingWordClean, ...distractors]..shuffle(_random);
-      
+
       // Create display words with a blank placeholder but keeping punctuation
       final displayWords = List<String>.from(rawWords);
       displayWords[removeIndex] = '${prefix}_____$suffix';
-      
+
       state = state.copyWith(
         verse: verse,
         currentMode: mode,
@@ -633,34 +816,75 @@ class VerseGameNotifier extends StateNotifier<VerseGameState> {
         comboMultiplier: isBonusRound ? 2 : 1,
       );
     }
-    
+
     _startTimer();
   }
-  
+
   List<String> _generateDistractors({
     required String correctWord,
     required List<String> localWords,
   }) {
     // A simple distractor generator. Ideally, this uses a dictionary of similar biblical words.
     final allFakeWords = <String>[
-      'love', 'faith', 'hope', 'peace', 'grace', 'mercy', 'light', 'truth',
-      'spirit', 'heart', 'soul', 'mind', 'strength', 'power', 'glory', 'honor',
-      'heaven', 'earth', 'water', 'fire', 'bread', 'wine', 'blood', 'body',
-      'holy', 'righteous', 'pure', 'good', 'perfect', 'clean', 'just', 'true',
-      'believe', 'trust', 'follow', 'obey', 'seek', 'find', 'knock', 'ask',
+      'love',
+      'faith',
+      'hope',
+      'peace',
+      'grace',
+      'mercy',
+      'light',
+      'truth',
+      'spirit',
+      'heart',
+      'soul',
+      'mind',
+      'strength',
+      'power',
+      'glory',
+      'honor',
+      'heaven',
+      'earth',
+      'water',
+      'fire',
+      'bread',
+      'wine',
+      'blood',
+      'body',
+      'holy',
+      'righteous',
+      'pure',
+      'good',
+      'perfect',
+      'clean',
+      'just',
+      'true',
+      'believe',
+      'trust',
+      'follow',
+      'obey',
+      'seek',
+      'find',
+      'knock',
+      'ask',
     ];
 
-    final inVerseDistractors = localWords
-        .where((w) =>
-            w.toLowerCase() != correctWord.toLowerCase() && w.trim().length >= 3)
-        .toSet()
-        .toList()
-      ..shuffle(_random);
+    final inVerseDistractors =
+        localWords
+            .where(
+              (w) =>
+                  w.toLowerCase() != correctWord.toLowerCase() &&
+                  w.trim().length >= 3,
+            )
+            .toSet()
+            .toList()
+          ..shuffle(_random);
 
     final distractors = <String>[];
     distractors.addAll(inVerseDistractors.take(2));
 
-    allFakeWords.removeWhere((w) => w.toLowerCase() == correctWord.toLowerCase());
+    allFakeWords.removeWhere(
+      (w) => w.toLowerCase() == correctWord.toLowerCase(),
+    );
     allFakeWords.shuffle(_random);
 
     for (final word in allFakeWords) {
@@ -699,52 +923,51 @@ class VerseGameNotifier extends StateNotifier<VerseGameState> {
       _startTimer();
     }
   }
-  
+
   void _handleTimeUp() {
     final newLives = state.lives - 1;
-    
-    state = state.copyWith(
-      state: GameState.failed,
-      lives: newLives,
-    );
-    
+
+    state = state.copyWith(state: GameState.failed, lives: newLives);
+
     // Play timeout sound for immediate feedback
     _ref.read(soundServiceProvider).playGameTimeout();
-    
+
     _scheduleNextAfterResult();
   }
 
   // --- Arrange Mode Actions ---
 
   void selectArrangeWord(int index) {
-    if (state.state != GameState.playing || state.currentMode != GameMode.arrange) return;
+    if (state.state != GameState.playing ||
+        state.currentMode != GameMode.arrange) {
+      return;
+    }
     if (state.selectedIndices.contains(index)) return;
 
     final newSelected = List<int>.from(state.selectedIndices)..add(index);
 
-    state = state.copyWith(
-      selectedIndices: newSelected,
-    );
+    state = state.copyWith(selectedIndices: newSelected);
 
     _checkArrangeCompletion();
   }
 
   void removeArrangeWord(int index) {
-    if (state.state != GameState.playing || state.currentMode != GameMode.arrange) return;
+    if (state.state != GameState.playing ||
+        state.currentMode != GameMode.arrange) {
+      return;
+    }
     if (!state.selectedIndices.contains(index)) return;
 
     final newSelected = List<int>.from(state.selectedIndices)..remove(index);
 
-    state = state.copyWith(
-      selectedIndices: newSelected,
-    );
+    state = state.copyWith(selectedIndices: newSelected);
   }
 
   void _checkArrangeCompletion() {
     if (state.selectedIndices.length == state.originalWords.length) {
       _timer?.cancel();
       state = state.copyWith(state: GameState.checking);
-      
+
       bool isCorrect = true;
       for (int i = 0; i < state.originalWords.length; i++) {
         final wordIndex = state.selectedIndices[i];
@@ -763,55 +986,61 @@ class VerseGameNotifier extends StateNotifier<VerseGameState> {
       _handleResult(isCorrect, scoreDelta: state.timeLeft * 10);
     }
   }
-  
+
   // --- Guess Mode Actions ---
-  
+
   void submitGuess(String guess) {
-    if (state.state != GameState.playing || state.currentMode != GameMode.guess) return;
-    
+    if (state.state != GameState.playing ||
+        state.currentMode != GameMode.guess) {
+      return;
+    }
+
     _timer?.cancel();
     state = state.copyWith(state: GameState.checking);
-    
+
     // Strip punctuation for comparison just in case
     final cleanGuess = guess.replaceAll(RegExp(r'[^\w]'), '').toLowerCase();
-    final cleanMissing = state.missingWord?.replaceAll(RegExp(r'[^\w]'), '').toLowerCase();
-    
+    final cleanMissing = state.missingWord
+        ?.replaceAll(RegExp(r'[^\w]'), '')
+        .toLowerCase();
+
     final isCorrect = cleanGuess == cleanMissing;
     _handleResult(isCorrect, scoreDelta: state.timeLeft * 20);
   }
-  
+
   // --- Hint System ---
-  
+
   void useHint() {
     if (state.state != GameState.playing || state.hintsRemaining <= 0) return;
-    
+
     if (state.currentMode == GameMode.arrange) {
       _useArrangeHint();
     } else {
       _useGuessHint();
     }
-    
+
     state = state.copyWith(hintsRemaining: state.hintsRemaining - 1);
     _ref.read(soundServiceProvider).playGameTap();
   }
-  
+
   void _useArrangeHint() {
     // Find the next correct word that hasn't been selected
     for (int i = 0; i < state.originalWords.length; i++) {
       final targetWord = state.originalWords[i];
-      
+
       // Check if this position is already filled correctly
       if (i < state.selectedIndices.length) {
         final selectedIndex = state.selectedIndices[i];
-        if (selectedIndex < state.shuffledWords.length && 
+        if (selectedIndex < state.shuffledWords.length &&
             state.shuffledWords[selectedIndex] == targetWord) {
           continue; // Skip already correct positions
         }
       }
-      
+
       // Find the index of the target word in shuffled words
       for (int j = 0; j < state.shuffledWords.length; j++) {
-        if (state.shuffledWords[j] == targetWord && !state.selectedIndices.contains(j)) {
+        if (state.shuffledWords[j] == targetWord &&
+            !state.selectedIndices.contains(j)) {
           selectArrangeWord(j);
           break;
         }
@@ -819,7 +1048,7 @@ class VerseGameNotifier extends StateNotifier<VerseGameState> {
       break;
     }
   }
-  
+
   void _useGuessHint() {
     // For guess mode, reveal information about the missing word
     // This could be implemented in the UI to show a hint
@@ -828,34 +1057,40 @@ class VerseGameNotifier extends StateNotifier<VerseGameState> {
       final nonCorrectOptions = state.guessOptions
           .where((opt) => opt.toLowerCase() != state.missingWord?.toLowerCase())
           .toList();
-      
+
       if (nonCorrectOptions.isNotEmpty) {
-        final optionToRemove = nonCorrectOptions[_random.nextInt(nonCorrectOptions.length)];
-        final newOptions = state.guessOptions.where((opt) => opt != optionToRemove).toList();
+        final optionToRemove =
+            nonCorrectOptions[_random.nextInt(nonCorrectOptions.length)];
+        final newOptions = state.guessOptions
+            .where((opt) => opt != optionToRemove)
+            .toList();
         state = state.copyWith(guessOptions: newOptions);
       }
     }
   }
-  
+
   // --- Power-ups ---
-  
+
   void useTimeBoost() {
     if (state.state != GameState.playing) return;
-    
+
     const bonusTime = 10;
     state = state.copyWith(timeLeft: state.timeLeft + bonusTime);
     _ref.read(soundServiceProvider).playGameLevelUp();
   }
-  
+
   void useRevealWord() {
-    if (state.state != GameState.playing || state.currentMode != GameMode.arrange) return;
-    
+    if (state.state != GameState.playing ||
+        state.currentMode != GameMode.arrange) {
+      return;
+    }
+
     // Reveal one correct word in the sequence
     _useArrangeHint();
   }
-  
+
   // --- Themed Collections ---
-  
+
   Future<void> startThemedSession(String theme) async {
     // This could be expanded to include different themed verse collections
     // For now, we'll just restart with a flag that could be used for special theming
@@ -868,19 +1103,23 @@ class VerseGameNotifier extends StateNotifier<VerseGameState> {
       comboMultiplier: 1,
       isBonusRound: false,
     );
-    
+    _scoreSubmittedForSession = false;
+
     // In a full implementation, this would load theme-specific verses
     _sessionQuestions = await _buildSessionQuestions();
     await _loadNextQuestion();
   }
-  
+
   void _handleResult(bool isCorrect, {required int scoreDelta}) {
     final finalScore = scoreDelta * state.comboMultiplier;
-    
+
     if (isCorrect) {
       state = state.copyWith(
         state: GameState.success,
-        score: state.score + finalScore + 100, // Base points + time bonus * multiplier
+        score:
+            state.score +
+            finalScore +
+            100, // Base points + time bonus * multiplier
       );
       // Play level-up sound for positive reinforcement
       _ref.read(soundServiceProvider).playGameLevelUp();
@@ -896,21 +1135,45 @@ class VerseGameNotifier extends StateNotifier<VerseGameState> {
         _ref.read(soundServiceProvider).playGameOver();
       }
     }
-    
+
     _scheduleNextAfterResult();
   }
-  
+
   void _scheduleNextAfterResult() {
     Future.delayed(const Duration(seconds: 2), () {
       if (state.lives <= 0) {
         state = state.copyWith(state: GameState.gameOver);
+        unawaited(_submitSessionScore('game_over'));
       } else if (state.currentQuestionIndex < state.totalQuestions) {
-        state = state.copyWith(currentQuestionIndex: state.currentQuestionIndex + 1);
+        state = state.copyWith(
+          currentQuestionIndex: state.currentQuestionIndex + 1,
+        );
         _loadNextQuestion();
       } else {
         state = state.copyWith(state: GameState.sessionComplete);
+        unawaited(_submitSessionScore('session_complete'));
       }
     });
+  }
+
+  Future<void> _submitSessionScore(String result) async {
+    if (_scoreSubmittedForSession || state.score <= 0) return;
+    _scoreSubmittedForSession = true;
+
+    await _ref
+        .read(gameScoreRepositoryProvider)
+        .submitScore(
+          gameId: 'verse_builder',
+          score: state.score,
+          meta: <String, dynamic>{
+            'result': result,
+            'current_question_index': state.currentQuestionIndex,
+            'total_questions': state.totalQuestions,
+            'lives_remaining': state.lives,
+            'streak': state.streak,
+            'difficulty_level': state.difficulty?.level,
+          },
+        );
   }
 
   void restartSession() {
@@ -923,7 +1186,8 @@ class VerseGameNotifier extends StateNotifier<VerseGameState> {
     _lastSessionTotal = questionsAttempted;
 
     // Level up if player got >= 8/10 (80% correct)
-    if (_lastSessionTotal >= 5 && _lastSessionCorrect / _lastSessionTotal >= 0.8) {
+    if (_lastSessionTotal >= 5 &&
+        _lastSessionCorrect / _lastSessionTotal >= 0.8) {
       _difficultyBonus = min(5, _difficultyBonus + 1);
     }
 
@@ -938,10 +1202,11 @@ class VerseGameNotifier extends StateNotifier<VerseGameState> {
   }
 }
 
-final verseGameProvider = StateNotifierProvider<VerseGameNotifier, VerseGameState>((ref) {
-  final repository = ref.watch(bibleRepositoryProvider);
-  return VerseGameNotifier(repository, ref);
-});
+final verseGameProvider =
+    StateNotifierProvider<VerseGameNotifier, VerseGameState>((ref) {
+      final repository = ref.watch(bibleRepositoryProvider);
+      return VerseGameNotifier(repository, ref);
+    });
 
 class _ChapterRef {
   const _ChapterRef({required this.bookAbbr, required this.chapter});

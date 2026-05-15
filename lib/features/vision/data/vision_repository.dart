@@ -1,6 +1,7 @@
 import 'package:logger/logger.dart';
 
 import '../../../core/network/dio_client.dart';
+import '../../../core/models/accountability_tone.dart';
 import '../domain/vision_models.dart';
 
 class VisionRepository {
@@ -123,11 +124,19 @@ class VisionRepository {
     required int nudgeCount,
     String? planWhen,
     String? planObstacle,
+    AccountabilityTone accountabilityTone = AccountabilityTone.balanced,
+    DateTime? seasonStartedAt,
+    DateTime? nextReviewAt,
   }) async {
     final response = await _dio.post<Map<String, dynamic>>(
       '/commitments/$commitmentId/join',
       data: {
         'nudge_count_per_day': nudgeCount,
+        'accountability_tone': accountabilityTone.storageValue,
+        if (seasonStartedAt != null)
+          'season_started_at': seasonStartedAt.toIso8601String(),
+        if (nextReviewAt != null)
+          'next_review_at': nextReviewAt.toIso8601String(),
         if (planWhen != null && planWhen.trim().isNotEmpty)
           'check_in_plan_when': planWhen.trim(),
         if (planObstacle != null && planObstacle.trim().isNotEmpty)
@@ -230,6 +239,29 @@ class VisionRepository {
           .toList();
     } catch (e) {
       _logger.w('Vision weekly ritual failed: $e');
+      return const [];
+    }
+  }
+
+  Future<List<TribeGameLeaderboardEntry>> gameLeaderboard({
+    int limit = 5,
+  }) async {
+    try {
+      final response = await _dio.get<Map<String, dynamic>>(
+        '/games/leaderboard/tribes',
+        queryParameters: {'limit': limit},
+      );
+      final list = _payloadList(response.data);
+      return list
+          .whereType<Map>()
+          .map(
+            (item) => TribeGameLeaderboardEntry.fromJson(
+              Map<String, dynamic>.from(item),
+            ),
+          )
+          .toList();
+    } catch (e) {
+      _logger.w('Vision tribe game leaderboard failed: $e');
       return const [];
     }
   }

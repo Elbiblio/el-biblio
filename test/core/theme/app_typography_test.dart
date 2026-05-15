@@ -30,6 +30,6 @@ void main() {
 
     expect(textTheme.bodyMedium?.fontFamily, startsWith('Inter'));
     expect(textTheme.titleMedium?.fontFamily, startsWith('Inter'));
-    expect(textTheme.headlineMedium?.fontFamily, startsWith('InstrumentSerif'));
+    expect(textTheme.headlineMedium?.fontFamily, startsWith('Sora'));
   });
 }

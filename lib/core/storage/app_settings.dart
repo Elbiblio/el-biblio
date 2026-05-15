@@ -11,6 +11,7 @@ import '../../features/mission/domain/models/mission_focus.dart';
 import '../../features/mission/domain/models/person_profile.dart';
 import '../../features/onboarding/domain/habit_catalog.dart';
 import '../../features/today/domain/models/daily_anchors.dart';
+import '../models/accountability_tone.dart';
 import '../theme/app_theme_mode.dart';
 
 class AppSettings {
@@ -67,6 +68,11 @@ class AppSettings {
     this.goodHabits = const [],
     this.struggles = const [],
     this.accountabilityCadence = 'daily',
+    this.accountabilityTone = AccountabilityTone.balanced,
+    this.currentCommitmentSeasonStartedAt,
+    this.nextCommitmentReviewAt,
+    this.lastCommitmentReviewAt,
+    this.commitmentMonthlyReviewOutcome,
     this.onboardingDraft,
   });
 
@@ -139,6 +145,11 @@ class AppSettings {
   /// Cadence the accountability partner is pinged at: `daily` (default)
   /// or `weekly` (earned only when baseline is already strong).
   final String accountabilityCadence;
+  final AccountabilityTone accountabilityTone;
+  final DateTime? currentCommitmentSeasonStartedAt;
+  final DateTime? nextCommitmentReviewAt;
+  final DateTime? lastCommitmentReviewAt;
+  final CommitmentMonthlyReviewOutcome? commitmentMonthlyReviewOutcome;
 
   /// Serialized `OnboardingState` (JSON) persisted on every mutation while
   /// the user is mid-onboarding. Rehydrated on app relaunch if
@@ -199,6 +210,11 @@ class AppSettings {
       goodHabits: [],
       struggles: [],
       accountabilityCadence: 'daily',
+      accountabilityTone: AccountabilityTone.balanced,
+      currentCommitmentSeasonStartedAt: null,
+      nextCommitmentReviewAt: null,
+      lastCommitmentReviewAt: null,
+      commitmentMonthlyReviewOutcome: null,
       onboardingDraft: null,
     );
   }
@@ -389,6 +405,25 @@ class AppSettings {
           (map['accountabilityCadence'] as String?) == 'weekly'
           ? 'weekly'
           : 'daily',
+      accountabilityTone: AccountabilityTone.fromStorage(
+        map['accountabilityTone'] as String?,
+      ),
+      currentCommitmentSeasonStartedAt:
+          map['currentCommitmentSeasonStartedAt'] == null
+          ? null
+          : DateTime.tryParse(
+              map['currentCommitmentSeasonStartedAt'] as String,
+            ),
+      nextCommitmentReviewAt: map['nextCommitmentReviewAt'] == null
+          ? null
+          : DateTime.tryParse(map['nextCommitmentReviewAt'] as String),
+      lastCommitmentReviewAt: map['lastCommitmentReviewAt'] == null
+          ? null
+          : DateTime.tryParse(map['lastCommitmentReviewAt'] as String),
+      commitmentMonthlyReviewOutcome:
+          CommitmentMonthlyReviewOutcome.fromStorage(
+            map['commitmentMonthlyReviewOutcome'] as String?,
+          ),
       onboardingDraft: map['onboardingDraft'] as String?,
     );
   }
@@ -461,6 +496,13 @@ class AppSettings {
       'goodHabits': goodHabits,
       'struggles': struggles,
       'accountabilityCadence': accountabilityCadence,
+      'accountabilityTone': accountabilityTone.storageValue,
+      'currentCommitmentSeasonStartedAt': currentCommitmentSeasonStartedAt
+          ?.toIso8601String(),
+      'nextCommitmentReviewAt': nextCommitmentReviewAt?.toIso8601String(),
+      'lastCommitmentReviewAt': lastCommitmentReviewAt?.toIso8601String(),
+      'commitmentMonthlyReviewOutcome':
+          commitmentMonthlyReviewOutcome?.storageValue,
       'onboardingDraft': onboardingDraft,
     };
   }
@@ -518,6 +560,11 @@ class AppSettings {
     List<String>? goodHabits,
     List<String>? struggles,
     String? accountabilityCadence,
+    AccountabilityTone? accountabilityTone,
+    DateTime? currentCommitmentSeasonStartedAt,
+    DateTime? nextCommitmentReviewAt,
+    DateTime? lastCommitmentReviewAt,
+    CommitmentMonthlyReviewOutcome? commitmentMonthlyReviewOutcome,
     String? onboardingDraft,
     bool clearCompanionCharacter = false,
     bool clearChristianLifeBaseline = false,
@@ -525,6 +572,7 @@ class AppSettings {
     bool clearOnboardingDraft = false,
     bool clearPendingCompassSubmission = false,
     bool clearFirstCheckInPlan = false,
+    bool clearCommitmentReview = false,
   }) {
     return AppSettings(
       themeMode: themeMode ?? this.themeMode,
@@ -603,6 +651,21 @@ class AppSettings {
       struggles: struggles ?? this.struggles,
       accountabilityCadence:
           accountabilityCadence ?? this.accountabilityCadence,
+      accountabilityTone: accountabilityTone ?? this.accountabilityTone,
+      currentCommitmentSeasonStartedAt: clearCommitmentReview
+          ? null
+          : (currentCommitmentSeasonStartedAt ??
+                this.currentCommitmentSeasonStartedAt),
+      nextCommitmentReviewAt: clearCommitmentReview
+          ? null
+          : (nextCommitmentReviewAt ?? this.nextCommitmentReviewAt),
+      lastCommitmentReviewAt: clearCommitmentReview
+          ? null
+          : (lastCommitmentReviewAt ?? this.lastCommitmentReviewAt),
+      commitmentMonthlyReviewOutcome: clearCommitmentReview
+          ? null
+          : (commitmentMonthlyReviewOutcome ??
+                this.commitmentMonthlyReviewOutcome),
       onboardingDraft: clearOnboardingDraft
           ? null
           : (onboardingDraft ?? this.onboardingDraft),

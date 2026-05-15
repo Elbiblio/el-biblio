@@ -7,10 +7,9 @@ import 'app_theme_tokens.dart';
 import 'app_typography.dart';
 
 @immutable
-class AppColorPaletteExtension extends ThemeExtension<AppColorPaletteExtension> {
-  const AppColorPaletteExtension({
-    required this.palette,
-  });
+class AppColorPaletteExtension
+    extends ThemeExtension<AppColorPaletteExtension> {
+  const AppColorPaletteExtension({required this.palette});
 
   final AppColorPalette palette;
 
@@ -20,26 +19,69 @@ class AppColorPaletteExtension extends ThemeExtension<AppColorPaletteExtension> 
   }
 
   @override
-  AppColorPaletteExtension lerp(ThemeExtension<AppColorPaletteExtension>? other, double t) {
+  AppColorPaletteExtension lerp(
+    ThemeExtension<AppColorPaletteExtension>? other,
+    double t,
+  ) {
     if (other is! AppColorPaletteExtension) return this;
     return AppColorPaletteExtension(
       palette: AppColorPalette(
         primary: Color.lerp(palette.primary, other.palette.primary, t)!,
-        primaryLight: Color.lerp(palette.primaryLight, other.palette.primaryLight, t)!,
-        primaryDark: Color.lerp(palette.primaryDark, other.palette.primaryDark, t)!,
-        background: Color.lerp(palette.background, other.palette.background, t)!,
+        primaryLight: Color.lerp(
+          palette.primaryLight,
+          other.palette.primaryLight,
+          t,
+        )!,
+        primaryDark: Color.lerp(
+          palette.primaryDark,
+          other.palette.primaryDark,
+          t,
+        )!,
+        background: Color.lerp(
+          palette.background,
+          other.palette.background,
+          t,
+        )!,
         surface: Color.lerp(palette.surface, other.palette.surface, t)!,
         paper: Color.lerp(palette.paper, other.palette.paper, t)!,
-        textPrimary: Color.lerp(palette.textPrimary, other.palette.textPrimary, t)!,
-        textSecondary: Color.lerp(palette.textSecondary, other.palette.textSecondary, t)!,
-        textTertiary: Color.lerp(palette.textTertiary, other.palette.textTertiary, t)!,
+        textPrimary: Color.lerp(
+          palette.textPrimary,
+          other.palette.textPrimary,
+          t,
+        )!,
+        textSecondary: Color.lerp(
+          palette.textSecondary,
+          other.palette.textSecondary,
+          t,
+        )!,
+        textTertiary: Color.lerp(
+          palette.textTertiary,
+          other.palette.textTertiary,
+          t,
+        )!,
         border: Color.lerp(palette.border, other.palette.border, t)!,
         success: Color.lerp(palette.success, other.palette.success, t)!,
         error: Color.lerp(palette.error, other.palette.error, t)!,
-        pillarIdentity: Color.lerp(palette.pillarIdentity ?? palette.primary, other.palette.pillarIdentity ?? other.palette.primary, t),
-        pillarCommitment: Color.lerp(palette.pillarCommitment ?? palette.success, other.palette.pillarCommitment ?? other.palette.success, t),
-        pillarDistraction: Color.lerp(palette.pillarDistraction ?? palette.primaryLight, other.palette.pillarDistraction ?? other.palette.primaryLight, t),
-        pillarGrowth: Color.lerp(palette.pillarGrowth ?? const Color(0xFFFF9800), other.palette.pillarGrowth ?? const Color(0xFFFF9800), t),
+        pillarIdentity: Color.lerp(
+          palette.pillarIdentity ?? palette.primary,
+          other.palette.pillarIdentity ?? other.palette.primary,
+          t,
+        ),
+        pillarCommitment: Color.lerp(
+          palette.pillarCommitment ?? palette.success,
+          other.palette.pillarCommitment ?? other.palette.success,
+          t,
+        ),
+        pillarDistraction: Color.lerp(
+          palette.pillarDistraction ?? palette.primaryLight,
+          other.palette.pillarDistraction ?? other.palette.primaryLight,
+          t,
+        ),
+        pillarGrowth: Color.lerp(
+          palette.pillarGrowth ?? const Color(0xFFFF9800),
+          other.palette.pillarGrowth ?? const Color(0xFFFF9800),
+          t,
+        ),
       ),
     );
   }
@@ -76,10 +118,7 @@ class AppTheme {
 class AppThemeFactory {
   const AppThemeFactory._();
 
-  static ThemeData build(
-    AppTheme appTheme, {
-    required double textScaleFactor,
-  }) {
+  static ThemeData build(AppTheme appTheme, {required double textScaleFactor}) {
     final palette = AppColors.paletteFor(
       appTheme.timeOfDay,
       brightness: appTheme.brightness,
@@ -103,10 +142,9 @@ class AppThemeFactory {
       onTertiary: Colors.white,
     );
 
-    final textTheme = AppTypography.textTheme(textScaleFactor).apply(
-      bodyColor: palette.textPrimary,
-      displayColor: palette.textPrimary,
-    );
+    final textTheme = AppTypography.textTheme(
+      textScaleFactor,
+    ).apply(bodyColor: palette.textPrimary, displayColor: palette.textPrimary);
 
     return ThemeData(
       useMaterial3: true,
@@ -201,6 +239,11 @@ class AppThemeFactory {
           spacingSm: 12,
           spacingMd: 16,
           spacingLg: 24,
+          listGap: 8,
+          blockGap: 14,
+          sectionGap: 28,
+          screenPadding: 20,
+          panelPadding: 18,
         ),
         AppColorPaletteExtension(palette: palette),
       ],

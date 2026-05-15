@@ -15,6 +15,11 @@ class AppThemeTokens extends ThemeExtension<AppThemeTokens> {
     required this.spacingSm,
     required this.spacingMd,
     required this.spacingLg,
+    required this.listGap,
+    required this.blockGap,
+    required this.sectionGap,
+    required this.screenPadding,
+    required this.panelPadding,
   });
 
   final AppColorPalette palette;
@@ -30,6 +35,11 @@ class AppThemeTokens extends ThemeExtension<AppThemeTokens> {
   final double spacingSm;
   final double spacingMd;
   final double spacingLg;
+  final double listGap;
+  final double blockGap;
+  final double sectionGap;
+  final double screenPadding;
+  final double panelPadding;
 
   @override
   AppThemeTokens copyWith({
@@ -42,6 +52,11 @@ class AppThemeTokens extends ThemeExtension<AppThemeTokens> {
     double? spacingSm,
     double? spacingMd,
     double? spacingLg,
+    double? listGap,
+    double? blockGap,
+    double? sectionGap,
+    double? screenPadding,
+    double? panelPadding,
   }) {
     return AppThemeTokens(
       palette: palette ?? this.palette,
@@ -53,6 +68,11 @@ class AppThemeTokens extends ThemeExtension<AppThemeTokens> {
       spacingSm: spacingSm ?? this.spacingSm,
       spacingMd: spacingMd ?? this.spacingMd,
       spacingLg: spacingLg ?? this.spacingLg,
+      listGap: listGap ?? this.listGap,
+      blockGap: blockGap ?? this.blockGap,
+      sectionGap: sectionGap ?? this.sectionGap,
+      screenPadding: screenPadding ?? this.screenPadding,
+      panelPadding: panelPadding ?? this.panelPadding,
     );
   }
 
@@ -65,13 +85,23 @@ class AppThemeTokens extends ThemeExtension<AppThemeTokens> {
     return AppThemeTokens(
       palette: t < 0.5 ? palette : other.palette,
       pageGradient: t < 0.5 ? pageGradient : other.pageGradient,
-      radiusSmall: ui.lerpDouble(radiusSmall, other.radiusSmall, t) ?? radiusSmall,
-      radiusMedium: ui.lerpDouble(radiusMedium, other.radiusMedium, t) ?? radiusMedium,
-      radiusLarge: ui.lerpDouble(radiusLarge, other.radiusLarge, t) ?? radiusLarge,
+      radiusSmall:
+          ui.lerpDouble(radiusSmall, other.radiusSmall, t) ?? radiusSmall,
+      radiusMedium:
+          ui.lerpDouble(radiusMedium, other.radiusMedium, t) ?? radiusMedium,
+      radiusLarge:
+          ui.lerpDouble(radiusLarge, other.radiusLarge, t) ?? radiusLarge,
       spacingXs: ui.lerpDouble(spacingXs, other.spacingXs, t) ?? spacingXs,
       spacingSm: ui.lerpDouble(spacingSm, other.spacingSm, t) ?? spacingSm,
       spacingMd: ui.lerpDouble(spacingMd, other.spacingMd, t) ?? spacingMd,
       spacingLg: ui.lerpDouble(spacingLg, other.spacingLg, t) ?? spacingLg,
+      listGap: ui.lerpDouble(listGap, other.listGap, t) ?? listGap,
+      blockGap: ui.lerpDouble(blockGap, other.blockGap, t) ?? blockGap,
+      sectionGap: ui.lerpDouble(sectionGap, other.sectionGap, t) ?? sectionGap,
+      screenPadding:
+          ui.lerpDouble(screenPadding, other.screenPadding, t) ?? screenPadding,
+      panelPadding:
+          ui.lerpDouble(panelPadding, other.panelPadding, t) ?? panelPadding,
     );
   }
 }
@@ -94,10 +124,7 @@ extension AppThemeTokensX on ThemeData {
             success: Color(0xFF4B8E62),
             error: Color(0xFFB56662),
           ),
-          pageGradient: [
-            Color(0xFFEAF6E8),
-            Color(0xFFF6FCF4),
-          ],
+          pageGradient: [Color(0xFFEAF6E8), Color(0xFFF6FCF4)],
           radiusSmall: 12,
           radiusMedium: 16,
           radiusLarge: 20,
@@ -105,6 +132,11 @@ extension AppThemeTokensX on ThemeData {
           spacingSm: 12,
           spacingMd: 16,
           spacingLg: 24,
+          listGap: 8,
+          blockGap: 14,
+          sectionGap: 28,
+          screenPadding: 20,
+          panelPadding: 18,
         );
   }
 }

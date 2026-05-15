@@ -17,6 +17,7 @@ class VisionState {
     this.tribePulse = TribePulse.empty,
     this.hangouts = const [],
     this.weeklyReflections = const [],
+    this.gameLeaderboard = const [],
     this.notifications = const [],
     this.unreadNotificationCount = 0,
     this.dataSource = VisionDataSource.remote,
@@ -38,6 +39,7 @@ class VisionState {
   final TribePulse tribePulse;
   final List<CommitmentHangout> hangouts;
   final List<WeeklyRitualReflection> weeklyReflections;
+  final List<TribeGameLeaderboardEntry> gameLeaderboard;
   final List<VisionNotificationItem> notifications;
   final int unreadNotificationCount;
   final VisionDataSource dataSource;
@@ -65,6 +67,7 @@ class VisionState {
     TribePulse? tribePulse,
     List<CommitmentHangout>? hangouts,
     List<WeeklyRitualReflection>? weeklyReflections,
+    List<TribeGameLeaderboardEntry>? gameLeaderboard,
     List<VisionNotificationItem>? notifications,
     int? unreadNotificationCount,
     VisionDataSource? dataSource,
@@ -95,6 +98,7 @@ class VisionState {
       tribePulse: tribePulse ?? this.tribePulse,
       hangouts: hangouts ?? this.hangouts,
       weeklyReflections: weeklyReflections ?? this.weeklyReflections,
+      gameLeaderboard: gameLeaderboard ?? this.gameLeaderboard,
       notifications: notifications ?? this.notifications,
       unreadNotificationCount:
           unreadNotificationCount ?? this.unreadNotificationCount,

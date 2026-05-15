@@ -110,6 +110,8 @@ class _TribeScreenState extends ConsumerState<TribeScreen> {
                   const SizedBox(height: 14),
                   _PulsePanel(),
                   const SizedBox(height: 14),
+                  _TribeGamesPanel(),
+                  const SizedBox(height: 14),
                   _TribeHangoutPanel(),
                   const SizedBox(height: 14),
                   _WeeklyReflectionHub(controller: _weeklyController),
@@ -869,6 +871,122 @@ class _PulsePanel extends ConsumerWidget {
                 label: const Text('Retake compass'),
               ),
             ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TribeGamesPanel extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final state = ref.watch(visionProvider);
+    final theme = Theme.of(context);
+    final entries = state.gameLeaderboard.take(5).toList(growable: false);
+
+    return VisionPanel(
+      icon: LucideIcons.gamepad2,
+      title: 'Games leaderboard',
+      trailing: TextButton.icon(
+        onPressed: () => context.push(AppRoutes.games),
+        icon: const Icon(LucideIcons.arrowUpRight, size: 16),
+        label: const Text('Open games'),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'See how tribes are doing in Scripture games, then jump in and add your score.',
+            style: theme.textTheme.bodyMedium?.copyWith(height: 1.42),
+          ),
+          const SizedBox(height: 12),
+          if (entries.isEmpty)
+            Text(
+              state.isReadOnly
+                  ? 'Reconnect to see live tribe scores.'
+                  : 'No tribe scores have landed yet. Be one of the first to play.',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.tokens.palette.textSecondary,
+                height: 1.35,
+              ),
+            )
+          else
+            ...entries.map((entry) => _LeaderboardRow(entry: entry)),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              FilledButton.tonalIcon(
+                onPressed: () => context.push(AppRoutes.gamesVerseScramble),
+                icon: const Icon(LucideIcons.shuffle, size: 18),
+                label: const Text('Verse Scramble'),
+              ),
+              OutlinedButton.icon(
+                onPressed: () => context.push(AppRoutes.gamesJourney),
+                icon: const Icon(LucideIcons.map, size: 18),
+                label: const Text('Journey'),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LeaderboardRow extends StatelessWidget {
+  const _LeaderboardRow({required this.entry});
+
+  final TribeGameLeaderboardEntry entry;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        children: [
+          CircleAvatar(
+            radius: 16,
+            backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.12),
+            child: Text(
+              entry.rank > 0 ? '${entry.rank}' : '-',
+              style: theme.textTheme.labelMedium?.copyWith(
+                color: theme.colorScheme.primary,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  entry.tribeDisplayName,
+                  style: theme.textTheme.labelLarge?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '${entry.gameTitle} - ${entry.periodLabel}',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.tokens.palette.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          Text(
+            '${entry.score}',
+            style: theme.textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.w900,
+              color: theme.colorScheme.primary,
+            ),
           ),
         ],
       ),

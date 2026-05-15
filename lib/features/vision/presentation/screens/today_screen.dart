@@ -6,9 +6,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 import '../../../../core/constants/app_routes.dart';
 import '../../../../core/di/app_providers.dart';
 import '../../../../core/theme/app_theme_tokens.dart';
-import '../../../../core/services/celebration_service.dart';
 import '../../../../core/storage/app_settings.dart';
-import '../../../../shared/widgets/premium_success_dialog.dart';
 import '../../domain/vision_models.dart';
 import '../widgets/vision_panel.dart';
 
@@ -228,16 +226,12 @@ class _DailyLoopHero extends ConsumerWidget {
                       );
                       return;
                     }
-                    CelebrationService.instance.playDailyCheckInCompletion(
-                      context,
-                    );
-                    await PremiumSuccessDialog.show(
-                      context,
-                      title: 'Checked in today',
-                      message:
-                          'Your commitment is checked in. Share a reflection only if it helps you stay honest.',
-                      primaryActionText: 'Reflect',
-                      onPrimaryAction: () => context.go(AppRoutes.reflect),
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                          'Checked in. Reflection is open if it helps you stay honest.',
+                        ),
+                      ),
                     );
                   },
             icon: const Icon(LucideIcons.checkCircle, size: 18),

@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:elbiblio/core/models/accountability_tone.dart';
 import 'package:elbiblio/core/storage/app_settings.dart';
 import 'package:elbiblio/features/companion/domain/models/christian_life_baseline.dart';
 
@@ -122,6 +123,36 @@ void main() {
       expect(cleared.firstCheckInPlanCommitmentId, isNull);
       expect(cleared.firstCheckInPlanWhen, isNull);
       expect(cleared.firstCheckInPlanObstacle, isNull);
+    });
+
+    test('accountability tone and monthly review metadata round-trip', () {
+      final startedAt = DateTime.utc(2026, 5, 1, 9);
+      final nextReviewAt = DateTime.utc(2026, 6, 1, 9);
+      final lastReviewAt = DateTime.utc(2026, 4, 30, 20);
+      final settings = AppSettings.defaults().copyWith(
+        accountabilityTone: AccountabilityTone.firm,
+        currentCommitmentSeasonStartedAt: startedAt,
+        nextCommitmentReviewAt: nextReviewAt,
+        lastCommitmentReviewAt: lastReviewAt,
+        commitmentMonthlyReviewOutcome: CommitmentMonthlyReviewOutcome.deepen,
+      );
+
+      final restored = AppSettings.fromMap(settings.toMap());
+
+      expect(restored.accountabilityTone, AccountabilityTone.firm);
+      expect(restored.currentCommitmentSeasonStartedAt, startedAt);
+      expect(restored.nextCommitmentReviewAt, nextReviewAt);
+      expect(restored.lastCommitmentReviewAt, lastReviewAt);
+      expect(
+        restored.commitmentMonthlyReviewOutcome,
+        CommitmentMonthlyReviewOutcome.deepen,
+      );
+
+      final cleared = restored.copyWith(clearCommitmentReview: true);
+      expect(cleared.currentCommitmentSeasonStartedAt, isNull);
+      expect(cleared.nextCommitmentReviewAt, isNull);
+      expect(cleared.lastCommitmentReviewAt, isNull);
+      expect(cleared.commitmentMonthlyReviewOutcome, isNull);
     });
   });
 }

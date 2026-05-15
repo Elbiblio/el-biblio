@@ -59,6 +59,7 @@ import '../../features/assessment/data/weekly_plan_sync_repository.dart';
 import '../../features/today/data/spiritual_pulse_sync_repository.dart';
 import '../application/settings_notifier.dart';
 import '../application/push_token_notifier.dart';
+import '../models/accountability_tone.dart';
 import '../network/dio_client.dart';
 import '../services/analytics/app_analytics_service.dart';
 import '../services/connectivity_service.dart';
@@ -240,6 +241,19 @@ final visionProvider = StateNotifierProvider<VisionNotifier, VisionState>((
         obstacle: settings.firstCheckInPlanObstacle,
       );
     },
+    accountabilityTone: () => ref.read(settingsProvider).accountabilityTone,
+    startCommitmentReviewSeason:
+        ({
+          required DateTime startedAt,
+          CommitmentMonthlyReviewOutcome? outcome,
+        }) {
+          return ref
+              .read(settingsProvider.notifier)
+              .startCommitmentReviewSeason(
+                startedAt: startedAt,
+                outcome: outcome,
+              );
+        },
   );
 });
 

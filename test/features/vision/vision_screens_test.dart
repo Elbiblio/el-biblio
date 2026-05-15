@@ -247,6 +247,41 @@ void main() {
       expect(find.text('Tribe hangouts'), findsNothing);
     });
 
+    testWidgets('Tribe exposes games and cross-tribe leaderboard scores', (
+      tester,
+    ) async {
+      final repository = _FakeVisionRepository(
+        primaryTribe: _tribeMembership,
+        gameLeaderboard: const [
+          TribeGameLeaderboardEntry(
+            rank: 1,
+            tribeName: 'Watchman Circle',
+            gameTitle: 'Verse Scramble',
+            score: 1240,
+            periodLabel: 'This week',
+          ),
+          TribeGameLeaderboardEntry(
+            rank: 2,
+            tribeName: 'Bridgebuilder Circle',
+            gameTitle: 'Journey with Jesus',
+            score: 980,
+            periodLabel: 'This week',
+          ),
+        ],
+      );
+
+      await tester.pumpVisionScreen(
+        const TribeScreen(),
+        repository: repository,
+      );
+
+      expect(find.text('Games leaderboard'), findsOneWidget);
+      expect(find.text('Watchman'), findsWidgets);
+      expect(find.text('Verse Scramble - This week'), findsOneWidget);
+      expect(find.text('1240'), findsOneWidget);
+      expect(find.text('Open games'), findsOneWidget);
+    });
+
     testWidgets('Tribe joins a recommendation and reveals joined workflow', (
       tester,
     ) async {
@@ -526,6 +561,7 @@ class _FakeVisionRepository implements VisionRepository {
     CommitmentHangout? joinedHangout,
     Object? joinHangoutError,
     DailyGrowthQuestion? dailyQuestion,
+    List<TribeGameLeaderboardEntry> gameLeaderboard = const [],
   }) : _activeCommitment = activeCommitment,
        _primaryTribe = primaryTribe,
        _feedResult =
@@ -534,7 +570,8 @@ class _FakeVisionRepository implements VisionRepository {
        _hangouts = hangouts,
        _joinedHangout = joinedHangout,
        _joinHangoutError = joinHangoutError,
-       _dailyQuestion = dailyQuestion;
+       _dailyQuestion = dailyQuestion,
+       _gameLeaderboard = gameLeaderboard;
 
   final CommitmentSeason? _activeCommitment;
   TribeMembership? _primaryTribe;
@@ -543,6 +580,7 @@ class _FakeVisionRepository implements VisionRepository {
   final CommitmentHangout? _joinedHangout;
   final Object? _joinHangoutError;
   final DailyGrowthQuestion? _dailyQuestion;
+  final List<TribeGameLeaderboardEntry> _gameLeaderboard;
   final List<int> joinedTribeIds = [];
   VisibilityMode? savedVisibilityMode;
   String? savedVisibilityAlias;
@@ -630,6 +668,13 @@ class _FakeVisionRepository implements VisionRepository {
   @override
   Future<List<WeeklyRitualReflection>> weeklyRitual(int tribeId) async {
     return const [];
+  }
+
+  @override
+  Future<List<TribeGameLeaderboardEntry>> gameLeaderboard({
+    int limit = 5,
+  }) async {
+    return _gameLeaderboard.take(limit).toList(growable: false);
   }
 
   @override

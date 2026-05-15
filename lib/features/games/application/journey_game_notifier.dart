@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../data/journey_repository.dart';
+import '../data/game_score_repository.dart';
 import '../domain/models/jesus_journey_event.dart';
 import '../domain/models/journey_progress.dart';
 import '../../../core/services/xp_service.dart';
@@ -58,8 +59,9 @@ class JourneyGameState {
       progress: progress ?? this.progress,
       currentEvent: clearEvent ? null : (currentEvent ?? this.currentEvent),
       currentQuestionIndex: currentQuestionIndex ?? this.currentQuestionIndex,
-      selectedAnswerIndex:
-          clearSelection ? null : (selectedAnswerIndex ?? this.selectedAnswerIndex),
+      selectedAnswerIndex: clearSelection
+          ? null
+          : (selectedAnswerIndex ?? this.selectedAnswerIndex),
       isCorrect: clearSelection ? null : (isCorrect ?? this.isCorrect),
       sessionCorrect: sessionCorrect ?? this.sessionCorrect,
       sessionScore: sessionScore ?? this.sessionScore,
@@ -75,7 +77,7 @@ class JourneyGameNotifier extends StateNotifier<JourneyGameState> {
   final Ref _ref;
 
   JourneyGameNotifier(this._repository, this._ref)
-      : super(JourneyGameState(progress: JourneyProgress.initial())) {
+    : super(JourneyGameState(progress: JourneyProgress.initial())) {
     _loadProgress();
   }
 
@@ -83,10 +85,7 @@ class JourneyGameNotifier extends StateNotifier<JourneyGameState> {
     state = state.copyWith(phase: JourneyPhase.loading);
     try {
       final progress = await _repository.getProgress();
-      state = state.copyWith(
-        phase: JourneyPhase.map,
-        progress: progress,
-      );
+      state = state.copyWith(phase: JourneyPhase.map, progress: progress);
     } catch (e) {
       state = state.copyWith(
         phase: JourneyPhase.map,
@@ -177,6 +176,18 @@ class JourneyGameNotifier extends StateNotifier<JourneyGameState> {
     );
 
     await _repository.completeEvent(event.order, result);
+    await _ref
+        .read(gameScoreRepositoryProvider)
+        .submitScore(
+          gameId: 'jesus_journey',
+          score: state.sessionScore,
+          meta: <String, dynamic>{
+            'event_order': event.order,
+            'event_title': event.title,
+            'correct_answers': state.sessionCorrect,
+            'question_count': event.questions.length,
+          },
+        );
 
     // Award XP
     try {
@@ -246,8 +257,5 @@ final journeyRepositoryProvider = Provider<JourneyRepository>((ref) {
 
 final journeyGameProvider =
     StateNotifierProvider<JourneyGameNotifier, JourneyGameState>((ref) {
-  return JourneyGameNotifier(
-    ref.watch(journeyRepositoryProvider),
-    ref,
-  );
-});
+      return JourneyGameNotifier(ref.watch(journeyRepositoryProvider), ref);
+    });
