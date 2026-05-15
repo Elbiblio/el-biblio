@@ -82,13 +82,6 @@ class _CommitScreenState extends ConsumerState<CommitScreen> {
             ] else ...[
               _NudgeEducationPanel(onLearnMore: _showNudgeHelp),
               const SizedBox(height: 16),
-              _CategoryRail(
-                categories: _categoriesFor(state.recommendedCommitments),
-                selected: _selectedCategory,
-                onSelected: (category) =>
-                    setState(() => _selectedCategory = category),
-              ),
-              const SizedBox(height: 16),
               if (state.recommendedCommitments.isEmpty)
                 _LaunchIssuePanel(
                   icon: LucideIcons.wifiOff,
@@ -98,10 +91,18 @@ class _CommitScreenState extends ConsumerState<CommitScreen> {
                   message:
                       'We will not show sample commitments as if they were real. Try again when ElBiblio can reach the launch catalog.',
                 )
-              else
-                ..._visibleCommitments(
-                  state.recommendedCommitments,
-                ).map(_buildCommitmentOption),
+              else ...[
+                _CommitmentChoiceGuide(
+                  recommended: _bestCommitment(state.recommendedCommitments),
+                  totalCount: state.recommendedCommitments.length,
+                  onCompare: () =>
+                      _showCommitmentChooser(state.recommendedCommitments),
+                ),
+                const SizedBox(height: 12),
+                _buildCommitmentOption(
+                  _bestCommitment(state.recommendedCommitments),
+                ),
+              ],
             ],
           ],
         ),
@@ -207,15 +208,16 @@ class _CommitScreenState extends ConsumerState<CommitScreen> {
     );
   }
 
-  List<String> _categoriesFor(List<CommitmentPlan> plans) {
-    return ['all', ...plans.map((plan) => plan.category).toSet()];
-  }
-
   List<CommitmentPlan> _visibleCommitments(List<CommitmentPlan> plans) {
     if (_selectedCategory == 'all') return plans;
     return plans
         .where((plan) => plan.category == _selectedCategory)
         .toList(growable: false);
+  }
+
+  CommitmentPlan _bestCommitment(List<CommitmentPlan> plans) {
+    final visible = _visibleCommitments(plans);
+    return visible.isNotEmpty ? visible.first : plans.first;
   }
 
   void _showNudgeHelp() {
@@ -236,6 +238,25 @@ class _CommitScreenState extends ConsumerState<CommitScreen> {
       showDragHandle: true,
       builder: (context) =>
           _CommitmentLibrarySheet(commitments: commitments, active: active),
+    );
+  }
+
+  void _showCommitmentChooser(List<CommitmentPlan> commitments) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (context) => _CommitmentChooserSheet(
+        commitments: commitments,
+        selectedCategory: _selectedCategory,
+        onCategoryChanged: (category) =>
+            setState(() => _selectedCategory = category),
+        onReview: (plan) {
+          Navigator.of(context).pop();
+          final nudges = _selectedNudges.clamp(plan.nudgeMin, plan.nudgeMax);
+          _showCommitmentWalkthrough(plan, nudges);
+        },
+      ),
     );
   }
 
@@ -386,6 +407,60 @@ class _NudgeEducationPanel extends StatelessWidget {
       child: Text(
         'Pick the rhythm you can respect. If three nudges are not enough, increase support and use the faith walkthrough to name what this practice is forming in you.',
         style: theme.textTheme.bodyMedium?.copyWith(height: 1.45),
+      ),
+    );
+  }
+}
+
+class _CommitmentChoiceGuide extends StatelessWidget {
+  const _CommitmentChoiceGuide({
+    required this.recommended,
+    required this.totalCount,
+    required this.onCompare,
+  });
+
+  final CommitmentPlan recommended;
+  final int totalCount;
+  final VoidCallback onCompare;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return VisionPanel(
+      icon: LucideIcons.compass,
+      title: 'Best starting point',
+      trailing: Text('${recommended.durationDays} days'),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Start with one clear practice. The catalog stays available, but choosing from a smaller surface keeps the month from feeling noisy.',
+            style: theme.textTheme.bodyMedium?.copyWith(height: 1.45),
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _MetaPill(
+                icon: _categoryIcon(recommended.category),
+                label: _categoryLabel(recommended.category),
+              ),
+              _MetaPill(
+                icon: LucideIcons.bell,
+                label: '${recommended.nudgeMin}-${recommended.nudgeMax} nudges',
+              ),
+            ],
+          ),
+          if (totalCount > 1) ...[
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: onCompare,
+              icon: const Icon(LucideIcons.listFilter, size: 18),
+              label: Text('Compare $totalCount commitments'),
+            ),
+          ],
+        ],
       ),
     );
   }
@@ -735,6 +810,159 @@ class _CommitmentLibrarySheet extends StatelessWidget {
           ],
         );
       },
+    );
+  }
+}
+
+class _CommitmentChooserSheet extends StatefulWidget {
+  const _CommitmentChooserSheet({
+    required this.commitments,
+    required this.selectedCategory,
+    required this.onCategoryChanged,
+    required this.onReview,
+  });
+
+  final List<CommitmentPlan> commitments;
+  final String selectedCategory;
+  final ValueChanged<String> onCategoryChanged;
+  final ValueChanged<CommitmentPlan> onReview;
+
+  @override
+  State<_CommitmentChooserSheet> createState() =>
+      _CommitmentChooserSheetState();
+}
+
+class _CommitmentChooserSheetState extends State<_CommitmentChooserSheet> {
+  late String _category = widget.selectedCategory;
+
+  List<CommitmentPlan> get _visible {
+    if (_category == 'all') return widget.commitments;
+    return widget.commitments
+        .where((plan) => plan.category == _category)
+        .toList(growable: false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return DraggableScrollableSheet(
+      expand: false,
+      initialChildSize: 0.82,
+      minChildSize: 0.42,
+      maxChildSize: 0.94,
+      builder: (context, controller) {
+        return ListView(
+          controller: controller,
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+          children: [
+            Text(
+              'Compare commitments',
+              style: theme.textTheme.headlineSmall?.copyWith(
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Use this only when the recommended practice does not fit your actual season. Keep the choice concrete and monthly.',
+              style: theme.textTheme.bodyMedium?.copyWith(height: 1.42),
+            ),
+            const SizedBox(height: 16),
+            _CategoryRail(
+              categories: _categoriesForPlans(widget.commitments),
+              selected: _category,
+              onSelected: (category) {
+                setState(() => _category = category);
+                widget.onCategoryChanged(category);
+              },
+            ),
+            const SizedBox(height: 16),
+            ..._visible.map(
+              (plan) => Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: _CommitmentChooserCard(
+                  plan: plan,
+                  onReview: () => widget.onReview(plan),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _CommitmentChooserCard extends StatelessWidget {
+  const _CommitmentChooserCard({required this.plan, required this.onReview});
+
+  final CommitmentPlan plan;
+  final VoidCallback onReview;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface.withValues(alpha: 0.76),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: theme.colorScheme.outline.withValues(alpha: 0.12),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _CategoryIcon(category: plan.category),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      plan.title,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      plan.description,
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodySmall?.copyWith(height: 1.35),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _MetaPill(
+                icon: LucideIcons.calendarDays,
+                label: '${plan.durationDays} days',
+              ),
+              _MetaPill(
+                icon: LucideIcons.bell,
+                label: '${plan.nudgeMin}-${plan.nudgeMax} nudges',
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          FilledButton.tonalIcon(
+            onPressed: onReview,
+            icon: const Icon(LucideIcons.compass, size: 18),
+            label: const Text('Review and begin'),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -1349,6 +1577,10 @@ String _categoryLabel(String category) {
           ? 'Growth'
           : '${category[0].toUpperCase()}${category.substring(1)}',
   };
+}
+
+List<String> _categoriesForPlans(List<CommitmentPlan> plans) {
+  return ['all', ...plans.map((plan) => plan.category).toSet()];
 }
 
 IconData _categoryIcon(String category) {

@@ -51,10 +51,11 @@ void main() {
 
     test('Full compass derives age band, archetype, and spiritual age', () {
       notifier.setExactAge(29);
-      notifier.toggleCompassArchetype('Reformer');
-      notifier.toggleCompassArchetype('Watchman');
-      notifier.saveCompassArchetypeAssessment('Reformer', 10, 'many');
-      notifier.saveCompassArchetypeAssessment('Watchman', 3, 'some');
+      notifier.setCompassSeasonArchetype('Reformer');
+      notifier.setCompassPressureArchetype('Watchman');
+      notifier.setCompassPostponedArchetype('Bridgebuilder');
+      notifier.setCompassPeopleNeedArchetype('Reformer');
+      notifier.setCompassDistortionFearArchetype('Reformer');
 
       expect(notifier.state.derivedAgeBand, '25_34');
       expect(notifier.state.primaryArchetypeId, 'Reformer');
@@ -68,6 +69,10 @@ void main() {
         notifier.state.compassSubmissionPayload['metadata'],
         containsPair('action_plan', isA<Map<String, dynamic>>()),
       );
+      final metadata =
+          notifier.state.compassSubmissionPayload['metadata']
+              as Map<String, dynamic>;
+      expect(metadata['discovery_answers'], isA<Map<String, dynamic>>());
     });
 
     test('Commitment category normalizes legacy values', () {

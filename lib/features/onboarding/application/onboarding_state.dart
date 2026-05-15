@@ -3,6 +3,7 @@ import '../../assessment/data/assessment_task_catalog.dart';
 import '../../assessment/domain/models/archetype.dart';
 import '../../assessment/domain/models/archetype_resonance.dart';
 import '../../today/domain/models/daily_anchors.dart';
+import '../domain/compass_discovery_catalog.dart';
 
 /// Phase 1 — the pre-signup portion of onboarding. Four screens only.
 /// Baseline, habits, struggles, commitment, companion, reminders all move
@@ -58,6 +59,11 @@ class OnboardingState {
     this.exactAge,
     this.selectedArchetypeIds = const [],
     this.compassAssessmentData = const {},
+    this.compassSeasonArchetype,
+    this.compassPressureArchetype,
+    this.compassPostponedArchetype,
+    this.compassPeopleNeedArchetype,
+    this.compassDistortionFearArchetype,
     this.spiritualAgeScore = 0,
     this.spiritualAgeStage = 'Infant',
     this.email,
@@ -97,6 +103,11 @@ class OnboardingState {
   /// Full compass selections. Names match `Archetype.name`.
   final List<String> selectedArchetypeIds;
   final Map<String, OnboardingCompassData> compassAssessmentData;
+  final String? compassSeasonArchetype;
+  final String? compassPressureArchetype;
+  final String? compassPostponedArchetype;
+  final String? compassPeopleNeedArchetype;
+  final String? compassDistortionFearArchetype;
   final int spiritualAgeScore;
   final String spiritualAgeStage;
 
@@ -145,11 +156,19 @@ class OnboardingState {
   }
 
   bool get hasFullCompassResult {
-    if (exactAge == null || selectedArchetypeIds.isEmpty) return false;
-    return selectedArchetypeIds.every(compassAssessmentData.containsKey) &&
+    return exactAge != null &&
+        compassSeasonArchetype != null &&
+        compassPressureArchetype != null &&
+        compassPostponedArchetype != null &&
+        compassPeopleNeedArchetype != null &&
+        compassDistortionFearArchetype != null &&
         primaryArchetypeId != null &&
         spiritualAgeScore > 0;
   }
+
+  String? get compassSeasonName => primaryArchetypeId == null
+      ? null
+      : CompassDiscoveryCatalog.seasonNameFor(primaryArchetypeId!);
 
   String get selectedCompassPath {
     if (spiritualAgeScore < 45) return 'development';
@@ -211,7 +230,7 @@ class OnboardingState {
   }
 
   Map<String, dynamic> get compassSubmissionPayload => {
-    'assessment_version': 'full_spiritual_compass_v1',
+    'assessment_version': 'situational_distortion_compass_v2',
     'selected_archetypes': selectedArchetypeIds,
     'primary_archetype': primaryArchetypeId,
     'top_archetypes': selectedArchetypeIds,
@@ -230,6 +249,14 @@ class OnboardingState {
     'metadata': {
       'action_plan': compassActionPlan,
       'primary_archetype_profile': compassArchetypeProfile,
+      'discovery_answers': {
+        'current_season': compassSeasonArchetype,
+        'pressure_pattern': compassPressureArchetype,
+        'postponed_pattern': compassPostponedArchetype,
+        'people_need_pattern': compassPeopleNeedArchetype,
+        'distortion_fear': compassDistortionFearArchetype,
+        'season_signal': compassSeasonName,
+      },
       'spiritual_growth_story': {
         'stage': spiritualAgeStage,
         'soil_seed_fruit':
@@ -275,6 +302,11 @@ class OnboardingState {
     'compassAssessmentData': compassAssessmentData.map(
       (key, value) => MapEntry(key, value.toJson()),
     ),
+    'compassSeasonArchetype': compassSeasonArchetype,
+    'compassPressureArchetype': compassPressureArchetype,
+    'compassPostponedArchetype': compassPostponedArchetype,
+    'compassPeopleNeedArchetype': compassPeopleNeedArchetype,
+    'compassDistortionFearArchetype': compassDistortionFearArchetype,
     'spiritualAgeScore': spiritualAgeScore,
     'spiritualAgeStage': spiritualAgeStage,
     'email': email,
@@ -326,6 +358,12 @@ class OnboardingState {
             ),
           ) ??
           const {},
+      compassSeasonArchetype: map['compassSeasonArchetype'] as String?,
+      compassPressureArchetype: map['compassPressureArchetype'] as String?,
+      compassPostponedArchetype: map['compassPostponedArchetype'] as String?,
+      compassPeopleNeedArchetype: map['compassPeopleNeedArchetype'] as String?,
+      compassDistortionFearArchetype:
+          map['compassDistortionFearArchetype'] as String?,
       spiritualAgeScore: (map['spiritualAgeScore'] as num?)?.toInt() ?? 0,
       spiritualAgeStage: map['spiritualAgeStage'] as String? ?? 'Infant',
       email: map['email'] as String?,
@@ -372,6 +410,11 @@ class OnboardingState {
     bool clearExactAge = false,
     List<String>? selectedArchetypeIds,
     Map<String, OnboardingCompassData>? compassAssessmentData,
+    String? compassSeasonArchetype,
+    String? compassPressureArchetype,
+    String? compassPostponedArchetype,
+    String? compassPeopleNeedArchetype,
+    String? compassDistortionFearArchetype,
     int? spiritualAgeScore,
     String? spiritualAgeStage,
     String? email,
@@ -404,6 +447,16 @@ class OnboardingState {
       selectedArchetypeIds: selectedArchetypeIds ?? this.selectedArchetypeIds,
       compassAssessmentData:
           compassAssessmentData ?? this.compassAssessmentData,
+      compassSeasonArchetype:
+          compassSeasonArchetype ?? this.compassSeasonArchetype,
+      compassPressureArchetype:
+          compassPressureArchetype ?? this.compassPressureArchetype,
+      compassPostponedArchetype:
+          compassPostponedArchetype ?? this.compassPostponedArchetype,
+      compassPeopleNeedArchetype:
+          compassPeopleNeedArchetype ?? this.compassPeopleNeedArchetype,
+      compassDistortionFearArchetype:
+          compassDistortionFearArchetype ?? this.compassDistortionFearArchetype,
       spiritualAgeScore: spiritualAgeScore ?? this.spiritualAgeScore,
       spiritualAgeStage: spiritualAgeStage ?? this.spiritualAgeStage,
       email: email ?? this.email,

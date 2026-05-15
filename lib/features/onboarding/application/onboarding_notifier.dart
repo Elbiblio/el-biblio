@@ -11,6 +11,7 @@ import '../../commitments/domain/models/commitment_category.dart';
 import '../../companion/domain/models/christian_life_baseline.dart';
 import '../../mission/domain/models/mission_focus.dart';
 import '../../today/domain/models/daily_anchors.dart';
+import '../domain/compass_discovery_catalog.dart';
 import 'onboarding_state.dart';
 
 final onboardingProvider =
@@ -122,6 +123,87 @@ class OnboardingNotifier extends StateNotifier<OnboardingState> {
       return;
     }
     state = state.copyWith(exactAge: age);
+  }
+
+  void setCompassSeasonArchetype(String archetypeName) {
+    state = state.copyWith(compassSeasonArchetype: archetypeName);
+    _syncCompassDiscoveryResult();
+  }
+
+  void setCompassPressureArchetype(String archetypeName) {
+    state = state.copyWith(compassPressureArchetype: archetypeName);
+    _syncCompassDiscoveryResult();
+  }
+
+  void setCompassPostponedArchetype(String archetypeName) {
+    state = state.copyWith(compassPostponedArchetype: archetypeName);
+    _syncCompassDiscoveryResult();
+  }
+
+  void setCompassPeopleNeedArchetype(String archetypeName) {
+    state = state.copyWith(compassPeopleNeedArchetype: archetypeName);
+    _syncCompassDiscoveryResult();
+  }
+
+  void setCompassDistortionFearArchetype(String archetypeName) {
+    state = state.copyWith(compassDistortionFearArchetype: archetypeName);
+    _syncCompassDiscoveryResult();
+  }
+
+  void _syncCompassDiscoveryResult() {
+    final scores = {
+      for (final archetype in CompassDiscoveryCatalog.archetypeOrder)
+        archetype: 0,
+    };
+
+    void addScore(String? archetype, int score) {
+      if (archetype == null || !scores.containsKey(archetype)) return;
+      scores[archetype] = scores[archetype]! + score;
+    }
+
+    addScore(state.compassSeasonArchetype, 4);
+    addScore(state.compassPressureArchetype, 3);
+    addScore(state.compassPostponedArchetype, 3);
+    addScore(state.compassPeopleNeedArchetype, 2);
+    addScore(state.compassDistortionFearArchetype, 5);
+
+    final ranked = List<String>.from(CompassDiscoveryCatalog.archetypeOrder)
+      ..sort((a, b) {
+        final byScore = scores[b]!.compareTo(scores[a]!);
+        if (byScore != 0) return byScore;
+        return CompassDiscoveryCatalog.archetypeOrder
+            .indexOf(a)
+            .compareTo(CompassDiscoveryCatalog.archetypeOrder.indexOf(b));
+      });
+    final top = ranked.where((name) => scores[name]! > 0).take(3).toList();
+    if (top.isEmpty) return;
+
+    final primary = top.first;
+    final primaryScore = scores[primary] ?? 0;
+    final supportScore = (40 + (primaryScore * 4)).clamp(40, 96).toInt();
+    final recommendedCategory = CommitmentCategory.recommendedForArchetype(
+      primary,
+    );
+    final data = {
+      for (final archetype in top)
+        archetype: OnboardingCompassData(
+          instances: scores[archetype] ?? 0,
+          fears: archetype == state.compassDistortionFearArchetype
+              ? 'primary'
+              : 'secondary',
+          maturity: supportScore,
+        ),
+    };
+
+    state = state.copyWith(
+      selectedArchetypeIds: top,
+      compassAssessmentData: data,
+      primaryArchetypeId: primary,
+      commitmentCategory: recommendedCategory.name,
+      primaryMissionFocus: _recommendedMissionFocus(recommendedCategory).name,
+      spiritualAgeScore: supportScore,
+      spiritualAgeStage: spiritualAgeStageForScore(supportScore),
+    );
   }
 
   void toggleCompassArchetype(String archetypeName) {

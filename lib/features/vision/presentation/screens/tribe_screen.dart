@@ -117,7 +117,7 @@ class _TribeScreenState extends ConsumerState<TribeScreen> {
                   _WeeklyReflectionHub(controller: _weeklyController),
                   if (state.recommendedTribes.isNotEmpty) ...[
                     const SizedBox(height: 18),
-                    _RecommendedTribesList(),
+                    _OtherTribesEntryPanel(),
                   ],
                 ],
               ],
@@ -364,6 +364,220 @@ class _RecommendedTribesList extends ConsumerWidget {
   }
 }
 
+class _OtherTribesEntryPanel extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final state = ref.watch(visionProvider);
+    final currentTribeId = state.primaryTribe?.tribe.id;
+    final tribes = state.recommendedTribes
+        .where((tribe) => tribe.id != currentTribeId)
+        .toList(growable: false);
+    if (tribes.isEmpty) return const SizedBox.shrink();
+
+    final theme = Theme.of(context);
+    return VisionPanel(
+      icon: LucideIcons.map,
+      title: 'Explore another tribe',
+      trailing: Text('${tribes.length} available'),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Your current tribe stays primary. Open this only when you are intentionally reassessing where you belong this season.',
+            style: theme.textTheme.bodyMedium?.copyWith(height: 1.45),
+          ),
+          const SizedBox(height: 12),
+          OutlinedButton.icon(
+            onPressed: () => _showOtherTribesSheet(context, tribes),
+            icon: const Icon(LucideIcons.compass, size: 18),
+            label: const Text('View tribe guide'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showOtherTribesSheet(BuildContext context, List<TribeIdentity> tribes) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (_) => _OtherTribesSheet(tribes: tribes),
+    );
+  }
+}
+
+class _OtherTribesSheet extends StatelessWidget {
+  const _OtherTribesSheet({required this.tribes});
+
+  final List<TribeIdentity> tribes;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return DraggableScrollableSheet(
+      expand: false,
+      initialChildSize: 0.82,
+      minChildSize: 0.42,
+      maxChildSize: 0.94,
+      builder: (context, controller) {
+        return ListView(
+          controller: controller,
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+          children: [
+            Text(
+              'Tribe guide',
+              style: theme.textTheme.headlineSmall?.copyWith(
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'A different tribe should feel like a real reassessment, not casual browsing. Read the fit note, then join only if this season has changed.',
+              style: theme.textTheme.bodyMedium?.copyWith(height: 1.42),
+            ),
+            const SizedBox(height: 16),
+            ...tribes.map((tribe) => _OtherTribeTile(tribe: tribe)),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _OtherTribeTile extends ConsumerWidget {
+  const _OtherTribeTile({required this.tribe});
+
+  final TribeIdentity tribe;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final state = ref.watch(visionProvider);
+    final theme = Theme.of(context);
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: theme.tokens.palette.paper.withValues(
+          alpha: theme.brightness == Brightness.dark ? 0.78 : 0.9,
+        ),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: theme.tokens.palette.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.primary.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  _iconForTribe(tribe),
+                  color: theme.colorScheme.primary,
+                  size: 21,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      tribe.displayName,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      _whoShouldJoin(tribe),
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.tokens.palette.textSecondary,
+                        height: 1.35,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            tribe.description,
+            style: theme.textTheme.bodyMedium?.copyWith(height: 1.4),
+          ),
+          if (tribe.matchReason?.isNotEmpty == true) ...[
+            const SizedBox(height: 10),
+            _MiniTribeNote(icon: LucideIcons.compass, text: tribe.matchReason!),
+          ],
+          const SizedBox(height: 12),
+          FilledButton.tonalIcon(
+            onPressed: state.isLoading
+                ? null
+                : () async {
+                    final joined = await ref
+                        .read(visionProvider.notifier)
+                        .joinTribe(tribe);
+                    if (!context.mounted) return;
+                    Navigator.of(context).pop();
+                    if (!joined) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            'We could not join this tribe. Please try again.',
+                          ),
+                        ),
+                      );
+                      return;
+                    }
+                    await PremiumSuccessDialog.show(
+                      context,
+                      title: 'You joined ${tribe.displayName}',
+                      message:
+                          'Your tribe has been updated for this season of formation.',
+                      primaryActionText: 'Continue',
+                    );
+                  },
+            icon: const Icon(LucideIcons.users, size: 18),
+            label: const Text('Join this tribe'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MiniTribeNote extends StatelessWidget {
+  const _MiniTribeNote({required this.icon, required this.text});
+
+  final IconData icon;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, size: 16, color: theme.colorScheme.primary),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            text,
+            style: theme.textTheme.bodySmall?.copyWith(height: 1.35),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _RecommendedTribeCard extends ConsumerWidget {
   const _RecommendedTribeCard({required this.tribe});
 
@@ -398,7 +612,7 @@ class _RecommendedTribeCard extends ConsumerWidget {
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Icon(
-                  GrowthJourneyEvent.iconForKey(tribe.iconKey),
+                  _iconForTribe(tribe),
                   color: theme.colorScheme.primary,
                   size: 20,
                 ),
@@ -883,7 +1097,7 @@ class _TribeGamesPanel extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(visionProvider);
     final theme = Theme.of(context);
-    final entries = state.gameLeaderboard.take(5).toList(growable: false);
+    final entries = state.gameScores.take(5).toList(growable: false);
 
     return VisionPanel(
       icon: LucideIcons.gamepad2,
@@ -912,7 +1126,7 @@ class _TribeGamesPanel extends ConsumerWidget {
               ),
             )
           else
-            ...entries.map((entry) => _LeaderboardRow(entry: entry)),
+            ...entries.map((entry) => _ScoreRow(entry: entry)),
           const SizedBox(height: 12),
           Wrap(
             spacing: 8,
@@ -936,10 +1150,10 @@ class _TribeGamesPanel extends ConsumerWidget {
   }
 }
 
-class _LeaderboardRow extends StatelessWidget {
-  const _LeaderboardRow({required this.entry});
+class _ScoreRow extends StatelessWidget {
+  const _ScoreRow({required this.entry});
 
-  final TribeGameLeaderboardEntry entry;
+  final dynamic entry;
 
   @override
   Widget build(BuildContext context) {
@@ -992,6 +1206,88 @@ class _LeaderboardRow extends StatelessWidget {
       ),
     );
   }
+}
+
+IconData _iconForTribe(TribeIdentity tribe) {
+  final key = '${tribe.slug} ${tribe.name} ${tribe.iconKey}'.toLowerCase();
+  if (key.contains('artisan') || key.contains('judah')) {
+    return LucideIcons.palette;
+  }
+  if (key.contains('watchman') || key.contains('benjamin')) {
+    return LucideIcons.shield;
+  }
+  if (key.contains('cultivator') || key.contains('issachar')) {
+    return LucideIcons.sprout;
+  }
+  if (key.contains('sower') || key.contains('zebulun')) {
+    return LucideIcons.sprout;
+  }
+  if (key.contains('welcomer') || key.contains('asher')) {
+    return LucideIcons.home;
+  }
+  if (key.contains('pillar') || key.contains('naphtali')) {
+    return LucideIcons.columns;
+  }
+  if (key.contains('sentinel') || key.contains('levi')) {
+    return LucideIcons.eye;
+  }
+  if (key.contains('bridgebuilder') || key.contains('ephraim')) {
+    return LucideIcons.gitMerge;
+  }
+  if (key.contains('healer') || key.contains('manasseh')) {
+    return LucideIcons.heartPulse;
+  }
+  if (key.contains('harvester') || key.contains('gad')) {
+    return LucideIcons.wheat;
+  }
+  if (key.contains('reformer') || key.contains('simeon')) {
+    return LucideIcons.hammer;
+  }
+  if (key.contains('architect') || key.contains('dan')) {
+    return LucideIcons.landmark;
+  }
+  return GrowthJourneyEvent.iconForKey(tribe.iconKey);
+}
+
+String _whoShouldJoin(TribeIdentity tribe) {
+  final key = '${tribe.slug} ${tribe.name}'.toLowerCase();
+  if (key.contains('artisan') || key.contains('judah')) {
+    return 'For people whose creativity needs worship, focus, and humility.';
+  }
+  if (key.contains('watchman') || key.contains('benjamin')) {
+    return 'For people rebuilding attention, vigilance, and prayerful courage.';
+  }
+  if (key.contains('cultivator') || key.contains('issachar')) {
+    return 'For people learning patience, rest, and faithful tending.';
+  }
+  if (key.contains('sower') || key.contains('zebulun')) {
+    return 'For people who need courage to begin and stay rooted.';
+  }
+  if (key.contains('welcomer') || key.contains('asher')) {
+    return 'For people practicing hospitality, belonging, and boundaries.';
+  }
+  if (key.contains('pillar') || key.contains('naphtali')) {
+    return 'For people serving faithfully without losing their own calling.';
+  }
+  if (key.contains('sentinel') || key.contains('levi')) {
+    return 'For people turning insight, solitude, and prayer into action.';
+  }
+  if (key.contains('bridgebuilder') || key.contains('ephraim')) {
+    return 'For people repairing connection without losing conviction.';
+  }
+  if (key.contains('healer') || key.contains('manasseh')) {
+    return 'For people carrying compassion while learning healthy limits.';
+  }
+  if (key.contains('harvester') || key.contains('gad')) {
+    return 'For people pursuing fruitfulness without becoming ruled by metrics.';
+  }
+  if (key.contains('reformer') || key.contains('simeon')) {
+    return 'For people turning holy frustration into constructive change.';
+  }
+  if (key.contains('architect') || key.contains('dan')) {
+    return 'For people building order with open hands instead of control.';
+  }
+  return 'For people whose current season resonates with this formation path.';
 }
 
 class _TribeHangoutPanel extends ConsumerWidget {

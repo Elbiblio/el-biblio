@@ -51,7 +51,9 @@ class FontSizeCalculator {
       return baseStyle.fontSize?.clamp(minFontSize, maxFontSize) ?? minFontSize;
     }
 
-    final longestWord = words.reduce((a, b) => a.length > b.length ? a : b).length;
+    final longestWord = words
+        .reduce((a, b) => a.length > b.length ? a : b)
+        .length;
 
     double fontSize = baseStyle.fontSize ?? 20.0;
 
@@ -115,14 +117,16 @@ class _ParticleOverlayState extends State<_ParticleOverlay>
         ? [Colors.green, Colors.greenAccent, Colors.lightGreen, Colors.amber]
         : [Colors.red, Colors.redAccent, Colors.orange];
     for (int i = 0; i < 24; i++) {
-      _particles.add(_Particle(
-        x: _rng.nextDouble(),
-        y: 0.4 + _rng.nextDouble() * 0.2,
-        vx: (_rng.nextDouble() - 0.5) * 2,
-        vy: -_rng.nextDouble() * 2 - 0.5,
-        color: colors[_rng.nextInt(colors.length)],
-        size: _rng.nextDouble() * 6 + 3,
-      ));
+      _particles.add(
+        _Particle(
+          x: _rng.nextDouble(),
+          y: 0.4 + _rng.nextDouble() * 0.2,
+          vx: (_rng.nextDouble() - 0.5) * 2,
+          vy: -_rng.nextDouble() * 2 - 0.5,
+          color: colors[_rng.nextInt(colors.length)],
+          size: _rng.nextDouble() * 6 + 3,
+        ),
+      );
     }
   }
 
@@ -282,92 +286,107 @@ class _TutorialOverlayState extends State<_TutorialOverlay> {
   Widget build(BuildContext context) {
     final step = _steps[_step];
     return Material(
-      color: Colors.black54,
+      color: const Color(0xFF1f241d),
       child: SafeArea(
-        child: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(32),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(step.icon, size: 64, color: Colors.white),
-                const SizedBox(height: 24),
-                Text(
-                  step.title,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.w900,
-                    color: Colors.white,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  step.description,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    fontSize: 15,
-                    color: Colors.white70,
-                    height: 1.5,
-                  ),
-                ),
-                const SizedBox(height: 32),
-                // Progress dots
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: List.generate(
-                    _steps.length,
-                    (i) => Container(
-                      margin: const EdgeInsets.symmetric(horizontal: 4),
-                      width: i == _step ? 24 : 8,
-                      height: 8,
-                      decoration: BoxDecoration(
-                        color: i == _step
-                            ? Colors.white
-                            : Colors.white30,
-                        borderRadius: BorderRadius.circular(4),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final isShort = constraints.maxHeight < 620;
+            return SingleChildScrollView(
+              padding: EdgeInsets.symmetric(
+                horizontal: 32,
+                vertical: isShort ? 24 : 40,
+              ),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                child: Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        step.icon,
+                        size: isShort ? 52 : 64,
+                        color: Colors.white,
                       ),
-                    ),
+                      SizedBox(height: isShort ? 18 : 24),
+                      Text(
+                        step.title,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: isShort ? 21 : 24,
+                          fontWeight: FontWeight.w900,
+                          color: Colors.white,
+                          height: 1.12,
+                        ),
+                      ),
+                      SizedBox(height: isShort ? 12 : 16),
+                      Text(
+                        step.description,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: isShort ? 14 : 15,
+                          color: Colors.white70,
+                          height: 1.45,
+                        ),
+                      ),
+                      SizedBox(height: isShort ? 24 : 32),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: List.generate(
+                          _steps.length,
+                          (i) => Container(
+                            margin: const EdgeInsets.symmetric(horizontal: 4),
+                            width: i == _step ? 24 : 8,
+                            height: 8,
+                            decoration: BoxDecoration(
+                              color: i == _step ? Colors.white : Colors.white30,
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                          ),
+                        ),
+                      ),
+                      SizedBox(height: isShort ? 24 : 32),
+                      FilledButton(
+                        onPressed: () {
+                          if (_step < _steps.length - 1) {
+                            setState(() => _step++);
+                          } else {
+                            widget.onComplete();
+                          }
+                        },
+                        style: FilledButton.styleFrom(
+                          backgroundColor: const Color(0xFF5e7153),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 40,
+                            vertical: 16,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(30),
+                          ),
+                        ),
+                        child: Text(
+                          _step < _steps.length - 1 ? 'Next' : "Let's Go!",
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      if (_step > 0) ...[
+                        const SizedBox(height: 8),
+                        TextButton(
+                          onPressed: widget.onComplete,
+                          child: const Text(
+                            'Skip Tutorial',
+                            style: TextStyle(color: Colors.white54),
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                 ),
-                const SizedBox(height: 32),
-                FilledButton(
-                  onPressed: () {
-                    if (_step < _steps.length - 1) {
-                      setState(() => _step++);
-                    } else {
-                      widget.onComplete();
-                    }
-                  },
-                  style: FilledButton.styleFrom(
-                    backgroundColor: const Color(0xFF5e7153),
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 40, vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(30),
-                    ),
-                  ),
-                  child: Text(
-                    _step < _steps.length - 1 ? 'Next' : "Let's Go!",
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-                if (_step > 0) ...[
-                  const SizedBox(height: 8),
-                  TextButton(
-                    onPressed: widget.onComplete,
-                    child: const Text(
-                      'Skip Tutorial',
-                      style: TextStyle(color: Colors.white54),
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
+              ),
+            );
+          },
         ),
       ),
     );
@@ -397,8 +416,8 @@ class _ComboIndicator extends StatelessWidget {
     final color = streak >= 5
         ? Colors.deepOrange
         : streak >= 3
-            ? Colors.orange
-            : Colors.amber;
+        ? Colors.orange
+        : Colors.amber;
     return TweenAnimationBuilder<double>(
       tween: Tween(begin: 0.8, end: 1.0),
       duration: const Duration(milliseconds: 300),
@@ -423,8 +442,11 @@ class _ComboIndicator extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.local_fire_department,
-                color: Colors.white, size: 16),
+            const Icon(
+              Icons.local_fire_department,
+              color: Colors.white,
+              size: 16,
+            ),
             const SizedBox(width: 4),
             Text(
               '${multiplier}x COMBO',
@@ -432,7 +454,7 @@ class _ComboIndicator extends StatelessWidget {
                 fontSize: 12,
                 fontWeight: FontWeight.w900,
                 color: Colors.white,
-                letterSpacing: 1,
+                letterSpacing: 0,
               ),
             ),
             const SizedBox(width: 4),
@@ -478,8 +500,9 @@ class _VerseGameScreenState extends ConsumerState<VerseGameScreen>
   void initState() {
     super.initState();
     _generateRandomTransformations();
-    _confettiController =
-        ConfettiController(duration: const Duration(seconds: 2));
+    _confettiController = ConfettiController(
+      duration: const Duration(seconds: 2),
+    );
     _checkFirstTimeTutorial();
   }
 
@@ -559,11 +582,14 @@ class _VerseGameScreenState extends ConsumerState<VerseGameScreen>
 
   void _generateRandomTransformations() {
     _rotations = List.generate(
-        50, (index) => (_random.nextDouble() * 3 - 1.5) * pi / 180);
+      50,
+      (index) => (_random.nextDouble() * 3 - 1.5) * pi / 180,
+    );
     _translations = List.generate(
-        50,
-        (index) => Offset(_random.nextDouble() * 6 - 3,
-            _random.nextDouble() * 6 - 3));
+      50,
+      (index) =>
+          Offset(_random.nextDouble() * 6 - 3, _random.nextDouble() * 6 - 3),
+    );
   }
 
   Color _getDifficultyColor(DifficultyLevel difficulty) {
@@ -632,14 +658,27 @@ class _VerseGameScreenState extends ConsumerState<VerseGameScreen>
     final mediaSize = MediaQuery.sizeOf(context);
     final isLandscape = mediaSize.width > mediaSize.height;
     final isCompactHeight = mediaSize.height < 620;
-    final shouldScrollWords = isLandscape || isCompactHeight;
+    const shouldScrollWords = true;
+    final isResultState =
+        gameState.state == GameState.success ||
+        gameState.state == GameState.failed ||
+        gameState.state == GameState.checking;
+    final contextMaxHeight = isLandscape
+        ? 76.0
+        : isCompactHeight
+        ? 120.0
+        : 156.0;
+    final timerFontSize = isLandscape
+        ? 52.0
+        : isCompactHeight
+        ? 58.0
+        : 72.0;
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final bgColor = isDark ? const Color(0xFF1a1c1e) : parchmentColor;
     final textColor = isDark ? Colors.white : textMainColor;
     final mutedTextColor = isDark ? textMutedColor : textMutedColor;
-    final borderColor =
-        isDark ? const Color(0xFF334155) : parchmentDarkColor;
+    final borderColor = isDark ? const Color(0xFF334155) : parchmentDarkColor;
 
     return PopScope(
       canPop: false,
@@ -647,354 +686,376 @@ class _VerseGameScreenState extends ConsumerState<VerseGameScreen>
         if (!didPop) _confirmExit();
       },
       child: Scaffold(
-      backgroundColor: bgColor,
-      body: Stack(
-        children: [
-          SafeArea(
-            child: gameState.state == GameState.loading
-                ? const Center(
-                    child:
-                        CircularProgressIndicator(color: primaryColor))
-                : gameState.state == GameState.ready
-                    ? _buildStartScreen(context, notifier, primaryColor, textColor, mutedTextColor)
-                : gameState.state == GameState.gameOver ||
+        backgroundColor: bgColor,
+        body: Stack(
+          children: [
+            SafeArea(
+              child: gameState.state == GameState.loading
+                  ? const Center(
+                      child: CircularProgressIndicator(color: primaryColor),
+                    )
+                  : gameState.state == GameState.ready
+                  ? _buildStartScreen(
+                      context,
+                      notifier,
+                      primaryColor,
+                      textColor,
+                      mutedTextColor,
+                    )
+                  : gameState.state == GameState.gameOver ||
                         gameState.state == GameState.sessionComplete
-                    ? _buildEndScreen(context, gameState, notifier,
-                        primaryColor, textColor)
-                    : _ShakeWidget(
-                        shake: _triggerShake,
-                        child: Column(
-                          children: [
-                            // Header with difficulty indicators
-                            Padding(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 24, vertical: 16),
-                              child: Column(
-                                children: [
-                                  // Top row
-                                  Row(
-                                    mainAxisAlignment:
-                                        MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      IconButton(
-                                        icon: Icon(Icons.close,
-                                            color: mutedTextColor),
-                                        onPressed: _confirmExit,
+                  ? _buildEndScreen(
+                      context,
+                      gameState,
+                      notifier,
+                      primaryColor,
+                      textColor,
+                    )
+                  : _ShakeWidget(
+                      shake: _triggerShake,
+                      child: Column(
+                        children: [
+                          // Header with difficulty indicators
+                          Padding(
+                            padding: EdgeInsets.symmetric(
+                              horizontal: 24,
+                              vertical: isCompactHeight ? 8 : 16,
+                            ),
+                            child: Column(
+                              children: [
+                                // Top row
+                                Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    IconButton(
+                                      icon: Icon(
+                                        Icons.close,
+                                        color: mutedTextColor,
                                       ),
-                                      Column(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          if (gameState.difficulty !=
-                                              null) ...[
-                                            Container(
-                                              padding: const EdgeInsets
-                                                  .symmetric(
-                                                  horizontal: 8,
-                                                  vertical: 2),
-                                              decoration: BoxDecoration(
-                                                color:
-                                                    _getDifficultyColor(
-                                                        gameState
-                                                            .difficulty!
-                                                            .category),
-                                                borderRadius:
-                                                    BorderRadius.circular(
-                                                        12),
+                                      onPressed: _confirmExit,
+                                    ),
+                                    Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        if (gameState.difficulty != null) ...[
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 8,
+                                              vertical: 2,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: _getDifficultyColor(
+                                                gameState.difficulty!.category,
                                               ),
-                                              child: Text(
-                                                gameState
-                                                    .difficulty!
-                                                    .category
-                                                    .name
-                                                    .toUpperCase(),
-                                                style: const TextStyle(
-                                                  fontSize: 8,
-                                                  fontWeight:
-                                                      FontWeight.w900,
-                                                  color: Colors.white,
-                                                  letterSpacing: 1,
-                                                ),
+                                              borderRadius:
+                                                  BorderRadius.circular(12),
+                                            ),
+                                            child: Text(
+                                              gameState
+                                                  .difficulty!
+                                                  .category
+                                                  .name
+                                                  .toUpperCase(),
+                                              style: const TextStyle(
+                                                fontSize: 8,
+                                                fontWeight: FontWeight.w900,
+                                                color: Colors.white,
+                                                letterSpacing: 0,
                                               ),
                                             ),
-                                            const SizedBox(height: 4),
-                                          ],
-                                          const Text(
-                                            'Q',
-                                            style: TextStyle(
-                                              fontSize: 10,
-                                              fontWeight: FontWeight.w900,
-                                              color: primaryColor,
-                                              letterSpacing: -0.5,
-                                            ),
-                                          ),
-                                          Text(
-                                            '${gameState.currentQuestionIndex}/${gameState.totalQuestions}',
-                                            style: TextStyle(
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.bold,
-                                              color: textColor,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                      Column(
-                                        children: [
-                                          Row(
-                                            children:
-                                                List.generate(3, (i) {
-                                              return Icon(
-                                                i < gameState.lives
-                                                    ? Icons.favorite
-                                                    : Icons
-                                                        .favorite_border,
-                                                color:
-                                                    i < gameState.lives
-                                                        ? Colors.red
-                                                        : mutedTextColor,
-                                                size: 16,
-                                              );
-                                            }),
                                           ),
                                           const SizedBox(height: 4),
-                                          if (gameState.hintsRemaining >
-                                              0)
-                                            Row(
-                                              children: [
-                                                const Icon(
-                                                    Icons
-                                                        .lightbulb_outline,
-                                                    color: Colors.amber,
-                                                    size: 14),
-                                                const SizedBox(width: 2),
-                                                Text(
-                                                  '${gameState.hintsRemaining}',
-                                                  style: const TextStyle(
-                                                    fontSize: 10,
-                                                    fontWeight:
-                                                        FontWeight.bold,
-                                                    color: Colors.amber,
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
                                         ],
-                                      ),
-                                    ],
-                                  ),
-
-                                  // Bonus round indicator
-                                  if (gameState.isBonusRound) ...[
-                                    SizedBox(
-                                        height:
-                                            isLandscape ? 4 : 8),
-                                    Container(
-                                      padding:
-                                          const EdgeInsets.symmetric(
-                                              horizontal: 12,
-                                              vertical: 6),
-                                      decoration: BoxDecoration(
-                                        color: Colors.amber
-                                            .withValues(alpha: 0.2),
-                                        borderRadius:
-                                            BorderRadius.circular(20),
-                                        border: Border.all(
-                                            color: Colors.amber,
-                                            width: 1),
-                                      ),
-                                      child: const Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Icon(Icons.star,
-                                              color: Colors.amber,
-                                              size: 16),
-                                          SizedBox(width: 4),
-                                          Text(
-                                            'BONUS ROUND - 2X POINTS',
-                                            style: TextStyle(
-                                              fontSize: 10,
-                                              fontWeight:
-                                                  FontWeight.w900,
-                                              color: Colors.amber,
-                                              letterSpacing: 1,
-                                            ),
+                                        const Text(
+                                          'Q',
+                                          style: TextStyle(
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.w900,
+                                            color: primaryColor,
+                                            letterSpacing: 0,
                                           ),
-                                        ],
+                                        ),
+                                        Text(
+                                          '${gameState.currentQuestionIndex}/${gameState.totalQuestions}',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.bold,
+                                            color: textColor,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    Column(
+                                      children: [
+                                        Row(
+                                          children: List.generate(3, (i) {
+                                            return Icon(
+                                              i < gameState.lives
+                                                  ? Icons.favorite
+                                                  : Icons.favorite_border,
+                                              color: i < gameState.lives
+                                                  ? Colors.red
+                                                  : mutedTextColor,
+                                              size: 16,
+                                            );
+                                          }),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        if (gameState.hintsRemaining > 0)
+                                          Row(
+                                            children: [
+                                              const Icon(
+                                                Icons.lightbulb_outline,
+                                                color: Colors.amber,
+                                                size: 14,
+                                              ),
+                                              const SizedBox(width: 2),
+                                              Text(
+                                                '${gameState.hintsRemaining}',
+                                                style: const TextStyle(
+                                                  fontSize: 10,
+                                                  fontWeight: FontWeight.bold,
+                                                  color: Colors.amber,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+
+                                // Bonus round indicator
+                                if (gameState.isBonusRound) ...[
+                                  SizedBox(height: isLandscape ? 4 : 8),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 6,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: Colors.amber.withValues(
+                                        alpha: 0.2,
+                                      ),
+                                      borderRadius: BorderRadius.circular(20),
+                                      border: Border.all(
+                                        color: Colors.amber,
+                                        width: 1,
                                       ),
                                     ),
-                                  ],
-
-                                  // Combo indicator (improved)
-                                  if (gameState.streak >= 2) ...[
-                                    const SizedBox(height: 6),
-                                    _ComboIndicator(
-                                      streak: gameState.streak,
-                                      multiplier:
-                                          gameState.comboMultiplier,
-                                    ),
-                                  ],
-                                ],
-                              ),
-                            ),
-
-                            // Title & Timer
-                            const SizedBox(height: 8),
-                            Text(
-                              gameState.verse?.reference ?? '',
-                              style: TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.w800,
-                                color:
-                                    textColor.withValues(alpha: 0.6),
-                                letterSpacing: -0.5,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            // Timer with color shift when low
-                            Stack(
-                              clipBehavior: Clip.none,
-                              alignment: Alignment.center,
-                              children: [
-                                TweenAnimationBuilder<double>(
-                                  tween: Tween(
-                                    begin: 1.0,
-                                    end: gameState.timeLeft <= 5
-                                        ? 1.08
-                                        : 1.0,
-                                  ),
-                                  duration: const Duration(
-                                      milliseconds: 300),
-                                  builder: (ctx, scale, child) =>
-                                      Transform.scale(
-                                    scale: scale,
-                                    child: child,
-                                  ),
-                                  child: Text(
-                                    gameState.timeLeft
-                                        .toString()
-                                        .padLeft(2, '0'),
-                                    style: TextStyle(
-                                      fontSize:
-                                          isLandscape ? 60 : 72,
-                                      fontWeight: FontWeight.w900,
-                                      color: gameState.timeLeft <= 5
-                                          ? Colors.red
-                                          : primaryColor,
-                                      height: 1.0,
-                                      letterSpacing: -5,
-                                      shadows: [
-                                        Shadow(
-                                          color: (gameState.timeLeft <=
-                                                      5
-                                                  ? Colors.red
-                                                  : primaryColor)
-                                              .withValues(
-                                                  alpha: 0.2),
-                                          blurRadius: 20,
-                                        )
+                                    child: const Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(
+                                          Icons.star,
+                                          color: Colors.amber,
+                                          size: 16,
+                                        ),
+                                        SizedBox(width: 4),
+                                        Text(
+                                          'BONUS ROUND - 2X POINTS',
+                                          style: TextStyle(
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.w900,
+                                            color: Colors.amber,
+                                            letterSpacing: 0,
+                                          ),
+                                        ),
                                       ],
                                     ),
                                   ),
-                                ),
-                                Positioned(
-                                  right: -30,
-                                  top: 12,
-                                  child: Icon(
-                                    Icons.timer_outlined,
-                                    color: primaryColor
-                                        .withValues(alpha: 0.3),
-                                    size: isLandscape ? 26 : 30,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            SizedBox(height: isLandscape ? 2 : 4),
-                            Text(
-                              gameState.currentMode ==
-                                      GameMode.arrange
-                                  ? 'ARRANGE THE VERSE'
-                                  : 'GUESS THE WORD',
-                              style: TextStyle(
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold,
-                                color: mutedTextColor,
-                                letterSpacing: 2,
-                              ),
-                            ),
+                                ],
 
-                            SizedBox(height: isLandscape ? 8 : 12),
-
-                            if (gameState.currentMode ==
-                                GameMode.guess)
-                              _buildGuessContext(
-                                  gameState, textColor, primaryColor)
-                            else if (gameState.currentMode ==
-                                GameMode.arrange)
-                              _buildArrangeContext(gameState, textColor,
-                                  primaryColor, mutedTextColor),
-
-                            // Word Cloud + Footer together so footer stays visible
-                            Expanded(
-                              child: Column(
-                                children: [
-                                  // Word Cloud / Options (takes remaining space)
-                                  Expanded(
-                                    child: _buildWordOptions(
-                                      gameState: gameState,
-                                      ref: ref,
-                                      notifier: notifier,
-                                      isDark: isDark,
-                                      borderColor: borderColor,
-                                      primaryColor: primaryColor,
-                                      textColor: textColor,
-                                      shouldScroll: shouldScrollWords,
-                                    ),
-                                  ),
-                                  // Footer — always visible at bottom
-                                  _buildGameFooter(
-                                    gameState: gameState,
-                                    notifier: notifier,
-                                    ref: ref,
-                                    textColor: textColor,
-                                    primaryColor: primaryColor,
-                                    mutedTextColor: mutedTextColor,
-                                    borderColor: borderColor,
+                                // Combo indicator (improved)
+                                if (gameState.streak >= 2) ...[
+                                  const SizedBox(height: 6),
+                                  _ComboIndicator(
+                                    streak: gameState.streak,
+                                    multiplier: gameState.comboMultiplier,
                                   ),
                                 ],
+                              ],
+                            ),
+                          ),
+
+                          // Title & Timer
+                          SizedBox(height: isCompactHeight ? 2 : 8),
+                          Text(
+                            gameState.verse?.reference ?? '',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w800,
+                              color: textColor.withValues(alpha: 0.6),
+                              letterSpacing: 0,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          // Timer with color shift when low
+                          Stack(
+                            clipBehavior: Clip.none,
+                            alignment: Alignment.center,
+                            children: [
+                              TweenAnimationBuilder<double>(
+                                tween: Tween(
+                                  begin: 1.0,
+                                  end: gameState.timeLeft <= 5 ? 1.08 : 1.0,
+                                ),
+                                duration: const Duration(milliseconds: 300),
+                                builder: (ctx, scale, child) =>
+                                    Transform.scale(scale: scale, child: child),
+                                child: Text(
+                                  gameState.timeLeft.toString().padLeft(2, '0'),
+                                  style: TextStyle(
+                                    fontSize: timerFontSize,
+                                    fontWeight: FontWeight.w900,
+                                    color: gameState.timeLeft <= 5
+                                        ? Colors.red
+                                        : primaryColor,
+                                    height: 1.0,
+                                    letterSpacing: 0,
+                                    shadows: [
+                                      Shadow(
+                                        color:
+                                            (gameState.timeLeft <= 5
+                                                    ? Colors.red
+                                                    : primaryColor)
+                                                .withValues(alpha: 0.2),
+                                        blurRadius: 20,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                              Positioned(
+                                right: -30,
+                                top: 12,
+                                child: Icon(
+                                  Icons.timer_outlined,
+                                  color: primaryColor.withValues(alpha: 0.3),
+                                  size: isLandscape ? 26 : 30,
+                                ),
+                              ),
+                            ],
+                          ),
+                          SizedBox(height: isLandscape ? 2 : 4),
+                          Text(
+                            gameState.currentMode == GameMode.arrange
+                                ? 'ARRANGE THE VERSE'
+                                : 'GUESS THE WORD',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                              color: mutedTextColor,
+                              letterSpacing: 0,
+                            ),
+                          ),
+
+                          SizedBox(height: isLandscape ? 4 : 8),
+
+                          if (!isResultState)
+                            ConstrainedBox(
+                              constraints: BoxConstraints(
+                                maxHeight: contextMaxHeight,
+                              ),
+                              child: SingleChildScrollView(
+                                child: gameState.currentMode == GameMode.guess
+                                    ? _buildGuessContext(
+                                        gameState,
+                                        textColor,
+                                        primaryColor,
+                                      )
+                                    : _buildArrangeContext(
+                                        gameState,
+                                        textColor,
+                                        primaryColor,
+                                        mutedTextColor,
+                                      ),
                               ),
                             ),
-                          ],
-                        ),
+
+                          // Word Cloud + Footer together so footer stays visible
+                          Expanded(
+                            child: isResultState
+                                ? SingleChildScrollView(
+                                    padding: const EdgeInsets.fromLTRB(
+                                      16,
+                                      16,
+                                      16,
+                                      24,
+                                    ),
+                                    child: Center(
+                                      child: _buildGameFooter(
+                                        gameState: gameState,
+                                        notifier: notifier,
+                                        ref: ref,
+                                        textColor: textColor,
+                                        primaryColor: primaryColor,
+                                        mutedTextColor: mutedTextColor,
+                                        borderColor: borderColor,
+                                      ),
+                                    ),
+                                  )
+                                : Column(
+                                    children: [
+                                      // Word Cloud / Options (takes remaining space)
+                                      Expanded(
+                                        child: _buildWordOptions(
+                                          gameState: gameState,
+                                          ref: ref,
+                                          notifier: notifier,
+                                          isDark: isDark,
+                                          borderColor: borderColor,
+                                          primaryColor: primaryColor,
+                                          textColor: textColor,
+                                          shouldScroll: shouldScrollWords,
+                                        ),
+                                      ),
+                                      // Footer — always visible at bottom
+                                      _buildGameFooter(
+                                        gameState: gameState,
+                                        notifier: notifier,
+                                        ref: ref,
+                                        textColor: textColor,
+                                        primaryColor: primaryColor,
+                                        mutedTextColor: mutedTextColor,
+                                        borderColor: borderColor,
+                                      ),
+                                    ],
+                                  ),
+                          ),
+                        ],
                       ),
-          ),
-          // Particle overlay
-          _ParticleOverlay(
-            show: _showParticles,
-            isSuccess: _isParticleSuccess,
-          ),
-          // Confetti for streaks
-          Align(
-            alignment: Alignment.topCenter,
-            child: ConfettiWidget(
-              confettiController: _confettiController,
-              blastDirectionality: BlastDirectionality.explosive,
-              shouldLoop: false,
-              numberOfParticles: 20,
-              gravity: 0.3,
-              colors: const [
-                Colors.green,
-                Colors.amber,
-                Colors.blue,
-                Colors.purple,
-                Colors.orange,
-              ],
+                    ),
             ),
-          ),
-          // Tutorial overlay
-          if (_showTutorial)
-            _TutorialOverlay(onComplete: _completeTutorial),
-        ],
+            // Particle overlay
+            _ParticleOverlay(
+              show: _showParticles,
+              isSuccess: _isParticleSuccess,
+            ),
+            // Confetti for streaks
+            Align(
+              alignment: Alignment.topCenter,
+              child: ConfettiWidget(
+                confettiController: _confettiController,
+                blastDirectionality: BlastDirectionality.explosive,
+                shouldLoop: false,
+                numberOfParticles: 20,
+                gravity: 0.3,
+                colors: const [
+                  Colors.green,
+                  Colors.amber,
+                  Colors.blue,
+                  Colors.purple,
+                  Colors.orange,
+                ],
+              ),
+            ),
+            // Tutorial overlay
+            if (_showTutorial) _TutorialOverlay(onComplete: _completeTutorial),
+          ],
+        ),
       ),
-    ),
     );
   }
 
@@ -1024,8 +1085,8 @@ class _VerseGameScreenState extends ConsumerState<VerseGameScreen>
             Text(
               gameState.state == GameState.success
                   ? (gameState.streak >= 3
-                      ? '${gameState.streak}x Streak! Amazing!'
-                      : 'Great job! Loading next question...')
+                        ? '${gameState.streak}x Streak! Amazing!'
+                        : 'Great job! Loading next question...')
                   : 'Checking...',
               style: TextStyle(
                 color: gameState.state == GameState.success
@@ -1056,7 +1117,7 @@ class _VerseGameScreenState extends ConsumerState<VerseGameScreen>
                   color: primaryColor,
                 ),
               ),
-            ]
+            ],
           ],
         ),
       );
@@ -1076,7 +1137,9 @@ class _VerseGameScreenState extends ConsumerState<VerseGameScreen>
                   ? 'Oops! Not quite right.'
                   : 'Oops! It was "${gameState.missingWord}".',
               style: const TextStyle(
-                  color: Colors.red, fontWeight: FontWeight.bold),
+                color: Colors.red,
+                fontWeight: FontWeight.bold,
+              ),
             ),
             if (gameState.currentMode == GameMode.arrange) ...[
               const SizedBox(height: 8),
@@ -1099,7 +1162,7 @@ class _VerseGameScreenState extends ConsumerState<VerseGameScreen>
                   color: primaryColor,
                 ),
               ),
-            ]
+            ],
           ],
         ),
       );
@@ -1122,7 +1185,7 @@ class _VerseGameScreenState extends ConsumerState<VerseGameScreen>
                     fontSize: 11,
                     fontWeight: FontWeight.bold,
                     color: mutedTextColor,
-                    letterSpacing: 1,
+                    letterSpacing: 0,
                   ),
                 ),
               ],
@@ -1144,7 +1207,9 @@ class _VerseGameScreenState extends ConsumerState<VerseGameScreen>
                         backgroundColor: Colors.amber,
                         foregroundColor: Colors.black,
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 8),
+                          horizontal: 16,
+                          vertical: 8,
+                        ),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(20),
                         ),
@@ -1162,7 +1227,9 @@ class _VerseGameScreenState extends ConsumerState<VerseGameScreen>
                         backgroundColor: Colors.blue,
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 8),
+                          horizontal: 16,
+                          vertical: 8,
+                        ),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(20),
                         ),
@@ -1178,7 +1245,10 @@ class _VerseGameScreenState extends ConsumerState<VerseGameScreen>
   }
 
   Widget _buildGuessContext(
-      VerseGameState gameState, Color textColor, Color primaryColor) {
+    VerseGameState gameState,
+    Color textColor,
+    Color primaryColor,
+  ) {
     return LayoutBuilder(
       builder: (context, constraints) {
         final optimalFontSize = FontSizeCalculator.calculateContextFontSize(
@@ -1188,8 +1258,7 @@ class _VerseGameScreenState extends ConsumerState<VerseGameScreen>
         );
 
         return Padding(
-          padding:
-              const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+          padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
           child: Wrap(
             spacing: 4,
             runSpacing: 8,
@@ -1197,17 +1266,14 @@ class _VerseGameScreenState extends ConsumerState<VerseGameScreen>
             children: gameState.originalWords.map((word) {
               final isMissing = word.contains('_____');
               return Container(
-                constraints: BoxConstraints(
-                  minWidth: isMissing ? 80 : 20,
-                ),
+                constraints: BoxConstraints(minWidth: isMissing ? 80 : 20),
                 child: Text(
                   word,
                   overflow: TextOverflow.visible,
                   softWrap: true,
                   style: TextStyle(
                     fontSize: optimalFontSize,
-                    fontWeight:
-                        isMissing ? FontWeight.w900 : FontWeight.w500,
+                    fontWeight: isMissing ? FontWeight.w900 : FontWeight.w500,
                     color: isMissing ? primaryColor : textColor,
                     height: 1.2,
                   ),
@@ -1220,8 +1286,12 @@ class _VerseGameScreenState extends ConsumerState<VerseGameScreen>
     );
   }
 
-  Widget _buildArrangeContext(VerseGameState gameState, Color textColor,
-      Color primaryColor, Color mutedColor) {
+  Widget _buildArrangeContext(
+    VerseGameState gameState,
+    Color textColor,
+    Color primaryColor,
+    Color mutedColor,
+  ) {
     return LayoutBuilder(
       builder: (context, constraints) {
         final optimalFontSize = FontSizeCalculator.calculateContextFontSize(
@@ -1233,8 +1303,7 @@ class _VerseGameScreenState extends ConsumerState<VerseGameScreen>
         );
 
         return Padding(
-          padding:
-              const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+          padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
           child: Wrap(
             spacing: 6,
             runSpacing: 12,
@@ -1243,9 +1312,7 @@ class _VerseGameScreenState extends ConsumerState<VerseGameScreen>
               final word = gameState.shuffledWords[index];
 
               return Container(
-                constraints: const BoxConstraints(
-                  minWidth: 20,
-                ),
+                constraints: const BoxConstraints(minWidth: 20),
                 child: Text(
                   word,
                   overflow: TextOverflow.visible,
@@ -1296,11 +1363,11 @@ class _VerseGameScreenState extends ConsumerState<VerseGameScreen>
           children: words.asMap().entries.map((entry) {
             final index = entry.key;
             final word = entry.value;
-            final transformIndex = word.hashCode % _rotations.length;
+            final transformIndex = word.hashCode.abs() % _rotations.length;
 
             final isSelected =
                 gameState.currentMode == GameMode.arrange &&
-                    gameState.selectedIndices.contains(index);
+                gameState.selectedIndices.contains(index);
             final selectionOrder = isSelected
                 ? gameState.selectedIndices.indexOf(index) + 1
                 : null;
@@ -1322,17 +1389,13 @@ class _VerseGameScreenState extends ConsumerState<VerseGameScreen>
                       borderRadius: BorderRadius.circular(12),
                       onTap: gameState.state == GameState.playing
                           ? () {
-                              ref
-                                  .read(soundServiceProvider)
-                                  .playGameTap();
+                              ref.read(soundServiceProvider).playGameTap();
                               HapticFeedback.mediumImpact();
-                              if (gameState.currentMode ==
-                                  GameMode.arrange) {
+                              if (gameState.currentMode == GameMode.arrange) {
                                 if (isSelected) {
                                   notifier.removeArrangeWord(index);
                                 } else {
-                                  notifier
-                                      .selectArrangeWord(index);
+                                  notifier.selectArrangeWord(index);
                                 }
                               } else {
                                 notifier.submitGuess(word);
@@ -1343,25 +1406,23 @@ class _VerseGameScreenState extends ConsumerState<VerseGameScreen>
                         clipBehavior: Clip.none,
                         children: [
                           AnimatedContainer(
-                            duration:
-                                const Duration(milliseconds: 200),
+                            duration: const Duration(milliseconds: 200),
                             padding: const EdgeInsets.symmetric(
-                                horizontal: 14, vertical: 8),
+                              horizontal: 14,
+                              vertical: 8,
+                            ),
                             decoration: BoxDecoration(
                               color: isDark
                                   ? const Color(0xFF1e293b)
                                   : Colors.white,
-                              borderRadius:
-                                  BorderRadius.circular(12),
+                              borderRadius: BorderRadius.circular(12),
                               border: Border.all(
-                                  color: isSelected
-                                      ? primaryColor
-                                      : borderColor,
-                                  width: isSelected ? 2 : 1),
+                                color: isSelected ? primaryColor : borderColor,
+                                width: isSelected ? 2 : 1,
+                              ),
                               boxShadow: [
                                 BoxShadow(
-                                  color: Colors.black
-                                      .withValues(alpha: 0.05),
+                                  color: Colors.black.withValues(alpha: 0.05),
                                   blurRadius: 4,
                                   offset: const Offset(0, 2),
                                 ),
@@ -1413,11 +1474,11 @@ class _VerseGameScreenState extends ConsumerState<VerseGameScreen>
 
         if (shouldScroll) {
           return SingleChildScrollView(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             child: ConstrainedBox(
               constraints: BoxConstraints(
-                  minHeight: constraints.maxHeight * 0.9),
+                minHeight: constraints.maxHeight * 0.9,
+              ),
               child: Center(child: wrap),
             ),
           );
@@ -1432,11 +1493,12 @@ class _VerseGameScreenState extends ConsumerState<VerseGameScreen>
   }
 
   Widget _buildStartScreen(
-      BuildContext context,
-      VerseGameNotifier notifier,
-      Color primaryColor,
-      Color textColor,
-      Color mutedTextColor) {
+    BuildContext context,
+    VerseGameNotifier notifier,
+    Color primaryColor,
+    Color textColor,
+    Color mutedTextColor,
+  ) {
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32),
@@ -1473,11 +1535,17 @@ class _VerseGameScreenState extends ConsumerState<VerseGameScreen>
               children: [
                 const Icon(Icons.favorite, color: Colors.red, size: 14),
                 const SizedBox(width: 4),
-                Text('3 lives', style: TextStyle(fontSize: 12, color: mutedTextColor)),
+                Text(
+                  '3 lives',
+                  style: TextStyle(fontSize: 12, color: mutedTextColor),
+                ),
                 const SizedBox(width: 16),
                 Icon(Icons.quiz, color: primaryColor, size: 14),
                 const SizedBox(width: 4),
-                Text('10 questions', style: TextStyle(fontSize: 12, color: mutedTextColor)),
+                Text(
+                  '10 questions',
+                  style: TextStyle(fontSize: 12, color: mutedTextColor),
+                ),
               ],
             ),
             const SizedBox(height: 40),
@@ -1515,11 +1583,12 @@ class _VerseGameScreenState extends ConsumerState<VerseGameScreen>
   }
 
   Widget _buildEndScreen(
-      BuildContext context,
-      VerseGameState gameState,
-      VerseGameNotifier notifier,
-      Color primaryColor,
-      Color textColor) {
+    BuildContext context,
+    VerseGameState gameState,
+    VerseGameNotifier notifier,
+    Color primaryColor,
+    Color textColor,
+  ) {
     final isSuccess = gameState.state == GameState.sessionComplete;
     final verseRef = gameState.verse?.reference;
     return Center(
@@ -1527,9 +1596,7 @@ class _VerseGameScreenState extends ConsumerState<VerseGameScreen>
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(
-            isSuccess
-                ? Icons.emoji_events
-                : Icons.sentiment_dissatisfied,
+            isSuccess ? Icons.emoji_events : Icons.sentiment_dissatisfied,
             size: 80,
             color: isSuccess ? Colors.amber : primaryColor,
           ),
@@ -1581,8 +1648,7 @@ class _VerseGameScreenState extends ConsumerState<VerseGameScreen>
                 icon: const Icon(Icons.menu_book_rounded, size: 20),
                 label: const Text(
                   'Read the Passage',
-                  style: TextStyle(
-                      fontSize: 16, fontWeight: FontWeight.bold),
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                 ),
                 style: FilledButton.styleFrom(
                   backgroundColor: primaryColor,
@@ -1606,8 +1672,7 @@ class _VerseGameScreenState extends ConsumerState<VerseGameScreen>
                   ? primaryColor
                   : Colors.white,
               elevation: isSuccess && verseRef != null ? 0 : 2,
-              padding: const EdgeInsets.symmetric(
-                  horizontal: 32, vertical: 16),
+              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(30),
                 side: isSuccess && verseRef != null
@@ -1616,16 +1681,18 @@ class _VerseGameScreenState extends ConsumerState<VerseGameScreen>
               ),
             ),
             icon: const Icon(Icons.refresh),
-            label: const Text('Play Again',
-                style: TextStyle(
-                    fontSize: 18, fontWeight: FontWeight.bold)),
+            label: const Text(
+              'Play Again',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
           ),
           const SizedBox(height: 16),
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: Text('Back to Bible',
-                style: TextStyle(
-                    color: textColor.withValues(alpha: 0.6))),
+            child: Text(
+              'Back to Bible',
+              style: TextStyle(color: textColor.withValues(alpha: 0.6)),
+            ),
           ),
         ],
       ),

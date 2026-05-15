@@ -46,6 +46,7 @@ class VisionState {
   final String? notificationWarning;
 
   bool get isReadOnly => dataSource.isReadOnly;
+  List<TribeGameLeaderboardEntry> get gameScores => gameLeaderboard;
 
   VisionState copyWith({
     bool? isLoading,

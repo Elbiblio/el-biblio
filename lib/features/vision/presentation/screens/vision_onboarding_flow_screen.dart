@@ -6,6 +6,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 import '../../../../core/constants/app_routes.dart';
 import '../../../../core/di/app_providers.dart';
 import '../../../../core/models/accountability_tone.dart';
+import '../../../onboarding/domain/compass_discovery_catalog.dart';
 import '../../application/vision_state.dart';
 import '../../domain/vision_models.dart';
 import '../widgets/visibility_mode_picker.dart';
@@ -158,20 +159,7 @@ class _VisionOnboardingFlowScreenState
   }
 
   _CompassSignal get _compassSignal {
-    const archetypeOrder = [
-      'Artisan',
-      'Watchman',
-      'Cultivator',
-      'Sower',
-      'Welcomer',
-      'Pillar',
-      'Sentinel',
-      'Bridgebuilder',
-      'Healer',
-      'Harvester',
-      'Reformer',
-      'Architect',
-    ];
+    const archetypeOrder = CompassDiscoveryCatalog.archetypeOrder;
     final scores = {for (final archetype in archetypeOrder) archetype: 0};
 
     void addScore(String? archetype, int score) {
@@ -197,28 +185,10 @@ class _VisionOnboardingFlowScreenState
     return _CompassSignal(
       archetype: primary,
       topArchetypes: ranked.take(3).where((name) => scores[name]! > 0).toList(),
-      season: _seasonNameFor(primary),
+      season: CompassDiscoveryCatalog.seasonNameFor(primary),
       supportScore: (42 + (primaryScore * 4)).clamp(42, 92).toInt(),
       suggestedTone: _toneFor(primary, primaryScore),
     );
-  }
-
-  String _seasonNameFor(String archetype) {
-    return switch (archetype) {
-      'Artisan' => 'Creative devotion',
-      'Watchman' => 'Guarded attention',
-      'Cultivator' => 'Patient formation',
-      'Sower' => 'Courageous beginning',
-      'Welcomer' => 'Honest hospitality',
-      'Pillar' => 'Hidden faithfulness',
-      'Sentinel' => 'Prayer into action',
-      'Bridgebuilder' => 'Relational repair',
-      'Healer' => 'Restorative presence',
-      'Harvester' => 'Fruitful stewardship',
-      'Reformer' => 'Constructive justice',
-      'Architect' => 'Open-handed order',
-      _ => 'Steady formation',
-    };
   }
 
   AccountabilityTone _toneFor(String archetype, int score) {
@@ -354,18 +324,38 @@ class _VisionOnboardingFlowScreenState
                             style: theme.textTheme.bodyMedium,
                           ),
                           const SizedBox(height: 14),
-                          ...state.recommendedCommitments.map(
-                            (commitment) => _OnboardingCommitmentCard(
-                              commitment: commitment,
-                              selected: _commitment?.id == commitment.id,
-                              onTap: () {
-                                setState(() {
-                                  _commitment = commitment;
-                                  _nudges = commitment.nudgeMin.clamp(3, 10);
-                                });
-                              },
+                          ...state.recommendedCommitments
+                              .take(1)
+                              .map(
+                                (commitment) => _OnboardingCommitmentCard(
+                                  commitment: commitment,
+                                  selected: _commitment?.id == commitment.id,
+                                  onTap: () {
+                                    setState(() {
+                                      _commitment = commitment;
+                                      _nudges = commitment.nudgeMin.clamp(
+                                        3,
+                                        10,
+                                      );
+                                    });
+                                  },
+                                ),
+                              ),
+                          if (state.recommendedCommitments.length > 1) ...[
+                            const SizedBox(height: 2),
+                            OutlinedButton.icon(
+                              onPressed: () => _showOnboardingCommitmentSheet(
+                                state.recommendedCommitments,
+                              ),
+                              icon: const Icon(
+                                LucideIcons.listFilter,
+                                size: 18,
+                              ),
+                              label: Text(
+                                'Compare ${state.recommendedCommitments.length} commitments',
+                              ),
                             ),
-                          ),
+                          ],
                           const SizedBox(height: 8),
                           _OnboardingNudgePanel(
                             commitment: _commitment,
@@ -455,6 +445,25 @@ class _VisionOnboardingFlowScreenState
       ),
     );
   }
+
+  void _showOnboardingCommitmentSheet(List<CommitmentPlan> commitments) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (context) => _OnboardingCommitmentChooserSheet(
+        commitments: commitments,
+        selected: _commitment,
+        onSelected: (commitment) {
+          Navigator.of(context).pop();
+          setState(() {
+            _commitment = commitment;
+            _nudges = commitment.nudgeMin.clamp(3, 10);
+          });
+        },
+      ),
+    );
+  }
 }
 
 class _OnboardingRecoveryGate extends StatelessWidget {
@@ -538,27 +547,12 @@ class _SeasonQuestionView extends StatelessWidget {
   final String? value;
   final ValueChanged<String> onChanged;
 
-  static const _options = [
-    ('Artisan', 'I need my creativity to become worship, not comparison'),
-    ('Watchman', 'I need to rebuild attention, vigilance, and quiet'),
-    ('Cultivator', 'I need patience, rest, and ordinary faithfulness'),
-    ('Sower', 'I need courage to begin what I keep delaying'),
-    ('Welcomer', 'I need warmer belonging with better boundaries'),
-    ('Pillar', 'I need to serve faithfully without disappearing'),
-    ('Sentinel', 'I need to turn insight and prayer into action'),
-    ('Bridgebuilder', 'I need repair, peace, and honest connection'),
-    ('Healer', 'I need healing, forgiveness, or supported hope'),
-    ('Harvester', 'I need fruitfulness without metrics becoming my master'),
-    ('Reformer', 'I need holy frustration to become constructive change'),
-    ('Architect', 'I need order without control or perfectionism'),
-  ];
-
   @override
   Widget build(BuildContext context) {
     return _ChoiceStack(
       intro:
           'Start with what is actually happening. This helps ElBiblio recommend belonging and commitment without asking you to perform a label.',
-      options: _options,
+      options: CompassDiscoveryCatalog.seasonOptions,
       value: value,
       onChanged: onChanged,
     );
@@ -602,45 +596,25 @@ class _CompassPatternView extends StatelessWidget {
         _QuestionBlock(
           title: 'When pressure rises, I usually...',
           value: pressurePattern,
-          options: const [
-            ('Sentinel', 'Withdraw, observe, and process alone'),
-            ('Architect', 'Try to control every variable'),
-            ('Healer', 'Absorb everyone else\'s pain'),
-            ('Watchman', 'Protect attention and boundaries'),
-          ],
+          options: CompassDiscoveryCatalog.pressureOptions,
           onChanged: onPressureChanged,
         ),
         _QuestionBlock(
           title: 'The thing I keep postponing is...',
           value: postponedPattern,
-          options: const [
-            ('Sower', 'Beginning the thing I know matters'),
-            ('Artisan', 'Finishing one creation before chasing novelty'),
-            ('Bridgebuilder', 'Having an honest conversation'),
-            ('Pillar', 'Taking a step for my own calling'),
-          ],
+          options: CompassDiscoveryCatalog.postponedOptions,
           onChanged: onPostponedChanged,
         ),
         _QuestionBlock(
           title: 'People often come to me when they need...',
           value: peopleNeedPattern,
-          options: const [
-            ('Cultivator', 'Patient care and steady encouragement'),
-            ('Welcomer', 'Warmth, welcome, and belonging'),
-            ('Reformer', 'Courage to name what must change'),
-            ('Harvester', 'Momentum, mobilizing, and celebration'),
-          ],
+          options: CompassDiscoveryCatalog.peopleNeedOptions,
           onChanged: onPeopleNeedChanged,
         ),
         _QuestionBlock(
-          title: 'The distortion I most want God to interrupt is...',
+          title: 'The fear or distortion I most want God to interrupt is...',
           value: formationPattern,
-          options: const [
-            ('Welcomer', 'People-pleasing and avoiding truth'),
-            ('Harvester', 'Measuring my worth by output or results'),
-            ('Reformer', 'Outrage, bitterness, or tearing down'),
-            ('Architect', 'Perfectionism and control disguised as order'),
-          ],
+          options: CompassDiscoveryCatalog.distortionFearOptions,
           onChanged: onFormationChanged,
         ),
         const SizedBox(height: 14),
@@ -889,7 +863,7 @@ class _QuestionBlock extends StatelessWidget {
 
   final String title;
   final String? value;
-  final List<(String, String)> options;
+  final List<CompassDiscoveryOption> options;
   final ValueChanged<String> onChanged;
 
   @override
@@ -929,7 +903,7 @@ class _ChoiceStack extends StatelessWidget {
   });
 
   final String? intro;
-  final List<(String, String)> options;
+  final List<CompassDiscoveryOption> options;
   final String? value;
   final ValueChanged<String> onChanged;
   final bool compact;
@@ -948,11 +922,11 @@ class _ChoiceStack extends StatelessWidget {
           const SizedBox(height: 16),
         ],
         ...options.map((option) {
-          final selected = value == option.$1;
+          final selected = value == option.archetype;
           return Padding(
             padding: EdgeInsets.only(bottom: compact ? 8 : 10),
             child: InkWell(
-              onTap: () => onChanged(option.$1),
+              onTap: () => onChanged(option.archetype),
               borderRadius: BorderRadius.circular(8),
               child: Container(
                 width: double.infinity,
@@ -976,7 +950,7 @@ class _ChoiceStack extends StatelessWidget {
                       color: selected ? theme.colorScheme.primary : null,
                     ),
                     const SizedBox(width: 10),
-                    Expanded(child: Text(option.$2)),
+                    Expanded(child: Text(option.label)),
                   ],
                 ),
               ),
@@ -1149,6 +1123,56 @@ class _OnboardingCommitmentCard extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _OnboardingCommitmentChooserSheet extends StatelessWidget {
+  const _OnboardingCommitmentChooserSheet({
+    required this.commitments,
+    required this.selected,
+    required this.onSelected,
+  });
+
+  final List<CommitmentPlan> commitments;
+  final CommitmentPlan? selected;
+  final ValueChanged<CommitmentPlan> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return DraggableScrollableSheet(
+      expand: false,
+      initialChildSize: 0.78,
+      minChildSize: 0.42,
+      maxChildSize: 0.92,
+      builder: (context, controller) {
+        return ListView(
+          controller: controller,
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+          children: [
+            Text(
+              'Compare commitments',
+              style: theme.textTheme.headlineSmall?.copyWith(
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Choose differently only if the recommended practice does not fit your actual month.',
+              style: theme.textTheme.bodyMedium?.copyWith(height: 1.42),
+            ),
+            const SizedBox(height: 16),
+            ...commitments.map(
+              (commitment) => _OnboardingCommitmentCard(
+                commitment: commitment,
+                selected: selected?.id == commitment.id,
+                onTap: () => onSelected(commitment),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 }
