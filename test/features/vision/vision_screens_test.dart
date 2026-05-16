@@ -1,5 +1,6 @@
 import 'package:elbiblio/core/application/settings_notifier.dart';
 import 'package:elbiblio/core/di/app_providers.dart';
+import 'package:elbiblio/core/errors/app_exception.dart';
 import 'package:elbiblio/core/services/notifications/notification_service.dart';
 import 'package:elbiblio/core/storage/app_settings.dart';
 import 'package:elbiblio/features/vision/application/vision_notifier.dart';
@@ -73,7 +74,7 @@ void main() {
       expect(find.text('Check-in open'), findsOneWidget);
       expect(find.text('Check in today first'), findsOneWidget);
       expect(find.text('Check in for today'), findsOneWidget);
-      expect(find.text('Share one honest reflection'), findsNothing);
+      expect(find.text('How did today feel?'), findsNothing);
     });
 
     testWidgets('Reflect check-in unlocks the composer in the same flow', (
@@ -92,7 +93,7 @@ void main() {
 
       expect(repository.checkInCount, 1);
       expect(find.text('Checked in today'), findsOneWidget);
-      expect(find.text('Share one honest reflection'), findsOneWidget);
+      expect(find.text('How did today feel?'), findsOneWidget);
     });
 
     testWidgets(
@@ -113,8 +114,11 @@ void main() {
 
         expect(find.text('Checked in today'), findsOneWidget);
         expect(find.text('One reflection'), findsOneWidget);
-        expect(find.text('Share one honest reflection'), findsOneWidget);
-        expect(find.text('Post reflection'), findsOneWidget);
+        expect(find.text('How did today feel?'), findsOneWidget);
+        expect(find.text('Easy'), findsOneWidget);
+        expect(find.text('Neutral'), findsOneWidget);
+        expect(find.text('Hard'), findsOneWidget);
+        expect(find.text('Post reflection'), findsNothing);
         expect(
           find.text(
             'No reflections yet. The feed grows one honest post at a time.',
@@ -142,6 +146,9 @@ void main() {
       await tester.drag(find.byType(ListView), const Offset(0, -260));
       await tester.pumpAndSettle();
 
+      await tester.tap(find.text('Hard'));
+      await tester.pumpAndSettle();
+
       await tester.enterText(
         find.byType(TextField).last,
         '  I chose patience before replying.  ',
@@ -158,6 +165,32 @@ void main() {
       expect(repository.postedReflectionAlias, 'Quiet Walker');
       expect(find.text('Reflection shared'), findsOneWidget);
       expect(find.text('I chose patience before replying.'), findsOneWidget);
+    });
+
+    testWidgets('Reflect treats duplicate daily post as already complete', (
+      tester,
+    ) async {
+      final repository = _FakeVisionRepository(
+        activeCommitment: _season(checkedInToday: true),
+        postReflectionError: ApiRequestException(
+          statusCode: 409,
+          message: 'Reflection already posted today.',
+        ),
+      );
+
+      await tester.pumpVisionScreen(
+        const ReflectScreen(),
+        repository: repository,
+      );
+
+      await tester.tap(find.text('Easy'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField).last, 'It felt possible.');
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Post reflection'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Reflection shared'), findsOneWidget);
     });
 
     testWidgets('Reflect shows posted state and existing reflection', (
@@ -576,6 +609,7 @@ class _FakeVisionRepository implements VisionRepository {
     List<CommitmentHangout> hangouts = const [],
     CommitmentHangout? joinedHangout,
     Object? joinHangoutError,
+    Object? postReflectionError,
     DailyGrowthQuestion? dailyQuestion,
     List<TribeGameLeaderboardEntry> gameLeaderboard = const [],
   }) : _activeCommitment = activeCommitment,
@@ -586,6 +620,7 @@ class _FakeVisionRepository implements VisionRepository {
        _hangouts = hangouts,
        _joinedHangout = joinedHangout,
        _joinHangoutError = joinHangoutError,
+       _postReflectionError = postReflectionError,
        _dailyQuestion = dailyQuestion,
        _gameLeaderboard = gameLeaderboard;
 
@@ -595,6 +630,7 @@ class _FakeVisionRepository implements VisionRepository {
   final List<CommitmentHangout> _hangouts;
   final CommitmentHangout? _joinedHangout;
   final Object? _joinHangoutError;
+  final Object? _postReflectionError;
   final DailyGrowthQuestion? _dailyQuestion;
   final List<TribeGameLeaderboardEntry> _gameLeaderboard;
   final List<int> joinedTribeIds = [];
@@ -716,6 +752,8 @@ class _FakeVisionRepository implements VisionRepository {
     required String content,
     required String alias,
   }) async {
+    final error = _postReflectionError;
+    if (error != null) throw error;
     postedReflectionContent = content.trim();
     postedReflectionAlias = alias;
     return CommitmentReflection(

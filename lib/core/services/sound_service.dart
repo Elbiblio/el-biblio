@@ -17,6 +17,9 @@ class SoundService {
   static const String gameOverAsset = 'audio/game-over.mp3';
   static const String gameTickAsset = 'audio/tick-tock.wav';
   static const String gameSuccessAsset = 'audio/correct.mp3';
+  static const String journeyAmbientAsset = 'audio/ambient.mp3';
+
+  bool _isJourneyAmbiencePlaying = false;
 
   Future<void> _initAudio() async {
     try {
@@ -42,10 +45,38 @@ class SoundService {
 
   Future<void> playOnboardingSuccess({double volume = 0.7}) async {
     try {
+      _isJourneyAmbiencePlaying = false;
+      await _player.setReleaseMode(ReleaseMode.release);
       await _player.setVolume(volume);
       await _player.play(AssetSource(onboardingSuccessAsset));
     } catch (_) {
       SystemSound.play(SystemSoundType.click);
+    }
+  }
+
+  Future<void> playJourneyAmbience({double volume = 0.12}) async {
+    if (_isJourneyAmbiencePlaying) return;
+
+    try {
+      _isJourneyAmbiencePlaying = true;
+      await _player.setReleaseMode(ReleaseMode.loop);
+      await _player.setVolume(volume);
+      await _player.play(AssetSource(journeyAmbientAsset));
+    } catch (_) {
+      _isJourneyAmbiencePlaying = false;
+    }
+  }
+
+  Future<void> stopJourneyAmbience() async {
+    if (!_isJourneyAmbiencePlaying) return;
+
+    try {
+      await _player.stop();
+      await _player.setReleaseMode(ReleaseMode.release);
+    } catch (_) {
+      // Ignore audio shutdown failures.
+    } finally {
+      _isJourneyAmbiencePlaying = false;
     }
   }
 
@@ -121,5 +152,12 @@ class SoundService {
     try {
       await _sfxPlayer.stop();
     } catch (_) {}
+    _isJourneyAmbiencePlaying = false;
+  }
+
+  Future<void> dispose() async {
+    await stopAll();
+    await _player.dispose();
+    await _sfxPlayer.dispose();
   }
 }

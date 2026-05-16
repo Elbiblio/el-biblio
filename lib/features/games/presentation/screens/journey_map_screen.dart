@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../../core/di/app_providers.dart';
 import '../../application/journey_game_notifier.dart';
 import '../../data/jesus_journey_catalog.dart';
 import '../../domain/models/journey_progress.dart';
@@ -18,10 +19,21 @@ class JourneyMapScreen extends ConsumerStatefulWidget {
 
 class _JourneyMapScreenState extends ConsumerState<JourneyMapScreen> {
   final ScrollController _scrollController = ScrollController();
+  int? _lastAutoScrolledEvent;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ref.read(soundServiceProvider).playJourneyAmbience();
+    });
+  }
 
   @override
   void dispose() {
     _scrollController.dispose();
+    ref.read(soundServiceProvider).stopJourneyAmbience();
     super.dispose();
   }
 
@@ -31,34 +43,34 @@ class _JourneyMapScreenState extends ConsumerState<JourneyMapScreen> {
     final notifier = ref.read(journeyGameProvider.notifier);
 
     // Navigate based on phase changes
-    ref.listen<JourneyPhase>(
-      journeyGameProvider.select((s) => s.phase),
-      (prev, next) {
-        if (next == JourneyPhase.viewingEvent && state.currentEvent != null) {
-          Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => const JourneyEventScreen(),
-            ),
-          );
-        } else if (next == JourneyPhase.journeyComplete) {
-          Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => const JourneyCompleteScreen(),
-            ),
-          );
-        }
-      },
-    );
+    ref.listen<JourneyPhase>(journeyGameProvider.select((s) => s.phase), (
+      prev,
+      next,
+    ) {
+      if (ModalRoute.of(context)?.isCurrent != true) return;
+
+      final nextState = ref.read(journeyGameProvider);
+      if (next == JourneyPhase.viewingEvent && nextState.currentEvent != null) {
+        Navigator.of(
+          context,
+        ).push(MaterialPageRoute(builder: (_) => const JourneyEventScreen()));
+      } else if (next == JourneyPhase.journeyComplete) {
+        ref.read(soundServiceProvider).stopJourneyAmbience();
+        Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => const JourneyCompleteScreen()),
+        );
+      }
+    });
 
     if (state.phase == JourneyPhase.loading) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
     final events = JesusJourneyCatalog.allEvents;
     final progress = state.progress;
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    _scheduleAmbienceWhenVisible();
+    _scheduleScrollToCurrentEvent(progress);
 
     // Compute background gradient based on progress
     final gradientColors = _backgroundGradient(progress, isDark);
@@ -66,170 +78,183 @@ class _JourneyMapScreenState extends ConsumerState<JourneyMapScreen> {
     return PopScope(
       canPop: true,
       child: Scaffold(
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: gradientColors,
+        body: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: gradientColors,
+            ),
           ),
-        ),
-        child: SafeArea(
-          child: Column(
-            children: [
-              // App bar
-              Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                child: Row(
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.arrow_back_ios_new, size: 20),
-                      onPressed: () => Navigator.of(context).pop(),
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      'Journey with Jesus',
-                      style: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.w900,
-                        color: isDark ? Colors.white : Colors.black87,
+          child: SafeArea(
+            child: Column(
+              children: [
+                // App bar
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
+                  child: Row(
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.arrow_back_ios_new, size: 20),
+                        onPressed: () => Navigator.of(context).pop(),
                       ),
-                    ),
-                    const Spacer(),
-                    // Reset button
-                    if (progress.completedEvents.isNotEmpty)
-                      PopupMenuButton<String>(
-                        icon: Icon(
-                          Icons.more_vert,
-                          color: isDark ? Colors.white54 : Colors.black45,
+                      const SizedBox(width: 4),
+                      Text(
+                        'Journey with Jesus',
+                        style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.w900,
+                          color: isDark ? Colors.white : Colors.black87,
                         ),
-                        onSelected: (val) {
-                          if (val == 'reset') {
-                            _showResetDialog(context, notifier);
-                          }
-                        },
-                        itemBuilder: (_) => [
-                          const PopupMenuItem(
-                            value: 'reset',
-                            child: Text('Reset Journey'),
+                      ),
+                      const Spacer(),
+                      // Reset button
+                      if (progress.completedEvents.isNotEmpty)
+                        PopupMenuButton<String>(
+                          icon: Icon(
+                            Icons.more_vert,
+                            color: isDark ? Colors.white54 : Colors.black45,
                           ),
-                        ],
-                      ),
-                  ],
-                ),
-              ),
-
-              // Stats bar
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: JourneyStatsBar(progress: progress),
-              ),
-              const SizedBox(height: 12),
-
-              // First-time intro card
-              if (progress.completedEvents.isEmpty) ...[
-                Builder(builder: (context) {
-                  final introTheme = Theme.of(context);
-                  return Padding(
-                  padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
-                  child: Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: isDark
-                          ? Colors.white.withValues(alpha: 0.06)
-                          : introTheme.colorScheme.primaryContainer.withValues(alpha: 0.3),
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(
-                        color: introTheme.colorScheme.primary.withValues(alpha: 0.2),
-                      ),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Icon(Icons.auto_awesome_rounded, size: 18,
-                                color: introTheme.colorScheme.primary),
-                            const SizedBox(width: 8),
-                            Text(
-                              'How It Works',
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w700,
-                                color: introTheme.colorScheme.primary,
-                              ),
+                          onSelected: (val) {
+                            if (val == 'reset') {
+                              _showResetDialog(context, notifier);
+                            }
+                          },
+                          itemBuilder: (_) => [
+                            const PopupMenuItem(
+                              value: 'reset',
+                              child: Text('Reset Journey'),
                             ),
                           ],
                         ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Walk through 30 key moments in Jesus\' life. Each stop has a short story and quiz. Start at the top and progress naturally.',
-                          style: TextStyle(
-                            fontSize: 13,
+                    ],
+                  ),
+                ),
+
+                // Stats bar
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: JourneyStatsBar(progress: progress),
+                ),
+                const SizedBox(height: 12),
+
+                // First-time intro card
+                if (progress.completedEvents.isEmpty) ...[
+                  Builder(
+                    builder: (context) {
+                      final introTheme = Theme.of(context);
+                      return Padding(
+                        padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
+                        child: Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
                             color: isDark
-                                ? Colors.white.withValues(alpha: 0.7)
-                                : Colors.black87,
-                            height: 1.5,
+                                ? Colors.white.withValues(alpha: 0.06)
+                                : introTheme.colorScheme.primaryContainer
+                                      .withValues(alpha: 0.3),
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(
+                              color: introTheme.colorScheme.primary.withValues(
+                                alpha: 0.2,
+                              ),
+                            ),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Icon(
+                                    Icons.auto_awesome_rounded,
+                                    size: 18,
+                                    color: introTheme.colorScheme.primary,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    'How It Works',
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w700,
+                                      color: introTheme.colorScheme.primary,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                'Walk through 30 key moments in Jesus\' life. Each stop has a short story and quiz. Start at the top and progress naturally.',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: isDark
+                                      ? Colors.white.withValues(alpha: 0.7)
+                                      : Colors.black87,
+                                  height: 1.5,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                      ],
-                    ),
-                  ),
-                );
-                }),
-              ],
-
-              // Scrollable journey path
-              Expanded(
-                child: ListView.builder(
-                  controller: _scrollController,
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-                  itemCount: events.length * 2 - 1, // nodes + connectors
-                  itemBuilder: (context, index) {
-                    if (index.isOdd) {
-                      // Connector
-                      final nodeIndex = index ~/ 2;
-                      final isCompleted = progress.completedEvents
-                          .containsKey(nodeIndex);
-                      return JourneyPathConnector(
-                        isCompleted: isCompleted,
-                        isLeft: nodeIndex.isEven,
                       );
-                    }
+                    },
+                  ),
+                ],
 
-                    final eventIndex = index ~/ 2;
-                    final event = events[eventIndex];
-                    final isCompleted = progress.completedEvents
-                        .containsKey(eventIndex);
-                    final isCurrent =
-                        eventIndex == progress.currentEvent && !isCompleted;
+                // Scrollable journey path
+                Expanded(
+                  child: ListView.builder(
+                    controller: _scrollController,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 24,
+                      vertical: 8,
+                    ),
+                    itemCount: events.length * 2 - 1, // nodes + connectors
+                    itemBuilder: (context, index) {
+                      if (index.isOdd) {
+                        // Connector
+                        final nodeIndex = index ~/ 2;
+                        final isCompleted = progress.completedEvents
+                            .containsKey(nodeIndex);
+                        return JourneyPathConnector(
+                          isCompleted: isCompleted,
+                          isLeft: nodeIndex.isEven,
+                        );
+                      }
 
-                    final nodeState = isCompleted
-                        ? NodeState.completed
-                        : isCurrent
-                            ? NodeState.current
-                            : NodeState.locked;
+                      final eventIndex = index ~/ 2;
+                      final event = events[eventIndex];
+                      final isCompleted = progress.completedEvents.containsKey(
+                        eventIndex,
+                      );
+                      final isCurrent =
+                          eventIndex == progress.currentEvent && !isCompleted;
 
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 4),
-                      child: JourneyPathNode(
-                        event: event,
-                        nodeState: nodeState,
-                        result: progress.completedEvents[eventIndex],
-                        isLeft: eventIndex.isEven,
-                        onTap: () => notifier.openEvent(eventIndex),
-                      ),
-                    );
-                  },
+                      final nodeState = isCompleted
+                          ? NodeState.completed
+                          : isCurrent
+                          ? NodeState.current
+                          : NodeState.locked;
+
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 4),
+                        child: JourneyPathNode(
+                          event: event,
+                          nodeState: nodeState,
+                          result: progress.completedEvents[eventIndex],
+                          isLeft: eventIndex.isEven,
+                          onTap: () => notifier.openEvent(eventIndex),
+                        ),
+                      );
+                    },
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
-    ),
     );
   }
 
@@ -257,6 +282,31 @@ class _JourneyMapScreenState extends ConsumerState<JourneyMapScreen> {
     }
   }
 
+  void _scheduleScrollToCurrentEvent(JourneyProgress progress) {
+    if (_lastAutoScrolledEvent == progress.currentEvent) return;
+    _lastAutoScrolledEvent = progress.currentEvent;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_scrollController.hasClients) return;
+      final maxScroll = _scrollController.position.maxScrollExtent;
+      if (maxScroll <= 0) return;
+
+      final target = (progress.currentEvent * 92.0).clamp(0.0, maxScroll);
+      _scrollController.animateTo(
+        target,
+        duration: const Duration(milliseconds: 500),
+        curve: Curves.easeOutCubic,
+      );
+    });
+  }
+
+  void _scheduleAmbienceWhenVisible() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || ModalRoute.of(context)?.isCurrent != true) return;
+      ref.read(soundServiceProvider).playJourneyAmbience();
+    });
+  }
+
   void _showResetDialog(BuildContext context, JourneyGameNotifier notifier) {
     showDialog(
       context: context,
@@ -272,14 +322,12 @@ class _JourneyMapScreenState extends ConsumerState<JourneyMapScreen> {
             child: const Text('Cancel'),
           ),
           TextButton(
-            onPressed: () {
-              notifier.resetJourney();
+            onPressed: () async {
+              await notifier.resetJourney();
+              if (!ctx.mounted) return;
               Navigator.of(ctx).pop();
             },
-            child: const Text(
-              'Reset',
-              style: TextStyle(color: Colors.red),
-            ),
+            child: const Text('Reset', style: TextStyle(color: Colors.red)),
           ),
         ],
       ),

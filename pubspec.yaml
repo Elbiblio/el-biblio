@@ -1,7 +1,7 @@
 name: elbiblio
 description: El-Biblio - a personal spiritual operating system built with Flutter.
 publish_to: none
-version: 1.1.20+10120
+version: 1.1.21+10121
 
 environment:
   sdk: ">=3.8.0 <4.0.0"

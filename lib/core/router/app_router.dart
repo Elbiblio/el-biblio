@@ -32,7 +32,6 @@ import '../../features/vision/presentation/screens/notifications_screen.dart';
 import '../../features/vision/presentation/screens/reflect_screen.dart';
 import '../../features/vision/presentation/screens/today_screen.dart';
 import '../../features/vision/presentation/screens/tribe_screen.dart';
-import '../../features/vision/presentation/screens/vision_onboarding_flow_screen.dart';
 import '../../features/profile/presentation/about_screen.dart';
 import '../../features/profile/presentation/profile_screen.dart';
 import '../../features/profile/presentation/reminder_settings_screen.dart';
@@ -109,11 +108,6 @@ final _routerRefreshProvider = Provider<_RouterRefreshNotifier>((ref) {
   );
 
   ref.listen<bool>(
-    settingsProvider.select((value) => value.hasCompletedPostOnboarding),
-    (_, __) => notifier.trigger(),
-  );
-
-  ref.listen<bool>(
     authProvider.select((value) => value.isAuthenticated),
     (_, __) => notifier.trigger(),
   );
@@ -148,7 +142,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: AppRoutes.postOnboarding,
-        builder: (context, state) => const VisionOnboardingFlowScreen(),
+        builder: (context, state) => const SizedBox.shrink(),
       ),
       GoRoute(
         path: AppRoutes.bibleReader,
@@ -280,6 +274,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             bibleReference: extra['bibleReference'] as String? ?? '',
             xpEarned: extra['xpEarned'] as int? ?? 0,
             gameTitle: extra['gameTitle'] as String? ?? 'Game Complete',
+            returnRoute: extra['returnRoute'] as String? ?? AppRoutes.games,
+            returnLabel: extra['returnLabel'] as String? ?? 'Skip for Now',
           );
         },
       ),
@@ -604,9 +600,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       // Root redirect
       if (loc == AppRoutes.root) {
         if (!settings.onboardingCompleted) return AppRoutes.onboarding;
-        if (!settings.hasCompletedPostOnboarding) {
-          return AppRoutes.postOnboarding;
-        }
         return AppRoutes.today;
       }
 
@@ -615,11 +608,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         return isOnboarding || isInvitePreview ? null : AppRoutes.onboarding;
       }
 
-      // Guard: must complete post-onboarding before accessing the app
-      if (!settings.hasCompletedPostOnboarding) {
-        return isPostOnboarding || isInvitePreview
-            ? null
-            : AppRoutes.postOnboarding;
+      if (isPostOnboarding) {
+        return AppRoutes.today;
       }
 
       // Already completed — redirect away from onboarding screens

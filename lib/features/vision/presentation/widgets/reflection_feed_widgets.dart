@@ -7,7 +7,9 @@ import '../../../../core/di/app_providers.dart';
 import '../../domain/vision_models.dart';
 import 'vision_panel.dart';
 
-class VisionReflectionComposer extends ConsumerWidget {
+enum _ReflectionDifficulty { easy, neutral, hard }
+
+class VisionReflectionComposer extends ConsumerStatefulWidget {
   const VisionReflectionComposer({
     super.key,
     required this.controller,
@@ -18,7 +20,17 @@ class VisionReflectionComposer extends ConsumerWidget {
   final bool showCheckInButton;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<VisionReflectionComposer> createState() =>
+      _VisionReflectionComposerState();
+}
+
+class _VisionReflectionComposerState
+    extends ConsumerState<VisionReflectionComposer> {
+  _ReflectionDifficulty? _difficulty;
+  bool _neutralFinished = false;
+
+  @override
+  Widget build(BuildContext context) {
     final state = ref.watch(visionProvider);
     final active = state.activeCommitment;
     if (active == null) return const SizedBox.shrink();
@@ -33,7 +45,7 @@ class VisionReflectionComposer extends ConsumerWidget {
             const Text(
               'You can read the feed now. Share after you complete today.',
             ),
-            if (showCheckInButton) ...[
+            if (widget.showCheckInButton) ...[
               const SizedBox(height: 12),
               FilledButton.icon(
                 onPressed: () async {
@@ -66,60 +78,110 @@ class VisionReflectionComposer extends ConsumerWidget {
       );
     }
 
+    if (_neutralFinished) {
+      return const VisionPanel(
+        icon: LucideIcons.checkCircle,
+        title: 'Today is checked in',
+        child: Text('No written reflection needed today. Keep going.'),
+      );
+    }
+
     return VisionPanel(
       icon: LucideIcons.messageCircle,
-      title: 'Share one honest reflection',
+      title: 'How did today feel?',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Visible only to this commitment as ${state.visibilityAlias}. Keep it honest, brief, and human.',
+            'Choose the difficulty first. If it felt easy or hard, you can share one short reflection as ${state.visibilityAlias}.',
           ),
           const SizedBox(height: 12),
-          TextField(
-            controller: controller,
-            minLines: 3,
-            maxLines: 5,
-            maxLength: 500,
-            maxLengthEnforcement: MaxLengthEnforcement.enforced,
-            decoration: const InputDecoration(
-              hintText: 'What felt hard, hopeful, or honest today?',
-              border: OutlineInputBorder(),
-            ),
-          ),
-          ValueListenableBuilder<TextEditingValue>(
-            valueListenable: controller,
-            builder: (context, value, child) {
-              final canPost = value.text.trim().isNotEmpty;
-              return FilledButton.icon(
-                onPressed: canPost
-                    ? () async {
-                        final posted = await ref
-                            .read(visionProvider.notifier)
-                            .postReflection(controller.text);
-                        if (!context.mounted) return;
-                        if (!posted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text(
-                                'We could not post this reflection. Please try again.',
-                              ),
-                            ),
-                          );
-                          return;
-                        }
-                        controller.clear();
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: _ReflectionDifficulty.values
+                .map(
+                  (difficulty) => ChoiceChip(
+                    selected: _difficulty == difficulty,
+                    label: Text(_difficultyLabel(difficulty)),
+                    onSelected: (_) => setState(() {
+                      _difficulty = difficulty;
+                      if (difficulty == _ReflectionDifficulty.neutral) {
+                        widget.controller.clear();
                       }
-                    : null,
-                icon: const Icon(LucideIcons.send, size: 18),
-                label: const Text('Post reflection'),
-              );
-            },
+                    }),
+                  ),
+                )
+                .toList(),
           ),
+          if (_difficulty == _ReflectionDifficulty.neutral) ...[
+            const SizedBox(height: 12),
+            const Text('No written reflection needed. Mark this step done.'),
+            const SizedBox(height: 10),
+            FilledButton.icon(
+              onPressed: () => setState(() => _neutralFinished = true),
+              icon: const Icon(LucideIcons.checkCircle, size: 18),
+              label: const Text('Done for today'),
+            ),
+          ],
+          if (_difficulty == _ReflectionDifficulty.easy ||
+              _difficulty == _ReflectionDifficulty.hard) ...[
+            const SizedBox(height: 12),
+            TextField(
+              controller: widget.controller,
+              minLines: 3,
+              maxLines: 5,
+              maxLength: 500,
+              maxLengthEnforcement: MaxLengthEnforcement.enforced,
+              decoration: InputDecoration(
+                hintText: _difficulty == _ReflectionDifficulty.easy
+                    ? 'What made it easier today?'
+                    : 'What made it hard today?',
+                border: const OutlineInputBorder(),
+              ),
+            ),
+            ValueListenableBuilder<TextEditingValue>(
+              valueListenable: widget.controller,
+              builder: (context, value, child) {
+                final canPost = value.text.trim().isNotEmpty;
+                return FilledButton.icon(
+                  onPressed: canPost
+                      ? () async {
+                          final posted = await ref
+                              .read(visionProvider.notifier)
+                              .postReflection(widget.controller.text);
+                          if (!context.mounted) return;
+                          if (!posted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'We could not post this reflection. Please try again.',
+                                ),
+                              ),
+                            );
+                            return;
+                          }
+                          widget.controller.clear();
+                        }
+                      : null,
+                  icon: const Icon(LucideIcons.send, size: 18),
+                  label: const Text('Post reflection'),
+                );
+              },
+            ),
+          ],
         ],
       ),
     );
   }
+}
+
+String _difficultyLabel(_ReflectionDifficulty difficulty) {
+  return switch (difficulty) {
+    _ReflectionDifficulty.easy => 'Easy',
+    _ReflectionDifficulty.neutral => 'Neutral',
+    _ReflectionDifficulty.hard => 'Hard',
+  };
 }
 
 class VisionReflectionFeed extends ConsumerWidget {

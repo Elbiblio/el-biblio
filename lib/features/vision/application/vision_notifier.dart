@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/errors/app_exception.dart';
 import '../../../core/models/accountability_tone.dart';
 import '../../../core/services/notifications/notification_service.dart';
 import '../data/vision_repository.dart';
@@ -402,6 +403,14 @@ class VisionNotifier extends StateNotifier<VisionState> {
         reflectionPostedToday: true,
       );
       return true;
+    } on ApiRequestException catch (e) {
+      if (e.statusCode == 409) {
+        await refreshFeed();
+        state = state.copyWith(reflectionPostedToday: true, clearError: true);
+        return true;
+      }
+      state = state.copyWith(error: e.toString());
+      return false;
     } catch (e) {
       state = state.copyWith(error: e.toString());
       return false;

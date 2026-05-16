@@ -121,6 +121,7 @@ class SettingsNotifier extends StateNotifier<AppSettings> {
     var newSettings = state.copyWith(
       hasCompletedPreOnboarding: true,
       onboardingCompleted: true,
+      hasCompletedPostOnboarding: true,
       primaryVirtue: primaryVirtue,
       lifestyle: lifestyle,
       morningTime: morningTime,
@@ -223,6 +224,7 @@ class SettingsNotifier extends StateNotifier<AppSettings> {
         : MissionFocusTypeX.normalizeStorageValue(primaryMissionFocus);
     var newSettings = state.copyWith(
       onboardingCompleted: true,
+      hasCompletedPostOnboarding: true,
       primaryVirtue: primaryVirtue,
       lifestyle: lifestyle,
       morningTime: morningTime,

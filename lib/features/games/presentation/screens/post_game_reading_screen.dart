@@ -9,12 +9,16 @@ class PostGameReadingScreen extends StatelessWidget {
   final String bibleReference;
   final int xpEarned;
   final String gameTitle;
+  final String returnRoute;
+  final String returnLabel;
 
   const PostGameReadingScreen({
     super.key,
     required this.bibleReference,
     required this.xpEarned,
     required this.gameTitle,
+    this.returnRoute = AppRoutes.games,
+    this.returnLabel = 'Skip for Now',
   });
 
   @override
@@ -95,8 +99,10 @@ class PostGameReadingScreen extends StatelessWidget {
 
                 // XP Badge
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 10,
+                  ),
                   decoration: BoxDecoration(
                     color: const Color(0xFFDAA520).withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(24),
@@ -132,9 +138,7 @@ class PostGameReadingScreen extends StatelessWidget {
                   width: double.infinity,
                   padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
-                    color: isDark
-                        ? const Color(0xFF1e293b)
-                        : Colors.white,
+                    color: isDark ? const Color(0xFF1e293b) : Colors.white,
                     borderRadius: BorderRadius.circular(18),
                     boxShadow: [
                       BoxShadow(
@@ -168,7 +172,9 @@ class PostGameReadingScreen extends StatelessWidget {
                         style: TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.w800,
-                          color: isDark ? Colors.white : const Color(0xFF1a1c1e),
+                          color: isDark
+                              ? Colors.white
+                              : const Color(0xFF1a1c1e),
                         ),
                       ),
                       if (allRefs.length > 1) ...[
@@ -243,13 +249,13 @@ class PostGameReadingScreen extends StatelessWidget {
                   width: double.infinity,
                   child: TextButton(
                     onPressed: () {
-                      context.go(AppRoutes.games);
+                      context.go(returnRoute);
                     },
                     style: TextButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 14),
                     ),
                     child: Text(
-                      'Skip for Now',
+                      returnLabel,
                       style: TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.w600,

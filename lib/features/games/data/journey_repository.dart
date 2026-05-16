@@ -47,24 +47,35 @@ class JourneyRepository {
     final newCompleted = Map<int, EventResult>.from(progress.completedEvents);
     newCompleted[order] = result;
 
-    final newScore = progress.totalScore + result.scoreEarned;
-    final newXp = progress.totalXpEarned + getEvent(order).xpReward;
-    final newPerfect =
-        progress.perfectAnswers + (result.isPerfect ? 1 : 0);
+    final newScore = newCompleted.values.fold<int>(
+      0,
+      (sum, result) => sum + result.scoreEarned,
+    );
+    final newXp = newCompleted.keys.fold<int>(
+      0,
+      (sum, eventOrder) => sum + getEvent(eventOrder).xpReward,
+    );
+    final newPerfect = newCompleted.values
+        .where((result) => result.isPerfect)
+        .length;
 
-    // Advance to next uncompleted event
-    int nextEvent = progress.currentEvent;
-    if (order == progress.currentEvent && order < 29) {
-      nextEvent = order + 1;
+    var nextEvent = 29;
+    for (var i = 0; i < JesusJourneyCatalog.allEvents.length; i++) {
+      if (!newCompleted.containsKey(i)) {
+        nextEvent = i;
+        break;
+      }
     }
 
+    final isComplete =
+        newCompleted.length >= JesusJourneyCatalog.allEvents.length;
     final updated = progress.copyWith(
       currentEvent: nextEvent,
       completedEvents: newCompleted,
       totalScore: newScore,
       totalXpEarned: newXp,
       perfectAnswers: newPerfect,
-      completedAt: newCompleted.length >= 30 ? DateTime.now() : null,
+      completedAt: isComplete ? progress.completedAt ?? DateTime.now() : null,
     );
 
     await saveProgress(updated);

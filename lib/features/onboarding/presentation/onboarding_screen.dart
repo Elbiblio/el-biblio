@@ -38,7 +38,7 @@ class OnboardingScreen extends ConsumerWidget {
         _canAdvanceFromAssessment(state)
             ? 'Create my account'
             : 'Complete my compass',
-      OnboardingStep.yourAccount => 'Continue to tribe and commitment',
+      OnboardingStep.yourAccount => 'Enter ElBiblio',
     };
   }
 
@@ -152,7 +152,7 @@ class OnboardingScreen extends ConsumerWidget {
 
     if (!context.mounted) return;
     CelebrationService.instance.playOnboardingCompletion(context);
-    context.go(AppRoutes.postOnboarding);
+    context.go(AppRoutes.today);
   }
 
   @override

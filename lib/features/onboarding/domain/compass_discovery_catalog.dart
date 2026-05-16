@@ -44,128 +44,128 @@ class CompassDiscoveryCatalog {
   static const seasonOptions = [
     CompassDiscoveryOption(
       archetype: 'Artisan',
-      label: 'My creativity needs to become worship, not comparison',
+      label: 'I want to use my gifts without comparing myself',
     ),
     CompassDiscoveryOption(
       archetype: 'Watchman',
-      label: 'My attention needs rebuilding, guarding, and quiet',
+      label: 'I need more quiet, focus, and healthy limits',
     ),
     CompassDiscoveryOption(
       archetype: 'Cultivator',
-      label: 'I need patience, rest, and ordinary faithfulness',
+      label: 'I need patience, rest, and small faithful steps',
     ),
     CompassDiscoveryOption(
       archetype: 'Sower',
-      label: 'I need courage to begin what I keep delaying',
+      label: 'I need courage to start something important',
     ),
     CompassDiscoveryOption(
       archetype: 'Welcomer',
-      label: 'I need warmer belonging with better boundaries',
+      label: 'I want close friendships with better boundaries',
     ),
     CompassDiscoveryOption(
       archetype: 'Pillar',
-      label: 'I need to serve faithfully without disappearing',
+      label: 'I help people, but I also need care',
     ),
     CompassDiscoveryOption(
       archetype: 'Sentinel',
-      label: 'I need to turn insight and prayer into action',
+      label: 'I notice important things and need to act on them',
     ),
     CompassDiscoveryOption(
       archetype: 'Bridgebuilder',
-      label: 'I need repair, peace, and honest connection',
+      label: 'I need peace, repair, and honest connection',
     ),
     CompassDiscoveryOption(
       archetype: 'Healer',
-      label: 'I need healing, forgiveness, or supported hope',
+      label: 'I need healing, forgiveness, or fresh hope',
     ),
     CompassDiscoveryOption(
       archetype: 'Harvester',
-      label: 'I need fruitfulness without metrics becoming my master',
+      label: 'I want good results without obsessing over numbers',
     ),
     CompassDiscoveryOption(
       archetype: 'Reformer',
-      label: 'Holy frustration needs to become constructive change',
+      label: 'I see what is wrong and want to help fix it',
     ),
     CompassDiscoveryOption(
       archetype: 'Architect',
-      label: 'I need order without control or perfectionism',
+      label: 'I need order without trying to control everything',
     ),
   ];
 
   static const seasonClusters = [
     CompassDiscoveryCluster(
       id: 'create_begin',
-      label: 'Creating, beginning, or gathering fruit',
-      description: 'Something in me wants to make, start, or multiply good.',
+      label: 'Making, starting, or finishing good things',
+      description: 'You want to create, begin, or see good fruit.',
       options: [
         CompassDiscoveryOption(
           archetype: 'Artisan',
-          label: 'My creativity needs to become worship, not comparison',
+          label: 'I want to use my gifts without comparing myself',
         ),
         CompassDiscoveryOption(
           archetype: 'Sower',
-          label: 'I need courage to begin what I keep delaying',
+          label: 'I need courage to start something important',
         ),
         CompassDiscoveryOption(
           archetype: 'Harvester',
-          label: 'I need fruitfulness without metrics becoming my master',
+          label: 'I want good results without obsessing over numbers',
         ),
       ],
     ),
     CompassDiscoveryCluster(
       id: 'tend_guard',
-      label: 'Tending, guarding, or staying faithful',
-      description: 'I am learning patience, attention, and steady presence.',
+      label: 'Staying steady, careful, and faithful',
+      description: 'You want patience, focus, and steady daily faith.',
       options: [
         CompassDiscoveryOption(
           archetype: 'Cultivator',
-          label: 'I need patience, rest, and ordinary faithfulness',
+          label: 'I need patience, rest, and small faithful steps',
         ),
         CompassDiscoveryOption(
           archetype: 'Watchman',
-          label: 'My attention needs rebuilding, guarding, and quiet',
+          label: 'I need more quiet, focus, and healthy limits',
         ),
         CompassDiscoveryOption(
           archetype: 'Pillar',
-          label: 'I need to serve faithfully without disappearing',
+          label: 'I help people, but I also need care',
         ),
       ],
     ),
     CompassDiscoveryCluster(
       id: 'heal_belong',
-      label: 'Healing, belonging, or repairing connection',
-      description: 'Relationships, pain, or peace are asking for attention.',
+      label: 'Healing, friendship, and peace with people',
+      description: 'You want support, repair, or a healthier connection.',
       options: [
         CompassDiscoveryOption(
           archetype: 'Welcomer',
-          label: 'I need warmer belonging with better boundaries',
+          label: 'I want close friendships with better boundaries',
         ),
         CompassDiscoveryOption(
           archetype: 'Bridgebuilder',
-          label: 'I need repair, peace, and honest connection',
+          label: 'I need peace, repair, and honest connection',
         ),
         CompassDiscoveryOption(
           archetype: 'Healer',
-          label: 'I need healing, forgiveness, or supported hope',
+          label: 'I need healing, forgiveness, or fresh hope',
         ),
       ],
     ),
     CompassDiscoveryCluster(
       id: 'discern_build',
-      label: 'Discerning, ordering, or changing what is broken',
-      description: 'I can see what needs structure, courage, or action.',
+      label: 'Seeing problems and building better ways',
+      description: 'You notice what needs action, courage, or structure.',
       options: [
         CompassDiscoveryOption(
           archetype: 'Sentinel',
-          label: 'I need to turn insight and prayer into action',
+          label: 'I notice important things and need to act on them',
         ),
         CompassDiscoveryOption(
           archetype: 'Reformer',
-          label: 'Holy frustration needs to become constructive change',
+          label: 'I see what is wrong and want to help fix it',
         ),
         CompassDiscoveryOption(
           archetype: 'Architect',
-          label: 'I need order without control or perfectionism',
+          label: 'I need order without trying to control everything',
         ),
       ],
     ),
@@ -174,15 +174,15 @@ class CompassDiscoveryCatalog {
   static const pressureOptions = [
     CompassDiscoveryOption(
       archetype: 'Artisan',
-      label: 'Chase a better idea instead of staying with one',
+      label: 'Look for a new idea instead of finishing one',
     ),
     CompassDiscoveryOption(
       archetype: 'Watchman',
-      label: 'Scan for what could go wrong and tighten boundaries',
+      label: 'Watch for what could go wrong',
     ),
     CompassDiscoveryOption(
       archetype: 'Cultivator',
-      label: 'Slow down, tend what is in front of me, and wait',
+      label: 'Slow down and care for what is in front of me',
     ),
     CompassDiscoveryOption(
       archetype: 'Sower',
@@ -190,105 +190,105 @@ class CompassDiscoveryCatalog {
     ),
     CompassDiscoveryOption(
       archetype: 'Welcomer',
-      label: 'Try to keep everyone close and comfortable',
+      label: 'Try to keep everyone happy',
     ),
     CompassDiscoveryOption(
       archetype: 'Pillar',
-      label: 'Carry the load quietly so others can keep going',
+      label: 'Carry the load quietly',
     ),
     CompassDiscoveryOption(
       archetype: 'Sentinel',
-      label: 'Withdraw, observe, and process before acting',
+      label: 'Step back and think before I act',
     ),
     CompassDiscoveryOption(
       archetype: 'Bridgebuilder',
-      label: 'Try to reduce conflict before it spreads',
+      label: 'Try to stop conflict from growing',
     ),
     CompassDiscoveryOption(
       archetype: 'Healer',
-      label: 'Absorb the pain in the room and try to soothe it',
+      label: 'Feel other people\'s pain and try to help',
     ),
     CompassDiscoveryOption(
       archetype: 'Harvester',
-      label: 'Measure progress and look for useful fruit',
+      label: 'Measure progress and look for results',
     ),
     CompassDiscoveryOption(
       archetype: 'Reformer',
-      label: 'Name what is wrong and want it fixed quickly',
+      label: 'Name what is wrong and want it fixed',
     ),
     CompassDiscoveryOption(
       archetype: 'Architect',
-      label: 'Try to control every variable and build a plan',
+      label: 'Make a plan and try to control the details',
     ),
   ];
 
   static const postponedOptions = [
     CompassDiscoveryOption(
       archetype: 'Artisan',
-      label: 'Finishing one creation instead of chasing a new one',
+      label: 'Finishing one thing before starting another',
     ),
     CompassDiscoveryOption(
       archetype: 'Watchman',
-      label: 'Protecting quiet, prayer, and attention from noise',
+      label: 'Protecting quiet, prayer, and focus',
     ),
     CompassDiscoveryOption(
       archetype: 'Cultivator',
-      label: 'Accepting a slower season without calling it failure',
+      label: 'Accepting a slower season without feeling like a failure',
     ),
     CompassDiscoveryOption(
       archetype: 'Sower',
-      label: 'Beginning the thing I know matters',
+      label: 'Starting the thing I know matters',
     ),
     CompassDiscoveryOption(
       archetype: 'Welcomer',
-      label: 'Saying what I need instead of only making room for others',
+      label: 'Saying what I need',
     ),
     CompassDiscoveryOption(
       archetype: 'Pillar',
-      label: 'Taking a step for my own calling',
+      label: 'Taking one step for my own growth',
     ),
     CompassDiscoveryOption(
       archetype: 'Sentinel',
-      label: 'Turning private conviction into one visible act',
+      label: 'Turning what I believe into one visible action',
     ),
     CompassDiscoveryOption(
       archetype: 'Bridgebuilder',
-      label: 'Having the honest conversation I keep softening',
+      label: 'Having the honest conversation',
     ),
     CompassDiscoveryOption(
       archetype: 'Healer',
-      label: 'Receiving care instead of always giving care',
+      label: 'Receiving care instead of always giving it',
     ),
     CompassDiscoveryOption(
       archetype: 'Harvester',
-      label: 'Celebrating fruit without rushing to the next target',
+      label: 'Celebrating progress before rushing ahead',
     ),
     CompassDiscoveryOption(
       archetype: 'Reformer',
-      label: 'Building the repair instead of only naming the problem',
+      label: 'Helping fix the problem, not just naming it',
     ),
     CompassDiscoveryOption(
       archetype: 'Architect',
-      label: 'Letting a good-enough plan move before it is perfect',
+      label: 'Letting a good-enough plan begin',
     ),
   ];
 
   static const peopleNeedOptions = [
     CompassDiscoveryOption(
       archetype: 'Artisan',
-      label: 'Fresh imagination and a more beautiful way to see',
+      label: 'Fresh ideas and a hopeful way to see',
     ),
     CompassDiscoveryOption(
       archetype: 'Watchman',
-      label: 'Discernment, protection, and help noticing drift',
+      label: 'Wise warnings and help staying focused',
     ),
     CompassDiscoveryOption(
       archetype: 'Cultivator',
-      label: 'Patient care and steady encouragement',
+      label: 'Patience and steady encouragement',
     ),
     CompassDiscoveryOption(
       archetype: 'Sower',
-      label: 'Courage to begin and take the next step',
+      label: 'Courage to begin',
     ),
     CompassDiscoveryOption(
       archetype: 'Welcomer',
@@ -296,82 +296,82 @@ class CompassDiscoveryCatalog {
     ),
     CompassDiscoveryOption(
       archetype: 'Pillar',
-      label: 'Reliable presence when life gets heavy',
+      label: 'A reliable person when life feels heavy',
     ),
     CompassDiscoveryOption(
       archetype: 'Sentinel',
-      label: 'Prayerful clarity and timely warning',
+      label: 'Clear thinking and prayerful warning',
     ),
     CompassDiscoveryOption(
       archetype: 'Bridgebuilder',
-      label: 'Repair, peace, and honest connection',
+      label: 'Peace and honest connection',
     ),
     CompassDiscoveryOption(
       archetype: 'Healer',
-      label: 'Tenderness, forgiveness, and supported hope',
+      label: 'Kindness, forgiveness, and hope',
     ),
     CompassDiscoveryOption(
       archetype: 'Harvester',
-      label: 'Momentum, mobilizing, and celebration',
+      label: 'Motivation and celebration',
     ),
     CompassDiscoveryOption(
       archetype: 'Reformer',
-      label: 'Courage to name what must change',
+      label: 'Courage to name what should change',
     ),
     CompassDiscoveryOption(
       archetype: 'Architect',
-      label: 'Order, structure, and a path people can follow',
+      label: 'Order and a clear path to follow',
     ),
   ];
 
   static const distortionFearOptions = [
     CompassDiscoveryOption(
       archetype: 'Artisan',
-      label: 'Being unseen, ordinary, or creatively irrelevant',
+      label: 'Feeling unseen or not special',
     ),
     CompassDiscoveryOption(
       archetype: 'Watchman',
-      label: 'Letting danger, disorder, or compromise slip through',
+      label: 'Missing danger or letting noise take over',
     ),
     CompassDiscoveryOption(
       archetype: 'Cultivator',
-      label: 'Change, pruning, or losing control of growth',
+      label: 'Change or slow growth',
     ),
     CompassDiscoveryOption(
       archetype: 'Sower',
-      label: 'Wasting potential by moving too slowly',
+      label: 'Wasting my chance by moving too slowly',
     ),
     CompassDiscoveryOption(
       archetype: 'Welcomer',
-      label: 'Rejection, disapproval, or disappointing people',
+      label: 'Rejection or disappointing people',
     ),
     CompassDiscoveryOption(
       archetype: 'Pillar',
-      label: 'Being needed by everyone but never truly chosen',
+      label: 'Being needed but not really known',
     ),
     CompassDiscoveryOption(
       archetype: 'Sentinel',
-      label: 'Being exposed before my inner life feels ready',
+      label: 'Being seen before I feel ready',
     ),
     CompassDiscoveryOption(
       archetype: 'Bridgebuilder',
-      label: 'Conflict, division, or losing connection',
+      label: 'Conflict or losing connection',
     ),
     CompassDiscoveryOption(
       archetype: 'Healer',
-      label: 'Not being able to fix pain I can clearly feel',
+      label: 'Feeling pain I cannot fix',
     ),
     CompassDiscoveryOption(
       archetype: 'Harvester',
-      label: 'Fruitlessness, wasted effort, or falling behind',
+      label: 'Wasted effort or falling behind',
     ),
     CompassDiscoveryOption(
       archetype: 'Reformer',
-      label: 'Injustice continuing because I stayed quiet',
+      label: 'Wrong things continuing because I stayed quiet',
     ),
     CompassDiscoveryOption(
       archetype: 'Architect',
-      label: 'Chaos, imperfection, or plans slipping out of place',
+      label: 'Mess, mistakes, or plans falling apart',
     ),
   ];
 

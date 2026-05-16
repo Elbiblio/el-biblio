@@ -298,7 +298,9 @@ final missionProvider = StateNotifierProvider<MissionNotifier, MissionState>((
 });
 
 final soundServiceProvider = Provider<SoundService>((ref) {
-  return SoundService();
+  final service = SoundService();
+  ref.onDispose(service.dispose);
+  return service;
 });
 
 final themeProvider = StateNotifierProvider<ThemeNotifier, AppTheme>((ref) {

@@ -27,6 +27,7 @@ class JourneyGameState {
   final bool? isCorrect;
   final int sessionCorrect; // correct in this event's quiz (0-3)
   final int sessionScore;
+  final int lastXpEarned;
   final String? errorMessage;
 
   const JourneyGameState({
@@ -38,6 +39,7 @@ class JourneyGameState {
     this.isCorrect,
     this.sessionCorrect = 0,
     this.sessionScore = 0,
+    this.lastXpEarned = 0,
     this.errorMessage,
   });
 
@@ -50,6 +52,7 @@ class JourneyGameState {
     bool? isCorrect,
     int? sessionCorrect,
     int? sessionScore,
+    int? lastXpEarned,
     String? errorMessage,
     bool clearSelection = false,
     bool clearEvent = false,
@@ -65,6 +68,7 @@ class JourneyGameState {
       isCorrect: clearSelection ? null : (isCorrect ?? this.isCorrect),
       sessionCorrect: sessionCorrect ?? this.sessionCorrect,
       sessionScore: sessionScore ?? this.sessionScore,
+      lastXpEarned: lastXpEarned ?? this.lastXpEarned,
       errorMessage: errorMessage,
     );
   }
@@ -101,12 +105,14 @@ class JourneyGameNotifier extends StateNotifier<JourneyGameState> {
       return; // locked
     }
     final event = _repository.getEvent(order);
+    _ref.read(soundServiceProvider).playGameTap();
     state = state.copyWith(
       phase: JourneyPhase.viewingEvent,
       currentEvent: event,
       currentQuestionIndex: 0,
       sessionCorrect: 0,
       sessionScore: 0,
+      lastXpEarned: 0,
       clearSelection: true,
     );
   }
@@ -114,11 +120,13 @@ class JourneyGameNotifier extends StateNotifier<JourneyGameState> {
   /// Start the quiz for the currently viewed event
   void startQuiz() {
     if (state.currentEvent == null) return;
+    _ref.read(soundServiceProvider).playGameTap();
     state = state.copyWith(
       phase: JourneyPhase.quiz,
       currentQuestionIndex: 0,
       sessionCorrect: 0,
       sessionScore: 0,
+      lastXpEarned: 0,
       clearSelection: true,
     );
   }
@@ -130,6 +138,11 @@ class JourneyGameNotifier extends StateNotifier<JourneyGameState> {
 
     final question = event.questions[state.currentQuestionIndex];
     final correct = answerIndex == question.correctIndex;
+    if (correct) {
+      _ref.read(soundServiceProvider).playGameSuccess();
+    } else {
+      _ref.read(soundServiceProvider).playGameFail();
+    }
 
     int scoreGain = 0;
     if (correct) {
@@ -167,6 +180,10 @@ class JourneyGameNotifier extends StateNotifier<JourneyGameState> {
   Future<void> _completeCurrentEvent() async {
     final event = state.currentEvent;
     if (event == null) return;
+    final wasAlreadyCompleted = state.progress.completedEvents.containsKey(
+      event.order,
+    );
+    final xpEarned = wasAlreadyCompleted ? 0 : event.xpReward;
 
     final result = EventResult(
       eventOrder: event.order,
@@ -176,46 +193,54 @@ class JourneyGameNotifier extends StateNotifier<JourneyGameState> {
     );
 
     await _repository.completeEvent(event.order, result);
-    await _ref
-        .read(gameScoreRepositoryProvider)
-        .submitScore(
-          gameId: 'jesus_journey',
-          score: state.sessionScore,
-          meta: <String, dynamic>{
-            'event_order': event.order,
-            'event_title': event.title,
-            'correct_answers': state.sessionCorrect,
-            'question_count': event.questions.length,
-          },
-        );
+    if (!wasAlreadyCompleted) {
+      await _ref
+          .read(gameScoreRepositoryProvider)
+          .submitScore(
+            gameId: 'jesus_journey',
+            score: state.sessionScore,
+            meta: <String, dynamic>{
+              'event_order': event.order,
+              'event_title': event.title,
+              'correct_answers': state.sessionCorrect,
+              'question_count': event.questions.length,
+            },
+          );
+    }
 
     // Award XP
-    try {
-      final xpService = _ref.read(xpServiceProvider);
-      await xpService.addXP(
-        type: XPActivityType.verseGame,
-        description: 'Completed Journey event: ${event.title}',
-        metadata: {
-          'eventOrder': event.order,
-          'correctAnswers': state.sessionCorrect,
-          'score': state.sessionScore,
-        },
-      );
-    } catch (_) {
-      // XP service not initialized -- skip
+    if (!wasAlreadyCompleted) {
+      try {
+        final xpService = _ref.read(xpServiceProvider);
+        await xpService.addXP(
+          type: XPActivityType.verseGame,
+          description: 'Completed Journey event: ${event.title}',
+          metadata: {
+            'eventOrder': event.order,
+            'correctAnswers': state.sessionCorrect,
+            'score': state.sessionScore,
+          },
+        );
+      } catch (_) {
+        // XP service not initialized -- skip
+      }
     }
 
     final updatedProgress = await _repository.getProgress();
 
     if (updatedProgress.isComplete) {
+      _ref.read(soundServiceProvider).playGameLevelUp();
       state = state.copyWith(
         phase: JourneyPhase.journeyComplete,
         progress: updatedProgress,
+        lastXpEarned: xpEarned,
       );
     } else {
+      _ref.read(soundServiceProvider).playGameLevelUp();
       state = state.copyWith(
         phase: JourneyPhase.eventComplete,
         progress: updatedProgress,
+        lastXpEarned: xpEarned,
       );
     }
   }
@@ -240,6 +265,7 @@ class JourneyGameNotifier extends StateNotifier<JourneyGameState> {
       clearSelection: true,
       sessionCorrect: 0,
       sessionScore: 0,
+      lastXpEarned: 0,
     );
   }
 

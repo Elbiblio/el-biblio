@@ -423,7 +423,7 @@ class _YourAccountViewState extends ConsumerState<YourAccountView>
                         ),
                       )
                     : Text(
-                        'Continue to tribe and commitment',
+                        'Enter ElBiblio',
                         style: textTheme.titleMedium?.copyWith(
                           fontWeight: FontWeight.w600,
                           color: theme.colorScheme.onPrimary,

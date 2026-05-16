@@ -15,7 +15,6 @@ void main() {
       'lib/features/vision/presentation/screens/commit_screen.dart',
       'lib/features/vision/presentation/screens/tribe_screen.dart',
       'lib/features/vision/presentation/screens/grow_screen.dart',
-      'lib/features/vision/presentation/screens/vision_onboarding_flow_screen.dart',
       'lib/features/vision/presentation/screens/hangout_room_screen.dart',
       'lib/features/social/presentation/invite_screen.dart',
       'lib/features/grow/presentation/screens/grow_hub_screen.dart',
@@ -102,7 +101,10 @@ void main() {
       'lib/features/vision/data/vision_repository.dart',
     ).readAsStringSync();
     final onboarding = File(
-      'lib/features/vision/presentation/screens/vision_onboarding_flow_screen.dart',
+      'lib/features/onboarding/presentation/onboarding_screen.dart',
+    ).readAsStringSync();
+    final commit = File(
+      'lib/features/vision/presentation/screens/commit_screen.dart',
     ).readAsStringSync();
     final reflect = File(
       'lib/features/vision/presentation/widgets/reflection_feed_widgets.dart',
@@ -116,7 +118,8 @@ void main() {
 
     expect(settings, contains('firstCheckInPlanWhen'));
     expect(repository, contains('check_in_plan_when'));
-    expect(onboarding, contains('planWhen: _whenController.text'));
+    expect(onboarding, contains('context.go(AppRoutes.today)'));
+    expect(commit, contains('planWhen: planWhen'));
     expect(reflect, contains('reportReflection'));
     expect(hangout, contains('reportHangout'));
     expect(hangout, contains('source=hangout'));

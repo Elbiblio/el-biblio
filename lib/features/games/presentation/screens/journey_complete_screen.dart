@@ -11,8 +11,7 @@ class JourneyCompleteScreen extends ConsumerStatefulWidget {
       _JourneyCompleteScreenState();
 }
 
-class _JourneyCompleteScreenState
-    extends ConsumerState<JourneyCompleteScreen>
+class _JourneyCompleteScreenState extends ConsumerState<JourneyCompleteScreen>
     with SingleTickerProviderStateMixin {
   late ConfettiController _confettiController;
   late AnimationController _animCtrl;
@@ -21,16 +20,14 @@ class _JourneyCompleteScreenState
   @override
   void initState() {
     super.initState();
-    _confettiController =
-        ConfettiController(duration: const Duration(seconds: 5));
+    _confettiController = ConfettiController(
+      duration: const Duration(seconds: 5),
+    );
     _animCtrl = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 800),
     );
-    _scaleAnim = CurvedAnimation(
-      parent: _animCtrl,
-      curve: Curves.elasticOut,
-    );
+    _scaleAnim = CurvedAnimation(parent: _animCtrl, curve: Curves.elasticOut);
 
     Future.delayed(const Duration(milliseconds: 300), () {
       _confettiController.play();
@@ -86,8 +83,9 @@ class _JourneyCompleteScreenState
                         ),
                         boxShadow: [
                           BoxShadow(
-                            color: const Color(0xFFDAA520)
-                                .withValues(alpha: 0.4),
+                            color: const Color(
+                              0xFFDAA520,
+                            ).withValues(alpha: 0.4),
                             blurRadius: 30,
                             spreadRadius: 5,
                           ),
@@ -126,9 +124,7 @@ class _JourneyCompleteScreenState
                   Container(
                     padding: const EdgeInsets.all(24),
                     decoration: BoxDecoration(
-                      color: isDark
-                          ? const Color(0xFF1e293b)
-                          : Colors.white,
+                      color: isDark ? const Color(0xFF1e293b) : Colors.white,
                       borderRadius: BorderRadius.circular(20),
                       boxShadow: [
                         BoxShadow(
@@ -155,8 +151,7 @@ class _JourneyCompleteScreenState
                           icon: Icons.check_circle,
                           color: Colors.green,
                           label: 'Events Completed',
-                          value:
-                              '${progress.completedEvents.length} / 30',
+                          value: '${progress.completedEvents.length} / 30',
                         ),
                         const SizedBox(height: 14),
                         _recapRow(
@@ -203,13 +198,11 @@ class _JourneyCompleteScreenState
                     child: FilledButton(
                       onPressed: () {
                         notifier.backToMap();
-                        Navigator.of(context)
-                            .popUntil((route) => route.isFirst);
+                        Navigator.of(context).pop();
                       },
                       style: FilledButton.styleFrom(
                         backgroundColor: const Color(0xFFDAA520),
-                        padding:
-                            const EdgeInsets.symmetric(vertical: 16),
+                        padding: const EdgeInsets.symmetric(vertical: 16),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(16),
                         ),
@@ -226,10 +219,10 @@ class _JourneyCompleteScreenState
                   ),
                   const SizedBox(height: 12),
                   TextButton(
-                    onPressed: () {
-                      notifier.resetJourney();
-                      Navigator.of(context)
-                          .popUntil((route) => route.isFirst);
+                    onPressed: () async {
+                      await notifier.resetJourney();
+                      if (!context.mounted) return;
+                      Navigator.of(context).pop();
                     },
                     child: Text(
                       'Replay Journey',
@@ -305,8 +298,7 @@ class _JourneyCompleteScreenState
 
   String _daysToComplete(progress) {
     if (progress.completedAt == null) return '-';
-    final diff =
-        progress.completedAt!.difference(progress.startedAt).inDays;
+    final diff = progress.completedAt!.difference(progress.startedAt).inDays;
     return diff <= 0 ? '1' : '$diff';
   }
 }

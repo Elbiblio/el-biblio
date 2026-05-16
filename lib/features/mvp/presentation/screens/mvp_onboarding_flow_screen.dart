@@ -10,7 +10,7 @@ class MvpOnboardingFlowScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (context.mounted) {
-        context.go(AppRoutes.postOnboarding);
+        context.go(AppRoutes.today);
       }
     });
     return const SizedBox.shrink();

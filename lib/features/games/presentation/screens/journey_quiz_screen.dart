@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/constants/app_routes.dart';
+import '../../../../core/di/app_providers.dart';
 import '../../application/journey_game_notifier.dart';
 import '../widgets/quiz_option_card.dart';
 import 'journey_complete_screen.dart';
@@ -22,34 +23,45 @@ class JourneyQuizScreen extends ConsumerWidget {
     }
 
     // Listen for completion
-    ref.listen<JourneyPhase>(
-      journeyGameProvider.select((s) => s.phase),
-      (prev, next) {
-        if (next == JourneyPhase.eventComplete) {
-          // Navigate to post-game reading screen with the event's Bible reference
-          final completedEvent = state.currentEvent;
-          if (completedEvent != null &&
-              completedEvent.bibleReference.isNotEmpty) {
-            Navigator.of(context).popUntil((route) => route.isFirst);
-            context.push(
-              AppRoutes.gamesPostReading,
-              extra: {
-                'bibleReference': completedEvent.bibleReference,
-                'xpEarned': completedEvent.xpReward,
-                'gameTitle': completedEvent.title,
-              },
-            );
-          } else {
-            // Fallback: pop back to map if no reference available
-            Navigator.of(context).popUntil((route) => route.isFirst);
-          }
-        } else if (next == JourneyPhase.journeyComplete) {
-          Navigator.of(context).pushReplacement(
-            MaterialPageRoute(builder: (_) => const JourneyCompleteScreen()),
+    ref.listen<JourneyPhase>(journeyGameProvider.select((s) => s.phase), (
+      prev,
+      next,
+    ) {
+      if (ModalRoute.of(context)?.isCurrent != true) return;
+
+      if (next == JourneyPhase.eventComplete) {
+        // Navigate to post-game reading screen with the event's Bible reference
+        final latestState = ref.read(journeyGameProvider);
+        final completedEvent = latestState.currentEvent;
+        if (completedEvent != null &&
+            completedEvent.bibleReference.isNotEmpty) {
+          final navigator = Navigator.of(context);
+          final router = GoRouter.of(context);
+          ref.read(soundServiceProvider).stopJourneyAmbience();
+          notifier.backToMap();
+          navigator.popUntil((route) => route.isFirst);
+          router.push(
+            AppRoutes.gamesPostReading,
+            extra: {
+              'bibleReference': completedEvent.bibleReference,
+              'xpEarned': latestState.lastXpEarned,
+              'gameTitle': completedEvent.title,
+              'returnRoute': AppRoutes.gamesJourney,
+              'returnLabel': 'Continue Journey',
+            },
           );
+        } else {
+          // Fallback: pop back to map if no reference available
+          notifier.backToMap();
+          Navigator.of(context).pop();
         }
-      },
-    );
+      } else if (next == JourneyPhase.journeyComplete) {
+        ref.read(soundServiceProvider).stopJourneyAmbience();
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => const JourneyCompleteScreen()),
+        );
+      }
+    });
 
     final question = event.questions[state.currentQuestionIndex];
     final showResult = state.phase == JourneyPhase.quizResult;
@@ -73,16 +85,17 @@ class JourneyQuizScreen extends ConsumerWidget {
             children: [
               // Header
               Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
                 child: Row(
                   children: [
                     IconButton(
                       icon: const Icon(Icons.close, size: 22),
                       onPressed: () {
                         notifier.backToMap();
-                        Navigator.of(context)
-                            .popUntil((route) => route.isFirst);
+                        Navigator.of(context).pop();
                       },
                     ),
                     Expanded(
@@ -94,22 +107,21 @@ class JourneyQuizScreen extends ConsumerWidget {
                             style: TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.w700,
-                              color:
-                                  isDark ? Colors.white70 : Colors.black54,
+                              color: isDark ? Colors.white70 : Colors.black54,
                             ),
                           ),
                           const SizedBox(height: 4),
                           // Progress dots
                           Row(
                             mainAxisAlignment: MainAxisAlignment.center,
-                            children:
-                                List.generate(totalQuestions, (i) {
+                            children: List.generate(totalQuestions, (i) {
                               Color dotColor;
                               if (i < state.currentQuestionIndex) {
                                 dotColor = event.themeColor;
                               } else if (i == state.currentQuestionIndex) {
-                                dotColor =
-                                    event.themeColor.withValues(alpha: 0.5);
+                                dotColor = event.themeColor.withValues(
+                                  alpha: 0.5,
+                                );
                               } else {
                                 dotColor = isDark
                                     ? Colors.grey.shade700
@@ -117,7 +129,8 @@ class JourneyQuizScreen extends ConsumerWidget {
                               }
                               return Container(
                                 margin: const EdgeInsets.symmetric(
-                                    horizontal: 4),
+                                  horizontal: 4,
+                                ),
                                 width: i == state.currentQuestionIndex
                                     ? 24
                                     : 10,
@@ -135,7 +148,9 @@ class JourneyQuizScreen extends ConsumerWidget {
                     // Score
                     Container(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 4),
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
                       decoration: BoxDecoration(
                         color: event.themeColor.withValues(alpha: 0.15),
                         borderRadius: BorderRadius.circular(12),
@@ -143,8 +158,7 @@ class JourneyQuizScreen extends ConsumerWidget {
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(Icons.star,
-                              size: 14, color: event.themeColor),
+                          Icon(Icons.star, size: 14, color: event.themeColor),
                           const SizedBox(width: 4),
                           Text(
                             '${state.sessionCorrect}/$totalQuestions',
@@ -192,8 +206,8 @@ class JourneyQuizScreen extends ConsumerWidget {
                               color: i < question.difficulty
                                   ? event.themeColor
                                   : (isDark
-                                      ? Colors.grey.shade700
-                                      : Colors.grey.shade300),
+                                        ? Colors.grey.shade700
+                                        : Colors.grey.shade300),
                               borderRadius: BorderRadius.circular(2),
                             ),
                           );
@@ -220,10 +234,9 @@ class JourneyQuizScreen extends ConsumerWidget {
                           index: i,
                           correctIndex: question.correctIndex,
                           isSelected: state.selectedAnswerIndex == i,
-                          isCorrect:
-                              state.selectedAnswerIndex == i
-                                  ? state.isCorrect
-                                  : null,
+                          isCorrect: state.selectedAnswerIndex == i
+                              ? state.isCorrect
+                              : null,
                           showResult: showResult,
                           onTap: () {
                             HapticFeedback.mediumImpact();
@@ -301,8 +314,7 @@ class JourneyQuizScreen extends ConsumerWidget {
                             onPressed: () => notifier.nextQuestion(),
                             style: FilledButton.styleFrom(
                               backgroundColor: event.themeColor,
-                              padding: const EdgeInsets.symmetric(
-                                  vertical: 16),
+                              padding: const EdgeInsets.symmetric(vertical: 16),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(14),
                               ),

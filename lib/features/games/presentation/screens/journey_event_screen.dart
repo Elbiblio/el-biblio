@@ -13,6 +13,9 @@ class JourneyEventScreen extends ConsumerWidget {
     final state = ref.watch(journeyGameProvider);
     final notifier = ref.read(journeyGameProvider.notifier);
     final event = state.currentEvent;
+    final result = event == null
+        ? null
+        : state.progress.completedEvents[event.order];
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     if (event == null) {
@@ -20,16 +23,17 @@ class JourneyEventScreen extends ConsumerWidget {
     }
 
     // Listen for phase transition to quiz
-    ref.listen<JourneyPhase>(
-      journeyGameProvider.select((s) => s.phase),
-      (prev, next) {
-        if (next == JourneyPhase.quiz) {
-          Navigator.of(context).pushReplacement(
-            MaterialPageRoute(builder: (_) => const JourneyQuizScreen()),
-          );
-        }
-      },
-    );
+    ref.listen<JourneyPhase>(journeyGameProvider.select((s) => s.phase), (
+      prev,
+      next,
+    ) {
+      if (ModalRoute.of(context)?.isCurrent != true) return;
+      if (next == JourneyPhase.quiz) {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => const JourneyQuizScreen()),
+        );
+      }
+    });
 
     return Scaffold(
       body: Container(
@@ -48,8 +52,7 @@ class JourneyEventScreen extends ConsumerWidget {
             children: [
               // App bar
               Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 child: Row(
                   children: [
                     IconButton(
@@ -79,7 +82,9 @@ class JourneyEventScreen extends ConsumerWidget {
               Expanded(
                 child: SingleChildScrollView(
                   padding: const EdgeInsets.symmetric(
-                      horizontal: 24, vertical: 12),
+                    horizontal: 24,
+                    vertical: 12,
+                  ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -90,10 +95,11 @@ class JourneyEventScreen extends ConsumerWidget {
                           height: 72,
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
-                            color:
-                                event.themeColor.withValues(alpha: 0.15),
+                            color: event.themeColor.withValues(alpha: 0.15),
                             border: Border.all(
-                                color: event.themeColor, width: 2),
+                              color: event.themeColor,
+                              width: 2,
+                            ),
                           ),
                           child: Icon(
                             _resolveIcon(event.iconName),
@@ -126,13 +132,51 @@ class JourneyEventScreen extends ConsumerWidget {
                         ),
                       ),
                       const SizedBox(height: 6),
+                      if (result != null) ...[
+                        Center(
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 6,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.green.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(
+                                color: Colors.green.withValues(alpha: 0.24),
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(
+                                  Icons.check_circle,
+                                  color: Colors.green,
+                                  size: 16,
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  '${result.correctAnswers}/${event.questions.length} correct',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w800,
+                                    color: Colors.green.shade700,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                      ],
                       Center(
                         child: Container(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 12, vertical: 4),
+                            horizontal: 12,
+                            vertical: 4,
+                          ),
                           decoration: BoxDecoration(
-                            color:
-                                event.themeColor.withValues(alpha: 0.1),
+                            color: event.themeColor.withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: Text(
@@ -154,6 +198,44 @@ class JourneyEventScreen extends ConsumerWidget {
                       ),
                       const SizedBox(height: 24),
 
+                      // Spiritual takeaway
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: event.themeColor.withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: event.themeColor.withValues(alpha: 0.18),
+                          ),
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Icon(
+                              LucideIcons.lightbulb,
+                              color: event.themeColor,
+                              size: 20,
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                event.spiritualTakeaway,
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  height: 1.5,
+                                  fontWeight: FontWeight.w600,
+                                  color: isDark
+                                      ? Colors.white70
+                                      : Colors.black87,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+
                       // Key verse
                       Container(
                         padding: const EdgeInsets.all(16),
@@ -163,13 +245,11 @@ class JourneyEventScreen extends ConsumerWidget {
                               : Colors.white,
                           borderRadius: BorderRadius.circular(16),
                           border: Border.all(
-                            color:
-                                event.themeColor.withValues(alpha: 0.3),
+                            color: event.themeColor.withValues(alpha: 0.3),
                           ),
                           boxShadow: [
                             BoxShadow(
-                              color:
-                                  Colors.black.withValues(alpha: 0.04),
+                              color: Colors.black.withValues(alpha: 0.04),
                               blurRadius: 8,
                               offset: const Offset(0, 2),
                             ),
@@ -177,8 +257,11 @@ class JourneyEventScreen extends ConsumerWidget {
                         ),
                         child: Column(
                           children: [
-                            Icon(LucideIcons.quote,
-                                color: event.themeColor, size: 20),
+                            Icon(
+                              LucideIcons.quote,
+                              color: event.themeColor,
+                              size: 20,
+                            ),
                             const SizedBox(height: 8),
                             Text(
                               event.keyVerse,
@@ -188,9 +271,7 @@ class JourneyEventScreen extends ConsumerWidget {
                                 fontWeight: FontWeight.w600,
                                 fontStyle: FontStyle.italic,
                                 height: 1.5,
-                                color: isDark
-                                    ? Colors.white
-                                    : Colors.black87,
+                                color: isDark ? Colors.white : Colors.black87,
                               ),
                             ),
                             const SizedBox(height: 8),
@@ -213,17 +294,18 @@ class JourneyEventScreen extends ConsumerWidget {
                         child: FilledButton.icon(
                           onPressed: () => notifier.startQuiz(),
                           icon: const Icon(Icons.quiz_outlined),
-                          label: const Text(
-                            'Begin Questions',
-                            style: TextStyle(
+                          label: Text(
+                            result == null
+                                ? 'Begin Questions'
+                                : 'Replay Questions',
+                            style: const TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.w700,
                             ),
                           ),
                           style: FilledButton.styleFrom(
                             backgroundColor: event.themeColor,
-                            padding: const EdgeInsets.symmetric(
-                                vertical: 16),
+                            padding: const EdgeInsets.symmetric(vertical: 16),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(16),
                             ),

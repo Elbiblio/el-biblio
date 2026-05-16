@@ -1690,7 +1690,7 @@ class _VerseGameScreenState extends ConsumerState<VerseGameScreen>
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
             child: Text(
-              'Back to Bible',
+              'Back',
               style: TextStyle(color: textColor.withValues(alpha: 0.6)),
             ),
           ),
