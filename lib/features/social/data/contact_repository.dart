@@ -69,35 +69,52 @@ class ContactRepository extends BaseRepository {
       withPhoto: true,
     );
 
-    return contacts.map((c) {
-      String? phone;
-      if (c.phones.isNotEmpty) {
-        phone = c.phones.first.normalizedNumber;
-      }
+    return contacts.map(_mapFlutterContact).toList();
+  }
 
-      String? email;
-      if (c.emails.isNotEmpty) {
-        email = c.emails.first.address;
-      }
+  Future<Contact?> pickDeviceContact() async {
+    if (!await fc.FlutterContacts.requestPermission(readonly: true)) {
+      throw Exception('Permission denied');
+    }
 
-      // Compute hash if possible for de-duplication
-      String? hash;
-      if (email != null) {
-        hash = _hashContact(email);
-      } else if (phone != null) {
-        hash = _hashContact(phone, isPhone: true);
-      }
+    final contact = await fc.FlutterContacts.openExternalPick();
+    if (contact == null) {
+      return null;
+    }
 
-      return Contact(
-        deviceId: c.id,
-        displayName: c.displayName,
-        phoneNumber: phone,
-        email: email,
-        avatar: c.photo,
-        status: ContactStatus.unknown,
-        contactHash: hash,
-      );
-    }).toList();
+    return _mapFlutterContact(contact);
+  }
+
+  Contact _mapFlutterContact(fc.Contact c) {
+    final phone = c.phones.isEmpty
+        ? null
+        : (c.phones.first.normalizedNumber.trim().isNotEmpty
+              ? c.phones.first.normalizedNumber.trim()
+              : c.phones.first.number.trim());
+
+    final email = c.emails.isEmpty ? null : c.emails.first.address.trim();
+    final contactValue = email?.isNotEmpty == true ? email : phone;
+
+    String? hash;
+    if (email != null && email.isNotEmpty) {
+      hash = _hashContact(email);
+    } else if (phone != null && phone.isNotEmpty) {
+      hash = _hashContact(phone, isPhone: true);
+    }
+
+    final displayName = c.displayName.trim().isNotEmpty
+        ? c.displayName.trim()
+        : contactValue ?? 'Selected contact';
+
+    return Contact(
+      deviceId: c.id,
+      displayName: displayName,
+      phoneNumber: phone?.isEmpty == true ? null : phone,
+      email: email?.isEmpty == true ? null : email,
+      avatar: c.photo,
+      status: ContactStatus.unknown,
+      contactHash: hash,
+    );
   }
 
   // Hash contact for privacy-preserving discovery

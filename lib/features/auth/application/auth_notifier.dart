@@ -42,6 +42,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
             token: storedToken,
             user: user,
             isAuthenticated: true,
+            isRestoredSession: true,
             isGuest: guestCreds != null,
             isInitialized: true,
             isLoading: false,
@@ -63,19 +64,20 @@ class AuthNotifier extends StateNotifier<AuthState> {
           final password = credentials['password'] as String;
 
           final authResponse = await _repository.login(email, password);
-          state = state.copyWith(
-            token: authResponse.token,
-            user: authResponse.user,
-            isAuthenticated: true,
-            isGuest: true,
-            isInitialized: true,
-            isLoading: false,
-          );
-
           await _saveAuthData(
             authResponse.token,
             authResponse.user,
             credentials,
+          );
+
+          state = state.copyWith(
+            token: authResponse.token,
+            user: authResponse.user,
+            isAuthenticated: true,
+            isRestoredSession: true,
+            isGuest: true,
+            isInitialized: true,
+            isLoading: false,
           );
           return;
         } catch (e) {
@@ -98,6 +100,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
     required String email,
     required String phone,
     String? ageBand,
+    String? inviteToken,
   }) async {
     try {
       state = state.copyWith(isLoading: true, error: null);
@@ -122,19 +125,20 @@ class AuthNotifier extends StateNotifier<AuthState> {
         phone: phone,
         primaryLanguage: 'en',
         ageBand: ageBand,
+        inviteToken: inviteToken,
       );
 
       final authResponse = await _repository.signUp(signUpData);
+      await _saveAuthData(authResponse.token, authResponse.user, null);
 
       state = state.copyWith(
         token: authResponse.token,
         user: authResponse.user,
         isAuthenticated: true,
+        isRestoredSession: false,
         isGuest: false,
         isLoading: false,
       );
-
-      await _saveAuthData(authResponse.token, authResponse.user, null);
 
       // Sync push token after successful authentication
       await _syncPushToken(authResponse.user.id);
@@ -172,20 +176,21 @@ class AuthNotifier extends StateNotifier<AuthState> {
         'email': authResponse.user.email,
         // Note: We don't save the password for security, but could store a token
       };
-
-      state = state.copyWith(
-        token: authResponse.token,
-        user: authResponse.user,
-        isAuthenticated: true,
-        isGuest: true,
-        isLoading: false,
-      );
-
       await _saveAuthData(
         authResponse.token,
         authResponse.user,
         guestCredentials,
       );
+
+      state = state.copyWith(
+        token: authResponse.token,
+        user: authResponse.user,
+        isAuthenticated: true,
+        isRestoredSession: false,
+        isGuest: true,
+        isLoading: false,
+      );
+
       return true;
     } catch (e) {
       state = state.copyWith(
@@ -285,24 +290,39 @@ class AuthNotifier extends StateNotifier<AuthState> {
     User user,
     Map<String, dynamic>? guestCredentials,
   ) async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(_tokenKey, token);
-      await prefs.setString(_userKey, jsonEncode(user.toJson()));
-
-      if (guestCredentials != null) {
-        await prefs.setString(
-          _guestCredentialsKey,
-          jsonEncode(guestCredentials),
-        );
-      }
-
-      // Update DioClient with authentication token
-      _dioClient.updateAuthToken(token);
-    } catch (e) {
-      // Non-critical error, continue with auth state
-      debugPrint('Failed to save auth data: $e');
+    final prefs = await SharedPreferences.getInstance();
+    final tokenSaved = await prefs.setString(_tokenKey, token);
+    final userSaved = await prefs.setString(
+      _userKey,
+      jsonEncode(user.toJson()),
+    );
+    if (!tokenSaved || !userSaved) {
+      await _clearStoredAuthData(prefs);
+      throw Exception('Unable to save authentication session.');
     }
+
+    if (guestCredentials != null) {
+      final guestSaved = await prefs.setString(
+        _guestCredentialsKey,
+        jsonEncode(guestCredentials),
+      );
+      if (!guestSaved) {
+        await _clearStoredAuthData(prefs);
+        throw Exception('Unable to save guest session.');
+      }
+    } else {
+      await prefs.remove(_guestCredentialsKey);
+    }
+
+    // Update DioClient with authentication token
+    _dioClient.updateAuthToken(token);
+  }
+
+  Future<void> _clearStoredAuthData(SharedPreferences prefs) async {
+    await prefs.remove(_tokenKey);
+    await prefs.remove(_userKey);
+    await prefs.remove(_guestCredentialsKey);
+    _dioClient.updateAuthToken(null);
   }
 }
 

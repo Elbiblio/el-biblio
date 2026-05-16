@@ -22,6 +22,8 @@ class AuthRepository {
           'phone': data.phone,
           'avatar': data.avatar,
           'primary_language': data.primaryLanguage ?? 'en',
+          'send_welcome_email': true,
+          if (data.inviteToken != null) 'invite_token': data.inviteToken,
           if (data.ageBand != null) 'user_settings': {'age_band': data.ageBand},
         },
       );

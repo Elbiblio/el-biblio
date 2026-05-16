@@ -35,6 +35,7 @@ class _InviteScreenState extends ConsumerState<InviteScreen> {
   final TextEditingController _phoneController = TextEditingController();
   final Set<String> _selectedContactIds = {};
   bool _isInviting = false;
+  bool _isPickingContact = false;
 
   String get _contextLabel {
     return switch (widget.source) {
@@ -61,17 +62,116 @@ class _InviteScreenState extends ConsumerState<InviteScreen> {
       (_emailController.text.trim().isNotEmpty ? 1 : 0) +
       (_phoneController.text.trim().isNotEmpty ? 1 : 0);
 
+  bool get _canUseSearchAsManual {
+    final value = _searchController.text.trim();
+    return value.isNotEmpty && (_isEmail(value) || _isPhone(value));
+  }
+
   @override
   void initState() {
     super.initState();
+    _emailController.addListener(_refreshInviteCount);
+    _phoneController.addListener(_refreshInviteCount);
   }
 
   @override
   void dispose() {
+    _emailController.removeListener(_refreshInviteCount);
+    _phoneController.removeListener(_refreshInviteCount);
     _searchController.dispose();
     _emailController.dispose();
     _phoneController.dispose();
     super.dispose();
+  }
+
+  void _refreshInviteCount() {
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  bool _isEmail(String value) {
+    return RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$').hasMatch(value.trim());
+  }
+
+  bool _isPhone(String value) {
+    final digits = value.replaceAll(RegExp(r'[^0-9]'), '');
+    return digits.length >= 7;
+  }
+
+  Future<void> _chooseContact() async {
+    if (_isPickingContact) {
+      return;
+    }
+
+    setState(() {
+      _isPickingContact = true;
+    });
+
+    try {
+      final contact = await ref
+          .read(contactProvider.notifier)
+          .pickDeviceContact();
+      if (contact == null) {
+        return;
+      }
+
+      if (contact.email == null && contact.phoneNumber == null) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('That contact has no email address or phone number.'),
+          ),
+        );
+        return;
+      }
+
+      setState(() {
+        if (contact.deviceId != null) {
+          _selectedContactIds.add(contact.deviceId!);
+        }
+        _searchController.clear();
+      });
+    } catch (_) {
+      if (!mounted) return;
+      final error = ref.read(contactProvider).error;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error ?? 'Could not open your contacts.')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isPickingContact = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _loadContacts() async {
+    final imported = await ref.read(contactProvider.notifier).importContacts();
+    if (!mounted) {
+      return;
+    }
+
+    final error = ref.read(contactProvider).error;
+    if (!imported && error != null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error)));
+    }
+  }
+
+  void _useSearchAsManualInvite() {
+    final value = _searchController.text.trim();
+    if (_isEmail(value)) {
+      _emailController.text = value;
+    } else if (_isPhone(value)) {
+      _phoneController.text = value;
+    }
+
+    setState(() {
+      _searchController.clear();
+    });
   }
 
   List<Contact> _getFilteredContacts(List<Contact> contacts) {
@@ -124,6 +224,20 @@ class _InviteScreenState extends ConsumerState<InviteScreen> {
       return;
     }
 
+    if (manualEmail.isNotEmpty && !_isEmail(manualEmail)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Enter a valid email address.')),
+      );
+      return;
+    }
+
+    if (manualPhone.isNotEmpty && !_isPhone(manualPhone)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Enter a valid phone number.')),
+      );
+      return;
+    }
+
     setState(() {
       _isInviting = true;
     });
@@ -131,6 +245,9 @@ class _InviteScreenState extends ConsumerState<InviteScreen> {
     try {
       int successCount = 0;
       int failureCount = 0;
+      final successfulContactIds = <String>{};
+      var manualEmailSent = false;
+      var manualPhoneSent = false;
 
       // Invite selected contacts
       for (final contact in selectedContacts) {
@@ -148,6 +265,9 @@ class _InviteScreenState extends ConsumerState<InviteScreen> {
                 scopeId: widget.scopeId,
               );
           successCount++;
+          if (contact.deviceId != null) {
+            successfulContactIds.add(contact.deviceId!);
+          }
         } catch (_) {
           failureCount++;
         }
@@ -174,6 +294,7 @@ class _InviteScreenState extends ConsumerState<InviteScreen> {
                 scopeId: widget.scopeId,
               );
           successCount++;
+          manualEmailSent = true;
         } catch (_) {
           failureCount++;
         }
@@ -198,6 +319,7 @@ class _InviteScreenState extends ConsumerState<InviteScreen> {
                 scopeId: widget.scopeId,
               );
           successCount++;
+          manualPhoneSent = true;
         } catch (_) {
           failureCount++;
         }
@@ -208,18 +330,23 @@ class _InviteScreenState extends ConsumerState<InviteScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              failureCount == 0
+              successCount == 0
+                  ? 'No invitations were sent. Please check the details and try again.'
+                  : failureCount == 0
                   ? 'Invitations sent to $successCount contact(s)!'
-                  : 'Sent $successCount of $totalAttempted invitation(s).',
+                  : 'Sent $successCount of $totalAttempted invitation(s). Failed invites were kept.',
             ),
           ),
         );
 
-        // Clear selections
         setState(() {
-          _selectedContactIds.clear();
-          _emailController.clear();
-          _phoneController.clear();
+          _selectedContactIds.removeAll(successfulContactIds);
+          if (manualEmailSent) {
+            _emailController.clear();
+          }
+          if (manualPhoneSent) {
+            _phoneController.clear();
+          }
         });
       }
     } catch (e) {
@@ -262,18 +389,70 @@ class _InviteScreenState extends ConsumerState<InviteScreen> {
           // Search Bar
           Padding(
             padding: const EdgeInsets.all(16.0),
-            child: TextField(
-              controller: _searchController,
-              decoration: InputDecoration(
-                hintText: 'Search contacts...',
-                prefixIcon: const Icon(Icons.search),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
+            child: Column(
+              children: [
+                TextField(
+                  controller: _searchController,
+                  decoration: InputDecoration(
+                    hintText: 'Search contacts, email, or phone',
+                    prefixIcon: const Icon(Icons.search),
+                    suffixIcon: IconButton(
+                      tooltip: 'Choose from contacts',
+                      onPressed: _isPickingContact ? null : _chooseContact,
+                      icon: _isPickingContact
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.contacts_rounded),
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    filled: true,
+                    fillColor: isDark ? const Color(0xFF1A1F2E) : Colors.white,
+                  ),
+                  onChanged: (value) => setState(() {}),
+                  onSubmitted: (_) {
+                    if (_canUseSearchAsManual) {
+                      _useSearchAsManualInvite();
+                    }
+                  },
                 ),
-                filled: true,
-                fillColor: isDark ? const Color(0xFF1A1F2E) : Colors.white,
-              ),
-              onChanged: (value) => setState(() {}),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: _isPickingContact ? null : _chooseContact,
+                        icon: const Icon(Icons.contact_phone_rounded, size: 18),
+                        label: const Text('Choose contact'),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: contactState.isImporting
+                            ? null
+                            : _loadContacts,
+                        icon: contactState.isImporting
+                            ? const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Icon(Icons.list_alt_rounded, size: 18),
+                        label: Text(
+                          contactState.isImporting ? 'Loading' : 'Show list',
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
           ),
 
@@ -284,6 +463,15 @@ class _InviteScreenState extends ConsumerState<InviteScreen> {
                 : CustomScrollView(
                     slivers: [
                       // ── Friends already on El-Biblio ──────────────────────
+                      if (contactState.error != null)
+                        SliverToBoxAdapter(
+                          child: Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                            child: _InviteErrorBanner(
+                              message: contactState.error!,
+                            ),
+                          ),
+                        ),
                       if (contactState.potentialContacts.isNotEmpty) ...[
                         SliverToBoxAdapter(
                           child: Padding(
@@ -523,7 +711,9 @@ class _InviteScreenState extends ConsumerState<InviteScreen> {
             child: SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed: _isInviting ? null : _sendInvitations,
+                onPressed: _isInviting || _inviteCount == 0
+                    ? null
+                    : _sendInvitations,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Theme.of(context).colorScheme.primary,
                   foregroundColor: Colors.white,
@@ -586,17 +776,43 @@ class _InviteScreenState extends ConsumerState<InviteScreen> {
             ),
             const SizedBox(height: 8),
             Text(
-              'Import contacts only if you want to choose from your address book. You can also invite by email or phone below.',
+              _canUseSearchAsManual
+                  ? 'You can use the typed email or phone number as a manual invite.'
+                  : 'Import contacts only if you want to choose from your address book. You can also invite by email or phone below.',
               textAlign: TextAlign.center,
               style: Theme.of(
                 context,
               ).textTheme.bodyMedium?.copyWith(color: Colors.grey.shade500),
             ),
             const SizedBox(height: 24),
-            ElevatedButton(
-              onPressed: () =>
-                  ref.read(contactProvider.notifier).importContacts(),
-              child: const Text('Import contacts'),
+            Wrap(
+              alignment: WrapAlignment.center,
+              spacing: 10,
+              runSpacing: 10,
+              children: [
+                if (_canUseSearchAsManual)
+                  FilledButton.icon(
+                    onPressed: _useSearchAsManualInvite,
+                    icon: const Icon(Icons.edit_rounded),
+                    label: const Text('Use typed invite'),
+                  ),
+                FilledButton.icon(
+                  onPressed: _isPickingContact ? null : _chooseContact,
+                  icon: _isPickingContact
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.contact_phone_rounded),
+                  label: const Text('Choose contact'),
+                ),
+                OutlinedButton.icon(
+                  onPressed: () => _loadContacts(),
+                  icon: const Icon(Icons.list_alt_rounded),
+                  label: const Text('Show contact list'),
+                ),
+              ],
             ),
           ],
         ),
@@ -621,12 +837,22 @@ class _InviteScreenState extends ConsumerState<InviteScreen> {
             ),
             const SizedBox(height: 8),
             Text(
-              'Try a different name, email, or phone number.',
+              _canUseSearchAsManual
+                  ? 'No contact matched, but you can send this invite manually.'
+                  : 'Try a different name, email, or phone number.',
               textAlign: TextAlign.center,
               style: Theme.of(
                 context,
               ).textTheme.bodyMedium?.copyWith(color: Colors.grey.shade500),
             ),
+            if (_canUseSearchAsManual) ...[
+              const SizedBox(height: 18),
+              FilledButton.icon(
+                onPressed: _useSearchAsManualInvite,
+                icon: const Icon(Icons.edit_rounded),
+                label: const Text('Use typed invite'),
+              ),
+            ],
           ],
         ),
       ),
@@ -665,6 +891,46 @@ class _InviteContextBanner extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           Text(message, style: theme.textTheme.bodySmall),
+        ],
+      ),
+    );
+  }
+}
+
+class _InviteErrorBanner extends StatelessWidget {
+  const _InviteErrorBanner({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.errorContainer.withValues(alpha: 0.35),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: theme.colorScheme.error.withValues(alpha: 0.18),
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            Icons.info_outline_rounded,
+            size: 18,
+            color: theme.colorScheme.error,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              message,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.error,
+              ),
+            ),
+          ),
         ],
       ),
     );

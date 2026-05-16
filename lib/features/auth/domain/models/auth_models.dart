@@ -73,6 +73,7 @@ class SignUpData {
   final String? avatar;
   final String? primaryLanguage;
   final String? ageBand;
+  final String? inviteToken;
 
   const SignUpData({
     required this.email,
@@ -83,6 +84,7 @@ class SignUpData {
     this.avatar,
     this.primaryLanguage,
     this.ageBand,
+    this.inviteToken,
   });
 }
 
@@ -105,6 +107,7 @@ class AuthState {
   final bool isInitialized;
   final bool isGuest;
   final bool isAuthenticated;
+  final bool isRestoredSession;
   final User? user;
   final String? token;
   final String? error;
@@ -116,6 +119,7 @@ class AuthState {
     this.isInitialized = false,
     this.isGuest = false,
     this.isAuthenticated = false,
+    this.isRestoredSession = false,
     this.user,
     this.token,
     this.error,
@@ -128,6 +132,7 @@ class AuthState {
     bool? isInitialized,
     bool? isGuest,
     bool? isAuthenticated,
+    bool? isRestoredSession,
     User? user,
     String? token,
     String? error,
@@ -139,6 +144,7 @@ class AuthState {
       isInitialized: isInitialized ?? this.isInitialized,
       isGuest: isGuest ?? this.isGuest,
       isAuthenticated: isAuthenticated ?? this.isAuthenticated,
+      isRestoredSession: isRestoredSession ?? this.isRestoredSession,
       user: user ?? this.user,
       token: token ?? this.token,
       error: error ?? this.error,

@@ -19,4 +19,21 @@ void main() {
       isNot(contains('path: AppRoutes.reflect,\n            redirect:')),
     );
   });
+
+  test('router refreshes when auth hydration completes', () {
+    final source = File('lib/core/router/app_router.dart').readAsStringSync();
+
+    expect(
+      source,
+      contains('authProvider.select((value) => value.isInitialized)'),
+    );
+    expect(
+      source,
+      contains('authProvider.select((value) => value.isRestoredSession)'),
+    );
+    expect(
+      source,
+      contains('!settings.onboardingCompleted && !auth.isRestoredSession'),
+    );
+  });
 }

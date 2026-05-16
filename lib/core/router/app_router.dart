@@ -112,6 +112,16 @@ final _routerRefreshProvider = Provider<_RouterRefreshNotifier>((ref) {
     (_, __) => notifier.trigger(),
   );
 
+  ref.listen<bool>(
+    authProvider.select((value) => value.isInitialized),
+    (_, __) => notifier.trigger(),
+  );
+
+  ref.listen<bool>(
+    authProvider.select((value) => value.isRestoredSession),
+    (_, __) => notifier.trigger(),
+  );
+
   // Intentionally NOT listening to `accountabilityCadence`, `christianLifeBaseline`,
   // `goodHabits`, `struggles`, or `onboardingDraft` — those shape content, not
   // routing. Listening to them would trigger spurious GoRouter rebuilds on
@@ -593,18 +603,24 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           state.uri.pathSegments.length == 2 &&
           state.uri.pathSegments.first == 'invite';
 
+      if (!auth.isInitialized) {
+        return loc == AppRoutes.root || isInvitePreview ? null : AppRoutes.root;
+      }
+
       if (auth.isInitialized && !auth.isAuthenticated) {
         return isOnboarding || isInvitePreview ? null : AppRoutes.onboarding;
       }
 
       // Root redirect
       if (loc == AppRoutes.root) {
-        if (!settings.onboardingCompleted) return AppRoutes.onboarding;
+        if (!settings.onboardingCompleted && !auth.isRestoredSession) {
+          return AppRoutes.onboarding;
+        }
         return AppRoutes.today;
       }
 
       // Guard: must complete onboarding first
-      if (!settings.onboardingCompleted) {
+      if (!settings.onboardingCompleted && !auth.isRestoredSession) {
         return isOnboarding || isInvitePreview ? null : AppRoutes.onboarding;
       }
 

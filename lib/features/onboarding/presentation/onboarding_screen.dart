@@ -53,6 +53,17 @@ class OnboardingScreen extends ConsumerWidget {
     return true;
   }
 
+  String? _inviteTokenFromRoute(BuildContext context) {
+    try {
+      final token = GoRouterState.of(
+        context,
+      ).uri.queryParameters['invite_token']?.trim();
+      return token?.isNotEmpty == true ? token : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
   Widget _stepContent(
     BuildContext context,
     WidgetRef ref,
@@ -78,6 +89,7 @@ class OnboardingScreen extends ConsumerWidget {
   ) async {
     final onboardingState = ref.read(onboardingProvider);
     final ageBand = onboardingState.derivedAgeBand;
+    final inviteToken = _inviteTokenFromRoute(context);
 
     HapticFeedback.mediumImpact();
 
@@ -89,6 +101,7 @@ class OnboardingScreen extends ConsumerWidget {
           email: email,
           phone: phone,
           ageBand: ageBand,
+          inviteToken: inviteToken,
         );
 
     if (!success) {

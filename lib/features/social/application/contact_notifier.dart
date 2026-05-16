@@ -6,18 +6,16 @@ import 'contact_state.dart';
 
 class ContactNotifier extends StateNotifier<ContactState> {
   final ContactRepository _repository;
+  late final Future<void> _initFuture;
 
   ContactNotifier(this._repository) : super(const ContactState()) {
-    _init();
-  }
-
-  Future<void> _init() async {
-    await _repository.init();
+    _initFuture = _repository.init();
   }
 
   Future<bool> importContacts() async {
     state = state.copyWith(isImporting: true, error: null);
     try {
+      await _initFuture;
       // 1. Get device contacts
       final deviceContacts = await _repository.getDeviceContacts();
 
@@ -48,8 +46,37 @@ class ContactNotifier extends StateNotifier<ContactState> {
     }
   }
 
+  Future<Contact?> pickDeviceContact() async {
+    try {
+      await _initFuture;
+      final contact = await _repository.pickDeviceContact();
+      if (contact == null) {
+        return null;
+      }
+
+      final existingIndex = state.deviceContacts.indexWhere(
+        (item) => item.deviceId == contact.deviceId,
+      );
+      final deviceContacts = [...state.deviceContacts];
+      if (existingIndex == -1) {
+        deviceContacts.insert(0, contact);
+      } else {
+        deviceContacts[existingIndex] = contact;
+      }
+
+      state = state.copyWith(deviceContacts: deviceContacts, error: null);
+      return contact;
+    } catch (e) {
+      state = state.copyWith(
+        error: 'Failed to choose contact: ${e.toString()}',
+      );
+      rethrow;
+    }
+  }
+
   Future<void> connect(Contact contact) async {
     try {
+      await _initFuture;
       await _repository.connectContacts([contact]);
 
       // Move from potential to connected
@@ -85,6 +112,7 @@ class ContactNotifier extends StateNotifier<ContactState> {
 
   Future<void> connectAll(List<Contact> contacts) async {
     try {
+      await _initFuture;
       await _repository.connectContacts(contacts);
 
       final hashSet = contacts.map((c) => c.contactHash).toSet();
@@ -133,6 +161,7 @@ class ContactNotifier extends StateNotifier<ContactState> {
     int? scopeId,
   }) async {
     try {
+      await _initFuture;
       await _repository.inviteContact(
         contact,
         message: message,
@@ -143,7 +172,7 @@ class ContactNotifier extends StateNotifier<ContactState> {
         scopeType: scopeType,
         scopeId: scopeId,
       );
-      // Removed local state update for deviceContacts since they are no longer in state
+      state = state.copyWith(error: null);
     } catch (e) {
       state = state.copyWith(error: 'Failed to invite: ${e.toString()}');
       rethrow;
