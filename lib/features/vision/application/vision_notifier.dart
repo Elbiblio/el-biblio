@@ -151,6 +151,22 @@ class VisionNotifier extends StateNotifier<VisionState> {
     }
   }
 
+  Future<void> loadCommitmentsForTribe(int? tribeId) async {
+    if (state.isReadOnly) return;
+    state = state.copyWith(isLoading: true, clearError: true);
+    try {
+      final commitments = await _repository.recommendedCommitments(
+        tribeId: tribeId,
+      );
+      state = state.copyWith(
+        isLoading: false,
+        recommendedCommitments: commitments,
+      );
+    } catch (e) {
+      state = state.copyWith(isLoading: false, error: e.toString());
+    }
+  }
+
   Future<bool> setVisibility(VisibilityMode mode, {String? alias}) async {
     final normalizedAlias = _aliasFor(mode, alias);
     try {

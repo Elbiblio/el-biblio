@@ -1,5 +1,6 @@
 import 'package:elbiblio/core/application/settings_notifier.dart';
 import 'package:elbiblio/core/di/app_providers.dart';
+import 'package:elbiblio/core/services/notifications/notification_service.dart';
 import 'package:elbiblio/core/storage/app_settings.dart';
 import 'package:elbiblio/features/vision/application/vision_notifier.dart';
 import 'package:elbiblio/features/vision/data/vision_repository.dart';
@@ -523,6 +524,21 @@ void main() {
       );
       expect(find.text('Answer saved'), findsOneWidget);
     });
+
+    test(
+      'VisionNotifier refreshes commitments for the selected tribe',
+      () async {
+        final repository = _FakeVisionRepository(activeCommitment: null);
+        final notifier = VisionNotifier(repository, NotificationService());
+
+        await notifier.loadCommitmentsForTribe(7);
+
+        expect(repository.requestedCommitmentTribeIds, [7]);
+        expect(notifier.state.recommendedCommitments, [_gratitudePlan]);
+
+        notifier.dispose();
+      },
+    );
   });
 }
 
@@ -590,6 +606,7 @@ class _FakeVisionRepository implements VisionRepository {
   String? createdHangoutScopeType;
   int? createdHangoutScopeId;
   int? createdHangoutMaxParticipants;
+  final List<int?> requestedCommitmentTribeIds = [];
   int checkInCount = 0;
   String? postedReflectionContent;
   String? postedReflectionAlias;
@@ -614,6 +631,7 @@ class _FakeVisionRepository implements VisionRepository {
 
   @override
   Future<List<CommitmentPlan>> recommendedCommitments({int? tribeId}) async {
+    requestedCommitmentTribeIds.add(tribeId);
     return const [_gratitudePlan];
   }
 

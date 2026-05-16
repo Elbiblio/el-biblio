@@ -6,6 +6,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 import '../../../../core/constants/app_routes.dart';
 import '../../../../core/di/app_providers.dart';
 import '../../../../core/models/accountability_tone.dart';
+import '../../../commitments/domain/models/commitment_category.dart';
 import '../../../onboarding/domain/compass_discovery_catalog.dart';
 import '../../application/vision_state.dart';
 import '../../domain/vision_models.dart';
@@ -21,18 +22,22 @@ class VisionOnboardingFlowScreen extends ConsumerStatefulWidget {
 
 class _VisionOnboardingFlowScreenState
     extends ConsumerState<VisionOnboardingFlowScreen> {
+  static const _pageCount = 11;
+
   final _controller = PageController();
   final _aliasController = TextEditingController();
   final _whenController = TextEditingController();
   final _obstacleController = TextEditingController();
   VisibilityMode _mode = VisibilityMode.anonymous;
   AccountabilityTone _tone = AccountabilityTone.balanced;
+  CommitmentCategory? _commitmentCategory;
   TribeIdentity? _tribe;
   CommitmentPlan? _commitment;
   int _nudges = 3;
   int _identityIndex = 0;
   int _page = 0;
   bool _isFinishing = false;
+  String? _seasonClusterId;
   String? _currentSeason;
   String? _pressurePattern;
   String? _postponedPattern;
@@ -75,11 +80,15 @@ class _VisionOnboardingFlowScreenState
           (state.recommendedCommitments.isNotEmpty
               ? state.recommendedCommitments.first
               : null);
+      _commitmentCategory =
+          _directionForPlan(_commitment) ??
+          (state.activeCommitment == null ? null : CommitmentCategory.growth);
       _nudges = (_commitment?.nudgeMin ?? 3).clamp(3, 10);
       _identityIndex = _tribe == null
           ? 0
           : state.recommendedTribes.indexWhere((item) => item.id == _tribe!.id);
       if (_identityIndex < 0) _identityIndex = 0;
+      _seasonClusterId = CompassDiscoveryCatalog.clusterFor(_currentSeason)?.id;
     });
   }
 
@@ -146,15 +155,15 @@ class _VisionOnboardingFlowScreenState
 
   bool get _canContinue {
     if (_isFinishing) return false;
-    if (_page == 0) return _currentSeason != null;
-    if (_page == 1) {
-      return _pressurePattern != null &&
-          _postponedPattern != null &&
-          _peopleNeedPattern != null &&
-          _formationPattern != null;
-    }
-    if (_page == 3) return _tribe != null;
-    if (_page == 4) return _commitment != null;
+    if (_page == 0) return _seasonClusterId != null;
+    if (_page == 1) return _currentSeason != null;
+    if (_page == 2) return _pressurePattern != null;
+    if (_page == 3) return _postponedPattern != null;
+    if (_page == 4) return _peopleNeedPattern != null;
+    if (_page == 5) return _formationPattern != null;
+    if (_page == 7) return _commitmentCategory != null;
+    if (_page == 8) return _tribe != null;
+    if (_page == 9) return _commitment != null;
     return true;
   }
 
@@ -207,22 +216,67 @@ class _VisionOnboardingFlowScreenState
     return AccountabilityTone.balanced;
   }
 
+  CommitmentCategory get _suggestedCommitmentCategory {
+    return CommitmentCategory.recommendedForArchetype(_compassSignal.archetype);
+  }
+
+  List<CommitmentPlan> _commitmentCandidates(List<CommitmentPlan> plans) {
+    final category = _commitmentCategory ?? _suggestedCommitmentCategory;
+    final exact = plans
+        .where((plan) => _planMatchesDirection(plan, category))
+        .toList(growable: false);
+    return exact.isNotEmpty ? exact : plans;
+  }
+
+  int _matchingCommitmentCount(List<CommitmentPlan> plans) {
+    final category = _commitmentCategory ?? _suggestedCommitmentCategory;
+    return plans.where((plan) => _planMatchesDirection(plan, category)).length;
+  }
+
+  CommitmentPlan? _bestCommitmentForDirection(List<CommitmentPlan> plans) {
+    final candidates = _commitmentCandidates(plans);
+    return candidates.isEmpty ? null : candidates.first;
+  }
+
+  void _selectBestCommitmentFrom(List<CommitmentPlan> plans) {
+    final next = _bestCommitmentForDirection(plans);
+    if (next == null) return;
+    _commitment = next;
+    _nudges = next.nudgeMin.clamp(3, 10);
+  }
+
   Future<void> _goNext(AccountabilityTone originalTone) async {
-    if (_page == 1 && _tone == originalTone) {
+    if (_page == 5 && _tone == originalTone) {
       setState(() => _tone = _compassSignal.suggestedTone);
     }
-    if (_page == 1) {
+    if (_page == 5) {
       final signal = _compassSignal;
+      _commitmentCategory ??= _suggestedCommitmentCategory;
       await ref.read(visionProvider.notifier).loadRecommendationsForArchetypes([
         signal.archetype,
       ]);
       if (!mounted) return;
-      final recommendations = ref.read(visionProvider).recommendedTribes;
-      if (recommendations.isNotEmpty) {
+      final nextState = ref.read(visionProvider);
+      final recommendations = nextState.recommendedTribes;
+      if (recommendations.isNotEmpty ||
+          nextState.recommendedCommitments.isNotEmpty) {
         setState(() {
-          _tribe = recommendations.first;
+          if (recommendations.isNotEmpty) {
+            _tribe = recommendations.first;
+          }
           _identityIndex = 0;
+          _selectBestCommitmentFrom(nextState.recommendedCommitments);
         });
+      }
+    }
+    if (_page == 8) {
+      await ref
+          .read(visionProvider.notifier)
+          .loadCommitmentsForTribe(_tribe?.id);
+      if (!mounted) return;
+      final commitments = ref.read(visionProvider).recommendedCommitments;
+      if (commitments.isNotEmpty) {
+        setState(() => _selectBestCommitmentFrom(commitments));
       }
     }
     _controller.nextPage(
@@ -241,7 +295,7 @@ class _VisionOnboardingFlowScreenState
       body: SafeArea(
         child: Column(
           children: [
-            LinearProgressIndicator(value: (_page + 1) / 6),
+            LinearProgressIndicator(value: (_page + 1) / _pageCount),
             Expanded(
               child: PageView(
                 controller: _controller,
@@ -250,34 +304,123 @@ class _VisionOnboardingFlowScreenState
                 children: [
                   _Page(
                     icon: LucideIcons.sprout,
+                    title: 'Start broad',
+                    child: _SeasonClusterQuestionView(
+                      value: _seasonClusterId,
+                      onChanged: (cluster) => setState(() {
+                        _seasonClusterId = cluster.id;
+                        if (_currentSeason != null &&
+                            !cluster.contains(_currentSeason)) {
+                          _currentSeason = null;
+                        }
+                      }),
+                    ),
+                  ),
+                  _Page(
+                    icon: LucideIcons.sprout,
                     title: 'Name this season',
-                    child: _SeasonQuestionView(
+                    child: _SingleCompassQuestionView(
+                      title: 'Which one feels most true inside that season?',
+                      intro: CompassDiscoveryCatalog.clusterById(
+                        _seasonClusterId,
+                      )?.description,
                       value: _currentSeason,
-                      onChanged: (value) =>
-                          setState(() => _currentSeason = value),
+                      options:
+                          CompassDiscoveryCatalog.clusterById(
+                            _seasonClusterId,
+                          )?.options ??
+                          const [],
+                      onChanged: (value) => setState(() {
+                        _currentSeason = value;
+                        _seasonClusterId = CompassDiscoveryCatalog.clusterFor(
+                          value,
+                        )?.id;
+                      }),
                     ),
                   ),
                   _Page(
                     icon: LucideIcons.compass,
-                    title: 'Find your compass',
-                    child: _CompassPatternView(
-                      signal: _compassSignal,
-                      pressurePattern: _pressurePattern,
-                      postponedPattern: _postponedPattern,
-                      peopleNeedPattern: _peopleNeedPattern,
-                      formationPattern: _formationPattern,
-                      onPressureChanged: (value) => setState(() {
+                    title: 'Under pressure',
+                    child: _SingleCompassQuestionView(
+                      title: 'When pressure rises, what do you do first?',
+                      intro:
+                          'This separates similar tribes by instinct, not label.',
+                      value: _pressurePattern,
+                      options: CompassDiscoveryCatalog.pressureOptionsFor([
+                        _currentSeason,
+                        _pressurePattern,
+                      ]),
+                      onChanged: (value) => setState(() {
                         _pressurePattern = value;
                         if (_tone == settings.accountabilityTone) {
                           _tone = _compassSignal.suggestedTone;
                         }
                       }),
-                      onPostponedChanged: (value) =>
+                    ),
+                  ),
+                  _Page(
+                    icon: LucideIcons.timerReset,
+                    title: 'Avoidance signal',
+                    child: _SingleCompassQuestionView(
+                      title: 'What are you most likely to delay?',
+                      intro:
+                          'Your avoidance pattern usually reveals the next branch.',
+                      value: _postponedPattern,
+                      options: CompassDiscoveryCatalog.postponedOptionsFor([
+                        _currentSeason,
+                        _pressurePattern,
+                        _postponedPattern,
+                      ]),
+                      onChanged: (value) =>
                           setState(() => _postponedPattern = value),
-                      onPeopleNeedChanged: (value) =>
+                    ),
+                  ),
+                  _Page(
+                    icon: LucideIcons.heartHandshake,
+                    title: 'Outward fruit',
+                    child: _SingleCompassQuestionView(
+                      title: 'What do people instinctively come to you for?',
+                      intro:
+                          'This checks your inner signal against your outward fruit.',
+                      value: _peopleNeedPattern,
+                      options: CompassDiscoveryCatalog.peopleNeedOptionsFor([
+                        _currentSeason,
+                        _pressurePattern,
+                        _postponedPattern,
+                        _peopleNeedPattern,
+                      ]),
+                      onChanged: (value) =>
                           setState(() => _peopleNeedPattern = value),
-                      onFormationChanged: (value) =>
-                          setState(() => _formationPattern = value),
+                    ),
+                  ),
+                  _Page(
+                    icon: LucideIcons.shieldAlert,
+                    title: 'Shadow check',
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _SingleCompassQuestionView(
+                          title:
+                              'What distortion do you most want God to interrupt?',
+                          intro:
+                              'Final check: this weighs the shadow side of the signals you chose.',
+                          value: _formationPattern,
+                          options:
+                              CompassDiscoveryCatalog.distortionOptionsFor([
+                                _currentSeason,
+                                _pressurePattern,
+                                _postponedPattern,
+                                _peopleNeedPattern,
+                                _formationPattern,
+                              ]),
+                          onChanged: (value) =>
+                              setState(() => _formationPattern = value),
+                        ),
+                        if (_formationPattern != null) ...[
+                          const SizedBox(height: 14),
+                          _SignalCard(signal: _compassSignal),
+                        ],
+                      ],
                     ),
                   ),
                   _Page(
@@ -288,6 +431,26 @@ class _VisionOnboardingFlowScreenState
                       suggested: _compassSignal.suggestedTone,
                       signal: _compassSignal,
                       onChanged: (tone) => setState(() => _tone = tone),
+                    ),
+                  ),
+                  _Page(
+                    icon: LucideIcons.flag,
+                    title: 'Commitment direction',
+                    child: _CommitmentDirectionView(
+                      signal: _compassSignal,
+                      suggested: _suggestedCommitmentCategory,
+                      selected:
+                          _commitmentCategory ?? _suggestedCommitmentCategory,
+                      onChanged: (category) => setState(() {
+                        _commitmentCategory = category;
+                        final next = _bestCommitmentForDirection(
+                          state.recommendedCommitments,
+                        );
+                        if (next != null) {
+                          _commitment = next;
+                          _nudges = next.nudgeMin.clamp(3, 10);
+                        }
+                      }),
                     ),
                   ),
                   _Page(
@@ -319,12 +482,23 @@ class _VisionOnboardingFlowScreenState
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
+                          _CommitmentGuidePanel(
+                            signal: _compassSignal,
+                            category:
+                                _commitmentCategory ??
+                                _suggestedCommitmentCategory,
+                            exactMatchCount: _matchingCommitmentCount(
+                              state.recommendedCommitments,
+                            ),
+                            totalCount: state.recommendedCommitments.length,
+                          ),
+                          const SizedBox(height: 14),
                           Text(
                             'Pick one concrete practice for this month. You can review, deepen, or switch when the season closes.',
                             style: theme.textTheme.bodyMedium,
                           ),
                           const SizedBox(height: 14),
-                          ...state.recommendedCommitments
+                          ..._commitmentCandidates(state.recommendedCommitments)
                               .take(1)
                               .map(
                                 (commitment) => _OnboardingCommitmentCard(
@@ -341,18 +515,23 @@ class _VisionOnboardingFlowScreenState
                                   },
                                 ),
                               ),
-                          if (state.recommendedCommitments.length > 1) ...[
+                          if (_commitmentCandidates(
+                                state.recommendedCommitments,
+                              ).length >
+                              1) ...[
                             const SizedBox(height: 2),
                             OutlinedButton.icon(
                               onPressed: () => _showOnboardingCommitmentSheet(
-                                state.recommendedCommitments,
+                                _commitmentCandidates(
+                                  state.recommendedCommitments,
+                                ),
                               ),
                               icon: const Icon(
                                 LucideIcons.listFilter,
                                 size: 18,
                               ),
                               label: Text(
-                                'Compare ${state.recommendedCommitments.length} commitments',
+                                'Compare top ${_commitmentCandidates(state.recommendedCommitments).length > 4 ? 4 : _commitmentCandidates(state.recommendedCommitments).length} commitments',
                               ),
                             ),
                           ],
@@ -426,7 +605,7 @@ class _VisionOnboardingFlowScreenState
                     child: FilledButton(
                       onPressed: !_canContinue
                           ? null
-                          : _page == 5
+                          : _page == _pageCount - 1
                           ? _finish
                           : () => _goNext(settings.accountabilityTone),
                       child: _isFinishing
@@ -434,7 +613,9 @@ class _VisionOnboardingFlowScreenState
                               dimension: 20,
                               child: CircularProgressIndicator(strokeWidth: 2),
                             )
-                          : Text(_page == 5 ? 'Begin' : 'Continue'),
+                          : Text(
+                              _page == _pageCount - 1 ? 'Begin' : 'Continue',
+                            ),
                     ),
                   ),
                 ],
@@ -541,46 +722,14 @@ class _CompassSignal {
   final AccountabilityTone suggestedTone;
 }
 
-class _SeasonQuestionView extends StatelessWidget {
-  const _SeasonQuestionView({required this.value, required this.onChanged});
-
-  final String? value;
-  final ValueChanged<String> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return _ChoiceStack(
-      intro:
-          'Start with what is actually happening. This helps ElBiblio recommend belonging and commitment without asking you to perform a label.',
-      options: CompassDiscoveryCatalog.seasonOptions,
-      value: value,
-      onChanged: onChanged,
-    );
-  }
-}
-
-class _CompassPatternView extends StatelessWidget {
-  const _CompassPatternView({
-    required this.signal,
-    required this.pressurePattern,
-    required this.postponedPattern,
-    required this.peopleNeedPattern,
-    required this.formationPattern,
-    required this.onPressureChanged,
-    required this.onPostponedChanged,
-    required this.onPeopleNeedChanged,
-    required this.onFormationChanged,
+class _SeasonClusterQuestionView extends StatelessWidget {
+  const _SeasonClusterQuestionView({
+    required this.value,
+    required this.onChanged,
   });
 
-  final _CompassSignal signal;
-  final String? pressurePattern;
-  final String? postponedPattern;
-  final String? peopleNeedPattern;
-  final String? formationPattern;
-  final ValueChanged<String> onPressureChanged;
-  final ValueChanged<String> onPostponedChanged;
-  final ValueChanged<String> onPeopleNeedChanged;
-  final ValueChanged<String> onFormationChanged;
+  final String? value;
+  final ValueChanged<CompassDiscoveryCluster> onChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -589,36 +738,118 @@ class _CompassPatternView extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Answer from lived experience. Your compass is a starting signal, not a permanent identity.',
+          'Start with what is actually happening. ElBiblio will narrow the next question from this branch.',
           style: theme.textTheme.bodyMedium?.copyWith(height: 1.45),
         ),
-        const SizedBox(height: 18),
-        _QuestionBlock(
-          title: 'When pressure rises, I usually...',
-          value: pressurePattern,
-          options: CompassDiscoveryCatalog.pressureOptions,
-          onChanged: onPressureChanged,
-        ),
-        _QuestionBlock(
-          title: 'The thing I keep postponing is...',
-          value: postponedPattern,
-          options: CompassDiscoveryCatalog.postponedOptions,
-          onChanged: onPostponedChanged,
-        ),
-        _QuestionBlock(
-          title: 'People often come to me when they need...',
-          value: peopleNeedPattern,
-          options: CompassDiscoveryCatalog.peopleNeedOptions,
-          onChanged: onPeopleNeedChanged,
-        ),
-        _QuestionBlock(
-          title: 'The fear or distortion I most want God to interrupt is...',
-          value: formationPattern,
-          options: CompassDiscoveryCatalog.distortionFearOptions,
-          onChanged: onFormationChanged,
-        ),
         const SizedBox(height: 14),
-        _SignalCard(signal: signal),
+        ...CompassDiscoveryCatalog.seasonClusters.map((cluster) {
+          final selected = value == cluster.id;
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: InkWell(
+              onTap: () => onChanged(cluster),
+              borderRadius: BorderRadius.circular(8),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: selected
+                      ? theme.colorScheme.primary.withValues(alpha: 0.1)
+                      : theme.colorScheme.surface.withValues(alpha: 0.72),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: selected
+                        ? theme.colorScheme.primary
+                        : theme.colorScheme.outline.withValues(alpha: 0.14),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      selected ? LucideIcons.checkCircle : LucideIcons.circle,
+                      size: 18,
+                      color: selected ? theme.colorScheme.primary : null,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            cluster.label,
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              height: 1.3,
+                              fontWeight: selected ? FontWeight.w800 : null,
+                            ),
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            cluster.description,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.onSurface.withValues(
+                                alpha: 0.58,
+                              ),
+                              height: 1.28,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        }),
+      ],
+    );
+  }
+}
+
+class _SingleCompassQuestionView extends StatelessWidget {
+  const _SingleCompassQuestionView({
+    required this.title,
+    required this.value,
+    required this.options,
+    required this.onChanged,
+    this.intro,
+  });
+
+  final String title;
+  final String? intro;
+  final String? value;
+  final List<CompassDiscoveryOption> options;
+  final ValueChanged<String> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: theme.textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.w900,
+            height: 1.18,
+          ),
+        ),
+        if (intro != null) ...[
+          const SizedBox(height: 8),
+          Text(
+            intro!,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.66),
+              height: 1.45,
+            ),
+          ),
+        ],
+        const SizedBox(height: 14),
+        _OptionChoiceStack(
+          options: options,
+          value: value,
+          onChanged: onChanged,
+        ),
       ],
     );
   }
@@ -699,6 +930,208 @@ class _ToneChoiceView extends StatelessWidget {
           );
         }),
       ],
+    );
+  }
+}
+
+class _CommitmentDirectionView extends StatelessWidget {
+  const _CommitmentDirectionView({
+    required this.signal,
+    required this.suggested,
+    required this.selected,
+    required this.onChanged,
+  });
+
+  final _CompassSignal signal;
+  final CommitmentCategory suggested;
+  final CommitmentCategory selected;
+  final ValueChanged<CommitmentCategory> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _SignalCard(signal: signal),
+        const SizedBox(height: 16),
+        Text(
+          'Now translate the tribe signal into a practice type. This decides which commitments ElBiblio shows first.',
+          style: theme.textTheme.bodyMedium?.copyWith(height: 1.45),
+        ),
+        const SizedBox(height: 14),
+        ...CommitmentCategory.values.map((category) {
+          final isSelected = selected == category;
+          final isSuggested = suggested == category;
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: InkWell(
+              onTap: () => onChanged(category),
+              borderRadius: BorderRadius.circular(8),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 160),
+                width: double.infinity,
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: isSelected
+                      ? theme.colorScheme.primary.withValues(alpha: 0.1)
+                      : theme.colorScheme.surface.withValues(alpha: 0.72),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: isSelected
+                        ? theme.colorScheme.primary
+                        : theme.colorScheme.outline.withValues(alpha: 0.14),
+                  ),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(
+                      isSelected ? LucideIcons.checkCircle : LucideIcons.circle,
+                      size: 18,
+                      color: isSelected ? theme.colorScheme.primary : null,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 6,
+                            crossAxisAlignment: WrapCrossAlignment.center,
+                            children: [
+                              Text(
+                                '${category.label} commitments',
+                                style: theme.textTheme.titleSmall?.copyWith(
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
+                              if (isSuggested)
+                                const _SmallGuidePill(
+                                  icon: LucideIcons.sparkles,
+                                  label: 'Suggested',
+                                ),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            _commitmentDirectionBody(category),
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.onSurface.withValues(
+                                alpha: 0.66,
+                              ),
+                              height: 1.35,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        }),
+      ],
+    );
+  }
+}
+
+class _CommitmentGuidePanel extends StatelessWidget {
+  const _CommitmentGuidePanel({
+    required this.signal,
+    required this.category,
+    required this.exactMatchCount,
+    required this.totalCount,
+  });
+
+  final _CompassSignal signal;
+  final CommitmentCategory category;
+  final int exactMatchCount;
+  final int totalCount;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final hasExactMatch = exactMatchCount > 0;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.primaryContainer.withValues(alpha: 0.18),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: theme.colorScheme.primary.withValues(alpha: 0.14),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(_directionIcon(category), color: theme.colorScheme.primary),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  '${category.label} direction',
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            _commitmentDirectionReason(signal, category),
+            style: theme.textTheme.bodyMedium?.copyWith(height: 1.38),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            hasExactMatch
+                ? '$exactMatchCount of $totalCount recommended commitments match this direction.'
+                : 'No exact catalog match for this direction yet, so the closest real commitments are shown.',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.62),
+              height: 1.35,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SmallGuidePill extends StatelessWidget {
+  const _SmallGuidePill({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.primary.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 13, color: theme.colorScheme.primary),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: theme.colorScheme.primary,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -853,60 +1286,16 @@ class _TribeRecommendationCards extends StatelessWidget {
   }
 }
 
-class _QuestionBlock extends StatelessWidget {
-  const _QuestionBlock({
-    required this.title,
-    required this.value,
-    required this.options,
-    required this.onChanged,
-  });
-
-  final String title;
-  final String? value;
-  final List<CompassDiscoveryOption> options;
-  final ValueChanged<String> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 18),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            title,
-            style: theme.textTheme.titleSmall?.copyWith(
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          const SizedBox(height: 10),
-          _ChoiceStack(
-            options: options,
-            value: value,
-            onChanged: onChanged,
-            compact: true,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ChoiceStack extends StatelessWidget {
-  const _ChoiceStack({
+class _OptionChoiceStack extends StatelessWidget {
+  const _OptionChoiceStack({
     required this.options,
     required this.value,
     required this.onChanged,
-    this.intro,
-    this.compact = false,
   });
 
-  final String? intro;
   final List<CompassDiscoveryOption> options;
   final String? value;
   final ValueChanged<String> onChanged;
-  final bool compact;
 
   @override
   Widget build(BuildContext context) {
@@ -914,23 +1303,16 @@ class _ChoiceStack extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (intro != null) ...[
-          Text(
-            intro!,
-            style: theme.textTheme.bodyMedium?.copyWith(height: 1.45),
-          ),
-          const SizedBox(height: 16),
-        ],
         ...options.map((option) {
           final selected = value == option.archetype;
           return Padding(
-            padding: EdgeInsets.only(bottom: compact ? 8 : 10),
+            padding: const EdgeInsets.only(bottom: 8),
             child: InkWell(
               onTap: () => onChanged(option.archetype),
               borderRadius: BorderRadius.circular(8),
               child: Container(
                 width: double.infinity,
-                padding: EdgeInsets.all(compact ? 12 : 14),
+                padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
                   color: selected
                       ? theme.colorScheme.primary.withValues(alpha: 0.1)
@@ -1159,17 +1541,19 @@ class _OnboardingCommitmentChooserSheet extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              'Choose differently only if the recommended practice does not fit your actual month.',
+              'Choose differently only if the recommended practice does not fit your actual month. Showing the closest matches only.',
               style: theme.textTheme.bodyMedium?.copyWith(height: 1.42),
             ),
             const SizedBox(height: 16),
-            ...commitments.map(
-              (commitment) => _OnboardingCommitmentCard(
-                commitment: commitment,
-                selected: selected?.id == commitment.id,
-                onTap: () => onSelected(commitment),
-              ),
-            ),
+            ...commitments
+                .take(4)
+                .map(
+                  (commitment) => _OnboardingCommitmentCard(
+                    commitment: commitment,
+                    selected: selected?.id == commitment.id,
+                    onTap: () => onSelected(commitment),
+                  ),
+                ),
           ],
         );
       },
@@ -1359,10 +1743,81 @@ class _Page extends StatelessWidget {
 
 IconData _commitmentIcon(String category) {
   return switch (category.toLowerCase()) {
+    'growth' => LucideIcons.sprout,
     'discipline' => LucideIcons.shield,
     'prayer' => LucideIcons.flame,
     'gratitude' => LucideIcons.sparkles,
     'forgiveness' => LucideIcons.heartHandshake,
+    'charity' => LucideIcons.heartHandshake,
+    'service' => LucideIcons.heartHandshake,
     _ => LucideIcons.sprout,
+  };
+}
+
+IconData _directionIcon(CommitmentCategory category) {
+  return switch (category) {
+    CommitmentCategory.growth => LucideIcons.sprout,
+    CommitmentCategory.discipline => LucideIcons.shield,
+    CommitmentCategory.charity => LucideIcons.heartHandshake,
+  };
+}
+
+bool _planMatchesDirection(CommitmentPlan plan, CommitmentCategory direction) {
+  final category = plan.category.trim().toLowerCase();
+  return switch (direction) {
+    CommitmentCategory.growth => const {
+      'growth',
+      'prayer',
+      'gratitude',
+      'scripture',
+      'formation',
+    }.contains(category),
+    CommitmentCategory.discipline => const {
+      'discipline',
+      'fasting',
+      'focus',
+      'habits',
+      'practical',
+    }.contains(category),
+    CommitmentCategory.charity => const {
+      'charity',
+      'forgiveness',
+      'service',
+      'generosity',
+      'compassion',
+    }.contains(category),
+  };
+}
+
+CommitmentCategory? _directionForPlan(CommitmentPlan? plan) {
+  if (plan == null) return null;
+  for (final category in CommitmentCategory.values) {
+    if (_planMatchesDirection(plan, category)) return category;
+  }
+  return null;
+}
+
+String _commitmentDirectionBody(CommitmentCategory category) {
+  return switch (category) {
+    CommitmentCategory.growth =>
+      'Practices that deepen prayer, Scripture, gratitude, and trust before asking for heavier structure.',
+    CommitmentCategory.discipline =>
+      'Practices that build order, attention, restraint, and repeatable rhythms around what matters.',
+    CommitmentCategory.charity =>
+      'Practices that move the fight outward through mercy, forgiveness, service, and grace.',
+  };
+}
+
+String _commitmentDirectionReason(
+  _CompassSignal signal,
+  CommitmentCategory category,
+) {
+  return switch (category) {
+    CommitmentCategory.growth =>
+      '${signal.season} needs a rooted practice first: prayer, Scripture, gratitude, or trust that can feed the rest of the month.',
+    CommitmentCategory.discipline =>
+      '${signal.season} needs structure first: a simple boundary, rhythm, or repeatable act that makes faith easier to keep.',
+    CommitmentCategory.charity =>
+      '${signal.season} needs grace in motion first: service, forgiveness, generosity, or mercy that weakens self-focus.',
   };
 }
