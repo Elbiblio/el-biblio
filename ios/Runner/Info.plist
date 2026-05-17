@@ -28,6 +28,8 @@
 	<string>El-Biblio uses the camera only when you choose to add a photo.</string>
 	<key>NSContactsUsageDescription</key>
 	<string>El-Biblio uses contacts only when you choose someone to invite.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>El-Biblio uses your location only when you choose to find nearby churches.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>El-Biblio uses your location only when you choose to find nearby churches.</string>
 	<key>NSMicrophoneUsageDescription</key>

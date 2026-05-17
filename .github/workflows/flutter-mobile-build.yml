@@ -628,6 +628,8 @@ jobs:
             "El-Biblio uses speech recognition for hands-free prayer and devotion input."
           plist_set NSContactsUsageDescription \
             "El-Biblio accesses your contacts to share spiritual content with others."
+          plist_set NSLocationAlwaysAndWhenInUseUsageDescription \
+            "El-Biblio uses your location only when you choose to find nearby churches."
           plist_set NSLocationWhenInUseUsageDescription \
             "El-Biblio uses your location only when you choose to find nearby churches."
           plist_set NSCameraUsageDescription \
@@ -648,6 +650,7 @@ jobs:
           /usr/libexec/PlistBuddy -c "Print :NSMicrophoneUsageDescription" "$INFO_PLIST" || true
           /usr/libexec/PlistBuddy -c "Print :NSCameraUsageDescription" "$INFO_PLIST" || true
           /usr/libexec/PlistBuddy -c "Print :NSPhotoLibraryUsageDescription" "$INFO_PLIST" || true
+          /usr/libexec/PlistBuddy -c "Print :NSLocationAlwaysAndWhenInUseUsageDescription" "$INFO_PLIST" || true
           /usr/libexec/PlistBuddy -c "Print :NSLocationWhenInUseUsageDescription" "$INFO_PLIST" || true
 
       - name: Verify iOS directory exists
