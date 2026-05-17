@@ -765,13 +765,16 @@ jobs:
 
           if openssl pkcs12 -legacy -in "$P12" -nokeys -passin pass:"${IOS_P12_PASSWORD:-}" > /dev/null 2>&1; then
             echo "P12 decrypts with IOS_P12_PASSWORD."
+            echo "IOS_SIGNING_MODE=manual" >> "$GITHUB_ENV"
           elif [ -n "${IOS_KEYCHAIN_PASSWORD:-}" ] && openssl pkcs12 -legacy -in "$P12" -nokeys -passin pass:"${IOS_KEYCHAIN_PASSWORD}" > /dev/null 2>&1; then
             echo "P12 decrypts with IOS_KEYCHAIN_PASSWORD."
+            echo "IOS_SIGNING_MODE=manual" >> "$GITHUB_ENV"
           elif openssl pkcs12 -legacy -in "$P12" -nokeys -passin pass: > /dev/null 2>&1; then
             echo "P12 decrypts with an empty password."
+            echo "IOS_SIGNING_MODE=manual" >> "$GITHUB_ENV"
           else
-            echo "Error: Unable to decrypt ios_dist.p12 with IOS_P12_PASSWORD, IOS_KEYCHAIN_PASSWORD, or an empty password."
-            exit 1
+            echo "Unable to decrypt ios_dist.p12 with configured passwords; falling back to App Store Connect automatic signing."
+            echo "IOS_SIGNING_MODE=automatic" >> "$GITHUB_ENV"
           fi
         env:
           IOS_P12_PASSWORD: ${{ secrets.IOS_P12_PASSWORD }}
@@ -810,6 +813,7 @@ jobs:
           cat > fastlane/Fastfile <<EOF
           require "fileutils"
           require "securerandom"
+          require "shellwords"
 
           default_platform(:ios)
           
@@ -927,6 +931,60 @@ jobs:
             end
             
             lane :build_release do
+              if ENV["IOS_SIGNING_MODE"].to_s == "automatic"
+                profile_path = File.expand_path("../signing/Elbiblio.mobileprovision")
+                profile_team_id = File.exist?(profile_path) ? sh("security cms -D -i #{profile_path} | plutil -extract TeamIdentifier.0 raw -o - -").strip : ""
+                team_id = ENV["APPLE_TEAM_ID"].to_s.strip
+                team_id = ENV["IOS_TEAM_ID"].to_s.strip if team_id.empty?
+                team_id = profile_team_id if team_id.empty?
+                key_path = ENV["APP_STORE_CONNECT_API_KEY_PATH"].to_s.strip
+                key_id = ENV["APP_STORE_CONNECT_API_KEY_ID"].to_s.strip
+                key_id = ENV["ASC_KEY_ID"].to_s.strip if key_id.empty?
+                issuer_id = ENV["APPSTORE_ISSUER_ID"].to_s.strip
+                issuer_id = ENV["APP_STORE_CONNECT_ISSUER_ID"].to_s.strip if issuer_id.empty?
+                issuer_id = ENV["ASC_ISSUER_ID"].to_s.strip if issuer_id.empty?
+                bundle_id = ENV["IOS_BUNDLE_ID"].to_s.strip
+                bundle_id = "com.elbiblio.app" if bundle_id.empty?
+
+                if team_id.empty? || key_path.empty? || key_id.empty? || issuer_id.empty?
+                  UI.user_error!("Automatic signing requires team id, App Store Connect key path, key id, and issuer id.")
+                end
+
+                app_store_connect_api_key(
+                  key_id: key_id,
+                  issuer_id: issuer_id,
+                  key_filepath: key_path
+                )
+
+                update_code_signing_settings(
+                  path: "Runner.xcodeproj",
+                  use_automatic_signing: true,
+                  team_id: team_id,
+                  targets: ["Runner"]
+                )
+
+                build_app(
+                  workspace: "${XCODE_FILE}",
+                  scheme: "${SCHEME}",
+                  configuration: "Release",
+                  export_method: "app-store",
+                  output_directory: "build/export",
+                  output_name: "Elbiblio.ipa",
+                  archive_path: "build/App.xcarchive",
+                  export_options: {
+                    method: "app-store",
+                    teamID: team_id,
+                    signingStyle: "automatic",
+                    manageAppVersionAndBuildNumber: false,
+                    uploadBitcode: false,
+                    uploadSymbols: true,
+                    compileBitcode: false
+                  },
+                  xcargs: "-allowProvisioningUpdates -authenticationKeyPath #{Shellwords.escape(key_path)} -authenticationKeyID #{Shellwords.escape(key_id)} -authenticationKeyIssuerID #{Shellwords.escape(issuer_id)} DEVELOPMENT_TEAM=#{Shellwords.escape(team_id)} PRODUCT_BUNDLE_IDENTIFIER=#{Shellwords.escape(bundle_id)} MARKETING_VERSION=${{ needs.prepare-build.outputs.version_name }} CURRENT_PROJECT_VERSION=${{ needs.prepare-build.outputs.version_code }}"
+                )
+                next
+              end
+
               signing_info = setup_signing
               
               build_app(
@@ -1064,6 +1122,13 @@ jobs:
           IOS_KEYCHAIN_PASSWORD: ${{ secrets.IOS_KEYCHAIN_PASSWORD }}
           IOS_P12_PASSWORD: ${{ secrets.IOS_P12_PASSWORD }}
           IOS_BUNDLE_ID: ${{ vars.IOS_BUNDLE_ID || 'com.elbiblio.app' }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          IOS_TEAM_ID: ${{ secrets.IOS_TEAM_ID }}
+          APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          APPSTORE_ISSUER_ID: ${{ secrets.APPSTORE_ISSUER_ID }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
 
       - name: Verify IPA was created
         run: |
