@@ -517,6 +517,12 @@ jobs:
       fail-fast: true
     steps:
       - name: Verify required secrets
+        env:
+          APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          APPSTORE_ISSUER_ID: ${{ secrets.APPSTORE_ISSUER_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
         run: |
           MISSING_SECRETS=""
           
@@ -525,6 +531,8 @@ jobs:
           [ -z "${{ secrets.R2_ACCOUNT_ID }}" ] && MISSING_SECRETS="$MISSING_SECRETS R2_ACCOUNT_ID"
           [ -z "${{ secrets.R2_KEYSTORE_BUCKET }}" ] && MISSING_SECRETS="$MISSING_SECRETS R2_KEYSTORE_BUCKET"
           [ -z "${{ secrets.IOS_KEYCHAIN_PASSWORD }}" ] && MISSING_SECRETS="$MISSING_SECRETS IOS_KEYCHAIN_PASSWORD"
+          [ -z "${APP_STORE_CONNECT_API_KEY_ID:-${ASC_KEY_ID:-}}" ] && MISSING_SECRETS="$MISSING_SECRETS APP_STORE_CONNECT_API_KEY_ID_or_ASC_KEY_ID"
+          [ -z "${APPSTORE_ISSUER_ID:-${APP_STORE_CONNECT_ISSUER_ID:-${ASC_ISSUER_ID:-}}}" ] && MISSING_SECRETS="$MISSING_SECRETS APPSTORE_ISSUER_ID_or_ASC_ISSUER_ID"
           
           if [ -n "$MISSING_SECRETS" ]; then
             echo "Error: Missing required secrets:$MISSING_SECRETS"
@@ -687,6 +695,10 @@ jobs:
           aws configure set region us-east-1
 
       - name: Download signing assets
+        env:
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+          APP_STORE_CONNECT_API_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_API_KEY_CONTENT }}
+          APP_STORE_CONNECT_API_PRIVATE_KEY: ${{ secrets.APP_STORE_CONNECT_API_PRIVATE_KEY }}
         run: |
           mkdir -p ios/signing
           R2_ENDPOINT="https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com"
@@ -704,13 +716,31 @@ jobs:
           aws s3 cp "s3://$BUCKET/iosbuild/Elbiblio.mobileprovision" ios/signing/Elbiblio.mobileprovision --endpoint-url="$R2_ENDPOINT" || \
             { echo "Error: Failed to download provisioning profile"; exit 1; }
           
-          # AuthKey is optional for TestFlight; if present, record its absolute path for Fastlane
+          # AuthKey can come from R2 or from GitHub Secrets; TestFlight upload is required.
           AUTHKEY_LOCAL_PATH="ios/signing/AuthKey.p8"
           if aws s3 cp "s3://$BUCKET/iosbuild/AuthKey_4WKTZ9VTBH_ConnectKey.p8" "$AUTHKEY_LOCAL_PATH" --endpoint-url="$R2_ENDPOINT" 2>/dev/null; then
             echo "✓ AuthKey.p8 downloaded to $AUTHKEY_LOCAL_PATH"
             echo "APP_STORE_CONNECT_API_KEY_PATH=$PWD/$AUTHKEY_LOCAL_PATH" >> "$GITHUB_ENV"
           else
-            echo "⚠ AuthKey.p8 not found in R2 - TestFlight upload will be skipped"
+            KEY_CONTENT="${ASC_KEY_P8:-${APP_STORE_CONNECT_API_KEY_CONTENT:-${APP_STORE_CONNECT_API_PRIVATE_KEY:-}}}"
+            if [ -z "$KEY_CONTENT" ]; then
+              echo "Error: AuthKey.p8 not found in R2 and no App Store Connect private key secret was provided."
+              exit 1
+            fi
+
+            KEY_CONTENT="$KEY_CONTENT" python3 - <<'PY'
+          import os
+          from pathlib import Path
+
+          key = os.environ["KEY_CONTENT"].strip().replace("\\n", "\n")
+          if "BEGIN PRIVATE KEY" not in key or "END PRIVATE KEY" not in key:
+              raise SystemExit("Error: App Store Connect private key secret must contain the full .p8 private key.")
+          path = Path("ios/signing/AuthKey.p8")
+          path.write_text(key + "\n", encoding="utf-8")
+          path.chmod(0o600)
+          PY
+            echo "✓ AuthKey.p8 created from GitHub secret"
+            echo "APP_STORE_CONNECT_API_KEY_PATH=$PWD/$AUTHKEY_LOCAL_PATH" >> "$GITHUB_ENV"
           fi
           
           # Verify required files exist
@@ -778,6 +808,9 @@ jobs:
           mkdir -p fastlane
           
           cat > fastlane/Fastfile <<EOF
+          require "fileutils"
+          require "securerandom"
+
           default_platform(:ios)
           
           platform :ios do
@@ -793,11 +826,27 @@ jobs:
               profile_name = sh("security cms -D -i #{profile_path} | plutil -extract Name raw -o - -").strip
               team_id = sh("security cms -D -i #{profile_path} | plutil -extract TeamIdentifier.0 raw -o - -").strip
               app_id = sh("security cms -D -i #{profile_path} | plutil -extract Entitlements.application-identifier raw -o - -").strip
-              bundle_id = app_id.sub("#{team_id}.", "")
+              profile_bundle_id = app_id.sub("#{team_id}.", "")
+              configured_bundle_id = ENV["IOS_BUNDLE_ID"].to_s.strip
+              bundle_id = if profile_bundle_id.end_with?(".*")
+                configured_bundle_id.empty? ? "com.elbiblio.app" : configured_bundle_id
+              else
+                configured_bundle_id.empty? ? profile_bundle_id : configured_bundle_id
+              end
               
               # Verify we extracted valid data
               if profile_uuid.empty? || team_id.empty? || bundle_id.empty?
                 UI.user_error!("Failed to extract profile information from provisioning profile at #{profile_path}")
+              end
+
+              if profile_bundle_id.end_with?(".*")
+                wildcard_prefix = profile_bundle_id.delete_suffix(".*")
+                unless bundle_id == wildcard_prefix || bundle_id.start_with?("#{wildcard_prefix}.")
+                  UI.user_error!("Provisioning profile wildcard #{profile_bundle_id} does not cover bundle id #{bundle_id}")
+                end
+                UI.message("Wildcard provisioning profile covers bundle id #{bundle_id}")
+              elsif bundle_id != profile_bundle_id
+                UI.user_error!("Provisioning profile bundle id #{profile_bundle_id} does not match configured bundle id #{bundle_id}")
               end
 
               UI.message("Provisioning profile details:")
@@ -805,7 +854,8 @@ jobs:
               UI.message("  UUID: #{profile_uuid}")
               UI.message("  Team ID: #{team_id}")
               UI.message("  Application Identifier: #{app_id}")
-              UI.message("  Bundle ID: #{bundle_id}")
+              UI.message("  Profile Bundle ID: #{profile_bundle_id}")
+              UI.message("  Build Bundle ID: #{bundle_id}")
 
               profile_dir = File.expand_path("~/Library/MobileDevice/Provisioning Profiles")
               FileUtils.mkdir_p(profile_dir)
@@ -904,22 +954,36 @@ jobs:
             
             lane :upload_testflight do
               key_path = ENV["APP_STORE_CONNECT_API_KEY_PATH"].to_s
+              key_id = ENV["APP_STORE_CONNECT_API_KEY_ID"].to_s.strip
+              key_id = ENV["ASC_KEY_ID"].to_s.strip if key_id.empty?
+              issuer_id = ENV["APPSTORE_ISSUER_ID"].to_s.strip
+              issuer_id = ENV["APP_STORE_CONNECT_ISSUER_ID"].to_s.strip if issuer_id.empty?
+              issuer_id = ENV["ASC_ISSUER_ID"].to_s.strip if issuer_id.empty?
+              app_identifier = ENV["IOS_BUNDLE_ID"].to_s.strip
+              app_identifier = "com.elbiblio.app" if app_identifier.empty?
+
               if key_path.empty?
-                UI.message("APP_STORE_CONNECT_API_KEY_PATH not set - skipping TestFlight upload")
+                UI.user_error!("APP_STORE_CONNECT_API_KEY_PATH not set")
               elsif !File.exist?(key_path)
-                UI.message("API key file not found at #{key_path} - skipping TestFlight upload")
+                UI.user_error!("API key file not found at #{key_path}")
+              elsif key_id.empty? || issuer_id.empty?
+                UI.user_error!("Missing App Store Connect key id or issuer id")
               else
                 api_key = app_store_connect_api_key(
-                  key_id: ENV["APP_STORE_CONNECT_API_KEY_ID"],
-                  issuer_id: ENV["APPSTORE_ISSUER_ID"],
+                  key_id: key_id,
+                  issuer_id: issuer_id,
                   key_filepath: key_path
                 )
                 
-                upload_to_testflight(
+                upload_options = {
                   api_key: api_key,
+                  app_identifier: app_identifier,
                   ipa: "build/export/Elbiblio.ipa",
                   skip_waiting_for_build_processing: true
-                )
+                }
+                apple_id = ENV["APP_STORE_APP_ID"].to_s.strip
+                upload_options[:apple_id] = apple_id unless apple_id.empty?
+                upload_to_testflight(upload_options)
               end
             end
           end
@@ -999,6 +1063,7 @@ jobs:
         env:
           IOS_KEYCHAIN_PASSWORD: ${{ secrets.IOS_KEYCHAIN_PASSWORD }}
           IOS_P12_PASSWORD: ${{ secrets.IOS_P12_PASSWORD }}
+          IOS_BUNDLE_ID: ${{ vars.IOS_BUNDLE_ID || 'com.elbiblio.app' }}
 
       - name: Verify IPA was created
         run: |
@@ -1043,15 +1108,17 @@ jobs:
           ls -la ~/Library/MobileDevice/Provisioning\ Profiles || true
 
       - name: Upload to TestFlight
-        # Non-fatal: a missing AuthKey.p8 or API secrets skips upload gracefully.
-        # The IPA artifact is already uploaded above regardless of this step.
-        continue-on-error: true
         run: |
           cd ios
           fastlane upload_testflight
         env:
           APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
           APPSTORE_ISSUER_ID: ${{ secrets.APPSTORE_ISSUER_ID }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          IOS_BUNDLE_ID: ${{ vars.IOS_BUNDLE_ID || 'com.elbiblio.app' }}
+          APP_STORE_APP_ID: ${{ vars.APP_STORE_APP_ID }}
 
       - name: Cleanup
         if: always()
