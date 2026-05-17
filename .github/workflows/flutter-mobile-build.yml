@@ -816,6 +816,109 @@ jobs:
           require "shellwords"
 
           default_platform(:ios)
+
+          def app_store_connect_token(key_id, issuer_id, key_content)
+            require "jwt"
+            require "openssl"
+
+            JWT.encode(
+              {
+                iss: issuer_id,
+                exp: Time.now.to_i + 600,
+                aud: "appstoreconnect-v1"
+              },
+              OpenSSL::PKey::EC.new(key_content),
+              "ES256",
+              {
+                kid: key_id,
+                typ: "JWT"
+              }
+            )
+          end
+
+          def app_store_connect_request(method, path, token)
+            require "json"
+            require "net/http"
+            require "uri"
+
+            uri = path.start_with?("http") ? URI(path) : URI("https://api.appstoreconnect.apple.com#{path}")
+            request = method == :delete ? Net::HTTP::Delete.new(uri) : Net::HTTP::Get.new(uri)
+            request["Authorization"] = "Bearer #{token}"
+
+            response = Net::HTTP.start(uri.host, uri.port, use_ssl: true) do |http|
+              http.request(request)
+            end
+
+            unless response.is_a?(Net::HTTPSuccess) || response.is_a?(Net::HTTPNoContent)
+              UI.user_error!("App Store Connect #{method.to_s.upcase} #{uri.path} failed: HTTP #{response.code}")
+            end
+
+            response.body.to_s.empty? ? {} : JSON.parse(response.body)
+          end
+
+          def certificates_for_type(token, certificate_type)
+            require "uri"
+
+            query = URI.encode_www_form(
+              "filter[certificateType]" => certificate_type,
+              "fields[certificates]" => "name,certificateType,displayName,serialNumber,platform,expirationDate",
+              "limit" => "200"
+            )
+            path = "/v1/certificates?#{query}"
+            certificates = []
+
+            loop do
+              body = app_store_connect_request(:get, path, token)
+              certificates.concat(body.fetch("data", []))
+              path = body.dig("links", "next")
+              break unless path
+            end
+
+            certificates
+          end
+
+          def development_certificates(token)
+            ["DEVELOPMENT", "IOS_DEVELOPMENT"]
+              .flat_map { |certificate_type| certificates_for_type(token, certificate_type) }
+              .uniq { |certificate| certificate.fetch("id") }
+          end
+
+          def prune_stale_api_created_development_certificate(key_id, issuer_id, key_content)
+            require "time"
+
+            token = app_store_connect_token(key_id, issuer_id, key_content)
+            certificates = development_certificates(token)
+            candidates = certificates.select do |certificate|
+              attributes = certificate.fetch("attributes", {})
+              [attributes["displayName"], attributes["name"]].compact.any? do |label|
+                label.include?("Created via API")
+              end
+            end
+
+            counts_by_type = certificates.each_with_object(Hash.new(0)) do |certificate, counts|
+              counts[certificate.dig("attributes", "certificateType") || "unknown"] += 1
+            end
+            UI.message(
+              "Found #{certificates.length} development certificates #{counts_by_type}; " \
+              "#{candidates.length} are API-created cleanup candidates"
+            )
+            return if candidates.empty? || certificates.length < 2
+
+            certificate = candidates.min_by do |candidate|
+              Time.parse(candidate.dig("attributes", "expirationDate").to_s)
+            rescue ArgumentError, TypeError
+              Time.at(0)
+            end
+
+            label = certificate.dig("attributes", "displayName") ||
+                    certificate.dig("attributes", "name") ||
+                    "unnamed certificate"
+            UI.important(
+              "Revoking stale API-created iOS development certificate #{certificate.fetch("id")} " \
+              "(#{label}) to keep CI automatic signing below Apple's certificate limit"
+            )
+            app_store_connect_request(:delete, "/v1/certificates/#{certificate.fetch("id")}", token)
+          end
           
           platform :ios do
             lane :setup_signing do
@@ -950,6 +1053,9 @@ jobs:
                   UI.user_error!("Automatic signing requires team id, App Store Connect key path, key id, and issuer id.")
                 end
 
+                key_content = File.read(key_path)
+                prune_stale_api_created_development_certificate(key_id, issuer_id, key_content)
+
                 app_store_connect_api_key(
                   key_id: key_id,
                   issuer_id: issuer_id,
@@ -982,32 +1088,32 @@ jobs:
                   },
                   xcargs: "-allowProvisioningUpdates -authenticationKeyPath #{Shellwords.escape(key_path)} -authenticationKeyID #{Shellwords.escape(key_id)} -authenticationKeyIssuerID #{Shellwords.escape(issuer_id)} DEVELOPMENT_TEAM=#{Shellwords.escape(team_id)} PRODUCT_BUNDLE_IDENTIFIER=#{Shellwords.escape(bundle_id)} MARKETING_VERSION=${{ needs.prepare-build.outputs.version_name }} CURRENT_PROJECT_VERSION=${{ needs.prepare-build.outputs.version_code }}"
                 )
-                next
-              end
+              else
 
-              signing_info = setup_signing
+                signing_info = setup_signing
               
-              build_app(
-                workspace: "${XCODE_FILE}",
-                scheme: "${SCHEME}",
-                configuration: "Release",
-                export_method: "app-store",
-                output_directory: "build/export",
-                output_name: "Elbiblio.ipa",
-                archive_path: "build/App.xcarchive",
-                export_options: {
-                  method: "app-store",
-                  teamID: signing_info[:team_id],
-                  uploadBitcode: false,
-                  uploadSymbols: true,
-                  compileBitcode: false,
-                  signingStyle: "manual",
-                  provisioningProfiles: {
-                    signing_info[:bundle_id] => signing_info[:profile_name]
-                  }
-                },
-                xcargs: "DEVELOPMENT_TEAM=#{signing_info[:team_id]} CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=#{signing_info[:identity]} PROVISIONING_PROFILE_SPECIFIER=#{signing_info[:profile_uuid]} PRODUCT_BUNDLE_IDENTIFIER=#{signing_info[:bundle_id]} MARKETING_VERSION=${{ needs.prepare-build.outputs.version_name }} CURRENT_PROJECT_VERSION=${{ needs.prepare-build.outputs.version_code }} OTHER_CODE_SIGN_FLAGS='--keychain #{signing_info[:keychain]}'"
-              )
+                build_app(
+                  workspace: "${XCODE_FILE}",
+                  scheme: "${SCHEME}",
+                  configuration: "Release",
+                  export_method: "app-store",
+                  output_directory: "build/export",
+                  output_name: "Elbiblio.ipa",
+                  archive_path: "build/App.xcarchive",
+                  export_options: {
+                    method: "app-store",
+                    teamID: signing_info[:team_id],
+                    uploadBitcode: false,
+                    uploadSymbols: true,
+                    compileBitcode: false,
+                    signingStyle: "manual",
+                    provisioningProfiles: {
+                      signing_info[:bundle_id] => signing_info[:profile_name]
+                    }
+                  },
+                  xcargs: "DEVELOPMENT_TEAM=#{signing_info[:team_id]} CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=#{signing_info[:identity]} PROVISIONING_PROFILE_SPECIFIER=#{signing_info[:profile_uuid]} PRODUCT_BUNDLE_IDENTIFIER=#{signing_info[:bundle_id]} MARKETING_VERSION=${{ needs.prepare-build.outputs.version_name }} CURRENT_PROJECT_VERSION=${{ needs.prepare-build.outputs.version_code }} OTHER_CODE_SIGN_FLAGS='--keychain #{signing_info[:keychain]}'"
+                )
+              end
             end
             
             lane :upload_testflight do
