@@ -753,9 +753,32 @@ jobs:
           
           echo "✓ All required signing materials downloaded"
 
-      - name: Verify iOS P12 password decrypts
+      - name: Choose iOS signing mode
         run: |
           set -euo pipefail
+
+          REQUESTED_MODE="$(printf '%s' "${IOS_SIGNING_MODE_OVERRIDE:-}" | tr '[:upper:]' '[:lower:]')"
+
+          if [ -z "$REQUESTED_MODE" ]; then
+            echo "Using App Store Connect automatic signing by default."
+            echo "IOS_SIGNING_MODE=automatic" >> "$GITHUB_ENV"
+            exit 0
+          fi
+
+          case "$REQUESTED_MODE" in
+            automatic)
+              echo "Using App Store Connect automatic signing from IOS_SIGNING_MODE."
+              echo "IOS_SIGNING_MODE=automatic" >> "$GITHUB_ENV"
+              exit 0
+              ;;
+            manual)
+              echo "Using manual iOS signing from IOS_SIGNING_MODE."
+              ;;
+            *)
+              echo "Error: IOS_SIGNING_MODE must be 'automatic' or 'manual' when set."
+              exit 1
+              ;;
+          esac
 
           P12="ios/signing/ios_dist.p12"
           if [ ! -f "$P12" ]; then
@@ -773,10 +796,11 @@ jobs:
             echo "P12 decrypts with an empty password."
             echo "IOS_SIGNING_MODE=manual" >> "$GITHUB_ENV"
           else
-            echo "Unable to decrypt ios_dist.p12 with configured passwords; falling back to App Store Connect automatic signing."
-            echo "IOS_SIGNING_MODE=automatic" >> "$GITHUB_ENV"
+            echo "Error: IOS_SIGNING_MODE=manual was requested, but ios_dist.p12 could not be decrypted with configured passwords."
+            exit 1
           fi
         env:
+          IOS_SIGNING_MODE_OVERRIDE: ${{ vars.IOS_SIGNING_MODE }}
           IOS_P12_PASSWORD: ${{ secrets.IOS_P12_PASSWORD }}
           IOS_KEYCHAIN_PASSWORD: ${{ secrets.IOS_KEYCHAIN_PASSWORD }}
 
@@ -1034,7 +1058,7 @@ jobs:
             end
             
             lane :build_release do
-              if ENV["IOS_SIGNING_MODE"].to_s == "automatic"
+              if ENV["IOS_SIGNING_MODE"].to_s != "manual"
                 profile_path = File.expand_path("../signing/Elbiblio.mobileprovision")
                 profile_team_id = File.exist?(profile_path) ? sh("security cms -D -i #{profile_path} | plutil -extract TeamIdentifier.0 raw -o - -").strip : ""
                 team_id = ENV["APPLE_TEAM_ID"].to_s.strip
@@ -1165,7 +1189,7 @@ jobs:
           end
           EOF
 
-      - name: Add resource files to Xcode project
+      - name: Configure iOS project capabilities
         run: |
           # xcodeproj gem is a Fastlane dependency — available after gem install fastlane
           ruby - <<'RUBY'
@@ -1181,10 +1205,38 @@ jobs:
           target   = project.targets.find { |t| t.name == 'Runner' }
           abort "ERROR: Runner target not found" unless target
 
-          resources_phase = target.resources_build_phase
+          entitlements_path = 'ios/Runner/Runner.entitlements'
+          entitlements_xml = <<~PLIST
+            <?xml version="1.0" encoding="UTF-8"?>
+            <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+            <plist version="1.0">
+            <dict>
+              <key>aps-environment</key>
+              <string>production</string>
+            </dict>
+            </plist>
+          PLIST
+          File.write(entitlements_path, entitlements_xml)
 
           runner_group = project.main_group.find_subpath('Runner', false)
           abort "ERROR: Runner group not found in project" unless runner_group
+
+          target.build_configurations.each do |config|
+            config.build_settings['CODE_SIGN_ENTITLEMENTS'] = 'Runner/Runner.entitlements'
+          end
+
+          target_attributes = project.root_object.attributes['TargetAttributes'] ||= {}
+          runner_attributes = target_attributes[target.uuid] ||= {}
+          capabilities = runner_attributes['SystemCapabilities'] ||= {}
+          capabilities['com.apple.Push'] = { 'enabled' => 1 }
+          capabilities['com.apple.BackgroundModes'] = { 'enabled' => 1 }
+
+          unless runner_group.files.any? { |file| file.display_name == 'Runner.entitlements' }
+            runner_group.new_reference('Runner.entitlements')
+            puts "Added Runner.entitlements to Runner group"
+          end
+
+          resources_phase = target.resources_build_phase
 
           files_to_add = %w[
             notification_sound.wav
@@ -1216,6 +1268,9 @@ jobs:
             puts "Added #{filename} to Runner → Copy Bundle Resources"
             added += 1
           end
+
+          project.save
+          puts "iOS capabilities configured (Push Notifications, Background Modes, entitlements)"
 
           if added > 0
             project.save
@@ -1258,6 +1313,40 @@ jobs:
           
           IPA_SIZE=$(du -h ios/build/export/Elbiblio.ipa | cut -f1)
           echo "✓ IPA created successfully: $IPA_SIZE"
+
+      - name: Verify IPA push notification entitlement
+        run: |
+          set -euo pipefail
+
+          TMP_DIR="$(mktemp -d)"
+          unzip -q ios/build/export/Elbiblio.ipa -d "$TMP_DIR"
+          APP_PATH="$(find "$TMP_DIR/Payload" -maxdepth 1 -name "*.app" | head -1)"
+          if [ -z "$APP_PATH" ]; then
+            echo "Error: Unable to locate app bundle inside IPA"
+            exit 1
+          fi
+
+          codesign -d --entitlements :- "$APP_PATH" > "$TMP_DIR/entitlements.plist" 2>/dev/null
+          APS_ENVIRONMENT=$(/usr/libexec/PlistBuddy -c "Print :aps-environment" "$TMP_DIR/entitlements.plist" 2>/dev/null || true)
+          if [ "$APS_ENVIRONMENT" != "production" ]; then
+            echo "Error: IPA is missing production aps-environment entitlement. Found: ${APS_ENVIRONMENT:-<missing>}"
+            exit 1
+          fi
+
+          PROFILE_PATH="$APP_PATH/embedded.mobileprovision"
+          if [ ! -f "$PROFILE_PATH" ]; then
+            echo "Error: IPA is missing embedded.mobileprovision"
+            exit 1
+          fi
+
+          security cms -D -i "$PROFILE_PATH" > "$TMP_DIR/profile.plist"
+          PROFILE_APS_ENVIRONMENT=$(/usr/libexec/PlistBuddy -c "Print :Entitlements:aps-environment" "$TMP_DIR/profile.plist" 2>/dev/null || true)
+          if [ "$PROFILE_APS_ENVIRONMENT" != "production" ]; then
+            echo "Error: embedded provisioning profile is missing production aps-environment. Found: ${PROFILE_APS_ENVIRONMENT:-<missing>}"
+            exit 1
+          fi
+
+          echo "IPA and embedded provisioning profile contain production APNs entitlement"
 
       - name: Upload IPA
         continue-on-error: true
