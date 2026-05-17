@@ -24,8 +24,16 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>El-Biblio uses the camera only when you choose to add a photo.</string>
 	<key>NSContactsUsageDescription</key>
 	<string>El-Biblio uses contacts only when you choose someone to invite.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>El-Biblio uses the microphone only when you choose voice prayer or devotion recording.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>El-Biblio uses your photo library only when you choose an image to add or share.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>El-Biblio uses speech recognition only when you choose hands-free prayer or devotion input.</string>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIApplicationSupportsIndirectInputEvents</key>

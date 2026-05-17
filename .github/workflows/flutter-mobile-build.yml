@@ -628,6 +628,10 @@ jobs:
             "El-Biblio uses speech recognition for hands-free prayer and devotion input."
           plist_set NSContactsUsageDescription \
             "El-Biblio accesses your contacts to share spiritual content with others."
+          plist_set NSCameraUsageDescription \
+            "El-Biblio uses the camera only when you choose to add a photo."
+          plist_set NSPhotoLibraryUsageDescription \
+            "El-Biblio uses your photo library only when you choose an image to add or share."
           plist_set CFBundleDisplayName "El-Biblio"
 
           # Ensure background modes array exists then set entries
@@ -640,6 +644,8 @@ jobs:
           echo "✓ Info.plist permissions and display name configured"
           /usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$INFO_PLIST" || true
           /usr/libexec/PlistBuddy -c "Print :NSMicrophoneUsageDescription" "$INFO_PLIST" || true
+          /usr/libexec/PlistBuddy -c "Print :NSCameraUsageDescription" "$INFO_PLIST" || true
+          /usr/libexec/PlistBuddy -c "Print :NSPhotoLibraryUsageDescription" "$INFO_PLIST" || true
 
       - name: Verify iOS directory exists
         run: |
