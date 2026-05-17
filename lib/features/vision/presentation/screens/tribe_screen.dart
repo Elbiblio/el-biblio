@@ -9,6 +9,7 @@ import '../../../../core/di/app_providers.dart';
 import '../../../../core/theme/app_theme_tokens.dart';
 import '../../../../shared/widgets/premium_success_dialog.dart';
 import '../../../../shared/widgets/vision_illustration.dart';
+import '../../../onboarding/domain/compass_discovery_catalog.dart';
 import '../../application/vision_state.dart';
 import '../../domain/vision_models.dart';
 import '../widgets/visibility_mode_picker.dart';
@@ -804,6 +805,16 @@ class _CompassContextPanel extends ConsumerWidget {
     final archetypes = settings.selectedArchetypeIds.isNotEmpty
         ? settings.selectedArchetypeIds.take(2).join(' + ')
         : settings.primaryArchetypeId ?? 'your compass';
+    final primary = settings.primaryArchetypeId;
+    final calling = primary == null
+        ? 'to practice steady faithfulness in this season'
+        : CompassDiscoveryCatalog.callingFor(primary);
+    final distortions = primary == null
+        ? 'avoidance, distraction, and trying to grow alone'
+        : CompassDiscoveryCatalog.distortionFor(primary);
+    final maturity = CompassDiscoveryCatalog.maturitySentence(
+      settings.spiritualAgeScore,
+    );
 
     return VisionPanel(
       icon: LucideIcons.compass,
@@ -814,7 +825,7 @@ class _CompassContextPanel extends ConsumerWidget {
         label: const Text('Retake'),
       ),
       child: Text(
-        'Your current compass is $archetypes, with spiritual age ${settings.spiritualAgeStage}. Retake it when your season changes; tribe recommendations should follow your latest formation.',
+        'Your current compass is $archetypes. One calling we see is $calling. Detected maturity: ${settings.spiritualAgeStage}. $maturity Likely worldly distortions to watch: $distortions.',
         style: theme.textTheme.bodyMedium?.copyWith(height: 1.42),
       ),
     );

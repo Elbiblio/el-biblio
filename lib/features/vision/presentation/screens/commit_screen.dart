@@ -20,6 +20,8 @@ class CommitScreen extends ConsumerStatefulWidget {
 class _CommitScreenState extends ConsumerState<CommitScreen> {
   int _selectedNudges = 3;
   String _selectedCategory = 'all';
+  _HabitViceSeed? _selectedHabitSeed;
+  _ReplacementHabit? _selectedReplacement;
 
   @override
   void initState() {
@@ -101,6 +103,34 @@ class _CommitScreenState extends ConsumerState<CommitScreen> {
                 const SizedBox(height: 12),
                 _buildCommitmentOption(
                   _bestCommitment(state.recommendedCommitments),
+                ),
+                const SizedBox(height: 2),
+                _HabitViceHelperPanel(
+                  selectedHabit: _selectedHabitSeed,
+                  selectedReplacement: _selectedReplacement,
+                  suggestedPlan: _bestHabitCommitment(
+                    state.recommendedCommitments,
+                  ),
+                  onHabitSelected: (habit) => setState(() {
+                    _selectedHabitSeed = habit;
+                    _selectedReplacement = habit.replacements.first;
+                    _selectedCategory = habit.category;
+                  }),
+                  onReplacementSelected: (replacement) =>
+                      setState(() => _selectedReplacement = replacement),
+                  onReview: _selectedHabitSeed == null
+                      ? null
+                      : () {
+                          final plan = _bestHabitCommitment(
+                            state.recommendedCommitments,
+                          );
+                          if (plan == null) return;
+                          _showCommitmentWalkthrough(
+                            plan,
+                            _selectedNudges.clamp(plan.nudgeMin, plan.nudgeMax),
+                            planObstacle: _habitObstacleCopy(),
+                          );
+                        },
                 ),
               ],
             ],
@@ -220,6 +250,36 @@ class _CommitScreenState extends ConsumerState<CommitScreen> {
     return visible.isNotEmpty ? visible.first : plans.first;
   }
 
+  CommitmentPlan? _bestHabitCommitment(List<CommitmentPlan> plans) {
+    final habit = _selectedHabitSeed;
+    if (habit == null || plans.isEmpty) return null;
+    final categoryMatches = plans
+        .where((plan) => plan.category.toLowerCase() == habit.category)
+        .toList(growable: false);
+    final candidates = categoryMatches.isNotEmpty ? categoryMatches : plans;
+    for (final keyword in habit.keywords) {
+      final match = candidates
+          .where((plan) {
+            final text = '${plan.title} ${plan.description} ${plan.dailyAction}'
+                .toLowerCase();
+            return text.contains(keyword);
+          })
+          .toList(growable: false);
+      if (match.isNotEmpty) return match.first;
+    }
+    return candidates.first;
+  }
+
+  String? _habitObstacleCopy() {
+    final habit = _selectedHabitSeed;
+    if (habit == null) return null;
+    final replacement = _selectedReplacement;
+    if (replacement == null) {
+      return 'When I feel pulled toward ${habit.label.toLowerCase()}, pause and choose one faithful next step.';
+    }
+    return 'When I feel pulled toward ${habit.label.toLowerCase()}, practice ${replacement.label.toLowerCase()} instead.';
+  }
+
   void _showNudgeHelp() {
     showModalBottomSheet<void>(
       context: context,
@@ -262,8 +322,10 @@ class _CommitScreenState extends ConsumerState<CommitScreen> {
 
   Future<void> _showCommitmentWalkthrough(
     CommitmentPlan plan,
-    int initialNudges,
-  ) async {
+    int initialNudges, {
+    String? planWhen,
+    String? planObstacle,
+  }) async {
     final joined = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
@@ -271,6 +333,8 @@ class _CommitScreenState extends ConsumerState<CommitScreen> {
       builder: (context) => _CommitmentWalkthroughSheet(
         plan: plan,
         initialNudges: initialNudges,
+        initialPlanWhen: planWhen,
+        initialPlanObstacle: planObstacle,
         onJoin: (nudges, planWhen, planObstacle) async {
           final joined = await ref
               .read(visionProvider.notifier)
@@ -407,6 +471,102 @@ class _NudgeEducationPanel extends StatelessWidget {
       child: Text(
         'Pick the rhythm you can respect. If three nudges are not enough, increase support and use the faith walkthrough to name what this practice is forming in you.',
         style: theme.textTheme.bodyMedium?.copyWith(height: 1.45),
+      ),
+    );
+  }
+}
+
+class _HabitViceHelperPanel extends StatelessWidget {
+  const _HabitViceHelperPanel({
+    required this.selectedHabit,
+    required this.selectedReplacement,
+    required this.suggestedPlan,
+    required this.onHabitSelected,
+    required this.onReplacementSelected,
+    required this.onReview,
+  });
+
+  final _HabitViceSeed? selectedHabit;
+  final _ReplacementHabit? selectedReplacement;
+  final CommitmentPlan? suggestedPlan;
+  final ValueChanged<_HabitViceSeed> onHabitSelected;
+  final ValueChanged<_ReplacementHabit> onReplacementSelected;
+  final VoidCallback? onReview;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return VisionPanel(
+      icon: LucideIcons.repeat2,
+      title: 'Habit and vice helper',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Choose one pattern you want to weaken. Then choose one small replacement practice. This is a focus aid, not a diagnosis.',
+            style: theme.textTheme.bodyMedium?.copyWith(height: 1.45),
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: _habitViceSeeds.map((habit) {
+              return ChoiceChip(
+                selected: selectedHabit?.id == habit.id,
+                label: Text(habit.label),
+                avatar: Icon(habit.icon, size: 16),
+                onSelected: (_) => onHabitSelected(habit),
+              );
+            }).toList(),
+          ),
+          if (selectedHabit != null) ...[
+            const SizedBox(height: 14),
+            Text(
+              'Replacement practice',
+              style: theme.textTheme.labelLarge?.copyWith(
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: selectedHabit!.replacements.map((replacement) {
+                return ChoiceChip(
+                  selected: selectedReplacement?.id == replacement.id,
+                  label: Text(replacement.label),
+                  onSelected: (_) => onReplacementSelected(replacement),
+                );
+              }).toList(),
+            ),
+            if (suggestedPlan != null) ...[
+              const SizedBox(height: 14),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.primaryContainer.withValues(
+                    alpha: 0.18,
+                  ),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  'Closest commitment: ${suggestedPlan!.title}',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                    height: 1.35,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+              FilledButton.tonalIcon(
+                onPressed: onReview,
+                icon: const Icon(LucideIcons.flag, size: 18),
+                label: const Text('Review this focus'),
+              ),
+            ],
+          ],
+        ],
       ),
     );
   }
@@ -1053,10 +1213,14 @@ class _CommitmentWalkthroughSheet extends StatefulWidget {
     required this.plan,
     required this.initialNudges,
     required this.onJoin,
+    this.initialPlanWhen,
+    this.initialPlanObstacle,
   });
 
   final CommitmentPlan plan;
   final int initialNudges;
+  final String? initialPlanWhen;
+  final String? initialPlanObstacle;
   final Future<void> Function(int nudges, String planWhen, String planObstacle)
   onJoin;
 
@@ -1079,8 +1243,10 @@ class _CommitmentWalkthroughSheetState
       widget.plan.nudgeMin,
       widget.plan.nudgeMax,
     );
-    _whenController = TextEditingController();
-    _obstacleController = TextEditingController();
+    _whenController = TextEditingController(text: widget.initialPlanWhen);
+    _obstacleController = TextEditingController(
+      text: widget.initialPlanObstacle,
+    );
   }
 
   @override
@@ -1539,6 +1705,106 @@ String _missedDayCopy(AccountabilityTone tone) {
       'Recommit before continuing tomorrow. The structure is here to hold the line with you.',
   };
 }
+
+class _ReplacementHabit {
+  const _ReplacementHabit({required this.id, required this.label});
+
+  final String id;
+  final String label;
+}
+
+class _HabitViceSeed {
+  const _HabitViceSeed({
+    required this.id,
+    required this.label,
+    required this.category,
+    required this.icon,
+    required this.keywords,
+    required this.replacements,
+  });
+
+  final String id;
+  final String label;
+  final String category;
+  final IconData icon;
+  final List<String> keywords;
+  final List<_ReplacementHabit> replacements;
+}
+
+const _habitViceSeeds = [
+  _HabitViceSeed(
+    id: 'scrolling',
+    label: 'Endless scrolling',
+    category: 'discipline',
+    icon: LucideIcons.smartphone,
+    keywords: ['social', 'content', 'focus', 'fast', 'silence'],
+    replacements: [
+      _ReplacementHabit(id: 'scripture', label: 'Read Scripture first'),
+      _ReplacementHabit(id: 'silence', label: 'Two minutes of silence'),
+      _ReplacementHabit(id: 'walk', label: 'Take a short prayer walk'),
+    ],
+  ),
+  _HabitViceSeed(
+    id: 'lust',
+    label: 'Lust or fantasy',
+    category: 'discipline',
+    icon: LucideIcons.shield,
+    keywords: ['fast', 'purity', 'desire', 'body', 'discipline'],
+    replacements: [
+      _ReplacementHabit(id: 'exit', label: 'Leave the trigger quickly'),
+      _ReplacementHabit(id: 'prayer', label: 'Pray one honest sentence'),
+      _ReplacementHabit(id: 'body', label: 'Move your body'),
+    ],
+  ),
+  _HabitViceSeed(
+    id: 'anger',
+    label: 'Anger or contempt',
+    category: 'charity',
+    icon: LucideIcons.flame,
+    keywords: ['forgiveness', 'mercy', 'anger', 'service', 'grace'],
+    replacements: [
+      _ReplacementHabit(id: 'pause', label: 'Pause before replying'),
+      _ReplacementHabit(id: 'bless', label: 'Bless instead of rehearsing'),
+      _ReplacementHabit(id: 'repair', label: 'Make one repair attempt'),
+    ],
+  ),
+  _HabitViceSeed(
+    id: 'avoidance',
+    label: 'Avoiding responsibility',
+    category: 'discipline',
+    icon: LucideIcons.clock3,
+    keywords: ['begin', 'start', 'discipline', 'focus', 'plan'],
+    replacements: [
+      _ReplacementHabit(id: 'first_step', label: 'Do the first small step'),
+      _ReplacementHabit(id: 'timer', label: 'Set a ten-minute timer'),
+      _ReplacementHabit(id: 'tell', label: 'Tell one trusted person'),
+    ],
+  ),
+  _HabitViceSeed(
+    id: 'self_pity',
+    label: 'Self-pity or despair',
+    category: 'growth',
+    icon: LucideIcons.cloudRain,
+    keywords: ['gratitude', 'hope', 'prayer', 'trust', 'growth'],
+    replacements: [
+      _ReplacementHabit(id: 'thanks', label: 'Name one mercy'),
+      _ReplacementHabit(id: 'psalm', label: 'Pray a Psalm'),
+      _ReplacementHabit(id: 'reach', label: 'Ask for support'),
+    ],
+  ),
+  _HabitViceSeed(
+    id: 'people_pleasing',
+    label: 'People-pleasing',
+    category: 'discipline',
+    icon: LucideIcons.users,
+    keywords: ['boundary', 'discipline', 'honest', 'focus', 'clarity'],
+    replacements: [
+      _ReplacementHabit(id: 'truth', label: 'Tell the simple truth'),
+      _ReplacementHabit(id: 'boundary', label: 'Set one kind boundary'),
+      _ReplacementHabit(id: 'pray', label: 'Pray before answering'),
+    ],
+  ),
+];
 
 (String, String) _faithInsightFor(String category) {
   return switch (category.toLowerCase()) {

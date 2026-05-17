@@ -123,7 +123,7 @@ class _DiscoverIdentityViewState extends ConsumerState<DiscoverIdentityView> {
           ),
           const SizedBox(height: 12),
           Text(
-            'Answer a few simple questions about your life right now. There are no perfect answers.',
+            'Answer from your real life right now. The goal is a helpful next step, not a perfect label.',
             textAlign: TextAlign.center,
             style: textTheme.bodyMedium?.copyWith(
               color: theme.colorScheme.onSurface.withValues(alpha: 0.62),
@@ -161,9 +161,9 @@ class _DiscoverIdentityViewState extends ConsumerState<DiscoverIdentityView> {
         onContinue: state.exactAge == null ? null : _next,
       ),
       _DiscoveryStep.seasonCluster => _ClusterQuestion(
-        title: 'What feels most true about your life right now?',
+        title: 'Where do you feel pulled right now?',
         subtitle:
-            'Pick the group that sounds closest. The next question will make it clearer.',
+            'Choose the closest area. Then we will narrow it with a more practical question.',
         value: _seasonClusterId,
         clusters: CompassDiscoveryCatalog.seasonClusters,
         onChanged: (cluster) {
@@ -175,7 +175,7 @@ class _DiscoverIdentityViewState extends ConsumerState<DiscoverIdentityView> {
         },
       ),
       _DiscoveryStep.seasonDetail => _OptionQuestion(
-        title: 'Which sentence sounds most like you?',
+        title: 'Which sentence is closest to what is happening?',
         subtitle: selectedCluster?.description,
         value: state.compassSeasonArchetype,
         options: selectedCluster?.options ?? const [],
@@ -183,8 +183,9 @@ class _DiscoverIdentityViewState extends ConsumerState<DiscoverIdentityView> {
             _selectOption(value, notifier.setCompassSeasonArchetype),
       ),
       _DiscoveryStep.pressure => _OptionQuestion(
-        title: 'When life feels stressful, what do you usually do first?',
-        subtitle: 'Choose what you often do, even if you wish it were different.',
+        title: 'When stress rises, what do you usually do first?',
+        subtitle:
+            'Choose the honest pattern, not the answer you think sounds best.',
         value: state.compassPressureArchetype,
         options: CompassDiscoveryCatalog.pressureOptionsFor([
           state.compassSeasonArchetype,
@@ -194,8 +195,9 @@ class _DiscoverIdentityViewState extends ConsumerState<DiscoverIdentityView> {
             _selectOption(value, notifier.setCompassPressureArchetype),
       ),
       _DiscoveryStep.postponed => _OptionQuestion(
-        title: 'What do you keep putting off, even though it matters?',
-        subtitle: 'This helps find the kind of support that would actually help you.',
+        title: 'What faithful step do you keep delaying?',
+        subtitle:
+            'Delayed steps often reveal the kind of support you need next.',
         value: state.compassPostponedArchetype,
         options: CompassDiscoveryCatalog.postponedOptionsFor([
           state.compassSeasonArchetype,
@@ -206,8 +208,9 @@ class _DiscoverIdentityViewState extends ConsumerState<DiscoverIdentityView> {
             _selectOption(value, notifier.setCompassPostponedArchetype),
       ),
       _DiscoveryStep.peopleNeed => _OptionQuestion(
-        title: 'What do people often ask you for?',
-        subtitle: 'Think about what friends, family, or your church usually trust you with.',
+        title: 'What do people tend to trust you with?',
+        subtitle:
+            'Think about what friends, family, or church people naturally bring to you.',
         value: state.compassPeopleNeedArchetype,
         options: CompassDiscoveryCatalog.peopleNeedOptionsFor([
           state.compassSeasonArchetype,
@@ -219,9 +222,9 @@ class _DiscoverIdentityViewState extends ConsumerState<DiscoverIdentityView> {
             _selectOption(value, notifier.setCompassPeopleNeedArchetype),
       ),
       _DiscoveryStep.distortion => _OptionQuestion(
-        title: 'What unhealthy pattern do you want God to help you change?',
+        title: 'What pattern can twist this gift in a worldly direction?',
         subtitle:
-            'This last question helps your result become practical, not just interesting.',
+            'This is not shame. It helps turn your result into a practical commitment.',
         value: state.compassDistortionFearArchetype,
         options: CompassDiscoveryCatalog.distortionOptionsFor([
           state.compassSeasonArchetype,
@@ -237,8 +240,7 @@ class _DiscoverIdentityViewState extends ConsumerState<DiscoverIdentityView> {
         primary == null
             ? _OptionQuestion(
                 title: 'One more answer is needed',
-                subtitle:
-                    'Answer the previous question to finish this part.',
+                subtitle: 'Answer the previous question to finish this part.',
                 value: null,
                 options: const [],
                 onChanged: (_) {},
@@ -659,6 +661,11 @@ class _CompassResultStory extends StatelessWidget {
     final persona = ArchetypeResonances.resolveFromOrderedNames(
       state.selectedArchetypeIds,
     );
+    final calling = CompassDiscoveryCatalog.callingFor(primary.name);
+    final distortions = CompassDiscoveryCatalog.distortionFor(primary.name);
+    final maturity = CompassDiscoveryCatalog.maturitySentence(
+      state.spiritualAgeScore,
+    );
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(18),
@@ -673,14 +680,14 @@ class _CompassResultStory extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Your strongest area right now: ${primary.name}',
+            'One calling we see: ${primary.identity}',
             style: theme.textTheme.titleMedium?.copyWith(
               fontWeight: FontWeight.w900,
             ),
           ),
           const SizedBox(height: 6),
           Text(
-            'Growth group: ${persona.tribe}. Current focus: ${state.compassSeasonName ?? 'Steady formation'}.',
+            'Tribe direction: ${persona.tribe}. Current focus: ${state.compassSeasonName ?? 'Steady formation'}.',
             style: theme.textTheme.labelLarge?.copyWith(
               color: theme.colorScheme.primary,
               fontWeight: FontWeight.w800,
@@ -688,7 +695,23 @@ class _CompassResultStory extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           Text(
-            'This is about your current season, not a permanent label. Next, you will get a tribe, a daily commitment, and reminders that fit your support level.',
+            'You may be called $calling.',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.72),
+              height: 1.45,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            'Detected maturity with this gift: ${state.spiritualAgeStage}. $maturity',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.72),
+              height: 1.45,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            'Watch for worldly distortions: $distortions.',
             style: theme.textTheme.bodyMedium?.copyWith(
               color: theme.colorScheme.onSurface.withValues(alpha: 0.68),
               height: 1.5,
