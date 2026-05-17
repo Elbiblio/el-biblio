@@ -68,7 +68,7 @@ class _CommitScreenState extends ConsumerState<CommitScreen> {
             if (state.notificationWarning?.isNotEmpty == true) ...[
               _LaunchIssuePanel(
                 icon: LucideIcons.bellOff,
-                title: 'Nudges need attention',
+                title: 'Reminders need attention',
                 message: state.notificationWarning!,
               ),
               const SizedBox(height: 16),
@@ -91,7 +91,7 @@ class _CommitScreenState extends ConsumerState<CommitScreen> {
                       ? 'Reconnect to choose a commitment'
                       : 'Commitment catalog unavailable',
                   message:
-                      'We will not show sample commitments as if they were real. Try again when ElBiblio can reach the launch catalog.',
+                      'Reconnect to choose a real commitment for this season.',
                 )
               else ...[
                 _CommitmentChoiceGuide(
@@ -180,7 +180,7 @@ class _CommitScreenState extends ConsumerState<CommitScreen> {
                         ),
                         _MetaPill(
                           icon: LucideIcons.bell,
-                          label: '${plan.nudgeMin}-${plan.nudgeMax} nudges',
+                          label: '${plan.nudgeMin}-${plan.nudgeMax} reminders',
                         ),
                       ],
                     ),
@@ -366,7 +366,7 @@ class _CommitScreenState extends ConsumerState<CommitScreen> {
       context,
       title: 'Commitment joined',
       message:
-          'Your digital accountability assistant is ready. The nudge is a hand on your shoulder, not a verdict on your soul.',
+          'Your reminders are ready. Let them help you return without shame.',
       primaryActionText: 'Continue',
     );
   }
@@ -439,8 +439,8 @@ class _CommitHeader extends StatelessWidget {
                 const SizedBox(height: 8),
                 Text(
                   hasActive
-                      ? 'One check-in today is enough. The app should support your faithfulness, not crowd it.'
-                      : 'Choose a concrete practice, a gentle nudge rhythm, and a time-bound season.',
+                      ? 'One check-in today is enough. Let faithfulness grow with patience and grace.'
+                      : 'Choose one practice, a prayerful reminder, and a season to keep it.',
                   style: theme.textTheme.bodyMedium?.copyWith(height: 1.42),
                 ),
               ],
@@ -462,14 +462,14 @@ class _NudgeEducationPanel extends StatelessWidget {
     final theme = Theme.of(context);
     return VisionPanel(
       icon: LucideIcons.bellRing,
-      title: 'Nudges are accountability, not pressure',
+      title: 'Reminders are help, not pressure',
       trailing: IconButton(
-        tooltip: 'Learn about nudges',
+        tooltip: 'Learn about reminders',
         onPressed: onLearnMore,
         icon: const Icon(LucideIcons.helpCircle, size: 20),
       ),
       child: Text(
-        'Pick the rhythm you can respect. If three nudges are not enough, increase support and use the faith walkthrough to name what this practice is forming in you.',
+        'Begin with reminders you can keep. If three are not enough, ask for stronger support and name what God is forming in you.',
         style: theme.textTheme.bodyMedium?.copyWith(height: 1.45),
       ),
     );
@@ -608,7 +608,8 @@ class _CommitmentChoiceGuide extends StatelessWidget {
               ),
               _MetaPill(
                 icon: LucideIcons.bell,
-                label: '${recommended.nudgeMin}-${recommended.nudgeMax} nudges',
+                label:
+                    '${recommended.nudgeMin}-${recommended.nudgeMax} reminders',
               ),
             ],
           ),
@@ -672,7 +673,7 @@ class _NotificationRecoveryPanelState
         final theme = Theme.of(context);
         return VisionPanel(
           icon: LucideIcons.bellOff,
-          title: 'Turn nudges back on',
+          title: 'Turn reminders back on',
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -684,7 +685,7 @@ class _NotificationRecoveryPanelState
               FilledButton.tonalIcon(
                 onPressed: _requestAgain,
                 icon: const Icon(LucideIcons.bellRing, size: 18),
-                label: const Text('Enable nudges'),
+                label: const Text('Enable reminders'),
               ),
             ],
           ),
@@ -868,14 +869,14 @@ class _NudgeSelectorHeader extends StatelessWidget {
       children: [
         Expanded(
           child: Text(
-            '$nudges gentle nudges per day',
+            '$nudges gentle reminders per day',
             style: theme.textTheme.labelLarge?.copyWith(
               fontWeight: FontWeight.w800,
             ),
           ),
         ),
         IconButton(
-          tooltip: 'How nudges work',
+          tooltip: 'How reminders work',
           onPressed: onHelp,
           icon: const Icon(LucideIcons.helpCircle, size: 20),
         ),
@@ -897,7 +898,7 @@ class _NudgeHelpSheet extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'How nudges work',
+            'How reminders work',
             style: theme.textTheme.headlineSmall?.copyWith(
               fontWeight: FontWeight.w900,
             ),
@@ -907,13 +908,13 @@ class _NudgeHelpSheet extends StatelessWidget {
             icon: LucideIcons.bell,
             title: 'They interrupt forgetfulness',
             body:
-                'A nudge is a small check-in point. Tap it, do the action, then check in.',
+                'A reminder is a small check-in point. Tap it, do the action, then check in.',
           ),
           const _ExpectationRow(
             icon: LucideIcons.heartHandshake,
             title: 'They are not shame',
             body:
-                'Missing a nudge is information, not condemnation. Increase support when your season needs more structure.',
+                'Missing a reminder is information, not condemnation. Increase support when your season needs more structure.',
           ),
           const _ExpectationRow(
             icon: LucideIcons.sprout,
@@ -1111,7 +1112,7 @@ class _CommitmentChooserCard extends StatelessWidget {
               ),
               _MetaPill(
                 icon: LucideIcons.bell,
-                label: '${plan.nudgeMin}-${plan.nudgeMax} nudges',
+                label: '${plan.nudgeMin}-${plan.nudgeMax} reminders',
               ),
             ],
           ),
@@ -1190,7 +1191,7 @@ class _CommitmentLibraryCard extends StatelessWidget {
                     ),
                     _MetaPill(
                       icon: LucideIcons.bell,
-                      label: '${plan.nudgeMin}-${plan.nudgeMax} nudges',
+                      label: '${plan.nudgeMin}-${plan.nudgeMax} reminders',
                     ),
                     if (isActive)
                       const _MetaPill(
@@ -1286,7 +1287,7 @@ class _CommitmentWalkthroughSheetState
           ),
           const _ExpectationRow(
             icon: LucideIcons.bell,
-            title: 'What nudges do',
+            title: 'What reminders do',
             body:
                 'They interrupt forgetfulness and help you check in. They are not a scorecard.',
           ),
@@ -1325,14 +1326,14 @@ class _CommitmentWalkthroughSheetState
           ),
           const SizedBox(height: 14),
           Text(
-            'Nudge rhythm',
+            'Prayerful reminders',
             style: theme.textTheme.titleMedium?.copyWith(
               fontWeight: FontWeight.w800,
             ),
           ),
           const SizedBox(height: 4),
           Text(
-            'Start with $_nudges per day. If three still cannot catch the pattern, ElBiblio can invite you into a stronger rhythm and a faith walkthrough.',
+            'Start with $_nudges per day. If three are not enough, choose stronger support and name what God is forming in you.',
             style: theme.textTheme.bodyMedium?.copyWith(height: 1.4),
           ),
           Slider(
@@ -1661,7 +1662,7 @@ class _AccountabilityAssistantPanel extends ConsumerWidget {
         children: [
           Text(
             active.checkedInToday
-                ? 'The nudge did its work today: it helped you check in, then got out of the way.'
+                ? 'The reminder did its work today: it helped you check in, then got out of the way.'
                 : _missedDayCopy(tone),
             style: theme.textTheme.bodyMedium?.copyWith(height: 1.45),
           ),
@@ -1679,14 +1680,14 @@ class _AccountabilityAssistantPanel extends ConsumerWidget {
                   SnackBar(
                     content: Text(
                       updated
-                          ? 'Nudges increased to $suggested per day.'
-                          : 'We could not update nudges. Please try again.',
+                          ? 'Reminders increased to $suggested per day.'
+                          : 'We could not update reminders. Please try again.',
                     ),
                   ),
                 );
               },
               icon: const Icon(LucideIcons.plus, size: 18),
-              label: Text('Increase to $suggested nudges'),
+              label: Text('Increase to $suggested reminders'),
             ),
           ],
         ],
@@ -1700,7 +1701,7 @@ String _missedDayCopy(AccountabilityTone tone) {
     AccountabilityTone.gentle =>
       'What made today hard? Notice the obstacle first; then choose one small return.',
     AccountabilityTone.balanced =>
-      'Choose one support adjustment before the day slips away: check in now, increase nudges, or name the obstacle.',
+      'Choose one support adjustment before the day slips away: check in now, increase reminders, or name the obstacle.',
     AccountabilityTone.firm =>
       'Recommit before continuing tomorrow. The structure is here to hold the line with you.',
   };

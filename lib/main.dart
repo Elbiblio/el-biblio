@@ -102,13 +102,13 @@ Future<void> main() async {
                   ),
                   const SizedBox(height: 16),
                   Text(
-                    'Failed to initialize the app: $e',
+                    'ElBiblio could not start: $e',
                     textAlign: TextAlign.center,
                     style: const TextStyle(fontSize: 16),
                   ),
                   const SizedBox(height: 16),
                   const Text(
-                    'Please restart the app or contact support.',
+                    'Restart ElBiblio or contact support.',
                     textAlign: TextAlign.center,
                     style: TextStyle(fontSize: 14, color: Colors.grey),
                   ),

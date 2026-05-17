@@ -21,8 +21,7 @@ class AssessmentPromptWidget extends ConsumerStatefulWidget {
       _AssessmentPromptWidgetState();
 }
 
-class _AssessmentPromptWidgetState
-    extends ConsumerState<AssessmentPromptWidget>
+class _AssessmentPromptWidgetState extends ConsumerState<AssessmentPromptWidget>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
   late final Animation<double> _fadeIn;
@@ -39,13 +38,13 @@ class _AssessmentPromptWidgetState
       parent: _controller,
       curve: AppAnimations.fadeCurve,
     );
-    _slideIn = Tween<Offset>(
-      begin: const Offset(0, 0.08),
-      end: Offset.zero,
-    ).animate(CurvedAnimation(
-      parent: _controller,
-      curve: AppAnimations.defaultCurve,
-    ));
+    _slideIn = Tween<Offset>(begin: const Offset(0, 0.08), end: Offset.zero)
+        .animate(
+          CurvedAnimation(
+            parent: _controller,
+            curve: AppAnimations.defaultCurve,
+          ),
+        );
     _controller.forward();
   }
 
@@ -56,7 +55,7 @@ class _AssessmentPromptWidgetState
   }
 
   @override
-  Widget build(BuildContext context, ) {
+  Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final tokens = theme.tokens;
@@ -81,9 +80,7 @@ class _AssessmentPromptWidgetState
                 ],
               ),
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(
-                color: identityColor.withValues(alpha: 0.2),
-              ),
+              border: Border.all(color: identityColor.withValues(alpha: 0.2)),
             ),
             child: Row(
               children: [
@@ -109,14 +106,18 @@ class _AssessmentPromptWidgetState
                         'Discover Calling',
                         style: theme.textTheme.titleSmall?.copyWith(
                           fontWeight: FontWeight.w700,
-                          color: isDark ? Colors.white : theme.colorScheme.onSurface,
+                          color: isDark
+                              ? Colors.white
+                              : theme.colorScheme.onSurface,
                         ),
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        'Tailor your daily rhythm and growth path',
+                        'Shape your daily practice and growth path',
                         style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                          color: theme.colorScheme.onSurface.withValues(
+                            alpha: 0.5,
+                          ),
                         ),
                       ),
                     ],

@@ -28,7 +28,7 @@ enum AccountabilityTone {
       AccountabilityTone.balanced =>
         'A steady mix of grace, structure, and clear next steps.',
       AccountabilityTone.firm =>
-        'Stronger structure when you want the app to hold the line with you.',
+        'Stronger structure when you want help holding the line.',
     };
   }
 }

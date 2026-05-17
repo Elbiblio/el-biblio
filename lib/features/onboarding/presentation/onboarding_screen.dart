@@ -32,7 +32,7 @@ class OnboardingScreen extends ConsumerWidget {
 
   String _getPrimaryButtonLabel(OnboardingState state) {
     return switch (state.step) {
-      OnboardingStep.theProblem => 'Begin the rhythm',
+      OnboardingStep.theProblem => 'Begin with grace',
       OnboardingStep.theSolution => 'Find my compass',
       OnboardingStep.yourIdentity =>
         _canAdvanceFromAssessment(state)

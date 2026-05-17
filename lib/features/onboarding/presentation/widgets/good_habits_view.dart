@@ -28,9 +28,7 @@ class _GoodHabitsViewState extends ConsumerState<GoodHabitsView> {
   }
 
   Future<void> _commit() async {
-    await ref
-        .read(settingsProvider.notifier)
-        .setGoodHabits(_selected.toList());
+    await ref.read(settingsProvider.notifier).setGoodHabits(_selected.toList());
     widget.onContinue();
   }
 
@@ -51,7 +49,7 @@ class _GoodHabitsViewState extends ConsumerState<GoodHabitsView> {
           ),
           const SizedBox(height: 8),
           Text(
-            'Name the virtues you already practice — the app will reinforce these before it asks anything new of you.',
+            'Name the virtues already bearing fruit in you.',
             style: theme.textTheme.bodyMedium?.copyWith(
               color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
               height: 1.5,
@@ -134,40 +132,40 @@ class _HabitChip extends StatelessWidget {
       selected: selected,
       label: option.label,
       child: GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: AppAnimations.fast,
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        decoration: BoxDecoration(
-          color: selected
-              ? theme.colorScheme.primary.withValues(alpha: 0.12)
-              : theme.colorScheme.onSurface.withValues(alpha: 0.04),
-          borderRadius: BorderRadius.circular(22),
-          border: Border.all(
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: AppAnimations.fast,
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(
             color: selected
-                ? theme.colorScheme.primary.withValues(alpha: 0.4)
-                : theme.colorScheme.onSurface.withValues(alpha: 0.1),
-            width: selected ? 1.4 : 1.0,
+                ? theme.colorScheme.primary.withValues(alpha: 0.12)
+                : theme.colorScheme.onSurface.withValues(alpha: 0.04),
+            borderRadius: BorderRadius.circular(22),
+            border: Border.all(
+              color: selected
+                  ? theme.colorScheme.primary.withValues(alpha: 0.4)
+                  : theme.colorScheme.onSurface.withValues(alpha: 0.1),
+              width: selected ? 1.4 : 1.0,
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(option.emoji, style: const TextStyle(fontSize: 16)),
+              const SizedBox(width: 8),
+              Text(
+                option.label,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+                  color: selected
+                      ? theme.colorScheme.primary
+                      : theme.colorScheme.onSurface.withValues(alpha: 0.78),
+                ),
+              ),
+            ],
           ),
         ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(option.emoji, style: const TextStyle(fontSize: 16)),
-            const SizedBox(width: 8),
-            Text(
-              option.label,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
-                color: selected
-                    ? theme.colorScheme.primary
-                    : theme.colorScheme.onSurface.withValues(alpha: 0.78),
-              ),
-            ),
-          ],
-        ),
       ),
-    ),
     );
   }
 }

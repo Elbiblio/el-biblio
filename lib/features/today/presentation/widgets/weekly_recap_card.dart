@@ -23,8 +23,10 @@ class WeeklyRecapCard extends ConsumerWidget {
     final title = isSunday ? 'WEEKLY RECAP' : 'FRIDAY CHECKPOINT';
     final subtitle = isSunday
         ? 'Reflect on this week and set your next spiritual focus.'
-        : 'Close the week strong and prepare your weekend rhythm.';
-    final streakLabel = settings.streakCount == 1 ? '1 day' : '${settings.streakCount} days';
+        : 'Close the week with gratitude and prepare to return with grace.';
+    final streakLabel = settings.streakCount == 1
+        ? '1 day'
+        : '${settings.streakCount} days';
 
     return Container(
       width: double.infinity,
@@ -42,14 +44,13 @@ class WeeklyRecapCard extends ConsumerWidget {
           Text(
             title,
             style: Theme.of(context).textTheme.sectionHeader.copyWith(
-                  color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.65),
-                ),
+              color: Theme.of(
+                context,
+              ).colorScheme.onSurface.withValues(alpha: 0.65),
+            ),
           ),
           const SizedBox(height: 8),
-          Text(
-            subtitle,
-            style: Theme.of(context).textTheme.bodyMedium,
-          ),
+          Text(subtitle, style: Theme.of(context).textTheme.bodyMedium),
           const SizedBox(height: 12),
           Row(
             children: [
@@ -58,7 +59,10 @@ class WeeklyRecapCard extends ConsumerWidget {
               ),
               const SizedBox(width: 10),
               Expanded(
-                child: _RecapMetric(label: 'Today', value: '$completedToday/3 anchors'),
+                child: _RecapMetric(
+                  label: 'Today',
+                  value: '$completedToday/3 anchors',
+                ),
               ),
             ],
           ),
@@ -80,7 +84,9 @@ class _RecapMetric extends StatelessWidget {
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(12),
-        color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.45),
+        color: Theme.of(
+          context,
+        ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.45),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -88,16 +94,16 @@ class _RecapMetric extends StatelessWidget {
           Text(
             label.toUpperCase(),
             style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 0.8,
-                ),
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.8,
+            ),
           ),
           const SizedBox(height: 4),
           Text(
             value,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  fontWeight: FontWeight.w700,
-                ),
+            style: Theme.of(
+              context,
+            ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w700),
           ),
         ],
       ),

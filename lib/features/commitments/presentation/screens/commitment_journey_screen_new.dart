@@ -28,7 +28,9 @@ class _CommitmentJourneyScreenNewState
   @override
   void initState() {
     super.initState();
-    _confettiController = ConfettiController(duration: const Duration(seconds: 3));
+    _confettiController = ConfettiController(
+      duration: const Duration(seconds: 3),
+    );
     // Load active journey on init
     Future.microtask(() {
       ref.read(commitmentJourneyProvider.notifier).loadActiveJourney();
@@ -43,7 +45,7 @@ class _CommitmentJourneyScreenNewState
 
   Future<void> _checkIn() async {
     await ref.read(commitmentJourneyProvider.notifier).checkInToday();
-    
+
     // Check if milestone was reached and show notification
     final state = ref.read(commitmentJourneyProvider);
     if (state.justReachedMilestone != null && mounted) {
@@ -53,7 +55,7 @@ class _CommitmentJourneyScreenNewState
 
   void _showMilestoneDialog(int milestoneDay) {
     final theme = Theme.of(context);
-    
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -71,7 +73,9 @@ class _CommitmentJourneyScreenNewState
           FilledButton(
             onPressed: () {
               Navigator.of(context).pop();
-              ref.read(commitmentJourneyProvider.notifier).acknowledgeMilestone();
+              ref
+                  .read(commitmentJourneyProvider.notifier)
+                  .acknowledgeMilestone();
             },
             child: const Text('Continue'),
           ),
@@ -136,10 +140,10 @@ class _CommitmentJourneyScreenNewState
               state.isLoading
                   ? const Center(child: CircularProgressIndicator())
                   : state.justCompleted
-                      ? _buildCompletionCelebration(context, state)
-                      : state.activeJourney == null
-                          ? _buildEmptyState(context)
-                          : _buildJourneyView(context, state),
+                  ? _buildCompletionCelebration(context, state)
+                  : state.activeJourney == null
+                  ? _buildEmptyState(context)
+                  : _buildJourneyView(context, state),
               // Confetti overlay
               Align(
                 alignment: Alignment.topCenter,
@@ -166,7 +170,10 @@ class _CommitmentJourneyScreenNewState
     );
   }
 
-  Widget _buildCompletionCelebration(BuildContext context, CommitmentJourneyState state) {
+  Widget _buildCompletionCelebration(
+    BuildContext context,
+    CommitmentJourneyState state,
+  ) {
     final theme = Theme.of(context);
     final active = state.activeJourney;
 
@@ -189,109 +196,119 @@ class _CommitmentJourneyScreenNewState
             ),
           ),
         ),
-        Expanded(child: Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Spacer(flex: 2),
+        Expanded(
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.all(32),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Spacer(flex: 2),
 
-            Icon(
-              Icons.emoji_events_rounded,
-              size: 72,
-              color: Colors.amber.shade600,
-            ),
-
-            const SizedBox(height: 24),
-
-            Text(
-              'Journey Complete!',
-              style: theme.textTheme.headlineMedium?.copyWith(
-                fontWeight: FontWeight.w800,
-                color: theme.colorScheme.onSurface,
-              ),
-            ),
-
-            const SizedBox(height: 12),
-
-            if (active != null) ...[
-              Text(
-                '${active.completedDays.length} days of faithfulness',
-                style: theme.textTheme.titleMedium?.copyWith(
-                  color: theme.colorScheme.primary,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-
-              if (active.prayerIntention.isNotEmpty) ...[
-                const SizedBox(height: 24),
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.primaryContainer.withValues(alpha: 0.3),
-                    borderRadius: BorderRadius.circular(16),
+                  Icon(
+                    Icons.emoji_events_rounded,
+                    size: 72,
+                    color: Colors.amber.shade600,
                   ),
-                  child: Column(
-                    children: [
-                      Text(
-                        'Your prayer intention:',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
-                        ),
+
+                  const SizedBox(height: 24),
+
+                  Text(
+                    'Journey Complete!',
+                    style: theme.textTheme.headlineMedium?.copyWith(
+                      fontWeight: FontWeight.w800,
+                      color: theme.colorScheme.onSurface,
+                    ),
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  if (active != null) ...[
+                    Text(
+                      '${active.completedDays.length} days of faithfulness',
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        color: theme.colorScheme.primary,
+                        fontWeight: FontWeight.w600,
                       ),
-                      const SizedBox(height: 8),
-                      Text(
-                        '"${active.prayerIntention}"',
-                        style: theme.textTheme.bodyLarge?.copyWith(
-                          fontStyle: FontStyle.italic,
-                          color: theme.colorScheme.onSurface.withValues(alpha: 0.8),
+                    ),
+
+                    if (active.prayerIntention.isNotEmpty) ...[
+                      const SizedBox(height: 24),
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.primaryContainer.withValues(
+                            alpha: 0.3,
+                          ),
+                          borderRadius: BorderRadius.circular(16),
                         ),
-                        textAlign: TextAlign.center,
+                        child: Column(
+                          children: [
+                            Text(
+                              'Your prayer intention:',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: theme.colorScheme.onSurface.withValues(
+                                  alpha: 0.5,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              '"${active.prayerIntention}"',
+                              style: theme.textTheme.bodyLarge?.copyWith(
+                                fontStyle: FontStyle.italic,
+                                color: theme.colorScheme.onSurface.withValues(
+                                  alpha: 0.8,
+                                ),
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ],
+                        ),
                       ),
                     ],
+                  ],
+
+                  const Spacer(flex: 2),
+
+                  // Share button
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: () {
+                        final days = active?.completedDays.length ?? 0;
+                        Share.share(
+                          'I just completed a $days-day spiritual journey on El-Biblio! '
+                          'Grow your faith at elbiblio.com',
+                        );
+                      },
+                      icon: const Icon(Icons.share_rounded),
+                      label: const Text('Share this milestone'),
+                    ),
                   ),
-                ),
-              ],
-            ],
 
-            const Spacer(flex: 2),
+                  const SizedBox(height: 12),
 
-            // Share button
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed: () {
-                  final days = active?.completedDays.length ?? 0;
-                  Share.share(
-                    'I just completed a $days-day spiritual journey on El-Biblio! '
-                    'Grow your faith at elbiblio.com',
-                  );
-                },
-                icon: const Icon(Icons.share_rounded),
-                label: const Text('Share this milestone'),
+                  // Continue button
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton(
+                      onPressed: () {
+                        ref
+                            .read(commitmentJourneyProvider.notifier)
+                            .acknowledgeCompletion();
+                        context.go(AppRoutes.today);
+                      },
+                      child: const Text('Continue'),
+                    ),
+                  ),
+
+                  const SizedBox(height: 32),
+                ],
               ),
             ),
-
-            const SizedBox(height: 12),
-
-            // Continue button
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton(
-                onPressed: () {
-                  ref.read(commitmentJourneyProvider.notifier).acknowledgeCompletion();
-                  context.go(AppRoutes.today);
-                },
-                child: const Text('Continue'),
-              ),
-            ),
-
-            const SizedBox(height: 32),
-          ],
+          ),
         ),
-      ),
-    )),
       ],
     );
   }
@@ -311,42 +328,44 @@ class _CommitmentJourneyScreenNewState
             ),
           ),
         ),
-        Expanded(child: Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.nature_outlined,
-              size: 64,
-              color: theme.colorScheme.primary.withValues(alpha: 0.5),
-            ),
-            const SizedBox(height: 24),
-            Text(
-              'No active journey',
-              style: theme.textTheme.headlineSmall?.copyWith(
-                fontWeight: FontWeight.w700,
+        Expanded(
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.all(32),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.nature_outlined,
+                    size: 64,
+                    color: theme.colorScheme.primary.withValues(alpha: 0.5),
+                  ),
+                  const SizedBox(height: 24),
+                  Text(
+                    'No active journey',
+                    style: theme.textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Begin a new commitment to see your journey here.',
+                    textAlign: TextAlign.center,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                    ),
+                  ),
+                  const SizedBox(height: 32),
+                  FilledButton.icon(
+                    onPressed: () => context.push(AppRoutes.journeySelection),
+                    icon: const Icon(Icons.add_rounded),
+                    label: const Text('Start a Journey'),
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: 12),
-            Text(
-              'Begin a new commitment to see your journey here.',
-              textAlign: TextAlign.center,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
-              ),
-            ),
-            const SizedBox(height: 32),
-            FilledButton.icon(
-              onPressed: () => context.push(AppRoutes.journeySelection),
-              icon: const Icon(Icons.add_rounded),
-              label: const Text('Start a Journey'),
-            ),
-          ],
+          ),
         ),
-      ),
-    )),
       ],
     );
   }
@@ -435,7 +454,9 @@ class _CommitmentJourneyScreenNewState
                     Text(
                       'Where you are and where you\'re going',
                       style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                        color: theme.colorScheme.onSurface.withValues(
+                          alpha: 0.5,
+                        ),
                       ),
                     ),
                     const SizedBox(height: 20),
@@ -463,9 +484,7 @@ class _CommitmentJourneyScreenNewState
             ),
 
             // Tips section
-            SliverToBoxAdapter(
-              child: _TipsSection(tips: journey.tips),
-            ),
+            SliverToBoxAdapter(child: _TipsSection(tips: journey.tips)),
 
             const SliverToBoxAdapter(child: SizedBox(height: 40)),
           ],
@@ -478,7 +497,8 @@ class _CommitmentJourneyScreenNewState
     final theme = Theme.of(context);
     final journeyState = ref.read(commitmentJourneyProvider);
     final activeJourney = journeyState.activeJourney;
-    final isCompleted = activeJourney?.completedDays.contains(milestone.day) ?? false;
+    final isCompleted =
+        activeJourney?.completedDays.contains(milestone.day) ?? false;
 
     showModalBottomSheet(
       context: context,
@@ -514,19 +534,27 @@ class _CommitmentJourneyScreenNewState
               Row(
                 children: [
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
                     decoration: BoxDecoration(
                       color: theme.colorScheme.secondary.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(
-                        color: theme.colorScheme.secondary.withValues(alpha: 0.3),
+                        color: theme.colorScheme.secondary.withValues(
+                          alpha: 0.3,
+                        ),
                       ),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.diamond_outlined,
-                            size: 16, color: theme.colorScheme.secondary),
+                        Icon(
+                          Icons.diamond_outlined,
+                          size: 16,
+                          color: theme.colorScheme.secondary,
+                        ),
                         const SizedBox(width: 6),
                         Text(
                           'Milestone \u2022 Day ${milestone.day}',
@@ -540,8 +568,11 @@ class _CommitmentJourneyScreenNewState
                   ),
                   const Spacer(),
                   if (isCompleted)
-                    Icon(Icons.check_circle,
-                        color: theme.colorScheme.primary, size: 24),
+                    Icon(
+                      Icons.check_circle,
+                      color: theme.colorScheme.primary,
+                      size: 24,
+                    ),
                 ],
               ),
 
@@ -562,7 +593,9 @@ class _CommitmentJourneyScreenNewState
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: theme.colorScheme.primaryContainer.withValues(alpha: 0.4),
+                  color: theme.colorScheme.primaryContainer.withValues(
+                    alpha: 0.4,
+                  ),
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(
                     color: theme.colorScheme.primary.withValues(alpha: 0.2),
@@ -573,8 +606,11 @@ class _CommitmentJourneyScreenNewState
                   children: [
                     Row(
                       children: [
-                        Icon(Icons.trending_up_rounded,
-                            size: 18, color: theme.colorScheme.primary),
+                        Icon(
+                          Icons.trending_up_rounded,
+                          size: 18,
+                          color: theme.colorScheme.primary,
+                        ),
                         const SizedBox(width: 8),
                         Text(
                           'What changes',
@@ -603,8 +639,9 @@ class _CommitmentJourneyScreenNewState
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: theme.colorScheme.surfaceContainerHighest
-                      .withValues(alpha: 0.5),
+                  color: theme.colorScheme.surfaceContainerHighest.withValues(
+                    alpha: 0.5,
+                  ),
                   borderRadius: BorderRadius.circular(16),
                 ),
                 child: Column(
@@ -612,17 +649,21 @@ class _CommitmentJourneyScreenNewState
                   children: [
                     Row(
                       children: [
-                        Icon(Icons.psychology_outlined,
-                            size: 18,
-                            color: theme.colorScheme.onSurface
-                                .withValues(alpha: 0.7)),
+                        Icon(
+                          Icons.psychology_outlined,
+                          size: 18,
+                          color: theme.colorScheme.onSurface.withValues(
+                            alpha: 0.7,
+                          ),
+                        ),
                         const SizedBox(width: 8),
                         Text(
                           'Reflect',
                           style: theme.textTheme.labelLarge?.copyWith(
                             fontWeight: FontWeight.w700,
-                            color: theme.colorScheme.onSurface
-                                .withValues(alpha: 0.7),
+                            color: theme.colorScheme.onSurface.withValues(
+                              alpha: 0.7,
+                            ),
                           ),
                         ),
                       ],
@@ -639,8 +680,9 @@ class _CommitmentJourneyScreenNewState
                               width: 6,
                               height: 6,
                               decoration: BoxDecoration(
-                                color: theme.colorScheme.primary
-                                    .withValues(alpha: 0.5),
+                                color: theme.colorScheme.primary.withValues(
+                                  alpha: 0.5,
+                                ),
                                 shape: BoxShape.circle,
                               ),
                             ),
@@ -651,8 +693,9 @@ class _CommitmentJourneyScreenNewState
                                 style: theme.textTheme.bodyMedium?.copyWith(
                                   height: 1.5,
                                   fontStyle: FontStyle.italic,
-                                  color: theme.colorScheme.onSurface
-                                      .withValues(alpha: 0.8),
+                                  color: theme.colorScheme.onSurface.withValues(
+                                    alpha: 0.8,
+                                  ),
                                 ),
                               ),
                             ),
@@ -677,9 +720,11 @@ class _CommitmentJourneyScreenNewState
                       borderRadius: BorderRadius.circular(14),
                     ),
                   ),
-                  child: Text(isCompleted
-                      ? 'Continue Your Journey'
-                      : 'I Understand \u2014 Let\'s Go Deeper'),
+                  child: Text(
+                    isCompleted
+                        ? 'Continue Your Journey'
+                        : 'I Understand \u2014 Let\'s Go Deeper',
+                  ),
                 ),
               ),
 
@@ -693,7 +738,7 @@ class _CommitmentJourneyScreenNewState
 
   List<String> _getReflectionPrompts(CommitmentMilestone milestone) {
     return [
-      'How has this journey changed your daily rhythm so far?',
+      'How has this journey helped you follow God today?',
       'What has been the hardest part? What surprised you?',
       'How do you sense God working through this commitment?',
       'What would you tell someone just starting this journey?',
@@ -703,10 +748,7 @@ class _CommitmentJourneyScreenNewState
 
 /// Header showing journey intention and virtue alignment
 class _JourneyHeader extends StatelessWidget {
-  const _JourneyHeader({
-    required this.journey,
-    required this.activeJourney,
-  });
+  const _JourneyHeader({required this.journey, required this.activeJourney});
 
   final CommitmentJourney journey;
   final ActiveJourney activeJourney;
@@ -816,8 +858,9 @@ class _TodayCheckInCard extends StatelessWidget {
     final hour = today.hour;
 
     // Check if already checked in today
-    final alreadyCheckedIn =
-        activeJourney.completedDays.contains(activeJourney.currentDay);
+    final alreadyCheckedIn = activeJourney.completedDays.contains(
+      activeJourney.currentDay,
+    );
 
     // Determine check-in availability based on time and partner
     String statusText;
@@ -932,10 +975,7 @@ class _TodayCheckInCard extends StatelessWidget {
 
 /// Progress statistics
 class _ProgressStats extends StatelessWidget {
-  const _ProgressStats({
-    required this.journey,
-    required this.activeJourney,
-  });
+  const _ProgressStats({required this.journey, required this.activeJourney});
 
   final CommitmentJourney journey;
   final ActiveJourney activeJourney;
@@ -967,8 +1007,9 @@ class _ProgressStats extends StatelessWidget {
             child: Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: theme.colorScheme.surfaceContainerHighest
-                    .withValues(alpha: 0.5),
+                color: theme.colorScheme.surfaceContainerHighest.withValues(
+                  alpha: 0.5,
+                ),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Column(
@@ -1076,28 +1117,32 @@ class _TipsSection extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 12),
-          ...tips.map((tip) => Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Icon(
-                      Icons.lightbulb_outline,
-                      size: 16,
-                      color: theme.colorScheme.secondary,
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        tip,
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          color: theme.colorScheme.onSurface.withValues(alpha: 0.8),
+          ...tips.map(
+            (tip) => Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    Icons.lightbulb_outline,
+                    size: 16,
+                    color: theme.colorScheme.secondary,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      tip,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: theme.colorScheme.onSurface.withValues(
+                          alpha: 0.8,
                         ),
                       ),
                     ),
-                  ],
-                ),
-              )),
+                  ),
+                ],
+              ),
+            ),
+          ),
         ],
       ),
     );

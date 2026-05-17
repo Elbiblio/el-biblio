@@ -65,7 +65,9 @@ class _AssessmentActionPlanScreenState
     if (!synced) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Saved locally. We will sync your assessment when possible.'),
+          content: Text(
+            'Saved on this device. Sync will resume when possible.',
+          ),
           backgroundColor: Colors.orange,
         ),
       );
@@ -127,13 +129,17 @@ class _AssessmentActionPlanScreenState
       ),
       body: SafeArea(
         child: _isLoading
-            ? const Center(child: CircularProgressIndicator(color: primaryColor))
+            ? const Center(
+                child: CircularProgressIndicator(color: primaryColor),
+              )
             : Column(
                 children: [
                   Expanded(
                     child: SingleChildScrollView(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 24.0, vertical: 16.0),
+                        horizontal: 24.0,
+                        vertical: 16.0,
+                      ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
@@ -168,8 +174,7 @@ class _AssessmentActionPlanScreenState
                           ),
                           const SizedBox(height: 32),
                           ..._availableTasks.map((task) {
-                            final isSelected =
-                                _selectedTasks.contains(task.id);
+                            final isSelected = _selectedTasks.contains(task.id);
 
                             return Padding(
                               padding: const EdgeInsets.only(bottom: 12.0),
@@ -182,8 +187,8 @@ class _AssessmentActionPlanScreenState
                                     color: isSelected
                                         ? primaryColor.withValues(alpha: 0.1)
                                         : (isDark
-                                            ? Colors.grey[900]
-                                            : Colors.white),
+                                              ? Colors.grey[900]
+                                              : Colors.white),
                                     borderRadius: BorderRadius.circular(16),
                                     border: Border.all(
                                       color: isSelected
@@ -209,14 +214,17 @@ class _AssessmentActionPlanScreenState
                                             color: isSelected
                                                 ? primaryColor
                                                 : textColor.withValues(
-                                                    alpha: 0.3),
+                                                    alpha: 0.3,
+                                                  ),
                                             width: 2,
                                           ),
                                         ),
                                         child: isSelected
-                                            ? const Icon(Icons.check,
+                                            ? const Icon(
+                                                Icons.check,
                                                 size: 16,
-                                                color: Color(0xFF221D10))
+                                                color: Color(0xFF221D10),
+                                              )
                                             : null,
                                       ),
                                       const SizedBox(width: 16),
@@ -238,7 +246,8 @@ class _AssessmentActionPlanScreenState
                                               task.description,
                                               style: TextStyle(
                                                 color: textColor.withValues(
-                                                    alpha: 0.7),
+                                                  alpha: 0.7,
+                                                ),
                                                 fontSize: 14,
                                               ),
                                             ),
@@ -259,7 +268,11 @@ class _AssessmentActionPlanScreenState
                   // Bottom Action
                   Container(
                     padding: EdgeInsets.fromLTRB(
-                        24, 16, 24, 16 + MediaQuery.of(context).padding.bottom),
+                      24,
+                      16,
+                      24,
+                      16 + MediaQuery.of(context).padding.bottom,
+                    ),
                     decoration: BoxDecoration(
                       color: bgColor.withValues(alpha: 0.95),
                       border: Border(
@@ -296,8 +309,9 @@ class _AssessmentActionPlanScreenState
                           width: double.infinity,
                           height: 56,
                           child: ElevatedButton(
-                            onPressed:
-                                _selectedTasks.isNotEmpty ? _onComplete : null,
+                            onPressed: _selectedTasks.isNotEmpty
+                                ? _onComplete
+                                : null,
                             style: ElevatedButton.styleFrom(
                               backgroundColor: primaryColor,
                               foregroundColor: const Color(0xFF221D10),

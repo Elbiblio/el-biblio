@@ -23,7 +23,7 @@ class TimeAssessmentWidget extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'FIND YOUR RHYTHM',
+            'ORDER YOUR DAY',
             style: theme.textTheme.labelSmall?.copyWith(
               fontSize: 10,
               fontWeight: FontWeight.w700,
@@ -62,7 +62,7 @@ class TimeAssessmentWidget extends ConsumerWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Find Your Rhythm',
+                            'Order Your Day',
                             style: theme.textTheme.titleLarge?.copyWith(
                               fontWeight: FontWeight.bold,
                               color: theme.colorScheme.onSurface,
@@ -70,9 +70,11 @@ class TimeAssessmentWidget extends ConsumerWidget {
                           ),
                           const SizedBox(height: 8),
                           Text(
-                            'Find a daily rhythm that fits your life and priorities. Start with a quick check-in to see where your time goes.',
+                            'Look at your day and choose what needs prayer, patience, and clearer boundaries.',
                             style: theme.textTheme.bodyMedium?.copyWith(
-                              color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+                              color: theme.colorScheme.onSurface.withValues(
+                                alpha: 0.7,
+                              ),
                             ),
                           ),
                         ],
@@ -88,7 +90,7 @@ class TimeAssessmentWidget extends ConsumerWidget {
                       context.push(AppRoutes.timeDiagnose);
                     },
                     icon: const Icon(Icons.schedule_rounded),
-                    label: const Text('Start Rhythm Check'),
+                    label: const Text('Review My Day'),
                     style: ElevatedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 12),
                       backgroundColor: theme.colorScheme.primary,

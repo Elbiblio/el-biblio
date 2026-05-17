@@ -27,11 +27,8 @@ class ShareElbiblioDialog {
           mainAxisSize: MainAxisSize.min,
           children: [
             const Text(
-              'Help others grow in their spiritual journey!',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w500,
-              ),
+              'Invite someone to walk in faith with patience and grace.',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 24),
@@ -45,14 +42,14 @@ class ShareElbiblioDialog {
             _ShareOptionTile(
               icon: Icons.link_rounded,
               title: 'Share URL',
-              subtitle: 'Share app link with anyone',
+              subtitle: 'Send the link directly',
               onTap: onShareUrl,
             ),
             const SizedBox(height: 12),
             _ShareOptionTile(
               icon: Icons.star_rate_rounded,
               title: 'Leave a Review',
-              subtitle: 'Help us improve with your feedback',
+              subtitle: 'Share how ElBiblio has helped',
               onTap: onLeaveReview,
             ),
           ],
@@ -115,22 +112,26 @@ class _ShareOptionTile extends StatelessWidget {
                   Text(
                     title,
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w600,
-                        ),
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                   const SizedBox(height: 4),
                   Text(
                     subtitle,
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
-                        ),
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.onSurface.withValues(alpha: 0.7),
+                    ),
                   ),
                 ],
               ),
             ),
             Icon(
               Icons.arrow_forward_ios_rounded,
-              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5),
+              color: Theme.of(
+                context,
+              ).colorScheme.onSurface.withValues(alpha: 0.5),
               size: 16,
             ),
           ],

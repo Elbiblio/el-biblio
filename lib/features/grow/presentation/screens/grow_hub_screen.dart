@@ -182,7 +182,7 @@ class _GrowHubScreenState extends ConsumerState<GrowHubScreen> {
                   icon: Icons.help_outline_rounded,
                   iconColor: colorScheme.tertiary,
                   title: 'Faith Questions',
-                  subtitle: 'Explore deep questions about faith.',
+                  subtitle: 'Bring honest questions to Scripture.',
                   onTap: () => context.push(AppRoutes.faithQuestions),
                 ),
 

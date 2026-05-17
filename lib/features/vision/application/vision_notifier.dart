@@ -274,11 +274,11 @@ class VisionNotifier extends StateNotifier<VisionState> {
         );
         if (!scheduled) {
           notificationWarning =
-              'Commitment joined, but device nudges could not be scheduled. You can still check in from the app.';
+              'Commitment joined, but device nudges could not be scheduled. You can still check in from Commit.';
         }
       } catch (e) {
         notificationWarning =
-            'Commitment joined, but device nudges could not be scheduled. You can still check in from the app.';
+            'Commitment joined, but device nudges could not be scheduled. You can still check in from Commit.';
       }
       state = state.copyWith(
         isLoading: false,

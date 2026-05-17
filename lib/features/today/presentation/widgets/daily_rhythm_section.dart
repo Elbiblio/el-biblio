@@ -49,10 +49,10 @@ class DailyRhythmSection extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final hour = now.hour;
-    
+
     // Determine time context for contextual messaging
     final timeContext = _getTimeContext(hour);
-    
+
     return SliverPadding(
       padding: const EdgeInsets.all(24),
       sliver: SliverList(
@@ -61,16 +61,16 @@ class DailyRhythmSection extends StatelessWidget {
           Text(
             timeContext.headerLabel,
             style: theme.textTheme.sectionHeader.copyWith(
-                  fontSize: 12,
-                  letterSpacing: 1.2,
-                  color: theme.colorScheme.onSurface.withValues(alpha: 0.4),
-                ),
+              fontSize: 12,
+              letterSpacing: 1.2,
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.4),
+            ),
           ),
           const SizedBox(height: 16),
-          
+
           // Show the current phase card (only one at a time for clarity)
           _buildCurrentPhaseCard(context, timeContext),
-          
+
           const SizedBox(height: 120), // Bottom padding for floating nav
         ]),
       ),
@@ -130,10 +130,11 @@ class DailyRhythmSection extends StatelessWidget {
     final title = commitmentTitle != null
         ? 'Midday: $commitmentTitle'
         : 'Midday: Live Your Commitment';
-    
+
     final subtitle = anchors.habit.isLockedIn
         ? 'Your commitment is locked in. Stay focused!'
-        : anchors.habit.commitmentDescription ?? 'Choose and practice your daily habit';
+        : anchors.habit.commitmentDescription ??
+              'Choose and practice your daily habit';
 
     return CurrentAnchorCard(
       icon: Icons.flag_outlined,
@@ -148,9 +149,11 @@ class DailyRhythmSection extends StatelessWidget {
     return CurrentAnchorCard(
       icon: Icons.nightlight_outlined,
       title: 'Evening: Refresh & Reflect',
-      subtitle: 'Take a walk, breathe deeply, and thank God for today',
+      subtitle: 'Take a walk and thank God for today',
       isCompleted: anchors.energyAction.isCompleted,
-      virtueColor: Theme.of(context).colorScheme.secondary.withValues(alpha: 0.8),
+      virtueColor: Theme.of(
+        context,
+      ).colorScheme.secondary.withValues(alpha: 0.8),
       onTap: onPhysicalActivityTap,
     );
   }
@@ -168,7 +171,9 @@ class DailyRhythmSection extends StatelessWidget {
     if (anchors.habit.commitmentId != null) {
       try {
         final offlineCommitments =
-            OfflineCommitmentData.getCommitmentsForVirtue(anchors.coreVirtue.type);
+            OfflineCommitmentData.getCommitmentsForVirtue(
+              anchors.coreVirtue.type,
+            );
         commitmentData = offlineCommitments
             .where((c) => c.id == anchors.habit.commitmentId)
             .firstOrNull;
@@ -201,9 +206,9 @@ class DailyRhythmSection extends StatelessWidget {
 /// Time contexts for contextual messaging
 class TimeContext {
   final String headerLabel;
-  
+
   const TimeContext._(this.headerLabel);
-  
+
   static const morning = TimeContext._('YOUR MORNING JOURNEY');
   static const midday = TimeContext._('YOUR MIDDAY JOURNEY');
   static const evening = TimeContext._('YOUR EVENING JOURNEY');

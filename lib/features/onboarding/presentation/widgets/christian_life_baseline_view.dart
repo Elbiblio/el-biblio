@@ -58,7 +58,7 @@ class ChristianLifeBaselineView extends ConsumerWidget {
           ),
           const SizedBox(height: 24),
 
-          const _QuestionLabel('What\'s your prayer rhythm right now?'),
+          const _QuestionLabel('What is your prayer life like right now?'),
           const SizedBox(height: 10),
           _SingleSelect<PrayerRhythm>(
             options: PrayerRhythm.values,
@@ -203,8 +203,9 @@ class _ScoreRow extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: selected
                         ? theme.colorScheme.primary.withValues(alpha: 0.14)
-                        : theme.colorScheme.surfaceContainerHighest
-                            .withValues(alpha: 0.35),
+                        : theme.colorScheme.surfaceContainerHighest.withValues(
+                            alpha: 0.35,
+                          ),
                     borderRadius: BorderRadius.circular(10),
                     border: Border.all(
                       color: selected
@@ -220,8 +221,9 @@ class _ScoreRow extends StatelessWidget {
                         fontWeight: FontWeight.w700,
                         color: selected
                             ? theme.colorScheme.primary
-                            : theme.colorScheme.onSurface
-                                .withValues(alpha: 0.6),
+                            : theme.colorScheme.onSurface.withValues(
+                                alpha: 0.6,
+                              ),
                       ),
                     ),
                   ),

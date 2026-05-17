@@ -163,7 +163,7 @@ class _DiscoverIdentityViewState extends ConsumerState<DiscoverIdentityView> {
       _DiscoveryStep.seasonCluster => _ClusterQuestion(
         title: 'Where do you feel pulled right now?',
         subtitle:
-            'Choose the closest area. Then we will narrow it with a more practical question.',
+            'Choose the closest area. A more practical question comes next.',
         value: _seasonClusterId,
         clusters: CompassDiscoveryCatalog.seasonClusters,
         onChanged: (cluster) {
@@ -387,7 +387,7 @@ class _AgeQuestion extends StatelessWidget {
         const _QuestionHeader(
           title: 'How old are you?',
           subtitle:
-              'This helps choose age-appropriate support. We save your age band, not your exact age.',
+              'Your age band keeps the support age-aware. Your exact age stays off your profile.',
         ),
         const SizedBox(height: 14),
         _AgeField(initialAge: initialAge, onChanged: onChanged),

@@ -17,7 +17,7 @@ class _SoulCareDialogState extends ConsumerState<SoulCareDialog> {
   @override
   Widget build(BuildContext context) {
     final allTools = _getAllTools();
-    
+
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: ConstrainedBox(
@@ -31,61 +31,62 @@ class _SoulCareDialogState extends ConsumerState<SoulCareDialog> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-            Row(
-              children: [
-                Icon(
-                  Icons.favorite_rounded,
-                  color: Theme.of(context).colorScheme.primary,
-                  size: 28,
+                Row(
+                  children: [
+                    Icon(
+                      Icons.favorite_rounded,
+                      color: Theme.of(context).colorScheme.primary,
+                      size: 28,
+                    ),
+                    const SizedBox(width: 12),
+                    Text(
+                      'Soul Care Kit',
+                      style: Theme.of(context).textTheme.headlineSmall
+                          ?.copyWith(fontWeight: FontWeight.bold),
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(height: 8),
                 Text(
-                  'Soul Care Kit',
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.bold,
+                  'Choose a simple help for prayer, Scripture, or stillness.',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.onSurface.withValues(alpha: 0.7),
                   ),
                 ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Choose a tool for immediate support',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
-              ),
-            ),
-            const SizedBox(height: 20),
-            
-            // All available tools
-            ...allTools.map((tool) => _buildToolButton(context, tool)),
-            
-            const SizedBox(height: 12),
+                const SizedBox(height: 20),
 
-            // Full Soul Care Kit
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton.icon(
-                onPressed: () {
-                  Navigator.of(context).pop();
-                  context.push(AppRoutes.spiritualAid);
-                },
-                icon: const Icon(Icons.favorite_rounded, size: 18),
-                label: const Text('Open Full Soul Care Kit'),
-                style: FilledButton.styleFrom(
-                  minimumSize: const Size(0, 44),
+                // All available tools
+                ...allTools.map((tool) => _buildToolButton(context, tool)),
+
+                const SizedBox(height: 12),
+
+                // Full Soul Care Kit
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    onPressed: () {
+                      Navigator.of(context).pop();
+                      context.push(AppRoutes.spiritualAid);
+                    },
+                    icon: const Icon(Icons.favorite_rounded, size: 18),
+                    label: const Text('Open Full Soul Care Kit'),
+                    style: FilledButton.styleFrom(
+                      minimumSize: const Size(0, 44),
+                    ),
+                  ),
                 ),
-              ),
-            ),
-            const SizedBox(height: 8),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                TextButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  child: const Text('Close'),
+                const SizedBox(height: 8),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      child: const Text('Close'),
+                    ),
+                  ],
                 ),
-              ],
-            ),
               ],
             ),
           ),
@@ -98,8 +99,8 @@ class _SoulCareDialogState extends ConsumerState<SoulCareDialog> {
     return [
       QuickHelpTool(
         icon: Icons.air_rounded,
-        title: 'Take a breather',
-        subtitle: 'Instant calm with 3 breaths',
+        title: 'Pause for prayer',
+        subtitle: 'Three quiet breaths with God',
         action: _showBreathingReset,
       ),
       QuickHelpTool(
@@ -136,7 +137,9 @@ class _SoulCareDialogState extends ConsumerState<SoulCareDialog> {
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             border: Border.all(
-              color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.2),
+              color: Theme.of(
+                context,
+              ).colorScheme.outline.withValues(alpha: 0.2),
             ),
             borderRadius: BorderRadius.circular(12),
             color: Theme.of(context).colorScheme.surface,
@@ -147,7 +150,9 @@ class _SoulCareDialogState extends ConsumerState<SoulCareDialog> {
                 width: 40,
                 height: 40,
                 decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.primary.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Icon(
@@ -170,7 +175,9 @@ class _SoulCareDialogState extends ConsumerState<SoulCareDialog> {
                     Text(
                       tool.subtitle,
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.onSurface.withValues(alpha: 0.7),
                       ),
                     ),
                   ],
@@ -179,7 +186,9 @@ class _SoulCareDialogState extends ConsumerState<SoulCareDialog> {
               Icon(
                 Icons.arrow_forward_ios_rounded,
                 size: 16,
-                color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4),
+                color: Theme.of(
+                  context,
+                ).colorScheme.onSurface.withValues(alpha: 0.4),
               ),
             ],
           ),
@@ -191,20 +200,16 @@ class _SoulCareDialogState extends ConsumerState<SoulCareDialog> {
   void _startAffirmation() {
     final settings = ref.read(settingsProvider);
     final meditationNotifier = ref.read(meditationProvider.notifier);
-    
+
     // Start a 1-minute affirmation meditation
     meditationNotifier.startQuickAffirmation(settings.primaryVirtue);
-    
+
     // Navigate to meditation screen
     context.push('/meditation');
   }
 
-
   void _showQuickPrayer() {
-    _showPrayerDialog(
-      title: 'Quick Prayer',
-      prayer: _getQuickPrayer(),
-    );
+    _showPrayerDialog(title: 'Quick Prayer', prayer: _getQuickPrayer());
   }
 
   void _showPrayerDialog({required String title, required String prayer}) {
@@ -213,10 +218,7 @@ class _SoulCareDialogState extends ConsumerState<SoulCareDialog> {
       builder: (context) => AlertDialog(
         title: Text(title),
         content: SingleChildScrollView(
-          child: Text(
-            prayer,
-            style: Theme.of(context).textTheme.bodyLarge,
-          ),
+          child: Text(prayer, style: Theme.of(context).textTheme.bodyLarge),
         ),
         actions: [
           TextButton(
@@ -232,7 +234,7 @@ class _SoulCareDialogState extends ConsumerState<SoulCareDialog> {
     try {
       final bibleRepository = ref.read(bibleRepositoryProvider);
       final verses = await bibleRepository.getRandomVerses(3);
-      
+
       if (mounted) {
         showDialog(
           context: context,
@@ -243,28 +245,34 @@ class _SoulCareDialogState extends ConsumerState<SoulCareDialog> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
-                children: verses.map((verse) => Padding(
-                  padding: const EdgeInsets.only(bottom: 16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        verse.text,
-                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                          fontStyle: FontStyle.italic,
+                children: verses
+                    .map(
+                      (verse) => Padding(
+                        padding: const EdgeInsets.only(bottom: 16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              verse.text,
+                              style: Theme.of(context).textTheme.bodyLarge
+                                  ?.copyWith(fontStyle: FontStyle.italic),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              verse.reference ?? '',
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.primary,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                            ),
+                          ],
                         ),
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        verse.reference ?? '',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Theme.of(context).colorScheme.primary,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
-                )).toList(),
+                    )
+                    .toList(),
               ),
             ),
             actions: [
@@ -278,9 +286,9 @@ class _SoulCareDialogState extends ConsumerState<SoulCareDialog> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading verses: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error loading verses: $e')));
       }
     }
   }
@@ -289,13 +297,10 @@ class _SoulCareDialogState extends ConsumerState<SoulCareDialog> {
     showDialog(
       context: context,
       barrierDismissible: true,
-      builder: (context) => BreathingResetDialog(
-        onComplete: () => Navigator.of(context).pop(),
-      ),
+      builder: (context) =>
+          BreathingResetDialog(onComplete: () => Navigator.of(context).pop()),
     );
   }
-
-
 
   String _getQuickPrayer() {
     return '''Lord, hear my prayer.
@@ -344,19 +349,15 @@ class _BreathingResetDialogState extends State<BreathingResetDialog>
   @override
   void initState() {
     super.initState();
-    
+
     _breathController = AnimationController(
       duration: const Duration(seconds: 4), // 4 seconds per breath
       vsync: this,
     );
-    
-    _breathAnimation = Tween<double>(
-      begin: 1.0,
-      end: 1.5,
-    ).animate(CurvedAnimation(
-      parent: _breathController,
-      curve: Curves.easeInOut,
-    ));
+
+    _breathAnimation = Tween<double>(begin: 1.0, end: 1.5).animate(
+      CurvedAnimation(parent: _breathController, curve: Curves.easeInOut),
+    );
 
     _startBreathing();
   }
@@ -409,9 +410,9 @@ class _BreathingResetDialogState extends State<BreathingResetDialog>
           children: [
             Text(
               '3-Breath Reset',
-              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 24),
             AnimatedBuilder(
@@ -421,7 +422,9 @@ class _BreathingResetDialogState extends State<BreathingResetDialog>
                   width: 80 * _breathAnimation.value,
                   height: 80 * _breathAnimation.value,
                   decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.2),
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.primary.withValues(alpha: 0.2),
                     shape: BoxShape.circle,
                     border: Border.all(
                       color: Theme.of(context).colorScheme.primary,
@@ -439,14 +442,16 @@ class _BreathingResetDialogState extends State<BreathingResetDialog>
             const SizedBox(height: 24),
             Text(
               _instruction,
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.w600,
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600),
             ),
             Text(
               'Breath ${_currentBreath + 1} of 3',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
+                color: Theme.of(
+                  context,
+                ).colorScheme.onSurface.withValues(alpha: 0.7),
               ),
             ),
           ],

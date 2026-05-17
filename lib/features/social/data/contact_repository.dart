@@ -289,7 +289,7 @@ class ContactRepository extends BaseRepository {
     if (isGuestToken(token)) {
       _logger.w('Guest user detected, social features not available');
       throw GuestUserException(
-        'Social features not available for guest users',
+        'Create an account to invite someone.',
         'invite_contact',
       );
     }

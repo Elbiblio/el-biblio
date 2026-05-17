@@ -1,7 +1,7 @@
 name: elbiblio
-description: El-Biblio - a personal spiritual operating system built with Flutter.
+description: El-Biblio - a daily companion for prayer, Scripture, and faithful practice.
 publish_to: none
-version: 1.1.23+10123
+version: 1.1.24+10124
 
 environment:
   sdk: ">=3.8.0 <4.0.0"

@@ -21,7 +21,8 @@ class SocialOnboardingView extends ConsumerWidget {
 
     // Sync onboarding state with contact state if needed
     ref.listen(contactProvider, (previous, next) {
-      if ((previous == null || previous.potentialContacts.isEmpty) && next.potentialContacts.isNotEmpty) {
+      if ((previous == null || previous.potentialContacts.isEmpty) &&
+          next.potentialContacts.isNotEmpty) {
         onboardingNotifier.setContactsImported(true);
       }
     });
@@ -43,24 +44,26 @@ class SocialOnboardingView extends ConsumerWidget {
             'Find friends using El-Biblio',
             style: TextStyle(
               fontSize: ResponsiveFontSize.getBodyMedium(context),
-              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
+              color: Theme.of(
+                context,
+              ).colorScheme.onSurface.withValues(alpha: 0.7),
             ),
           ),
           onChanged: (value) {
-             onboardingNotifier.setSocialPresenceOptIn(value);
+            onboardingNotifier.setSocialPresenceOptIn(value);
           },
         ),
-        
+
         if (onboardingState.socialPresenceOptIn) ...[
           SizedBox(height: ResponsiveSpacing.getGoldenRatioSmall(16)),
-          
+
           if (contactState.isLoading || contactState.isImporting)
             const Center(child: CircularProgressIndicator())
           else if (!onboardingState.contactsImported)
             _buildImportButton(context, contactNotifier)
           else
             _buildContactsList(context, contactState, contactNotifier),
-            
+
           if (contactState.error != null)
             Padding(
               padding: const EdgeInsets.only(top: 8.0),
@@ -77,13 +80,20 @@ class SocialOnboardingView extends ConsumerWidget {
     );
   }
 
-  Widget _buildImportButton(BuildContext context, ContactNotifier contactNotifier) {
+  Widget _buildImportButton(
+    BuildContext context,
+    ContactNotifier contactNotifier,
+  ) {
     return Container(
       width: double.infinity,
       padding: EdgeInsets.all(ResponsiveSpacing.getGoldenRatioSmall(16)),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.2),
-        borderRadius: BorderRadius.circular(ResponsiveBorderRadius.getSmall(context)),
+        color: Theme.of(
+          context,
+        ).colorScheme.primaryContainer.withValues(alpha: 0.2),
+        borderRadius: BorderRadius.circular(
+          ResponsiveBorderRadius.getSmall(context),
+        ),
         border: Border.all(
           color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.2),
         ),
@@ -102,10 +112,12 @@ class SocialOnboardingView extends ConsumerWidget {
           ),
           SizedBox(height: ResponsiveSpacing.getGoldenRatioSmall(8)),
           Text(
-            'We will hash your contacts to find matches without storing their details.',
+            'Your contacts stay private. Only secure hashes are checked for matches.',
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
+              color: Theme.of(
+                context,
+              ).colorScheme.onSurface.withValues(alpha: 0.7),
             ),
           ),
           SizedBox(height: ResponsiveSpacing.getGoldenRatioSmall(16)),
@@ -118,10 +130,20 @@ class SocialOnboardingView extends ConsumerWidget {
     );
   }
 
-  Widget _buildContactsList(BuildContext context, ContactState state, ContactNotifier contactNotifier) {
+  Widget _buildContactsList(
+    BuildContext context,
+    ContactState state,
+    ContactNotifier contactNotifier,
+  ) {
     final contacts = state.potentialContacts;
-    final matches = contacts.where((c) => c.status == ContactStatus.connected || c.status == ContactStatus.pending).toList();
-    
+    final matches = contacts
+        .where(
+          (c) =>
+              c.status == ContactStatus.connected ||
+              c.status == ContactStatus.pending,
+        )
+        .toList();
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -141,34 +163,43 @@ class SocialOnboardingView extends ConsumerWidget {
             separatorBuilder: (c, i) => const Divider(height: 1),
             itemBuilder: (context, index) {
               final contact = matches[index];
-              final isConnected = state.connectedContacts.any((c) => c.contactHash == contact.contactHash);
-              
+              final isConnected = state.connectedContacts.any(
+                (c) => c.contactHash == contact.contactHash,
+              );
+
               return ListTile(
                 leading: CircleAvatar(
-                   backgroundColor: Theme.of(context).colorScheme.primaryContainer,
-                   child: Text(contact.displayName[0].toUpperCase()),
+                  backgroundColor: Theme.of(
+                    context,
+                  ).colorScheme.primaryContainer,
+                  child: Text(contact.displayName[0].toUpperCase()),
                 ),
                 title: Text(contact.displayName),
                 subtitle: const Text('Uses El-Biblio'),
-                trailing: isConnected 
-                  ? Icon(Icons.check, color: Theme.of(context).colorScheme.primary)
-                  : TextButton(
-                      onPressed: () => contactNotifier.connect(contact),
-                      child: const Text('Connect'),
-                    ),
+                trailing: isConnected
+                    ? Icon(
+                        Icons.check,
+                        color: Theme.of(context).colorScheme.primary,
+                      )
+                    : TextButton(
+                        onPressed: () => contactNotifier.connect(contact),
+                        child: const Text('Connect'),
+                      ),
               );
             },
           ),
           const SizedBox(height: 24),
         ] else ...[
           Center(
-             child: Text(
-               'No active users found in your contacts yet.',
-               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                 color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
-               ),
-               textAlign: TextAlign.center,
-             ),
+            child: Text(
+              'No active users found in your contacts yet.',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: Theme.of(
+                  context,
+                ).colorScheme.onSurface.withValues(alpha: 0.6),
+              ),
+              textAlign: TextAlign.center,
+            ),
           ),
         ],
       ],

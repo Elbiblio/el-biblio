@@ -29,10 +29,7 @@ void main() {
         );
 
         expect(find.text('Choose one commitment'), findsOneWidget);
-        expect(
-          find.text('Nudges are accountability, not pressure'),
-          findsOneWidget,
-        );
+        expect(find.text('Reminders are help, not pressure'), findsOneWidget);
         expect(find.text(_gratitudePlan.title), findsOneWidget);
         expect(find.text('Review and begin'), findsOneWidget);
         expect(find.text('Check in for today'), findsNothing);
@@ -55,7 +52,7 @@ void main() {
       expect(find.text(_gratitudePlan.title), findsOneWidget);
       expect(find.text('Check in for today'), findsOneWidget);
       expect(find.text('Checked in today.'), findsNothing);
-      expect(find.text('Increase to 5 nudges'), findsOneWidget);
+      expect(find.text('Increase to 5 reminders'), findsOneWidget);
     });
 
     testWidgets('Reflect gates posting until an unchecked season checks in', (
@@ -543,18 +540,13 @@ void main() {
       await tester.pumpVisionScreen(const GrowScreen(), repository: repository);
       await tester.scrollUntilVisible(find.text(_dailyQuestion.question), 180);
       await tester.pumpAndSettle();
-      await tester.enterText(
-        find.widgetWithText(TextField, 'Your answer for today'),
-        'I will practice patience before replying.',
-      );
-      await tester.tap(find.text('Save answer'));
+      await tester.tap(find.text('I can pause before replying.'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Save choice'));
       await tester.pumpAndSettle();
 
       expect(repository.savedQuestionId, _dailyQuestion.id);
-      expect(
-        repository.savedQuestionAnswer,
-        'I will practice patience before replying.',
-      );
+      expect(repository.savedQuestionAnswer, 'I can pause before replying.');
       expect(find.text('Answer saved'), findsOneWidget);
     });
 
@@ -882,6 +874,11 @@ const _dailyQuestion = DailyGrowthQuestion(
   practicalPerspective: 'Name the moment, then choose one next response.',
   realWorldContext: 'Daily reflection is easier when it starts small.',
   dailyLivingGuide: 'Pause before the next reply that feels urgent.',
+  answerOptions: [
+    'I can pause before replying.',
+    'I can pray before deciding.',
+    'I can ask for help.',
+  ],
 );
 
 CommitmentSeason _season({required bool checkedInToday}) {

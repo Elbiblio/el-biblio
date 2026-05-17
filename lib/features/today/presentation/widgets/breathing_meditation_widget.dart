@@ -13,10 +13,12 @@ class BreathingMeditationWidget extends ConsumerStatefulWidget {
   final int breathCount;
 
   @override
-  ConsumerState<BreathingMeditationWidget> createState() => _BreathingMeditationWidgetState();
+  ConsumerState<BreathingMeditationWidget> createState() =>
+      _BreathingMeditationWidgetState();
 }
 
-class _BreathingMeditationWidgetState extends ConsumerState<BreathingMeditationWidget>
+class _BreathingMeditationWidgetState
+    extends ConsumerState<BreathingMeditationWidget>
     with SingleTickerProviderStateMixin {
   late AnimationController _breathController;
   late Animation<double> _breathAnimation;
@@ -28,14 +30,16 @@ class _BreathingMeditationWidgetState extends ConsumerState<BreathingMeditationW
 
   // Breathing phases timing (in milliseconds)
   // 4-2-6 pattern: longer exhale activates the parasympathetic nervous system
-  static const int inhaleTime      = 4000; // 4 s
-  static const int holdTime        = 2000; // 2 s
-  static const int exhaleTime      = 6000; // 6 s
-  static const int breathCycleTime = inhaleTime + holdTime + exhaleTime; // 12000 ms
+  static const int inhaleTime = 4000; // 4 s
+  static const int holdTime = 2000; // 2 s
+  static const int exhaleTime = 6000; // 6 s
+  static const int breathCycleTime =
+      inhaleTime + holdTime + exhaleTime; // 12000 ms
 
   // Normalized phase boundaries based on controller.value (0.0 → 1.0)
-  static const double _inhaleEnd = inhaleTime / breathCycleTime;              // 0.333
-  static const double _holdEnd   = (inhaleTime + holdTime) / breathCycleTime; // 0.500
+  static const double _inhaleEnd = inhaleTime / breathCycleTime; // 0.333
+  static const double _holdEnd =
+      (inhaleTime + holdTime) / breathCycleTime; // 0.500
 
   // Per-second countdown state for the current phase
   int _phaseSecondsRemaining = inhaleTime ~/ 1000;
@@ -54,19 +58,20 @@ class _BreathingMeditationWidgetState extends ConsumerState<BreathingMeditationW
     _breathAnimation = TweenSequence<double>([
       // Inhale: 0→1 over 4 s, easeIn (slow natural start, accelerates gently)
       TweenSequenceItem(
-        tween: Tween(begin: 0.0, end: 1.0)
-            .chain(CurveTween(curve: Curves.easeIn)),
+        tween: Tween(
+          begin: 0.0,
+          end: 1.0,
+        ).chain(CurveTween(curve: Curves.easeIn)),
         weight: 4,
       ),
       // Hold: flat at 1.0 for 2 s (circle perfectly still at maximum)
-      TweenSequenceItem(
-        tween: ConstantTween<double>(1.0),
-        weight: 2,
-      ),
+      TweenSequenceItem(tween: ConstantTween<double>(1.0), weight: 2),
       // Exhale: 1→0 over 6 s, easeOut (fast release, decelerates peacefully)
       TweenSequenceItem(
-        tween: Tween(begin: 1.0, end: 0.0)
-            .chain(CurveTween(curve: Curves.easeOut)),
+        tween: Tween(
+          begin: 1.0,
+          end: 0.0,
+        ).chain(CurveTween(curve: Curves.easeOut)),
         weight: 6,
       ),
     ]).animate(_breathController);
@@ -87,11 +92,11 @@ class _BreathingMeditationWidgetState extends ConsumerState<BreathingMeditationW
         if (_phaseSecondsRemaining <= 0) {
           final t = _breathController.value;
           if (t < _inhaleEnd) {
-            _phaseSecondsRemaining = inhaleTime  ~/ 1000;
+            _phaseSecondsRemaining = inhaleTime ~/ 1000;
           } else if (t < _holdEnd) {
-            _phaseSecondsRemaining = holdTime    ~/ 1000;
+            _phaseSecondsRemaining = holdTime ~/ 1000;
           } else {
-            _phaseSecondsRemaining = exhaleTime  ~/ 1000;
+            _phaseSecondsRemaining = exhaleTime ~/ 1000;
           }
         }
       });
@@ -141,7 +146,7 @@ class _BreathingMeditationWidgetState extends ConsumerState<BreathingMeditationW
     // match the exact millisecond boundaries regardless of curves.
     final t = _breathController.value;
     if (t < _inhaleEnd) return 'Breathe In';
-    if (t < _holdEnd)   return 'Hold';
+    if (t < _holdEnd) return 'Hold';
     return 'Breathe Out';
   }
 
@@ -165,11 +170,7 @@ class _BreathingMeditationWidgetState extends ConsumerState<BreathingMeditationW
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(
-                Icons.check_circle_rounded,
-                color: virtueColor,
-                size: 48,
-              ),
+              Icon(Icons.check_circle_rounded, color: virtueColor, size: 48),
               const SizedBox(height: 16),
               Text(
                 'Ready for Prayer',
@@ -212,7 +213,7 @@ class _BreathingMeditationWidgetState extends ConsumerState<BreathingMeditationW
                       // Outer glow — size and opacity coupled to breath expansion
                       // (no independent pulse; glow breathes with the circle)
                       Container(
-                        width:  size * 1.4,
+                        width: size * 1.4,
                         height: size * 1.4,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
@@ -224,7 +225,7 @@ class _BreathingMeditationWidgetState extends ConsumerState<BreathingMeditationW
 
                       // Main breathing circle
                       Container(
-                        width:  size,
+                        width: size,
                         height: size,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
@@ -243,7 +244,7 @@ class _BreathingMeditationWidgetState extends ConsumerState<BreathingMeditationW
 
                       // Inner circle
                       Container(
-                        width:  size * 0.6,
+                        width: size * 0.6,
                         height: size * 0.6,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
@@ -292,7 +293,7 @@ class _BreathingMeditationWidgetState extends ConsumerState<BreathingMeditationW
 
           // Static hint
           Text(
-            'Follow the gentle rhythm',
+            'Follow the quiet pace',
             style: theme.textTheme.bodySmall?.copyWith(
               color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
             ),

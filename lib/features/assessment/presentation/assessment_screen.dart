@@ -31,30 +31,31 @@ class _AssessmentScreenState extends ConsumerState<AssessmentScreen>
       duration: const Duration(seconds: 2),
       vsync: this,
     )..repeat(reverse: true);
-    
+
     _fadeController = AnimationController(
       duration: const Duration(milliseconds: 300),
       vsync: this,
     );
-    
+
     _pulseAnimation = Tween<double>(begin: 1.0, end: 1.05).animate(
       CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
     );
-    
-    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _fadeController, curve: Curves.easeIn),
-    );
-    
+
+    _fadeAnimation = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(CurvedAnimation(parent: _fadeController, curve: Curves.easeIn));
+
     _fadeController.forward();
   }
-  
+
   @override
   void dispose() {
     _pulseController.dispose();
     _fadeController.dispose();
     super.dispose();
   }
-  
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -98,7 +99,7 @@ class _AssessmentScreenState extends ConsumerState<AssessmentScreen>
                 builder: (context) => AlertDialog(
                   title: const Text('Kingdom Archetypes Compass'),
                   content: const Text(
-                    'The Kingdom Archetypes Compass helps identify your spiritual calling based on your strengths and potential distortions. Select up to 3 archetypes that resonate with you to discover your unique spiritual gifts.',
+                    'Notice the strengths and distortions that feel familiar. Choose up to 3 archetypes that resonate, then open your spiritual gifts profile.',
                   ),
                   actions: [
                     TextButton(
@@ -124,7 +125,7 @@ class _AssessmentScreenState extends ConsumerState<AssessmentScreen>
                   final stepNumber = index + 1;
                   final isCompleted = stepNumber < _currentStep;
                   final isCurrent = stepNumber == _currentStep;
-                  
+
                   return Expanded(
                     child: Row(
                       children: [
@@ -138,20 +139,28 @@ class _AssessmentScreenState extends ConsumerState<AssessmentScreen>
                             color: isCompleted
                                 ? primaryColor
                                 : isCurrent
-                                    ? primaryColor.withValues(alpha: 0.8)
-                                    : primaryColor.withValues(alpha: 0.2),
+                                ? primaryColor.withValues(alpha: 0.8)
+                                : primaryColor.withValues(alpha: 0.2),
                             border: Border.all(
-                              color: isCurrent ? primaryColor : primaryColor.withValues(alpha: 0.3),
+                              color: isCurrent
+                                  ? primaryColor
+                                  : primaryColor.withValues(alpha: 0.3),
                               width: 2,
                             ),
                           ),
                           child: Center(
                             child: isCompleted
-                                ? const Icon(Icons.check, color: Colors.white, size: 16)
+                                ? const Icon(
+                                    Icons.check,
+                                    color: Colors.white,
+                                    size: 16,
+                                  )
                                 : Text(
                                     '$stepNumber',
                                     style: TextStyle(
-                                      color: isCurrent ? const Color(0xFF221D10) : primaryColor,
+                                      color: isCurrent
+                                          ? const Color(0xFF221D10)
+                                          : primaryColor,
                                       fontWeight: FontWeight.bold,
                                       fontSize: 14,
                                     ),
@@ -175,7 +184,7 @@ class _AssessmentScreenState extends ConsumerState<AssessmentScreen>
                 }),
               ),
             ),
-            
+
             // Enhanced Step Title with Presence UX
             FadeTransition(
               opacity: _fadeAnimation,
@@ -256,7 +265,7 @@ class _AssessmentScreenState extends ConsumerState<AssessmentScreen>
                 ),
               ),
             ),
-            
+
             // Enhanced Selection Counter with Presence UX
             AnimatedContainer(
               duration: const Duration(milliseconds: 300),
@@ -297,12 +306,14 @@ class _AssessmentScreenState extends ConsumerState<AssessmentScreen>
                   AnimatedSwitcher(
                     duration: const Duration(milliseconds: 200),
                     child: Icon(
-                      selectedArchetypes.isEmpty 
+                      selectedArchetypes.isEmpty
                           ? Icons.radio_button_unchecked_rounded
                           : Icons.check_circle_rounded,
                       key: ValueKey(selectedArchetypes.isEmpty),
                       size: 22,
-                      color: selectedArchetypes.isEmpty ? Colors.grey : primaryColor,
+                      color: selectedArchetypes.isEmpty
+                          ? Colors.grey
+                          : primaryColor,
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -310,11 +321,13 @@ class _AssessmentScreenState extends ConsumerState<AssessmentScreen>
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
                       Text(
-                        selectedArchetypes.isEmpty 
+                        selectedArchetypes.isEmpty
                             ? 'Select Archetypes to Begin'
                             : 'Archetypes Selected',
                         style: TextStyle(
-                          color: selectedArchetypes.isEmpty ? Colors.grey : primaryColor,
+                          color: selectedArchetypes.isEmpty
+                              ? Colors.grey
+                              : primaryColor,
                           fontWeight: FontWeight.w700,
                           fontSize: 12,
                           letterSpacing: 0.8,
@@ -324,7 +337,9 @@ class _AssessmentScreenState extends ConsumerState<AssessmentScreen>
                       Text(
                         '${selectedArchetypes.length}/3',
                         style: TextStyle(
-                          color: selectedArchetypes.isEmpty ? Colors.grey : primaryColor,
+                          color: selectedArchetypes.isEmpty
+                              ? Colors.grey
+                              : primaryColor,
                           fontWeight: FontWeight.w800,
                           fontSize: 16,
                         ),
@@ -345,7 +360,9 @@ class _AssessmentScreenState extends ConsumerState<AssessmentScreen>
                       animation: _pulseAnimation,
                       builder: (context, child) {
                         return Transform.scale(
-                          scale: selectedArchetypes.isEmpty ? _pulseAnimation.value : 1.0,
+                          scale: selectedArchetypes.isEmpty
+                              ? _pulseAnimation.value
+                              : 1.0,
                           child: SizedBox(
                             height: 350,
                             child: Center(
@@ -371,7 +388,8 @@ class _AssessmentScreenState extends ConsumerState<AssessmentScreen>
                               : Colors.white,
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(
-                              color: primaryColor.withValues(alpha: 0.2)),
+                            color: primaryColor.withValues(alpha: 0.2),
+                          ),
                           boxShadow: [
                             BoxShadow(
                               color: primaryColor.withValues(alpha: 0.1),
@@ -400,7 +418,8 @@ class _AssessmentScreenState extends ConsumerState<AssessmentScreen>
                                 const SizedBox(width: 12),
                                 Expanded(
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       Text(
                                         currentArchetype!.name,
@@ -418,7 +437,9 @@ class _AssessmentScreenState extends ConsumerState<AssessmentScreen>
                                             .textTheme
                                             .bodyMedium
                                             ?.copyWith(
-                                              color: textColor.withValues(alpha: 0.7),
+                                              color: textColor.withValues(
+                                                alpha: 0.7,
+                                              ),
                                             ),
                                       ),
                                     ],
@@ -456,23 +477,28 @@ class _AssessmentScreenState extends ConsumerState<AssessmentScreen>
                               ? primaryColor.withValues(alpha: 0.03)
                               : Colors.white,
                           borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: primaryColor.withValues(alpha: 0.1)),
+                          border: Border.all(
+                            color: primaryColor.withValues(alpha: 0.1),
+                          ),
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
                               'Your Selections:',
-                              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                color: textColor,
-                                fontWeight: FontWeight.bold,
-                              ),
+                              style: Theme.of(context).textTheme.titleMedium
+                                  ?.copyWith(
+                                    color: textColor,
+                                    fontWeight: FontWeight.bold,
+                                  ),
                             ),
                             const SizedBox(height: 12),
                             Wrap(
                               spacing: 8,
                               runSpacing: 8,
-                              children: selectedArchetypes.asMap().entries.map((entry) {
+                              children: selectedArchetypes.asMap().entries.map((
+                                entry,
+                              ) {
                                 final index = entry.key;
                                 final archetype = entry.value;
                                 return AnimatedContainer(
@@ -491,14 +517,16 @@ class _AssessmentScreenState extends ConsumerState<AssessmentScreen>
                                       ),
                                     ),
                                     label: Text(archetype.name),
-                                    backgroundColor:
-                                        primaryColor.withValues(alpha: 0.1),
+                                    backgroundColor: primaryColor.withValues(
+                                      alpha: 0.1,
+                                    ),
                                     deleteIcon: const Icon(
                                       Icons.close,
                                       size: 16,
                                       color: primaryColor,
                                     ),
-                                    onDeleted: () => _removeArchetype(archetype),
+                                    onDeleted: () =>
+                                        _removeArchetype(archetype),
                                   ),
                                 );
                               }).toList(),
@@ -517,13 +545,15 @@ class _AssessmentScreenState extends ConsumerState<AssessmentScreen>
             // Bottom Action (fixed at bottom)
             Container(
               padding: EdgeInsets.fromLTRB(
-                  24, 16, 24, 16 + MediaQuery.of(context).padding.bottom),
+                24,
+                16,
+                24,
+                16 + MediaQuery.of(context).padding.bottom,
+              ),
               decoration: BoxDecoration(
                 color: bgColor.withValues(alpha: 0.95),
                 border: Border(
-                  top: BorderSide(
-                    color: primaryColor.withValues(alpha: 0.2),
-                  ),
+                  top: BorderSide(color: primaryColor.withValues(alpha: 0.2)),
                 ),
               ),
               child: SizedBox(
@@ -578,7 +608,7 @@ class _AssessmentScreenState extends ConsumerState<AssessmentScreen>
       } else if (newSelected.length < 3) {
         newSelected.add(archetype);
         _showFeedback('Archetype selected!', true);
-        
+
         // Auto-advance to next step if 3 selected
         if (newSelected.length == 3) {
           _currentStep = 2;
@@ -589,7 +619,7 @@ class _AssessmentScreenState extends ConsumerState<AssessmentScreen>
       selectedArchetypes = newSelected;
     });
   }
-  
+
   void _showFeedback(String message, bool isSuccess) {
     const primaryColor = Color(0xFFF4B925);
     ScaffoldMessenger.of(context).hideCurrentSnackBar();
@@ -609,13 +639,11 @@ class _AssessmentScreenState extends ConsumerState<AssessmentScreen>
         backgroundColor: isSuccess ? primaryColor : Colors.grey,
         duration: const Duration(seconds: 2),
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       ),
     );
   }
-  
+
   String _getStepTitle() {
     switch (_currentStep) {
       case 1:
@@ -628,7 +656,7 @@ class _AssessmentScreenState extends ConsumerState<AssessmentScreen>
         return 'Spiritual Assessment';
     }
   }
-  
+
   String _getStepDescription() {
     switch (_currentStep) {
       case 1:
@@ -641,8 +669,14 @@ class _AssessmentScreenState extends ConsumerState<AssessmentScreen>
         return 'Complete your spiritual assessment';
     }
   }
-  
-  Widget _buildInfoSection(BuildContext context, String title, String content, IconData icon, Color textColor) {
+
+  Widget _buildInfoSection(
+    BuildContext context,
+    String title,
+    String content,
+    IconData icon,
+    Color textColor,
+  ) {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(

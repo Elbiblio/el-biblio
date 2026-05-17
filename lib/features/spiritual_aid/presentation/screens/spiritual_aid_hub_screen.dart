@@ -73,7 +73,7 @@ class SpiritualAidHubScreen extends ConsumerWidget {
                       const SizedBox(height: 8),
                       Text(
                         'Immediate spiritual care for your soul. '
-                        'Choose what you need right now.',
+                        'Choose prayer, Scripture, or stillness.',
                         style: theme.textTheme.bodyMedium?.copyWith(
                           color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
                           height: 1.4,

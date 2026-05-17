@@ -249,7 +249,7 @@ const _fallbackTribes = [
     name: 'Quiet Discipline',
     slug: 'quiet-discipline',
     description:
-        'Rebuild steady rhythms, attention, and self-control without shame.',
+        'Rebuild attention, self-control, and faithful practice without shame.',
     iconKey: 'compass',
   ),
   MvpTribe(

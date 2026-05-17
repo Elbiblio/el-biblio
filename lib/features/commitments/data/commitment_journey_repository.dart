@@ -147,7 +147,9 @@ class CommitmentJourneyRepository {
   Future<List<CommitmentJourney>> getAvailableJourneys() async {
     if (_dio != null) {
       try {
-        final response = await _dio.get<dynamic>('/commitment-journeys/catalog');
+        final response = await _dio.get<dynamic>(
+          '/commitment-journeys/catalog',
+        );
         final data = response.data;
         if (data is Map<String, dynamic>) {
           final payload = data['data'];
@@ -159,10 +161,12 @@ class CommitmentJourneyRepository {
           }
           if (rawJourneys != null && rawJourneys.isNotEmpty) {
             final journeys = rawJourneys
-                .map((j) => CommitmentJourney.fromJson(
-                      j as Map<String, dynamic>,
-                      overrideSource: CommitmentSource.remote,
-                    ))
+                .map(
+                  (j) => CommitmentJourney.fromJson(
+                    j as Map<String, dynamic>,
+                    overrideSource: CommitmentSource.remote,
+                  ),
+                )
                 .toList();
             await _saveCatalogCache(rawJourneys);
             return journeys;
@@ -204,7 +208,8 @@ class CommitmentJourneyRepository {
       int score = 0;
       for (final struggle in struggles) {
         if (journey.struggleTags.contains(struggle)) score += 2;
-        if (journey.virtueAlignment.toLowerCase() == virtueFocus?.toLowerCase()) {
+        if (journey.virtueAlignment.toLowerCase() ==
+            virtueFocus?.toLowerCase()) {
           score += 1;
         }
       }
@@ -286,10 +291,12 @@ class CommitmentJourneyRepository {
       if (raw == null || raw.isEmpty) return const [];
       final list = jsonDecode(raw) as List<dynamic>;
       return list
-          .map((j) => CommitmentJourney.fromJson(
-                j as Map<String, dynamic>,
-                overrideSource: CommitmentSource.remoteCache,
-              ))
+          .map(
+            (j) => CommitmentJourney.fromJson(
+              j as Map<String, dynamic>,
+              overrideSource: CommitmentSource.remoteCache,
+            ),
+          )
           .toList();
     } catch (e) {
       _logger.w('Failed to load commitment catalog cache: $e');
@@ -303,7 +310,8 @@ class CommitmentJourneyRepository {
     const CommitmentJourney(
       id: 'seed_prayer_morning',
       title: 'Morning Prayer',
-      description: 'Begin each day with intentional time with God before touching your phone.',
+      description:
+          'Begin each day with intentional time with God before touching your phone.',
       duration: CommitmentDuration.seed3Day,
       virtueAlignment: 'Prayer',
       struggleTags: ['phone_addiction', 'restless_mornings'],
@@ -311,7 +319,7 @@ class CommitmentJourneyRepository {
       tips: [
         'Place your Bible by your bed',
         'Set your alarm 15 minutes earlier',
-        'Use the app if that helps you focus',
+        'Open a guided prayer if that helps you focus',
       ],
       source: CommitmentSource.offlineFallback,
     ),
@@ -335,7 +343,8 @@ class CommitmentJourneyRepository {
     const CommitmentJourney(
       id: 'path_social_fast',
       title: 'Social Media Fast',
-      description: 'Remove social media to create space for deeper connection with God and others.',
+      description:
+          'Remove social media to create space for deeper connection with God and others.',
       duration: CommitmentDuration.path10Day,
       virtueAlignment: 'Temperance',
       struggleTags: ['social_media', 'distraction', 'comparison'],
@@ -386,7 +395,8 @@ class CommitmentJourneyRepository {
     const CommitmentJourney(
       id: 'journey_fasting',
       title: 'The Discipline of Fasting',
-      description: 'A graduated fasting practice to strengthen self-control and deepen prayer.',
+      description:
+          'A graduated fasting practice to strengthen self-control and deepen prayer.',
       duration: CommitmentDuration.journey40Day,
       virtueAlignment: 'Temperance',
       struggleTags: ['overeating', 'lack_of_discipline', 'gluttony'],
@@ -418,7 +428,8 @@ class CommitmentJourneyRepository {
     const CommitmentJourney(
       id: 'journey_scripture',
       title: 'Deep in the Word',
-      description: 'Immerse yourself in Scripture through lectio divina and study.',
+      description:
+          'Immerse yourself in Scripture through lectio divina and study.',
       duration: CommitmentDuration.journey40Day,
       virtueAlignment: 'Knowledge',
       struggleTags: ['biblical_illiteracy', 'distraction'],
@@ -450,7 +461,8 @@ class CommitmentJourneyRepository {
     const CommitmentJourney(
       id: 'journey_service',
       title: 'Called to Serve',
-      description: 'Live out your faith through consistent acts of service to others.',
+      description:
+          'Live out your faith through consistent acts of service to others.',
       duration: CommitmentDuration.journey40Day,
       virtueAlignment: 'Charity',
       struggleTags: ['selfishness', 'isolation'],
@@ -459,7 +471,8 @@ class CommitmentJourneyRepository {
         CommitmentMilestone(
           day: 10,
           description: 'Serve strangers',
-          newRequirement: 'Include one stranger or acquaintance in your service',
+          newRequirement:
+              'Include one stranger or acquaintance in your service',
         ),
         CommitmentMilestone(
           day: 20,

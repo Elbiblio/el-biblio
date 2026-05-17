@@ -32,9 +32,9 @@ class AboutScreen extends StatelessWidget {
 
     final uri = Uri.tryParse(rawUrl);
     if (uri == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Invalid donate link.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Invalid donate link.')));
       return;
     }
 
@@ -50,7 +50,9 @@ class AboutScreen extends StatelessWidget {
     Uri? uri;
 
     if (Platform.isAndroid) {
-      uri = Uri.parse('https://play.google.com/store/apps/details?id=$_androidPackageName');
+      uri = Uri.parse(
+        'https://play.google.com/store/apps/details?id=$_androidPackageName',
+      );
     } else if (Platform.isIOS) {
       const appId = _iosAppId;
       if (appId != null && appId.trim().isNotEmpty) {
@@ -60,7 +62,9 @@ class AboutScreen extends StatelessWidget {
 
     if (uri == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Store link not available for this platform.')),
+        const SnackBar(
+          content: Text('Store link not available for this platform.'),
+        ),
       );
       return;
     }
@@ -80,9 +84,7 @@ class AboutScreen extends StatelessWidget {
 
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
-      appBar: AppBar(
-        title: const Text('About'),
-      ),
+      appBar: AppBar(title: const Text('About')),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
         children: [
@@ -118,9 +120,11 @@ class AboutScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      'A personal spiritual operating system built for daily rhythm and clarity.',
+                      'A daily companion for prayer, Scripture, and faithful practice.',
                       style: theme.textTheme.bodyMedium?.copyWith(
-                        color: theme.colorScheme.onSurface.withValues(alpha: 0.75),
+                        color: theme.colorScheme.onSurface.withValues(
+                          alpha: 0.75,
+                        ),
                         height: 1.4,
                       ),
                     ),
@@ -139,7 +143,7 @@ class AboutScreen extends StatelessWidget {
               children: [
                 ListTile(
                   leading: const Icon(Icons.star_rate_rounded),
-                  title: const Text('Rate the app'),
+                  title: const Text('Leave a review'),
                   subtitle: const Text('Help others discover El Biblio'),
                   trailing: const Icon(Icons.chevron_right_rounded),
                   onTap: () async {
@@ -150,7 +154,9 @@ class AboutScreen extends StatelessWidget {
                 ListTile(
                   leading: const Icon(Icons.volunteer_activism_rounded),
                   title: const Text('Donate'),
-                  subtitle: const Text('Support development and ongoing improvements'),
+                  subtitle: const Text(
+                    'Support development and ongoing improvements',
+                  ),
                   trailing: const Icon(Icons.chevron_right_rounded),
                   onTap: () async {
                     await _openDonate(context);
@@ -160,7 +166,9 @@ class AboutScreen extends StatelessWidget {
                 ListTile(
                   leading: const Icon(Icons.storefront_rounded),
                   title: const Text('Open store listing'),
-                  subtitle: const Text('If rating doesn\'t open on your device'),
+                  subtitle: const Text(
+                    'If rating doesn\'t open on your device',
+                  ),
                   trailing: const Icon(Icons.chevron_right_rounded),
                   onTap: () async {
                     await _openStoreListingFallback(context);

@@ -511,7 +511,7 @@ class CompassDiscoveryCatalog {
       return 'Your gift is real, but it needs simple support and a small daily practice before heavier responsibility.';
     }
     if (score < 65) {
-      return 'Your gift is taking shape. You likely need steady rhythms, feedback, and one clear commitment at a time.';
+      return 'Your gift is taking shape. You likely need steady practice, feedback, and one clear commitment at a time.';
     }
     if (score < 82) {
       return 'Your gift is becoming dependable. The next step is consistency without pride or pressure.';

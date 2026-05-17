@@ -116,7 +116,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
 
   String _headline(bool checkedInToday) {
     if (checkedInToday) {
-      return 'You checked in today. Let the next step stay light.';
+      return 'You checked in today. Walk gently in grace.';
     }
     return 'One commitment. One daily check-in. One faithful step.';
   }
@@ -153,7 +153,7 @@ class _DailyLoopHero extends ConsumerWidget {
         icon: LucideIcons.flag,
         title: 'Choose one commitment',
         body:
-            'Start with a concrete practice, a gentle nudge rhythm, and a private commitment reflection feed.',
+            'Begin with one faithful practice, prayerful reminders, and a quiet place to reflect.',
         primaryLabel: 'Find commitment',
         primaryIcon: LucideIcons.arrowRight,
         onPrimary: () => context.go(AppRoutes.commit),
@@ -165,7 +165,7 @@ class _DailyLoopHero extends ConsumerWidget {
         icon: LucideIcons.messageCircle,
         title: 'Check-in complete',
         body:
-            'Share one honest sentence with people keeping the same commitment, or let today stay quiet.',
+            'Share one honest sentence with people keeping the same commitment, or keep the moment with God.',
         primaryLabel: 'Reflect',
         primaryIcon: LucideIcons.send,
         onPrimary: () => context.go(AppRoutes.reflect),
@@ -523,6 +523,9 @@ class _DailyInsightPreview extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final question = ref.watch(visionProvider).dailyQuestion;
     if (question == null) return const SizedBox.shrink();
+    final previewQuestion = question.packQuestions.isNotEmpty
+        ? question.packQuestions.first
+        : question;
 
     return VisionPanel(
       icon: LucideIcons.helpCircle,
@@ -530,11 +533,11 @@ class _DailyInsightPreview extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(question.question),
+          Text(previewQuestion.question),
           const SizedBox(height: 12),
           TextButton(
             onPressed: () => context.go(AppRoutes.grow),
-            child: const Text('Sit with this'),
+            child: const Text('Choose an answer'),
           ),
         ],
       ),

@@ -59,7 +59,9 @@ class _JourneySelectionScreenState
     if (intention == null || intention.isEmpty) return;
 
     // Start the journey
-    await ref.read(commitmentJourneyProvider.notifier).startJourney(
+    await ref
+        .read(commitmentJourneyProvider.notifier)
+        .startJourney(
           journeyId: _selectedJourney!.id,
           prayerIntention: intention,
         );
@@ -125,9 +127,11 @@ class _JourneySelectionScreenState
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      'Each journey helps you grow in a specific virtue. Select a duration that fits where you are right now.',
+                      'Choose a virtue and a duration that fits where you are right now.',
                       style: theme.textTheme.bodyMedium?.copyWith(
-                        color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                        color: theme.colorScheme.onSurface.withValues(
+                          alpha: 0.6,
+                        ),
                       ),
                     ),
                     const SizedBox(height: 24),
@@ -152,14 +156,16 @@ class _JourneySelectionScreenState
                       if (filteredJourneys.isEmpty)
                         _EmptyJourneys(duration: _selectedDuration!)
                       else
-                        ...filteredJourneys.map((journey) => Padding(
-                              padding: const EdgeInsets.only(bottom: 12),
-                              child: _JourneyCard(
-                                journey: journey,
-                                isSelected: _selectedJourney?.id == journey.id,
-                                onTap: () => _selectJourney(journey),
-                              ),
-                            )),
+                        ...filteredJourneys.map(
+                          (journey) => Padding(
+                            padding: const EdgeInsets.only(bottom: 12),
+                            child: _JourneyCard(
+                              journey: journey,
+                              isSelected: _selectedJourney?.id == journey.id,
+                              onTap: () => _selectJourney(journey),
+                            ),
+                          ),
+                        ),
                     ],
 
                     const SizedBox(height: 24),
@@ -215,8 +221,9 @@ class _DurationSelector extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: isSelected
                       ? theme.colorScheme.primary.withValues(alpha: 0.1)
-                      : theme.colorScheme.surfaceContainerHighest
-                          .withValues(alpha: 0.5),
+                      : theme.colorScheme.surfaceContainerHighest.withValues(
+                          alpha: 0.5,
+                        ),
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(
                     color: isSelected
@@ -233,7 +240,9 @@ class _DurationSelector extends StatelessWidget {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      duration.label.split(' ')[0], // "3-Day", "10-Day", "40-Day"
+                      duration.label.split(
+                        ' ',
+                      )[0], // "3-Day", "10-Day", "40-Day"
                       style: theme.textTheme.titleSmall?.copyWith(
                         fontWeight: FontWeight.w700,
                         color: isSelected
@@ -246,7 +255,9 @@ class _DurationSelector extends StatelessWidget {
                     Text(
                       _durationSubtitle(duration),
                       style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                        color: theme.colorScheme.onSurface.withValues(
+                          alpha: 0.6,
+                        ),
                         fontSize: 11,
                       ),
                       textAlign: TextAlign.center,
@@ -272,7 +283,7 @@ class _DurationSelector extends StatelessWidget {
   String _durationSubtitle(CommitmentDuration duration) {
     return switch (duration) {
       CommitmentDuration.seed3Day => 'Begin with God',
-      CommitmentDuration.path10Day => 'Establish rhythm',
+      CommitmentDuration.path10Day => 'Build faithfulness',
       CommitmentDuration.journey40Day => 'Deep transformation',
     };
   }
@@ -316,8 +327,9 @@ class _JourneyCard extends StatelessWidget {
               width: 48,
               height: 48,
               decoration: BoxDecoration(
-                color: _virtueColor(journey.virtueAlignment)
-                    .withValues(alpha: 0.1),
+                color: _virtueColor(
+                  journey.virtueAlignment,
+                ).withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Center(
@@ -343,8 +355,7 @@ class _JourneyCard extends StatelessWidget {
                   Text(
                     journey.description,
                     style: theme.textTheme.bodySmall?.copyWith(
-                      color:
-                          theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                      color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
                     ),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
@@ -360,7 +371,8 @@ class _JourneyCard extends StatelessWidget {
                       ),
                       if (journey.hasMilestones)
                         _Tag(
-                          label: '${journey.milestoneCount} deepening${journey.milestoneCount > 1 ? 's' : ''}',
+                          label:
+                              '${journey.milestoneCount} deepening${journey.milestoneCount > 1 ? 's' : ''}',
                           color: theme.colorScheme.secondary,
                         ),
                       if (journey.source != CommitmentSource.remote)
@@ -371,10 +383,7 @@ class _JourneyCard extends StatelessWidget {
               ),
             ),
             if (isSelected)
-              Icon(
-                Icons.check_circle,
-                color: theme.colorScheme.primary,
-              ),
+              Icon(Icons.check_circle, color: theme.colorScheme.primary),
           ],
         ),
       ),

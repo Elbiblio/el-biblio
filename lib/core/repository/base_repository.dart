@@ -28,17 +28,26 @@ abstract class BaseRepository {
     } on AppException {
       rethrow;
     } on DioException catch (error, stackTrace) {
-      logger.e('Dio failure while $operation: ${error.type}', error: error, stackTrace: stackTrace);
-      
+      logger.e(
+        'Dio failure while $operation: ${error.type}',
+        error: error,
+        stackTrace: stackTrace,
+      );
+
       // If this is a 401 error for a guest token, throw a specific exception
       if (isAuthenticationError(error) && isGuestToken(token)) {
-        logger.w('Guest token authentication failed for $operation - expected behavior');
-        throw GuestUserException('Feature not available for guest users', operation);
+        logger.w(
+          'Guest token authentication failed for $operation - expected behavior',
+        );
+        throw GuestUserException('Create an account to continue.', operation);
       }
-      
+
       // Extract the better error message if available
-      String message = error.error?.toString() ?? error.message ?? 'A network error occurred.';
-      
+      String message =
+          error.error?.toString() ??
+          error.message ??
+          'A network error occurred.';
+
       throw NetworkException(message, {
         'type': error.type.toString(),
         'statusCode': error.response?.statusCode,
@@ -46,7 +55,11 @@ abstract class BaseRepository {
         'method': error.requestOptions.method,
       });
     } catch (error, stackTrace) {
-      logger.e('Unexpected failure while $operation', error: error, stackTrace: stackTrace);
+      logger.e(
+        'Unexpected failure while $operation',
+        error: error,
+        stackTrace: stackTrace,
+      );
       throw AppException(
         'Something went wrong while processing your request.',
         'unexpected_error',

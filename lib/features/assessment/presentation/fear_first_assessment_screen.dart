@@ -34,58 +34,88 @@ class _FearFirstAssessmentScreenState
     'Vanity': 'Obsessed with likes, followers, and what people think online',
     'Elitism': 'Thinking you\'re better than everyone else',
     'Addiction to novelty': 'Always chasing the next trend or dopamine hit',
-    'Compromise for popularity': 'Changing yourself to fit in with the cool kids',
-    'Legalism': 'Being super judgmental about rules and other people\'s choices',
-    'Paranoia': 'Constantly worrying people are talking about you or judging you',
+    'Compromise for popularity':
+        'Changing yourself to fit in with the cool kids',
+    'Legalism':
+        'Being super judgmental about rules and other people\'s choices',
+    'Paranoia':
+        'Constantly worrying people are talking about you or judging you',
     'Isolation': 'Ghosting people and avoiding real connections',
     'Resistance to grace': 'Too proud to admit when you\'re wrong or need help',
     'Overcontrol': 'Trying to micromanage everything in your life',
     'Fear of change': 'Stuck in your comfort zone, afraid to try new things',
     'Burnout': 'Running on empty from hustle culture and endless grinding',
-    'Resistance to pruning': 'Holding onto toxic relationships or dead-end jobs',
+    'Resistance to pruning':
+        'Holding onto toxic relationships or dead-end jobs',
     'Impulsiveness': 'Making rash decisions you regret later',
-    'Shallow roots': 'Never committing to anything - jobs, relationships, or goals',
+    'Shallow roots':
+        'Never committing to anything - jobs, relationships, or goals',
     'Ego-driven ambition': 'Chasing clout and validation instead of purpose',
-    'Manipulation disguised as inspiration': 'Being controlling but calling it "leadership"',
+    'Manipulation disguised as inspiration':
+        'Being controlling but calling it "leadership"',
     'People-pleasing': 'Saying yes to everything to avoid disappointing anyone',
-    'Neglect of self-care': 'Pouring from an empty cup, ignoring your own needs',
-    'Hospitality for personal gain': 'Being nice just to get something in return',
-    'Avoidance of truth to keep comfort': 'Ghosting difficult conversations instead of being honest',
-    'Neglect of own calling': 'Putting everyone else\'s dreams before your own purpose',
+    'Neglect of self-care':
+        'Pouring from an empty cup, ignoring your own needs',
+    'Hospitality for personal gain':
+        'Being nice just to get something in return',
+    'Avoidance of truth to keep comfort':
+        'Ghosting difficult conversations instead of being honest',
+    'Neglect of own calling':
+        'Putting everyone else\'s dreams before your own purpose',
     'Enabling unhealthy dependence': 'Being the "fixer" in toxic relationships',
-    'Resentment from lack of recognition': 'Feeling invisible and unappreciated for your efforts',
-    'Fear of stepping forward': 'Playing small because you\'re afraid of failure or judgment',
+    'Resentment from lack of recognition':
+        'Feeling invisible and unappreciated for your efforts',
+    'Fear of stepping forward':
+        'Playing small because you\'re afraid of failure or judgment',
     'Pride in insight': 'Thinking you\'re the smartest person in every room',
-    'Neglect of action': 'All talk, no action - just posting about change without doing anything',
-    'Fear of exposure': 'Hiding your true self because you\'re afraid of rejection',
-    'Compromise': 'Dropping your standards and values to avoid rocking the boat',
+    'Neglect of action':
+        'All talk, no action - just posting about change without doing anything',
+    'Fear of exposure':
+        'Hiding your true self because you\'re afraid of rejection',
+    'Compromise':
+        'Dropping your standards and values to avoid rocking the boat',
     'Avoidance of conflict': 'Being a conflict-avoider at all costs',
-    'Loss of identity': 'Losing yourself trying to be what others want you to be',
-    'Savior complex': 'Trying to fix everyone\'s problems instead of focusing on yourself',
-    'Emotional detachment': 'Shutting down feelings because vulnerability feels weak',
+    'Loss of identity':
+        'Losing yourself trying to be what others want you to be',
+    'Savior complex':
+        'Trying to fix everyone\'s problems instead of focusing on yourself',
+    'Emotional detachment':
+        'Shutting down feelings because vulnerability feels weak',
     'Avoidance of hard truths': 'Living in denial instead of facing reality',
     'Exploitation': 'Using people for connections, clout, or personal gain',
-    'Obsession with metrics': 'Obsessing over followers, engagement rates, and validation numbers',
+    'Obsession with metrics':
+        'Obsessing over followers, engagement rates, and validation numbers',
     'Superficiality': 'Keeping everything surface-level to avoid real intimacy',
     'Pride in results': 'Taking all the credit when success was a team effort',
     'Pride': 'Being too arrogant to learn or grow',
     'Bitterness': 'Holding grudges and letting past hurts poison your present',
-    'Destructive rebellion': 'Rejecting everything just to be edgy or different',
+    'Destructive rebellion':
+        'Rejecting everything just to be edgy or different',
     'Idolizing change': 'Chasing constant change without any real direction',
-    'Rigid systems': 'Following rules even when they clearly don\'t work anymore',
-    'Excessive control disguised as order': 'Being controlling but calling it "being organized"',
-    'Perfectionism that stifles growth': 'Paralyzed by perfectionism, never actually starting',
-    'Inflexibility in methods': 'Refusing to adapt or try new approaches even when failing',
-    'Comparison trap': 'Constantly comparing your life to others\' highlight reels',
-    'Fear of missing out (FOMO)': 'Anxiety from seeing everyone else\'s "perfect" lives online',
+    'Rigid systems':
+        'Following rules even when they clearly don\'t work anymore',
+    'Excessive control disguised as order':
+        'Being controlling but calling it "being organized"',
+    'Perfectionism that stifles growth':
+        'Paralyzed by perfectionism, never actually starting',
+    'Inflexibility in methods':
+        'Refusing to adapt or try new approaches even when failing',
+    'Comparison trap':
+        'Constantly comparing your life to others\' highlight reels',
+    'Fear of missing out (FOMO)':
+        'Anxiety from seeing everyone else\'s "perfect" lives online',
     'Analysis paralysis': 'Overthinking everything to the point of inaction',
     'Imposter syndrome': 'Feeling like a fraud despite your accomplishments',
     'Comfort zone addiction': 'Choosing safety over growth every single time',
-    'External validation dependency': 'Needing constant praise and approval to feel worthy',
+    'External validation dependency':
+        'Needing constant praise and approval to feel worthy',
     'Toxic productivity': 'Wearing burnout as a badge of honor',
-    'Fear of vulnerability': 'Keeping walls up because being real feels too risky',
-    'Perfectionistic procrastination': 'Not starting because you can\'t guarantee perfect results',
-    'People-pleasing burnout': 'Exhausted from saying yes to everyone but yourself',
+    'Fear of vulnerability':
+        'Keeping walls up because being real feels too risky',
+    'Perfectionistic procrastination':
+        'Not starting because you can\'t guarantee perfect results',
+    'People-pleasing burnout':
+        'Exhausted from saying yes to everyone but yourself',
   };
 
   @override
@@ -161,7 +191,7 @@ class _FearFirstAssessmentScreenState
                           ),
                           const SizedBox(height: 12),
                           Text(
-                            'Select the challenges and fears you\'ve faced or are facing. This helps us understand your unique work calling pattern. You can select ones you\'ve overcome or ones you\'re still working through.',
+                            'Name the challenges and fears you\'ve faced or still carry. Include what you\'ve overcome and what still needs grace.',
                             style: TextStyle(
                               color: textColor.withValues(alpha: 0.7),
                               fontSize: 16,
@@ -171,14 +201,21 @@ class _FearFirstAssessmentScreenState
                           ),
                           const SizedBox(height: 16),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 8,
+                            ),
                             decoration: BoxDecoration(
-                              color: _selectedFears.length >= _minimumFearSelections
+                              color:
+                                  _selectedFears.length >=
+                                      _minimumFearSelections
                                   ? primaryColor.withValues(alpha: 0.15)
                                   : Colors.grey.withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(20),
                               border: Border.all(
-                                color: _selectedFears.length >= _minimumFearSelections
+                                color:
+                                    _selectedFears.length >=
+                                        _minimumFearSelections
                                     ? primaryColor.withValues(alpha: 0.3)
                                     : Colors.grey.withValues(alpha: 0.3),
                               ),
@@ -186,7 +223,9 @@ class _FearFirstAssessmentScreenState
                             child: Text(
                               'Selected: ${_selectedFears.length}/$_minimumFearSelections',
                               style: TextStyle(
-                                color: _selectedFears.length >= _minimumFearSelections
+                                color:
+                                    _selectedFears.length >=
+                                        _minimumFearSelections
                                     ? const Color(0xFFF4B925)
                                     : Colors.grey,
                                 fontWeight: FontWeight.bold,
@@ -199,7 +238,8 @@ class _FearFirstAssessmentScreenState
                                 ? 'Select at least ${_minimumFearSelections - _selectedFears.length} more to continue'
                                 : 'Great! You can now analyze your patterns',
                             style: TextStyle(
-                              color: _selectedFears.length < _minimumFearSelections
+                              color:
+                                  _selectedFears.length < _minimumFearSelections
                                   ? Colors.red.withValues(alpha: 0.7)
                                   : Colors.green.withValues(alpha: 0.7),
                               fontSize: 14,
@@ -208,14 +248,16 @@ class _FearFirstAssessmentScreenState
                             textAlign: TextAlign.center,
                           ),
                           const SizedBox(height: 16),
-                          
+
                           // Alternative approach toggle
                           Container(
                             padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(
                               color: Colors.grey.withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: Colors.grey.withValues(alpha: 0.3)),
+                              border: Border.all(
+                                color: Colors.grey.withValues(alpha: 0.3),
+                              ),
                             ),
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.center,
@@ -235,7 +277,9 @@ class _FearFirstAssessmentScreenState
                                 ),
                                 const SizedBox(width: 8),
                                 GestureDetector(
-                                  onTap: () => context.push('${AppRoutes.assessment}/compass'),
+                                  onTap: () => context.push(
+                                    '${AppRoutes.assessment}/compass',
+                                  ),
                                   child: const Text(
                                     'Try Compass Wheel',
                                     style: TextStyle(
@@ -293,7 +337,8 @@ class _FearFirstAssessmentScreenState
                         width: double.infinity,
                         height: 56,
                         child: ElevatedButton(
-                          onPressed: _selectedFears.length >= _minimumFearSelections
+                          onPressed:
+                              _selectedFears.length >= _minimumFearSelections
                               ? _analyzeFears
                               : null,
                           style: ElevatedButton.styleFrom(
@@ -327,7 +372,9 @@ class _FearFirstAssessmentScreenState
                             decoration: BoxDecoration(
                               color: Colors.grey.withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(16),
-                              border: Border.all(color: Colors.grey.withValues(alpha: 0.3)),
+                              border: Border.all(
+                                color: Colors.grey.withValues(alpha: 0.3),
+                              ),
                             ),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
@@ -342,7 +389,7 @@ class _FearFirstAssessmentScreenState
                                 ),
                                 const SizedBox(height: 12),
                                 Text(
-                                  'This helps us tailor your growth journey',
+                                  'Let the next step be honest before God.',
                                   style: TextStyle(
                                     color: textColor.withValues(alpha: 0.7),
                                     fontSize: 14,
@@ -352,22 +399,35 @@ class _FearFirstAssessmentScreenState
                                 Row(
                                   children: List.generate(5, (index) {
                                     final value = index + 1;
-                                    final isSelected = _developmentMaturity == value;
+                                    final isSelected =
+                                        _developmentMaturity == value;
                                     return Expanded(
                                       child: GestureDetector(
-                                        onTap: () => setState(() => _developmentMaturity = value),
+                                        onTap: () => setState(
+                                          () => _developmentMaturity = value,
+                                        ),
                                         child: Container(
-                                          margin: EdgeInsets.only(right: index < 4 ? 8 : 0),
-                                          padding: const EdgeInsets.symmetric(vertical: 12),
+                                          margin: EdgeInsets.only(
+                                            right: index < 4 ? 8 : 0,
+                                          ),
+                                          padding: const EdgeInsets.symmetric(
+                                            vertical: 12,
+                                          ),
                                           decoration: BoxDecoration(
-                                            color: isSelected 
-                                                ? primaryColor 
-                                                : Colors.grey.withValues(alpha: 0.2),
-                                            borderRadius: BorderRadius.circular(12),
+                                            color: isSelected
+                                                ? primaryColor
+                                                : Colors.grey.withValues(
+                                                    alpha: 0.2,
+                                                  ),
+                                            borderRadius: BorderRadius.circular(
+                                              12,
+                                            ),
                                             border: Border.all(
-                                              color: isSelected 
-                                                  ? primaryColor 
-                                                  : Colors.grey.withValues(alpha: 0.3),
+                                              color: isSelected
+                                                  ? primaryColor
+                                                  : Colors.grey.withValues(
+                                                      alpha: 0.3,
+                                                    ),
                                             ),
                                           ),
                                           child: Column(
@@ -375,7 +435,7 @@ class _FearFirstAssessmentScreenState
                                               Text(
                                                 '$value',
                                                 style: TextStyle(
-                                                  color: isSelected 
+                                                  color: isSelected
                                                       ? const Color(0xFF221D10)
                                                       : textColor,
                                                   fontSize: 16,
@@ -386,9 +446,11 @@ class _FearFirstAssessmentScreenState
                                               Text(
                                                 _getMaturityLabel(value),
                                                 style: TextStyle(
-                                                  color: isSelected 
+                                                  color: isSelected
                                                       ? const Color(0xFF221D10)
-                                                      : textColor.withValues(alpha: 0.6),
+                                                      : textColor.withValues(
+                                                          alpha: 0.6,
+                                                        ),
                                                   fontSize: 11,
                                                 ),
                                                 textAlign: TextAlign.center,
@@ -404,7 +466,7 @@ class _FearFirstAssessmentScreenState
                             ),
                           ),
                           const SizedBox(height: 20),
-                          
+
                           SizedBox(
                             width: double.infinity,
                             height: 56,
@@ -417,7 +479,9 @@ class _FearFirstAssessmentScreenState
                                   borderRadius: BorderRadius.circular(16),
                                 ),
                                 elevation: 4,
-                                shadowColor: primaryColor.withValues(alpha: 0.4),
+                                shadowColor: primaryColor.withValues(
+                                  alpha: 0.4,
+                                ),
                               ),
                               child: const Text(
                                 'Use These Calling Types',
@@ -455,10 +519,12 @@ class _FearFirstAssessmentScreenState
     final visibleFears = query.isEmpty
         ? _allFears
         : _allFears
-            .where((fear) =>
-                fear.text.toLowerCase().contains(query) ||
-                fear.originalText.toLowerCase().contains(query))
-            .toList();
+              .where(
+                (fear) =>
+                    fear.text.toLowerCase().contains(query) ||
+                    fear.originalText.toLowerCase().contains(query),
+              )
+              .toList();
 
     return Container(
       padding: const EdgeInsets.all(24),
@@ -488,10 +554,7 @@ class _FearFirstAssessmentScreenState
           const SizedBox(height: 12),
           const Text(
             'Be honest with yourself - select patterns that still affect your work and life',
-            style: TextStyle(
-              fontSize: 14,
-              color: Colors.black54,
-            ),
+            style: TextStyle(fontSize: 14, color: Colors.black54),
           ),
           const SizedBox(height: 8),
           Text(
@@ -530,8 +593,10 @@ class _FearFirstAssessmentScreenState
                       },
                     ),
               isDense: true,
-              contentPadding:
-                  const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 12,
+              ),
               filled: true,
               fillColor: Colors.white.withValues(alpha: 0.8),
               border: OutlineInputBorder(
@@ -557,8 +622,7 @@ class _FearFirstAssessmentScreenState
             spacing: 8,
             runSpacing: 8,
             children: visibleFears.map((fear) {
-              final isSelected =
-                  _selectedFears.any((sf) => sf.key == fear.key);
+              final isSelected = _selectedFears.any((sf) => sf.key == fear.key);
               return Material(
                 color: Colors.transparent,
                 child: InkWell(
@@ -568,7 +632,9 @@ class _FearFirstAssessmentScreenState
                     duration: const Duration(milliseconds: 180),
                     curve: Curves.easeOut,
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 10),
+                      horizontal: 12,
+                      vertical: 10,
+                    ),
                     decoration: BoxDecoration(
                       color: isSelected
                           ? const Color(0xFFF4B925).withValues(alpha: 0.2)
@@ -669,9 +735,14 @@ class _FearFirstAssessmentScreenState
                         ),
                         const Spacer(),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
                           decoration: BoxDecoration(
-                            color: const Color(0xFFF4B925).withValues(alpha: 0.2),
+                            color: const Color(
+                              0xFFF4B925,
+                            ).withValues(alpha: 0.2),
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: Text(
@@ -693,7 +764,8 @@ class _FearFirstAssessmentScreenState
                         fontSize: 12,
                       ),
                     ),
-                    if (ArchetypeResonances.forArchetype(archetype.name) != null)
+                    if (ArchetypeResonances.forArchetype(archetype.name) !=
+                        null)
                       Padding(
                         padding: const EdgeInsets.only(top: 8),
                         child: Text(
@@ -777,26 +849,29 @@ class _FearFirstAssessmentScreenState
 
   void _toggleFear(FearItem fear) {
     setState(() {
-      final existingIndex =
-          _selectedFears.indexWhere((sf) => sf.key == fear.key);
-      
+      final existingIndex = _selectedFears.indexWhere(
+        (sf) => sf.key == fear.key,
+      );
+
       if (existingIndex >= 0) {
         _selectedFears.removeAt(existingIndex);
       } else {
-        _selectedFears.add(SelectedFear(
-          key: fear.key,
-          text: fear.text,
-          archetypes: fear.archetypes,
-        ));
+        _selectedFears.add(
+          SelectedFear(
+            key: fear.key,
+            text: fear.text,
+            archetypes: fear.archetypes,
+          ),
+        );
       }
     });
   }
 
   void _analyzeFears() {
     if (_selectedFears.length < _minimumFearSelections) return;
-    
+
     final suggestedArchetypes = _calculateTopArchetypesFromFears();
-    
+
     setState(() {
       _suggestedArchetypes = suggestedArchetypes;
       _showArchetypes = true;
@@ -812,7 +887,8 @@ class _FearFirstAssessmentScreenState
     // Calculate scores based on fear-archetype associations
     for (final selectedFear in _selectedFears) {
       for (final archetypeName in selectedFear.archetypes) {
-        archetypeScores[archetypeName] = (archetypeScores[archetypeName] ?? 0) + 1;
+        archetypeScores[archetypeName] =
+            (archetypeScores[archetypeName] ?? 0) + 1;
       }
     }
 
@@ -829,18 +905,26 @@ class _FearFirstAssessmentScreenState
   void _applyRecommendedArchetypes() {
     ref.read(assessmentProvider.notifier).setArchetypes(_suggestedArchetypes);
     // Store maturity level for results screen
-    ref.read(assessmentProvider.notifier).setDevelopmentMaturity(_developmentMaturity);
+    ref
+        .read(assessmentProvider.notifier)
+        .setDevelopmentMaturity(_developmentMaturity);
     context.push('${AppRoutes.assessment}/quick-results');
   }
 
   String _getMaturityLabel(int value) {
     switch (value) {
-      case 1: return 'Just Starting';
-      case 2: return 'Exploring';
-      case 3: return 'Growing';
-      case 4: return 'Maturing';
-      case 5: return 'Mature';
-      default: return 'Growing';
+      case 1:
+        return 'Just Starting';
+      case 2:
+        return 'Exploring';
+      case 3:
+        return 'Growing';
+      case 4:
+        return 'Maturing';
+      case 5:
+        return 'Mature';
+      default:
+        return 'Growing';
     }
   }
 

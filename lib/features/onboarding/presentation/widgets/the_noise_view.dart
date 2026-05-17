@@ -73,7 +73,7 @@ class _TheNoiseViewState extends State<TheNoiseView>
                     ),
                     const SizedBox(height: 14),
                     Text(
-                      'A clean daily rhythm for faith, focus, and the people who help you keep going.',
+                      'A daily path for faith, focus, and the people who help you keep going.',
                       style: textTheme.bodyLarge?.copyWith(
                         color: theme.colorScheme.onSurface.withValues(
                           alpha: 0.68,
@@ -125,7 +125,7 @@ class _BrandLockup extends StatelessWidget {
             ),
             const SizedBox(height: 3),
             Text(
-              'Daily spiritual rhythm',
+              'Daily spiritual practice',
               style: theme.textTheme.labelMedium?.copyWith(
                 color: theme.colorScheme.onSurface.withValues(alpha: 0.58),
               ),

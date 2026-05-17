@@ -13,7 +13,7 @@ class ReminderSettingsScreen extends ConsumerWidget {
     final settings = ref.watch(settingsProvider);
     final theme = Theme.of(context);
     final tokens = theme.tokens;
-    
+
     final primaryTextColor = theme.colorScheme.onSurface;
     final mutedTextColor = tokens.palette.textSecondary;
     final surfaceColor = theme.colorScheme.surface;
@@ -55,19 +55,20 @@ class ReminderSettingsScreen extends ConsumerWidget {
               ),
               const SizedBox(height: 16),
               Text(
-                'Set the times for your morning and evening spiritual practices. We will send you a gentle nudge to help you stay consistent.',
+                'Set gentle reminders for your morning and evening spiritual practices.',
                 style: theme.textTheme.bodyMedium?.copyWith(
                   color: primaryTextColor.withValues(alpha: 0.8),
                   height: 1.5,
                 ),
               ),
               const SizedBox(height: 32),
-              
+
               // Morning Anchor
               _buildReminderCard(
                 context: context,
                 title: 'Morning Anchor',
-                description: 'Daily preparation for spiritual clarity and mindful presence.',
+                description:
+                    'Daily preparation for spiritual clarity and mindful presence.',
                 time: settings.morningTime,
                 isEnabled: settings.morningReminderEnabled,
                 icon: Icons.wb_sunny_outlined,
@@ -76,7 +77,9 @@ class ReminderSettingsScreen extends ConsumerWidget {
                 borderColor: borderColor,
                 onToggle: (val) {
                   final current = ref.read(settingsProvider);
-                  ref.read(settingsProvider.notifier).completeOnboarding(
+                  ref
+                      .read(settingsProvider.notifier)
+                      .completeOnboarding(
                         primaryVirtue: current.primaryVirtue,
                         lifestyle: current.lifestyle,
                         morningTime: current.morningTime,
@@ -87,9 +90,13 @@ class ReminderSettingsScreen extends ConsumerWidget {
                         contactsImported: current.contactsImported,
                       );
                 },
-                onTimeTapped: () => _selectTime(context, settings.morningTime, (newTime) {
+                onTimeTapped: () => _selectTime(context, settings.morningTime, (
+                  newTime,
+                ) {
                   final current = ref.read(settingsProvider);
-                  ref.read(settingsProvider.notifier).completeOnboarding(
+                  ref
+                      .read(settingsProvider.notifier)
+                      .completeOnboarding(
                         primaryVirtue: current.primaryVirtue,
                         lifestyle: current.lifestyle,
                         morningTime: newTime,
@@ -101,14 +108,15 @@ class ReminderSettingsScreen extends ConsumerWidget {
                       );
                 }),
               ),
-              
+
               const SizedBox(height: 16),
-              
+
               // Evening Review
               _buildReminderCard(
                 context: context,
                 title: 'Evening Review',
-                description: 'Reflect on your day\'s blessings, challenges, and growth opportunities.',
+                description:
+                    'Reflect on your day\'s blessings, challenges, and growth opportunities.',
                 time: settings.eveningTime,
                 isEnabled: settings.eveningReminderEnabled,
                 icon: Icons.bedtime_outlined,
@@ -117,7 +125,9 @@ class ReminderSettingsScreen extends ConsumerWidget {
                 borderColor: borderColor,
                 onToggle: (val) {
                   final current = ref.read(settingsProvider);
-                  ref.read(settingsProvider.notifier).completeOnboarding(
+                  ref
+                      .read(settingsProvider.notifier)
+                      .completeOnboarding(
                         primaryVirtue: current.primaryVirtue,
                         lifestyle: current.lifestyle,
                         morningTime: current.morningTime,
@@ -128,9 +138,13 @@ class ReminderSettingsScreen extends ConsumerWidget {
                         contactsImported: current.contactsImported,
                       );
                 },
-                onTimeTapped: () => _selectTime(context, settings.eveningTime, (newTime) {
+                onTimeTapped: () => _selectTime(context, settings.eveningTime, (
+                  newTime,
+                ) {
                   final current = ref.read(settingsProvider);
-                  ref.read(settingsProvider.notifier).completeOnboarding(
+                  ref
+                      .read(settingsProvider.notifier)
+                      .completeOnboarding(
                         primaryVirtue: current.primaryVirtue,
                         lifestyle: current.lifestyle,
                         morningTime: current.morningTime,
@@ -149,7 +163,11 @@ class ReminderSettingsScreen extends ConsumerWidget {
     );
   }
 
-  Future<void> _selectTime(BuildContext context, String currentTime, Function(String) onTimeSelected) async {
+  Future<void> _selectTime(
+    BuildContext context,
+    String currentTime,
+    Function(String) onTimeSelected,
+  ) async {
     final parts = currentTime.split(':');
     final initialTime = TimeOfDay(
       hour: int.parse(parts[0]),
@@ -217,7 +235,9 @@ class ReminderSettingsScreen extends ConsumerWidget {
                 width: 40,
                 height: 40,
                 decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.5),
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.primaryContainer.withValues(alpha: 0.5),
                   shape: BoxShape.circle,
                 ),
                 child: Icon(
@@ -257,7 +277,9 @@ class ReminderSettingsScreen extends ConsumerWidget {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                color: Theme.of(
+                  context,
+                ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Row(

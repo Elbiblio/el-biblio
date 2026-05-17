@@ -34,7 +34,8 @@ class PhysicalActivityGuide extends ConsumerWidget {
       id: 'walking',
       icon: Icons.directions_walk,
       title: 'Walking',
-      description: '30 minutes of mindful walking\nFocus on your virtue with each step',
+      description:
+          '30 minutes of mindful walking\nFocus on your virtue with each step',
       duration: '30 min',
       xpReward: XPRewards.physicalActivity,
     ),
@@ -42,7 +43,7 @@ class PhysicalActivityGuide extends ConsumerWidget {
       id: 'running',
       icon: Icons.directions_run,
       title: 'Run or Jog',
-      description: '20-30 minutes of jogging\nUse rhythmic breathing to meditate on your virtue',
+      description: '20-30 minutes of jogging\nPray simply as you move',
       duration: '10-30 min',
       xpReward: XPRewards.physicalActivity,
     ),
@@ -50,7 +51,8 @@ class PhysicalActivityGuide extends ConsumerWidget {
       id: 'self_affirmation',
       icon: Icons.self_improvement,
       title: 'Self Affirmation',
-      description: '15 minutes of gentle stretching\nCombine with self-affirmations about your virtue',
+      description:
+          '15 minutes of gentle stretching\nCombine with self-affirmations about your virtue',
       duration: '15 min',
       xpReward: XPRewards.physicalActivity,
     ),
@@ -58,7 +60,8 @@ class PhysicalActivityGuide extends ConsumerWidget {
       id: 'outdoor',
       icon: Icons.park,
       title: 'Outdoor Activity',
-      description: 'Any outdoor physical activity\nConnect with nature while reflecting on your virtue',
+      description:
+          'Any outdoor physical activity\nConnect with nature while reflecting on your virtue',
       duration: '30+ min',
       xpReward: XPRewards.physicalActivity,
     ),
@@ -81,16 +84,18 @@ class PhysicalActivityGuide extends ConsumerWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              'Choose an activity to help internalize your virtue focus:',
+              'Choose a simple movement for today:',
               style: TextStyle(fontWeight: FontWeight.w600),
             ),
             const SizedBox(height: 16),
-            
-            ..._activities.map((activity) => _buildActivityOption(
-              context: context,
-              ref: ref,
-              activity: activity,
-            )),
+
+            ..._activities.map(
+              (activity) => _buildActivityOption(
+                context: context,
+                ref: ref,
+                activity: activity,
+              ),
+            ),
           ],
         ),
       ),
@@ -121,7 +126,9 @@ class PhysicalActivityGuide extends ConsumerWidget {
               color: Theme.of(context).colorScheme.surfaceContainerHighest,
               borderRadius: BorderRadius.circular(8),
               border: Border.all(
-                color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.2),
+                color: Theme.of(
+                  context,
+                ).colorScheme.outline.withValues(alpha: 0.2),
               ),
             ),
             child: Row(
@@ -148,23 +155,30 @@ class PhysicalActivityGuide extends ConsumerWidget {
                         children: [
                           Text(
                             activity.title,
-                            style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                              fontWeight: FontWeight.w600,
-                            ),
+                            style: Theme.of(context).textTheme.titleSmall
+                                ?.copyWith(fontWeight: FontWeight.w600),
                           ),
                           const Spacer(),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 2,
+                            ),
                             decoration: BoxDecoration(
-                              color: Theme.of(context).colorScheme.primaryContainer,
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.primaryContainer,
                               borderRadius: BorderRadius.circular(12),
                             ),
                             child: Text(
                               activity.duration,
-                              style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                                color: Theme.of(context).colorScheme.onPrimaryContainer,
-                                fontWeight: FontWeight.w500,
-                              ),
+                              style: Theme.of(context).textTheme.labelSmall
+                                  ?.copyWith(
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.onPrimaryContainer,
+                                    fontWeight: FontWeight.w500,
+                                  ),
                             ),
                           ),
                         ],
@@ -173,7 +187,9 @@ class PhysicalActivityGuide extends ConsumerWidget {
                       Text(
                         activity.description,
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.onSurface.withValues(alpha: 0.7),
                         ),
                       ),
                     ],
@@ -187,11 +203,15 @@ class PhysicalActivityGuide extends ConsumerWidget {
     );
   }
 
-  void _handleActivityTap(BuildContext context, WidgetRef ref, PhysicalActivity activity) {
+  void _handleActivityTap(
+    BuildContext context,
+    WidgetRef ref,
+    PhysicalActivity activity,
+  ) {
     final theme = Theme.of(context);
     final tokens = theme.tokens;
     final isDark = theme.brightness == Brightness.dark;
-    
+
     // Show confirmation dialog with brand-aligned design
     showDialog(
       context: context,
@@ -213,7 +233,9 @@ class PhysicalActivityGuide extends ConsumerWidget {
               width: 64,
               height: 64,
               decoration: BoxDecoration(
-                color: theme.colorScheme.primaryContainer.withValues(alpha: 0.15),
+                color: theme.colorScheme.primaryContainer.withValues(
+                  alpha: 0.15,
+                ),
                 shape: BoxShape.circle,
                 border: Border.all(
                   color: theme.colorScheme.primary.withValues(alpha: 0.3),
@@ -277,7 +299,10 @@ class PhysicalActivityGuide extends ConsumerWidget {
                     ),
                   ),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
                       color: tokens.palette.success.withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(20),
@@ -324,29 +349,33 @@ class PhysicalActivityGuide extends ConsumerWidget {
             onPressed: () async {
               Navigator.of(context).pop(); // Close confirmation dialog
               Navigator.of(context).pop(); // Close activity guide dialog
-              
+
               // Add XP for the activity
-              await ref.read(xpProvider.notifier).addXP(
-                type: XPActivityType.physicalActivity,
-                description: 'Completed ${activity.title}',
-                metadata: {
-                  'activity_id': activity.id,
-                  'title': activity.title,
-                  'duration': activity.duration,
-                },
-              );
-              
+              await ref
+                  .read(xpProvider.notifier)
+                  .addXP(
+                    type: XPActivityType.physicalActivity,
+                    description: 'Completed ${activity.title}',
+                    metadata: {
+                      'activity_id': activity.id,
+                      'title': activity.title,
+                      'duration': activity.duration,
+                    },
+                  );
+
               // Mark the daily anchor as done
-              await ref.read(dailyAnchorsProvider.notifier).markAnchorDone(AnchorType.energyAction);
-              
+              await ref
+                  .read(dailyAnchorsProvider.notifier)
+                  .markAnchorDone(AnchorType.energyAction);
+
               // Play celebration with sound and visual feedback
               if (context.mounted) {
                 // Play celebration immediately for instant feedback
                 CelebrationService.instance.playActivityCompletion(
-                  context, 
+                  context,
                   activityKey: activity.id,
                 );
-                
+
                 // Show enhanced success message
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
@@ -413,10 +442,7 @@ class PhysicalActivityGuide extends ConsumerWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(
-                  Icons.check_circle_rounded,
-                  size: 18,
-                ),
+                const Icon(Icons.check_circle_rounded, size: 18),
                 const SizedBox(width: 8),
                 Text(
                   'Complete',

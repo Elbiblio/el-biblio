@@ -12,18 +12,18 @@ class VerseRepository extends BaseRepository {
   Future<List<Verse>> getDailyVerses() async {
     try {
       final token = _client.currentAuthToken;
-      
+
       // For guest users, return empty list since verse API requires authentication
       if (isGuestToken(token)) {
         logger.w('Guest user detected, verse API not available');
         return [];
       }
-      
-      final response = await _client.get('/verses/daily', queryParameters: {
-        'include': 'theme',
-        'date_range': 'both',
-      });
-      
+
+      final response = await _client.get(
+        '/verses/daily',
+        queryParameters: {'include': 'theme', 'date_range': 'both'},
+      );
+
       final List<dynamic> data = response.data['data'] ?? response.data;
       return data.map((json) => Verse.fromJson(json)).toList();
     } catch (e) {
@@ -34,18 +34,16 @@ class VerseRepository extends BaseRepository {
   Future<List<Verse>> getRandomVerses(int count) async {
     try {
       final token = _client.currentAuthToken;
-      
+
       // For guest users, return empty list since verse API requires authentication
       if (isGuestToken(token)) {
         logger.w('Guest user detected, verse API not available');
         return [];
       }
-      
+
       final response = await _client.get(
         '/verses/random',
-        queryParameters: {
-          'count': count,
-        },
+        queryParameters: {'count': count},
       );
 
       final List<dynamic> data = response.data['data'] ?? response.data;
@@ -69,16 +67,16 @@ class VerseRepository extends BaseRepository {
   }) async {
     try {
       final token = _client.currentAuthToken;
-      
+
       // For guest users, return basic explanation since AI insights require authentication
       if (isGuestToken(token)) {
         logger.w('Guest user detected, AI insights not available');
         return {
-          'explanation': 'This feature requires a registered account to access AI-powered insights.',
+          'explanation': 'Create an account to open AI-powered insights.',
           'available': false,
         };
       }
-      
+
       final payload = {
         'reference': reference,
         'text': text.trim(),
@@ -86,10 +84,15 @@ class VerseRepository extends BaseRepository {
         if (prompt != null) 'prompt': prompt,
       };
 
-      final response = await _client.post('/bible/verses/$verseId/explain', data: payload);
-      
+      final response = await _client.post(
+        '/bible/verses/$verseId/explain',
+        data: payload,
+      );
+
       if (response.data['success'] == false) {
-        throw Exception(response.data['message'] ?? 'Unable to generate insight.');
+        throw Exception(
+          response.data['message'] ?? 'Unable to generate insight.',
+        );
       }
 
       return response.data['data'] ?? response.data;
@@ -99,39 +102,45 @@ class VerseRepository extends BaseRepository {
   }
 
   Future<Verse?> getVerse(int id) {
-    return guard(() async {
-      final token = _client.currentAuthToken;
-      
-      // For guest users, return null since verse API requires authentication
-      if (isGuestToken(token)) {
-        logger.w('Guest user detected, verse API not available');
-        return null;
-      }
-      
-      final response = await _client.get(
-        '/verses/$id',
-        queryParameters: {
-          'include': 'theme',
-        },
-      );
+    return guard(
+      () async {
+        final token = _client.currentAuthToken;
 
-      final data = response.data['data'];
-      return Verse.fromJson(data);
-    }, operation: 'get_verse', token: _client.currentAuthToken);
+        // For guest users, return null since verse API requires authentication
+        if (isGuestToken(token)) {
+          logger.w('Guest user detected, verse API not available');
+          return null;
+        }
+
+        final response = await _client.get(
+          '/verses/$id',
+          queryParameters: {'include': 'theme'},
+        );
+
+        final data = response.data['data'];
+        return Verse.fromJson(data);
+      },
+      operation: 'get_verse',
+      token: _client.currentAuthToken,
+    );
   }
 
   Future<bool> voteVerse(int id) {
-    return guard(() async {
-      final token = _client.currentAuthToken;
-      
-      // For guest users, return false since voting requires authentication
-      if (isGuestToken(token)) {
-        logger.w('Guest user detected, voting not available');
-        return false;
-      }
-      
-      final response = await _client.raw.post('/verses/$id/vote');
-      return response.data['success'] == true;
-    }, operation: 'vote_verse', token: _client.currentAuthToken);
+    return guard(
+      () async {
+        final token = _client.currentAuthToken;
+
+        // For guest users, return false since voting requires authentication
+        if (isGuestToken(token)) {
+          logger.w('Guest user detected, voting not available');
+          return false;
+        }
+
+        final response = await _client.raw.post('/verses/$id/vote');
+        return response.data['success'] == true;
+      },
+      operation: 'vote_verse',
+      token: _client.currentAuthToken,
+    );
   }
 }

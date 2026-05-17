@@ -101,7 +101,8 @@ class GamesHubScreen extends ConsumerWidget {
                                   ? Colors.grey.shade800
                                   : Colors.grey.shade200,
                               valueColor: const AlwaysStoppedAnimation(
-                                  Color(0xFF3B82C4)),
+                                Color(0xFF3B82C4),
+                              ),
                             ),
                           ),
                         ),
@@ -120,8 +121,11 @@ class GamesHubScreen extends ConsumerWidget {
                       const SizedBox(height: 6),
                       Row(
                         children: [
-                          const Icon(Icons.check_circle,
-                              size: 14, color: Colors.green),
+                          const Icon(
+                            Icons.check_circle,
+                            size: 14,
+                            color: Colors.green,
+                          ),
                           const SizedBox(width: 4),
                           Text(
                             'Journey Complete!',
@@ -148,10 +152,14 @@ class GamesHubScreen extends ConsumerWidget {
                 onTap: () => context.push(AppRoutes.faithQuestions),
                 trailing: Row(
                   children: [
-                    Icon(Icons.auto_awesome, size: 16, color: Colors.purple.shade400),
+                    Icon(
+                      Icons.auto_awesome,
+                      size: 16,
+                      color: Colors.purple.shade400,
+                    ),
                     const SizedBox(width: 4),
                     Text(
-                      'Explore deep questions of faith',
+                      'Bring honest questions to Scripture',
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,

@@ -382,7 +382,7 @@ class VisionReflectionCard extends ConsumerWidget {
       SnackBar(
         content: Text(
           reported
-              ? 'Thanks. We will review this reflection.'
+              ? 'Thanks. This reflection is queued for review.'
               : 'We could not send the report. Please try again.',
         ),
       ),

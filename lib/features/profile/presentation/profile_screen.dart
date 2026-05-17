@@ -50,9 +50,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         children: [
           Text(
             'ACHIEVEMENTS',
-            style: Theme.of(context).textTheme.sectionHeader.copyWith(
-              color: mutedTextColor,
-            ),
+            style: Theme.of(
+              context,
+            ).textTheme.sectionHeader.copyWith(color: mutedTextColor),
           ),
           const SizedBox(height: 16),
           ListTile(
@@ -61,10 +61,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               width: 40,
               height: 40,
               decoration: BoxDecoration(
-                color: Theme.of(context)
-                    .colorScheme
-                    .secondaryContainer
-                    .withValues(alpha: 0.5),
+                color: Theme.of(
+                  context,
+                ).colorScheme.secondaryContainer.withValues(alpha: 0.5),
                 shape: BoxShape.circle,
               ),
               child: Icon(
@@ -113,9 +112,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     final authState = ref.read(authProvider);
     if (authState.user == null) return;
 
-    final nameController = TextEditingController(text: authState.user!.fullName);
+    final nameController = TextEditingController(
+      text: authState.user!.fullName,
+    );
     final emailController = TextEditingController(text: authState.user!.email);
-    final phoneController = TextEditingController(text: authState.user!.phone ?? '');
+    final phoneController = TextEditingController(
+      text: authState.user!.phone ?? '',
+    );
 
     return showDialog<void>(
       context: context,
@@ -139,19 +142,19 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 decoration: InputDecoration(
                   labelText: 'Name',
                   labelStyle: TextStyle(
-                    color: isDark ? Colors.white70 : const Color(0xFF1a2418).withValues(alpha:0.7),
+                    color: isDark
+                        ? Colors.white70
+                        : const Color(0xFF1a2418).withValues(alpha: 0.7),
                   ),
                   enabledBorder: UnderlineInputBorder(
                     borderSide: BorderSide(
-                      color: isDark 
-                          ? Colors.white.withValues(alpha:0.2)
-                          : const Color(0xFF1a2418).withValues(alpha:0.2),
+                      color: isDark
+                          ? Colors.white.withValues(alpha: 0.2)
+                          : const Color(0xFF1a2418).withValues(alpha: 0.2),
                     ),
                   ),
                   focusedBorder: const UnderlineInputBorder(
-                    borderSide: BorderSide(
-                      color: Color(0xFF638B6C),
-                    ),
+                    borderSide: BorderSide(color: Color(0xFF638B6C)),
                   ),
                 ),
                 style: TextStyle(
@@ -164,19 +167,19 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 decoration: InputDecoration(
                   labelText: 'Email',
                   labelStyle: TextStyle(
-                    color: isDark ? Colors.white70 : const Color(0xFF1a2418).withValues(alpha:0.7),
+                    color: isDark
+                        ? Colors.white70
+                        : const Color(0xFF1a2418).withValues(alpha: 0.7),
                   ),
                   enabledBorder: UnderlineInputBorder(
                     borderSide: BorderSide(
-                      color: isDark 
-                          ? Colors.white.withValues(alpha:0.2)
-                          : const Color(0xFF1a2418).withValues(alpha:0.2),
+                      color: isDark
+                          ? Colors.white.withValues(alpha: 0.2)
+                          : const Color(0xFF1a2418).withValues(alpha: 0.2),
                     ),
                   ),
                   focusedBorder: const UnderlineInputBorder(
-                    borderSide: BorderSide(
-                      color: Color(0xFF638B6C),
-                    ),
+                    borderSide: BorderSide(color: Color(0xFF638B6C)),
                   ),
                 ),
                 style: TextStyle(
@@ -190,19 +193,19 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 decoration: InputDecoration(
                   labelText: 'Phone',
                   labelStyle: TextStyle(
-                    color: isDark ? Colors.white70 : const Color(0xFF1a2418).withValues(alpha:0.7),
+                    color: isDark
+                        ? Colors.white70
+                        : const Color(0xFF1a2418).withValues(alpha: 0.7),
                   ),
                   enabledBorder: UnderlineInputBorder(
                     borderSide: BorderSide(
-                      color: isDark 
-                          ? Colors.white.withValues(alpha:0.2)
-                          : const Color(0xFF1a2418).withValues(alpha:0.2),
+                      color: isDark
+                          ? Colors.white.withValues(alpha: 0.2)
+                          : const Color(0xFF1a2418).withValues(alpha: 0.2),
                     ),
                   ),
                   focusedBorder: const UnderlineInputBorder(
-                    borderSide: BorderSide(
-                      color: Color(0xFF638B6C),
-                    ),
+                    borderSide: BorderSide(color: Color(0xFF638B6C)),
                   ),
                 ),
                 style: TextStyle(
@@ -218,7 +221,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               child: Text(
                 'Cancel',
                 style: TextStyle(
-                  color: isDark ? Colors.white70 : const Color(0xFF1a2418).withValues(alpha:0.7),
+                  color: isDark
+                      ? Colors.white70
+                      : const Color(0xFF1a2418).withValues(alpha: 0.7),
                 ),
               ),
             ),
@@ -226,26 +231,40 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               onPressed: () async {
                 final scaffoldMessenger = ScaffoldMessenger.of(context);
                 Navigator.of(context).pop();
-                
+
                 final nameParts = nameController.text.trim().split(' ');
                 final firstName = nameParts.first;
-                final lastName = nameParts.length > 1 ? nameParts.sublist(1).join(' ') : '';
-                
-                final success = await ref.read(authProvider.notifier).updateUserProfile(
-                  firstName: firstName.isNotEmpty ? firstName : null,
-                  lastName: lastName.isNotEmpty ? lastName : null,
-                  email: emailController.text.trim().isNotEmpty ? emailController.text.trim() : null,
-                  phone: phoneController.text.trim().isNotEmpty ? phoneController.text.trim() : null,
-                );
+                final lastName = nameParts.length > 1
+                    ? nameParts.sublist(1).join(' ')
+                    : '';
+
+                final success = await ref
+                    .read(authProvider.notifier)
+                    .updateUserProfile(
+                      firstName: firstName.isNotEmpty ? firstName : null,
+                      lastName: lastName.isNotEmpty ? lastName : null,
+                      email: emailController.text.trim().isNotEmpty
+                          ? emailController.text.trim()
+                          : null,
+                      phone: phoneController.text.trim().isNotEmpty
+                          ? phoneController.text.trim()
+                          : null,
+                    );
 
                 if (success && mounted) {
                   scaffoldMessenger.showSnackBar(
-                    const SnackBar(content: Text('Profile updated successfully')),
+                    const SnackBar(
+                      content: Text('Profile updated successfully'),
+                    ),
                   );
                 } else if (mounted) {
                   final authState = ref.read(authProvider);
                   scaffoldMessenger.showSnackBar(
-                    SnackBar(content: Text(authState.error ?? 'Failed to update profile')),
+                    SnackBar(
+                      content: Text(
+                        authState.error ?? 'Failed to update profile',
+                      ),
+                    ),
                   );
                 }
               },
@@ -321,7 +340,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           Row(
             children: [
               Icon(
-                isPositive ? Icons.trending_up_rounded : Icons.trending_down_rounded,
+                isPositive
+                    ? Icons.trending_up_rounded
+                    : Icons.trending_down_rounded,
                 size: 18,
                 color: isPositive ? successColor : theme.colorScheme.error,
               ),
@@ -383,12 +404,18 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       border: Border.all(
                         color: isActive
                             ? accentColor
-                            : theme.colorScheme.onSurface.withValues(alpha: 0.12),
+                            : theme.colorScheme.onSurface.withValues(
+                                alpha: 0.12,
+                              ),
                         width: 1.5,
                       ),
                     ),
                     child: isActive
-                        ? Icon(Icons.check_rounded, size: 14, color: accentColor)
+                        ? Icon(
+                            Icons.check_rounded,
+                            size: 14,
+                            color: accentColor,
+                          )
                         : null,
                   ),
                 );
@@ -419,9 +446,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         children: [
           Text(
             'QUICK SETTINGS',
-            style: Theme.of(context).textTheme.sectionHeader.copyWith(
-              color: mutedTextColor,
-            ),
+            style: Theme.of(
+              context,
+            ).textTheme.sectionHeader.copyWith(color: mutedTextColor),
           ),
           const SizedBox(height: 16),
           ListTile(
@@ -430,7 +457,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               width: 40,
               height: 40,
               decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.5),
+                color: Theme.of(
+                  context,
+                ).colorScheme.primaryContainer.withValues(alpha: 0.5),
                 shape: BoxShape.circle,
               ),
               child: Icon(
@@ -467,10 +496,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               width: 40,
               height: 40,
               decoration: BoxDecoration(
-                color: Theme.of(context)
-                    .colorScheme
-                    .primaryContainer
-                    .withValues(alpha: 0.5),
+                color: Theme.of(
+                  context,
+                ).colorScheme.primaryContainer.withValues(alpha: 0.5),
                 shape: BoxShape.circle,
               ),
               child: Icon(
@@ -482,15 +510,15 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             title: Text(
               'About',
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
-                    color: primaryTextColor,
-                  ),
+                fontWeight: FontWeight.w600,
+                color: primaryTextColor,
+              ),
             ),
             subtitle: Text(
-              'Version, rate the app, and donate',
+              'Version, review, and support',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: primaryTextColor.withValues(alpha: 0.7),
-                  ),
+                color: primaryTextColor.withValues(alpha: 0.7),
+              ),
             ),
             trailing: Icon(
               Icons.chevron_right_rounded,
@@ -524,9 +552,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         children: [
           Text(
             'ADVANCED GROWTH',
-            style: Theme.of(context).textTheme.sectionHeader.copyWith(
-              color: mutedTextColor,
-            ),
+            style: Theme.of(
+              context,
+            ).textTheme.sectionHeader.copyWith(color: mutedTextColor),
           ),
           const SizedBox(height: 16),
           ListTile(
@@ -626,7 +654,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               ),
             ),
             subtitle: Text(
-              'Explore deep questions of faith',
+              'Bring honest questions to Scripture',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                 color: primaryTextColor.withValues(alpha: 0.7),
               ),
@@ -700,9 +728,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         children: [
           Text(
             'DAILY RHYTHM',
-            style: Theme.of(context).textTheme.sectionHeader.copyWith(
-              color: mutedTextColor,
-            ),
+            style: Theme.of(
+              context,
+            ).textTheme.sectionHeader.copyWith(color: mutedTextColor),
           ),
           const SizedBox(height: 16),
           ListTile(
@@ -711,7 +739,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               width: 40,
               height: 40,
               decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.5),
+                color: Theme.of(
+                  context,
+                ).colorScheme.primaryContainer.withValues(alpha: 0.5),
                 shape: BoxShape.circle,
               ),
               child: Icon(
@@ -765,9 +795,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         children: [
           Text(
             'SPIRITUAL ASSESSMENT',
-            style: Theme.of(context).textTheme.sectionHeader.copyWith(
-              color: mutedTextColor,
-            ),
+            style: Theme.of(
+              context,
+            ).textTheme.sectionHeader.copyWith(color: mutedTextColor),
           ),
           const SizedBox(height: 16),
           ListTile(
@@ -830,9 +860,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         children: [
           Text(
             'TIME MANAGEMENT',
-            style: Theme.of(context).textTheme.sectionHeader.copyWith(
-              color: mutedTextColor,
-            ),
+            style: Theme.of(
+              context,
+            ).textTheme.sectionHeader.copyWith(color: mutedTextColor),
           ),
           const SizedBox(height: 16),
           ListTile(
@@ -898,16 +928,16 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         children: [
           Text(
             'APPEARANCE',
-            style: Theme.of(context).textTheme.sectionHeader.copyWith(
-              color: mutedTextColor,
-            ),
+            style: Theme.of(
+              context,
+            ).textTheme.sectionHeader.copyWith(color: mutedTextColor),
           ),
           const SizedBox(height: 12),
           Text(
             'Theme Mode',
-            style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                  color: primaryTextColor,
-                ),
+            style: Theme.of(
+              context,
+            ).textTheme.titleSmall?.copyWith(color: primaryTextColor),
           ),
           const SizedBox(height: 8),
           SegmentedButton<AppThemeMode>(
@@ -933,9 +963,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           const SizedBox(height: 14),
           Text(
             'Brightness',
-            style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                  color: primaryTextColor,
-                ),
+            style: Theme.of(
+              context,
+            ).textTheme.titleSmall?.copyWith(color: primaryTextColor),
           ),
           const SizedBox(height: 8),
           SegmentedButton<Brightness>(
@@ -976,8 +1006,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
     // Listen to auth state changes and reload profile when user authenticates
     ref.listen(authProvider, (previous, next) {
-      if (next.user != null && next.isAuthenticated && 
-          (previous?.user?.id != next.user?.id || previous?.isAuthenticated != true)) {
+      if (next.user != null &&
+          next.isAuthenticated &&
+          (previous?.user?.id != next.user?.id ||
+              previous?.isAuthenticated != true)) {
         _loadProfileForCurrentUser();
       }
     });
@@ -990,7 +1022,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     final successColor = tokens.palette.success;
     final accentColor = theme.colorScheme.primary;
 
-    if (profileState.isLoading && profileState.profile == null && authState.user == null) {
+    if (profileState.isLoading &&
+        profileState.profile == null &&
+        authState.user == null) {
       return Scaffold(
         backgroundColor: backgroundColor,
         body: const SafeArea(
@@ -1028,18 +1062,26 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       );
     }
 
-    if (profileState.error != null && profileState.profile == null && authState.user == null) {
+    if (profileState.error != null &&
+        profileState.profile == null &&
+        authState.user == null) {
       return Scaffold(
         backgroundColor: backgroundColor,
         body: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.error_outline, size: 48, color: theme.colorScheme.error),
+              Icon(
+                Icons.error_outline,
+                size: 48,
+                color: theme.colorScheme.error,
+              ),
               const SizedBox(height: 16),
               Text(
                 'Could not load profile',
-                style: theme.textTheme.titleMedium?.copyWith(color: primaryTextColor),
+                style: theme.textTheme.titleMedium?.copyWith(
+                  color: primaryTextColor,
+                ),
               ),
               const SizedBox(height: 8),
               TextButton(
@@ -1059,14 +1101,17 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
     final name = user?.fullName ?? profile?.name ?? 'Guest User';
     final role = user?.role ?? profile?.role ?? 'Disciple';
-    final memberSinceYear = profile?.memberSince?.year ?? user?.createdAt?.year ?? 2021;
-    
+    final memberSinceYear =
+        profile?.memberSince?.year ?? user?.createdAt?.year ?? 2021;
+
     // Use XP tracking data for points
     final points = xpState.totalXP;
-    
+
     // Stats - use real data when available, otherwise use sensible defaults
     final activeHours = stats?.totalActiveTime ?? user?.totalActiveTime ?? 0;
-    final meditationHours = (stats?.totalMeditationSessions ?? 0) > 0 ? ((stats?.totalMeditationSessions ?? 0) * 15) ~/ 60 : 0;
+    final meditationHours = (stats?.totalMeditationSessions ?? 0) > 0
+        ? ((stats?.totalMeditationSessions ?? 0) * 15) ~/ 60
+        : 0;
     final chapters = stats?.totalVersesRead ?? 0;
     final streak = stats?.currentStreak ?? profile?.currentStreak ?? 0;
 
@@ -1090,12 +1135,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   surfaceColor: surfaceColor,
                   isGuest: authState.isGuest,
                 ),
-                
+
                 Expanded(
                   child: SingleChildScrollView(
                     physics: const BouncingScrollPhysics(),
                     child: Padding(
-                      padding: const EdgeInsets.only(bottom: 120), // Space for fab and nav
+                      padding: const EdgeInsets.only(
+                        bottom: 120,
+                      ), // Space for fab and nav
                       child: Column(
                         children: [
                           // Points Section
@@ -1107,7 +1154,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                             borderColor: borderColor,
                             successColor: successColor,
                           ),
-                          
+
                           // Stats Grid
                           Padding(
                             padding: const EdgeInsets.all(32),
@@ -1164,9 +1211,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                                     ),
                                   ],
                                 ),
-                                
+
                                 const SizedBox(height: 32),
-                                
+
                                 // Quote/Description
                                 Container(
                                   padding: const EdgeInsets.only(top: 24),
@@ -1176,17 +1223,20 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                                     ),
                                   ),
                                   child: Text(
-                                    '"Your path is marked by rhythmic devotion. The Sacred Archive records every moment of stillness, every chapter absorbed, and every anchor held fast."',
-                                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                      height: 1.6,
-                                      color: isDark ? const Color(0xFF888888) : const Color(0xFF78716C),
-                                      fontStyle: FontStyle.italic,
-                                      fontWeight: FontWeight.w300,
-                                    ),
+                                    '"Your path is marked by faithful devotion. The Sacred Archive remembers every quiet return, every chapter received, and every promise kept."',
+                                    style: Theme.of(context).textTheme.bodySmall
+                                        ?.copyWith(
+                                          height: 1.6,
+                                          color: isDark
+                                              ? const Color(0xFF888888)
+                                              : const Color(0xFF78716C),
+                                          fontStyle: FontStyle.italic,
+                                          fontWeight: FontWeight.w300,
+                                        ),
                                     textAlign: TextAlign.center,
                                   ),
                                 ),
-                                
+
                                 const SizedBox(height: 40),
                                 _buildThisWeekSection(
                                   context: context,
@@ -1207,7 +1257,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                                   mutedTextColor: mutedTextColor,
                                   surfaceColor: surfaceColor,
                                 ),
-                                
+
                                 const SizedBox(height: 40),
                                 _buildReminderSettingsLink(
                                   context: context,
@@ -1216,10 +1266,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                                   mutedTextColor: mutedTextColor,
                                   surfaceColor: surfaceColor,
                                 ),
-                                
+
                                 const SizedBox(height: 40),
                                 const TTSSettingsWidget(),
-                                
+
                                 const SizedBox(height: 40),
                                 _buildAssessmentLink(
                                   context: context,
@@ -1228,7 +1278,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                                   mutedTextColor: mutedTextColor,
                                   surfaceColor: surfaceColor,
                                 ),
-                                
+
                                 const SizedBox(height: 40),
                                 _buildTimeDiagnoseLink(
                                   context: context,
@@ -1246,7 +1296,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                                   mutedTextColor: mutedTextColor,
                                   surfaceColor: surfaceColor,
                                 ),
-                                
+
                                 const SizedBox(height: 40),
                                 _buildAchievementsLink(
                                   context: context,
@@ -1264,20 +1314,34 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                                   primaryTextColor: primaryTextColor,
                                   mutedTextColor: mutedTextColor,
                                   onModeChanged: themeNotifier.setMode,
-                                  onBrightnessChanged: themeNotifier.setBrightness,
+                                  onBrightnessChanged:
+                                      themeNotifier.setBrightness,
                                 ),
                                 const SizedBox(height: 20),
-                                if (ref.watch(settingsProvider).onboardingCompleted)
+                                if (ref
+                                    .watch(settingsProvider)
+                                    .onboardingCompleted)
                                   ElevatedButton.icon(
                                     onPressed: () async {
-                                      await ref.read(settingsProvider.notifier).resetOnboarding();
+                                      await ref
+                                          .read(settingsProvider.notifier)
+                                          .resetOnboarding();
                                       if (context.mounted) {
-                                        ScaffoldMessenger.of(context).showSnackBar(
-                                          const SnackBar(content: Text('Onboarding reset. Restart app to test again.')),
+                                        ScaffoldMessenger.of(
+                                          context,
+                                        ).showSnackBar(
+                                          const SnackBar(
+                                            content: Text(
+                                              'Onboarding reset. Restart app to test again.',
+                                            ),
+                                          ),
                                         );
                                       }
                                     },
-                                    icon: const Icon(Icons.restart_alt, size: 16),
+                                    icon: const Icon(
+                                      Icons.restart_alt,
+                                      size: 16,
+                                    ),
                                     label: const Text('Reset Onboarding'),
                                     style: ElevatedButton.styleFrom(
                                       backgroundColor: surfaceColor,
@@ -1366,7 +1430,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               ),
             ],
           ),
-          
+
           // Name
           Text(
             name,
@@ -1376,9 +1440,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             ),
             textAlign: TextAlign.center,
           ),
-          
+
           const SizedBox(height: 6),
-          
+
           // Role & Year
           Text(
             '$role • Since $year'.toUpperCase(),
@@ -1388,15 +1452,17 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             ),
             textAlign: TextAlign.center,
           ),
-          
+
           if (isGuest) ...[
             const SizedBox(height: 8),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
               decoration: BoxDecoration(
-                color: const Color(0xFF638B6C).withValues(alpha:0.1),
+                color: const Color(0xFF638B6C).withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFF638B6C).withValues(alpha:0.3)),
+                border: Border.all(
+                  color: const Color(0xFF638B6C).withValues(alpha: 0.3),
+                ),
               ),
               child: Text(
                 'GUEST ACCOUNT',
@@ -1422,10 +1488,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   }) {
     final xpNotifier = ref.read(xpProvider.notifier);
     final monthlyChange = xpNotifier.getMonthlyXPChange();
-    final changeText = monthlyChange > 0 
-        ? '+${(monthlyChange * 100).toStringAsFixed(0)}%' 
+    final changeText = monthlyChange > 0
+        ? '+${(monthlyChange * 100).toStringAsFixed(0)}%'
         : '${(monthlyChange * 100).toStringAsFixed(0)}%';
-    
+
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 48, horizontal: 32),
       decoration: BoxDecoration(
@@ -1435,25 +1501,29 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         children: [
           Text(
             'INTEGRITY POINTS',
-            style: Theme.of(context).textTheme.sectionHeader.copyWith(
-              color: mutedTextColor,
-            ),
+            style: Theme.of(
+              context,
+            ).textTheme.sectionHeader.copyWith(color: mutedTextColor),
           ),
           const SizedBox(height: 16),
           Text(
             _formatNumber(points),
-            style: Theme.of(context).textTheme.displayNumber.copyWith(
-              color: primaryTextColor,
-            ),
+            style: Theme.of(
+              context,
+            ).textTheme.displayNumber.copyWith(color: primaryTextColor),
           ),
           const SizedBox(height: 16),
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Icon(
-                monthlyChange > 0 ? Icons.north_east_rounded : Icons.south_east_rounded,
+                monthlyChange > 0
+                    ? Icons.north_east_rounded
+                    : Icons.south_east_rounded,
                 size: 14,
-                color: monthlyChange > 0 ? const Color(0xFF047857) : const Color(0xFFDC2626),
+                color: monthlyChange > 0
+                    ? const Color(0xFF047857)
+                    : const Color(0xFFDC2626),
               ),
               const SizedBox(width: 4),
               Text(
@@ -1461,7 +1531,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 style: Theme.of(context).textTheme.metadata.copyWith(
                   fontWeight: FontWeight.bold,
                   letterSpacing: 1.0,
-                  color: monthlyChange > 0 ? successColor : const Color(0xFFDC2626),
+                  color: monthlyChange > 0
+                      ? successColor
+                      : const Color(0xFFDC2626),
                 ),
               ),
             ],
@@ -1484,9 +1556,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       children: [
         Text(
           label,
-          style: Theme.of(context).textTheme.sectionHeader.copyWith(
-            color: mutedTextColor,
-          ),
+          style: Theme.of(
+            context,
+          ).textTheme.sectionHeader.copyWith(color: mutedTextColor),
         ),
         const SizedBox(height: 4),
         RichText(
@@ -1494,9 +1566,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             children: [
               TextSpan(
                 text: '$value ',
-                style: Theme.of(context).textTheme.mediumNumber.copyWith(
-                  color: primaryTextColor,
-                ),
+                style: Theme.of(
+                  context,
+                ).textTheme.mediumNumber.copyWith(color: primaryTextColor),
               ),
               TextSpan(
                 text: unit,

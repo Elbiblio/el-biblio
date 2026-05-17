@@ -201,6 +201,7 @@ void main() {
         'questions': [
           {
             'question': 'Where do you need courage today?',
+            'answer_options': ['At school', 'With friends', 42],
             'action_steps': [
               {'label': 'Pray', 'minutes': 'later'},
               'bad step',
@@ -218,6 +219,11 @@ void main() {
         question.packQuestions.single.question,
         'Where do you need courage today?',
       );
+      expect(question.packQuestions.single.answerOptions, [
+        'At school',
+        'With friends',
+        '42',
+      ]);
       expect(question.packQuestions.single.actionSteps.single.minutes, isNull);
       expect(question.scriptureRefs, ['123', 'Romans 8:1']);
       expect(question.position, isNull);

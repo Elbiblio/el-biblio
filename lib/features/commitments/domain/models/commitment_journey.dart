@@ -9,7 +9,7 @@ enum CommitmentSource { remote, remoteCache, offlineFallback }
 /// Duration options for commitment journeys.
 enum CommitmentDuration {
   seed3Day(3, '3-Day Seed', 'Begin something new with God'),
-  path10Day(10, '10-Day Path', 'Establish a rhythm of growth'),
+  path10Day(10, '10-Day Path', 'Build faithfulness with grace'),
   journey40Day(40, '40-Day Journey', 'Deep transformation');
 
   final int days;
@@ -192,18 +192,23 @@ class CommitmentJourney {
         orElse: () => CommitmentDuration.journey40Day,
       ),
       virtueAlignment: json['virtueAlignment'] as String,
-      milestones: (json['milestones'] as List<dynamic>?)
-              ?.map((m) => CommitmentMilestone.fromJson(m as Map<String, dynamic>))
+      milestones:
+          (json['milestones'] as List<dynamic>?)
+              ?.map(
+                (m) => CommitmentMilestone.fromJson(m as Map<String, dynamic>),
+              )
               .toList() ??
           const [],
-      struggleTags: (json['struggleTags'] as List<dynamic>?)
+      struggleTags:
+          (json['struggleTags'] as List<dynamic>?)
               ?.map((s) => s.toString())
               .toList() ??
           const [],
       category: CommitmentCategory.fromString(
         json['category'] as String? ?? 'growth',
       ),
-      tips: (json['tips'] as List<dynamic>?)?.map((t) => t.toString()).toList() ??
+      tips:
+          (json['tips'] as List<dynamic>?)?.map((t) => t.toString()).toList() ??
           const [],
       baseRequirement: json['baseRequirement'] as String?,
       encouragement: json['encouragement'] as String?,

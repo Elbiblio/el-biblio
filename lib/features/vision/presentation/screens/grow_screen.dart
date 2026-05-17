@@ -237,7 +237,7 @@ class _SpiritualAgeStory extends ConsumerWidget {
 
     return VisionPanel(
       icon: LucideIcons.sprout,
-      title: score > 0 ? 'Spiritual age: $stage' : 'Formation rhythm',
+      title: score > 0 ? 'Spiritual age: $stage' : 'Formation path',
       trailing: score > 0 ? Text('$score/100') : null,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -339,7 +339,7 @@ class _JourneyTimeline extends ConsumerWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Your milestones will appear as the rhythm becomes lived: compass, tribe, commitment, check-ins, reflections, and support.',
+                  'Your milestones will appear as you live the path: compass, tribe, commitment, check-ins, reflections, and support.',
                   style: theme.textTheme.bodyMedium?.copyWith(height: 1.45),
                 ),
                 const SizedBox(height: 12),
@@ -433,6 +433,7 @@ class _DailyQuestion extends ConsumerStatefulWidget {
 
 class _DailyQuestionState extends ConsumerState<_DailyQuestion> {
   final Map<int, TextEditingController> _answerControllers = {};
+  final Map<int, String> _selectedAnswers = {};
   final Set<int> _expandedQuestionIds = {};
 
   @override
@@ -476,7 +477,7 @@ class _DailyQuestionState extends ConsumerState<_DailyQuestion> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Answer one deeply, or move through the set slowly. The point is attention, not completion.',
+            'Choose the honest answer. Then take one faithful step with grace.',
             style: Theme.of(
               context,
             ).textTheme.bodyMedium?.copyWith(height: 1.42),
@@ -486,6 +487,12 @@ class _DailyQuestionState extends ConsumerState<_DailyQuestion> {
             _DailyQuestionCard(
               question: question,
               controller: _controllerFor(question.id, question.answer),
+              selectedAnswer: _selectedAnswers[question.id] ?? question.answer,
+              onSelectAnswer: (answer) {
+                setState(() {
+                  _selectedAnswers[question.id] = answer;
+                });
+              },
               expanded:
                   question.answeredToday ||
                   _expandedQuestionIds.contains(question.id),
@@ -499,10 +506,15 @@ class _DailyQuestionState extends ConsumerState<_DailyQuestion> {
                 });
               },
               onSave: () async {
+                final selectedAnswer =
+                    _selectedAnswers[question.id] ??
+                    (question.answerOptions.isNotEmpty
+                        ? ''
+                        : _controllerFor(question.id, question.answer).text);
                 final saved = await ref
                     .read(visionProvider.notifier)
                     .answerDailyQuestion(
-                      _controllerFor(question.id, question.answer).text,
+                      selectedAnswer,
                       selectedQuestion: question,
                     );
                 if (!context.mounted) return;
@@ -534,6 +546,8 @@ class _DailyQuestionCard extends StatelessWidget {
   const _DailyQuestionCard({
     required this.question,
     required this.controller,
+    required this.selectedAnswer,
+    required this.onSelectAnswer,
     required this.expanded,
     required this.onToggleGuide,
     required this.onSave,
@@ -541,6 +555,8 @@ class _DailyQuestionCard extends StatelessWidget {
 
   final DailyGrowthQuestion question;
   final TextEditingController controller;
+  final String? selectedAnswer;
+  final ValueChanged<String> onSelectAnswer;
   final bool expanded;
   final VoidCallback onToggleGuide;
   final Future<void> Function() onSave;
@@ -591,30 +607,45 @@ class _DailyQuestionCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 14),
-          Text(
-            'Write plainly. One honest sentence is enough.',
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: tokens.palette.textSecondary,
+          if (question.answerOptions.isNotEmpty)
+            _AnswerOptions(
+              options: question.answerOptions,
+              selectedAnswer: selectedAnswer,
+              enabled: !question.answeredToday,
+              onSelected: onSelectAnswer,
+            )
+          else ...[
+            Text(
+              'Write plainly. One honest sentence is enough.',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: tokens.palette.textSecondary,
+              ),
             ),
-          ),
-          const SizedBox(height: 8),
-          TextField(
-            controller: controller,
-            enabled: !question.answeredToday,
-            minLines: 2,
-            maxLines: 4,
-            decoration: const InputDecoration(
-              labelText: 'Your answer for today',
-              border: OutlineInputBorder(),
+            const SizedBox(height: 8),
+            TextField(
+              controller: controller,
+              enabled: !question.answeredToday,
+              minLines: 2,
+              maxLines: 4,
+              decoration: const InputDecoration(
+                labelText: 'Your answer for today',
+                border: OutlineInputBorder(),
+              ),
             ),
-          ),
+          ],
           const SizedBox(height: 10),
           Wrap(
             spacing: 8,
             runSpacing: 8,
             children: [
               FilledButton.tonalIcon(
-                onPressed: question.answeredToday ? null : onSave,
+                onPressed:
+                    question.answeredToday ||
+                        (question.answerOptions.isNotEmpty &&
+                            (selectedAnswer == null ||
+                                selectedAnswer!.trim().isEmpty))
+                    ? null
+                    : onSave,
                 icon: Icon(
                   question.answeredToday
                       ? LucideIcons.checkCircle
@@ -622,7 +653,11 @@ class _DailyQuestionCard extends StatelessWidget {
                   size: 18,
                 ),
                 label: Text(
-                  question.answeredToday ? 'Answered today' : 'Save answer',
+                  question.answeredToday
+                      ? 'Answered today'
+                      : question.answerOptions.isNotEmpty
+                      ? 'Save choice'
+                      : 'Save answer',
                 ),
               ),
               TextButton.icon(
@@ -635,19 +670,19 @@ class _DailyQuestionCard extends StatelessWidget {
           if (expanded) ...[
             const SizedBox(height: 18),
             _InsightSection(
-              title: 'Commentary',
+              title: 'What this means',
               body: question.conciseExplanation,
             ),
             _InsightSection(
-              title: 'Spiritual insight',
+              title: 'Why it matters',
               body: question.spiritualInsight,
             ),
             _InsightSection(
-              title: 'Daily living guide',
+              title: 'Try this today',
               body: question.dailyLivingGuide ?? question.practicalPerspective,
             ),
             _InsightSection(
-              title: 'Real-world context',
+              title: 'Where this shows up',
               body: question.realWorldContext,
             ),
             _ActionSteps(steps: question.actionSteps),
@@ -688,6 +723,93 @@ class _QuestionPill extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _AnswerOptions extends StatelessWidget {
+  const _AnswerOptions({
+    required this.options,
+    required this.selectedAnswer,
+    required this.enabled,
+    required this.onSelected,
+  });
+
+  final List<String> options;
+  final String? selectedAnswer;
+  final bool enabled;
+  final ValueChanged<String> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'What is true today?',
+          style: theme.textTheme.labelLarge?.copyWith(
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        const SizedBox(height: 8),
+        for (final option in options)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: InkWell(
+              onTap: enabled ? () => onSelected(option) : null,
+              borderRadius: BorderRadius.circular(8),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 160),
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 12,
+                ),
+                decoration: BoxDecoration(
+                  color: selectedAnswer == option
+                      ? theme.colorScheme.primaryContainer.withValues(
+                          alpha: 0.58,
+                        )
+                      : theme.colorScheme.surfaceContainerHighest.withValues(
+                          alpha: 0.38,
+                        ),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: selectedAnswer == option
+                        ? theme.colorScheme.primary
+                        : theme.colorScheme.outline.withValues(alpha: 0.2),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      selectedAnswer == option
+                          ? LucideIcons.checkCircle
+                          : LucideIcons.circle,
+                      size: 18,
+                      color: selectedAnswer == option
+                          ? theme.colorScheme.primary
+                          : theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        option,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          height: 1.3,
+                          fontWeight: selectedAnswer == option
+                              ? FontWeight.w700
+                              : FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+      ],
     );
   }
 }

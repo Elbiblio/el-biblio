@@ -17,8 +17,7 @@ class ChurchFinderScreen extends ConsumerStatefulWidget {
   const ChurchFinderScreen({super.key});
 
   @override
-  ConsumerState<ChurchFinderScreen> createState() =>
-      _ChurchFinderScreenState();
+  ConsumerState<ChurchFinderScreen> createState() => _ChurchFinderScreenState();
 }
 
 class _ChurchFinderScreenState extends ConsumerState<ChurchFinderScreen> {
@@ -47,8 +46,7 @@ class _ChurchFinderScreenState extends ConsumerState<ChurchFinderScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('Churches nearby')),
       body: RefreshIndicator(
-        onRefresh: () =>
-            ref.read(churchFinderProvider.notifier).loadNearby(),
+        onRefresh: () => ref.read(churchFinderProvider.notifier).loadNearby(),
         child: ListView(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           children: [
@@ -66,7 +64,7 @@ class _ChurchFinderScreenState extends ConsumerState<ChurchFinderScreen> {
               _PermissionBlock(
                 title: 'Location services are off',
                 body:
-                    'Turn location on in your device settings so we can look nearby.',
+                    'Turn location on in your device settings to see nearby churches.',
                 action: 'Open settings',
                 onTap: () => Geolocator.openLocationSettings(),
               )
@@ -91,17 +89,13 @@ class _ChurchFinderScreenState extends ConsumerState<ChurchFinderScreen> {
                     'No churches within 10 km. Pull to refresh or widen your search later.',
                     textAlign: TextAlign.center,
                     style: theme.textTheme.bodyMedium?.copyWith(
-                      color: theme.colorScheme.onSurface
-                          .withValues(alpha: 0.6),
+                      color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
                     ),
                   ),
                 )
               else
                 ...state.churches.map(
-                  (c) => _ChurchTile(
-                    church: c,
-                    onTap: () => _openInOsm(c),
-                  ),
+                  (c) => _ChurchTile(church: c, onTap: () => _openInOsm(c)),
                 ),
             ],
             const SizedBox(height: 64),
@@ -142,8 +136,7 @@ class _MiniMap extends StatelessWidget {
           ),
           children: [
             TileLayer(
-              urlTemplate:
-                  'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+              urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
               userAgentPackageName: 'com.elbiblio.app',
             ),
             MarkerLayer(
@@ -193,8 +186,8 @@ class _ChurchTile extends StatelessWidget {
     final distanceLabel = distance == null
         ? '—'
         : distance < 1
-            ? '${(distance * 1000).round()} m'
-            : '${distance.toStringAsFixed(distance < 10 ? 1 : 0)} km';
+        ? '${(distance * 1000).round()} m'
+        : '${distance.toStringAsFixed(distance < 10 ? 1 : 0)} km';
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
@@ -236,8 +229,9 @@ class _ChurchTile extends StatelessWidget {
                         Text(
                           church.address!,
                           style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSurface
-                                .withValues(alpha: 0.6),
+                            color: theme.colorScheme.onSurface.withValues(
+                              alpha: 0.6,
+                            ),
                           ),
                         ),
                       ],
@@ -258,8 +252,9 @@ class _ChurchTile extends StatelessWidget {
                       Text(
                         church.denomination!,
                         style: theme.textTheme.labelSmall?.copyWith(
-                          color: theme.colorScheme.onSurface
-                              .withValues(alpha: 0.5),
+                          color: theme.colorScheme.onSurface.withValues(
+                            alpha: 0.5,
+                          ),
                         ),
                       ),
                   ],
@@ -305,8 +300,11 @@ class _PermissionBlock extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 24),
       child: Column(
         children: [
-          Icon(Icons.location_on_outlined,
-              size: 40, color: theme.colorScheme.primary),
+          Icon(
+            Icons.location_on_outlined,
+            size: 40,
+            color: theme.colorScheme.primary,
+          ),
           const SizedBox(height: 12),
           Text(
             title,

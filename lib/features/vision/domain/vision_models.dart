@@ -393,6 +393,7 @@ class DailyGrowthQuestion {
     this.dailyLivingGuide,
     this.actionSteps = const [],
     this.scriptureRefs = const [],
+    this.answerOptions = const [],
     this.packQuestions = const [],
     this.category,
     this.position,
@@ -409,6 +410,7 @@ class DailyGrowthQuestion {
   final String? dailyLivingGuide;
   final List<DailyFaithActionStep> actionSteps;
   final List<String> scriptureRefs;
+  final List<String> answerOptions;
   final List<DailyGrowthQuestion> packQuestions;
   final String? category;
   final int? position;
@@ -436,6 +438,12 @@ class DailyGrowthQuestion {
       scriptureRefs: (json['scripture_refs'] as List<dynamic>? ?? const [])
           .map((item) => item.toString())
           .toList(),
+      answerOptions:
+          ((json['answer_options'] ?? json['quiz_options']) as List<dynamic>? ??
+                  const [])
+              .map((item) => item.toString().trim())
+              .where((item) => item.isNotEmpty)
+              .toList(),
       packQuestions: packRaw is List
           ? packRaw
                 .whereType<Map>()
@@ -468,6 +476,7 @@ class DailyGrowthQuestion {
       dailyLivingGuide: dailyLivingGuide,
       actionSteps: actionSteps,
       scriptureRefs: scriptureRefs,
+      answerOptions: answerOptions,
       packQuestions: packQuestions ?? this.packQuestions,
       category: category,
       position: position,

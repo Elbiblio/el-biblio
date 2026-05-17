@@ -92,7 +92,7 @@ class _TheSolutionViewState extends State<TheSolutionView>
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 24),
                     child: Text(
-                      'A quieter rhythm\nfor real growth.',
+                      'A quieter path\nfor faithful growth.',
                       textAlign: TextAlign.center,
                       style: textTheme.headlineMedium?.copyWith(
                         fontWeight: FontWeight.w700,

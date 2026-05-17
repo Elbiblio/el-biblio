@@ -40,7 +40,7 @@ class ActionableIntelligence {
     required TimeContext timeContext,
   }) {
     final mood = moodType ?? MoodType.neutral;
-    
+
     // Spiritual mood actions - flow from spirit, not work
     final spiritualActions = {
       MoodType.peaceful: {
@@ -225,15 +225,15 @@ class ActionableIntelligence {
       },
     };
 
-    return spiritualActions[mood]?[timeContext] ?? 
-           spiritualActions[MoodType.neutral]?[timeContext] ??
-           const ActionableAction(
-             title: 'Take a moment for presence',
-             description: 'Pause and breathe, noticing God\'s presence',
-             timeRequired: 60,
-             context: 'Right now',
-             canDoNow: true,
-           );
+    return spiritualActions[mood]?[timeContext] ??
+        spiritualActions[MoodType.neutral]?[timeContext] ??
+        const ActionableAction(
+          title: 'Take a moment for presence',
+          description: 'Pause, pray, and notice God\'s presence',
+          timeRequired: 60,
+          context: 'Right now',
+          canDoNow: true,
+        );
   }
 
   static List<UpcomingAction> getUpcomingActions({
@@ -243,7 +243,7 @@ class ActionableIntelligence {
     String? journalTime,
   }) {
     final upcoming = <UpcomingAction>[];
-    
+
     // Define standard time slots based on current time context
     final timeSlots = switch (currentTimeContext) {
       TimeContext.morning => [
@@ -258,17 +258,17 @@ class ActionableIntelligence {
       TimeContext.evening => [
         TimeSlot(journalTime ?? '9:00 PM', 'Evening Reflection'),
       ],
-      TimeContext.night => [
-        const TimeSlot('7:30 AM', 'Tomorrow Morning'),
-      ],
+      TimeContext.night => [const TimeSlot('7:30 AM', 'Tomorrow Morning')],
     };
 
     for (final slot in timeSlots) {
-      upcoming.add(UpcomingAction(
-        time: slot.time,
-        context: slot.context,
-        action: _getUpcomingActionForTime(virtueType, moodType, slot),
-      ));
+      upcoming.add(
+        UpcomingAction(
+          time: slot.time,
+          context: slot.context,
+          action: _getUpcomingActionForTime(virtueType, moodType, slot),
+        ),
+      );
     }
 
     return upcoming;
@@ -280,7 +280,7 @@ class ActionableIntelligence {
     TimeSlot timeSlot,
   ) {
     final mood = moodType ?? MoodType.neutral;
-    
+
     return switch (timeSlot.context) {
       'Lunch Break' => switch (mood) {
         MoodType.peaceful => 'Quick gratitude prayer',
@@ -321,7 +321,7 @@ class ActionableIntelligence {
 
 class TimeSlot {
   const TimeSlot(this.time, this.context);
-  
+
   final String time;
   final String context;
 }

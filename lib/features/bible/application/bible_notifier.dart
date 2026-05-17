@@ -41,13 +41,13 @@ class BibleState {
   final List<BibleVerseContent> verses;
   final bool isLoading;
   final String? error;
-  
+
   final BibleInsight? insight;
   final bool isInsightLoading;
-  
+
   final String? downloadingVersionId;
   final double downloadProgress;
-  
+
   final List<BibleVerseContent> searchResults;
   final bool isSearching;
   final double fontSize;
@@ -110,9 +110,13 @@ class BibleState {
 
 class BibleNotifier extends StateNotifier<BibleState> {
   static final _logger = Logger();
-  
-  BibleNotifier(this._repository, this._settingsStorage, this._readingNotifier, {double initialFontSize = 16.0}) 
-      : super(BibleState(fontSize: initialFontSize)) {
+
+  BibleNotifier(
+    this._repository,
+    this._settingsStorage,
+    this._readingNotifier, {
+    double initialFontSize = 16.0,
+  }) : super(BibleState(fontSize: initialFontSize)) {
     loadInitialData();
   }
 
@@ -130,7 +134,7 @@ class BibleNotifier extends StateNotifier<BibleState> {
     try {
       // Load books first (offline operation)
       final books = await _repository.getBooks();
-      
+
       // Try to load versions with network fallback
       List<BibleVersion> versions = [];
       try {
@@ -140,9 +144,11 @@ class BibleNotifier extends StateNotifier<BibleState> {
         _logger.w('Network failed for versions, using offline fallback: $e');
         versions = _getOfflineVersions();
       }
-      
+
       // Add local RV version if not present
-      final hasLocalRV = versions.any((v) => v.tableName == 'eng_rv_vpl' || v.abbreviation == 'RV');
+      final hasLocalRV = versions.any(
+        (v) => v.tableName == 'eng_rv_vpl' || v.abbreviation == 'RV',
+      );
       if (!hasLocalRV) {
         const localRV = BibleVersion(
           abbreviation: 'RV',
@@ -153,7 +159,7 @@ class BibleNotifier extends StateNotifier<BibleState> {
         );
         versions.add(localRV);
       }
-      
+
       BibleVersion? initialVersion;
       if (versions.isNotEmpty) {
         // First try to find a version that matches our local database
@@ -162,17 +168,16 @@ class BibleNotifier extends StateNotifier<BibleState> {
           orElse: () => versions.first,
         );
       }
-      
+
       state = state.copyWith(
         books: books,
         availableVersions: versions,
         currentVersion: initialVersion,
         isLoading: false,
       );
-      
+
       // Restore last reading location after initial data is loaded
       await _restoreLastReadingLocation(books);
-      
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString());
     }
@@ -181,41 +186,43 @@ class BibleNotifier extends StateNotifier<BibleState> {
   Future<void> _restoreLastReadingLocation(List<BibleBook> books) async {
     try {
       // Get the most recent reading location from BibleReadingNotifier
-      if (_readingNotifier != null && _readingNotifier.state.history.isNotEmpty) {
+      if (_readingNotifier != null &&
+          _readingNotifier.state.history.isNotEmpty) {
         final lastActivity = _readingNotifier.state.history.first;
         final metadata = lastActivity.metadata;
-        
+
         final bookName = metadata?['book']?.toString();
         final chapter = _parseInt(metadata?['chapter']);
-        
+
         if (bookName != null && chapter != null && chapter > 0) {
           // Find the book by name or abbreviation
           BibleBook? targetBook;
           try {
             targetBook = books.firstWhere(
-              (book) => book.name.toLowerCase() == bookName.toLowerCase() ||
-                        book.abbreviation.toLowerCase() == bookName.toLowerCase(),
+              (book) =>
+                  book.name.toLowerCase() == bookName.toLowerCase() ||
+                  book.abbreviation.toLowerCase() == bookName.toLowerCase(),
             );
           } catch (e) {
             _logger.w('Book "$bookName" not found in available books: $e');
           }
-          
+
           if (targetBook != null) {
             _logger.i('Restoring last reading location: $bookName $chapter');
-            
+
             // Restore the book and chapter
             state = state.copyWith(
               currentBook: targetBook,
               currentChapter: chapter,
             );
-            
+
             // Load verses for the restored location
             await loadVerses();
             return;
           }
         }
       }
-      
+
       // Fallback: select Matthew (first NT book) or Genesis as fallback
       if (state.currentBook == null && books.isNotEmpty) {
         final ntBooks = books.where((book) => book.testament == 'NT').toList();
@@ -227,7 +234,7 @@ class BibleNotifier extends StateNotifier<BibleState> {
       }
     } catch (e) {
       _logger.w('Failed to restore last reading location: $e');
-      
+
       // Ensure we have at least some book selected
       if (state.currentBook == null && books.isNotEmpty) {
         await selectBook(books.first);
@@ -257,14 +264,14 @@ class BibleNotifier extends StateNotifier<BibleState> {
   }
 
   Future<void> selectBook(BibleBook book) async {
-    if (state.currentBook?.abbreviation == book.abbreviation && state.verses.isNotEmpty && state.error == null) return;
+    if (state.currentBook?.abbreviation == book.abbreviation &&
+        state.verses.isNotEmpty &&
+        state.error == null) {
+      return;
+    }
 
-    state = state.copyWith(
-      currentBook: book,
-      currentChapter: 1,
-      verses: [],
-    );
-    
+    state = state.copyWith(currentBook: book, currentChapter: 1, verses: []);
+
     // Track reading location when book changes
     if (_readingNotifier != null) {
       _readingNotifier.trackReadingLocation(
@@ -273,18 +280,19 @@ class BibleNotifier extends StateNotifier<BibleState> {
         testament: book.testament,
       );
     }
-    
+
     await loadVerses();
   }
 
   Future<void> selectChapter(int chapter) async {
-    if (state.currentChapter == chapter && state.verses.isNotEmpty && state.error == null) return;
+    if (state.currentChapter == chapter &&
+        state.verses.isNotEmpty &&
+        state.error == null) {
+      return;
+    }
 
-    state = state.copyWith(
-      currentChapter: chapter,
-      verses: [],
-    );
-    
+    state = state.copyWith(currentChapter: chapter, verses: []);
+
     // Track reading location when chapter changes
     if (state.currentBook != null && _readingNotifier != null) {
       _readingNotifier.trackReadingLocation(
@@ -293,29 +301,28 @@ class BibleNotifier extends StateNotifier<BibleState> {
         testament: state.currentBook!.testament,
       );
     }
-    
+
     await loadVerses();
   }
 
   Future<void> selectVersion(BibleVersion version) async {
     if (state.currentVersion?.abbreviation == version.abbreviation) return;
-    
-    state = state.copyWith(
-      currentVersion: version,
-      verses: [],
-    );
+
+    state = state.copyWith(currentVersion: version, verses: []);
     await loadVerses();
   }
 
   Future<void> nextChapter() async {
     if (state.currentBook == null) return;
-    
+
     final maxChapters = state.currentBook?.chapters ?? 50;
-    
+
     if (state.currentChapter < maxChapters) {
       await selectChapter(state.currentChapter + 1);
     } else {
-      final currentIndex = state.books.indexWhere((b) => b.abbreviation == state.currentBook?.abbreviation);
+      final currentIndex = state.books.indexWhere(
+        (b) => b.abbreviation == state.currentBook?.abbreviation,
+      );
       if (currentIndex != -1 && currentIndex < state.books.length - 1) {
         await selectBook(state.books[currentIndex + 1]);
       }
@@ -327,7 +334,9 @@ class BibleNotifier extends StateNotifier<BibleState> {
       await selectChapter(state.currentChapter - 1);
     } else {
       if (state.currentBook == null) return;
-      final currentIndex = state.books.indexWhere((b) => b.abbreviation == state.currentBook?.abbreviation);
+      final currentIndex = state.books.indexWhere(
+        (b) => b.abbreviation == state.currentBook?.abbreviation,
+      );
       if (currentIndex > 0) {
         final prevBook = state.books[currentIndex - 1];
         state = state.copyWith(
@@ -343,7 +352,8 @@ class BibleNotifier extends StateNotifier<BibleState> {
   Future<void> loadVerses() async {
     if (state.currentBook == null || state.currentVersion == null) return;
 
-    final versionIdentifier = state.currentVersion!.tableName ?? state.currentVersion!.abbreviation;
+    final versionIdentifier =
+        state.currentVersion!.tableName ?? state.currentVersion!.abbreviation;
 
     state = state.copyWith(isLoading: true, error: null);
     try {
@@ -359,16 +369,17 @@ class BibleNotifier extends StateNotifier<BibleState> {
           );
         },
       );
-      
+
       if (verses.isEmpty) {
         // If no verses found, it might be a database issue - try to be helpful
-        final errorMessage = 'No verses found for ${state.currentBook!.name} ${state.currentChapter} in ${state.currentVersion!.name}. Try selecting a different book or version.';
+        final errorMessage =
+            'No verses found for ${state.currentBook!.name} ${state.currentChapter} in ${state.currentVersion!.name}. Try selecting a different book or version.';
         state = state.copyWith(
           verses: verses,
           isLoading: false,
           error: errorMessage,
         );
-        
+
         // Clear error after 8 seconds for no verses found
         Future.delayed(const Duration(seconds: 8), () {
           if (state.error == errorMessage) {
@@ -384,18 +395,24 @@ class BibleNotifier extends StateNotifier<BibleState> {
       }
     } catch (e) {
       String errorMessage = e.toString();
-      
+
       // Check if this is an auto-download related error
-      if (errorMessage.contains('auto-download failed') || errorMessage.contains('not found and no download')) {
-        errorMessage = 'Unable to download ${state.currentVersion?.name}. Please try downloading it manually from the versions list.';
-      } else if (errorMessage.contains('Failed to open database') || errorMessage.contains('Database integrity check failed')) {
-        errorMessage = 'Database issue with ${state.currentVersion?.name}. Try selecting a different version or restarting the app.';
+      if (errorMessage.contains('auto-download failed') ||
+          errorMessage.contains('not found and no download')) {
+        errorMessage =
+            'Unable to download ${state.currentVersion?.name}. Please try downloading it manually from the versions list.';
+      } else if (errorMessage.contains('Failed to open database') ||
+          errorMessage.contains('Database integrity check failed')) {
+        errorMessage =
+            'Database issue with ${state.currentVersion?.name}. Try another version or restart ElBiblio.';
       }
-      
+
       state = state.copyWith(isLoading: false, error: errorMessage);
-      
+
       // Clear error after 5 seconds for download errors
-      if (errorMessage.contains('download') || errorMessage.contains('Unable to download') || errorMessage.contains('Database issue')) {
+      if (errorMessage.contains('download') ||
+          errorMessage.contains('Unable to download') ||
+          errorMessage.contains('Database issue')) {
         Future.delayed(const Duration(seconds: 5), () {
           if (state.error == errorMessage) {
             state = state.copyWith(error: null);
@@ -407,7 +424,7 @@ class BibleNotifier extends StateNotifier<BibleState> {
 
   Future<void> downloadVersion(BibleVersion version) async {
     if (version.tableName == null) return;
-    
+
     state = state.copyWith(
       downloadingVersionId: version.abbreviation,
       downloadProgress: 0.0,
@@ -422,9 +439,7 @@ class BibleNotifier extends StateNotifier<BibleState> {
           downloadUrl: version.downloadUrl,
           onProgress: (received, total) {
             if (total != -1) {
-              state = state.copyWith(
-                downloadProgress: received / total,
-              );
+              state = state.copyWith(downloadProgress: received / total);
             }
           },
         );
@@ -433,14 +448,12 @@ class BibleNotifier extends StateNotifier<BibleState> {
           version.tableName!,
           onProgress: (received, total) {
             if (total != -1) {
-              state = state.copyWith(
-                downloadProgress: received / total,
-              );
+              state = state.copyWith(downloadProgress: received / total);
             }
           },
         );
       }
-      
+
       // Update available versions list to reflect downloaded status
       final updatedVersions = state.availableVersions.map((v) {
         if (v.abbreviation == version.abbreviation) {
@@ -448,37 +461,40 @@ class BibleNotifier extends StateNotifier<BibleState> {
         }
         return v;
       }).toList();
-      
+
       state = state.copyWith(
         availableVersions: updatedVersions,
         downloadingVersionId: null,
         downloadProgress: 0.0,
       );
-      
+
       // If this is the current version, reload verses to potentially switch to local DB (handled by repo logic)
       if (state.currentVersion?.abbreviation == version.abbreviation) {
         loadVerses();
       }
-      
     } catch (e) {
       // Provide user-friendly error messages
       String errorMessage = e.toString();
-      if (errorMessage.contains('empty') || errorMessage.contains('not found')) {
-        errorMessage = '${version.name} is not available for download at this time.';
-      } else if (errorMessage.contains('timeout') || errorMessage.contains('connection')) {
-        errorMessage = 'Network error. Please check your internet connection and try again.';
+      if (errorMessage.contains('empty') ||
+          errorMessage.contains('not found')) {
+        errorMessage =
+            '${version.name} is not available for download at this time.';
+      } else if (errorMessage.contains('timeout') ||
+          errorMessage.contains('connection')) {
+        errorMessage =
+            'Network error. Please check your internet connection and try again.';
       } else if (errorMessage.contains('404')) {
         errorMessage = '${version.name} is not available on the server.';
       } else {
         errorMessage = 'Failed to download ${version.name}: $errorMessage';
       }
-      
+
       state = state.copyWith(
         downloadingVersionId: null,
         downloadProgress: 0.0,
         error: errorMessage,
       );
-      
+
       // Clear error after 5 seconds
       Future.delayed(const Duration(seconds: 5), () {
         if (state.error == errorMessage) {
@@ -492,10 +508,7 @@ class BibleNotifier extends StateNotifier<BibleState> {
     state = state.copyWith(isInsightLoading: true, insight: null);
     try {
       final insight = await _repository.getVerseInsight(verseId);
-      state = state.copyWith(
-        insight: insight,
-        isInsightLoading: false,
-      );
+      state = state.copyWith(insight: insight, isInsightLoading: false);
     } catch (e) {
       state = state.copyWith(
         error: 'Failed to get insight: $e',
@@ -503,33 +516,27 @@ class BibleNotifier extends StateNotifier<BibleState> {
       );
     }
   }
-  
+
   void clearInsight() {
     state = state.copyWith(insight: null);
   }
 
   Future<void> search(String query) async {
     if (query.isEmpty || state.currentVersion == null) return;
-    
+
     state = state.copyWith(isSearching: true, searchResults: []);
-    
+
     try {
       final results = await _repository.searchVerses(
         state.currentVersion!.tableName ?? state.currentVersion!.abbreviation,
         query,
       );
-      state = state.copyWith(
-        isSearching: false,
-        searchResults: results,
-      );
+      state = state.copyWith(isSearching: false, searchResults: results);
     } catch (e) {
-      state = state.copyWith(
-        isSearching: false,
-        error: 'Search failed: $e',
-      );
+      state = state.copyWith(isSearching: false, error: 'Search failed: $e');
     }
   }
-  
+
   void clearSearch() {
     state = state.copyWith(searchResults: []);
   }
@@ -553,7 +560,10 @@ class BibleNotifier extends StateNotifier<BibleState> {
         }
         return v;
       }).toList();
-      state = state.copyWith(verses: revertedVerses, error: 'Failed to highlight: $e');
+      state = state.copyWith(
+        verses: revertedVerses,
+        error: 'Failed to highlight: $e',
+      );
     });
   }
 
@@ -576,24 +586,24 @@ class BibleNotifier extends StateNotifier<BibleState> {
         }
         return v;
       }).toList();
-      state = state.copyWith(verses: revertedVerses, error: 'Failed to bookmark: $e');
+      state = state.copyWith(
+        verses: revertedVerses,
+        error: 'Failed to bookmark: $e',
+      );
     });
   }
 
   Future<void> compareVerses(String reference) async {
     if (state.currentVersion == null) return;
-    
+
     state = state.copyWith(isComparing: true, comparisonResults: []);
-    
+
     try {
       final results = await _repository.compareVerses(
         state.currentVersion!.tableName ?? state.currentVersion!.abbreviation,
         reference,
       );
-      state = state.copyWith(
-        isComparing: false,
-        comparisonResults: results,
-      );
+      state = state.copyWith(isComparing: false, comparisonResults: results);
     } catch (e) {
       state = state.copyWith(
         isComparing: false,
@@ -606,7 +616,11 @@ class BibleNotifier extends StateNotifier<BibleState> {
     state = state.copyWith(comparisonResults: []);
   }
 
-  Future<void> navigateToSpecificVerse(String bookName, int chapter, int verseNumber) async {
+  Future<void> navigateToSpecificVerse(
+    String bookName,
+    int chapter,
+    int verseNumber,
+  ) async {
     // Find the book by name
     final targetBook = state.books.firstWhere(
       (book) => book.name.toLowerCase() == bookName.toLowerCase(),
@@ -638,15 +652,21 @@ class BibleNotifier extends StateNotifier<BibleState> {
     state = state.copyWith(highlightedVerseId: verseNumber);
   }
 
-  Future<void> scrollToVerse(String bookName, int chapter, [int? verseNumber]) async {
-    _logger.i('Navigating to: $bookName $chapter${verseNumber != null ? ':$verseNumber' : ''}');
-    
+  Future<void> scrollToVerse(
+    String bookName,
+    int chapter, [
+    int? verseNumber,
+  ]) async {
+    _logger.i(
+      'Navigating to: $bookName $chapter${verseNumber != null ? ':$verseNumber' : ''}',
+    );
+
     // Ensure books are loaded before trying to navigate
     if (state.books.isEmpty) {
       _logger.w('Books not loaded yet, loading initial data first');
       await loadInitialData();
     }
-    
+
     // Find the book by name
     BibleBook? targetBook;
     try {
@@ -662,16 +682,19 @@ class BibleNotifier extends StateNotifier<BibleState> {
         _logger.i('Found book by abbreviation: ${targetBook.name}');
       } catch (e) {
         _logger.w('Book "$bookName" not found, trying to find closest match');
-        
+
         // Try to find a book that contains the bookName as substring
         try {
           targetBook = state.books.firstWhere(
-            (book) => book.name.toLowerCase().contains(bookName.toLowerCase()) ||
-                      bookName.toLowerCase().contains(book.name.toLowerCase()),
+            (book) =>
+                book.name.toLowerCase().contains(bookName.toLowerCase()) ||
+                bookName.toLowerCase().contains(book.name.toLowerCase()),
           );
           _logger.i('Found book by substring match: ${targetBook.name}');
         } catch (e) {
-          _logger.w('No match found for "$bookName", using first available book');
+          _logger.w(
+            'No match found for "$bookName", using first available book',
+          );
           if (state.books.isNotEmpty) {
             targetBook = state.books.first;
             _logger.i('Using fallback book: ${targetBook.name}');
@@ -753,7 +776,7 @@ class BibleNotifier extends StateNotifier<BibleState> {
       updatedNotes[verseId] = note;
     }
     state = state.copyWith(verseNotes: updatedNotes);
-    
+
     // Persist to API
     try {
       await _repository.saveVerseNote(verseId, note);
@@ -773,7 +796,7 @@ class BibleNotifier extends StateNotifier<BibleState> {
 
   Future<void> toggleLikeVerse(int verseId) async {
     final isLiked = isVerseLiked(verseId);
-    
+
     try {
       if (isLiked) {
         // Unlike the verse
@@ -782,7 +805,7 @@ class BibleNotifier extends StateNotifier<BibleState> {
           // If unlike failed, keep it as liked
           return;
         }
-        
+
         final updatedLikes = Set<int>.from(state.likedVerses)..remove(verseId);
         state = state.copyWith(likedVerses: updatedLikes);
       } else {
@@ -792,7 +815,7 @@ class BibleNotifier extends StateNotifier<BibleState> {
           // If like failed, keep it as unliked
           return;
         }
-        
+
         final updatedLikes = Set<int>.from(state.likedVerses)..add(verseId);
         state = state.copyWith(likedVerses: updatedLikes);
       }
@@ -802,9 +825,17 @@ class BibleNotifier extends StateNotifier<BibleState> {
     }
   }
 
-  Future<Map<String, dynamic>?> shareVerse(int verseId, {String? platform, String? message}) async {
+  Future<Map<String, dynamic>?> shareVerse(
+    int verseId, {
+    String? platform,
+    String? message,
+  }) async {
     try {
-      final result = await _repository.shareVerse(verseId, platform: platform, message: message);
+      final result = await _repository.shareVerse(
+        verseId,
+        platform: platform,
+        message: message,
+      );
       return result;
     } catch (e) {
       // Handle error silently or show error message
@@ -812,4 +843,3 @@ class BibleNotifier extends StateNotifier<BibleState> {
     }
   }
 }
-

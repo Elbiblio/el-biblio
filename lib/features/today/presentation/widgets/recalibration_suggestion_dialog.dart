@@ -16,7 +16,9 @@ class RecalibrationSuggestionDialog {
         final theme = Theme.of(context);
 
         return Dialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
           child: Padding(
             padding: const EdgeInsets.all(20),
             child: Column(
@@ -29,7 +31,9 @@ class RecalibrationSuggestionDialog {
                       padding: const EdgeInsets.all(10),
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        color: theme.colorScheme.primaryContainer.withValues(alpha: 0.5),
+                        color: theme.colorScheme.primaryContainer.withValues(
+                          alpha: 0.5,
+                        ),
                       ),
                       child: Icon(
                         Icons.tune_rounded,
@@ -39,7 +43,7 @@ class RecalibrationSuggestionDialog {
                     const SizedBox(width: 12),
                     Expanded(
                       child: Text(
-                        'Reset your rhythm',
+                        'Begin again with grace',
                         style: theme.textTheme.titleLarge?.copyWith(
                           fontWeight: FontWeight.w700,
                         ),
@@ -54,8 +58,8 @@ class RecalibrationSuggestionDialog {
                 const SizedBox(height: 12),
                 Text(
                   missedDays == 1
-                      ? 'You\'ve had a break from your rhythm. No worries — want to adjust your reminders?'
-                      : 'You\'ve had a $missedDays-day break. Life happens. Want help finding a rhythm that works better?',
+                      ? 'You missed a day. Receive grace, then choose a reminder you can keep.'
+                      : 'You\'ve had a $missedDays-day break. Receive grace, then choose a simpler way to return.',
                   style: theme.textTheme.bodyMedium?.copyWith(
                     color: theme.colorScheme.onSurface.withValues(alpha: 0.8),
                     height: 1.35,
@@ -67,7 +71,10 @@ class RecalibrationSuggestionDialog {
                     Navigator.of(context).pop();
                     context.push(AppRoutes.reminders);
                   },
-                  icon: const Icon(Icons.notifications_active_outlined, size: 18),
+                  icon: const Icon(
+                    Icons.notifications_active_outlined,
+                    size: 18,
+                  ),
                   label: const Text('Adjust reminders'),
                 ),
                 const SizedBox(height: 10),

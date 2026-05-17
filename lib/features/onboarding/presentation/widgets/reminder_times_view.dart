@@ -25,8 +25,7 @@ class ReminderTimesView extends ConsumerStatefulWidget {
   final bool baselineStrong;
 
   @override
-  ConsumerState<ReminderTimesView> createState() =>
-      _ReminderTimesViewState();
+  ConsumerState<ReminderTimesView> createState() => _ReminderTimesViewState();
 }
 
 class _ReminderTimesViewState extends ConsumerState<ReminderTimesView> {
@@ -104,7 +103,7 @@ class _ReminderTimesViewState extends ConsumerState<ReminderTimesView> {
           ),
           const SizedBox(height: 8),
           Text(
-            'Two gentle nudges a day — morning and evening — plus your partner check-in. Pick what fits your real life.',
+            'Two gentle reminders a day - morning and evening - plus your partner check-in. Choose what you can keep.',
             style: theme.textTheme.bodyMedium?.copyWith(
               color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
               height: 1.5,
@@ -157,7 +156,7 @@ class _ReminderTimesViewState extends ConsumerState<ReminderTimesView> {
                   label: 'Weekly',
                   sublabel: widget.baselineStrong
                       ? 'Fridays at 7pm'
-                      : 'Recommended once your daily rhythm is strong',
+                      : 'Recommended once your daily practice is steady',
                   dim: !widget.baselineStrong,
                 ),
               ),
@@ -225,12 +224,12 @@ class _ReminderTimesViewState extends ConsumerState<ReminderTimesView> {
                     style: theme.textTheme.bodyMedium?.copyWith(
                       color: enabled
                           ? theme.colorScheme.primary
-                          : theme.colorScheme.onSurface
-                              .withValues(alpha: 0.35),
+                          : theme.colorScheme.onSurface.withValues(alpha: 0.35),
                       fontWeight: FontWeight.w500,
                       decoration: enabled ? TextDecoration.underline : null,
-                      decorationColor: theme.colorScheme.primary
-                          .withValues(alpha: 0.4),
+                      decorationColor: theme.colorScheme.primary.withValues(
+                        alpha: 0.4,
+                      ),
                     ),
                   ),
                 ),

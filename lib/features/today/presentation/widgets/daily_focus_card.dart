@@ -11,7 +11,7 @@ import 'contextual_help_button.dart';
 import 'today_journey_timeline.dart';
 
 /// A unified card showing identity, daily journey progress, and current commitment.
-/// 
+///
 /// Separates identity (who you are) from daily progress (what you do today)
 /// to reduce cognitive load and make the daily journey crystal clear.
 class DailyFocusCard extends ConsumerWidget {
@@ -87,8 +87,9 @@ class DailyFocusCard extends ConsumerWidget {
                 const SizedBox(width: 8),
                 const ContextualHelpButton(
                   title: 'Your Calling',
-                  explanation: 'Your archetype reflects how God designed you to serve. '
-                      'It shapes your daily practices and helps you grow in your unique purpose.',
+                  explanation:
+                      'Your archetype reflects how God designed you to serve. '
+                      'Let it shape today\'s practice and the purpose you are growing into.',
                 ),
               ],
             ),
@@ -99,47 +100,56 @@ class DailyFocusCard extends ConsumerWidget {
               child: GestureDetector(
                 onTap: () => context.push(AppRoutes.callingProfile),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
                   decoration: BoxDecoration(
-                    color: theme.colorScheme.primary.withValues(alpha: isDark ? 0.15 : 0.08),
+                    color: theme.colorScheme.primary.withValues(
+                      alpha: isDark ? 0.15 : 0.08,
+                    ),
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
-                      color: theme.colorScheme.primary.withValues(alpha: isDark ? 0.25 : 0.15),
-                    ),
-                  ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            archetypeName,
-                            style: theme.textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.w700,
-                              color: theme.colorScheme.primary,
-                            ),
-                          ),
-                          if (category != null) ...[
-                            const SizedBox(height: 2),
-                            Text(
-                              'Focus: ${category.label}',
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
-                              ),
-                            ),
-                          ],
-                        ],
+                      color: theme.colorScheme.primary.withValues(
+                        alpha: isDark ? 0.25 : 0.15,
                       ),
                     ),
-                    Icon(
-                      Icons.chevron_right_rounded,
-                      color: theme.colorScheme.primary.withValues(alpha: 0.5),
-                    ),
-                  ],
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              archetypeName,
+                              style: theme.textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.w700,
+                                color: theme.colorScheme.primary,
+                              ),
+                            ),
+                            if (category != null) ...[
+                              const SizedBox(height: 2),
+                              Text(
+                                'Focus: ${category.label}',
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: theme.colorScheme.onSurface.withValues(
+                                    alpha: 0.6,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                      Icon(
+                        Icons.chevron_right_rounded,
+                        color: theme.colorScheme.primary.withValues(alpha: 0.5),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
             ),
             const SizedBox(height: 20),
           ],
@@ -153,80 +163,90 @@ class DailyFocusCard extends ConsumerWidget {
               if (callback != null) callback();
             },
           ),
-          
+
           const SizedBox(height: 16),
-          
+
           // Current Action Summary (when not all done)
           if (currentPhase >= 0) ...[
             Semantics(
               button: true,
               label: _getCurrentPhaseTitle(currentPhase),
               child: GestureDetector(
-              onTap: _getPhaseCallback(currentPhase),
-              child: Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      theme.colorScheme.primary.withValues(alpha: isDark ? 0.2 : 0.1),
-                      theme.colorScheme.primary.withValues(alpha: isDark ? 0.1 : 0.05),
-                    ],
-                  ),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                    color: theme.colorScheme.primary.withValues(alpha: isDark ? 0.3 : 0.2),
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 40,
-                      height: 40,
-                      decoration: BoxDecoration(
-                        color: theme.colorScheme.primary.withValues(alpha: 0.15),
-                        shape: BoxShape.circle,
+                onTap: _getPhaseCallback(currentPhase),
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        theme.colorScheme.primary.withValues(
+                          alpha: isDark ? 0.2 : 0.1,
+                        ),
+                        theme.colorScheme.primary.withValues(
+                          alpha: isDark ? 0.1 : 0.05,
+                        ),
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: theme.colorScheme.primary.withValues(
+                        alpha: isDark ? 0.3 : 0.2,
                       ),
-                      child: Icon(
-                        _getCurrentPhaseIcon(currentPhase),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.primary.withValues(
+                            alpha: 0.15,
+                          ),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          _getCurrentPhaseIcon(currentPhase),
+                          color: theme.colorScheme.primary,
+                          size: 20,
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              _getCurrentPhaseTitle(currentPhase),
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                fontWeight: FontWeight.w600,
+                                color: theme.colorScheme.onSurface,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              _getCurrentPhaseSubtitle(currentPhase, anchors),
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: theme.colorScheme.onSurface.withValues(
+                                  alpha: 0.6,
+                                ),
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
+                      ),
+                      Icon(
+                        Icons.arrow_forward_rounded,
                         color: theme.colorScheme.primary,
                         size: 20,
                       ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            _getCurrentPhaseTitle(currentPhase),
-                            style: theme.textTheme.bodyMedium?.copyWith(
-                              fontWeight: FontWeight.w600,
-                              color: theme.colorScheme.onSurface,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            _getCurrentPhaseSubtitle(currentPhase, anchors),
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ],
-                      ),
-                    ),
-                    Icon(
-                      Icons.arrow_forward_rounded,
-                      color: theme.colorScheme.primary,
-                      size: 20,
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
-            ),
             ),
           ],
 
@@ -235,10 +255,14 @@ class DailyFocusCard extends ConsumerWidget {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: tokens.palette.success.withValues(alpha: isDark ? 0.15 : 0.1),
+                color: tokens.palette.success.withValues(
+                  alpha: isDark ? 0.15 : 0.1,
+                ),
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(
-                  color: tokens.palette.success.withValues(alpha: isDark ? 0.3 : 0.2),
+                  color: tokens.palette.success.withValues(
+                    alpha: isDark ? 0.3 : 0.2,
+                  ),
                 ),
               ),
               child: Row(
@@ -272,7 +296,9 @@ class DailyFocusCard extends ConsumerWidget {
                         Text(
                           'Rest in God\'s presence. See your daily verse below.',
                           style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                            color: theme.colorScheme.onSurface.withValues(
+                              alpha: 0.6,
+                            ),
                           ),
                         ),
                       ],

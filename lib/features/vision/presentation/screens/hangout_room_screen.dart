@@ -239,7 +239,7 @@ class _HangoutRoomScreenState extends ConsumerState<HangoutRoomScreen> {
       SnackBar(
         content: Text(
           reported
-              ? 'Thanks. We will review this room.'
+              ? 'Thanks. This room is queued for review.'
               : 'We could not send the report. Please try again.',
         ),
       ),

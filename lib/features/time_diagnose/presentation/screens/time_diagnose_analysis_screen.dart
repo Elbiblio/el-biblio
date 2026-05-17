@@ -15,11 +15,15 @@ class TimeDiagnoseAnalysisScreen extends ConsumerWidget {
     // Basic logic to find dominant and lacking pillars
     var sortedAllocations = state.allocations.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
-    
+
     final dominantPillar = sortedAllocations.first.key;
-    const lackingPillar = TimePillar.spirit; // Could be dynamic, defaulting to Spirit for demo
-    
-    final dominantPercent = (state.allocations[dominantPillar]! / (24 * 60) * 100).toStringAsFixed(0);
+    const lackingPillar =
+        TimePillar.spirit; // Could be dynamic, defaulting to Spirit for demo
+
+    final dominantPercent =
+        (state.allocations[dominantPillar]! / (24 * 60) * 100).toStringAsFixed(
+          0,
+        );
 
     return Scaffold(
       backgroundColor: const Color(0xFFFDFCF7), // parchment
@@ -63,12 +67,12 @@ class TimeDiagnoseAnalysisScreen extends ConsumerWidget {
                 ],
               ),
             ),
-            
+
             // Description
             const Padding(
               padding: EdgeInsets.symmetric(horizontal: 24.0),
               child: Text(
-                'Analysis complete. Here is your tailored path to balance.',
+                'Here is a simple path toward faithfulness in this season.',
                 style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w300,
@@ -77,9 +81,9 @@ class TimeDiagnoseAnalysisScreen extends ConsumerWidget {
                 ),
               ),
             ),
-            
+
             const SizedBox(height: 24),
-            
+
             Expanded(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.symmetric(horizontal: 24.0),
@@ -94,10 +98,14 @@ class TimeDiagnoseAnalysisScreen extends ConsumerWidget {
                           margin: const EdgeInsets.only(top: 12),
                           padding: const EdgeInsets.all(24),
                           decoration: BoxDecoration(
-                            color: const Color(0xFF333D29).withValues(alpha:0.05),
+                            color: const Color(
+                              0xFF333D29,
+                            ).withValues(alpha: 0.05),
                             borderRadius: BorderRadius.circular(16),
                             border: Border.all(
-                              color: const Color(0xFF333D29).withValues(alpha:0.1),
+                              color: const Color(
+                                0xFF333D29,
+                              ).withValues(alpha: 0.1),
                             ),
                           ),
                           child: Row(
@@ -142,7 +150,10 @@ class TimeDiagnoseAnalysisScreen extends ConsumerWidget {
                                               color: dominantPillar.color,
                                             ),
                                           ),
-                                          TextSpan(text: ' slice is dominant ($dominantPercent%), leaving sparse room for '),
+                                          TextSpan(
+                                            text:
+                                                ' slice is dominant ($dominantPercent%), leaving sparse room for ',
+                                          ),
                                           TextSpan(
                                             text: lackingPillar.label,
                                             style: TextStyle(
@@ -150,7 +161,10 @@ class TimeDiagnoseAnalysisScreen extends ConsumerWidget {
                                               color: lackingPillar.color,
                                             ),
                                           ),
-                                          const TextSpan(text: '. This imbalance often leads to burnout and disconnection from purpose.'),
+                                          const TextSpan(
+                                            text:
+                                                '. This imbalance often leads to burnout and disconnection from purpose.',
+                                          ),
                                         ],
                                       ),
                                     ),
@@ -164,7 +178,10 @@ class TimeDiagnoseAnalysisScreen extends ConsumerWidget {
                           top: 0,
                           left: 24,
                           child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 2,
+                            ),
                             color: const Color(0xFFFDFCF7),
                             child: const Text(
                               'DIAGNOSIS',
@@ -179,9 +196,9 @@ class TimeDiagnoseAnalysisScreen extends ConsumerWidget {
                         ),
                       ],
                     ),
-                    
+
                     const SizedBox(height: 32),
-                    
+
                     const Padding(
                       padding: EdgeInsets.only(left: 4.0),
                       child: Text(
@@ -194,43 +211,45 @@ class TimeDiagnoseAnalysisScreen extends ConsumerWidget {
                         ),
                       ),
                     ),
-                    
+
                     const SizedBox(height: 16),
-                    
+
                     // Scripture Plan
                     const _PlanCard(
                       pillar: TimePillar.learning,
                       icon: Icons.menu_book,
                       duration: '15m Daily',
                       title: 'The Humility Path',
-                      description: 'A 4-week journey through Proverbs and Psalms to reground your professional ambition.',
+                      description:
+                          'A 4-week journey through Proverbs and Psalms to reground your professional ambition.',
                       primaryColor: Color(0xFF8D7B68),
                     ),
-                    
+
                     const SizedBox(height: 16),
-                    
+
                     // Contemplation Plan
                     const _PlanCard(
                       pillar: TimePillar.spirit,
                       icon: Icons.self_improvement,
                       duration: '10m Daily',
                       title: 'Silence & Solitude',
-                      description: 'Morning breath prayers designed to center your spirit before the workday begins.',
+                      description:
+                          'Morning breath prayers designed to center your spirit before the workday begins.',
                       primaryColor: Color(0xFFA4AC86),
                     ),
-                    
+
                     const SizedBox(height: 32),
                   ],
                 ),
               ),
             ),
-            
+
             // Bottom Action
             Container(
               padding: const EdgeInsets.symmetric(vertical: 24),
               decoration: BoxDecoration(
                 border: Border(
-                  top: BorderSide(color: Colors.black.withValues(alpha:0.06)),
+                  top: BorderSide(color: Colors.black.withValues(alpha: 0.06)),
                 ),
               ),
               child: Center(
@@ -279,19 +298,15 @@ class _PlanCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha:0.5),
+        color: Colors.white.withValues(alpha: 0.5),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.black.withValues(alpha:0.08)),
+        border: Border.all(color: Colors.black.withValues(alpha: 0.08)),
       ),
       clipBehavior: Clip.hardEdge,
       child: Column(
         children: [
           // Top accent line
-          Container(
-            height: 4,
-            width: double.infinity,
-            color: primaryColor,
-          ),
+          Container(height: 4, width: double.infinity, color: primaryColor),
           Padding(
             padding: const EdgeInsets.all(20.0),
             child: Column(
@@ -316,9 +331,12 @@ class _PlanCard extends StatelessWidget {
                       ],
                     ),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
                       decoration: BoxDecoration(
-                        color: primaryColor.withValues(alpha:0.1),
+                        color: primaryColor.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(4),
                       ),
                       child: Text(
@@ -357,7 +375,9 @@ class _PlanCard extends StatelessWidget {
                         onPressed: () {},
                         style: OutlinedButton.styleFrom(
                           foregroundColor: primaryColor,
-                          side: BorderSide(color: primaryColor.withValues(alpha:0.3)),
+                          side: BorderSide(
+                            color: primaryColor.withValues(alpha: 0.3),
+                          ),
                           padding: const EdgeInsets.symmetric(vertical: 12),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(8),
@@ -365,10 +385,7 @@ class _PlanCard extends StatelessWidget {
                         ),
                         child: const Text(
                           'PREVIEW',
-                          style: TextStyle(
-                            fontSize: 12,
-                            letterSpacing: 1,
-                          ),
+                          style: TextStyle(fontSize: 12, letterSpacing: 1),
                         ),
                       ),
                     ),

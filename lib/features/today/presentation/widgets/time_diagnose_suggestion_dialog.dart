@@ -10,11 +10,7 @@ class TimeDiagnoseSuggestionDialog {
       builder: (context) => AlertDialog(
         title: const Row(
           children: [
-            Icon(
-              Icons.schedule_rounded,
-              color: Color(0xFF7A8471),
-              size: 24,
-            ),
+            Icon(Icons.schedule_rounded, color: Color(0xFF7A8471), size: 24),
             SizedBox(width: 12),
             Text('Time Management Check-in'),
           ],
@@ -23,11 +19,8 @@ class TimeDiagnoseSuggestionDialog {
           mainAxisSize: MainAxisSize.min,
           children: [
             const Text(
-              'You\'ve taken a break from check-ins. Life happens. Would a quick time audit help you find a rhythm that works better?',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w500,
-              ),
+              'You\'ve taken a break from check-ins. Receive grace, then review your day and choose a simpler return.',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 24),
@@ -50,7 +43,7 @@ class TimeDiagnoseSuggestionDialog {
                   SizedBox(width: 12),
                   Expanded(
                     child: Text(
-                      'The Time Audit helps you analyze how you\'re spending your 24 hours.',
+                      'Look over your 24 hours and notice what needs prayer, patience, or a clearer boundary.',
                       style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w400,
