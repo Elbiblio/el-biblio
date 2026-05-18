@@ -1,10 +1,17 @@
 import 'package:elbiblio/core/application/settings_notifier.dart';
 import 'package:elbiblio/core/di/app_providers.dart';
 import 'package:elbiblio/core/errors/app_exception.dart';
+import 'package:elbiblio/core/network/dio_client.dart';
 import 'package:elbiblio/core/services/notifications/notification_service.dart';
 import 'package:elbiblio/core/storage/app_settings.dart';
+import 'package:elbiblio/features/auth/application/auth_notifier.dart';
+import 'package:elbiblio/features/auth/domain/models/auth_models.dart';
+import 'package:elbiblio/features/bible/domain/models/verse.dart';
+import 'package:elbiblio/features/vision/application/daily_verse_social_notifier.dart';
 import 'package:elbiblio/features/vision/application/vision_notifier.dart';
+import 'package:elbiblio/features/vision/data/daily_verse_social_repository.dart';
 import 'package:elbiblio/features/vision/data/vision_repository.dart';
+import 'package:elbiblio/features/vision/domain/daily_verse_social_models.dart';
 import 'package:elbiblio/features/vision/domain/vision_models.dart';
 import 'package:elbiblio/features/vision/presentation/screens/commit_screen.dart';
 import 'package:elbiblio/features/vision/presentation/screens/grow_screen.dart';
@@ -13,6 +20,7 @@ import 'package:elbiblio/features/vision/presentation/screens/tribe_screen.dart'
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:logger/logger.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -74,6 +82,47 @@ void main() {
       expect(find.text('How did today feel?'), findsNothing);
     });
 
+    testWidgets('Reflect leads with the daily community verse', (tester) async {
+      final repository = _FakeVisionRepository(
+        activeCommitment: _season(checkedInToday: true),
+      );
+
+      await tester.pumpVisionScreen(
+        const ReflectScreen(),
+        repository: repository,
+      );
+
+      expect(find.text('Community verse'), findsOneWidget);
+      expect(find.textContaining('Let all that you do'), findsOneWidget);
+
+      await tester.scrollUntilVisible(find.text('How did today feel?'), 180);
+      await tester.pumpAndSettle();
+
+      expect(find.text('How did today feel?'), findsOneWidget);
+    });
+
+    testWidgets('Daily community verse opens a response sheet', (tester) async {
+      final repository = _FakeVisionRepository(
+        activeCommitment: _season(checkedInToday: true),
+      );
+
+      await tester.pumpVisionScreen(
+        const ReflectScreen(),
+        repository: repository,
+      );
+
+      await tester.tap(find.text('Respond'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text('What is this verse inviting in you today?'),
+        findsOneWidget,
+      );
+      expect(find.text('Share response'), findsOneWidget);
+      expect(find.text('Today\'s responses'), findsOneWidget);
+      expect(find.text('Read'), findsOneWidget);
+    });
+
     testWidgets('Reflect check-in unlocks the composer in the same flow', (
       tester,
     ) async {
@@ -85,11 +134,14 @@ void main() {
         const ReflectScreen(),
         repository: repository,
       );
+      await tester.scrollUntilVisible(find.text('Check in for today'), 180);
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Check in for today'));
+      await tester.pumpAndSettle();
+      await tester.scrollUntilVisible(find.text('How did today feel?'), 180);
       await tester.pumpAndSettle();
 
       expect(repository.checkInCount, 1);
-      expect(find.text('Checked in today'), findsOneWidget);
       expect(find.text('How did today feel?'), findsOneWidget);
     });
 
@@ -108,13 +160,24 @@ void main() {
           const ReflectScreen(),
           repository: repository,
         );
-
         expect(find.text('Checked in today'), findsOneWidget);
         expect(find.text('One reflection'), findsOneWidget);
+
+        await tester.scrollUntilVisible(find.text('How did today feel?'), 180);
+        await tester.pumpAndSettle();
         expect(find.text('How did today feel?'), findsOneWidget);
         expect(find.text('Easy'), findsOneWidget);
         expect(find.text('Neutral'), findsOneWidget);
         expect(find.text('Hard'), findsOneWidget);
+
+        await tester.scrollUntilVisible(
+          find.text(
+            'No reflections yet. The feed grows one honest post at a time.',
+          ),
+          180,
+        );
+        await tester.pumpAndSettle();
+
         expect(find.text('Post reflection'), findsNothing);
         expect(
           find.text(
@@ -140,7 +203,7 @@ void main() {
         const ReflectScreen(),
         repository: repository,
       );
-      await tester.drag(find.byType(ListView), const Offset(0, -260));
+      await tester.scrollUntilVisible(find.text('Hard'), 180);
       await tester.pumpAndSettle();
 
       await tester.tap(find.text('Hard'));
@@ -151,8 +214,12 @@ void main() {
         '  I chose patience before replying.  ',
       );
       await tester.pumpAndSettle();
+      await tester.drag(find.byType(ListView), const Offset(0, -220));
+      await tester.pumpAndSettle();
+      final postButton = find.text('Post reflection').last;
+      expect(postButton, findsOneWidget);
 
-      await tester.tap(find.text('Post reflection'));
+      await tester.tap(postButton);
       await tester.pumpAndSettle();
 
       expect(
@@ -179,12 +246,18 @@ void main() {
         const ReflectScreen(),
         repository: repository,
       );
+      await tester.scrollUntilVisible(find.text('Easy'), 180);
+      await tester.pumpAndSettle();
 
       await tester.tap(find.text('Easy'));
       await tester.pumpAndSettle();
       await tester.enterText(find.byType(TextField).last, 'It felt possible.');
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Post reflection'));
+      await tester.drag(find.byType(ListView), const Offset(0, -220));
+      await tester.pumpAndSettle();
+      final postButton = find.text('Post reflection').last;
+      expect(postButton, findsOneWidget);
+      await tester.tap(postButton);
       await tester.pumpAndSettle();
 
       expect(find.text('Reflection shared'), findsOneWidget);
@@ -205,10 +278,15 @@ void main() {
         const ReflectScreen(),
         repository: repository,
       );
-
       expect(find.text('Shared today'), findsOneWidget);
+      await tester.scrollUntilVisible(find.text('Reflection shared'), 180);
+      await tester.pumpAndSettle();
       expect(find.text('Reflection shared'), findsOneWidget);
       expect(find.text('Your reflection for today is posted.'), findsOneWidget);
+
+      await tester.scrollUntilVisible(find.text(_reflection.alias), 180);
+      await tester.pumpAndSettle();
+
       expect(find.text(_reflection.alias), findsOneWidget);
       expect(find.text(_reflection.content), findsOneWidget);
       expect(find.text('Post reflection'), findsNothing);
@@ -581,6 +659,11 @@ extension on WidgetTester {
               ref.watch(notificationServiceProvider),
             ),
           ),
+          authProvider.overrideWith((ref) => _FakeAuthNotifier()),
+          dailyVerseSocialProvider.overrideWith(
+            (ref) =>
+                DailyVerseSocialNotifier(_FakeDailyVerseSocialRepository()),
+          ),
           settingsProvider.overrideWith(
             (ref) => _FakeSettingsNotifier(AppSettings.defaults()),
           ),
@@ -814,6 +897,42 @@ class _FakeVisionRepository implements VisionRepository {
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
+class _FakeAuthNotifier extends StateNotifier<AuthState>
+    implements AuthNotifier {
+  _FakeAuthNotifier()
+    : super(
+        const AuthState(
+          isInitialized: true,
+          isAuthenticated: true,
+          user: _authUser,
+          token: 'test-token',
+        ),
+      );
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class _FakeDailyVerseSocialRepository extends DailyVerseSocialRepository {
+  _FakeDailyVerseSocialRepository()
+    : super(_NoopDioClient(), Logger(level: Level.off));
+
+  @override
+  Future<Verse?> todayVerse() async => _dailyVerse;
+
+  @override
+  Future<List<DailyVerseReflection>> reflectionsForVerse(
+    int verseId, {
+    int perPage = 20,
+  }) async {
+    return const [];
+  }
+}
+
+class _NoopDioClient extends DioClient {
+  _NoopDioClient() : super(Logger(level: Level.off));
+}
+
 class _FakeSettingsNotifier extends StateNotifier<AppSettings>
     implements SettingsNotifier {
   _FakeSettingsNotifier(super.state);
@@ -879,6 +998,26 @@ const _dailyQuestion = DailyGrowthQuestion(
     'I can pray before deciding.',
     'I can ask for help.',
   ],
+);
+
+const _authUser = User(
+  id: '42',
+  email: 'quiet@example.com',
+  firstName: 'Quiet',
+  lastName: 'Walker',
+);
+
+final _dailyVerse = Verse(
+  id: 15,
+  text: 'Let all that you do be done in love.',
+  reference: '1 Corinthians 16:14',
+  referenceDisplay: '1 Corinthians 16:14',
+  translation: 'WEB',
+  book: '1 Corinthians',
+  chapter: 16,
+  verseNumber: 14,
+  createdAt: DateTime(2026, 5, 18, 8),
+  date: DateTime(2026, 5, 18),
 );
 
 CommitmentSeason _season({required bool checkedInToday}) {

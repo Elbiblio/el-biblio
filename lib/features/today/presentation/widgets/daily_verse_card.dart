@@ -1,19 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../../../core/di/app_providers.dart';
-import '../../../../core/constants/app_routes.dart';
 import '../../../../core/theme/app_theme_tokens.dart';
+import '../../../bible/presentation/helpers/verse_reader_navigation.dart';
 import '../../../../shared/widgets/light_rays_reveal.dart';
 import '../../../../shared/widgets/skeleton_loader.dart';
 
 class DailyVerseCard extends ConsumerWidget {
-  const DailyVerseCard({
-    super.key,
-    this.onReflect,
-    this.onShare,
-  });
+  const DailyVerseCard({super.key, this.onReflect, this.onShare});
 
   final VoidCallback? onReflect;
   final VoidCallback? onShare;
@@ -69,8 +64,12 @@ class DailyVerseCard extends ConsumerWidget {
       tokens.palette.primary.withValues(alpha: isDark ? 0.16 : 0.08),
       tokens.palette.paper,
     );
-    final verseBorder = tokens.palette.primary.withValues(alpha: isDark ? 0.35 : 0.24);
-    final verseReference = isDark ? tokens.palette.primaryLight : tokens.palette.primaryDark;
+    final verseBorder = tokens.palette.primary.withValues(
+      alpha: isDark ? 0.35 : 0.24,
+    );
+    final verseReference = isDark
+        ? tokens.palette.primaryLight
+        : tokens.palette.primaryDark;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 24.0),
@@ -93,7 +92,10 @@ class DailyVerseCard extends ConsumerWidget {
                 onTap: onShare,
                 borderRadius: BorderRadius.circular(4),
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 4,
+                    vertical: 2,
+                  ),
                   child: Text(
                     'Share',
                     style: Theme.of(context).textTheme.labelSmall?.copyWith(
@@ -112,30 +114,10 @@ class DailyVerseCard extends ConsumerWidget {
             decoration: BoxDecoration(
               color: verseBackground,
               borderRadius: BorderRadius.circular(24),
-              border: Border.all(
-                color: verseBorder,
-              ),
+              border: Border.all(color: verseBorder),
             ),
             child: InkWell(
-              onTap: () {
-                // Parse "John 3:16", "Psalm 23:1", "1 Corinthians 13:4",
-                // "Song of Solomon 2:1", or "John 3:16-17". Book name may
-                // include a leading numeral or multiple words.
-                final reference = dailyVerse.reference.trim();
-                final match = RegExp(
-                  r'^((?:\d\s+)?[A-Za-z]+(?:\s+[A-Za-z]+)*)\s+(\d+):(\d+)(?:-\d+)?$',
-                ).firstMatch(reference);
-                if (match != null) {
-                  final bookName = match.group(1)!;
-                  final chapter = int.tryParse(match.group(2)!);
-                  final verse = int.tryParse(match.group(3)!);
-                  if (chapter != null && verse != null) {
-                    context.push(
-                      '${AppRoutes.bibleReader}?book=$bookName&chapter=$chapter&verse=$verse',
-                    );
-                  }
-                }
-              },
+              onTap: () => openVerseInReader(context, dailyVerse),
               borderRadius: BorderRadius.circular(24),
               child: Column(
                 children: [
@@ -159,19 +141,16 @@ class DailyVerseCard extends ConsumerWidget {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(
-                        Icons.menu_book,
-                        size: 16,
-                        color: verseReference,
-                      ),
+                      Icon(Icons.menu_book, size: 16, color: verseReference),
                       const SizedBox(width: 4),
                       Text(
-                        dailyVerse.reference,
-                        style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                          color: verseReference,
-                        ),
+                        dailyVerse.displayReference,
+                        style: Theme.of(context).textTheme.labelMedium
+                            ?.copyWith(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              color: verseReference,
+                            ),
                       ),
                     ],
                   ),

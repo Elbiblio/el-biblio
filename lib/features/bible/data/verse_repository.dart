@@ -11,14 +11,6 @@ class VerseRepository extends BaseRepository {
 
   Future<List<Verse>> getDailyVerses() async {
     try {
-      final token = _client.currentAuthToken;
-
-      // For guest users, return empty list since verse API requires authentication
-      if (isGuestToken(token)) {
-        logger.w('Guest user detected, verse API not available');
-        return [];
-      }
-
       final response = await _client.get(
         '/verses/daily',
         queryParameters: {'include': 'theme', 'date_range': 'both'},

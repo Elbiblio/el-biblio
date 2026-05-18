@@ -39,7 +39,7 @@ void main() {
           child: const TheSolutionView(),
         );
 
-        expect(find.textContaining('A quieter rhythm'), findsOneWidget);
+        expect(find.textContaining('A quieter path'), findsOneWidget);
         expect(find.text('Spiritual compass'), findsOneWidget);
         expect(tester.takeException(), isNull);
       },

@@ -8,6 +8,7 @@ import '../../../../core/di/app_providers.dart';
 import '../../../../core/theme/app_theme_tokens.dart';
 import '../../../../shared/widgets/vision_illustration.dart';
 import '../../application/vision_state.dart';
+import '../widgets/daily_verse_social_card.dart';
 import '../widgets/reflection_feed_widgets.dart';
 import '../widgets/vision_panel.dart';
 
@@ -27,6 +28,7 @@ class _ReflectScreenState extends ConsumerState<ReflectScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       ref.read(visionProvider.notifier).load();
+      ref.read(dailyVerseSocialProvider.notifier).load();
     });
   }
 
@@ -55,12 +57,18 @@ class _ReflectScreenState extends ConsumerState<ReflectScreen> {
         child: SafeArea(
           bottom: false,
           child: RefreshIndicator(
-            onRefresh: () =>
+            onRefresh: () async {
+              await Future.wait([
                 ref.read(visionProvider.notifier).load(force: true),
+                ref.read(dailyVerseSocialProvider.notifier).refresh(),
+              ]);
+            },
             child: ListView(
               padding: const EdgeInsets.fromLTRB(20, 20, 20, 120),
               children: [
                 _ReflectHeader(state: state),
+                const SizedBox(height: 14),
+                const DailyVerseSocialCard(),
                 const SizedBox(height: 14),
                 if (state.error?.isNotEmpty == true) ...[
                   VisionPanel(

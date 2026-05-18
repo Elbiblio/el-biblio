@@ -37,6 +37,9 @@ import '../../features/mission/data/service_opportunity_repository.dart';
 import '../../features/mission/domain/models/service_opportunity.dart';
 import '../../features/vision/application/vision_notifier.dart';
 import '../../features/vision/application/vision_state.dart';
+import '../../features/vision/application/daily_verse_social_notifier.dart';
+import '../../features/vision/application/daily_verse_social_state.dart';
+import '../../features/vision/data/daily_verse_social_repository.dart';
 import '../../features/vision/data/vision_repository.dart';
 import '../../features/vision/domain/vision_models.dart';
 import '../../features/commitments/data/graduated_commitment_repository.dart';
@@ -256,6 +259,24 @@ final visionProvider = StateNotifierProvider<VisionNotifier, VisionState>((
         },
   );
 });
+
+final dailyVerseSocialRepositoryProvider = Provider<DailyVerseSocialRepository>(
+  (ref) {
+    return DailyVerseSocialRepository(
+      ref.watch(authenticatedDioClientProvider),
+      ref.watch(loggerProvider),
+    );
+  },
+);
+
+final dailyVerseSocialProvider =
+    StateNotifierProvider<DailyVerseSocialNotifier, DailyVerseSocialState>((
+      ref,
+    ) {
+      return DailyVerseSocialNotifier(
+        ref.watch(dailyVerseSocialRepositoryProvider),
+      );
+    });
 
 final settingsStorageProvider = Provider<SettingsStorage>((ref) {
   return const SettingsStorage();
