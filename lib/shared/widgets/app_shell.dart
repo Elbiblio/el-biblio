@@ -1,7 +1,8 @@
 import 'dart:ui';
+
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 
 import '../../core/constants/app_routes.dart';
@@ -36,6 +37,7 @@ class _FloatingBottomNav extends StatelessWidget {
     final location = GoRouterState.of(context).matchedLocation;
     final theme = Theme.of(context);
     final tokens = theme.tokens;
+    final palette = tokens.palette;
 
     // Hide nav on certain routes like onboarding or full-screen assessment
     if (location == AppRoutes.onboarding) {
@@ -43,11 +45,25 @@ class _FloatingBottomNav extends StatelessWidget {
     }
 
     final isDark = theme.brightness == Brightness.dark;
+    final shellFill = isDark
+        ? Color.alphaBlend(
+            palette.primary.withValues(alpha: 0.08),
+            theme.colorScheme.surface.withValues(alpha: 0.88),
+          )
+        : Color.alphaBlend(
+            palette.primaryLight.withValues(alpha: 0.07),
+            palette.paper.withValues(alpha: 0.92),
+          );
 
     return SafeArea(
       bottom: false,
       child: Padding(
-        padding: const EdgeInsets.only(bottom: 24.0, left: 20, right: 20),
+        padding: EdgeInsets.fromLTRB(
+          20,
+          0,
+          20,
+          18 + MediaQuery.paddingOf(context).bottom * 0.45,
+        ),
         child: Center(
           heightFactor: 1.0,
           child: ConstrainedBox(
@@ -67,12 +83,10 @@ class _FloatingBottomNav extends StatelessWidget {
                     vertical: 8,
                   ),
                   decoration: BoxDecoration(
-                    color: isDark
-                        ? theme.colorScheme.surface.withValues(alpha: 0.82)
-                        : tokens.palette.paper.withValues(alpha: 0.9),
+                    color: shellFill,
                     borderRadius: BorderRadius.circular(999),
                     border: Border.all(
-                      color: tokens.palette.border.withValues(
+                      color: palette.border.withValues(
                         alpha: isDark ? 0.7 : 0.85,
                       ),
                       width: 1,
@@ -94,6 +108,7 @@ class _FloatingBottomNav extends StatelessWidget {
                         child: _NavItem(
                           icon: LucideIcons.sun,
                           label: 'Today',
+                          accent: palette.primary,
                           isSelected:
                               location == AppRoutes.today ||
                               location == AppRoutes.root,
@@ -104,6 +119,7 @@ class _FloatingBottomNav extends StatelessWidget {
                         child: _NavItem(
                           icon: LucideIcons.flag,
                           label: 'Commit',
+                          accent: palette.commitmentColor,
                           isSelected: isShellRouteSelected(
                             location,
                             AppRoutes.commit,
@@ -115,6 +131,7 @@ class _FloatingBottomNav extends StatelessWidget {
                         child: _NavItem(
                           icon: LucideIcons.messageCircle,
                           label: 'Reflect',
+                          accent: palette.identityColor,
                           isSelected: isShellRouteSelected(
                             location,
                             AppRoutes.reflect,
@@ -126,6 +143,7 @@ class _FloatingBottomNav extends StatelessWidget {
                         child: _NavItem(
                           icon: LucideIcons.users,
                           label: 'Tribe',
+                          accent: palette.distractionColor,
                           isSelected: isShellRouteSelected(
                             location,
                             AppRoutes.tribe,
@@ -137,6 +155,7 @@ class _FloatingBottomNav extends StatelessWidget {
                         child: _NavItem(
                           icon: LucideIcons.sprout,
                           label: 'Grow',
+                          accent: palette.growthColor,
                           isSelected: isShellRouteSelected(
                             location,
                             AppRoutes.grow,
@@ -160,33 +179,61 @@ class _NavItem extends StatelessWidget {
   const _NavItem({
     required this.icon,
     required this.label,
+    required this.accent,
     required this.isSelected,
     required this.onTap,
   });
 
   final IconData icon;
   final String label;
+  final Color accent;
   final bool isSelected;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final tokens = theme.tokens;
     final color = isSelected
-        ? Theme.of(context).colorScheme.primary
-        : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5);
+        ? accent
+        : theme.colorScheme.onSurface.withValues(alpha: 0.52);
+    final selectedFill = Color.alphaBlend(
+      accent.withValues(
+        alpha: theme.brightness == Brightness.dark ? 0.20 : 0.13,
+      ),
+      tokens.palette.surface.withValues(
+        alpha: theme.brightness == Brightness.dark ? 0.34 : 0.64,
+      ),
+    );
 
     return InkWell(
       onTap: () {
         HapticService.selection();
         onTap();
       },
-      borderRadius: BorderRadius.circular(16),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 2),
+      borderRadius: BorderRadius.circular(999),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOutCubic,
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 2),
+        decoration: BoxDecoration(
+          color: isSelected ? selectedFill : Colors.transparent,
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(
+            color: isSelected
+                ? accent.withValues(alpha: 0.20)
+                : Colors.transparent,
+          ),
+        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, color: color, size: 23),
+            AnimatedScale(
+              duration: const Duration(milliseconds: 180),
+              curve: Curves.easeOutCubic,
+              scale: isSelected ? 1.04 : 1,
+              child: Icon(icon, color: color, size: 23),
+            ),
             const SizedBox(height: 4),
             FittedBox(
               fit: BoxFit.scaleDown,
@@ -198,6 +245,19 @@ class _NavItem extends StatelessWidget {
                   fontSize: 10,
                   fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
                 ),
+              ),
+            ),
+            const SizedBox(height: 3),
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              curve: Curves.easeOutCubic,
+              width: isSelected ? 16 : 4,
+              height: 3,
+              decoration: BoxDecoration(
+                color: isSelected
+                    ? accent.withValues(alpha: 0.86)
+                    : Colors.transparent,
+                borderRadius: BorderRadius.circular(999),
               ),
             ),
           ],

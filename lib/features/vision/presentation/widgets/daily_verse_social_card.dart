@@ -94,10 +94,11 @@ class _DailyVerseSocialCardState extends ConsumerState<DailyVerseSocialCard> {
     HapticService.light();
     showModalBottomSheet<void>(
       context: context,
+      useRootNavigator: true,
       isScrollControlled: true,
       useSafeArea: true,
-      showDragHandle: true,
-      builder: (context) => const _DailyVerseSocialSheet(),
+      showDragHandle: false,
+      builder: (_) => _DailyVerseSocialSheet(hostContext: context),
     );
   }
 
@@ -421,7 +422,9 @@ class _DailyVerseSocialSurface extends StatelessWidget {
 }
 
 class _DailyVerseSocialSheet extends ConsumerStatefulWidget {
-  const _DailyVerseSocialSheet();
+  const _DailyVerseSocialSheet({required this.hostContext});
+
+  final BuildContext hostContext;
 
   @override
   ConsumerState<_DailyVerseSocialSheet> createState() =>
@@ -432,6 +435,7 @@ class _DailyVerseSocialSheetState
     extends ConsumerState<_DailyVerseSocialSheet> {
   final _responseController = TextEditingController();
   final _replyControllers = <int, TextEditingController>{};
+  final _replyCardKeys = <int, GlobalKey>{};
   final _replyOpenIds = <int>{};
 
   @override
@@ -459,114 +463,167 @@ class _DailyVerseSocialSheetState
     final tokens = theme.tokens;
     final accent = _accentFor(verse, theme);
     final canUseSocial = _canUseSocial(auth);
-    final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
+    final keyboardInset = MediaQuery.viewInsetsOf(context).bottom;
+    final safeBottom = MediaQuery.paddingOf(context).bottom;
 
-    return Padding(
-      padding: EdgeInsets.fromLTRB(20, 0, 20, 20 + bottomInset),
-      child: ConstrainedBox(
-        constraints: BoxConstraints(
-          maxHeight: MediaQuery.sizeOf(context).height * 0.86,
-        ),
-        child: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+    return AnimatedPadding(
+      duration: const Duration(milliseconds: 180),
+      curve: Curves.easeOutCubic,
+      padding: EdgeInsets.only(bottom: keyboardInset),
+      child: DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: 0.88,
+        minChildSize: 0.58,
+        maxChildSize: 0.95,
+        builder: (context, scrollController) {
+          return Column(
             mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _SheetVerseHeader(
-                verse: verse,
-                accent: accent,
-                onRead: () {
-                  Navigator.of(context).pop();
-                  HapticService.selection();
-                  openVerseInReader(context, verse);
-                },
-              ),
-              const SizedBox(height: 16),
-              Text(
-                'What is this verse inviting in you today?',
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w900,
+              Center(
+                child: Container(
+                  width: 42,
+                  height: 4,
+                  margin: const EdgeInsets.only(top: 8, bottom: 12),
+                  decoration: BoxDecoration(
+                    color: tokens.palette.border,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
                 ),
               ),
-              const SizedBox(height: 10),
-              if (canUseSocial)
-                _ResponseComposer(
-                  controller: _responseController,
-                  isSubmitting: state.isSubmittingResponse,
-                  accent: accent,
-                  onSubmit: _submitResponse,
-                )
-              else
-                const _SocialGatePanel(),
-              const SizedBox(height: 18),
-              Row(
-                children: [
-                  Icon(LucideIcons.messagesSquare, size: 18, color: accent),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      state.responseCount == 0
-                          ? 'Today\'s responses'
-                          : '${state.responseCount} responses today',
-                      style: theme.textTheme.titleSmall?.copyWith(
+              Expanded(
+                child: ListView(
+                  controller: scrollController,
+                  keyboardDismissBehavior:
+                      ScrollViewKeyboardDismissBehavior.onDrag,
+                  padding: EdgeInsets.fromLTRB(20, 0, 20, 24 + safeBottom),
+                  children: [
+                    _SheetVerseHeader(
+                      verse: verse,
+                      accent: accent,
+                      onRead: () {
+                        Navigator.of(context).pop();
+                        HapticService.selection();
+                        if (widget.hostContext.mounted) {
+                          openVerseInReader(widget.hostContext, verse);
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'What is this verse inviting in you today?',
+                      style: theme.textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.w900,
                       ),
                     ),
-                  ),
-                  if (state.isLoading)
-                    const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
+                    const SizedBox(height: 10),
+                    if (canUseSocial)
+                      _ResponseComposer(
+                        controller: _responseController,
+                        isSubmitting: state.isSubmittingResponse,
+                        accent: accent,
+                        onSubmit: _submitResponse,
+                      )
+                    else
+                      _SocialGatePanel(onOpenProfile: _openProfile),
+                    const SizedBox(height: 18),
+                    Row(
+                      children: [
+                        Icon(
+                          LucideIcons.messagesSquare,
+                          size: 18,
+                          color: accent,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            state.responseCount == 0
+                                ? 'Today\'s responses'
+                                : '${state.responseCount} responses today',
+                            style: theme.textTheme.titleSmall?.copyWith(
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                        ),
+                        if (state.isLoading)
+                          const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                      ],
                     ),
-                ],
+                    const SizedBox(height: 12),
+                    if (state.reflections.isEmpty)
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: tokens.palette.surface.withValues(alpha: 0.55),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: tokens.palette.border),
+                        ),
+                        child: Text(
+                          'No responses yet. A quiet first sentence is enough.',
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: tokens.palette.textSecondary,
+                            height: 1.4,
+                          ),
+                        ),
+                      )
+                    else
+                      ...state.reflections.map(
+                        (item) => _ResponseCard(
+                          key: _replyCardKeyFor(item.id),
+                          item: item,
+                          accent: accent,
+                          isReplyOpen: _replyOpenIds.contains(item.id),
+                          replyController: _controllerFor(item.id),
+                          isSubmittingReply: state.replyingReflectionIds
+                              .contains(item.id),
+                          onToggleReply: () =>
+                              _toggleReply(item.id, canUseSocial),
+                          onSubmitReply: () => _submitReply(item.id),
+                        ),
+                      ),
+                    if (state.actionError != null) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        state.actionError!,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.error,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
               ),
-              const SizedBox(height: 12),
-              if (state.reflections.isEmpty)
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: tokens.palette.surface.withValues(alpha: 0.55),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: tokens.palette.border),
-                  ),
-                  child: Text(
-                    'No responses yet. A quiet first sentence is enough.',
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: tokens.palette.textSecondary,
-                      height: 1.4,
-                    ),
-                  ),
-                )
-              else
-                ...state.reflections.map(
-                  (item) => _ResponseCard(
-                    item: item,
-                    accent: accent,
-                    isReplyOpen: _replyOpenIds.contains(item.id),
-                    replyController: _controllerFor(item.id),
-                    isSubmittingReply: state.replyingReflectionIds.contains(
-                      item.id,
-                    ),
-                    onToggleReply: () => _toggleReply(item.id, canUseSocial),
-                    onSubmitReply: () => _submitReply(item.id),
-                  ),
-                ),
-              if (state.actionError != null) ...[
-                const SizedBox(height: 8),
-                Text(
-                  state.actionError!,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.error,
-                  ),
-                ),
-              ],
             ],
-          ),
-        ),
+          );
+        },
       ),
     );
+  }
+
+  GlobalKey _replyCardKeyFor(int reflectionId) {
+    return _replyCardKeys.putIfAbsent(
+      reflectionId,
+      () => GlobalKey(debugLabel: 'daily_verse_response_$reflectionId'),
+    );
+  }
+
+  void _scrollReplyIntoView(int reflectionId) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final targetContext = _replyCardKeys[reflectionId]?.currentContext;
+      if (targetContext == null) return;
+      Scrollable.ensureVisible(
+        targetContext,
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOutCubic,
+        alignment: 0.22,
+      );
+    });
   }
 
   TextEditingController _controllerFor(int reflectionId) {
@@ -582,11 +639,23 @@ class _DailyVerseSocialSheetState
       return;
     }
     HapticService.selection();
+    final shouldOpen = !_replyOpenIds.contains(reflectionId);
     setState(() {
       if (!_replyOpenIds.remove(reflectionId)) {
         _replyOpenIds.add(reflectionId);
       }
     });
+    if (shouldOpen) {
+      _scrollReplyIntoView(reflectionId);
+    }
+  }
+
+  void _openProfile() {
+    final hostContext = widget.hostContext;
+    Navigator.of(context).pop();
+    if (hostContext.mounted) {
+      hostContext.go(AppRoutes.profile);
+    }
   }
 
   Future<void> _submitResponse() async {
@@ -774,6 +843,7 @@ class _ResponseComposer extends StatelessWidget {
 
 class _ResponseCard extends StatelessWidget {
   const _ResponseCard({
+    super.key,
     required this.item,
     required this.accent,
     required this.isReplyOpen,
@@ -1032,7 +1102,9 @@ class _PreviewResponse extends StatelessWidget {
 }
 
 class _SocialGatePanel extends StatelessWidget {
-  const _SocialGatePanel();
+  const _SocialGatePanel({required this.onOpenProfile});
+
+  final VoidCallback onOpenProfile;
 
   @override
   Widget build(BuildContext context) {
@@ -1058,10 +1130,7 @@ class _SocialGatePanel extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           OutlinedButton.icon(
-            onPressed: () {
-              Navigator.of(context).pop();
-              context.go(AppRoutes.profile);
-            },
+            onPressed: onOpenProfile,
             icon: const Icon(LucideIcons.userCircle, size: 17),
             label: const Text('Open profile'),
           ),

@@ -17,6 +17,7 @@ import 'package:elbiblio/features/vision/presentation/screens/commit_screen.dart
 import 'package:elbiblio/features/vision/presentation/screens/grow_screen.dart';
 import 'package:elbiblio/features/vision/presentation/screens/reflect_screen.dart';
 import 'package:elbiblio/features/vision/presentation/screens/tribe_screen.dart';
+import 'package:elbiblio/features/vision/presentation/widgets/daily_verse_social_card.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -121,6 +122,52 @@ void main() {
       expect(find.text('Share response'), findsOneWidget);
       expect(find.text('Today\'s responses'), findsOneWidget);
       expect(find.text('Read'), findsOneWidget);
+    });
+
+    testWidgets('Daily community verse sheet opens above shell bottom nav', (
+      tester,
+    ) async {
+      final rootObserver = _PopupRouteObserver();
+      final nestedObserver = _PopupRouteObserver();
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            authProvider.overrideWith((ref) => _FakeAuthNotifier()),
+            dailyVerseSocialProvider.overrideWith(
+              (ref) =>
+                  DailyVerseSocialNotifier(_FakeDailyVerseSocialRepository()),
+            ),
+          ],
+          child: MaterialApp(
+            navigatorObservers: [rootObserver],
+            home: Scaffold(
+              body: Navigator(
+                observers: [nestedObserver],
+                onGenerateRoute: (_) => MaterialPageRoute<void>(
+                  builder: (_) => const SingleChildScrollView(
+                    padding: EdgeInsets.all(20),
+                    child: DailyVerseSocialCard(),
+                  ),
+                ),
+              ),
+              bottomNavigationBar: const SizedBox(
+                height: 96,
+                child: Center(child: Text('Shell nav')),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Respond'));
+      await tester.pumpAndSettle();
+
+      expect(rootObserver.popupPushes, 1);
+      expect(nestedObserver.popupPushes, 0);
+      expect(find.text('Share response'), findsOneWidget);
+      expect(find.text('Shell nav'), findsOneWidget);
     });
 
     testWidgets('Reflect check-in unlocks the composer in the same flow', (
@@ -931,6 +978,18 @@ class _FakeDailyVerseSocialRepository extends DailyVerseSocialRepository {
 
 class _NoopDioClient extends DioClient {
   _NoopDioClient() : super(Logger(level: Level.off));
+}
+
+class _PopupRouteObserver extends NavigatorObserver {
+  int popupPushes = 0;
+
+  @override
+  void didPush(Route<dynamic> route, Route<dynamic>? previousRoute) {
+    if (route is PopupRoute) {
+      popupPushes += 1;
+    }
+    super.didPush(route, previousRoute);
+  }
 }
 
 class _FakeSettingsNotifier extends StateNotifier<AppSettings>
