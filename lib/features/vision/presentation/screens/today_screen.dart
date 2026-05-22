@@ -7,7 +7,12 @@ import '../../../../core/constants/app_routes.dart';
 import '../../../../core/di/app_providers.dart';
 import '../../../../core/theme/app_theme_tokens.dart';
 import '../../../../core/storage/app_settings.dart';
+import '../../../../shared/widgets/safe_bottom_padding.dart';
+import '../../../../shared/widgets/vision_illustration.dart';
+import '../../application/vision_state.dart';
 import '../../domain/vision_models.dart';
+import '../widgets/commitment_daily_load_widgets.dart';
+import '../widgets/vision_action_tile.dart';
 import '../widgets/vision_panel.dart';
 
 class TodayScreen extends ConsumerStatefulWidget {
@@ -46,8 +51,9 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
           child: RefreshIndicator(
             onRefresh: () =>
                 ref.read(visionProvider.notifier).load(force: true),
-            child: ListView(
-              padding: const EdgeInsets.fromLTRB(20, 20, 20, 120),
+            child: SafeListView(
+              bottomPadding: 150,
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
               children: [
                 Row(
                   children: [
@@ -64,7 +70,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  _headline(state.activeCommitment?.checkedInToday ?? false),
+                  _headline(state),
                   style: theme.textTheme.bodyMedium?.copyWith(
                     color: theme.colorScheme.onSurface.withValues(alpha: 0.62),
                     height: 1.45,
@@ -114,11 +120,12 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
     );
   }
 
-  String _headline(bool checkedInToday) {
-    if (checkedInToday) {
-      return 'You checked in today. Walk gently in grace.';
+  String _headline(VisionState state) {
+    final active = state.activeCommitment;
+    if (active != null) {
+      return '${active.plan.title} - Day ${active.currentDay}/${active.plan.durationDays} - ${active.completionPercentLabel}';
     }
-    return 'One commitment. One daily check-in. One faithful step.';
+    return 'Choose a commitment.';
   }
 }
 
@@ -146,14 +153,13 @@ class _DailyLoopHero extends ConsumerWidget {
     final state = ref.watch(visionProvider);
     final active = state.activeCommitment;
     final settings = ref.watch(settingsProvider);
-    final theme = Theme.of(context);
 
     if (active == null) {
       return _LoopHeroCard(
         icon: LucideIcons.flag,
+        illustration: VisionIllustrationAsset.commitment,
         title: 'Choose one commitment',
-        body:
-            'Begin with one faithful practice, prayerful reminders, and a quiet place to reflect.',
+        body: 'Pick the practice, load, reminders, and first day.',
         primaryLabel: 'Find commitment',
         primaryIcon: LucideIcons.arrowRight,
         onPrimary: () => context.go(AppRoutes.commit),
@@ -163,6 +169,7 @@ class _DailyLoopHero extends ConsumerWidget {
     if (active.checkedInToday && !state.reflectionPostedToday) {
       return _LoopHeroCard(
         icon: LucideIcons.messageCircle,
+        illustration: VisionIllustrationAsset.growth,
         title: 'Check-in complete',
         body:
             'Share one honest sentence with people keeping the same commitment, or keep the moment with God.',
@@ -181,6 +188,7 @@ class _DailyLoopHero extends ConsumerWidget {
     if (active.checkedInToday) {
       return _LoopHeroCard(
         icon: LucideIcons.checkCircle,
+        illustration: VisionIllustrationAsset.completion,
         title: 'Checked in today',
         body:
             'Your commitment is cared for. Read support when you want it, then move gently back into the day.',
@@ -193,23 +201,24 @@ class _DailyLoopHero extends ConsumerWidget {
     return VisionPanel(
       icon: LucideIcons.flag,
       title: active.plan.title,
-      trailing: Text('Day ${active.currentDay}/${active.plan.durationDays}'),
+      trailing: Text(active.completionPercentLabel),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            active.plan.dailyAction,
-            style: theme.textTheme.bodyLarge?.copyWith(height: 1.45),
-          ),
+          CommitmentSnapshotBanner(active: active),
           if (_hasPlanContextFor(active, settings)) ...[
             const SizedBox(height: 12),
             _RememberedPlanPanel(active: active, settings: settings),
           ],
           const SizedBox(height: 14),
-          LinearProgressIndicator(value: active.progress),
+          CommitmentDailyChecklist(items: active.todayItems),
           const SizedBox(height: 14),
-          FilledButton.icon(
-            onPressed: state.isLoading
+          VisionActionTile(
+            icon: LucideIcons.checkCircle,
+            title: 'Mark today',
+            subtitle:
+                '${active.totalRequiredItemCount} actions - ${active.dailyLoadLabel}',
+            onTap: state.isLoading
                 ? null
                 : () async {
                     final completed = await ref
@@ -227,15 +236,21 @@ class _DailyLoopHero extends ConsumerWidget {
                       return;
                     }
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
+                      SnackBar(
                         content: Text(
-                          'Checked in. Reflection is open if it helps you stay honest.',
+                          '${active.totalRequiredItemCount}/${active.totalRequiredItemCount} marked today.',
                         ),
                       ),
                     );
                   },
-            icon: const Icon(LucideIcons.checkCircle, size: 18),
-            label: const Text('Check in for today'),
+          ),
+          const SizedBox(height: 10),
+          VisionActionTile(
+            icon: LucideIcons.slidersHorizontal,
+            title: 'Adjust load',
+            subtitle: 'Light, Steady, or Deep',
+            onTap: () => context.go(AppRoutes.commit),
+            dense: true,
           ),
         ],
       ),
@@ -311,6 +326,7 @@ String? _planObstacleFor(CommitmentSeason active, AppSettings settings) {
 class _LoopHeroCard extends StatelessWidget {
   const _LoopHeroCard({
     required this.icon,
+    required this.illustration,
     required this.title,
     required this.body,
     required this.primaryLabel,
@@ -321,6 +337,7 @@ class _LoopHeroCard extends StatelessWidget {
   });
 
   final IconData icon;
+  final VisionIllustrationAsset illustration;
   final String title;
   final String body;
   final String primaryLabel;
@@ -345,27 +362,42 @@ class _LoopHeroCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(icon, color: theme.colorScheme.primary),
-              const SizedBox(width: 10),
               Expanded(
-                child: Text(
-                  title,
-                  style: theme.textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.w900,
-                    height: 1.05,
-                  ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(icon, color: theme.colorScheme.primary),
+                    const SizedBox(height: 10),
+                    Text(
+                      title,
+                      style: theme.textTheme.headlineSmall?.copyWith(
+                        fontWeight: FontWeight.w900,
+                        height: 1.05,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      body,
+                      style: theme.textTheme.bodyMedium?.copyWith(height: 1.42),
+                    ),
+                  ],
                 ),
+              ),
+              const SizedBox(width: 12),
+              VisionIllustration(
+                asset: illustration,
+                size: 92,
+                semanticLabel: title,
               ),
             ],
           ),
-          const SizedBox(height: 10),
-          Text(body, style: theme.textTheme.bodyMedium?.copyWith(height: 1.45)),
           const SizedBox(height: 16),
-          FilledButton.icon(
-            onPressed: onPrimary,
-            icon: Icon(primaryIcon, size: 18),
-            label: Text(primaryLabel),
+          VisionActionTile(
+            icon: primaryIcon,
+            title: primaryLabel,
+            onTap: onPrimary,
           ),
           if (secondaryLabel != null && onSecondary != null) ...[
             const SizedBox(height: 8),
@@ -418,8 +450,28 @@ class _AfterCheckInPanel extends ConsumerWidget {
           ),
           const SizedBox(height: 10),
           Text(
-            'Everything here is optional. The daily check-in is the center.',
+            '${state.activeCommitment?.plan.title ?? 'Commitment'} - ${state.activeCommitment?.completionPercentLabel ?? '0.0%'}',
             style: theme.textTheme.bodySmall,
+          ),
+          const SizedBox(height: 12),
+          VisionActionTileColumn(
+            children: [
+              if (!state.reflectionPostedToday)
+                VisionActionTile(
+                  icon: LucideIcons.messageCircle,
+                  title: 'Reflect',
+                  subtitle: 'Posting as ${state.visibilityAlias}',
+                  onTap: () => context.go(AppRoutes.reflect),
+                  dense: true,
+                ),
+              VisionActionTile(
+                icon: LucideIcons.gamepad2,
+                title: 'Play with tribe',
+                subtitle: state.primaryTribe?.tribe.displayName ?? 'Tribe',
+                onTap: () => context.go(AppRoutes.tribe),
+                dense: true,
+              ),
+            ],
           ),
         ],
       ),
@@ -449,18 +501,12 @@ class _AmbientSupportPanel extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (tribe == null)
-            Row(
-              children: [
-                const Expanded(
-                  child: Text(
-                    'Belonging gives your commitment a place to grow.',
-                  ),
-                ),
-                TextButton(
-                  onPressed: () => context.go(AppRoutes.tribe),
-                  child: const Text('Choose'),
-                ),
-              ],
+            VisionActionTile(
+              icon: LucideIcons.users,
+              title: 'Choose tribe',
+              subtitle: 'Commitment support opens after joining',
+              onTap: () => context.go(AppRoutes.tribe),
+              dense: true,
             )
           else
             Wrap(
@@ -535,9 +581,12 @@ class _DailyInsightPreview extends ConsumerWidget {
         children: [
           Text(previewQuestion.question),
           const SizedBox(height: 12),
-          TextButton(
-            onPressed: () => context.go(AppRoutes.grow),
-            child: const Text('Choose an answer'),
+          VisionActionTile(
+            icon: LucideIcons.helpCircle,
+            title: 'Answer today',
+            subtitle: 'One question',
+            onTap: () => context.go(AppRoutes.grow),
+            dense: true,
           ),
         ],
       ),

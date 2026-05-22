@@ -7,11 +7,13 @@ import 'package:lucide_icons/lucide_icons.dart';
 import '../../../../core/constants/app_routes.dart';
 import '../../../../core/di/app_providers.dart';
 import '../../../../core/theme/app_theme_tokens.dart';
+import '../../../../shared/widgets/safe_bottom_padding.dart';
 import '../../../../shared/widgets/premium_success_dialog.dart';
 import '../../../../shared/widgets/vision_illustration.dart';
 import '../../../onboarding/domain/compass_discovery_catalog.dart';
 import '../../application/vision_state.dart';
 import '../../domain/vision_models.dart';
+import '../widgets/vision_action_tile.dart';
 import '../widgets/visibility_mode_picker.dart';
 import '../widgets/vision_panel.dart';
 import 'hangout_room_screen.dart';
@@ -26,6 +28,8 @@ class TribeScreen extends ConsumerStatefulWidget {
 class _TribeScreenState extends ConsumerState<TribeScreen> {
   final _aliasController = TextEditingController();
   final _weeklyController = TextEditingController();
+  final _hangoutKey = GlobalKey();
+  final _weeklyKey = GlobalKey();
   VisibilityMode _mode = VisibilityMode.anonymous;
 
   @override
@@ -80,8 +84,9 @@ class _TribeScreenState extends ConsumerState<TribeScreen> {
           child: RefreshIndicator(
             onRefresh: () =>
                 ref.read(visionProvider.notifier).load(force: true),
-            child: ListView(
-              padding: const EdgeInsets.fromLTRB(20, 20, 20, 120),
+            child: SafeListView(
+              bottomPadding: 150,
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
               children: [
                 _TribeHero(
                   state: state,
@@ -109,13 +114,21 @@ class _TribeScreenState extends ConsumerState<TribeScreen> {
                   const _TribeFeaturePreview(),
                 ] else ...[
                   const SizedBox(height: 14),
+                  _TribeActionTiles(
+                    hangoutKey: _hangoutKey,
+                    weeklyKey: _weeklyKey,
+                  ),
+                  const SizedBox(height: 14),
                   _PulsePanel(),
                   const SizedBox(height: 14),
                   _TribeGamesPanel(),
                   const SizedBox(height: 14),
-                  _TribeHangoutPanel(),
+                  _TribeHangoutPanel(key: _hangoutKey),
                   const SizedBox(height: 14),
-                  _WeeklyReflectionHub(controller: _weeklyController),
+                  _WeeklyReflectionHub(
+                    key: _weeklyKey,
+                    controller: _weeklyController,
+                  ),
                   if (state.recommendedTribes.isNotEmpty) ...[
                     const SizedBox(height: 18),
                     _OtherTribesEntryPanel(),
@@ -321,6 +334,69 @@ class _TribePill extends StatelessWidget {
           Text(label, style: theme.textTheme.labelSmall),
         ],
       ),
+    );
+  }
+}
+
+class _TribeActionTiles extends ConsumerWidget {
+  const _TribeActionTiles({required this.hangoutKey, required this.weeklyKey});
+
+  final GlobalKey hangoutKey;
+  final GlobalKey weeklyKey;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final state = ref.watch(visionProvider);
+    final tribeId = state.primaryTribe?.tribe.id;
+    return VisionPanel(
+      icon: LucideIcons.sparkles,
+      title: 'Tribe actions',
+      child: VisionActionTileColumn(
+        children: [
+          VisionActionTile(
+            icon: LucideIcons.send,
+            title: 'Invite',
+            subtitle: state.primaryTribe?.tribe.displayName ?? 'Tribe',
+            onTap: () => context.push(
+              tribeId == null
+                  ? AppRoutes.invite
+                  : '${AppRoutes.invite}?source=tribe&tribe_id=$tribeId',
+            ),
+            dense: true,
+          ),
+          VisionActionTile(
+            icon: LucideIcons.gamepad2,
+            title: 'Play together',
+            subtitle: '${state.gameScores.length} scores this week',
+            onTap: () => context.push(AppRoutes.games),
+            dense: true,
+          ),
+          VisionActionTile(
+            icon: LucideIcons.radio,
+            title: 'Hangout',
+            subtitle: '${state.hangouts.length} rooms visible',
+            onTap: () => _scrollTo(hangoutKey),
+            dense: true,
+          ),
+          VisionActionTile(
+            icon: LucideIcons.calendarHeart,
+            title: 'Weekly reflection',
+            subtitle: '${state.weeklyReflections.length} posted',
+            onTap: () => _scrollTo(weeklyKey),
+            dense: true,
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _scrollTo(GlobalKey key) {
+    final context = key.currentContext;
+    if (context == null) return;
+    Scrollable.ensureVisible(
+      context,
+      duration: const Duration(milliseconds: 280),
+      curve: Curves.easeOutCubic,
     );
   }
 }
@@ -833,7 +909,7 @@ class _CompassContextPanel extends ConsumerWidget {
 }
 
 class _WeeklyReflectionHub extends ConsumerWidget {
-  const _WeeklyReflectionHub({required this.controller});
+  const _WeeklyReflectionHub({super.key, required this.controller});
 
   final TextEditingController controller;
 
@@ -1109,28 +1185,66 @@ class _TribeGamesPanel extends ConsumerWidget {
     final state = ref.watch(visionProvider);
     final theme = Theme.of(context);
     final entries = state.gameScores.take(5).toList(growable: false);
+    final roundsThisWeek = state.gameScores.length;
 
     return VisionPanel(
       icon: LucideIcons.gamepad2,
-      title: 'Games leaderboard',
-      trailing: TextButton.icon(
-        onPressed: () => context.push(AppRoutes.games),
-        icon: const Icon(LucideIcons.arrowUpRight, size: 16),
-        label: const Text('Open games'),
-      ),
+      title: 'Play together',
+      trailing: Text('${entries.length} scores'),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'See how tribes are doing in Scripture games, then jump in and add your score.',
-            style: theme.textTheme.bodyMedium?.copyWith(height: 1.42),
+          _PlayTogetherBanner(
+            roundsThisWeek: roundsThisWeek,
+            tribeName: state.primaryTribe?.tribe.displayName ?? 'Tribe',
           ),
           const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _WeeklyPill(
+                icon: LucideIcons.gamepad2,
+                label: '$roundsThisWeek rounds this week',
+              ),
+              _WeeklyPill(
+                icon: LucideIcons.users,
+                label: state.primaryTribe?.tribe.displayName ?? 'Tribe',
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          VisionActionTileColumn(
+            children: [
+              VisionActionTile(
+                icon: LucideIcons.shuffle,
+                title: 'Verse Scramble',
+                subtitle: 'Scripture play',
+                onTap: () => context.push(AppRoutes.gamesVerseScramble),
+                dense: true,
+              ),
+              VisionActionTile(
+                icon: LucideIcons.map,
+                title: 'Journey with Jesus',
+                subtitle: 'Story path',
+                onTap: () => context.push(AppRoutes.gamesJourney),
+                dense: true,
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Text(
+            'This week\'s scores',
+            style: theme.textTheme.labelLarge?.copyWith(
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const SizedBox(height: 10),
           if (entries.isEmpty)
             Text(
               state.isReadOnly
                   ? 'Reconnect to see live tribe scores.'
-                  : 'No tribe scores have landed yet. Be one of the first to play.',
+                  : 'No scores yet.',
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.tokens.palette.textSecondary,
                 height: 1.35,
@@ -1138,22 +1252,70 @@ class _TribeGamesPanel extends ConsumerWidget {
             )
           else
             ...entries.map((entry) => _ScoreRow(entry: entry)),
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              FilledButton.tonalIcon(
-                onPressed: () => context.push(AppRoutes.gamesVerseScramble),
-                icon: const Icon(LucideIcons.shuffle, size: 18),
-                label: const Text('Verse Scramble'),
-              ),
-              OutlinedButton.icon(
-                onPressed: () => context.push(AppRoutes.gamesJourney),
-                icon: const Icon(LucideIcons.map, size: 18),
-                label: const Text('Journey'),
-              ),
-            ],
+        ],
+      ),
+    );
+  }
+}
+
+class _PlayTogetherBanner extends StatelessWidget {
+  const _PlayTogetherBanner({
+    required this.roundsThisWeek,
+    required this.tribeName,
+  });
+
+  final int roundsThisWeek;
+  final String tribeName;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final tokens = theme.tokens;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: tokens.palette.growthColor.withValues(
+          alpha: theme.brightness == Brightness.dark ? 0.16 : 0.12,
+        ),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: tokens.palette.growthColor.withValues(alpha: 0.22),
+        ),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '$roundsThisWeek rounds this week',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w900,
+                    height: 1.08,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  tribeName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: tokens.palette.textSecondary,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          const VisionIllustration(
+            asset: VisionIllustrationAsset.play,
+            size: 94,
+            semanticLabel: 'Play together',
           ),
         ],
       ),
@@ -1302,6 +1464,8 @@ String _whoShouldJoin(TribeIdentity tribe) {
 }
 
 class _TribeHangoutPanel extends ConsumerWidget {
+  const _TribeHangoutPanel({super.key});
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(visionProvider);

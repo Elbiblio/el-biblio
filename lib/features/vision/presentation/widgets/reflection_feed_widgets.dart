@@ -5,6 +5,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 
 import '../../../../core/di/app_providers.dart';
 import '../../domain/vision_models.dart';
+import 'vision_action_tile.dart';
 import 'vision_panel.dart';
 
 enum _ReflectionDifficulty { easy, neutral, hard }
@@ -92,42 +93,59 @@ class _VisionReflectionComposerState
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Choose the difficulty first. If it felt easy or hard, you can share one short reflection as ${state.visibilityAlias}.',
-          ),
-          const SizedBox(height: 12),
           Wrap(
             spacing: 8,
             runSpacing: 8,
+            children: [
+              _ReflectionScopePill(
+                icon: LucideIcons.user,
+                label: 'Posting as ${state.visibilityAlias}',
+              ),
+              _ReflectionScopePill(
+                icon: LucideIcons.flag,
+                label: '${active.plan.title} feed',
+              ),
+              _ReflectionScopePill(
+                icon: LucideIcons.messageCircle,
+                label: '${state.feed.length} reflections',
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          VisionActionTileColumn(
             children: _ReflectionDifficulty.values
                 .map(
-                  (difficulty) => ChoiceChip(
+                  (difficulty) => VisionActionTile(
+                    icon: _difficultyIcon(difficulty),
+                    title: _difficultyLabel(difficulty),
+                    subtitle: _difficultySubtitle(difficulty),
                     selected: _difficulty == difficulty,
-                    label: Text(_difficultyLabel(difficulty)),
-                    onSelected: (_) => setState(() {
+                    onTap: () => setState(() {
                       _difficulty = difficulty;
                       if (difficulty == _ReflectionDifficulty.neutral) {
                         widget.controller.clear();
                       }
                     }),
+                    dense: true,
                   ),
                 )
                 .toList(),
           ),
           if (_difficulty == _ReflectionDifficulty.neutral) ...[
             const SizedBox(height: 12),
-            const Text('No written reflection needed. Mark this step done.'),
+            const Text('Mixed is marked. No post needed.'),
             const SizedBox(height: 10),
             FilledButton.icon(
               onPressed: () => setState(() => _neutralFinished = true),
               icon: const Icon(LucideIcons.checkCircle, size: 18),
-              label: const Text('Done for today'),
+              label: const Text('Mark mixed'),
             ),
           ],
           if (_difficulty == _ReflectionDifficulty.easy ||
               _difficulty == _ReflectionDifficulty.hard) ...[
             const SizedBox(height: 12),
             TextField(
+              key: const Key('vision_reflection_text_field'),
               controller: widget.controller,
               minLines: 3,
               maxLines: 5,
@@ -145,6 +163,7 @@ class _VisionReflectionComposerState
               builder: (context, value, child) {
                 final canPost = value.text.trim().isNotEmpty;
                 return FilledButton.icon(
+                  key: const Key('vision_reflection_post_button'),
                   onPressed: canPost
                       ? () async {
                           final posted = await ref
@@ -179,9 +198,55 @@ class _VisionReflectionComposerState
 String _difficultyLabel(_ReflectionDifficulty difficulty) {
   return switch (difficulty) {
     _ReflectionDifficulty.easy => 'Easy',
-    _ReflectionDifficulty.neutral => 'Neutral',
+    _ReflectionDifficulty.neutral => 'Mixed',
     _ReflectionDifficulty.hard => 'Hard',
   };
+}
+
+String _difficultySubtitle(_ReflectionDifficulty difficulty) {
+  return switch (difficulty) {
+    _ReflectionDifficulty.easy => 'A short win can help someone else.',
+    _ReflectionDifficulty.neutral => 'Checked in without a written post.',
+    _ReflectionDifficulty.hard => 'Name the obstacle plainly.',
+  };
+}
+
+IconData _difficultyIcon(_ReflectionDifficulty difficulty) {
+  return switch (difficulty) {
+    _ReflectionDifficulty.easy => LucideIcons.sun,
+    _ReflectionDifficulty.neutral => LucideIcons.minusCircle,
+    _ReflectionDifficulty.hard => LucideIcons.cloudRain,
+  };
+}
+
+class _ReflectionScopePill extends StatelessWidget {
+  const _ReflectionScopePill({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface.withValues(alpha: 0.78),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(
+          color: theme.colorScheme.outline.withValues(alpha: 0.1),
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: theme.colorScheme.primary),
+          const SizedBox(width: 6),
+          Text(label, style: theme.textTheme.labelSmall),
+        ],
+      ),
+    );
+  }
 }
 
 class VisionReflectionFeed extends ConsumerWidget {

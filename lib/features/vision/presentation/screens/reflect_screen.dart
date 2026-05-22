@@ -6,6 +6,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 import '../../../../core/constants/app_routes.dart';
 import '../../../../core/di/app_providers.dart';
 import '../../../../core/theme/app_theme_tokens.dart';
+import '../../../../shared/widgets/safe_bottom_padding.dart';
 import '../../../../shared/widgets/vision_illustration.dart';
 import '../../application/vision_state.dart';
 import '../widgets/daily_verse_social_card.dart';
@@ -63,12 +64,11 @@ class _ReflectScreenState extends ConsumerState<ReflectScreen> {
                 ref.read(dailyVerseSocialProvider.notifier).refresh(),
               ]);
             },
-            child: ListView(
-              padding: const EdgeInsets.fromLTRB(20, 20, 20, 120),
+            child: SafeListView(
+              bottomPadding: 150,
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
               children: [
                 _ReflectHeader(state: state),
-                const SizedBox(height: 14),
-                const DailyVerseSocialCard(),
                 const SizedBox(height: 14),
                 if (state.error?.isNotEmpty == true) ...[
                   VisionPanel(
@@ -116,6 +116,8 @@ class _ReflectScreenState extends ConsumerState<ReflectScreen> {
                   VisionReflectionComposer(controller: _controller),
                   const SizedBox(height: 16),
                   const VisionReflectionFeed(),
+                  const SizedBox(height: 16),
+                  const DailyVerseSocialCard(),
                 ],
               ],
             ),

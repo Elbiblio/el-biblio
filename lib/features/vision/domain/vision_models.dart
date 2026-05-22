@@ -192,6 +192,12 @@ class CommitmentSeason {
     this.checkedInTodayOverride,
     this.firstCheckInPlanWhen,
     this.firstCheckInPlanObstacle,
+    this.dailyLoadCount = 1,
+    this.dailyLoadLabel = 'Light',
+    this.todayItems = const [],
+    this.completedTodayItemCountOverride,
+    this.totalRequiredItemCountOverride,
+    this.completionPercentOverride,
   });
 
   final CommitmentPlan plan;
@@ -202,8 +208,18 @@ class CommitmentSeason {
   final bool? checkedInTodayOverride;
   final String? firstCheckInPlanWhen;
   final String? firstCheckInPlanObstacle;
+  final int dailyLoadCount;
+  final String dailyLoadLabel;
+  final List<CommitmentDailyItem> todayItems;
+  final int? completedTodayItemCountOverride;
+  final int? totalRequiredItemCountOverride;
+  final double? completionPercentOverride;
 
   bool get checkedInToday {
+    if (todayItems.length > 1) {
+      return totalRequiredItemCount > 0 &&
+          completedTodayItemCount >= totalRequiredItemCount;
+    }
     final override = checkedInTodayOverride;
     if (override != null) return override;
     final last = lastCheckInAt;
@@ -214,28 +230,259 @@ class CommitmentSeason {
         last.day == now.day;
   }
 
+  int get completedTodayItemCount {
+    final override = completedTodayItemCountOverride;
+    if (override != null) {
+      return override.clamp(0, totalRequiredItemCount).toInt();
+    }
+    return todayItems.where((item) => item.completedToday).length;
+  }
+
+  int get totalRequiredItemCount {
+    final override = totalRequiredItemCountOverride;
+    if (override != null && override > 0) return override;
+    if (todayItems.isNotEmpty) return todayItems.length;
+    return dailyLoadCount.clamp(1, 3);
+  }
+
   double get progress {
+    final percent = completionPercentOverride;
+    if (percent != null) return (percent / 100).clamp(0, 1).toDouble();
     if (plan.durationDays <= 0) return 0;
-    return (completedDaysCount / plan.durationDays).clamp(0, 1);
+    final partialToday = !checkedInToday && totalRequiredItemCount > 0
+        ? completedTodayItemCount / totalRequiredItemCount
+        : 0.0;
+    return ((completedDaysCount + partialToday) / plan.durationDays)
+        .clamp(0, 1)
+        .toDouble();
+  }
+
+  double get completionPercent =>
+      (completionPercentOverride ?? progress * 100).clamp(0, 100).toDouble();
+
+  String get completionPercentLabel =>
+      '${completionPercent.toStringAsFixed(1)}%';
+
+  CommitmentSeason copyWith({
+    CommitmentPlan? plan,
+    int? currentDay,
+    int? completedDaysCount,
+    int? nudgeCountPerDay,
+    DateTime? lastCheckInAt,
+    bool? checkedInTodayOverride,
+    String? firstCheckInPlanWhen,
+    String? firstCheckInPlanObstacle,
+    int? dailyLoadCount,
+    String? dailyLoadLabel,
+    List<CommitmentDailyItem>? todayItems,
+    int? completedTodayItemCountOverride,
+    int? totalRequiredItemCountOverride,
+    double? completionPercentOverride,
+  }) {
+    final nextPlan = plan ?? this.plan;
+    final nextLoad = _clampDailyLoad(dailyLoadCount ?? this.dailyLoadCount);
+    final nextChecked =
+        checkedInTodayOverride ?? this.checkedInTodayOverride ?? checkedInToday;
+    return CommitmentSeason(
+      plan: nextPlan,
+      currentDay: currentDay ?? this.currentDay,
+      completedDaysCount: completedDaysCount ?? this.completedDaysCount,
+      nudgeCountPerDay: nudgeCountPerDay ?? this.nudgeCountPerDay,
+      lastCheckInAt: lastCheckInAt ?? this.lastCheckInAt,
+      checkedInTodayOverride: nextChecked,
+      firstCheckInPlanWhen: firstCheckInPlanWhen ?? this.firstCheckInPlanWhen,
+      firstCheckInPlanObstacle:
+          firstCheckInPlanObstacle ?? this.firstCheckInPlanObstacle,
+      dailyLoadCount: nextLoad,
+      dailyLoadLabel: dailyLoadLabel ?? dailyLoadLabelForCount(nextLoad),
+      todayItems:
+          todayItems ??
+          CommitmentDailyItem.fallbackItems(
+            plan: nextPlan,
+            dailyLoadCount: nextLoad,
+            completedToday: nextChecked,
+            obstacle: firstCheckInPlanObstacle ?? this.firstCheckInPlanObstacle,
+          ),
+      completedTodayItemCountOverride: completedTodayItemCountOverride,
+      totalRequiredItemCountOverride: totalRequiredItemCountOverride,
+      completionPercentOverride: completionPercentOverride,
+    );
   }
 
   factory CommitmentSeason.fromJson(Map<String, dynamic> json) {
+    final plan = CommitmentPlan.fromJson(
+      Map<String, dynamic>.from(json['challenge'] as Map? ?? const {}),
+    );
+    final lastCheckInAt = DateTime.tryParse(
+      json['last_check_in_at']?.toString() ?? '',
+    );
+    final checkedIn = _boolFromJson(json['checked_in_today']);
+    final inferredCheckedIn = checkedIn ?? _checkedTodayFromLast(lastCheckInAt);
+    final loadCount = _clampDailyLoad(
+      _intFromJson(
+            json['daily_load_count'] ??
+                json['daily_load'] ??
+                json['daily_action_count'],
+          ) ??
+          1,
+    );
+    final itemRaw =
+        json['today_items'] ??
+        json['daily_items'] ??
+        json['daily_checklist'] ??
+        json['checklist_items'];
+    final parsedItems = itemRaw is List
+        ? itemRaw
+              .whereType<Map>()
+              .map(
+                (item) => CommitmentDailyItem.fromJson(
+                  Map<String, dynamic>.from(item),
+                ),
+              )
+              .where((item) => item.title.trim().isNotEmpty)
+              .toList(growable: false)
+        : const <CommitmentDailyItem>[];
+    final items = parsedItems.isNotEmpty
+        ? parsedItems
+        : CommitmentDailyItem.fallbackItems(
+            plan: plan,
+            dailyLoadCount: loadCount,
+            completedToday: inferredCheckedIn,
+            obstacle: json['check_in_plan_obstacle'] as String?,
+          );
+
     return CommitmentSeason(
-      plan: CommitmentPlan.fromJson(
-        Map<String, dynamic>.from(json['challenge'] as Map? ?? const {}),
-      ),
+      plan: plan,
       currentDay: _intFromJson(json['current_day']) ?? 1,
       completedDaysCount: _intFromJson(json['completed_days_count']) ?? 0,
       nudgeCountPerDay: _intFromJson(json['nudge_count_per_day']) ?? 3,
-      lastCheckInAt: DateTime.tryParse(
-        json['last_check_in_at']?.toString() ?? '',
-      ),
-      checkedInTodayOverride: _boolFromJson(json['checked_in_today']),
+      lastCheckInAt: lastCheckInAt,
+      checkedInTodayOverride: checkedIn,
       firstCheckInPlanWhen: json['check_in_plan_when'] as String?,
       firstCheckInPlanObstacle: json['check_in_plan_obstacle'] as String?,
+      dailyLoadCount: loadCount,
+      dailyLoadLabel:
+          json['daily_load_label'] as String? ??
+          dailyLoadLabelForCount(loadCount),
+      todayItems: items,
+      completedTodayItemCountOverride: _intFromJson(
+        json['completed_today_item_count'] ??
+            json['completed_today_items_count'] ??
+            json['completed_items_today'],
+      ),
+      totalRequiredItemCountOverride: _intFromJson(
+        json['total_required_item_count'] ??
+            json['required_today_item_count'] ??
+            json['daily_required_count'],
+      ),
+      completionPercentOverride: _doubleFromJson(
+        json['completion_percent'] ?? json['progress_percent'],
+      ),
     );
   }
 }
+
+class CommitmentDailyItem {
+  const CommitmentDailyItem({
+    required this.id,
+    required this.title,
+    this.description = '',
+    this.completedToday = false,
+    this.source = 'base',
+  });
+
+  final String id;
+  final String title;
+  final String description;
+  final bool completedToday;
+  final String source;
+
+  factory CommitmentDailyItem.fromJson(Map<String, dynamic> json) {
+    return CommitmentDailyItem(
+      id:
+          json['id']?.toString() ??
+          json['key']?.toString() ??
+          json['slug']?.toString() ??
+          'daily_item',
+      title:
+          json['title'] as String? ??
+          json['label'] as String? ??
+          json['daily_action'] as String? ??
+          '',
+      description:
+          json['description'] as String? ??
+          json['body'] as String? ??
+          json['detail'] as String? ??
+          '',
+      completedToday:
+          _boolFromJson(
+            json['completed_today'] ?? json['completed'] ?? json['checked'],
+          ) ??
+          false,
+      source: json['source'] as String? ?? 'base',
+    );
+  }
+
+  CommitmentDailyItem copyWith({bool? completedToday}) {
+    return CommitmentDailyItem(
+      id: id,
+      title: title,
+      description: description,
+      completedToday: completedToday ?? this.completedToday,
+      source: source,
+    );
+  }
+
+  static List<CommitmentDailyItem> fallbackItems({
+    required CommitmentPlan plan,
+    required int dailyLoadCount,
+    required bool completedToday,
+    String? obstacle,
+  }) {
+    final count = _clampDailyLoad(dailyLoadCount);
+    final items = <CommitmentDailyItem>[
+      CommitmentDailyItem(
+        id: 'base',
+        title: plan.dailyAction.trim().isEmpty ? plan.title : plan.dailyAction,
+        completedToday: completedToday,
+        source: 'base',
+      ),
+    ];
+    if (count >= 2) {
+      items.add(
+        CommitmentDailyItem(
+          id: 'level',
+          title: _secondLoadTitle(plan),
+          description: _secondLoadDescription(plan),
+          completedToday: completedToday,
+          source: 'level',
+        ),
+      );
+    }
+    if (count >= 3) {
+      items.add(
+        CommitmentDailyItem(
+          id: 'replacement',
+          title: _thirdLoadTitle(obstacle),
+          description: 'Write the choice down before the day moves on.',
+          completedToday: completedToday,
+          source: 'replacement',
+        ),
+      );
+    }
+    return items;
+  }
+}
+
+String dailyLoadLabelForCount(int count) {
+  return switch (_clampDailyLoad(count)) {
+    1 => 'Light',
+    2 => 'Steady',
+    _ => 'Deep',
+  };
+}
+
+int _clampDailyLoad(int count) => count.clamp(1, 3).toInt();
 
 class CommitmentPlanContext {
   const CommitmentPlanContext({this.when, this.obstacle});
@@ -492,6 +739,12 @@ int? _intFromJson(Object? value) {
   return null;
 }
 
+double? _doubleFromJson(Object? value) {
+  if (value is num) return value.toDouble();
+  if (value is String) return double.tryParse(value.trim());
+  return null;
+}
+
 bool? _boolFromJson(Object? value) {
   if (value is bool) return value;
   if (value is num) return value != 0;
@@ -501,6 +754,50 @@ bool? _boolFromJson(Object? value) {
     if (normalized == 'false' || normalized == '0') return false;
   }
   return null;
+}
+
+bool _checkedTodayFromLast(DateTime? last) {
+  if (last == null) return false;
+  final now = DateTime.now();
+  return last.year == now.year &&
+      last.month == now.month &&
+      last.day == now.day;
+}
+
+String _secondLoadTitle(CommitmentPlan plan) {
+  final text = '${plan.title} ${plan.category} ${plan.dailyAction}'
+      .toLowerCase();
+  if (text.contains('social') ||
+      text.contains('attention') ||
+      text.contains('screen') ||
+      text.contains('scroll')) {
+    return 'Scripture before the feed';
+  }
+  if (text.contains('gratitude')) return 'Name one mercy out loud';
+  if (text.contains('forgiv')) return 'Bless before rehearsing the hurt';
+  if (text.contains('prayer')) return 'Two quiet minutes';
+  return 'Name the next faithful step';
+}
+
+String _secondLoadDescription(CommitmentPlan plan) {
+  final text = '${plan.title} ${plan.category} ${plan.dailyAction}'
+      .toLowerCase();
+  if (text.contains('social') ||
+      text.contains('attention') ||
+      text.contains('screen') ||
+      text.contains('scroll')) {
+    return 'Open one verse before the next scroll.';
+  }
+  if (text.contains('gratitude')) return 'Let the gift be specific.';
+  if (text.contains('forgiv')) return 'This does not excuse harm.';
+  if (text.contains('prayer')) return 'No script. Just begin.';
+  return 'Keep it small enough to do today.';
+}
+
+String _thirdLoadTitle(String? obstacle) {
+  final value = obstacle?.trim();
+  if (value == null || value.isEmpty) return 'Write one honest line';
+  return 'When $value, pause first';
 }
 
 class DailyFaithActionStep {

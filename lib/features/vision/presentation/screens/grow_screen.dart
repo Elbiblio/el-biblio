@@ -6,9 +6,11 @@ import 'package:lucide_icons/lucide_icons.dart';
 import '../../../../core/constants/app_routes.dart';
 import '../../../../core/di/app_providers.dart';
 import '../../../../core/theme/app_theme_tokens.dart';
+import '../../../../shared/widgets/safe_bottom_padding.dart';
 import '../../../../shared/widgets/vision_illustration.dart';
 import '../../application/vision_state.dart';
 import '../../domain/vision_models.dart';
+import '../widgets/vision_action_tile.dart';
 import '../widgets/vision_panel.dart';
 
 class GrowScreen extends ConsumerStatefulWidget {
@@ -47,8 +49,9 @@ class _GrowScreenState extends ConsumerState<GrowScreen> {
           child: RefreshIndicator(
             onRefresh: () =>
                 ref.read(visionProvider.notifier).load(force: true),
-            child: ListView(
-              padding: const EdgeInsets.fromLTRB(20, 20, 20, 120),
+            child: SafeListView(
+              bottomPadding: 150,
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
               children: [
                 _GrowHero(state: state),
                 if (state.error?.isNotEmpty == true) ...[
@@ -90,6 +93,9 @@ class _GrowHero extends ConsumerWidget {
     final settings = ref.watch(settingsProvider);
     final tribeName = state.primaryTribe?.tribe.displayName;
     final commitmentTitle = state.activeCommitment?.plan.title;
+    final compassComplete = state.journeyEvents.any(
+      (event) => event.type == GrowthJourneyEventType.compassComplete,
+    );
 
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 18, 18, 20),
@@ -145,6 +151,8 @@ class _GrowHero extends ConsumerWidget {
                 icon: LucideIcons.sprout,
                 label: settings.spiritualAgeScore > 0
                     ? '${settings.spiritualAgeStage} ${settings.spiritualAgeScore}/100'
+                    : compassComplete
+                    ? 'Compass complete'
                     : 'Compass waiting',
               ),
               _GrowStatusPill(
@@ -435,6 +443,7 @@ class _DailyQuestionState extends ConsumerState<_DailyQuestion> {
   final Map<int, TextEditingController> _answerControllers = {};
   final Map<int, String> _selectedAnswers = {};
   final Set<int> _expandedQuestionIds = {};
+  bool _showMoreQuestions = false;
 
   @override
   void dispose() {
@@ -466,24 +475,23 @@ class _DailyQuestionState extends ConsumerState<_DailyQuestion> {
       );
     }
 
-    final questions = dailyQuestion.packQuestions.isNotEmpty
+    final allQuestions = dailyQuestion.packQuestions.isNotEmpty
         ? dailyQuestion.packQuestions
         : [dailyQuestion];
+    final primaryQuestion = allQuestions.first;
+    final extraQuestions = allQuestions.skip(1).toList(growable: false);
+    final visibleQuestions = [
+      primaryQuestion,
+      if (_showMoreQuestions) ...extraQuestions,
+    ];
 
     return VisionPanel(
       icon: LucideIcons.helpCircle,
-      title: 'Daily faith questions',
+      title: 'Daily faith question',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Choose the honest answer. Then take one faithful step with grace.',
-            style: Theme.of(
-              context,
-            ).textTheme.bodyMedium?.copyWith(height: 1.42),
-          ),
-          const SizedBox(height: 12),
-          for (final question in questions) ...[
+          for (final question in visibleQuestions) ...[
             _DailyQuestionCard(
               question: question,
               controller: _controllerFor(question.id, question.answer),
@@ -534,7 +542,21 @@ class _DailyQuestionState extends ConsumerState<_DailyQuestion> {
                 ).showSnackBar(const SnackBar(content: Text('Answer saved')));
               },
             ),
-            if (question != questions.last) const SizedBox(height: 12),
+            if (question != visibleQuestions.last) const SizedBox(height: 12),
+          ],
+          if (extraQuestions.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            VisionActionTile(
+              icon: _showMoreQuestions
+                  ? LucideIcons.chevronUp
+                  : LucideIcons.list,
+              title: _showMoreQuestions ? 'Hide questions' : 'More questions',
+              subtitle: '${extraQuestions.length} waiting',
+              onTap: () => setState(() {
+                _showMoreQuestions = !_showMoreQuestions;
+              }),
+              dense: true,
+            ),
           ],
         ],
       ),
@@ -743,6 +765,7 @@ class _AnswerOptions extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final growthColor = theme.tokens.palette.growthColor;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -768,16 +791,14 @@ class _AnswerOptions extends StatelessWidget {
                 ),
                 decoration: BoxDecoration(
                   color: selectedAnswer == option
-                      ? theme.colorScheme.primaryContainer.withValues(
-                          alpha: 0.58,
-                        )
+                      ? growthColor.withValues(alpha: 0.18)
                       : theme.colorScheme.surfaceContainerHighest.withValues(
                           alpha: 0.38,
                         ),
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(
                     color: selectedAnswer == option
-                        ? theme.colorScheme.primary
+                        ? growthColor
                         : theme.colorScheme.outline.withValues(alpha: 0.2),
                   ),
                 ),
@@ -789,7 +810,7 @@ class _AnswerOptions extends StatelessWidget {
                           : LucideIcons.circle,
                       size: 18,
                       color: selectedAnswer == option
-                          ? theme.colorScheme.primary
+                          ? growthColor
                           : theme.colorScheme.onSurface.withValues(alpha: 0.5),
                     ),
                     const SizedBox(width: 10),

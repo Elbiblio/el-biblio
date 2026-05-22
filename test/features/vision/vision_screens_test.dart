@@ -57,11 +57,13 @@ void main() {
         repository: repository,
       );
 
-      expect(find.text('Keep the commitment'), findsOneWidget);
-      expect(find.text(_gratitudePlan.title), findsOneWidget);
-      expect(find.text('Check in for today'), findsOneWidget);
+      expect(find.text(_gratitudePlan.title), findsWidgets);
+      expect(find.text('Mark today'), findsOneWidget);
+      expect(find.text('Adjust load'), findsOneWidget);
       expect(find.text('Checked in today.'), findsNothing);
-      expect(find.text('Increase to 5 reminders'), findsOneWidget);
+      await tester.scrollUntilVisible(find.text('Add support: 5/day'), 180);
+      await tester.pumpAndSettle();
+      expect(find.text('Add support: 5/day'), findsOneWidget);
     });
 
     testWidgets('Reflect gates posting until an unchecked season checks in', (
@@ -83,7 +85,9 @@ void main() {
       expect(find.text('How did today feel?'), findsNothing);
     });
 
-    testWidgets('Reflect leads with the daily community verse', (tester) async {
+    testWidgets('Reflect leads with the commitment composer before the verse', (
+      tester,
+    ) async {
       final repository = _FakeVisionRepository(
         activeCommitment: _season(checkedInToday: true),
       );
@@ -93,13 +97,13 @@ void main() {
         repository: repository,
       );
 
-      expect(find.text('Community verse'), findsOneWidget);
-      expect(find.textContaining('Let all that you do'), findsOneWidget);
+      expect(find.text('How did today feel?'), findsOneWidget);
 
-      await tester.scrollUntilVisible(find.text('How did today feel?'), 180);
+      await tester.scrollUntilVisible(find.text('Community verse'), 180);
       await tester.pumpAndSettle();
 
-      expect(find.text('How did today feel?'), findsOneWidget);
+      expect(find.text('Community verse'), findsOneWidget);
+      expect(find.textContaining('Let all that you do'), findsOneWidget);
     });
 
     testWidgets('Daily community verse opens a response sheet', (tester) async {
@@ -112,6 +116,8 @@ void main() {
         repository: repository,
       );
 
+      await tester.scrollUntilVisible(find.text('Respond'), 180);
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Respond'));
       await tester.pumpAndSettle();
 
@@ -214,7 +220,7 @@ void main() {
         await tester.pumpAndSettle();
         expect(find.text('How did today feel?'), findsOneWidget);
         expect(find.text('Easy'), findsOneWidget);
-        expect(find.text('Neutral'), findsOneWidget);
+        expect(find.text('Mixed'), findsOneWidget);
         expect(find.text('Hard'), findsOneWidget);
 
         await tester.scrollUntilVisible(
@@ -257,13 +263,15 @@ void main() {
       await tester.pumpAndSettle();
 
       await tester.enterText(
-        find.byType(TextField).last,
+        find.byKey(const Key('vision_reflection_text_field')),
         '  I chose patience before replying.  ',
       );
       await tester.pumpAndSettle();
-      await tester.drag(find.byType(ListView), const Offset(0, -220));
+      await tester.drag(find.byType(ListView), const Offset(0, -80));
       await tester.pumpAndSettle();
-      final postButton = find.text('Post reflection').last;
+      final postButton = find
+          .byKey(const Key('vision_reflection_post_button'))
+          .hitTestable();
       expect(postButton, findsOneWidget);
 
       await tester.tap(postButton);
@@ -274,6 +282,8 @@ void main() {
         'I chose patience before replying.',
       );
       expect(repository.postedReflectionAlias, 'Quiet Walker');
+      await tester.drag(find.byType(ListView), const Offset(0, 500));
+      await tester.pumpAndSettle();
       expect(find.text('Reflection shared'), findsOneWidget);
       expect(find.text('I chose patience before replying.'), findsOneWidget);
     });
@@ -298,15 +308,22 @@ void main() {
 
       await tester.tap(find.text('Easy'));
       await tester.pumpAndSettle();
-      await tester.enterText(find.byType(TextField).last, 'It felt possible.');
+      await tester.enterText(
+        find.byKey(const Key('vision_reflection_text_field')),
+        'It felt possible.',
+      );
       await tester.pumpAndSettle();
-      await tester.drag(find.byType(ListView), const Offset(0, -220));
+      await tester.drag(find.byType(ListView), const Offset(0, -80));
       await tester.pumpAndSettle();
-      final postButton = find.text('Post reflection').last;
+      final postButton = find
+          .byKey(const Key('vision_reflection_post_button'))
+          .hitTestable();
       expect(postButton, findsOneWidget);
       await tester.tap(postButton);
       await tester.pumpAndSettle();
 
+      await tester.drag(find.byType(ListView), const Offset(0, 500));
+      await tester.pumpAndSettle();
       expect(find.text('Reflection shared'), findsOneWidget);
     });
 
@@ -431,11 +448,14 @@ void main() {
         repository: repository,
       );
 
-      expect(find.text('Games leaderboard'), findsOneWidget);
+      expect(find.text('Play together'), findsWidgets);
       expect(find.text('Watchman'), findsWidgets);
+      await tester.scrollUntilVisible(find.text('This week\'s scores'), 180);
+      await tester.pumpAndSettle();
+      expect(find.text('This week\'s scores'), findsOneWidget);
       expect(find.text('Verse Scramble - This week'), findsOneWidget);
       expect(find.text('1240'), findsOneWidget);
-      expect(find.text('Open games'), findsOneWidget);
+      expect(find.text('Journey with Jesus'), findsOneWidget);
     });
 
     testWidgets('Tribe joins a recommendation and reveals joined workflow', (
@@ -862,6 +882,7 @@ class _FakeVisionRepository implements VisionRepository {
   @override
   Future<CommitmentSeason> checkIn({
     required int commitmentId,
+    List<String> completedItemIds = const [],
     String? note,
   }) async {
     checkInCount += 1;

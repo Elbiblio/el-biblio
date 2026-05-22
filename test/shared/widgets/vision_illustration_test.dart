@@ -16,6 +16,7 @@ void main() {
               VisionIllustration(asset: VisionIllustrationAsset.belonging),
               VisionIllustration(asset: VisionIllustrationAsset.protection),
               VisionIllustration(asset: VisionIllustrationAsset.growth),
+              VisionIllustration(asset: VisionIllustrationAsset.play),
             ],
           ),
         ),
@@ -24,7 +25,7 @@ void main() {
 
     await tester.pumpAndSettle();
 
-    expect(find.byType(VisionIllustration), findsNWidgets(5));
+    expect(find.byType(VisionIllustration), findsNWidgets(6));
     expect(tester.takeException(), isNull);
   });
 }

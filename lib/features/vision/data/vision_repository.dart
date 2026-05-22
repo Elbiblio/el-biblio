@@ -122,6 +122,7 @@ class VisionRepository {
   Future<CommitmentSeason> joinCommitment({
     required int commitmentId,
     required int nudgeCount,
+    int dailyLoadCount = 1,
     String? planWhen,
     String? planObstacle,
     AccountabilityTone accountabilityTone = AccountabilityTone.balanced,
@@ -132,6 +133,7 @@ class VisionRepository {
       '/commitments/$commitmentId/join',
       data: {
         'nudge_count_per_day': nudgeCount,
+        'daily_load_count': dailyLoadCount,
         'accountability_tone': accountabilityTone.storageValue,
         if (seasonStartedAt != null)
           'season_started_at': seasonStartedAt.toIso8601String(),
@@ -159,12 +161,14 @@ class VisionRepository {
 
   Future<CommitmentSeason> checkIn({
     required int commitmentId,
+    List<String> completedItemIds = const [],
     String? note,
   }) async {
     final response = await _dio.post<Map<String, dynamic>>(
       '/commitments/$commitmentId/check-ins',
       data: {
         'completed': true,
+        if (completedItemIds.isNotEmpty) 'completed_item_ids': completedItemIds,
         if (note != null && note.trim().isNotEmpty) 'note': note.trim(),
       },
     );

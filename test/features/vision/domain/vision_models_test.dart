@@ -38,6 +38,55 @@ void main() {
       expect(season.firstCheckInPlanObstacle, 'Scrolling when tired');
     });
 
+    test('commitment season parses level load and partial daily progress', () {
+      final season = CommitmentSeason.fromJson({
+        'challenge': {
+          'id': 8,
+          'title': 'Attention Guard',
+          'description': 'Guard attention.',
+          'duration_days': 10,
+          'category': 'discipline',
+          'daily_action': 'No social apps until lunch.',
+          'nudge_min': 1,
+          'nudge_max': 5,
+        },
+        'current_day': 3,
+        'completed_days_count': 3,
+        'nudge_count_per_day': 2,
+        'checked_in_today': false,
+        'daily_load_count': 3,
+        'daily_load_label': 'Deep',
+        'today_items': [
+          {
+            'id': 'base',
+            'title': 'No social apps until lunch.',
+            'completed_today': true,
+            'source': 'base',
+          },
+          {
+            'id': 'level',
+            'title': 'Psalm before feed',
+            'completed_today': true,
+            'source': 'level',
+          },
+          {
+            'id': 'replacement',
+            'title': 'Text Daniel if the urge spikes',
+            'completed_today': false,
+            'source': 'replacement',
+          },
+        ],
+      });
+
+      expect(season.dailyLoadCount, 3);
+      expect(season.dailyLoadLabel, 'Deep');
+      expect(season.completedTodayItemCount, 2);
+      expect(season.totalRequiredItemCount, 3);
+      expect(season.checkedInToday, isFalse);
+      expect(season.progress, closeTo(0.366, 0.002));
+      expect(season.completionPercentLabel, '36.7%');
+    });
+
     test('journey icon mapping covers known milestone keys', () {
       expect(GrowthJourneyEvent.iconForKey('compass'), LucideIcons.compass);
       expect(GrowthJourneyEvent.iconForKey('users'), LucideIcons.users);

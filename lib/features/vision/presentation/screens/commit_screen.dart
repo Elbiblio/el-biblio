@@ -5,9 +5,12 @@ import 'package:permission_handler/permission_handler.dart' as permissions;
 
 import '../../../../core/di/app_providers.dart';
 import '../../../../core/models/accountability_tone.dart';
+import '../../../../shared/widgets/safe_bottom_padding.dart';
 import '../../../../shared/widgets/premium_success_dialog.dart';
 import '../../../../shared/widgets/vision_illustration.dart';
 import '../../domain/vision_models.dart';
+import '../widgets/commitment_daily_load_widgets.dart';
+import '../widgets/vision_action_tile.dart';
 import '../widgets/vision_panel.dart';
 
 class CommitScreen extends ConsumerStatefulWidget {
@@ -19,6 +22,7 @@ class CommitScreen extends ConsumerStatefulWidget {
 
 class _CommitScreenState extends ConsumerState<CommitScreen> {
   int _selectedNudges = 3;
+  int _selectedDailyLoad = 1;
   String _selectedCategory = 'all';
   _HabitViceSeed? _selectedHabitSeed;
   _ReplacementHabit? _selectedReplacement;
@@ -56,8 +60,9 @@ class _CommitScreenState extends ConsumerState<CommitScreen> {
       ),
       body: RefreshIndicator(
         onRefresh: () => ref.read(visionProvider.notifier).load(force: true),
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 120),
+        child: SafeListView(
+          bottomPadding: 150,
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
           children: [
             _CommitHeader(active: active),
             const SizedBox(height: 16),
@@ -74,7 +79,15 @@ class _CommitScreenState extends ConsumerState<CommitScreen> {
               const SizedBox(height: 16),
             ],
             if (active != null) ...[
-              _ActiveCommitment(active: active, showCheckInAction: true),
+              _ActiveCommitment(
+                active: active,
+                showCheckInAction: true,
+                onAdjustLoad: () => _showDailyLoadSheet(active),
+                onBrowseNext: () => _showCommitmentLibrary(
+                  state.recommendedCommitments,
+                  active,
+                ),
+              ),
               const SizedBox(height: 16),
               _MonthlyReviewPanel(active: active),
               const SizedBox(height: 16),
@@ -127,7 +140,10 @@ class _CommitScreenState extends ConsumerState<CommitScreen> {
                           if (plan == null) return;
                           _showCommitmentWalkthrough(
                             plan,
-                            _selectedNudges.clamp(plan.nudgeMin, plan.nudgeMax),
+                            _selectedNudges
+                                .clamp(plan.nudgeMin, plan.nudgeMax)
+                                .toInt(),
+                            dailyLoadCount: _selectedDailyLoad,
                             planObstacle: _habitObstacleCopy(),
                           );
                         },
@@ -144,7 +160,7 @@ class _CommitScreenState extends ConsumerState<CommitScreen> {
     final theme = Theme.of(context);
     final min = plan.nudgeMin;
     final max = plan.nudgeMax;
-    final nudges = _selectedNudges.clamp(min, max);
+    final nudges = _selectedNudges.clamp(min, max).toInt();
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 180),
@@ -216,6 +232,27 @@ class _CommitScreenState extends ConsumerState<CommitScreen> {
             ),
           ),
           const SizedBox(height: 14),
+          Text(
+            'Daily load',
+            style: theme.textTheme.labelLarge?.copyWith(
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const SizedBox(height: 8),
+          DailyLoadSelector(
+            value: _selectedDailyLoad,
+            onChanged: (value) => setState(() => _selectedDailyLoad = value),
+          ),
+          const SizedBox(height: 12),
+          CommitmentDailyChecklist(
+            items: CommitmentDailyItem.fallbackItems(
+              plan: plan,
+              dailyLoadCount: _selectedDailyLoad,
+              completedToday: false,
+              obstacle: _habitObstacleCopy(),
+            ),
+          ),
+          const SizedBox(height: 14),
           _NudgeSelectorHeader(nudges: nudges, onHelp: _showNudgeHelp),
           Slider(
             value: nudges.toDouble(),
@@ -229,7 +266,11 @@ class _CommitScreenState extends ConsumerState<CommitScreen> {
           FilledButton.icon(
             onPressed: ref.watch(visionProvider).isLoading
                 ? null
-                : () => _showCommitmentWalkthrough(plan, nudges),
+                : () => _showCommitmentWalkthrough(
+                    plan,
+                    nudges,
+                    dailyLoadCount: _selectedDailyLoad,
+                  ),
             icon: const Icon(LucideIcons.compass, size: 18),
             label: const Text('Review and begin'),
           ),
@@ -313,16 +354,93 @@ class _CommitScreenState extends ConsumerState<CommitScreen> {
             setState(() => _selectedCategory = category),
         onReview: (plan) {
           Navigator.of(context).pop();
-          final nudges = _selectedNudges.clamp(plan.nudgeMin, plan.nudgeMax);
-          _showCommitmentWalkthrough(plan, nudges);
+          final nudges = _selectedNudges
+              .clamp(plan.nudgeMin, plan.nudgeMax)
+              .toInt();
+          _showCommitmentWalkthrough(
+            plan,
+            nudges,
+            dailyLoadCount: _selectedDailyLoad,
+          );
         },
       ),
+    );
+  }
+
+  void _showDailyLoadSheet(CommitmentSeason active) {
+    var selected = active.dailyLoadCount;
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) {
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            return Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Daily load',
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  CommitmentSnapshotBanner(
+                    active: active.copyWith(dailyLoadCount: selected),
+                  ),
+                  const SizedBox(height: 14),
+                  DailyLoadSelector(
+                    value: selected,
+                    onChanged: (value) => setSheetState(() {
+                      selected = value;
+                    }),
+                  ),
+                  const SizedBox(height: 14),
+                  CommitmentDailyChecklist(
+                    items: CommitmentDailyItem.fallbackItems(
+                      plan: active.plan,
+                      dailyLoadCount: selected,
+                      completedToday: active.checkedInToday,
+                      obstacle: active.firstCheckInPlanObstacle,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  FilledButton.icon(
+                    onPressed: () async {
+                      final updated = await ref
+                          .read(visionProvider.notifier)
+                          .updateDailyLoad(selected);
+                      if (!context.mounted) return;
+                      Navigator.of(sheetContext).pop();
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            updated
+                                ? '${dailyLoadLabelForCount(selected)} load selected.'
+                                : 'Daily load could not be changed.',
+                          ),
+                        ),
+                      );
+                    },
+                    icon: const Icon(LucideIcons.layers, size: 18),
+                    label: const Text('Use this load'),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
     );
   }
 
   Future<void> _showCommitmentWalkthrough(
     CommitmentPlan plan,
     int initialNudges, {
+    required int dailyLoadCount,
     String? planWhen,
     String? planObstacle,
   }) async {
@@ -333,6 +451,7 @@ class _CommitScreenState extends ConsumerState<CommitScreen> {
       builder: (context) => _CommitmentWalkthroughSheet(
         plan: plan,
         initialNudges: initialNudges,
+        dailyLoadCount: dailyLoadCount,
         initialPlanWhen: planWhen,
         initialPlanObstacle: planObstacle,
         onJoin: (nudges, planWhen, planObstacle) async {
@@ -341,6 +460,7 @@ class _CommitScreenState extends ConsumerState<CommitScreen> {
               .joinCommitment(
                 plan,
                 nudges,
+                dailyLoadCount: dailyLoadCount,
                 planWhen: planWhen,
                 planObstacle: planObstacle,
               );
@@ -430,7 +550,7 @@ class _CommitHeader extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  hasActive ? 'Keep the commitment' : 'Choose one commitment',
+                  hasActive ? active!.plan.title : 'Choose one commitment',
                   style: theme.textTheme.headlineSmall?.copyWith(
                     fontWeight: FontWeight.w900,
                     height: 1.02,
@@ -439,8 +559,8 @@ class _CommitHeader extends StatelessWidget {
                 const SizedBox(height: 8),
                 Text(
                   hasActive
-                      ? 'One check-in today is enough. Let faithfulness grow with patience and grace.'
-                      : 'Choose one practice, a prayerful reminder, and a season to keep it.',
+                      ? 'Day ${active!.currentDay}/${active!.plan.durationDays} - ${active!.completionPercentLabel} - ${active!.completedTodayItemCount}/${active!.totalRequiredItemCount} today'
+                      : 'Choose the practice, load, reminders, and first check-in plan.',
                   style: theme.textTheme.bodyMedium?.copyWith(height: 1.42),
                 ),
               ],
@@ -1213,6 +1333,7 @@ class _CommitmentWalkthroughSheet extends StatefulWidget {
   const _CommitmentWalkthroughSheet({
     required this.plan,
     required this.initialNudges,
+    required this.dailyLoadCount,
     required this.onJoin,
     this.initialPlanWhen,
     this.initialPlanObstacle,
@@ -1220,6 +1341,7 @@ class _CommitmentWalkthroughSheet extends StatefulWidget {
 
   final CommitmentPlan plan;
   final int initialNudges;
+  final int dailyLoadCount;
   final String? initialPlanWhen;
   final String? initialPlanObstacle;
   final Future<void> Function(int nudges, String planWhen, String planObstacle)
@@ -1240,10 +1362,9 @@ class _CommitmentWalkthroughSheetState
   @override
   void initState() {
     super.initState();
-    _nudges = widget.initialNudges.clamp(
-      widget.plan.nudgeMin,
-      widget.plan.nudgeMax,
-    );
+    _nudges = widget.initialNudges
+        .clamp(widget.plan.nudgeMin, widget.plan.nudgeMax)
+        .toInt();
     _whenController = TextEditingController(text: widget.initialPlanWhen);
     _obstacleController = TextEditingController(
       text: widget.initialPlanObstacle,
@@ -1273,12 +1394,31 @@ class _CommitmentWalkthroughSheetState
             ),
           ),
           const SizedBox(height: 8),
-          Text(
-            'This is not a pressure machine. It is a gentle accountability assistant for the person you already want to become.',
-            style: theme.textTheme.bodyMedium?.copyWith(height: 1.45),
+          CommitmentSnapshotBanner(
+            active: CommitmentSeason(
+              plan: widget.plan,
+              currentDay: 1,
+              completedDaysCount: 0,
+              nudgeCountPerDay: _nudges,
+              dailyLoadCount: widget.dailyLoadCount,
+              dailyLoadLabel: dailyLoadLabelForCount(widget.dailyLoadCount),
+              todayItems: CommitmentDailyItem.fallbackItems(
+                plan: widget.plan,
+                dailyLoadCount: widget.dailyLoadCount,
+                completedToday: false,
+                obstacle: widget.initialPlanObstacle,
+              ),
+            ),
           ),
           const SizedBox(height: 18),
-          _SampleNudgeCard(plan: widget.plan),
+          CommitmentDailyChecklist(
+            items: CommitmentDailyItem.fallbackItems(
+              plan: widget.plan,
+              dailyLoadCount: widget.dailyLoadCount,
+              completedToday: false,
+              obstacle: widget.initialPlanObstacle,
+            ),
+          ),
           const SizedBox(height: 16),
           _ExpectationRow(
             icon: LucideIcons.checkCircle,
@@ -1333,17 +1473,16 @@ class _CommitmentWalkthroughSheetState
           ),
           const SizedBox(height: 4),
           Text(
-            'Start with $_nudges per day. If three are not enough, choose stronger support and name what God is forming in you.',
+            '$_nudges/day',
             style: theme.textTheme.bodyMedium?.copyWith(height: 1.4),
           ),
           Slider(
             value: _nudges.toDouble(),
             min: widget.plan.nudgeMin.toDouble(),
             max: widget.plan.nudgeMax.toDouble(),
-            divisions: (widget.plan.nudgeMax - widget.plan.nudgeMin).clamp(
-              1,
-              10,
-            ),
+            divisions: (widget.plan.nudgeMax - widget.plan.nudgeMin)
+                .clamp(1, 10)
+                .toInt(),
             label: '$_nudges',
             onChanged: _joining
                 ? null
@@ -1372,60 +1511,6 @@ class _CommitmentWalkthroughSheetState
                   )
                 : const Icon(LucideIcons.flag, size: 18),
             label: Text('Begin ${widget.plan.durationDays}-day commitment'),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _SampleNudgeCard extends StatelessWidget {
-  const _SampleNudgeCard({required this.plan});
-
-  final CommitmentPlan plan;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.primaryContainer.withValues(alpha: 0.28),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: theme.colorScheme.primary.withValues(alpha: 0.18),
-        ),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Icon(LucideIcons.bell, size: 20),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  plan.title,
-                  style: theme.textTheme.labelLarge?.copyWith(
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'A quiet check-in is still faithful. ${plan.dailyAction}',
-                  style: theme.textTheme.bodyMedium?.copyWith(height: 1.35),
-                ),
-                const SizedBox(height: 8),
-                const Wrap(
-                  spacing: 8,
-                  children: [
-                    Chip(label: Text('I did this')),
-                    Chip(label: Text('Open commitment')),
-                  ],
-                ),
-              ],
-            ),
           ),
         ],
       ),
@@ -1522,10 +1607,14 @@ class _ActiveCommitment extends ConsumerWidget {
   const _ActiveCommitment({
     required this.active,
     this.showCheckInAction = true,
+    required this.onAdjustLoad,
+    required this.onBrowseNext,
   });
 
   final CommitmentSeason active;
   final bool showCheckInAction;
+  final VoidCallback onAdjustLoad;
+  final VoidCallback onBrowseNext;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -1546,17 +1635,17 @@ class _ActiveCommitment extends ConsumerWidget {
     return VisionPanel(
       icon: LucideIcons.checkCircle,
       title: active.plan.title,
-      trailing: Text('Day ${active.currentDay}'),
+      trailing: Text(active.completionPercentLabel),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(active.plan.dailyAction),
+          CommitmentSnapshotBanner(active: active),
           if (_hasPlanContext(planWhen, planObstacle)) ...[
             const SizedBox(height: 12),
             _FirstCheckInPlanCue(when: planWhen, obstacle: planObstacle),
           ],
           const SizedBox(height: 12),
-          LinearProgressIndicator(value: active.progress),
+          CommitmentDailyChecklist(items: active.todayItems),
           const SizedBox(height: 12),
           if (active.checkedInToday)
             const Row(
@@ -1575,8 +1664,12 @@ class _ActiveCommitment extends ConsumerWidget {
               ],
             )
           else
-            FilledButton.icon(
-              onPressed: () async {
+            VisionActionTile(
+              icon: LucideIcons.checkCircle,
+              title: 'Mark today',
+              subtitle:
+                  '${active.totalRequiredItemCount}/${active.totalRequiredItemCount} today',
+              onTap: () async {
                 final completed = await ref
                     .read(visionProvider.notifier)
                     .checkIn();
@@ -1589,11 +1682,64 @@ class _ActiveCommitment extends ConsumerWidget {
                   ),
                 );
               },
-              icon: const Icon(LucideIcons.checkCircle, size: 18),
-              label: const Text('Check in for today'),
             ),
+          const SizedBox(height: 12),
+          VisionActionTileColumn(
+            children: [
+              VisionActionTile(
+                icon: LucideIcons.layers,
+                title: 'Adjust load',
+                subtitle: active.dailyLoadLabel,
+                onTap: onAdjustLoad,
+                dense: true,
+              ),
+              VisionActionTile(
+                icon: LucideIcons.calendarClock,
+                title: 'Review season',
+                subtitle:
+                    'Day ${active.currentDay}/${active.plan.durationDays}',
+                onTap: () => _showSeasonReview(context, active),
+                dense: true,
+              ),
+              VisionActionTile(
+                icon: LucideIcons.layoutGrid,
+                title: 'Browse next',
+                subtitle: 'Current season stays active',
+                onTap: onBrowseNext,
+                dense: true,
+              ),
+            ],
+          ),
         ],
       ),
+    );
+  }
+
+  void _showSeasonReview(BuildContext context, CommitmentSeason active) {
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) {
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                active.plan.title,
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(height: 10),
+              CommitmentProgressStrip(active: active),
+              const SizedBox(height: 14),
+              CommitmentDailyChecklist(items: active.todayItems),
+            ],
+          ),
+        );
+      },
     );
   }
 }
@@ -1687,7 +1833,7 @@ class _AccountabilityAssistantPanel extends ConsumerWidget {
                 );
               },
               icon: const Icon(LucideIcons.plus, size: 18),
-              label: Text('Increase to $suggested reminders'),
+              label: Text('Add support: $suggested/day'),
             ),
           ],
         ],

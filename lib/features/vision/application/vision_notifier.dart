@@ -223,6 +223,7 @@ class VisionNotifier extends StateNotifier<VisionState> {
   Future<bool> joinCommitment(
     CommitmentPlan plan,
     int nudges, {
+    int dailyLoadCount = 1,
     String? planWhen,
     String? planObstacle,
   }) async {
@@ -243,15 +244,18 @@ class VisionNotifier extends StateNotifier<VisionState> {
         seasonStartedAt.month + 1,
         seasonStartedAt.day,
       );
-      final membership = await _repository.joinCommitment(
-        commitmentId: plan.id,
-        nudgeCount: nudges,
-        planWhen: planWhen,
-        planObstacle: planObstacle,
-        accountabilityTone: tone,
-        seasonStartedAt: seasonStartedAt,
-        nextReviewAt: nextReviewAt,
-      );
+      final membership = await _repository
+          .joinCommitment(
+            commitmentId: plan.id,
+            nudgeCount: nudges,
+            dailyLoadCount: dailyLoadCount,
+            planWhen: planWhen,
+            planObstacle: planObstacle,
+            accountabilityTone: tone,
+            seasonStartedAt: seasonStartedAt,
+            nextReviewAt: nextReviewAt,
+          )
+          .then((value) => value.copyWith(dailyLoadCount: dailyLoadCount));
       await _saveFirstCheckInPlan?.call(
         commitmentId: membership.plan.id,
         when: membership.firstCheckInPlanWhen ?? planWhen,
@@ -300,10 +304,11 @@ class VisionNotifier extends StateNotifier<VisionState> {
     if (active == null) return false;
 
     try {
-      final membership = await _repository.updateNudges(
-        commitmentId: active.plan.id,
-        nudgeCount: nudgeCount,
-      );
+      final membership = await _repository
+          .updateNudges(commitmentId: active.plan.id, nudgeCount: nudgeCount)
+          .then(
+            (value) => value.copyWith(dailyLoadCount: active.dailyLoadCount),
+          );
       final localContext = _localPlanContext?.call(membership.plan.id);
       final tone = _accountabilityTone();
       final scheduled = await _notificationService.scheduleCommitmentNudges(
@@ -330,15 +335,37 @@ class VisionNotifier extends StateNotifier<VisionState> {
     }
   }
 
-  Future<bool> checkIn() async {
+  Future<bool> updateDailyLoad(int dailyLoadCount) async {
+    final active = state.activeCommitment;
+    if (active == null) return false;
+    state = state.copyWith(
+      activeCommitment: active.copyWith(dailyLoadCount: dailyLoadCount),
+    );
+    return true;
+  }
+
+  Future<bool> checkIn({List<String> completedItemIds = const []}) async {
     final active = state.activeCommitment;
     if (active == null) return false;
 
     state = state.copyWith(isLoading: true, clearError: true);
     try {
-      final membership = await _repository.checkIn(
-        commitmentId: active.plan.id,
-      );
+      final membership = await _repository
+          .checkIn(
+            commitmentId: active.plan.id,
+            completedItemIds: completedItemIds.isEmpty
+                ? active.todayItems.map((item) => item.id).toList()
+                : completedItemIds,
+          )
+          .then(
+            (value) => value.copyWith(
+              dailyLoadCount: active.dailyLoadCount,
+              todayItems: active.todayItems
+                  .map((item) => item.copyWith(completedToday: true))
+                  .toList(growable: false),
+              checkedInTodayOverride: true,
+            ),
+          );
       try {
         final localContext = _localPlanContext?.call(membership.plan.id);
         final tone = _accountabilityTone();

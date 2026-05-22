@@ -6,7 +6,8 @@ enum VisionIllustrationAsset {
   commitment('assets/images/vision_commitment.svg'),
   belonging('assets/images/vision_belonging.svg'),
   protection('assets/images/vision_protection.svg'),
-  growth('assets/images/vision_growth.svg');
+  growth('assets/images/vision_growth.svg'),
+  play('assets/images/vision_play.svg');
 
   const VisionIllustrationAsset(this.path);
 
