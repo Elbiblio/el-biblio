@@ -85,7 +85,9 @@ class _QuickPrayerScreenState extends ConsumerState<QuickPrayerScreen>
               TabBar(
                 controller: _tabController,
                 labelColor: theme.colorScheme.primary,
-                unselectedLabelColor: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                unselectedLabelColor: theme.colorScheme.onSurface.withValues(
+                  alpha: 0.5,
+                ),
                 indicatorSize: TabBarIndicatorSize.label,
                 dividerHeight: 0,
                 tabs: const [
@@ -101,7 +103,9 @@ class _QuickPrayerScreenState extends ConsumerState<QuickPrayerScreen>
                 categories: QuickPrayer.categories,
                 selected: state.activePrayerCategory,
                 onSelected: (cat) {
-                  ref.read(spiritualAidProvider.notifier).filterPrayersByCategory(cat);
+                  ref
+                      .read(spiritualAidProvider.notifier)
+                      .filterPrayersByCategory(cat);
                 },
               ),
               const SizedBox(height: 8),
@@ -133,14 +137,18 @@ class _QuickPrayerScreenState extends ConsumerState<QuickPrayerScreen>
             Icon(
               Icons.church_rounded,
               size: 48,
-              color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.3),
+              color: Theme.of(
+                context,
+              ).colorScheme.primary.withValues(alpha: 0.3),
             ),
             const SizedBox(height: 12),
             Text(
               'No prayers found',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5),
-                  ),
+                color: Theme.of(
+                  context,
+                ).colorScheme.onSurface.withValues(alpha: 0.5),
+              ),
             ),
           ],
         ),
@@ -159,7 +167,9 @@ class _QuickPrayerScreenState extends ConsumerState<QuickPrayerScreen>
           },
           onTTSPlay: () {
             _ttsService.speak(prayer.body);
-            ref.read(spiritualAidProvider.notifier).addPrayerToHistory(prayer.id);
+            ref
+                .read(spiritualAidProvider.notifier)
+                .addPrayerToHistory(prayer.id);
           },
           onPrayWithMe: () => _showPrayWithMe(prayer),
         );
@@ -172,21 +182,17 @@ class _QuickPrayerScreenState extends ConsumerState<QuickPrayerScreen>
 
     showModalBottomSheet(
       context: context,
+      useRootNavigator: true,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => _PrayWithMeSheet(
-        prayer: prayer,
-        ttsService: _ttsService,
-      ),
+      builder: (context) =>
+          _PrayWithMeSheet(prayer: prayer, ttsService: _ttsService),
     );
   }
 }
 
 class _PrayWithMeSheet extends StatefulWidget {
-  const _PrayWithMeSheet({
-    required this.prayer,
-    required this.ttsService,
-  });
+  const _PrayWithMeSheet({required this.prayer, required this.ttsService});
 
   final QuickPrayer prayer;
   final TTSService ttsService;

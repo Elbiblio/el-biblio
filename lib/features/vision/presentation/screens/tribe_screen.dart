@@ -85,7 +85,7 @@ class _TribeScreenState extends ConsumerState<TribeScreen> {
             onRefresh: () =>
                 ref.read(visionProvider.notifier).load(force: true),
             child: SafeListView(
-              bottomPadding: 150,
+              bottomPadding: shellChromeBottomPadding,
               padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
               children: [
                 _TribeHero(
@@ -121,8 +121,6 @@ class _TribeScreenState extends ConsumerState<TribeScreen> {
                   const SizedBox(height: 14),
                   _PulsePanel(),
                   const SizedBox(height: 14),
-                  _TribeGamesPanel(),
-                  const SizedBox(height: 14),
                   _TribeHangoutPanel(key: _hangoutKey),
                   const SizedBox(height: 14),
                   _WeeklyReflectionHub(
@@ -146,14 +144,16 @@ class _TribeScreenState extends ConsumerState<TribeScreen> {
     var localMode = _mode;
     showModalBottomSheet<void>(
       context: context,
+      useRootNavigator: true,
       isScrollControlled: true,
       showDragHandle: true,
       builder: (sheetContext) {
         final bottom = MediaQuery.of(sheetContext).viewInsets.bottom;
+        final safeBottom = MediaQuery.paddingOf(sheetContext).bottom;
         return StatefulBuilder(
           builder: (context, setModalState) {
             return Padding(
-              padding: EdgeInsets.fromLTRB(20, 0, 20, bottom + 24),
+              padding: EdgeInsets.fromLTRB(20, 0, 20, bottom + 24 + safeBottom),
               child: ListView(
                 shrinkWrap: true,
                 children: [
@@ -261,8 +261,8 @@ class _TribeHero extends StatelessWidget {
                     const SizedBox(height: 8),
                     Text(
                       hasTribe
-                          ? 'Posting as ${tribe.displayAlias}. Belonging gives your commitment a place to be witnessed.'
-                          : 'Belonging before performance. Choose the circle that matches your formation season.',
+                          ? 'Posting as ${tribe.displayAlias}.'
+                          : 'Choose a circle for this season.',
                       style: theme.textTheme.bodyMedium?.copyWith(
                         color: tokens.palette.textSecondary,
                         height: 1.42,
@@ -350,7 +350,7 @@ class _TribeActionTiles extends ConsumerWidget {
     final tribeId = state.primaryTribe?.tribe.id;
     return VisionPanel(
       icon: LucideIcons.sparkles,
-      title: 'Tribe actions',
+      title: 'Actions',
       child: VisionActionTileColumn(
         children: [
           VisionActionTile(
@@ -362,13 +362,6 @@ class _TribeActionTiles extends ConsumerWidget {
                   ? AppRoutes.invite
                   : '${AppRoutes.invite}?source=tribe&tribe_id=$tribeId',
             ),
-            dense: true,
-          ),
-          VisionActionTile(
-            icon: LucideIcons.gamepad2,
-            title: 'Play together',
-            subtitle: '${state.gameScores.length} scores this week',
-            onTap: () => context.push(AppRoutes.games),
             dense: true,
           ),
           VisionActionTile(
@@ -460,7 +453,7 @@ class _OtherTribesEntryPanel extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Your current tribe stays primary. Open this only when you are intentionally reassessing where you belong this season.',
+            'Your current tribe stays primary.',
             style: theme.textTheme.bodyMedium?.copyWith(height: 1.45),
           ),
           const SizedBox(height: 12),
@@ -477,6 +470,7 @@ class _OtherTribesEntryPanel extends ConsumerWidget {
   void _showOtherTribesSheet(BuildContext context, List<TribeIdentity> tribes) {
     showModalBottomSheet<void>(
       context: context,
+      useRootNavigator: true,
       isScrollControlled: true,
       showDragHandle: true,
       builder: (_) => _OtherTribesSheet(tribes: tribes),
@@ -492,6 +486,7 @@ class _OtherTribesSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final safeBottom = MediaQuery.paddingOf(context).bottom;
     return DraggableScrollableSheet(
       expand: false,
       initialChildSize: 0.82,
@@ -500,7 +495,7 @@ class _OtherTribesSheet extends StatelessWidget {
       builder: (context, controller) {
         return ListView(
           controller: controller,
-          padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+          padding: EdgeInsets.fromLTRB(20, 0, 20, 24 + safeBottom),
           children: [
             Text(
               'Tribe guide',
@@ -510,7 +505,7 @@ class _OtherTribesSheet extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              'A different tribe should feel like a real reassessment, not casual browsing. Read the fit note, then join only if this season has changed.',
+              'Read the fit note before switching.',
               style: theme.textTheme.bodyMedium?.copyWith(height: 1.42),
             ),
             const SizedBox(height: 16),
@@ -586,7 +581,7 @@ class _OtherTribeTile extends ConsumerWidget {
           ),
           const SizedBox(height: 10),
           Text(
-            tribe.description,
+            _tribeCardDescription(tribe),
             style: theme.textTheme.bodyMedium?.copyWith(height: 1.4),
           ),
           if (tribe.matchReason?.isNotEmpty == true) ...[
@@ -616,8 +611,7 @@ class _OtherTribeTile extends ConsumerWidget {
                     await PremiumSuccessDialog.show(
                       context,
                       title: 'You joined ${tribe.displayName}',
-                      message:
-                          'Your tribe has been updated for this season of formation.',
+                      message: '${tribe.displayName} is now your tribe.',
                       primaryActionText: 'Continue',
                     );
                   },
@@ -715,7 +709,7 @@ class _RecommendedTribeCard extends ConsumerWidget {
           ),
           const SizedBox(height: 10),
           Text(
-            tribe.description,
+            _tribeCardDescription(tribe),
             style: theme.textTheme.bodyMedium?.copyWith(height: 1.42),
           ),
           if (tribe.matchReason?.isNotEmpty == true) ...[
@@ -771,8 +765,7 @@ class _RecommendedTribeCard extends ConsumerWidget {
                     await PremiumSuccessDialog.show(
                       context,
                       title: 'You joined ${tribe.displayName}',
-                      message:
-                          'Your commitment and reflections now have a place of belonging.',
+                      message: '${tribe.displayName} is now your tribe.',
                       primaryActionText: 'Continue',
                     );
                   },
@@ -795,24 +788,24 @@ class _TribeFeaturePreview extends StatelessWidget {
   Widget build(BuildContext context) {
     return const VisionPanel(
       icon: LucideIcons.sparkles,
-      title: 'What opens after joining',
+      title: 'After joining',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _FeaturePreviewRow(
             icon: LucideIcons.activity,
             title: 'Daily pulse',
-            body: 'See check-ins and small signs of life in your circle.',
+            body: 'Check-ins from your tribe.',
           ),
           _FeaturePreviewRow(
             icon: LucideIcons.calendarHeart,
             title: 'Weekend reflection',
-            body: 'Mark what the week formed and save what you want to carry.',
+            body: 'Post or save a weekly note.',
           ),
           _FeaturePreviewRow(
             icon: LucideIcons.radio,
             title: 'Live hangouts',
-            body: 'Start or join voice rooms for prayer and encouragement.',
+            body: 'Open voice rooms for prayer.',
           ),
         ],
       ),
@@ -945,8 +938,8 @@ class _WeeklyReflectionHub extends ConsumerWidget {
           else ...[
             Text(
               _isWeekend
-                  ? 'A slower place for what this week formed in ${tribe.tribe.displayName}.'
-                  : 'It opens Saturday and Sunday. Read or save anything you want to carry forward.',
+                  ? 'Post this week\'s note for ${tribe.tribe.displayName}.'
+                  : 'Open Saturday and Sunday.',
               style: theme.textTheme.bodyMedium,
             ),
             const SizedBox(height: 12),
@@ -977,6 +970,7 @@ class _WeeklyReflectionHub extends ConsumerWidget {
   void _openHub(BuildContext context) {
     showModalBottomSheet<void>(
       context: context,
+      useRootNavigator: true,
       isScrollControlled: true,
       showDragHandle: true,
       builder: (context) =>
@@ -999,6 +993,7 @@ class _WeeklyReflectionSheet extends ConsumerWidget {
     final state = ref.watch(visionProvider);
     final tribe = state.primaryTribe;
     final theme = Theme.of(context);
+    final safeBottom = MediaQuery.paddingOf(context).bottom;
 
     return DraggableScrollableSheet(
       expand: false,
@@ -1008,7 +1003,7 @@ class _WeeklyReflectionSheet extends ConsumerWidget {
       builder: (context, scrollController) {
         return ListView(
           controller: scrollController,
-          padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+          padding: EdgeInsets.fromLTRB(20, 0, 20, 24 + safeBottom),
           children: [
             Text(
               'Weekend reflection',
@@ -1020,7 +1015,7 @@ class _WeeklyReflectionSheet extends ConsumerWidget {
             Text(
               tribe == null
                   ? 'Join a tribe to share a weekend reflection.'
-                  : 'A weekly pause for ${tribe.tribe.displayName}. Save what you want to keep close.',
+                  : 'Post or save notes from ${tribe.tribe.displayName}.',
               style: theme.textTheme.bodyMedium?.copyWith(height: 1.42),
             ),
             if (tribe != null && isWeekend) ...[
@@ -1060,7 +1055,9 @@ class _WeeklyReflectionSheet extends ConsumerWidget {
             ],
             const SizedBox(height: 18),
             if (state.weeklyReflections.isEmpty)
-              const Text('No weekly reflections yet.')
+              const Text(
+                'No weekend notes yet. Your first note can set the rhythm.',
+              )
             else
               ...state.weeklyReflections.map(
                 (item) => ListTile(
@@ -1131,14 +1128,12 @@ class _PulsePanel extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (state.primaryTribe == null)
-            const Text(
-              'Join a tribe to see daily check-ins and shared reflections.',
-            )
+            const Text('Join a tribe to see check-ins.')
           else if (pulse.items.isEmpty)
             Text(
               pulse.returnedCount > 0
                   ? '${pulse.returnedCount} people checked in today.'
-                  : 'Your tribe pulse will appear as people check in today.',
+                  : 'Your check-in can be today\'s first signal.',
             )
           else
             ...pulse.items.map(
@@ -1172,208 +1167,6 @@ class _PulsePanel extends ConsumerWidget {
                 label: const Text('Retake compass'),
               ),
             ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _TribeGamesPanel extends ConsumerWidget {
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final state = ref.watch(visionProvider);
-    final theme = Theme.of(context);
-    final entries = state.gameScores.take(5).toList(growable: false);
-    final roundsThisWeek = state.gameScores.length;
-
-    return VisionPanel(
-      icon: LucideIcons.gamepad2,
-      title: 'Play together',
-      trailing: Text('${entries.length} scores'),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _PlayTogetherBanner(
-            roundsThisWeek: roundsThisWeek,
-            tribeName: state.primaryTribe?.tribe.displayName ?? 'Tribe',
-          ),
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              _WeeklyPill(
-                icon: LucideIcons.gamepad2,
-                label: '$roundsThisWeek rounds this week',
-              ),
-              _WeeklyPill(
-                icon: LucideIcons.users,
-                label: state.primaryTribe?.tribe.displayName ?? 'Tribe',
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          VisionActionTileColumn(
-            children: [
-              VisionActionTile(
-                icon: LucideIcons.shuffle,
-                title: 'Verse Scramble',
-                subtitle: 'Scripture play',
-                onTap: () => context.push(AppRoutes.gamesVerseScramble),
-                dense: true,
-              ),
-              VisionActionTile(
-                icon: LucideIcons.map,
-                title: 'Journey with Jesus',
-                subtitle: 'Story path',
-                onTap: () => context.push(AppRoutes.gamesJourney),
-                dense: true,
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          Text(
-            'This week\'s scores',
-            style: theme.textTheme.labelLarge?.copyWith(
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-          const SizedBox(height: 10),
-          if (entries.isEmpty)
-            Text(
-              state.isReadOnly
-                  ? 'Reconnect to see live tribe scores.'
-                  : 'No scores yet.',
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.tokens.palette.textSecondary,
-                height: 1.35,
-              ),
-            )
-          else
-            ...entries.map((entry) => _ScoreRow(entry: entry)),
-        ],
-      ),
-    );
-  }
-}
-
-class _PlayTogetherBanner extends StatelessWidget {
-  const _PlayTogetherBanner({
-    required this.roundsThisWeek,
-    required this.tribeName,
-  });
-
-  final int roundsThisWeek;
-  final String tribeName;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final tokens = theme.tokens;
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: tokens.palette.growthColor.withValues(
-          alpha: theme.brightness == Brightness.dark ? 0.16 : 0.12,
-        ),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: tokens.palette.growthColor.withValues(alpha: 0.22),
-        ),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '$roundsThisWeek rounds this week',
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.w900,
-                    height: 1.08,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  tribeName,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: tokens.palette.textSecondary,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 12),
-          const VisionIllustration(
-            asset: VisionIllustrationAsset.play,
-            size: 94,
-            semanticLabel: 'Play together',
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ScoreRow extends StatelessWidget {
-  const _ScoreRow({required this.entry});
-
-  final dynamic entry;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Row(
-        children: [
-          CircleAvatar(
-            radius: 16,
-            backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.12),
-            child: Text(
-              entry.rank > 0 ? '${entry.rank}' : '-',
-              style: theme.textTheme.labelMedium?.copyWith(
-                color: theme.colorScheme.primary,
-                fontWeight: FontWeight.w900,
-              ),
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  entry.tribeDisplayName,
-                  style: theme.textTheme.labelLarge?.copyWith(
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  '${entry.gameTitle} - ${entry.periodLabel}',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.tokens.palette.textSecondary,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 10),
-          Text(
-            '${entry.score}',
-            style: theme.textTheme.titleSmall?.copyWith(
-              fontWeight: FontWeight.w900,
-              color: theme.colorScheme.primary,
-            ),
           ),
         ],
       ),
@@ -1425,42 +1218,90 @@ IconData _iconForTribe(TribeIdentity tribe) {
 String _whoShouldJoin(TribeIdentity tribe) {
   final key = '${tribe.slug} ${tribe.name}'.toLowerCase();
   if (key.contains('artisan') || key.contains('judah')) {
-    return 'For people whose creativity needs worship, focus, and humility.';
+    return 'Creativity, focus, humility.';
   }
   if (key.contains('watchman') || key.contains('benjamin')) {
-    return 'For people rebuilding attention, vigilance, and prayerful courage.';
+    return 'Attention, vigilance, courage.';
   }
   if (key.contains('cultivator') || key.contains('issachar')) {
-    return 'For people learning patience, rest, and faithful tending.';
+    return 'Patience, rest, tending.';
   }
   if (key.contains('sower') || key.contains('zebulun')) {
-    return 'For people who need courage to begin and stay rooted.';
+    return 'Courage to begin and stay rooted.';
   }
   if (key.contains('welcomer') || key.contains('asher')) {
-    return 'For people practicing hospitality, belonging, and boundaries.';
+    return 'Hospitality, belonging, boundaries.';
   }
   if (key.contains('pillar') || key.contains('naphtali')) {
-    return 'For people serving faithfully without losing their own calling.';
+    return 'Faithful service with clear limits.';
   }
   if (key.contains('sentinel') || key.contains('levi')) {
-    return 'For people turning insight, solitude, and prayer into action.';
+    return 'Prayer and insight into action.';
   }
   if (key.contains('bridgebuilder') || key.contains('ephraim')) {
-    return 'For people repairing connection without losing conviction.';
+    return 'Repair connection with conviction.';
   }
   if (key.contains('healer') || key.contains('manasseh')) {
-    return 'For people carrying compassion while learning healthy limits.';
+    return 'Compassion with healthy limits.';
   }
   if (key.contains('harvester') || key.contains('gad')) {
-    return 'For people pursuing fruitfulness without becoming ruled by metrics.';
+    return 'Fruitfulness without metric pressure.';
   }
   if (key.contains('reformer') || key.contains('simeon')) {
-    return 'For people turning holy frustration into constructive change.';
+    return 'Holy frustration into repair.';
   }
   if (key.contains('architect') || key.contains('dan')) {
-    return 'For people building order with open hands instead of control.';
+    return 'Order with open hands.';
   }
-  return 'For people whose current season resonates with this formation path.';
+  return 'A fit for this season.';
+}
+
+String _tribeCardDescription(TribeIdentity tribe) {
+  final key = '${tribe.slug} ${tribe.name}'.toLowerCase();
+  if (key.contains('artisan') || key.contains('judah')) {
+    return 'Create from worship, not comparison.';
+  }
+  if (key.contains('watchman') || key.contains('benjamin')) {
+    return 'Rebuild attention, discernment, and self-control.';
+  }
+  if (key.contains('cultivator') || key.contains('issachar')) {
+    return 'Practice patience and steady care.';
+  }
+  if (key.contains('sower') || key.contains('zebulun')) {
+    return 'Begin with courage. Stay rooted.';
+  }
+  if (key.contains('welcomer') || key.contains('asher')) {
+    return 'Practice belonging and boundaries.';
+  }
+  if (key.contains('pillar') || key.contains('naphtali')) {
+    return 'Serve without losing your calling.';
+  }
+  if (key.contains('sentinel') || key.contains('levi')) {
+    return 'Turn prayer and insight into action.';
+  }
+  if (key.contains('bridgebuilder') || key.contains('ephraim')) {
+    return 'Repair connection with conviction.';
+  }
+  if (key.contains('healer') || key.contains('manasseh')) {
+    return 'Care deeply. Keep healthy limits.';
+  }
+  if (key.contains('harvester') || key.contains('gad')) {
+    return 'Build fruitfully without chasing metrics.';
+  }
+  if (key.contains('reformer') || key.contains('simeon')) {
+    return 'Turn frustration into repair.';
+  }
+  if (key.contains('architect') || key.contains('dan')) {
+    return 'Build order without control.';
+  }
+
+  final description = tribe.description.trim();
+  if (description.isEmpty) return 'A tribe for this season.';
+  final firstSentence = description.split(RegExp(r'(?<=[.!?])\s+')).first;
+  return firstSentence.replaceFirst(
+    RegExp(r'^For people (who|whose)\s+', caseSensitive: false),
+    '',
+  );
 }
 
 class _TribeHangoutPanel extends ConsumerWidget {
@@ -1486,11 +1327,9 @@ class _TribeHangoutPanel extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (tribe == null)
-            const Text('Join a tribe to start or join live audio gatherings.')
+            const Text('Join a tribe to start live rooms.')
           else if (hangouts.isEmpty)
-            Text(
-              'No live gatherings in ${tribe.tribe.displayName} yet. Start one when your tribe needs voice, prayer, or encouragement.',
-            )
+            const Text('No live rooms yet. Start a short prayer check-in.')
           else
             ...hangouts.map((hangout) => _TribeHangoutCard(hangout: hangout)),
           const SizedBox(height: 12),

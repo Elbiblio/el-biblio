@@ -22,13 +22,13 @@ class XPState {
   });
 
   XPState.initial()
-      : totalXP = 0,
-        todayXP = 0,
-        weeklyXP = 0,
-        monthlyXP = 0,
-        xpBreakdown = {},
-        isLoading = false,
-        activities = [];
+    : totalXP = 0,
+      todayXP = 0,
+      weeklyXP = 0,
+      monthlyXP = 0,
+      xpBreakdown = {},
+      isLoading = false,
+      activities = [];
 
   XPState copyWith({
     int? totalXP,
@@ -122,7 +122,10 @@ class XPNotifier extends StateNotifier<XPState> {
     final lastMonth = now.subtract(const Duration(days: 30));
 
     final thisMonthXP = getRecentXP(days: 30);
-    final lastMonthXP = _getHistoricalXPForPeriod(lastMonth.subtract(const Duration(days: 30)), lastMonth);
+    final lastMonthXP = _getHistoricalXPForPeriod(
+      lastMonth.subtract(const Duration(days: 30)),
+      lastMonth,
+    );
 
     if (lastMonthXP == 0) return thisMonthXP > 0 ? 1.0 : 0.0;
     return (thisMonthXP - lastMonthXP) / lastMonthXP;
@@ -140,11 +143,5 @@ class XPNotifier extends StateNotifier<XPState> {
     return state.activities
         .where((a) => a.timestamp.isAfter(start) && a.timestamp.isBefore(end))
         .fold(0, (sum, a) => sum + a.xpAmount);
-  }
-
-  @override
-  void dispose() {
-    _xpService.dispose();
-    super.dispose();
   }
 }

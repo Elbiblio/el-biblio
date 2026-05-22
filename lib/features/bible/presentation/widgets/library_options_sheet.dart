@@ -17,6 +17,7 @@ class LibraryOptionsSheet {
     final parentContext = context;
     return showModalBottomSheet<void>(
       context: context,
+      useRootNavigator: true,
       backgroundColor: Colors.transparent,
       builder: (sheetContext) => Container(
         decoration: BoxDecoration(
@@ -41,8 +42,10 @@ class LibraryOptionsSheet {
                 padding: const EdgeInsets.symmetric(horizontal: 24),
                 child: Row(
                   children: [
-                    Icon(Icons.settings,
-                        color: Theme.of(sheetContext).colorScheme.onSurface),
+                    Icon(
+                      Icons.settings,
+                      color: Theme.of(sheetContext).colorScheme.onSurface,
+                    ),
                     const SizedBox(width: 12),
                     Text(
                       'Library Settings',
@@ -69,6 +72,7 @@ class LibraryOptionsSheet {
                   Navigator.pop(sheetContext);
                   showModalBottomSheet(
                     context: parentContext,
+                    useRootNavigator: true,
                     isScrollControlled: true,
                     useSafeArea: true,
                     builder: (context) => const BibleVersionsSheet(),
@@ -90,8 +94,9 @@ class LibraryOptionsSheet {
               ListTile(
                 leading: const Icon(Icons.bar_chart_outlined),
                 title: const Text('Reading Stats'),
-                subtitle:
-                    const Text('View your reading progress and statistics'),
+                subtitle: const Text(
+                  'View your reading progress and statistics',
+                ),
                 onTap: () {
                   Navigator.pop(sheetContext);
                   ReadingStatsSheet.show(parentContext);

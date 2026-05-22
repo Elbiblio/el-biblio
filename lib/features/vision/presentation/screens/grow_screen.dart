@@ -50,7 +50,7 @@ class _GrowScreenState extends ConsumerState<GrowScreen> {
             onRefresh: () =>
                 ref.read(visionProvider.notifier).load(force: true),
             child: SafeListView(
-              bottomPadding: 150,
+              bottomPadding: shellChromeBottomPadding,
               padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
               children: [
                 _GrowHero(state: state),
@@ -193,15 +193,15 @@ class _GrowHero extends ConsumerWidget {
 
   String _seasonLine(String? tribe, String? commitment) {
     if (tribe != null && commitment != null) {
-      return 'Your current season is $commitment, held with $tribe.';
+      return '$commitment - $tribe';
     }
     if (tribe != null) {
-      return 'Belonging is in place with $tribe. Choose one daily practice when you are ready.';
+      return '$tribe joined. Choose a daily practice.';
     }
     if (commitment != null) {
-      return 'Your practice is $commitment. A tribe can give it a place to be witnessed.';
+      return '$commitment active. Add a tribe.';
     }
-    return 'Belonging, commitment, reflection, and one honest question form the path.';
+    return 'Choose tribe and commitment.';
   }
 }
 
@@ -245,32 +245,30 @@ class _SpiritualAgeStory extends ConsumerWidget {
 
     return VisionPanel(
       icon: LucideIcons.sprout,
-      title: score > 0 ? 'Spiritual age: $stage' : 'Formation path',
+      title: score > 0 ? 'Spiritual age: $stage' : 'Formation',
       trailing: score > 0 ? Text('$score/100') : null,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Faith grows like a seed in soil: rooted quietly, pruned honestly, and made fruitful in due season.',
+            'Track the season through check-ins, reflection, and daily questions.',
             style: theme.textTheme.bodyMedium?.copyWith(height: 1.48),
           ),
           const SizedBox(height: 14),
           const _FormationStep(
             icon: LucideIcons.sprout,
             title: 'Rooted',
-            body: 'Hidden seasons still count. Quiet obedience is not wasted.',
+            body: 'Keep the daily practice.',
           ),
           const _FormationStep(
             icon: LucideIcons.scissors,
             title: 'Pruned',
-            body:
-                'Pressure, wounds, dryness, and desire can become places where maturity is formed with God.',
+            body: 'Name the obstacle.',
           ),
           const _FormationStep(
             icon: LucideIcons.flower2,
             title: 'Fruitful',
-            body:
-                'Growth becomes visible as patience, truth, courage, and love.',
+            body: 'Watch for patience, truth, courage, and love.',
           ),
         ],
       ),
@@ -347,7 +345,7 @@ class _JourneyTimeline extends ConsumerWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Your milestones will appear as you live the path: compass, tribe, commitment, check-ins, reflections, and support.',
+                  'Milestones appear after compass, tribe, commitment, and check-ins.',
                   style: theme.textTheme.bodyMedium?.copyWith(height: 1.45),
                 ),
                 const SizedBox(height: 12),
@@ -471,7 +469,7 @@ class _DailyQuestionState extends ConsumerState<_DailyQuestion> {
       return const VisionPanel(
         icon: LucideIcons.helpCircle,
         title: 'Daily faith question',
-        child: Text('Today\'s question is not available yet.'),
+        child: Text('Question unavailable. Pull to retry.'),
       );
     }
 
@@ -501,9 +499,7 @@ class _DailyQuestionState extends ConsumerState<_DailyQuestion> {
                   _selectedAnswers[question.id] = answer;
                 });
               },
-              expanded:
-                  question.answeredToday ||
-                  _expandedQuestionIds.contains(question.id),
+              expanded: _expandedQuestionIds.contains(question.id),
               onToggleGuide: () {
                 setState(() {
                   if (_expandedQuestionIds.contains(question.id)) {
@@ -536,7 +532,6 @@ class _DailyQuestionState extends ConsumerState<_DailyQuestion> {
                   );
                   return;
                 }
-                setState(() => _expandedQuestionIds.add(question.id));
                 ScaffoldMessenger.of(
                   context,
                 ).showSnackBar(const SnackBar(content: Text('Answer saved')));
@@ -638,7 +633,7 @@ class _DailyQuestionCard extends StatelessWidget {
             )
           else ...[
             Text(
-              'Write plainly. One honest sentence is enough.',
+              'One sentence is enough.',
               style: theme.textTheme.bodySmall?.copyWith(
                 color: tokens.palette.textSecondary,
               ),

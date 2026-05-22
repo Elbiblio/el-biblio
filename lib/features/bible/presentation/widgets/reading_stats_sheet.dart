@@ -9,6 +9,7 @@ class ReadingStatsSheet extends ConsumerWidget {
   static Future<void> show(BuildContext context) {
     return showModalBottomSheet<void>(
       context: context,
+      useRootNavigator: true,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (_) => const ReadingStatsSheet(),
@@ -46,8 +47,10 @@ class ReadingStatsSheet extends ConsumerWidget {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Icon(Icons.bar_chart,
-                      color: Theme.of(context).colorScheme.onSurface),
+                  Icon(
+                    Icons.bar_chart,
+                    color: Theme.of(context).colorScheme.onSurface,
+                  ),
                   const SizedBox(width: 12),
                   Text(
                     'Reading Statistics',
@@ -71,17 +74,34 @@ class ReadingStatsSheet extends ConsumerWidget {
                   children: [
                     Row(
                       children: [
-                        Expanded(child: _StatCard(value: '${state.currentStreak}', label: 'Day Streak')),
+                        Expanded(
+                          child: _StatCard(
+                            value: '${state.currentStreak}',
+                            label: 'Day Streak',
+                          ),
+                        ),
                         const SizedBox(width: 12),
-                        Expanded(child: _StatCard(value: '${state.totalDays}', label: 'Total Days')),
+                        Expanded(
+                          child: _StatCard(
+                            value: '${state.totalDays}',
+                            label: 'Total Days',
+                          ),
+                        ),
                       ],
                     ),
                     const SizedBox(height: 12),
                     Row(
                       children: [
-                        Expanded(child: _StatCard(value: '${state.history.length}', label: 'Sessions')),
+                        Expanded(
+                          child: _StatCard(
+                            value: '${state.history.length}',
+                            label: 'Sessions',
+                          ),
+                        ),
                         const SizedBox(width: 12),
-                        const Expanded(child: _StatCard(value: '15 min', label: 'Avg Time')),
+                        const Expanded(
+                          child: _StatCard(value: '15 min', label: 'Avg Time'),
+                        ),
                       ],
                     ),
                     const SizedBox(height: 24),
@@ -98,14 +118,19 @@ class ReadingStatsSheet extends ConsumerWidget {
                         children: [
                           Text(
                             'Reading Progress',
-                            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                  color: Theme.of(context).colorScheme.onPrimaryContainer,
+                            style: Theme.of(context).textTheme.titleMedium
+                                ?.copyWith(
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onPrimaryContainer,
                                 ),
                           ),
                           const SizedBox(height: 12),
                           LinearProgressIndicator(
                             value: (state.totalDays / 365).clamp(0.0, 1.0),
-                            backgroundColor: Theme.of(context).colorScheme.surface,
+                            backgroundColor: Theme.of(
+                              context,
+                            ).colorScheme.surface,
                             valueColor: AlwaysStoppedAnimation<Color>(
                               Theme.of(context).colorScheme.primary,
                             ),
@@ -113,8 +138,11 @@ class ReadingStatsSheet extends ConsumerWidget {
                           const SizedBox(height: 8),
                           Text(
                             '${((state.totalDays / 365).clamp(0.0, 1.0) * 100).toInt()}% Complete',
-                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                  color: Theme.of(context).colorScheme.onPrimaryContainer,
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onPrimaryContainer,
                                 ),
                           ),
                         ],
@@ -143,7 +171,9 @@ class _StatCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: isDark ? Colors.grey.shade800 : const Color(0xFFE8E4D9).withValues(alpha: 0.3),
+        color: isDark
+            ? Colors.grey.shade800
+            : const Color(0xFFE8E4D9).withValues(alpha: 0.3),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
@@ -151,16 +181,16 @@ class _StatCard extends StatelessWidget {
           Text(
             value,
             style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurface,
-                  fontWeight: FontWeight.bold,
-                ),
+              color: Theme.of(context).colorScheme.onSurface,
+              fontWeight: FontWeight.bold,
+            ),
           ),
           const SizedBox(height: 4),
           Text(
             label,
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
           ),
         ],
       ),

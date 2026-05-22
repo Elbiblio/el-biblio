@@ -68,6 +68,8 @@ class NotificationService {
   static const int commitmentLockInNotificationId = 40;
   static const int morningReminderId = 1001;
   static const int eveningReminderId = 1002;
+  static const int _ledOnMs = 1000;
+  static const int _ledOffMs = 500;
 
   bool _initialized = false;
   bool _platformAvailable = true;
@@ -473,6 +475,8 @@ class NotificationService {
         color: const Color(0xFF638B6C),
         ledColor: const Color(0xFF638B6C),
         enableLights: true,
+        ledOnMs: _ledOnMs,
+        ledOffMs: _ledOffMs,
         enableVibration: true,
         playSound: true,
         icon: '@mipmap/ic_launcher',
@@ -1072,6 +1076,8 @@ class NotificationService {
       color: const Color(0xFF638B6C),
       ledColor: const Color(0xFF638B6C),
       enableLights: true,
+      ledOnMs: _ledOnMs,
+      ledOffMs: _ledOffMs,
       enableVibration: true,
       playSound: true,
       channelShowBadge: true,
@@ -1376,6 +1382,8 @@ class NotificationService {
         color: Color(0xFF7B68EE),
         ledColor: Color(0xFF7B68EE),
         enableLights: true,
+        ledOnMs: _ledOnMs,
+        ledOffMs: _ledOffMs,
         enableVibration: true,
         playSound: true,
         icon: '@mipmap/ic_launcher',
@@ -1457,6 +1465,8 @@ class NotificationService {
         color: const Color(0xFF638B6C),
         ledColor: const Color(0xFF638B6C),
         enableLights: true,
+        ledOnMs: _ledOnMs,
+        ledOffMs: _ledOffMs,
         enableVibration: true,
         playSound: true,
         channelShowBadge: true,
@@ -1545,6 +1555,9 @@ class NotificationService {
   }) async {
     try {
       await initialize();
+      if (!_platformAvailable) {
+        return false;
+      }
       await cancelCommitmentNudges(commitmentId);
 
       final boundedCount = _boundedCommitmentNudgeCount(
@@ -1569,6 +1582,8 @@ class NotificationService {
         color: const Color(0xFF638B6C),
         ledColor: const Color(0xFF638B6C),
         enableLights: isFirm,
+        ledOnMs: _ledOnMs,
+        ledOffMs: _ledOffMs,
         enableVibration: isFirm,
         playSound: isFirm,
         channelShowBadge: true,
@@ -1707,6 +1722,9 @@ class NotificationService {
   Future<void> cancelCommitmentNudges(int commitmentId) async {
     try {
       await initialize();
+      if (!_platformAvailable) {
+        return;
+      }
       for (var i = 0; i < 10; i++) {
         await _localNotificationsPlugin.cancel(
           id: 7000 + commitmentId * 10 + i,
@@ -1737,6 +1755,8 @@ class NotificationService {
         color: const Color(0xFFFFC107),
         ledColor: const Color(0xFFFFC107),
         enableLights: true,
+        ledOnMs: _ledOnMs,
+        ledOffMs: _ledOffMs,
         enableVibration: true,
         playSound: true,
         channelShowBadge: true,
@@ -1797,6 +1817,8 @@ class NotificationService {
         color: const Color(0xFF4CAF50),
         ledColor: const Color(0xFF4CAF50),
         enableLights: true,
+        ledOnMs: _ledOnMs,
+        ledOffMs: _ledOffMs,
         enableVibration: true,
         playSound: true,
         channelShowBadge: true,

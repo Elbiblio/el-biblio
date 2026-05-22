@@ -95,6 +95,10 @@ class OnboardingNotifier extends StateNotifier<OnboardingState> {
     state = state.copyWith(step: previousStep);
   }
 
+  void openAccount() {
+    state = state.copyWith(step: OnboardingStep.yourAccount);
+  }
+
   MissionFocusType _recommendedMissionFocus(CommitmentCategory category) {
     return switch (category) {
       CommitmentCategory.charity => MissionFocusType.service,

@@ -36,11 +36,17 @@ class DioClient {
           handler.next(response);
         },
         onError: (error, handler) {
-          _logger.e(
-            '[Dio] Error ${error.requestOptions.method} ${error.requestOptions.path} - ${error.type}',
-            error: error,
-            stackTrace: error.stackTrace,
-          );
+          if (_isExpectedEmptyNotificationsResponse(error)) {
+            _logger.d(
+              '[Dio] Empty notifications response ${error.response?.statusCode}',
+            );
+          } else {
+            _logger.e(
+              '[Dio] Error ${error.requestOptions.method} ${error.requestOptions.path} - ${error.type}',
+              error: error,
+              stackTrace: error.stackTrace,
+            );
+          }
 
           // Provide better error messages
           String errorMessage =
@@ -240,5 +246,15 @@ class DioClient {
       }
     }
     return null;
+  }
+
+  static bool _isExpectedEmptyNotificationsResponse(DioException error) {
+    final statusCode = error.response?.statusCode;
+    if (statusCode != 400 && statusCode != 404) return false;
+    if (error.requestOptions.path != '/notifications/user') return false;
+    final message = _messageFromResponse(error.response?.data)?.toLowerCase();
+    return message != null &&
+        message.contains('notification') &&
+        message.contains('not found');
   }
 }

@@ -1,7 +1,6 @@
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 
@@ -14,155 +13,429 @@ bool isShellRouteSelected(String location, String route) {
   return location == route || location.startsWith('$route/');
 }
 
-class AppShell extends ConsumerWidget {
+@visibleForTesting
+bool shouldShowShellChrome(String location) {
+  return _MinimizedShellNav.isTopLevelDestination(location);
+}
+
+final shellChromeController = ShellChromeController();
+final rootChromeRouteObserver = ShellChromeRouteObserver(shellChromeController);
+final shellChromeRouteObserver = ShellChromeRouteObserver(
+  shellChromeController,
+);
+
+class ShellChromeController {
+  final ValueNotifier<bool> hideChrome = ValueNotifier<bool>(false);
+
+  int _popupDepth = 0;
+
+  void _setDepth(int depth) {
+    _popupDepth = depth < 0 ? 0 : depth;
+    hideChrome.value = _popupDepth > 0;
+  }
+
+  void didPushPopup() {
+    _setDepth(_popupDepth + 1);
+  }
+
+  void didPopPopup() {
+    _setDepth(_popupDepth - 1);
+  }
+
+  void didReplacePopup({
+    required bool oldRouteWasPopup,
+    required bool newRouteIsPopup,
+  }) {
+    var depth = _popupDepth;
+    if (oldRouteWasPopup) {
+      depth--;
+    }
+    if (newRouteIsPopup) {
+      depth++;
+    }
+    _setDepth(depth);
+  }
+}
+
+class ShellChromeRouteObserver extends NavigatorObserver {
+  ShellChromeRouteObserver(this._controller);
+
+  final ShellChromeController _controller;
+
+  bool _isPopup(Route<dynamic> route) => route is PopupRoute<dynamic>;
+
+  @override
+  void didPush(Route<dynamic> route, Route<dynamic>? previousRoute) {
+    super.didPush(route, previousRoute);
+    if (_isPopup(route)) {
+      _controller.didPushPopup();
+    }
+  }
+
+  @override
+  void didPop(Route<dynamic> route, Route<dynamic>? previousRoute) {
+    super.didPop(route, previousRoute);
+    if (_isPopup(route)) {
+      _controller.didPopPopup();
+    }
+  }
+
+  @override
+  void didRemove(Route<dynamic> route, Route<dynamic>? previousRoute) {
+    super.didRemove(route, previousRoute);
+    if (_isPopup(route)) {
+      _controller.didPopPopup();
+    }
+  }
+
+  @override
+  void didReplace({Route<dynamic>? newRoute, Route<dynamic>? oldRoute}) {
+    super.didReplace(newRoute: newRoute, oldRoute: oldRoute);
+    _controller.didReplacePopup(
+      oldRouteWasPopup: oldRoute != null && _isPopup(oldRoute),
+      newRouteIsPopup: newRoute != null && _isPopup(newRoute),
+    );
+  }
+}
+
+class AppShell extends StatefulWidget {
   const AppShell({super.key, required this.child});
 
   final Widget child;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    return Scaffold(
-      extendBody: true,
-      body: child,
-      bottomNavigationBar: const _FloatingBottomNav(),
+  State<AppShell> createState() => _AppShellState();
+}
+
+class _AppShellState extends State<AppShell> {
+  bool _menuOpen = false;
+
+  @override
+  void initState() {
+    super.initState();
+    shellChromeController.hideChrome.addListener(_handleChromeVisibility);
+  }
+
+  @override
+  void dispose() {
+    shellChromeController.hideChrome.removeListener(_handleChromeVisibility);
+    super.dispose();
+  }
+
+  void _handleChromeVisibility() {
+    if (shellChromeController.hideChrome.value && _menuOpen && mounted) {
+      setState(() => _menuOpen = false);
+    }
+  }
+
+  void _toggleMenu() {
+    HapticService.selection();
+    setState(() => _menuOpen = !_menuOpen);
+  }
+
+  void _closeMenu() {
+    if (!_menuOpen) {
+      return;
+    }
+    setState(() => _menuOpen = false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final routerDelegate = GoRouter.of(context).routerDelegate;
+
+    return AnimatedBuilder(
+      animation: routerDelegate,
+      builder: (context, _) {
+        final location = routerDelegate.currentConfiguration.uri.path;
+
+        return Scaffold(
+          backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+          body: Stack(
+            children: [
+              Positioned.fill(child: widget.child),
+              if (shouldShowShellChrome(location))
+                ValueListenableBuilder<bool>(
+                  valueListenable: shellChromeController.hideChrome,
+                  builder: (context, hideChrome, _) {
+                    if (hideChrome) {
+                      return const SizedBox.shrink();
+                    }
+
+                    return _MinimizedShellNav(
+                      isOpen: _menuOpen,
+                      currentLocation: location,
+                      onToggle: _toggleMenu,
+                      onClose: _closeMenu,
+                    );
+                  },
+                ),
+            ],
+          ),
+        );
+      },
     );
   }
 }
 
-class _FloatingBottomNav extends StatelessWidget {
-  const _FloatingBottomNav();
+class _MinimizedShellNav extends StatelessWidget {
+  const _MinimizedShellNav({
+    required this.isOpen,
+    required this.currentLocation,
+    required this.onToggle,
+    required this.onClose,
+  });
+
+  static const List<_ShellDestination> _destinations = [
+    _ShellDestination(
+      label: 'Today',
+      route: AppRoutes.today,
+      icon: LucideIcons.sun,
+      accent: _ShellAccent.primary,
+      includeRoot: true,
+    ),
+    _ShellDestination(
+      label: 'Commit',
+      route: AppRoutes.commit,
+      icon: LucideIcons.flag,
+      accent: _ShellAccent.commitment,
+    ),
+    _ShellDestination(
+      label: 'Reflect',
+      route: AppRoutes.reflect,
+      icon: LucideIcons.messageCircle,
+      accent: _ShellAccent.identity,
+    ),
+    _ShellDestination(
+      label: 'Tribe',
+      route: AppRoutes.tribe,
+      icon: LucideIcons.users,
+      accent: _ShellAccent.distraction,
+    ),
+    _ShellDestination(
+      label: 'Grow',
+      route: AppRoutes.grow,
+      icon: LucideIcons.sprout,
+      accent: _ShellAccent.growth,
+    ),
+    _ShellDestination(
+      label: 'Profile',
+      route: AppRoutes.profile,
+      icon: LucideIcons.userCircle,
+      accent: _ShellAccent.primary,
+    ),
+  ];
+
+  final bool isOpen;
+  final String currentLocation;
+  final VoidCallback onToggle;
+  final VoidCallback onClose;
+
+  static bool isTopLevelDestination(String location) {
+    return _destinations.any(
+      (destination) =>
+          location == destination.route ||
+          (destination.includeRoot && location == AppRoutes.root),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
-    final location = GoRouterState.of(context).matchedLocation;
+    final mediaPadding = MediaQuery.paddingOf(context);
+    final bottom = 18 + mediaPadding.bottom;
+    final panelLeft = 16 + mediaPadding.left;
+    final buttonLeft = mediaPadding.left - 6;
+    final maxPanelHeight = MediaQuery.sizeOf(context).height * 0.64;
+
+    return Stack(
+      children: [
+        Positioned.fill(
+          child: IgnorePointer(
+            ignoring: !isOpen,
+            child: AnimatedOpacity(
+              duration: const Duration(milliseconds: 160),
+              opacity: isOpen ? 1 : 0,
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: onClose,
+                child: ColoredBox(color: Colors.black.withValues(alpha: 0.10)),
+              ),
+            ),
+          ),
+        ),
+        Positioned(
+          left: panelLeft,
+          bottom: bottom + 68,
+          child: _ShellMenuPanel(
+            isOpen: isOpen,
+            maxHeight: maxPanelHeight,
+            currentLocation: currentLocation,
+            destinations: _destinations,
+            onNavigate: onClose,
+          ),
+        ),
+        Positioned(
+          left: buttonLeft,
+          bottom: bottom,
+          child: _ShellMenuButton(isOpen: isOpen, onPressed: onToggle),
+        ),
+      ],
+    );
+  }
+}
+
+class _ShellMenuButton extends StatelessWidget {
+  const _ShellMenuButton({required this.isOpen, required this.onPressed});
+
+  final bool isOpen;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final tokens = theme.tokens;
     final palette = tokens.palette;
-
-    // Hide nav on certain routes like onboarding or full-screen assessment
-    if (location == AppRoutes.onboarding) {
-      return const SizedBox.shrink();
-    }
-
     final isDark = theme.brightness == Brightness.dark;
-    final shellFill = isDark
-        ? Color.alphaBlend(
-            palette.primary.withValues(alpha: 0.08),
-            theme.colorScheme.surface.withValues(alpha: 0.88),
-          )
-        : Color.alphaBlend(
-            palette.primaryLight.withValues(alpha: 0.07),
-            palette.paper.withValues(alpha: 0.92),
-          );
+    final fill = Color.alphaBlend(
+      palette.primary.withValues(alpha: isDark ? 0.18 : 0.10),
+      isDark
+          ? theme.colorScheme.surface.withValues(alpha: 0.92)
+          : palette.paper.withValues(alpha: 0.94),
+    );
 
-    return SafeArea(
-      bottom: false,
-      child: Padding(
-        padding: EdgeInsets.fromLTRB(
-          20,
-          0,
-          20,
-          18 + MediaQuery.paddingOf(context).bottom * 0.45,
-        ),
-        child: Center(
-          heightFactor: 1.0,
-          child: ConstrainedBox(
-            constraints: BoxConstraints(
-              maxWidth: (MediaQuery.of(context).size.width * 0.92).clamp(
-                0,
-                460,
-              ),
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(999),
+    return Semantics(
+      button: true,
+      label: isOpen ? 'Close navigation menu' : 'Open navigation menu',
+      child: Tooltip(
+        message: isOpen ? 'Close menu' : 'Menu',
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onPressed,
+            customBorder: const CircleBorder(),
+            child: ClipOval(
               child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 8,
-                  ),
+                filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 180),
+                  curve: Curves.easeOutCubic,
+                  width: 52,
+                  height: 52,
                   decoration: BoxDecoration(
-                    color: shellFill,
-                    borderRadius: BorderRadius.circular(999),
+                    shape: BoxShape.circle,
+                    color: fill,
                     border: Border.all(
                       color: palette.border.withValues(
-                        alpha: isDark ? 0.7 : 0.85,
+                        alpha: isDark ? 0.72 : 0.9,
                       ),
-                      width: 1,
                     ),
                     boxShadow: [
                       BoxShadow(
                         color: theme.colorScheme.shadow.withValues(
-                          alpha: isDark ? 0.2 : 0.08,
+                          alpha: isDark ? 0.22 : 0.10,
                         ),
-                        blurRadius: 30,
+                        blurRadius: 24,
                         offset: const Offset(0, 10),
                       ),
                     ],
                   ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 150),
+                    transitionBuilder: (child, animation) =>
+                        ScaleTransition(scale: animation, child: child),
+                    child: Icon(
+                      isOpen ? LucideIcons.x : LucideIcons.menu,
+                      key: ValueKey<bool>(isOpen),
+                      color: palette.primary,
+                      size: 25,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ShellMenuPanel extends StatelessWidget {
+  const _ShellMenuPanel({
+    required this.isOpen,
+    required this.maxHeight,
+    required this.currentLocation,
+    required this.destinations,
+    required this.onNavigate,
+  });
+
+  final bool isOpen;
+  final double maxHeight;
+  final String currentLocation;
+  final List<_ShellDestination> destinations;
+  final VoidCallback onNavigate;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final tokens = theme.tokens;
+    final palette = tokens.palette;
+    final isDark = theme.brightness == Brightness.dark;
+    final fill = isDark
+        ? Color.alphaBlend(
+            palette.primary.withValues(alpha: 0.08),
+            theme.colorScheme.surface.withValues(alpha: 0.94),
+          )
+        : Color.alphaBlend(
+            palette.primaryLight.withValues(alpha: 0.08),
+            palette.paper.withValues(alpha: 0.96),
+          );
+
+    return IgnorePointer(
+      ignoring: !isOpen,
+      child: AnimatedOpacity(
+        duration: const Duration(milliseconds: 160),
+        opacity: isOpen ? 1 : 0,
+        child: AnimatedSlide(
+          duration: const Duration(milliseconds: 190),
+          curve: Curves.easeOutCubic,
+          offset: isOpen ? Offset.zero : const Offset(0, 0.08),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(18),
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 22, sigmaY: 22),
+              child: Container(
+                width: 292,
+                constraints: BoxConstraints(maxHeight: maxHeight),
+                decoration: BoxDecoration(
+                  color: fill,
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(
+                    color: palette.border.withValues(
+                      alpha: isDark ? 0.72 : 0.86,
+                    ),
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: theme.colorScheme.shadow.withValues(
+                        alpha: isDark ? 0.24 : 0.12,
+                      ),
+                      blurRadius: 30,
+                      offset: const Offset(0, 16),
+                    ),
+                  ],
+                ),
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      Expanded(
-                        child: _NavItem(
-                          icon: LucideIcons.sun,
-                          label: 'Today',
-                          accent: palette.primary,
-                          isSelected:
-                              location == AppRoutes.today ||
-                              location == AppRoutes.root,
-                          onTap: () => context.go(AppRoutes.today),
+                      for (final destination in destinations)
+                        _ShellMenuItem(
+                          destination: destination,
+                          isSelected: destination.isSelected(currentLocation),
+                          onNavigate: onNavigate,
                         ),
-                      ),
-                      Expanded(
-                        child: _NavItem(
-                          icon: LucideIcons.flag,
-                          label: 'Commit',
-                          accent: palette.commitmentColor,
-                          isSelected: isShellRouteSelected(
-                            location,
-                            AppRoutes.commit,
-                          ),
-                          onTap: () => context.go(AppRoutes.commit),
-                        ),
-                      ),
-                      Expanded(
-                        child: _NavItem(
-                          icon: LucideIcons.messageCircle,
-                          label: 'Reflect',
-                          accent: palette.identityColor,
-                          isSelected: isShellRouteSelected(
-                            location,
-                            AppRoutes.reflect,
-                          ),
-                          onTap: () => context.go(AppRoutes.reflect),
-                        ),
-                      ),
-                      Expanded(
-                        child: _NavItem(
-                          icon: LucideIcons.users,
-                          label: 'Tribe',
-                          accent: palette.distractionColor,
-                          isSelected: isShellRouteSelected(
-                            location,
-                            AppRoutes.tribe,
-                          ),
-                          onTap: () => context.go(AppRoutes.tribe),
-                        ),
-                      ),
-                      Expanded(
-                        child: _NavItem(
-                          icon: LucideIcons.sprout,
-                          label: 'Grow',
-                          accent: palette.growthColor,
-                          isSelected: isShellRouteSelected(
-                            location,
-                            AppRoutes.grow,
-                          ),
-                          onTap: () => context.go(AppRoutes.grow),
-                        ),
-                      ),
                     ],
                   ),
                 ),
@@ -175,94 +448,116 @@ class _FloatingBottomNav extends StatelessWidget {
   }
 }
 
-class _NavItem extends StatelessWidget {
-  const _NavItem({
-    required this.icon,
-    required this.label,
-    required this.accent,
+class _ShellMenuItem extends StatelessWidget {
+  const _ShellMenuItem({
+    required this.destination,
     required this.isSelected,
-    required this.onTap,
+    required this.onNavigate,
   });
 
-  final IconData icon;
-  final String label;
-  final Color accent;
+  final _ShellDestination destination;
   final bool isSelected;
-  final VoidCallback onTap;
+  final VoidCallback onNavigate;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final tokens = theme.tokens;
-    final color = isSelected
+    final accent = destination.resolveAccent(tokens);
+    final foreground = isSelected
         ? accent
-        : theme.colorScheme.onSurface.withValues(alpha: 0.52);
+        : theme.colorScheme.onSurface.withValues(alpha: 0.72);
     final selectedFill = Color.alphaBlend(
       accent.withValues(
-        alpha: theme.brightness == Brightness.dark ? 0.20 : 0.13,
+        alpha: theme.brightness == Brightness.dark ? 0.22 : 0.12,
       ),
       tokens.palette.surface.withValues(
-        alpha: theme.brightness == Brightness.dark ? 0.34 : 0.64,
+        alpha: theme.brightness == Brightness.dark ? 0.28 : 0.72,
       ),
     );
 
-    return InkWell(
-      onTap: () {
-        HapticService.selection();
-        onTap();
-      },
-      borderRadius: BorderRadius.circular(999),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        curve: Curves.easeOutCubic,
-        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 2),
-        decoration: BoxDecoration(
-          color: isSelected ? selectedFill : Colors.transparent,
-          borderRadius: BorderRadius.circular(999),
-          border: Border.all(
-            color: isSelected
-                ? accent.withValues(alpha: 0.20)
-                : Colors.transparent,
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      child: Material(
+        color: isSelected ? selectedFill : Colors.transparent,
+        borderRadius: BorderRadius.circular(12),
+        child: InkWell(
+          onTap: () {
+            HapticService.selection();
+            onNavigate();
+            context.go(destination.route);
+          },
+          borderRadius: BorderRadius.circular(12),
+          child: SizedBox(
+            height: 46,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: Row(
+                children: [
+                  Icon(destination.icon, color: foreground, size: 21),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      destination.label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: foreground,
+                        fontSize: 15,
+                        fontWeight: isSelected
+                            ? FontWeight.w800
+                            : FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 160),
+                    width: isSelected ? 7 : 0,
+                    height: isSelected ? 7 : 0,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: accent,
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            AnimatedScale(
-              duration: const Duration(milliseconds: 180),
-              curve: Curves.easeOutCubic,
-              scale: isSelected ? 1.04 : 1,
-              child: Icon(icon, color: color, size: 23),
-            ),
-            const SizedBox(height: 4),
-            FittedBox(
-              fit: BoxFit.scaleDown,
-              child: Text(
-                label,
-                maxLines: 1,
-                style: TextStyle(
-                  color: color,
-                  fontSize: 10,
-                  fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
-                ),
-              ),
-            ),
-            const SizedBox(height: 3),
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 180),
-              curve: Curves.easeOutCubic,
-              width: isSelected ? 16 : 4,
-              height: 3,
-              decoration: BoxDecoration(
-                color: isSelected
-                    ? accent.withValues(alpha: 0.86)
-                    : Colors.transparent,
-                borderRadius: BorderRadius.circular(999),
-              ),
-            ),
-          ],
         ),
       ),
     );
+  }
+}
+
+enum _ShellAccent { primary, commitment, identity, distraction, growth }
+
+class _ShellDestination {
+  const _ShellDestination({
+    required this.label,
+    required this.route,
+    required this.icon,
+    required this.accent,
+    this.includeRoot = false,
+  });
+
+  final String label;
+  final String route;
+  final IconData icon;
+  final _ShellAccent accent;
+  final bool includeRoot;
+
+  bool isSelected(String location) {
+    return (includeRoot && location == AppRoutes.root) ||
+        isShellRouteSelected(location, route);
+  }
+
+  Color resolveAccent(AppThemeTokens tokens) {
+    return switch (accent) {
+      _ShellAccent.primary => tokens.palette.primary,
+      _ShellAccent.commitment => tokens.palette.commitmentColor,
+      _ShellAccent.identity => tokens.palette.identityColor,
+      _ShellAccent.distraction => tokens.palette.distractionColor,
+      _ShellAccent.growth => tokens.palette.growthColor,
+    };
   }
 }

@@ -11,7 +11,8 @@ class ServiceMatchesWidget extends ConsumerStatefulWidget {
   const ServiceMatchesWidget({super.key});
 
   @override
-  ConsumerState<ServiceMatchesWidget> createState() => _ServiceMatchesWidgetState();
+  ConsumerState<ServiceMatchesWidget> createState() =>
+      _ServiceMatchesWidgetState();
 }
 
 class _ServiceMatchesWidgetState extends ConsumerState<ServiceMatchesWidget> {
@@ -83,7 +84,10 @@ class _ServiceMatchesWidgetState extends ConsumerState<ServiceMatchesWidget> {
             ),
             if (matches.length > 3)
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 8,
+                ),
                 child: TextButton(
                   onPressed: () {}, // Navigate to full catalog
                   child: Text('See all ${matches.length} matches'),
@@ -138,10 +142,7 @@ class _ServiceMatchesWidgetState extends ConsumerState<ServiceMatchesWidget> {
           children: [
             Row(
               children: [
-                Icon(
-                  Icons.error_outline,
-                  color: theme.colorScheme.error,
-                ),
+                Icon(Icons.error_outline, color: theme.colorScheme.error),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
@@ -265,6 +266,7 @@ class _ServiceMatchesWidgetState extends ConsumerState<ServiceMatchesWidget> {
   void _showMatchDetails(BuildContext context, ServiceMatch match) {
     showModalBottomSheet(
       context: context,
+      useRootNavigator: true,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (context) => _ServiceMatchDetailSheet(match: match),
@@ -273,10 +275,7 @@ class _ServiceMatchesWidgetState extends ConsumerState<ServiceMatchesWidget> {
 }
 
 class _ServiceMatchCard extends StatelessWidget {
-  const _ServiceMatchCard({
-    required this.match,
-    required this.onTap,
-  });
+  const _ServiceMatchCard({required this.match, required this.onTap});
 
   final ServiceMatch match;
   final VoidCallback onTap;
@@ -338,16 +337,23 @@ class _ServiceMatchCard extends StatelessWidget {
                         Text(
                           _capitalizeFirst(match.category),
                           style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                            color: theme.colorScheme.onSurface.withValues(
+                              alpha: 0.6,
+                            ),
                           ),
                         ),
                       ],
                     ),
                   ),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
-                      color: _getScoreColor(match.matchScore).withValues(alpha: 0.1),
+                      color: _getScoreColor(
+                        match.matchScore,
+                      ).withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: Text(
@@ -365,20 +371,29 @@ class _ServiceMatchCard extends StatelessWidget {
                 Wrap(
                   spacing: 8,
                   runSpacing: 8,
-                  children: match.matchReasons.map((reason) => Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.surfaceContainerHighest,
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Text(
-                      reason,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        fontSize: 11,
-                        color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
-                      ),
-                    ),
-                  )).toList(),
+                  children: match.matchReasons
+                      .map(
+                        (reason) => Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: theme.colorScheme.surfaceContainerHighest,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            reason,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              fontSize: 11,
+                              color: theme.colorScheme.onSurface.withValues(
+                                alpha: 0.7,
+                              ),
+                            ),
+                          ),
+                        ),
+                      )
+                      .toList(),
                 ),
               ],
             ],
@@ -459,9 +474,14 @@ class _ServiceMatchDetailSheet extends ConsumerWidget {
                       Row(
                         children: [
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 2,
+                            ),
                             decoration: BoxDecoration(
-                              color: _getScoreColor(match.matchScore).withValues(alpha: 0.1),
+                              color: _getScoreColor(
+                                match.matchScore,
+                              ).withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(4),
                             ),
                             child: Text(
@@ -476,7 +496,9 @@ class _ServiceMatchDetailSheet extends ConsumerWidget {
                           Text(
                             _capitalizeFirst(match.category),
                             style: theme.textTheme.bodyMedium?.copyWith(
-                              color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                              color: theme.colorScheme.onSurface.withValues(
+                                alpha: 0.6,
+                              ),
                             ),
                           ),
                         ],
@@ -505,26 +527,28 @@ class _ServiceMatchDetailSheet extends ConsumerWidget {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  ...match.matchReasons.map((reason) => Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Icon(
-                          Icons.check_circle,
-                          size: 18,
-                          color: Colors.green.withValues(alpha: 0.7),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            reason,
-                            style: theme.textTheme.bodyMedium,
+                  ...match.matchReasons.map(
+                    (reason) => Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(
+                            Icons.check_circle,
+                            size: 18,
+                            color: Colors.green.withValues(alpha: 0.7),
                           ),
-                        ),
-                      ],
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              reason,
+                              style: theme.textTheme.bodyMedium,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                  )),
+                  ),
                   const SizedBox(height: 20),
                 ],
                 if (match.burdenAlignment?.isNotEmpty ?? false)
@@ -584,7 +608,12 @@ class _ServiceMatchDetailSheet extends ConsumerWidget {
     );
   }
 
-  Widget _buildDetailRow(String label, String value, IconData icon, ThemeData theme) {
+  Widget _buildDetailRow(
+    String label,
+    String value,
+    IconData icon,
+    ThemeData theme,
+  ) {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -631,10 +660,12 @@ class _ServiceMatchDetailSheet extends ConsumerWidget {
   }
 
   Future<void> _commitToAction(BuildContext context, WidgetRef ref) async {
-    await ref.read(missionProvider.notifier).addAction(
-      title: 'Serve: ${match.title}',
-      description: 'Service opportunity matched to your calling profile',
-    );
+    await ref
+        .read(missionProvider.notifier)
+        .addAction(
+          title: 'Serve: ${match.title}',
+          description: 'Service opportunity matched to your calling profile',
+        );
 
     if (context.mounted) {
       Navigator.pop(context);

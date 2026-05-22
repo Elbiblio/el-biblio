@@ -51,6 +51,12 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
               children: [
                 Row(
                   children: [
+                    IconButton(
+                      tooltip: 'Back',
+                      onPressed: () => context.go(AppRoutes.today),
+                      icon: const Icon(LucideIcons.chevronLeft),
+                    ),
+                    const SizedBox(width: 4),
                     Expanded(
                       child: Text(
                         'Notifications',
@@ -70,7 +76,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  'Support, hangouts, and the moments that help you keep growing together.',
+                  'Tribe activity and commitment updates.',
                   style: theme.textTheme.bodyMedium?.copyWith(
                     color: theme.colorScheme.onSurface.withValues(alpha: 0.62),
                     height: 1.45,
@@ -80,9 +86,9 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                 if (state.notifications.isEmpty)
                   VisionPanel(
                     icon: LucideIcons.bell,
-                    title: 'Quiet for now',
+                    title: 'Nothing yet',
                     child: Text(
-                      'When someone supports your reflection or opens a hangout you can join, it will land here.',
+                      'Support, replies, and hangouts will appear here.',
                       style: theme.textTheme.bodyMedium,
                     ),
                   )

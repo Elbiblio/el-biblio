@@ -15,6 +15,8 @@ import 'widgets/the_solution_view.dart';
 import 'widgets/discover_identity_view.dart';
 import 'widgets/your_account_view.dart';
 
+final _accountSignInModeProvider = StateProvider<bool>((ref) => false);
+
 class OnboardingScreen extends ConsumerWidget {
   const OnboardingScreen({super.key});
 
@@ -24,16 +26,16 @@ class OnboardingScreen extends ConsumerWidget {
   String _stepTitle(OnboardingStep step) {
     return switch (step) {
       OnboardingStep.theProblem => 'Daily Check-in',
-      OnboardingStep.theSolution => 'The Rhythm',
+      OnboardingStep.theSolution => 'Flow',
       OnboardingStep.yourIdentity => 'Spiritual Compass',
-      OnboardingStep.yourAccount => 'Create Account',
+      OnboardingStep.yourAccount => 'Account',
     };
   }
 
   String _getPrimaryButtonLabel(OnboardingState state) {
     return switch (state.step) {
-      OnboardingStep.theProblem => 'Begin with grace',
-      OnboardingStep.theSolution => 'Find my compass',
+      OnboardingStep.theProblem => 'Begin',
+      OnboardingStep.theSolution => 'Start compass',
       OnboardingStep.yourIdentity =>
         _canAdvanceFromAssessment(state)
             ? 'Create my account'
@@ -74,8 +76,11 @@ class OnboardingScreen extends ConsumerWidget {
       OnboardingStep.theSolution => const TheSolutionView(),
       OnboardingStep.yourIdentity => const DiscoverIdentityView(),
       OnboardingStep.yourAccount => YourAccountView(
-        onSignUp: (name, email, phone) =>
-            _handleSignUp(context, ref, name, email, phone),
+        initialSignInMode: ref.watch(_accountSignInModeProvider),
+        onSignUp: (name, email, password, phone) =>
+            _handleSignUp(context, ref, name, email, password, phone),
+        onSignIn: (email, password) =>
+            _handleSignIn(context, ref, email, password),
       ),
     };
   }
@@ -85,6 +90,7 @@ class OnboardingScreen extends ConsumerWidget {
     WidgetRef ref,
     String name,
     String email,
+    String password,
     String phone,
   ) async {
     final onboardingState = ref.read(onboardingProvider);
@@ -99,6 +105,7 @@ class OnboardingScreen extends ConsumerWidget {
         .signUpWithDetails(
           name: name,
           email: email,
+          password: password,
           phone: phone,
           ageBand: ageBand,
           inviteToken: inviteToken,
@@ -106,8 +113,9 @@ class OnboardingScreen extends ConsumerWidget {
 
     if (!success) {
       if (!context.mounted) return;
+      final error = ref.read(authProvider).error;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('We could not create your account yet.')),
+        SnackBar(content: Text(error ?? 'We could not create your account.')),
       );
       return;
     }
@@ -118,6 +126,47 @@ class OnboardingScreen extends ConsumerWidget {
     // this session actually wants.
     await ref.read(notificationServiceProvider).cancelAll();
 
+    await _completeLocalOnboarding(ref, onboardingState);
+
+    if (!context.mounted) return;
+    CelebrationService.instance.playOnboardingCompletion(context);
+    context.go(AppRoutes.today);
+  }
+
+  Future<void> _handleSignIn(
+    BuildContext context,
+    WidgetRef ref,
+    String email,
+    String password,
+  ) async {
+    final onboardingState = ref.read(onboardingProvider);
+
+    HapticFeedback.mediumImpact();
+
+    final success = await ref
+        .read(authProvider.notifier)
+        .signInWithPassword(email: email, password: password);
+
+    if (!success) {
+      if (!context.mounted) return;
+      final error = ref.read(authProvider).error;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error ?? 'We could not sign you in.')),
+      );
+      return;
+    }
+
+    await ref.read(notificationServiceProvider).cancelAll();
+    await _completeLocalOnboarding(ref, onboardingState);
+
+    if (!context.mounted) return;
+    context.go(AppRoutes.today);
+  }
+
+  Future<void> _completeLocalOnboarding(
+    WidgetRef ref,
+    OnboardingState onboardingState,
+  ) async {
     final compassPayload = onboardingState.compassSubmissionPayload;
     await ref
         .read(settingsProvider.notifier)
@@ -159,13 +208,9 @@ class OnboardingScreen extends ConsumerWidget {
           .submitAssessment(compassPayload);
       await ref.read(settingsProvider.notifier).clearPendingCompassSubmission();
     } catch (_) {
-      // Keep the payload in settings so it is not lost; signup should not be
-      // blocked by a transient assessment write.
+      // Keep the payload in settings so it is not lost; account entry should
+      // not be blocked by a transient assessment write.
     }
-
-    if (!context.mounted) return;
-    CelebrationService.instance.playOnboardingCompletion(context);
-    context.go(AppRoutes.today);
   }
 
   @override
@@ -192,6 +237,15 @@ class OnboardingScreen extends ConsumerWidget {
   }) {
     const horizontalPadding = 24.0;
     const contentMaxWidth = 600.0;
+    final showFooter =
+        state.step != OnboardingStep.yourAccount &&
+        (state.step != OnboardingStep.yourIdentity ||
+            state.hasFullCompassResult);
+    final bodyAlignment =
+        state.step == OnboardingStep.theProblem ||
+            state.step == OnboardingStep.theSolution
+        ? Alignment.center
+        : Alignment.topCenter;
 
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -252,7 +306,8 @@ class OnboardingScreen extends ConsumerWidget {
           child: SafeArea(
             top: state.step == OnboardingStep.theProblem,
             bottom: false,
-            child: Center(
+            child: Align(
+              alignment: bodyAlignment,
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: contentMaxWidth),
                 child: Padding(
@@ -264,17 +319,13 @@ class OnboardingScreen extends ConsumerWidget {
           ),
         ),
       ),
-      // Hide the bottom bar on yourAccount step — the view has its own buttons
-      bottomNavigationBar: state.step == OnboardingStep.yourAccount
+      // Hide the shared footer while a step owns its own controls.
+      bottomNavigationBar: !showFooter || isDesktop
           ? null
-          : (isDesktop
-                ? null
-                : _buildBottomNavigationBar(context, state, notifier, ref)),
-      persistentFooterButtons: state.step == OnboardingStep.yourAccount
-          ? null
-          : (isDesktop
-                ? [_buildDesktopButtons(context, state, notifier, ref)]
-                : null),
+          : _buildBottomNavigationBar(context, state, notifier, ref),
+      persistentFooterButtons: showFooter && isDesktop
+          ? [_buildDesktopButtons(context, state, notifier, ref)]
+          : null,
     );
   }
 
@@ -299,14 +350,33 @@ class OnboardingScreen extends ConsumerWidget {
         ),
         child: SafeArea(
           top: false,
-          child: SizedBox(
-            height: 56,
-            child: PrimaryButton(
-              label: _getPrimaryButtonLabel(state),
-              icon: Icons.arrow_forward_rounded,
-              onPressed: canAdvance ? notifier.next : null,
-              expanded: true,
-            ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(
+                height: 56,
+                child: PrimaryButton(
+                  label: _getPrimaryButtonLabel(state),
+                  icon: Icons.arrow_forward_rounded,
+                  onPressed: canAdvance
+                      ? () {
+                          ref.read(_accountSignInModeProvider.notifier).state =
+                              false;
+                          notifier.next();
+                        }
+                      : null,
+                  expanded: true,
+                ),
+              ),
+              const SizedBox(height: 8),
+              TextButton(
+                onPressed: () {
+                  ref.read(_accountSignInModeProvider.notifier).state = true;
+                  notifier.openAccount();
+                },
+                child: const Text('I already have an account'),
+              ),
+            ],
           ),
         ),
       );

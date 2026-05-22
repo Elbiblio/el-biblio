@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 
+const double shellChromeBottomPadding = 132.0;
+
 /// A simple and reliable widget to prevent bottom navigation bar overlap
 /// This wraps any scrollable content and adds appropriate bottom padding
 class SafeScrollableContent extends StatelessWidget {
   const SafeScrollableContent({
     super.key,
     required this.child,
-    this.bottomPadding = 100.0, // Default for floating bottom nav
+    this.bottomPadding = shellChromeBottomPadding,
   });
 
   final Widget child;
@@ -16,9 +18,7 @@ class SafeScrollableContent extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        Expanded(
-          child: child,
-        ),
+        Expanded(child: child),
         SizedBox(height: bottomPadding),
       ],
     );
@@ -30,7 +30,7 @@ class SafeCustomScrollView extends StatelessWidget {
   const SafeCustomScrollView({
     super.key,
     required this.slivers,
-    this.bottomPadding = 100.0,
+    this.bottomPadding = shellChromeBottomPadding,
     this.scrollDirection = Axis.vertical,
     this.reverse = false,
     this.controller,
@@ -65,9 +65,7 @@ class SafeCustomScrollView extends StatelessWidget {
     return CustomScrollView(
       slivers: [
         ...slivers,
-        SliverToBoxAdapter(
-          child: SizedBox(height: bottomPadding),
-        ),
+        SliverToBoxAdapter(child: SizedBox(height: bottomPadding)),
       ],
       scrollDirection: scrollDirection,
       reverse: reverse,
@@ -90,7 +88,7 @@ class SafeListView extends StatelessWidget {
   const SafeListView({
     super.key,
     required this.children,
-    this.bottomPadding = 100.0,
+    this.bottomPadding = shellChromeBottomPadding,
     this.padding = EdgeInsets.zero,
     this.scrollDirection = Axis.vertical,
     this.reverse = false,
@@ -164,10 +162,7 @@ class SafeListView extends StatelessWidget {
 
 /// A simple padding widget that can be added to any content
 class BottomPadding extends StatelessWidget {
-  const BottomPadding({
-    super.key,
-    this.height = 100.0,
-  });
+  const BottomPadding({super.key, this.height = shellChromeBottomPadding});
 
   final double height;
 

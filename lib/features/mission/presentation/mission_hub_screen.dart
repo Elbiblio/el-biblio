@@ -19,9 +19,7 @@ class MissionHubScreen extends ConsumerWidget {
     final isDark = theme.brightness == Brightness.dark;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Act'),
-      ),
+      appBar: AppBar(title: const Text('Act')),
       body: SafeArea(
         child: CustomScrollView(
           slivers: [
@@ -47,12 +45,18 @@ class MissionHubScreen extends ConsumerWidget {
                         label: Text(focus.label),
                         selected: isSelected,
                         onSelected: (_) => notifier.setFocus(focus),
-                        selectedColor: theme.colorScheme.primary.withValues(alpha: 0.12),
+                        selectedColor: theme.colorScheme.primary.withValues(
+                          alpha: 0.12,
+                        ),
                         labelStyle: TextStyle(
-                          fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                          fontWeight: isSelected
+                              ? FontWeight.w700
+                              : FontWeight.w500,
                           color: isSelected
                               ? theme.colorScheme.primary
-                              : theme.colorScheme.onSurface.withValues(alpha: 0.75),
+                              : theme.colorScheme.onSurface.withValues(
+                                  alpha: 0.75,
+                                ),
                         ),
                       );
                     }).toList(),
@@ -79,7 +83,9 @@ class MissionHubScreen extends ConsumerWidget {
                       Text(
                         'Tap to add to today',
                         style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurface.withValues(alpha: 0.35),
+                          color: theme.colorScheme.onSurface.withValues(
+                            alpha: 0.35,
+                          ),
                         ),
                       ),
                     ],
@@ -123,7 +129,8 @@ class MissionHubScreen extends ConsumerWidget {
                   const SizedBox(height: 24),
 
                   // All actions: pending first, then completed
-                  if (mission.pendingActions.isNotEmpty || mission.completedActions.isNotEmpty) ...[
+                  if (mission.pendingActions.isNotEmpty ||
+                      mission.completedActions.isNotEmpty) ...[
                     Row(
                       children: [
                         Text(
@@ -135,9 +142,14 @@ class MissionHubScreen extends ConsumerWidget {
                         if (mission.pendingActions.isNotEmpty) ...[
                           const SizedBox(width: 8),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 2,
+                            ),
                             decoration: BoxDecoration(
-                              color: theme.colorScheme.primary.withValues(alpha: 0.1),
+                              color: theme.colorScheme.primary.withValues(
+                                alpha: 0.1,
+                              ),
                               borderRadius: BorderRadius.circular(10),
                             ),
                             child: Text(
@@ -162,24 +174,29 @@ class MissionHubScreen extends ConsumerWidget {
                         ),
                       ),
                     ),
-                    ...mission.completedActions.take(4).map(
-                      (action) => Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: Opacity(
-                          opacity: 0.6,
-                          child: MissionActionCard(
-                            action: action,
-                            isDark: isDark,
-                            onToggle: () => notifier.toggleCompleted(action),
+                    ...mission.completedActions
+                        .take(4)
+                        .map(
+                          (action) => Padding(
+                            padding: const EdgeInsets.only(bottom: 12),
+                            child: Opacity(
+                              opacity: 0.6,
+                              child: MissionActionCard(
+                                action: action,
+                                isDark: isDark,
+                                onToggle: () =>
+                                    notifier.toggleCompleted(action),
+                              ),
+                            ),
                           ),
                         ),
-                      ),
-                    ),
                     if (mission.completedActions.length > 4)
                       Center(
                         child: TextButton(
                           onPressed: () => context.push(AppRoutes.actHistory),
-                          child: Text('View all ${mission.completedActions.length} completed'),
+                          child: Text(
+                            'View all ${mission.completedActions.length} completed',
+                          ),
                         ),
                       ),
                     const SizedBox(height: 24),
@@ -190,7 +207,9 @@ class MissionHubScreen extends ConsumerWidget {
                     padding: const EdgeInsets.all(18),
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(18),
-                      color: theme.colorScheme.primaryContainer.withValues(alpha: isDark ? 0.2 : 0.3),
+                      color: theme.colorScheme.primaryContainer.withValues(
+                        alpha: isDark ? 0.2 : 0.3,
+                      ),
                     ),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceAround,
@@ -208,7 +227,8 @@ class MissionHubScreen extends ConsumerWidget {
                           color: theme.colorScheme.secondary,
                         ),
                         _ImpactStat(
-                          value: '${mission.pendingActions.where((a) => a.requiresFollowUp).length}',
+                          value:
+                              '${mission.pendingActions.where((a) => a.requiresFollowUp).length}',
                           label: 'Follow-up',
                           icon: Icons.schedule_rounded,
                           color: theme.colorScheme.tertiary,
@@ -225,11 +245,16 @@ class MissionHubScreen extends ConsumerWidget {
                       padding: const EdgeInsets.all(18),
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(18),
-                        color: theme.colorScheme.secondaryContainer.withValues(alpha: isDark ? 0.32 : 0.55),
+                        color: theme.colorScheme.secondaryContainer.withValues(
+                          alpha: isDark ? 0.32 : 0.55,
+                        ),
                       ),
                       child: Row(
                         children: [
-                          Icon(Icons.people_alt_rounded, color: theme.colorScheme.primary),
+                          Icon(
+                            Icons.people_alt_rounded,
+                            color: theme.colorScheme.primary,
+                          ),
                           const SizedBox(width: 12),
                           Expanded(
                             child: Text(
@@ -258,7 +283,10 @@ class MissionHubScreen extends ConsumerWidget {
     );
   }
 
-  Future<void> _showCustomActionSheet(BuildContext context, WidgetRef ref) async {
+  Future<void> _showCustomActionSheet(
+    BuildContext context,
+    WidgetRef ref,
+  ) async {
     final titleController = TextEditingController();
     final personController = TextEditingController();
     final noteController = TextEditingController();
@@ -266,6 +294,7 @@ class MissionHubScreen extends ConsumerWidget {
 
     await showModalBottomSheet<void>(
       context: context,
+      useRootNavigator: true,
       isScrollControlled: true,
       builder: (context) {
         return StatefulBuilder(
@@ -284,8 +313,8 @@ class MissionHubScreen extends ConsumerWidget {
                   Text(
                     'Create a custom step',
                     style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.w700,
-                        ),
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                   const SizedBox(height: 16),
                   TextField(
@@ -306,16 +335,15 @@ class MissionHubScreen extends ConsumerWidget {
                     controller: noteController,
                     minLines: 2,
                     maxLines: 4,
-                    decoration: const InputDecoration(
-                      labelText: 'Notes',
-                    ),
+                    decoration: const InputDecoration(labelText: 'Notes'),
                   ),
                   const SizedBox(height: 8),
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
                     value: requiresFollowUp,
                     title: const Text('Needs follow-up'),
-                    onChanged: (value) => setModalState(() => requiresFollowUp = value),
+                    onChanged: (value) =>
+                        setModalState(() => requiresFollowUp = value),
                   ),
                   const SizedBox(height: 8),
                   SizedBox(
@@ -328,7 +356,9 @@ class MissionHubScreen extends ConsumerWidget {
                           return;
                         }
 
-                        await ref.read(missionProvider.notifier).addAction(
+                        await ref
+                            .read(missionProvider.notifier)
+                            .addAction(
                               title: title,
                               description: notes.isEmpty
                                   ? 'A custom kingdom step you committed to complete.'
@@ -358,59 +388,68 @@ class MissionHubScreen extends ConsumerWidget {
   List<MissionTemplate> _templatesFor(MissionFocusType focus) {
     return switch (focus) {
       MissionFocusType.service => const [
-          MissionTemplate(
-            title: 'Serve someone in a practical way',
-            description: 'Choose one concrete act of service today and complete it before the day ends.',
-            badge: 'Today',
-          ),
-          MissionTemplate(
-            title: 'Check on someone carrying a burden',
-            description: 'Call, text, or visit one person who may need support and ask how you can help.',
-            badge: 'Relational',
-            requiresFollowUp: true,
-          ),
-          MissionTemplate(
-            title: 'Volunteer one hour this week',
-            description: 'Commit one hour to a church, ministry, or local need where you can show up faithfully.',
-            badge: 'This week',
-          ),
-        ],
+        MissionTemplate(
+          title: 'Serve someone in a practical way',
+          description:
+              'Choose one concrete act of service today and complete it before the day ends.',
+          badge: 'Today',
+        ),
+        MissionTemplate(
+          title: 'Check on someone carrying a burden',
+          description:
+              'Call, text, or visit one person who may need support and ask how you can help.',
+          badge: 'Relational',
+          requiresFollowUp: true,
+        ),
+        MissionTemplate(
+          title: 'Volunteer one hour this week',
+          description:
+              'Commit one hour to a church, ministry, or local need where you can show up faithfully.',
+          badge: 'This week',
+        ),
+      ],
       MissionFocusType.faithSharing => const [
-          MissionTemplate(
-            title: 'Start one spiritual conversation',
-            description: 'Ask one intentional question that opens the door to faith, prayer, or hope.',
-            badge: 'Courage',
-          ),
-          MissionTemplate(
-            title: 'Follow up with someone after a faith conversation',
-            description: 'Reach back out, answer a question, or offer prayer so the conversation keeps moving.',
-            badge: 'Follow-up',
-            requiresFollowUp: true,
-          ),
-          MissionTemplate(
-            title: 'Invite someone to church, prayer, or Scripture',
-            description: 'Extend one concrete invitation that helps someone take a next step toward God.',
-            badge: 'Invite',
-            requiresFollowUp: true,
-          ),
-        ],
+        MissionTemplate(
+          title: 'Start one spiritual conversation',
+          description:
+              'Ask one intentional question that opens the door to faith, prayer, or hope.',
+          badge: 'Courage',
+        ),
+        MissionTemplate(
+          title: 'Follow up with someone after a faith conversation',
+          description:
+              'Reach back out, answer a question, or offer prayer so the conversation keeps moving.',
+          badge: 'Follow-up',
+          requiresFollowUp: true,
+        ),
+        MissionTemplate(
+          title: 'Invite someone to church, prayer, or Scripture',
+          description:
+              'Extend one concrete invitation that helps someone take a next step toward God.',
+          badge: 'Invite',
+          requiresFollowUp: true,
+        ),
+      ],
       MissionFocusType.encouragement => const [
-          MissionTemplate(
-            title: 'Send one intentional encouragement',
-            description: 'Speak life to one person with a message, call, voice note, or prayer.',
-            badge: 'Care',
-          ),
-          MissionTemplate(
-            title: 'Pray with someone live',
-            description: 'Do not say you will pray later. Pray with someone in the moment if possible.',
-            badge: 'Prayer',
-          ),
-          MissionTemplate(
-            title: 'Write a reflection for someone you want to strengthen',
-            description: 'Share a short testimony, verse, or note that reminds them God sees them.',
-            badge: 'Reflect',
-          ),
-        ],
+        MissionTemplate(
+          title: 'Send one intentional encouragement',
+          description:
+              'Speak life to one person with a message, call, voice note, or prayer.',
+          badge: 'Care',
+        ),
+        MissionTemplate(
+          title: 'Pray with someone live',
+          description:
+              'Do not say you will pray later. Pray with someone in the moment if possible.',
+          badge: 'Prayer',
+        ),
+        MissionTemplate(
+          title: 'Write a reflection for someone you want to strengthen',
+          description:
+              'Share a short testimony, verse, or note that reminds them God sees them.',
+          badge: 'Reflect',
+        ),
+      ],
     };
   }
 }

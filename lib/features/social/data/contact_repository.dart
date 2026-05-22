@@ -16,6 +16,11 @@ class ContactRepository extends BaseRepository {
   String? _hashSalt;
 
   static const String _hashSaltStorageKey = 'contacts_hash_salt';
+  static const Set<fc.ContactProperty> _deviceContactProperties = {
+    fc.ContactProperty.phone,
+    fc.ContactProperty.email,
+    fc.ContactProperty.photoThumbnail,
+  };
 
   ContactRepository(this._dioClient, this._logger) : super(_logger);
 
@@ -60,24 +65,31 @@ class ContactRepository extends BaseRepository {
 
   // Get device contacts
   Future<List<Contact>> getDeviceContacts() async {
-    if (!await fc.FlutterContacts.requestPermission(readonly: true)) {
+    if (!await _requestContactsReadPermission()) {
       throw Exception('Permission denied');
     }
 
-    final contacts = await fc.FlutterContacts.getContacts(
-      withProperties: true,
-      withPhoto: true,
+    final contacts = await fc.FlutterContacts.getAll(
+      properties: _deviceContactProperties,
     );
 
     return contacts.map(_mapFlutterContact).toList();
   }
 
   Future<Contact?> pickDeviceContact() async {
-    if (!await fc.FlutterContacts.requestPermission(readonly: true)) {
+    if (!await _requestContactsReadPermission()) {
       throw Exception('Permission denied');
     }
 
-    final contact = await fc.FlutterContacts.openExternalPick();
+    final contactId = await fc.FlutterContacts.native.showPicker();
+    if (contactId == null) {
+      return null;
+    }
+
+    final contact = await fc.FlutterContacts.get(
+      contactId,
+      properties: _deviceContactProperties,
+    );
     if (contact == null) {
       return null;
     }
@@ -86,13 +98,8 @@ class ContactRepository extends BaseRepository {
   }
 
   Contact _mapFlutterContact(fc.Contact c) {
-    final phone = c.phones.isEmpty
-        ? null
-        : (c.phones.first.normalizedNumber.trim().isNotEmpty
-              ? c.phones.first.normalizedNumber.trim()
-              : c.phones.first.number.trim());
-
-    final email = c.emails.isEmpty ? null : c.emails.first.address.trim();
+    final phone = _firstPhoneValue(c.phones);
+    final email = _firstEmailValue(c.emails);
     final contactValue = email?.isNotEmpty == true ? email : phone;
 
     String? hash;
@@ -102,8 +109,8 @@ class ContactRepository extends BaseRepository {
       hash = _hashContact(phone, isPhone: true);
     }
 
-    final displayName = c.displayName.trim().isNotEmpty
-        ? c.displayName.trim()
+    final displayName = c.displayName?.trim().isNotEmpty == true
+        ? c.displayName!.trim()
         : contactValue ?? 'Selected contact';
 
     return Contact(
@@ -111,10 +118,42 @@ class ContactRepository extends BaseRepository {
       displayName: displayName,
       phoneNumber: phone?.isEmpty == true ? null : phone,
       email: email?.isEmpty == true ? null : email,
-      avatar: c.photo,
+      avatar: c.photo?.thumbnail ?? c.photo?.fullSize,
       status: ContactStatus.unknown,
       contactHash: hash,
     );
+  }
+
+  Future<bool> _requestContactsReadPermission() async {
+    final status = await fc.FlutterContacts.permissions.request(
+      fc.PermissionType.read,
+    );
+    return status == fc.PermissionStatus.granted ||
+        status == fc.PermissionStatus.limited;
+  }
+
+  String? _firstPhoneValue(List<fc.Phone> phones) {
+    for (final phone in phones) {
+      final normalized = phone.normalizedNumber?.trim();
+      final raw = phone.number.trim();
+      final value = normalized != null && normalized.isNotEmpty
+          ? normalized
+          : raw;
+      if (value.isNotEmpty) {
+        return value;
+      }
+    }
+    return null;
+  }
+
+  String? _firstEmailValue(List<fc.Email> emails) {
+    for (final email in emails) {
+      final value = email.address.trim();
+      if (value.isNotEmpty) {
+        return value;
+      }
+    }
+    return null;
   }
 
   // Hash contact for privacy-preserving discovery

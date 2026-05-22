@@ -36,7 +36,7 @@ class BibleScreen extends ConsumerStatefulWidget {
   final int? verse;
   final bool isPlanMode;
   final bool openChapterSelector;
-  
+
   @override
   ConsumerState<BibleScreen> createState() => _BibleScreenState();
 }
@@ -61,13 +61,13 @@ class _BibleScreenState extends ConsumerState<BibleScreen> {
     _scrollController.addListener(() {
       // Cancel existing debounce timer
       _scrollDebounceTimer?.cancel();
-      
+
       // Set a new debounce timer to reset the idle timer after scrolling stops
       _scrollDebounceTimer = Timer(const Duration(milliseconds: 500), () {
         _resetIdleTimer();
       });
     });
-    
+
     // Start the idle timer immediately when screen initializes
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _resetIdleTimer();
@@ -95,7 +95,7 @@ class _BibleScreenState extends ConsumerState<BibleScreen> {
       if (previous == true && next == false) {
         _resetIdleTimer();
       }
-      
+
       // When loading completes and we have navigation parameters, navigate to the verse
       if (!next && previous == true && !_hasNavigatedToVerse) {
         if (widget.bookName != null && widget.chapter != null) {
@@ -111,10 +111,7 @@ class _BibleScreenState extends ConsumerState<BibleScreen> {
               bibleNotifier.setHighlightedVerse(widget.verse!);
             } else {
               // Use scrollToVerse for book/chapter navigation (no focus mode)
-              bibleNotifier.scrollToVerse(
-                widget.bookName!,
-                widget.chapter!,
-              );
+              bibleNotifier.scrollToVerse(widget.bookName!, widget.chapter!);
             }
             _hasNavigatedToVerse = true;
           });
@@ -123,10 +120,10 @@ class _BibleScreenState extends ConsumerState<BibleScreen> {
     });
 
     // Also handle case when verses are already loaded
-    if (!_hasNavigatedToVerse && 
-        !bibleState.isLoading && 
-        bibleState.verses.isNotEmpty && 
-        widget.bookName != null && 
+    if (!_hasNavigatedToVerse &&
+        !bibleState.isLoading &&
+        bibleState.verses.isNotEmpty &&
+        widget.bookName != null &&
         widget.chapter != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (widget.verse != null) {
@@ -140,17 +137,17 @@ class _BibleScreenState extends ConsumerState<BibleScreen> {
           bibleNotifier.setHighlightedVerse(widget.verse!);
         } else {
           // Use scrollToVerse for book/chapter navigation (no focus mode)
-          bibleNotifier.scrollToVerse(
-            widget.bookName!,
-            widget.chapter!,
-          );
+          bibleNotifier.scrollToVerse(widget.bookName!, widget.chapter!);
         }
         _hasNavigatedToVerse = true;
       });
     }
 
     // Handle scroll to verse functionality
-    ref.listen(bibleProvider.select((s) => s.scrollToVerseId), (previous, next) {
+    ref.listen(bibleProvider.select((s) => s.scrollToVerseId), (
+      previous,
+      next,
+    ) {
       if (next != null && next != previous) {
         // Find the verse widget and scroll to it
         WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -164,12 +161,14 @@ class _BibleScreenState extends ConsumerState<BibleScreen> {
       if (next != null && next != previous) {
         showModalBottomSheet(
           context: context,
+          useRootNavigator: true,
           isScrollControlled: true,
           useSafeArea: true,
           backgroundColor: Colors.transparent,
           builder: (context) => BibleInsightSheet(
             insight: next,
-            verseReference: '${bibleState.currentBook?.name} ${bibleState.currentChapter}:${bibleState.verses.firstWhere((v) => v.id.toString() == bibleState.insight?.reference || true).verse}', // Approximate reference if not provided
+            verseReference:
+                '${bibleState.currentBook?.name} ${bibleState.currentChapter}:${bibleState.verses.firstWhere((v) => v.id.toString() == bibleState.insight?.reference || true).verse}', // Approximate reference if not provided
           ),
         ).whenComplete(() {
           bibleNotifier.clearInsight();
@@ -188,6 +187,7 @@ class _BibleScreenState extends ConsumerState<BibleScreen> {
             onPressed: () {
               showModalBottomSheet(
                 context: context,
+                useRootNavigator: true,
                 isScrollControlled: true,
                 useSafeArea: true,
                 builder: (context) => const BibleVersionsSheet(),
@@ -197,10 +197,7 @@ class _BibleScreenState extends ConsumerState<BibleScreen> {
           IconButton(
             icon: const Icon(Icons.search),
             onPressed: () {
-              showSearch(
-                context: context,
-                delegate: BibleSearchDelegate(ref),
-              );
+              showSearch(context: context, delegate: BibleSearchDelegate(ref));
             },
           ),
           // Font size control
@@ -210,6 +207,7 @@ class _BibleScreenState extends ConsumerState<BibleScreen> {
             onPressed: () {
               showModalBottomSheet(
                 context: context,
+                useRootNavigator: true,
                 builder: (context) => const BibleSettingsSheet(),
               );
             },
@@ -222,6 +220,7 @@ class _BibleScreenState extends ConsumerState<BibleScreen> {
               onPressed: () {
                 showModalBottomSheet(
                   context: context,
+                  useRootNavigator: true,
                   isScrollControlled: true,
                   useSafeArea: true,
                   builder: (context) => const BibleStatsSheet(),
@@ -233,7 +232,9 @@ class _BibleScreenState extends ConsumerState<BibleScreen> {
             IconButton(
               icon: Icon(
                 Icons.videogame_asset,
-                color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.7),
+                color: Theme.of(
+                  context,
+                ).colorScheme.primary.withValues(alpha: 0.7),
               ),
               tooltip: 'Verse Game',
               onPressed: () {
@@ -260,223 +261,260 @@ class _BibleScreenState extends ConsumerState<BibleScreen> {
                 _resetIdleTimer(); // Reset timer on swipe
                 if (details.primaryVelocity == null) return;
                 final velocity = details.primaryVelocity!;
-                if (velocity.abs() < 300) return; 
+                if (velocity.abs() < 300) return;
 
                 if (velocity > 0) {
                   // Swipe Right -> Previous
-                  if (bibleState.currentChapter > 1 || 
-                      (bibleState.currentBook != null && bibleState.books.indexOf(bibleState.currentBook!) > 0)) {
+                  if (bibleState.currentChapter > 1 ||
+                      (bibleState.currentBook != null &&
+                          bibleState.books.indexOf(bibleState.currentBook!) >
+                              0)) {
                     HapticFeedback.lightImpact();
                     bibleNotifier.previousChapter();
                   }
                 } else {
-                   // Swipe Left -> Next
-                   HapticFeedback.lightImpact();
-                   bibleNotifier.nextChapter();
+                  // Swipe Left -> Next
+                  HapticFeedback.lightImpact();
+                  bibleNotifier.nextChapter();
                 }
               },
               child: Stack(
                 children: [
                   Column(
-                  children: [
-                    // Inline book/chapter selector panel
-                    if (_showBookSelector)
-                      Expanded(
-                        child: DefaultTabController(
-                          length: 3,
-                          child: Column(
-                            children: [
-                              const TabBar(
-                                tabs: [
-                                  Tab(text: 'New Testament'),
-                                  Tab(text: 'Old Testament'),
-                                  Tab(text: 'Reading Plans'),
-                                ],
-                              ),
-                              Expanded(
-                                child: TabBarView(
-                                  children: [
-                                    _InlineBookChapterList(
-                                      state: bibleState,
-                                      notifier: bibleNotifier,
-                                      testament: 'NT',
-                                      scrollController: ScrollController(),
-                                      onChapterSelected: () => setState(() => _showBookSelector = false),
-                                    ),
-                                    _InlineBookChapterList(
-                                      state: bibleState,
-                                      notifier: bibleNotifier,
-                                      testament: 'OT',
-                                      scrollController: ScrollController(),
-                                      onChapterSelected: () => setState(() => _showBookSelector = false),
-                                    ),
-                                    const CompactReadingPlanList(),
+                    children: [
+                      // Inline book/chapter selector panel
+                      if (_showBookSelector)
+                        Expanded(
+                          child: DefaultTabController(
+                            length: 3,
+                            child: Column(
+                              children: [
+                                const TabBar(
+                                  tabs: [
+                                    Tab(text: 'New Testament'),
+                                    Tab(text: 'Old Testament'),
+                                    Tab(text: 'Reading Plans'),
                                   ],
+                                ),
+                                Expanded(
+                                  child: TabBarView(
+                                    children: [
+                                      _InlineBookChapterList(
+                                        state: bibleState,
+                                        notifier: bibleNotifier,
+                                        testament: 'NT',
+                                        scrollController: ScrollController(),
+                                        onChapterSelected: () => setState(
+                                          () => _showBookSelector = false,
+                                        ),
+                                      ),
+                                      _InlineBookChapterList(
+                                        state: bibleState,
+                                        notifier: bibleNotifier,
+                                        testament: 'OT',
+                                        scrollController: ScrollController(),
+                                        onChapterSelected: () => setState(
+                                          () => _showBookSelector = false,
+                                        ),
+                                      ),
+                                      const CompactReadingPlanList(),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      if (!_showBookSelector && bibleState.error != null)
+                        Container(
+                          margin: const EdgeInsets.all(8.0),
+                          padding: const EdgeInsets.all(12.0),
+                          decoration: BoxDecoration(
+                            color: theme.colorScheme.errorContainer,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.error_outline,
+                                color: theme.colorScheme.error,
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  'Error: ${bibleState.error}',
+                                  style: TextStyle(
+                                    color: theme.colorScheme.error,
+                                  ),
                                 ),
                               ),
                             ],
                           ),
                         ),
-                      ),
-                    if (!_showBookSelector && bibleState.error != null)
-                      Container(
-                        margin: const EdgeInsets.all(8.0),
-                        padding: const EdgeInsets.all(12.0),
-                        decoration: BoxDecoration(
-                          color: theme.colorScheme.errorContainer,
-                          borderRadius: BorderRadius.circular(8),
+                      if (!_showBookSelector)
+                        Expanded(
+                          child: bibleState.verses.isEmpty
+                              ? _buildEmptyState(context)
+                              : _buildVersesList(
+                                  context,
+                                  bibleState,
+                                  bibleNotifier,
+                                  theme,
+                                ),
                         ),
-                        child: Row(
+                    ],
+                  ),
+                  if (bibleState.isInsightLoading)
+                    Container(
+                      color: Colors.black26,
+                      child: const Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(Icons.error_outline, color: theme.colorScheme.error),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                'Error: ${bibleState.error}',
-                                style: TextStyle(color: theme.colorScheme.error),
-                              ),
+                            CircularProgressIndicator(),
+                            SizedBox(height: 16),
+                            Text(
+                              'Generating insight...',
+                              style: TextStyle(color: Colors.white),
                             ),
                           ],
                         ),
                       ),
-                    if (!_showBookSelector)
-                      Expanded(
-                        child: bibleState.verses.isEmpty
-                            ? _buildEmptyState(context)
-                            : _buildVersesList(context, bibleState, bibleNotifier, theme),
-                      ),
-                  ],
-                ),
-                if (bibleState.isInsightLoading)
-                  Container(
-                    color: Colors.black26,
-                    child: const Center(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          CircularProgressIndicator(),
-                          SizedBox(height: 16),
-                          Text(
-                            'Generating insight...',
-                            style: TextStyle(color: Colors.white),
-                          ),
-                        ],
-                      ),
                     ),
-                  ),
-              ],
+                ],
+              ),
             ),
-          ),
     );
   }
 
   Widget _buildEmptyState(BuildContext context) {
     final bibleState = ref.watch(bibleProvider);
-    
+
     return Center(
       child: SingleChildScrollView(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-          Icon(
-            Icons.menu_book,
-            size: 64,
-            color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.7),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            bibleState.currentBook == null 
-              ? 'Select a book to begin reading'
-              : 'No verses available',
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.8),
+            Icon(
+              Icons.menu_book,
+              size: 64,
+              color: Theme.of(
+                context,
+              ).colorScheme.primary.withValues(alpha: 0.7),
             ),
-          ),
-          const SizedBox(height: 8),
-          if (bibleState.currentBook != null && bibleState.currentVersion != null)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 32),
-              child: Column(
-                children: [
-                  Text(
-                    'Trying to load: ${bibleState.currentBook!.name} ${bibleState.currentChapter}',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Version: ${bibleState.currentVersion!.name ?? bibleState.currentVersion!.abbreviation}',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ],
+            const SizedBox(height: 16),
+            Text(
+              bibleState.currentBook == null
+                  ? 'Select a book to begin reading'
+                  : 'No verses available',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                color: Theme.of(
+                  context,
+                ).colorScheme.onSurface.withValues(alpha: 0.8),
               ),
             ),
-          if (bibleState.error != null)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 8),
-              child: Column(
-                children: [
-                  Text(
-                    'Unable to load verses',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: Theme.of(context).colorScheme.error,
-                      fontWeight: FontWeight.bold,
+            const SizedBox(height: 8),
+            if (bibleState.currentBook != null &&
+                bibleState.currentVersion != null)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 32),
+                child: Column(
+                  children: [
+                    Text(
+                      'Trying to load: ${bibleState.currentBook!.name} ${bibleState.currentChapter}',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.onSurface.withValues(alpha: 0.7),
+                      ),
+                      textAlign: TextAlign.center,
                     ),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    bibleState.error!,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Theme.of(context).colorScheme.error,
+                    const SizedBox(height: 4),
+                    Text(
+                      'Version: ${bibleState.currentVersion!.name ?? bibleState.currentVersion!.abbreviation}',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.onSurface.withValues(alpha: 0.7),
+                      ),
+                      textAlign: TextAlign.center,
                     ),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Try selecting a different version or check your internet connection',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.8),
+                  ],
+                ),
+              ),
+            if (bibleState.error != null)
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 32,
+                  vertical: 8,
+                ),
+                child: Column(
+                  children: [
+                    Text(
+                      'Unable to load verses',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: Theme.of(context).colorScheme.error,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      textAlign: TextAlign.center,
                     ),
-                    textAlign: TextAlign.center,
-                  ),
-                ],
+                    const SizedBox(height: 4),
+                    Text(
+                      bibleState.error!,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.error,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Try selecting a different version or check your internet connection',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.onSurface.withValues(alpha: 0.8),
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
               ),
-            ),
-          if (bibleState.isLoading)
-            const Padding(
-              padding: EdgeInsets.only(top: 16),
-              child: Column(
-                children: [
-                  CircularProgressIndicator(),
-                  SizedBox(height: 8),
-                  Text('Loading verses...'),
-                ],
+            if (bibleState.isLoading)
+              const Padding(
+                padding: EdgeInsets.only(top: 16),
+                child: Column(
+                  children: [
+                    CircularProgressIndicator(),
+                    SizedBox(height: 8),
+                    Text('Loading verses...'),
+                  ],
+                ),
               ),
-            ),
-          if (!bibleState.isLoading && bibleState.error == null && bibleState.currentBook != null)
-            Padding(
-              padding: const EdgeInsets.only(top: 16),
-              child: ElevatedButton(
-                onPressed: () {
-                  final notifier = ref.read(bibleProvider.notifier);
-                  notifier.loadVerses();
-                },
-                child: const Text('Retry'),
+            if (!bibleState.isLoading &&
+                bibleState.error == null &&
+                bibleState.currentBook != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 16),
+                child: ElevatedButton(
+                  onPressed: () {
+                    final notifier = ref.read(bibleProvider.notifier);
+                    notifier.loadVerses();
+                  },
+                  child: const Text('Retry'),
+                ),
               ),
-            ),
-        ],
+          ],
+        ),
       ),
-    ),
     );
   }
 
-  Widget _buildVersesList(BuildContext context, BibleState state, BibleNotifier notifier, ThemeData theme) {
+  Widget _buildVersesList(
+    BuildContext context,
+    BibleState state,
+    BibleNotifier notifier,
+    ThemeData theme,
+  ) {
     return ListView.builder(
       controller: _scrollController,
       padding: const EdgeInsets.all(16),
@@ -485,35 +523,50 @@ class _BibleScreenState extends ConsumerState<BibleScreen> {
         if (index == state.verses.length) {
           return _buildNavigationFooter(context, ref, state, notifier);
         }
-        
+
         final verse = state.verses[index];
         return _buildVerseItem(context, verse, state, notifier, theme);
       },
     );
   }
 
-  Widget _buildVerseItem(BuildContext context, BibleVerseContent verse, BibleState state, BibleNotifier notifier, ThemeData theme) {
+  Widget _buildVerseItem(
+    BuildContext context,
+    BibleVerseContent verse,
+    BibleState state,
+    BibleNotifier notifier,
+    ThemeData theme,
+  ) {
     final isHighlightedVerse = verse.verse == state.highlightedVerseId;
-    
+
     return InkWell(
       onTap: () => _showVerseActionSheet(context, verse, state, notifier),
       onLongPress: () => _showVerseActionSheet(context, verse, state, notifier),
       borderRadius: BorderRadius.circular(4),
       child: Container(
         decoration: BoxDecoration(
-          color: verse.isHighlighted 
-              ? Colors.amber.withValues(alpha: 0.2) 
+          color: verse.isHighlighted
+              ? Colors.amber.withValues(alpha: 0.2)
               : isHighlightedVerse
-                  ? theme.colorScheme.primaryContainer.withValues(alpha: 0.3)
-                  : Colors.transparent,
+              ? theme.colorScheme.primaryContainer.withValues(alpha: 0.3)
+              : Colors.transparent,
           border: verse.isBookmarked
-              ? Border(left: BorderSide(color: theme.colorScheme.primary, width: 3))
+              ? Border(
+                  left: BorderSide(color: theme.colorScheme.primary, width: 3),
+                )
               : isHighlightedVerse
-                  ? Border(left: BorderSide(color: theme.colorScheme.primary, width: 4))
-                  : null,
+              ? Border(
+                  left: BorderSide(color: theme.colorScheme.primary, width: 4),
+                )
+              : null,
           borderRadius: BorderRadius.circular(4),
         ),
-        padding: const EdgeInsets.only(bottom: 12.0, top: 4.0, left: 4.0, right: 4.0),
+        padding: const EdgeInsets.only(
+          bottom: 12.0,
+          top: 4.0,
+          left: 4.0,
+          right: 4.0,
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -544,7 +597,7 @@ class _BibleScreenState extends ConsumerState<BibleScreen> {
                     style: TextStyle(
                       fontSize: isHighlightedVerse ? 14 : 12,
                       fontWeight: FontWeight.bold,
-                      color: isHighlightedVerse 
+                      color: isHighlightedVerse
                           ? theme.colorScheme.primary
                           : theme.colorScheme.primary.withValues(alpha: 0.8),
                     ),
@@ -553,9 +606,13 @@ class _BibleScreenState extends ConsumerState<BibleScreen> {
                     text: verse.text,
                     style: theme.textTheme.bodyLarge?.copyWith(
                       height: 1.6,
-                      fontSize: isHighlightedVerse ? state.fontSize + 4 : state.fontSize,
-                      fontWeight: isHighlightedVerse ? FontWeight.w500 : FontWeight.normal,
-                      color: isHighlightedVerse 
+                      fontSize: isHighlightedVerse
+                          ? state.fontSize + 4
+                          : state.fontSize,
+                      fontWeight: isHighlightedVerse
+                          ? FontWeight.w500
+                          : FontWeight.normal,
+                      color: isHighlightedVerse
                           ? theme.colorScheme.onSurface
                           : null,
                     ),
@@ -569,15 +626,23 @@ class _BibleScreenState extends ConsumerState<BibleScreen> {
     );
   }
 
-  void _showVerseActionSheet(BuildContext context, BibleVerseContent verse, BibleState state, BibleNotifier notifier) {
+  void _showVerseActionSheet(
+    BuildContext context,
+    BibleVerseContent verse,
+    BibleState state,
+    BibleNotifier notifier,
+  ) {
     showModalBottomSheet(
       context: context,
+      useRootNavigator: true,
       builder: (context) => BibleVerseActionSheet(
         verse: verse,
         onHighlight: () => notifier.toggleHighlight(verse.id),
         onBookmark: () => notifier.toggleBookmark(verse.id),
         onJournal: () {
-          final reference = verse.reference ?? '${state.currentBook?.name} ${state.currentChapter}:${verse.verse}';
+          final reference =
+              verse.reference ??
+              '${state.currentBook?.name} ${state.currentChapter}:${verse.verse}';
           context.push(
             '${AppRoutes.journal}/new',
             extra: {
@@ -588,9 +653,13 @@ class _BibleScreenState extends ConsumerState<BibleScreen> {
           );
         },
         onCompare: () {
-          notifier.compareVerses(verse.reference ?? '${state.currentBook?.abbreviation} ${state.currentChapter}:${verse.verse}');
+          notifier.compareVerses(
+            verse.reference ??
+                '${state.currentBook?.abbreviation} ${state.currentChapter}:${verse.verse}',
+          );
           showModalBottomSheet(
             context: context,
+            useRootNavigator: true,
             isScrollControlled: true,
             useSafeArea: true,
             backgroundColor: Colors.transparent,
@@ -609,9 +678,12 @@ class _BibleScreenState extends ConsumerState<BibleScreen> {
           });
         },
         onAllInsights: () {
-          final reference = verse.reference ?? '${state.currentBook?.name} ${state.currentChapter}:${verse.verse}';
+          final reference =
+              verse.reference ??
+              '${state.currentBook?.name} ${state.currentChapter}:${verse.verse}';
           showModalBottomSheet(
             context: context,
+            useRootNavigator: true,
             isScrollControlled: true,
             useSafeArea: true,
             backgroundColor: Colors.transparent,
@@ -620,7 +692,9 @@ class _BibleScreenState extends ConsumerState<BibleScreen> {
                 final bibleState = ref.watch(bibleProvider);
                 return AllInsightsModal(
                   verseReference: reference,
-                  insights: bibleState.insight != null ? [bibleState.insight!] : [],
+                  insights: bibleState.insight != null
+                      ? [bibleState.insight!]
+                      : [],
                   isLoading: bibleState.isInsightLoading,
                 );
               },
@@ -630,11 +704,14 @@ class _BibleScreenState extends ConsumerState<BibleScreen> {
           });
         },
         onAddNote: () {
-          final reference = verse.reference ?? '${state.currentBook?.name} ${state.currentChapter}:${verse.verse}';
+          final reference =
+              verse.reference ??
+              '${state.currentBook?.name} ${state.currentChapter}:${verse.verse}';
           final existingNote = notifier.getVerseNote(verse.id);
-          
+
           showModalBottomSheet(
             context: context,
+            useRootNavigator: true,
             isScrollControlled: true,
             useSafeArea: true,
             backgroundColor: Colors.transparent,
@@ -649,17 +726,17 @@ class _BibleScreenState extends ConsumerState<BibleScreen> {
                 // Delete note
                 notifier.deleteVerseNote(verse.id);
                 if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Note deleted')),
-                  );
+                  ScaffoldMessenger.of(
+                    context,
+                  ).showSnackBar(const SnackBar(content: Text('Note deleted')));
                 }
               } else {
                 // Save/update note
                 notifier.saveVerseNote(verse.id, result);
                 if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Note saved')),
-                  );
+                  ScaffoldMessenger.of(
+                    context,
+                  ).showSnackBar(const SnackBar(content: Text('Note saved')));
                 }
               }
             }
@@ -670,17 +747,21 @@ class _BibleScreenState extends ConsumerState<BibleScreen> {
           if (context.mounted) {
             final isLiked = notifier.isVerseLiked(verse.id);
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(isLiked ? 'Verse liked!' : 'Like removed')),
+              SnackBar(
+                content: Text(isLiked ? 'Verse liked!' : 'Like removed'),
+              ),
             );
           }
         },
         onShare: () async {
           final result = await notifier.shareVerse(verse.id);
           if (!context.mounted) return;
-          
+
           if (result != null) {
             // Copy to clipboard for sharing
-            await Clipboard.setData(ClipboardData(text: '${verse.text} (${verse.reference})'));
+            await Clipboard.setData(
+              ClipboardData(text: '${verse.text} (${verse.reference})'),
+            );
             if (!context.mounted) return;
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(content: Text('Verse copied for sharing')),
@@ -695,11 +776,15 @@ class _BibleScreenState extends ConsumerState<BibleScreen> {
     );
   }
 
-  Widget _buildTitleSelector(BuildContext context, BibleState state, BibleNotifier notifier) {
+  Widget _buildTitleSelector(
+    BuildContext context,
+    BibleState state,
+    BibleNotifier notifier,
+  ) {
     if (state.currentBook == null) {
       return const Text('Bible');
     }
-    
+
     return GestureDetector(
       onTap: () {
         setState(() => _showBookSelector = !_showBookSelector);
@@ -729,7 +814,12 @@ class _BibleScreenState extends ConsumerState<BibleScreen> {
     );
   }
 
-  Widget _buildNavigationFooter(BuildContext context, WidgetRef ref, BibleState state, BibleNotifier notifier) {
+  Widget _buildNavigationFooter(
+    BuildContext context,
+    WidgetRef ref,
+    BibleState state,
+    BibleNotifier notifier,
+  ) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 24.0),
       child: Column(
@@ -744,27 +834,36 @@ class _BibleScreenState extends ConsumerState<BibleScreen> {
                 }
                 return FilledButton.icon(
                   onPressed: () {
-                    ref.read(bibleReadingProvider.notifier).completeReading(
-                      readingMode: 'plan',
-                      planName: 'Reading Plan',
-                      chaptersRead: ['${state.currentBook?.name} ${state.currentChapter}'],
-                    ).then((_) {
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: const Row(
-                              children: [
-                                Icon(Icons.check_circle, color: Colors.white, size: 20),
-                                SizedBox(width: 8),
-                                Text('Chapter marked as read! +15 XP'),
-                              ],
-                            ),
-                            backgroundColor: Colors.green[600],
-                            duration: const Duration(seconds: 3),
-                          ),
-                        );
-                      }
-                    });
+                    ref
+                        .read(bibleReadingProvider.notifier)
+                        .completeReading(
+                          readingMode: 'plan',
+                          planName: 'Reading Plan',
+                          chaptersRead: [
+                            '${state.currentBook?.name} ${state.currentChapter}',
+                          ],
+                        )
+                        .then((_) {
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: const Row(
+                                  children: [
+                                    Icon(
+                                      Icons.check_circle,
+                                      color: Colors.white,
+                                      size: 20,
+                                    ),
+                                    SizedBox(width: 8),
+                                    Text('Chapter marked as read! +15 XP'),
+                                  ],
+                                ),
+                                backgroundColor: Colors.green[600],
+                                duration: const Duration(seconds: 3),
+                              ),
+                            );
+                          }
+                        });
                   },
                   icon: const Icon(Icons.check),
                   label: const Text('Mark Chapter as Read (+15 XP)'),
@@ -800,12 +899,12 @@ class _BibleScreenState extends ConsumerState<BibleScreen> {
     final targetVerseIndex = bibleState.verses.indexWhere(
       (verse) => verse.verse == verseNumber,
     );
-    
+
     if (targetVerseIndex != -1) {
       // Calculate the scroll position (estimated item height)
       const estimatedItemHeight = 80.0;
       final targetScrollOffset = targetVerseIndex * estimatedItemHeight;
-      
+
       // Scroll to the verse with some padding
       _scrollController.animateTo(
         targetScrollOffset,
@@ -818,14 +917,14 @@ class _BibleScreenState extends ConsumerState<BibleScreen> {
   void _resetIdleTimer() {
     // Cancel existing timer
     _idleTimer?.cancel();
-    
+
     // Hide game icon immediately
     if (mounted) {
       setState(() {
         _showGameIcon = false;
       });
     }
-    
+
     // Start new 5-second timer
     _idleTimer = Timer(const Duration(seconds: 5), () {
       if (mounted) {
@@ -949,7 +1048,8 @@ class _InlineBookChapterListState extends State<_InlineBookChapterList> {
                   itemCount: book.chapters ?? 50,
                   itemBuilder: (context, chapterIndex) {
                     final chapter = chapterIndex + 1;
-                    final isSelected = isCurrentBook && chapter == widget.state.currentChapter;
+                    final isSelected =
+                        isCurrentBook && chapter == widget.state.currentChapter;
                     return InkWell(
                       onTap: () {
                         widget.notifier.selectChapter(chapter);
@@ -960,10 +1060,14 @@ class _InlineBookChapterListState extends State<_InlineBookChapterList> {
                         decoration: BoxDecoration(
                           color: isSelected
                               ? theme.colorScheme.primaryContainer
-                              : theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                              : theme.colorScheme.surfaceContainerHighest
+                                    .withValues(alpha: 0.5),
                           borderRadius: BorderRadius.circular(8),
                           border: isSelected
-                              ? Border.all(color: theme.colorScheme.primary, width: 1.5)
+                              ? Border.all(
+                                  color: theme.colorScheme.primary,
+                                  width: 1.5,
+                                )
                               : null,
                         ),
                         alignment: Alignment.center,
@@ -971,7 +1075,9 @@ class _InlineBookChapterListState extends State<_InlineBookChapterList> {
                           '$chapter',
                           style: TextStyle(
                             fontSize: 13,
-                            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                            fontWeight: isSelected
+                                ? FontWeight.bold
+                                : FontWeight.normal,
                             color: isSelected
                                 ? theme.colorScheme.primary
                                 : theme.colorScheme.onSurface,

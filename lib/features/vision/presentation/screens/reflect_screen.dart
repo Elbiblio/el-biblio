@@ -65,7 +65,7 @@ class _ReflectScreenState extends ConsumerState<ReflectScreen> {
               ]);
             },
             child: SafeListView(
-              bottomPadding: 150,
+              bottomPadding: shellChromeBottomPadding,
               padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
               children: [
                 _ReflectHeader(state: state),
@@ -84,7 +84,7 @@ class _ReflectScreenState extends ConsumerState<ReflectScreen> {
                 if (active == null)
                   VisionPanel(
                     icon: LucideIcons.lock,
-                    title: 'Join a commitment to open the room',
+                    title: 'Choose a commitment first',
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -97,7 +97,7 @@ class _ReflectScreenState extends ConsumerState<ReflectScreen> {
                         ),
                         const SizedBox(height: 12),
                         Text(
-                          'Reflect is intentionally scoped. You share with people walking the same commitment, not a public crowd.',
+                          'Open the room for one commitment. Share with people walking the same practice.',
                           style: theme.textTheme.bodyMedium?.copyWith(
                             color: tokens.palette.textSecondary,
                             height: 1.45,
@@ -158,7 +158,7 @@ class _ReflectHeader extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Reflect together',
+                      'Reflect',
                       style: theme.textTheme.headlineMedium?.copyWith(
                         fontWeight: FontWeight.w800,
                         height: 1.05,
@@ -167,8 +167,8 @@ class _ReflectHeader extends StatelessWidget {
                     const SizedBox(height: 8),
                     Text(
                       active == null
-                          ? 'A quieter reflection space opens after you choose a commitment.'
-                          : 'A private feed for ${active.plan.title}. Check in first, then share one honest sentence if it helps.',
+                          ? 'Choose a commitment to open its room.'
+                          : '${active.plan.title} feed. Check in, then post.',
                       style: theme.textTheme.bodyMedium?.copyWith(
                         color: tokens.palette.textSecondary,
                         height: 1.42,
@@ -181,7 +181,7 @@ class _ReflectHeader extends StatelessWidget {
               const VisionIllustration(
                 asset: VisionIllustrationAsset.growth,
                 size: 84,
-                semanticLabel: 'Reflect together',
+                semanticLabel: 'Reflect',
               ),
             ],
           ),
@@ -195,13 +195,13 @@ class _ReflectHeader extends StatelessWidget {
                   icon: LucideIcons.checkCircle,
                   label: active.checkedInToday
                       ? 'Checked in today'
-                      : 'Check-in open',
+                      : 'Check-in needed',
                 ),
                 _ReflectStat(
                   icon: LucideIcons.messageCircle,
                   label: state.reflectionPostedToday
                       ? 'Shared today'
-                      : 'One reflection',
+                      : 'Post open',
                 ),
                 _ReflectStat(
                   icon: LucideIcons.heartHandshake,

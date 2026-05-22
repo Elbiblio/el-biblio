@@ -22,7 +22,7 @@ void main() {
         );
 
         expect(
-          find.text('Make room for the life God is forming in you.'),
+          find.text('Build one daily spiritual practice.'),
           findsOneWidget,
         );
         expect(find.text('Elbiblio'), findsOneWidget);
@@ -39,8 +39,8 @@ void main() {
           child: const TheSolutionView(),
         );
 
-        expect(find.textContaining('A quieter path'), findsOneWidget);
-        expect(find.text('Spiritual compass'), findsOneWidget);
+        expect(find.text('Your path'), findsOneWidget);
+        expect(find.text('Compass'), findsOneWidget);
         expect(tester.takeException(), isNull);
       },
     );

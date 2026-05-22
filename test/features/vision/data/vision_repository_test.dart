@@ -42,6 +42,17 @@ void main() {
       expect(result.errorMessage, contains('offline'));
     },
   );
+
+  test('notifications treats backend empty-inbox response as empty', () async {
+    final repository = VisionRepository(
+      _EmptyNotificationsDioClient(),
+      Logger(level: Level.off),
+    );
+
+    final notifications = await repository.notifications();
+
+    expect(notifications, isEmpty);
+  });
 }
 
 class _OfflineDioClient extends DioClient {
@@ -53,5 +64,21 @@ class _OfflineDioClient extends DioClient {
     Map<String, dynamic>? queryParameters,
   }) async {
     throw NetworkException('offline');
+  }
+}
+
+class _EmptyNotificationsDioClient extends DioClient {
+  _EmptyNotificationsDioClient() : super(Logger(level: Level.off));
+
+  @override
+  Future<Response<T>> get<T>(
+    String path, {
+    Map<String, dynamic>? queryParameters,
+  }) async {
+    throw ApiRequestException(
+      statusCode: 400,
+      message: 'Notification not found',
+      details: const {'success': false, 'message': 'Notification not found'},
+    );
   }
 }

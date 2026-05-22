@@ -12,6 +12,7 @@ class EvangelismLoggerSheet extends ConsumerStatefulWidget {
   static Future<void> show(BuildContext context) {
     return showModalBottomSheet(
       context: context,
+      useRootNavigator: true,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (context) => const EvangelismLoggerSheet(),
@@ -19,7 +20,8 @@ class EvangelismLoggerSheet extends ConsumerStatefulWidget {
   }
 
   @override
-  ConsumerState<EvangelismLoggerSheet> createState() => _EvangelismLoggerSheetState();
+  ConsumerState<EvangelismLoggerSheet> createState() =>
+      _EvangelismLoggerSheetState();
 }
 
 class _EvangelismLoggerSheetState extends ConsumerState<EvangelismLoggerSheet> {
@@ -65,7 +67,9 @@ class _EvangelismLoggerSheetState extends ConsumerState<EvangelismLoggerSheet> {
     final conversations = mission.evangelismConversations;
 
     // Get needing follow-up
-    final needsFollowUp = ref.read(missionProvider.notifier).evangelismNeedsFollowUp;
+    final needsFollowUp = ref
+        .read(missionProvider.notifier)
+        .evangelismNeedsFollowUp;
 
     return Container(
       height: MediaQuery.of(context).size.height * 0.85,
@@ -114,7 +118,9 @@ class _EvangelismLoggerSheetState extends ConsumerState<EvangelismLoggerSheet> {
                           Text(
                             'Track conversations and follow-ups',
                             style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                              color: theme.colorScheme.onSurface.withValues(
+                                alpha: 0.6,
+                              ),
                             ),
                           ),
                         ],
@@ -133,11 +139,17 @@ class _EvangelismLoggerSheetState extends ConsumerState<EvangelismLoggerSheet> {
                     decoration: BoxDecoration(
                       color: Colors.orange.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
+                      border: Border.all(
+                        color: Colors.orange.withValues(alpha: 0.3),
+                      ),
                     ),
                     child: Row(
                       children: [
-                        Icon(Icons.notifications_active, color: Colors.orange.shade400, size: 20),
+                        Icon(
+                          Icons.notifications_active,
+                          color: Colors.orange.shade400,
+                          size: 20,
+                        ),
                         const SizedBox(width: 12),
                         Expanded(
                           child: Text(
@@ -230,20 +242,23 @@ class _EvangelismLoggerSheetState extends ConsumerState<EvangelismLoggerSheet> {
     }
 
     // Sort: needs follow-up first, then by date
-    final sorted = [...conversations]..sort((a, b) {
-      final aNeeds = needsFollowUp.any((c) => c.id == a.id);
-      final bNeeds = needsFollowUp.any((c) => c.id == b.id);
-      if (aNeeds && !bNeeds) return -1;
-      if (!aNeeds && bNeeds) return 1;
-      return b.date.compareTo(a.date);
-    });
+    final sorted = [...conversations]
+      ..sort((a, b) {
+        final aNeeds = needsFollowUp.any((c) => c.id == a.id);
+        final bNeeds = needsFollowUp.any((c) => c.id == b.id);
+        if (aNeeds && !bNeeds) return -1;
+        if (!aNeeds && bNeeds) return 1;
+        return b.date.compareTo(a.date);
+      });
 
     return ListView.builder(
       padding: const EdgeInsets.all(16),
       itemCount: sorted.length,
       itemBuilder: (context, index) {
         final conversation = sorted[index];
-        final needsFollowUpFlag = needsFollowUp.any((c) => c.id == conversation.id);
+        final needsFollowUpFlag = needsFollowUp.any(
+          (c) => c.id == conversation.id,
+        );
         return _ConversationCard(
           conversation: conversation,
           needsFollowUp: needsFollowUpFlag,
@@ -412,9 +427,7 @@ class _EvangelismLoggerSheetState extends ConsumerState<EvangelismLoggerSheet> {
                 flex: 2,
                 child: FilledButton(
                   onPressed: _isSubmitting ? null : _submitConversation,
-                  style: FilledButton.styleFrom(
-                    backgroundColor: Colors.orange,
-                  ),
+                  style: FilledButton.styleFrom(backgroundColor: Colors.orange),
                   child: _isSubmitting
                       ? const SizedBox(
                           height: 20,
@@ -439,9 +452,9 @@ class _EvangelismLoggerSheetState extends ConsumerState<EvangelismLoggerSheet> {
   Future<void> _submitConversation() async {
     final name = _nameController.text.trim();
     if (name.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter a name')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Please enter a name')));
       return;
     }
 
@@ -451,21 +464,23 @@ class _EvangelismLoggerSheetState extends ConsumerState<EvangelismLoggerSheet> {
         ? [_prayerController.text.trim()]
         : null;
 
-    await ref.read(missionProvider.notifier).logEvangelismConversation(
-      personName: name,
-      method: _selectedMethod,
-      initialContext: _contextController.text.trim().isNotEmpty
-          ? _contextController.text.trim()
-          : null,
-      contentShared: _contentController.text.trim().isNotEmpty
-          ? _contentController.text.trim()
-          : null,
-      responseType: _selectedResponse,
-      notes: _notesController.text.trim().isNotEmpty
-          ? _notesController.text.trim()
-          : null,
-      prayerRequests: prayerRequests,
-    );
+    await ref
+        .read(missionProvider.notifier)
+        .logEvangelismConversation(
+          personName: name,
+          method: _selectedMethod,
+          initialContext: _contextController.text.trim().isNotEmpty
+              ? _contextController.text.trim()
+              : null,
+          contentShared: _contentController.text.trim().isNotEmpty
+              ? _contentController.text.trim()
+              : null,
+          responseType: _selectedResponse,
+          notes: _notesController.text.trim().isNotEmpty
+              ? _notesController.text.trim()
+              : null,
+          prayerRequests: prayerRequests,
+        );
 
     if (mounted) {
       setState(() {
@@ -484,9 +499,11 @@ class _EvangelismLoggerSheetState extends ConsumerState<EvangelismLoggerSheet> {
   void _showConversationDetail(EvangelismConversation conversation) {
     showModalBottomSheet(
       context: context,
+      useRootNavigator: true,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => _ConversationDetailSheet(conversation: conversation),
+      builder: (context) =>
+          _ConversationDetailSheet(conversation: conversation),
     );
   }
 }
@@ -564,9 +581,13 @@ class _ConversationCard extends StatelessWidget {
                           ),
                         ),
                         Text(
-                          _capitalizeFirst(conversation.method.replaceAll('-', ' ')),
+                          _capitalizeFirst(
+                            conversation.method.replaceAll('-', ' '),
+                          ),
                           style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                            color: theme.colorScheme.onSurface.withValues(
+                              alpha: 0.6,
+                            ),
                           ),
                         ),
                       ],
@@ -574,7 +595,10 @@ class _ConversationCard extends StatelessWidget {
                   ),
                   if (needsFollowUp)
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
                       decoration: BoxDecoration(
                         color: Colors.orange.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(4),
@@ -592,7 +616,10 @@ class _ConversationCard extends StatelessWidget {
               const SizedBox(height: 12),
               if (conversation.responseType != null) ...[
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: statusColor.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(4),
@@ -643,7 +670,9 @@ class _ConversationCard extends StatelessWidget {
                     Text(
                       '${conversation.followUpDates.length} follow-ups',
                       style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                        color: theme.colorScheme.onSurface.withValues(
+                          alpha: 0.5,
+                        ),
                       ),
                     ),
                   ],
@@ -668,10 +697,12 @@ class _ConversationDetailSheet extends ConsumerStatefulWidget {
   final EvangelismConversation conversation;
 
   @override
-  ConsumerState<_ConversationDetailSheet> createState() => _ConversationDetailSheetState();
+  ConsumerState<_ConversationDetailSheet> createState() =>
+      _ConversationDetailSheetState();
 }
 
-class _ConversationDetailSheetState extends ConsumerState<_ConversationDetailSheet> {
+class _ConversationDetailSheetState
+    extends ConsumerState<_ConversationDetailSheet> {
   final _followUpNoteController = TextEditingController();
   String? _decisionMade;
   bool _isSubmitting = false;
@@ -732,10 +763,7 @@ class _ConversationDetailSheetState extends ConsumerState<_ConversationDetailShe
                     color: Colors.orange.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: Icon(
-                    Icons.wb_sunny,
-                    color: Colors.orange.shade400,
-                  ),
+                  child: Icon(Icons.wb_sunny, color: Colors.orange.shade400),
                 ),
                 const SizedBox(width: 16),
                 Expanded(
@@ -753,7 +781,9 @@ class _ConversationDetailSheetState extends ConsumerState<_ConversationDetailShe
                         style: theme.textTheme.bodyMedium?.copyWith(
                           color: conversation.isOngoing
                               ? Colors.orange
-                              : theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                              : theme.colorScheme.onSurface.withValues(
+                                  alpha: 0.6,
+                                ),
                         ),
                       ),
                     ],
@@ -782,11 +812,19 @@ class _ConversationDetailSheetState extends ConsumerState<_ConversationDetailShe
                 const SizedBox(height: 16),
 
                 if (conversation.initialContext?.isNotEmpty ?? false) ...[
-                  _buildDetailRow('Context', conversation.initialContext!, theme),
+                  _buildDetailRow(
+                    'Context',
+                    conversation.initialContext!,
+                    theme,
+                  ),
                   const SizedBox(height: 12),
                 ],
                 if (conversation.contentShared?.isNotEmpty ?? false) ...[
-                  _buildDetailRow('Content Shared', conversation.contentShared!, theme),
+                  _buildDetailRow(
+                    'Content Shared',
+                    conversation.contentShared!,
+                    theme,
+                  ),
                   const SizedBox(height: 12),
                 ],
                 if (conversation.responseType != null) ...[
@@ -795,11 +833,17 @@ class _ConversationDetailSheetState extends ConsumerState<_ConversationDetailShe
                     decoration: BoxDecoration(
                       color: responseColor.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: responseColor.withValues(alpha: 0.3)),
+                      border: Border.all(
+                        color: responseColor.withValues(alpha: 0.3),
+                      ),
                     ),
                     child: Row(
                       children: [
-                        Icon(Icons.emoji_emotions, color: responseColor, size: 18),
+                        Icon(
+                          Icons.emoji_emotions,
+                          color: responseColor,
+                          size: 18,
+                        ),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
@@ -825,23 +869,25 @@ class _ConversationDetailSheetState extends ConsumerState<_ConversationDetailShe
                     ),
                   ),
                   const SizedBox(height: 8),
-                  ...conversation.followUpDates.map((date) => Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.check_circle,
-                          size: 16,
-                          color: Colors.green.withValues(alpha: 0.7),
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          DateFormat('MMMM d, yyyy').format(date),
-                          style: theme.textTheme.bodyMedium,
-                        ),
-                      ],
+                  ...conversation.followUpDates.map(
+                    (date) => Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.check_circle,
+                            size: 16,
+                            color: Colors.green.withValues(alpha: 0.7),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            DateFormat('MMMM d, yyyy').format(date),
+                            style: theme.textTheme.bodyMedium,
+                          ),
+                        ],
+                      ),
                     ),
-                  )),
+                  ),
                   const SizedBox(height: 20),
                 ],
 
@@ -852,7 +898,9 @@ class _ConversationDetailSheetState extends ConsumerState<_ConversationDetailShe
                     decoration: BoxDecoration(
                       color: Colors.green.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.green.withValues(alpha: 0.3)),
+                      border: Border.all(
+                        color: Colors.green.withValues(alpha: 0.3),
+                      ),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -866,16 +914,21 @@ class _ConversationDetailSheetState extends ConsumerState<_ConversationDetailShe
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          _decisionOptions[conversation.decisionMade] ?? conversation.decisionMade!,
+                          _decisionOptions[conversation.decisionMade] ??
+                              conversation.decisionMade!,
                           style: theme.textTheme.bodyLarge?.copyWith(
                             fontWeight: FontWeight.w600,
                           ),
                         ),
                         if (conversation.decisionDate != null)
                           Text(
-                            DateFormat('MMMM d, yyyy').format(conversation.decisionDate!),
+                            DateFormat(
+                              'MMMM d, yyyy',
+                            ).format(conversation.decisionDate!),
                             style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                              color: theme.colorScheme.onSurface.withValues(
+                                alpha: 0.6,
+                              ),
                             ),
                           ),
                       ],
@@ -893,25 +946,27 @@ class _ConversationDetailSheetState extends ConsumerState<_ConversationDetailShe
                     ),
                   ),
                   const SizedBox(height: 8),
-                  ...conversation.prayerRequests!.map((prayer) => Container(
-                    margin: const EdgeInsets.only(bottom: 8),
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.surfaceContainerHighest,
-                      borderRadius: BorderRadius.circular(8),
+                  ...conversation.prayerRequests!.map(
+                    (prayer) => Container(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.surfaceContainerHighest,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.favorite,
+                            size: 16,
+                            color: theme.colorScheme.primary,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(child: Text(prayer)),
+                        ],
+                      ),
                     ),
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.favorite,
-                          size: 16,
-                          color: theme.colorScheme.primary,
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(child: Text(prayer)),
-                      ],
-                    ),
-                  )),
+                  ),
                   const SizedBox(height: 20),
                 ],
 
@@ -935,7 +990,8 @@ class _ConversationDetailSheetState extends ConsumerState<_ConversationDetailShe
                   TextField(
                     controller: _followUpNoteController,
                     decoration: const InputDecoration(
-                      hintText: 'What happened in follow-up? New prayer requests, progress...',
+                      hintText:
+                          'What happened in follow-up? New prayer requests, progress...',
                       prefixIcon: Icon(Icons.note_add_outlined),
                     ),
                     maxLines: 3,
@@ -956,7 +1012,8 @@ class _ConversationDetailSheetState extends ConsumerState<_ConversationDetailShe
                       return ChoiceChip(
                         label: Text(entry.value),
                         selected: isSelected,
-                        onSelected: (_) => setState(() => _decisionMade = entry.key),
+                        onSelected: (_) =>
+                            setState(() => _decisionMade = entry.key),
                       );
                     }).toList(),
                   ),
@@ -997,7 +1054,9 @@ class _ConversationDetailSheetState extends ConsumerState<_ConversationDetailShe
                             ? const SizedBox(
                                 height: 20,
                                 width: 20,
-                                child: CircularProgressIndicator(strokeWidth: 2),
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
                               )
                             : const Text('Record Follow-up'),
                       ),
@@ -1011,7 +1070,12 @@ class _ConversationDetailSheetState extends ConsumerState<_ConversationDetailShe
     );
   }
 
-  Widget _buildSection(String title, String content, IconData icon, ThemeData theme) {
+  Widget _buildSection(
+    String title,
+    String content,
+    IconData icon,
+    ThemeData theme,
+  ) {
     return Row(
       children: [
         Icon(icon, size: 18, color: theme.colorScheme.primary),
@@ -1056,10 +1120,7 @@ class _ConversationDetailSheetState extends ConsumerState<_ConversationDetailShe
             ),
           ),
           const SizedBox(height: 4),
-          Text(
-            value,
-            style: theme.textTheme.bodyMedium,
-          ),
+          Text(value, style: theme.textTheme.bodyMedium),
         ],
       ),
     );
@@ -1073,13 +1134,15 @@ class _ConversationDetailSheetState extends ConsumerState<_ConversationDetailShe
   Future<void> _recordFollowUp() async {
     setState(() => _isSubmitting = true);
 
-    await ref.read(missionProvider.notifier).recordEvangelismFollowUp(
-      conversationId: widget.conversation.id,
-      notes: _followUpNoteController.text.trim().isNotEmpty
-          ? _followUpNoteController.text.trim()
-          : null,
-      decisionMade: _decisionMade,
-    );
+    await ref
+        .read(missionProvider.notifier)
+        .recordEvangelismFollowUp(
+          conversationId: widget.conversation.id,
+          notes: _followUpNoteController.text.trim().isNotEmpty
+              ? _followUpNoteController.text.trim()
+              : null,
+          decisionMade: _decisionMade,
+        );
 
     if (mounted) Navigator.pop(context);
   }
@@ -1087,10 +1150,12 @@ class _ConversationDetailSheetState extends ConsumerState<_ConversationDetailShe
   Future<void> _concludeWithoutDecision() async {
     setState(() => _isSubmitting = true);
 
-    await ref.read(missionProvider.notifier).recordEvangelismFollowUp(
-      conversationId: widget.conversation.id,
-      notes: 'Conversation concluded',
-    );
+    await ref
+        .read(missionProvider.notifier)
+        .recordEvangelismFollowUp(
+          conversationId: widget.conversation.id,
+          notes: 'Conversation concluded',
+        );
 
     if (mounted) Navigator.pop(context);
   }

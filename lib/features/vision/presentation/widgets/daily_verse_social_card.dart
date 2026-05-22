@@ -52,16 +52,11 @@ class _DailyVerseSocialCardState extends ConsumerState<DailyVerseSocialCard> {
     if (verse == null) {
       return VisionPanel(
         icon: LucideIcons.sun,
-        title: state.error == null
-            ? 'Community verse is preparing'
-            : 'Community verse needs a retry',
+        title: state.error == null ? 'Verse unavailable' : 'Verse retry',
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              state.error ??
-                  'Today\'s shared Scripture space will appear here soon.',
-            ),
+            Text(state.error ?? 'Pull to retry.'),
             const SizedBox(height: 12),
             TextButton.icon(
               onPressed: () =>
@@ -404,7 +399,7 @@ class _DailyVerseSocialSurface extends StatelessWidget {
               const SizedBox(height: 12),
               Text(
                 canUseSocial
-                    ? 'Be the first to name what this verse is inviting today.'
+                    ? 'First response is open.'
                     : isGuest
                     ? 'Create a full account to join today\'s responses.'
                     : 'Sign in to join today\'s responses.',
@@ -511,7 +506,7 @@ class _DailyVerseSocialSheetState
                     ),
                     const SizedBox(height: 16),
                     Text(
-                      'What is this verse inviting in you today?',
+                      'Response',
                       style: theme.textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.w900,
                       ),
@@ -564,7 +559,7 @@ class _DailyVerseSocialSheetState
                           border: Border.all(color: tokens.palette.border),
                         ),
                         child: Text(
-                          'No responses yet. A quiet first sentence is enough.',
+                          'No responses yet.',
                           style: theme.textTheme.bodyMedium?.copyWith(
                             color: tokens.palette.textSecondary,
                             height: 1.4,
@@ -813,7 +808,7 @@ class _ResponseComposer extends StatelessWidget {
               maxLength: 600,
               maxLengthEnforcement: MaxLengthEnforcement.enforced,
               decoration: InputDecoration(
-                hintText: 'Name one honest response, prayer, or next step.',
+                hintText: 'Prayer, response, or next step',
                 border: const OutlineInputBorder(),
                 focusedBorder: OutlineInputBorder(
                   borderSide: BorderSide(color: accent, width: 1.4),

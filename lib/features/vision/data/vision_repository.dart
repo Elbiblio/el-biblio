@@ -1,5 +1,6 @@
 import 'package:logger/logger.dart';
 
+import '../../../core/errors/app_exception.dart';
 import '../../../core/network/dio_client.dart';
 import '../../../core/models/accountability_tone.dart';
 import '../domain/vision_models.dart';
@@ -346,6 +347,9 @@ class VisionRepository {
           )
           .toList();
     } catch (e) {
+      if (_isEmptyNotificationResponse(e)) {
+        return const [];
+      }
       _logger.w('Vision notifications failed: $e');
       return const [];
     }
@@ -362,6 +366,14 @@ class VisionRepository {
       _logger.w('Vision unread notification count failed: $e');
       return 0;
     }
+  }
+
+  bool _isEmptyNotificationResponse(Object error) {
+    if (error is! ApiRequestException) return false;
+    final message = error.message.toLowerCase();
+    return (error.statusCode == 400 || error.statusCode == 404) &&
+        message.contains('notification') &&
+        message.contains('not found');
   }
 
   Future<void> markNotificationRead(int notificationId) async {

@@ -72,14 +72,16 @@ class _BibleLibraryScreenState extends ConsumerState<BibleLibraryScreen> {
     final surfaceColor = isDark ? const Color(0xFF1E1E1E) : Colors.white;
     final textColor = isDark ? Colors.white : const Color(0xFF1A1A1A);
     final textMutedColor = isDark ? Colors.white54 : const Color(0xFF666666);
-    final borderColor = isDark ? Colors.white10 : Colors.black.withValues(alpha: 0.05);
+    final borderColor = isDark
+        ? Colors.white10
+        : Colors.black.withValues(alpha: 0.05);
 
     return Scaffold(
       backgroundColor: bgColor,
       body: SafeArea(
         bottom: false,
         child: SafeCustomScrollView(
-          bottomPadding: 120,
+          bottomPadding: shellChromeBottomPadding,
           slivers: [
             // Header
             SliverToBoxAdapter(
@@ -95,7 +97,8 @@ class _BibleLibraryScreenState extends ConsumerState<BibleLibraryScreen> {
                 isDark: isDark,
                 onSettingsTap: () => LibraryOptionsSheet.show(
                   context,
-                  onOpenReading: (activity) => _openLastReading(context, ref, activity),
+                  onOpenReading: (activity) =>
+                      _openLastReading(context, ref, activity),
                 ),
                 onSearchChanged: (value) {
                   setState(() {
@@ -118,8 +121,14 @@ class _BibleLibraryScreenState extends ConsumerState<BibleLibraryScreen> {
 
             // Search Results
             if (_isSearching)
-              _buildSearchResults(context, bibleState, surfaceColor, textColor,
-                  textMutedColor, borderColor),
+              _buildSearchResults(
+                context,
+                bibleState,
+                surfaceColor,
+                textColor,
+                textMutedColor,
+                borderColor,
+              ),
 
             // Main content
             if (!_isSearching)
@@ -137,24 +146,51 @@ class _BibleLibraryScreenState extends ConsumerState<BibleLibraryScreen> {
                       textColor: textColor,
                       textMutedColor: textMutedColor,
                       borderColor: borderColor,
-                      onOpenReading: (activity) => _openLastReading(context, ref, activity),
+                      onOpenReading: (activity) =>
+                          _openLastReading(context, ref, activity),
                       onStartReading: () => ReadingPlanSetupSheet.show(context),
                     ),
                     const SizedBox(height: 32),
                     // Library Tabs
-                    _buildLibraryTabs(context, isDark, primaryColor, textMutedColor),
+                    _buildLibraryTabs(
+                      context,
+                      isDark,
+                      primaryColor,
+                      textMutedColor,
+                    ),
                     const SizedBox(height: 16),
-                    _buildTabContent(context, bibleState, isDark, surfaceColor,
-                        textColor, textMutedColor, borderColor, primaryColor),
+                    _buildTabContent(
+                      context,
+                      bibleState,
+                      isDark,
+                      surfaceColor,
+                      textColor,
+                      textMutedColor,
+                      borderColor,
+                      primaryColor,
+                    ),
                     const SizedBox(height: 32),
                     // Your Reading Plans
-                    _buildReadingPlansSection(context, readingPlanState, isDark,
-                        surfaceColor, textColor, textMutedColor, borderColor,
-                        primaryColor),
+                    _buildReadingPlansSection(
+                      context,
+                      readingPlanState,
+                      isDark,
+                      surfaceColor,
+                      textColor,
+                      textMutedColor,
+                      borderColor,
+                      primaryColor,
+                    ),
                     const SizedBox(height: 32),
                     // Recent Locations
-                    _buildRecentLocations(context, bibleReadingState, isDark,
-                        surfaceColor, textMutedColor, borderColor),
+                    _buildRecentLocations(
+                      context,
+                      bibleReadingState,
+                      isDark,
+                      surfaceColor,
+                      textMutedColor,
+                      borderColor,
+                    ),
                   ]),
                 ),
               ),
@@ -177,8 +213,12 @@ class _BibleLibraryScreenState extends ConsumerState<BibleLibraryScreen> {
       sliver: SliverList(
         delegate: SliverChildListDelegate([
           const SizedBox(height: 16),
-          Text('Search Results',
-              style: Theme.of(context).textTheme.cardTitle.copyWith(color: textColor)),
+          Text(
+            'Search Results',
+            style: Theme.of(
+              context,
+            ).textTheme.cardTitle.copyWith(color: textColor),
+          ),
           const SizedBox(height: 12),
           if (bibleState.isSearching)
             const Center(child: CircularProgressIndicator())
@@ -188,32 +228,50 @@ class _BibleLibraryScreenState extends ConsumerState<BibleLibraryScreen> {
                 children: [
                   Icon(Icons.search_off, color: textMutedColor, size: 48),
                   const SizedBox(height: 16),
-                  Text('No results found',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: textMutedColor)),
+                  Text(
+                    'No results found',
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodyMedium?.copyWith(color: textMutedColor),
+                  ),
                 ],
               ),
             )
           else
-            ...bibleState.searchResults.map((verse) => Container(
-                  margin: const EdgeInsets.only(bottom: 8),
-                  decoration: BoxDecoration(
-                    color: surfaceColor,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: borderColor),
+            ...bibleState.searchResults.map(
+              (verse) => Container(
+                margin: const EdgeInsets.only(bottom: 8),
+                decoration: BoxDecoration(
+                  color: surfaceColor,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: borderColor),
+                ),
+                child: ListTile(
+                  dense: true,
+                  title: Text(
+                    verse.text,
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodyMedium?.copyWith(color: textColor),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                  child: ListTile(
-                    dense: true,
-                    title: Text(verse.text,
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: textColor),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis),
-                    subtitle: Text(
-                        verse.reference ?? 'Chapter ${verse.chapter}:${verse.verse}',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(color: textMutedColor)),
-                    trailing: Icon(Icons.chevron_right, color: textMutedColor, size: 20),
-                    onTap: () => _navigateToSearchResult(verse, bibleState),
+                  subtitle: Text(
+                    verse.reference ??
+                        'Chapter ${verse.chapter}:${verse.verse}',
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodySmall?.copyWith(color: textMutedColor),
                   ),
-                )),
+                  trailing: Icon(
+                    Icons.chevron_right,
+                    color: textMutedColor,
+                    size: 20,
+                  ),
+                  onTap: () => _navigateToSearchResult(verse, bibleState),
+                ),
+              ),
+            ),
           const SizedBox(height: 16),
         ]),
       ),
@@ -224,27 +282,53 @@ class _BibleLibraryScreenState extends ConsumerState<BibleLibraryScreen> {
   // Library Tabs
   // ---------------------------------------------------------------------------
 
-  Widget _buildLibraryTabs(BuildContext context, bool isDark, Color primaryColor, Color textMutedColor) {
+  Widget _buildLibraryTabs(
+    BuildContext context,
+    bool isDark,
+    Color primaryColor,
+    Color textMutedColor,
+  ) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text('Library',
-            style: Theme.of(context).textTheme.sectionHeader.copyWith(
-                  color: textMutedColor, letterSpacing: 1.2)),
+        Text(
+          'Library',
+          style: Theme.of(context).textTheme.sectionHeader.copyWith(
+            color: textMutedColor,
+            letterSpacing: 1.2,
+          ),
+        ),
         Container(
           padding: const EdgeInsets.all(4),
           decoration: BoxDecoration(
-            color: isDark ? Colors.grey.shade800 : const Color(0xFFE8E4D9).withValues(alpha: 0.5),
+            color: isDark
+                ? Colors.grey.shade800
+                : const Color(0xFFE8E4D9).withValues(alpha: 0.5),
             borderRadius: BorderRadius.circular(12),
           ),
           child: Row(
             children: [
-              TabButton(text: 'NT', isSelected: _selectedTab == 'NT',
-                  onTap: () => setState(() => _selectedTab = 'NT'), isDark: isDark, primaryColor: primaryColor),
-              TabButton(text: 'OT', isSelected: _selectedTab == 'OT',
-                  onTap: () => setState(() => _selectedTab = 'OT'), isDark: isDark, primaryColor: primaryColor),
-              TabButton(text: 'Reading Plans', isSelected: _selectedTab == 'Reading Plans',
-                  onTap: () => setState(() => _selectedTab = 'Reading Plans'), isDark: isDark, primaryColor: primaryColor),
+              TabButton(
+                text: 'NT',
+                isSelected: _selectedTab == 'NT',
+                onTap: () => setState(() => _selectedTab = 'NT'),
+                isDark: isDark,
+                primaryColor: primaryColor,
+              ),
+              TabButton(
+                text: 'OT',
+                isSelected: _selectedTab == 'OT',
+                onTap: () => setState(() => _selectedTab = 'OT'),
+                isDark: isDark,
+                primaryColor: primaryColor,
+              ),
+              TabButton(
+                text: 'Reading Plans',
+                isSelected: _selectedTab == 'Reading Plans',
+                onTap: () => setState(() => _selectedTab = 'Reading Plans'),
+                isDark: isDark,
+                primaryColor: primaryColor,
+              ),
             ],
           ),
         ),
@@ -252,22 +336,60 @@ class _BibleLibraryScreenState extends ConsumerState<BibleLibraryScreen> {
     );
   }
 
-  Widget _buildTabContent(BuildContext context, BibleState bibleState, bool isDark,
-      Color surfaceColor, Color textColor, Color textMutedColor, Color borderColor, Color primaryColor) {
+  Widget _buildTabContent(
+    BuildContext context,
+    BibleState bibleState,
+    bool isDark,
+    Color surfaceColor,
+    Color textColor,
+    Color textMutedColor,
+    Color borderColor,
+    Color primaryColor,
+  ) {
     switch (_selectedTab) {
       case 'OT':
-        return _buildBooksList(context, 'OT', surfaceColor, textColor, textMutedColor, borderColor);
+        return _buildBooksList(
+          context,
+          'OT',
+          surfaceColor,
+          textColor,
+          textMutedColor,
+          borderColor,
+        );
       case 'NT':
-        return _buildBooksList(context, 'NT', surfaceColor, textColor, textMutedColor, borderColor);
+        return _buildBooksList(
+          context,
+          'NT',
+          surfaceColor,
+          textColor,
+          textMutedColor,
+          borderColor,
+        );
       case 'Reading Plans':
       default:
-        return _buildReadingPlansList(context, isDark, surfaceColor, textColor, textMutedColor, borderColor, primaryColor);
+        return _buildReadingPlansList(
+          context,
+          isDark,
+          surfaceColor,
+          textColor,
+          textMutedColor,
+          borderColor,
+          primaryColor,
+        );
     }
   }
 
-  Widget _buildBooksList(BuildContext context, String testament,
-      Color surfaceColor, Color textColor, Color textMutedColor, Color borderColor) {
-    final staticBooks = testament == 'OT' ? BookCache.getOldTestamentBooks() : BookCache.getNewTestamentBooks();
+  Widget _buildBooksList(
+    BuildContext context,
+    String testament,
+    Color surfaceColor,
+    Color textColor,
+    Color textMutedColor,
+    Color borderColor,
+  ) {
+    final staticBooks = testament == 'OT'
+        ? BookCache.getOldTestamentBooks()
+        : BookCache.getNewTestamentBooks();
 
     return ListView.builder(
       shrinkWrap: true,
@@ -285,22 +407,41 @@ class _BibleLibraryScreenState extends ConsumerState<BibleLibraryScreen> {
           child: ListTile(
             dense: true,
             leading: Container(
-              width: 40, height: 40,
+              width: 40,
+              height: 40,
               decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+                color: Theme.of(
+                  context,
+                ).colorScheme.primary.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Center(
-                child: Text(book.abbreviation,
-                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                          color: Theme.of(context).colorScheme.primary, fontWeight: FontWeight.bold)),
+                child: Text(
+                  book.abbreviation,
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: Theme.of(context).colorScheme.primary,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
               ),
             ),
-            title: Text(book.name,
-                style: Theme.of(context).textTheme.titleSmall?.copyWith(color: textColor)),
-            subtitle: Text('${book.chapters} chapters',
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(color: textMutedColor)),
-            trailing: Icon(Icons.chevron_right, color: textMutedColor, size: 20),
+            title: Text(
+              book.name,
+              style: Theme.of(
+                context,
+              ).textTheme.titleSmall?.copyWith(color: textColor),
+            ),
+            subtitle: Text(
+              '${book.chapters} chapters',
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: textMutedColor),
+            ),
+            trailing: Icon(
+              Icons.chevron_right,
+              color: textMutedColor,
+              size: 20,
+            ),
             onTap: () {
               ref
                   .read(bibleReadingProvider.notifier)
@@ -319,8 +460,15 @@ class _BibleLibraryScreenState extends ConsumerState<BibleLibraryScreen> {
     );
   }
 
-  Widget _buildReadingPlansList(BuildContext context, bool isDark, Color surfaceColor,
-      Color textColor, Color textMutedColor, Color borderColor, Color primaryColor) {
+  Widget _buildReadingPlansList(
+    BuildContext context,
+    bool isDark,
+    Color surfaceColor,
+    Color textColor,
+    Color textMutedColor,
+    Color borderColor,
+    Color primaryColor,
+  ) {
     final readingPlanState = ref.watch(readingPlanProvider);
 
     return Column(
@@ -336,16 +484,27 @@ class _BibleLibraryScreenState extends ConsumerState<BibleLibraryScreen> {
                   padding: const EdgeInsets.only(right: 12),
                   child: CompactPlanCard(
                     title: plan.plan?.title ?? 'Reading Plan',
-                    subtitle: 'Day ${plan.currentDay} of ${plan.plan?.durationDays ?? 30}',
+                    subtitle:
+                        'Day ${plan.currentDay} of ${plan.plan?.durationDays ?? 30}',
                     virtue: helpers.getVirtueFromPlan(plan.plan),
                     virtueColor: helpers.getVirtueColor(plan.plan?.themeId),
-                    progress: helpers.calculatePlanProgress(plan.currentDay, plan.plan?.durationDays),
-                    isDark: isDark, surfaceColor: surfaceColor, textColor: textColor,
-                    textMutedColor: textMutedColor, borderColor: borderColor,
-                    imageGradientColors: helpers.getGradientColors(plan.plan?.themeId),
+                    progress: helpers.calculatePlanProgress(
+                      plan.currentDay,
+                      plan.plan?.durationDays,
+                    ),
+                    isDark: isDark,
+                    surfaceColor: surfaceColor,
+                    textColor: textColor,
+                    textMutedColor: textMutedColor,
+                    borderColor: borderColor,
+                    imageGradientColors: helpers.getGradientColors(
+                      plan.plan?.themeId,
+                    ),
                     onTap: plan.plan == null
                         ? null
-                        : () => context.push('${AppRoutes.biblePlanDetails}/${plan.plan!.id}'),
+                        : () => context.push(
+                            '${AppRoutes.biblePlanDetails}/${plan.plan!.id}',
+                          ),
                   ),
                 );
               }).toList(),
@@ -364,23 +523,43 @@ class _BibleLibraryScreenState extends ConsumerState<BibleLibraryScreen> {
             child: ListTile(
               dense: true,
               leading: Container(
-                width: 40, height: 40,
+                width: 40,
+                height: 40,
                 decoration: BoxDecoration(
-                  gradient: LinearGradient(colors: helpers.getGradientColors(plan.themeId)),
+                  gradient: LinearGradient(
+                    colors: helpers.getGradientColors(plan.themeId),
+                  ),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Center(
-                  child: Text(helpers.getVirtueFromPlan(plan),
-                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                            color: Colors.white, fontWeight: FontWeight.bold)),
+                  child: Text(
+                    helpers.getVirtueFromPlan(plan),
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                 ),
               ),
-              title: Text(plan.title,
-                  style: Theme.of(context).textTheme.titleSmall?.copyWith(color: textColor)),
-              subtitle: Text('${plan.durationDays} days - ${plan.description ?? 'Bible reading plan'}',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(color: textMutedColor)),
-              trailing: Icon(Icons.chevron_right, color: textMutedColor, size: 20),
-              onTap: () => context.push('${AppRoutes.biblePlanDetails}/${plan.id}'),
+              title: Text(
+                plan.title,
+                style: Theme.of(
+                  context,
+                ).textTheme.titleSmall?.copyWith(color: textColor),
+              ),
+              subtitle: Text(
+                '${plan.durationDays} days - ${plan.description ?? 'Bible reading plan'}',
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(color: textMutedColor),
+              ),
+              trailing: Icon(
+                Icons.chevron_right,
+                color: textMutedColor,
+                size: 20,
+              ),
+              onTap: () =>
+                  context.push('${AppRoutes.biblePlanDetails}/${plan.id}'),
             ),
           );
         }),
@@ -408,8 +587,12 @@ class _BibleLibraryScreenState extends ConsumerState<BibleLibraryScreen> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text('Your Reading Plans',
-                style: Theme.of(context).textTheme.cardTitle.copyWith(color: textColor)),
+            Text(
+              'Your Reading Plans',
+              style: Theme.of(
+                context,
+              ).textTheme.cardTitle.copyWith(color: textColor),
+            ),
             TextButton(
               onPressed: () => setState(() => _selectedTab = 'Reading Plans'),
               style: TextButton.styleFrom(
@@ -418,7 +601,10 @@ class _BibleLibraryScreenState extends ConsumerState<BibleLibraryScreen> {
                 minimumSize: Size.zero,
                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
               ),
-              child: Text('View All', style: Theme.of(context).textTheme.buttonText),
+              child: Text(
+                'View All',
+                style: Theme.of(context).textTheme.buttonText,
+              ),
             ),
           ],
         ),
@@ -430,85 +616,137 @@ class _BibleLibraryScreenState extends ConsumerState<BibleLibraryScreen> {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      SizedBox(width: 32, height: 32,
-                          child: CircularProgressIndicator(
-                              strokeWidth: 2, valueColor: AlwaysStoppedAnimation<Color>(primaryColor))),
+                      SizedBox(
+                        width: 32,
+                        height: 32,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            primaryColor,
+                          ),
+                        ),
+                      ),
                       const SizedBox(height: 12),
-                      Text('Loading reading plans...',
-                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: textMutedColor)),
+                      Text(
+                        'Loading reading plans...',
+                        style: Theme.of(
+                          context,
+                        ).textTheme.bodyMedium?.copyWith(color: textMutedColor),
+                      ),
                     ],
                   ),
                 )
               : readingPlanState.activePlans.isNotEmpty
-                  ? ListView(
-                      scrollDirection: Axis.horizontal,
-                      clipBehavior: Clip.none,
-                      children: readingPlanState.activePlans.map<Widget>((plan) {
-                        return Padding(
-                          padding: const EdgeInsets.only(right: 12),
-                          child: CompactPlanCard(
-                            title: plan.plan?.title ?? 'Reading Plan',
-                            subtitle: 'Day ${plan.currentDay} of ${plan.plan?.durationDays ?? 30}',
-                            virtue: helpers.getVirtueFromPlan(plan.plan),
-                            virtueColor: helpers.getVirtueColor(plan.plan?.themeId),
-                            progress: helpers.calculatePlanProgress(plan.currentDay, plan.plan?.durationDays),
-                            isDark: isDark, surfaceColor: surfaceColor, textColor: textColor,
-                            textMutedColor: textMutedColor, borderColor: borderColor,
-                            imageGradientColors: helpers.getGradientColors(plan.plan?.themeId),
-                            onTap: () => _navigateToPlanReading(context, plan),
-                          ),
-                        );
-                      }).toList(),
-                    )
-                  : Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(LucideIcons.calendar, color: textMutedColor, size: 40),
-                          const SizedBox(height: 8),
-                          Text('No active plans',
-                              style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: textMutedColor)),
-                          const SizedBox(height: 4),
-                          Text('Explore plans to begin',
-                              style: Theme.of(context).textTheme.bodySmall?.copyWith(color: textMutedColor)),
-                        ],
+              ? ListView(
+                  scrollDirection: Axis.horizontal,
+                  clipBehavior: Clip.none,
+                  children: readingPlanState.activePlans.map<Widget>((plan) {
+                    return Padding(
+                      padding: const EdgeInsets.only(right: 12),
+                      child: CompactPlanCard(
+                        title: plan.plan?.title ?? 'Reading Plan',
+                        subtitle:
+                            'Day ${plan.currentDay} of ${plan.plan?.durationDays ?? 30}',
+                        virtue: helpers.getVirtueFromPlan(plan.plan),
+                        virtueColor: helpers.getVirtueColor(plan.plan?.themeId),
+                        progress: helpers.calculatePlanProgress(
+                          plan.currentDay,
+                          plan.plan?.durationDays,
+                        ),
+                        isDark: isDark,
+                        surfaceColor: surfaceColor,
+                        textColor: textColor,
+                        textMutedColor: textMutedColor,
+                        borderColor: borderColor,
+                        imageGradientColors: helpers.getGradientColors(
+                          plan.plan?.themeId,
+                        ),
+                        onTap: () => _navigateToPlanReading(context, plan),
                       ),
-                    ),
+                    );
+                  }).toList(),
+                )
+              : Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        LucideIcons.calendar,
+                        color: textMutedColor,
+                        size: 40,
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'No active plans',
+                        style: Theme.of(
+                          context,
+                        ).textTheme.bodyMedium?.copyWith(color: textMutedColor),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Explore plans to begin',
+                        style: Theme.of(
+                          context,
+                        ).textTheme.bodySmall?.copyWith(color: textMutedColor),
+                      ),
+                    ],
+                  ),
+                ),
         ),
       ],
     );
   }
 
-  Widget _buildRecentLocations(BuildContext context, dynamic bibleReadingState,
-      bool isDark, Color surfaceColor, Color textMutedColor, Color borderColor) {
+  Widget _buildRecentLocations(
+    BuildContext context,
+    dynamic bibleReadingState,
+    bool isDark,
+    Color surfaceColor,
+    Color textMutedColor,
+    Color borderColor,
+  ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Recent Locations',
-            style: Theme.of(context).textTheme.sectionHeader.copyWith(
-                  color: textMutedColor, letterSpacing: 1.2)),
+        Text(
+          'Recent Locations',
+          style: Theme.of(context).textTheme.sectionHeader.copyWith(
+            color: textMutedColor,
+            letterSpacing: 1.2,
+          ),
+        ),
         const SizedBox(height: 12),
         SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           clipBehavior: Clip.none,
           child: bibleReadingState.history.isNotEmpty
               ? Row(
-                  children: (bibleReadingState.history as List).take(5).map<Widget>((activity) {
-                    return Padding(
-                      padding: const EdgeInsets.only(right: 8),
-                      child: RecentLocationChip(
-                        text: helpers.getLocationFromActivity(activity as Activity),
-                        onTap: () => _openLastReading(context, ref, activity),
-                        isDark: isDark, surfaceColor: surfaceColor, borderColor: borderColor,
-                      ),
-                    );
-                  }).toList(),
+                  children: (bibleReadingState.history as List)
+                      .take(5)
+                      .map<Widget>((activity) {
+                        return Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: RecentLocationChip(
+                            text: helpers.getLocationFromActivity(
+                              activity as Activity,
+                            ),
+                            onTap: () =>
+                                _openLastReading(context, ref, activity),
+                            isDark: isDark,
+                            surfaceColor: surfaceColor,
+                            borderColor: borderColor,
+                          ),
+                        );
+                      })
+                      .toList(),
                 )
               : Row(
                   children: [
                     RecentLocationChip(
                       text: 'No recent reading',
-                      isDark: isDark, surfaceColor: surfaceColor, borderColor: borderColor,
+                      isDark: isDark,
+                      surfaceColor: surfaceColor,
+                      borderColor: borderColor,
                     ),
                   ],
                 ),
@@ -521,12 +759,17 @@ class _BibleLibraryScreenState extends ConsumerState<BibleLibraryScreen> {
   // Navigation helpers
   // ---------------------------------------------------------------------------
 
-  void _openLastReading(BuildContext context, WidgetRef ref, Activity activity) {
+  void _openLastReading(
+    BuildContext context,
+    WidgetRef ref,
+    Activity activity,
+  ) {
     final info = helpers.extractReadingInfo(activity);
     final bookName = info['book'] as String;
     final chapter = info['chapter'] as int;
     final verse = info['verse'] as int?;
-    final isFromPlan = activity.metadata?['reading_mode'] == 'plan' ||
+    final isFromPlan =
+        activity.metadata?['reading_mode'] == 'plan' ||
         activity.metadata?['plan_name'] != null;
 
     String location = AppRoutes.bibleReader;
@@ -546,7 +789,9 @@ class _BibleLibraryScreenState extends ConsumerState<BibleLibraryScreen> {
     if (plan is UserReadingPlan) {
       final days = plan.plan?.days ?? const <ReadingPlanDay>[];
       if (days.isNotEmpty) {
-        final dayIndex = (plan.currentDay - 1).clamp(0, days.length - 1).toInt();
+        final dayIndex = (plan.currentDay - 1)
+            .clamp(0, days.length - 1)
+            .toInt();
         final verses = days[dayIndex].verses;
         if (verses.isNotEmpty) {
           final parsed = helpers.parseReference(verses.first);
@@ -589,7 +834,8 @@ class _BibleLibraryScreenState extends ConsumerState<BibleLibraryScreen> {
 
     final fallbackReference = ref != null ? helpers.parseReference(ref) : null;
     final fallbackBook = fallbackReference?['book'] as String?;
-    final fallbackChapter = fallbackReference?['chapter'] as int? ?? verse.chapter;
+    final fallbackChapter =
+        fallbackReference?['chapter'] as int? ?? verse.chapter;
     final fallbackVerse = fallbackReference?['verse'] as int? ?? verse.verse;
     context.push(
       '${AppRoutes.bibleReader}?${fallbackBook != null && fallbackBook.isNotEmpty ? 'book=${Uri.encodeComponent(fallbackBook)}&' : ''}chapter=$fallbackChapter&verse=$fallbackVerse',

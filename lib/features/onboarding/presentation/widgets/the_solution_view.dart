@@ -45,30 +45,29 @@ class _TheSolutionViewState extends State<TheSolutionView>
     final pillars = [
       _PillarData(
         icon: Icons.explore_outlined,
-        title: 'Spiritual compass',
-        subtitle: 'Name the season you are beginning from.',
+        title: 'Compass',
+        subtitle: 'Name your season.',
         color: palette.identityColor,
         interval: const Interval(0.25, 0.55, curve: Curves.easeOutCubic),
       ),
       _PillarData(
         icon: Icons.groups_outlined,
-        title: 'Tribe belonging',
-        subtitle: 'Join a circle shaped by your growth season.',
+        title: 'Tribe',
+        subtitle: 'Join your circle.',
         color: palette.commitmentColor,
         interval: const Interval(0.35, 0.65, curve: Curves.easeOutCubic),
       ),
       _PillarData(
         icon: Icons.flag_outlined,
-        title: 'One commitment',
-        subtitle: 'Keep a concrete daily action for a time-bound season.',
+        title: 'Commitment',
+        subtitle: 'Choose one daily action.',
         color: palette.growthColor,
         interval: const Interval(0.45, 0.75, curve: Curves.easeOutCubic),
       ),
       _PillarData(
         icon: Icons.chat_bubble_outline,
-        title: 'Shared reflection',
-        subtitle:
-            'Post one honest reflection with people keeping the same commitment.',
+        title: 'Reflection',
+        subtitle: 'Post after check-in.',
         color: palette.primary,
         interval: const Interval(0.55, 0.85, curve: Curves.easeOutCubic),
       ),
@@ -92,7 +91,7 @@ class _TheSolutionViewState extends State<TheSolutionView>
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 24),
                     child: Text(
-                      'A quieter path\nfor faithful growth.',
+                      'Your path',
                       textAlign: TextAlign.center,
                       style: textTheme.headlineMedium?.copyWith(
                         fontWeight: FontWeight.w700,
@@ -105,7 +104,7 @@ class _TheSolutionViewState extends State<TheSolutionView>
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 20),
                   child: Text(
-                    'Identity leads to belonging. Belonging supports commitment. Commitment creates reflection. Reflection deepens growth.',
+                    'Compass -> Tribe -> Commitment -> Reflection.',
                     textAlign: TextAlign.center,
                     style: textTheme.bodyLarge?.copyWith(
                       color: theme.colorScheme.onSurface.withValues(alpha: 0.6),

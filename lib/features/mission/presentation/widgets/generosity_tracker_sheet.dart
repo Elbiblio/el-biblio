@@ -12,6 +12,7 @@ class GenerosityTrackerSheet extends ConsumerStatefulWidget {
   static Future<void> show(BuildContext context) {
     return showModalBottomSheet(
       context: context,
+      useRootNavigator: true,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (context) => const GenerosityTrackerSheet(),
@@ -19,10 +20,12 @@ class GenerosityTrackerSheet extends ConsumerStatefulWidget {
   }
 
   @override
-  ConsumerState<GenerosityTrackerSheet> createState() => _GenerosityTrackerSheetState();
+  ConsumerState<GenerosityTrackerSheet> createState() =>
+      _GenerosityTrackerSheetState();
 }
 
-class _GenerosityTrackerSheetState extends ConsumerState<GenerosityTrackerSheet> {
+class _GenerosityTrackerSheetState
+    extends ConsumerState<GenerosityTrackerSheet> {
   GenerosityType _selectedType = GenerosityType.financial;
   final _descriptionController = TextEditingController();
   final _amountController = TextEditingController();
@@ -43,11 +46,7 @@ class _GenerosityTrackerSheetState extends ConsumerState<GenerosityTrackerSheet>
     'pastoral care',
   ];
 
-  final List<String> _recurringOptions = [
-    'weekly',
-    'monthly',
-    'quarterly',
-  ];
+  final List<String> _recurringOptions = ['weekly', 'monthly', 'quarterly'];
 
   @override
   void dispose() {
@@ -114,7 +113,9 @@ class _GenerosityTrackerSheetState extends ConsumerState<GenerosityTrackerSheet>
                           Text(
                             'Record giving, time, and resources shared',
                             style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                              color: theme.colorScheme.onSurface.withValues(
+                                alpha: 0.6,
+                              ),
                             ),
                           ),
                         ],
@@ -133,7 +134,8 @@ class _GenerosityTrackerSheetState extends ConsumerState<GenerosityTrackerSheet>
                     Expanded(
                       child: _StatPill(
                         label: 'Financial',
-                        value: '\$${stats['financial']?.toStringAsFixed(0) ?? '0'}',
+                        value:
+                            '\$${stats['financial']?.toStringAsFixed(0) ?? '0'}',
                         icon: Icons.attach_money,
                         color: Colors.green,
                       ),
@@ -214,11 +216,7 @@ class _GenerosityTrackerSheetState extends ConsumerState<GenerosityTrackerSheet>
       }
     }
 
-    return {
-      'financial': financial,
-      'time': time,
-      'resource': resource,
-    };
+    return {'financial': financial, 'time': time, 'resource': resource};
   }
 
   Widget _buildRecordsList(ThemeData theme, List<GenerosityRecord> records) {
@@ -449,9 +447,7 @@ class _GenerosityTrackerSheetState extends ConsumerState<GenerosityTrackerSheet>
                 flex: 2,
                 child: FilledButton(
                   onPressed: _isSubmitting ? null : _submitRecord,
-                  style: FilledButton.styleFrom(
-                    backgroundColor: Colors.green,
-                  ),
+                  style: FilledButton.styleFrom(backgroundColor: Colors.green),
                   child: _isSubmitting
                       ? const SizedBox(
                           height: 20,
@@ -506,20 +502,22 @@ class _GenerosityTrackerSheetState extends ConsumerState<GenerosityTrackerSheet>
       amount = double.tryParse(_amountController.text);
     }
 
-    await ref.read(missionProvider.notifier).recordGenerosity(
-      type: _selectedType,
-      description: description,
-      amount: amount,
-      recipientName: _recipientController.text.trim().isNotEmpty
-          ? _recipientController.text.trim()
-          : null,
-      category: _selectedCategory,
-      isRecurring: _isRecurring,
-      recurringFrequency: _recurringFrequency,
-      impactDescription: _impactController.text.trim().isNotEmpty
-          ? _impactController.text.trim()
-          : null,
-    );
+    await ref
+        .read(missionProvider.notifier)
+        .recordGenerosity(
+          type: _selectedType,
+          description: description,
+          amount: amount,
+          recipientName: _recipientController.text.trim().isNotEmpty
+              ? _recipientController.text.trim()
+              : null,
+          category: _selectedCategory,
+          isRecurring: _isRecurring,
+          recurringFrequency: _recurringFrequency,
+          impactDescription: _impactController.text.trim().isNotEmpty
+              ? _impactController.text.trim()
+              : null,
+        );
 
     if (mounted) {
       setState(() {
@@ -630,11 +628,7 @@ class _GenerosityRecordCard extends StatelessWidget {
                     color: typeColor.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: Icon(
-                    typeIcon,
-                    size: 20,
-                    color: typeColor,
-                  ),
+                  child: Icon(typeIcon, size: 20, color: typeColor),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -693,7 +687,9 @@ class _GenerosityRecordCard extends StatelessWidget {
                     child: Text(
                       'To: ${record.recipientName}',
                       style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                        color: theme.colorScheme.onSurface.withValues(
+                          alpha: 0.6,
+                        ),
                       ),
                       overflow: TextOverflow.ellipsis,
                     ),

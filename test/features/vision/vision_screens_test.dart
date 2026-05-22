@@ -16,6 +16,7 @@ import 'package:elbiblio/features/vision/domain/vision_models.dart';
 import 'package:elbiblio/features/vision/presentation/screens/commit_screen.dart';
 import 'package:elbiblio/features/vision/presentation/screens/grow_screen.dart';
 import 'package:elbiblio/features/vision/presentation/screens/reflect_screen.dart';
+import 'package:elbiblio/features/vision/presentation/screens/today_screen.dart';
 import 'package:elbiblio/features/vision/presentation/screens/tribe_screen.dart';
 import 'package:elbiblio/features/vision/presentation/widgets/daily_verse_social_card.dart';
 import 'package:flutter/material.dart';
@@ -38,7 +39,7 @@ void main() {
         );
 
         expect(find.text('Choose one commitment'), findsOneWidget);
-        expect(find.text('Reminders are help, not pressure'), findsOneWidget);
+        expect(find.text('Reminders'), findsOneWidget);
         expect(find.text(_gratitudePlan.title), findsOneWidget);
         expect(find.text('Review and begin'), findsOneWidget);
         expect(find.text('Check in for today'), findsNothing);
@@ -66,6 +67,28 @@ void main() {
       expect(find.text('Add support: 5/day'), findsOneWidget);
     });
 
+    testWidgets('Today after check-in keeps the daily loop visible', (
+      tester,
+    ) async {
+      final repository = _FakeVisionRepository(
+        activeCommitment: _season(checkedInToday: true),
+        primaryTribe: _tribeMembership,
+        dailyQuestion: _dailyQuestion,
+      );
+
+      await tester.pumpVisionScreen(
+        const TodayScreen(),
+        repository: repository,
+      );
+
+      expect(find.text('Check-in complete'), findsOneWidget);
+      expect(find.text('Reflect'), findsWidgets);
+      await tester.scrollUntilVisible(find.text('Answer question'), 180);
+      await tester.pumpAndSettle();
+      expect(find.text('Answer question'), findsOneWidget);
+      expect(find.text('Open tribe'), findsOneWidget);
+    });
+
     testWidgets('Reflect gates posting until an unchecked season checks in', (
       tester,
     ) async {
@@ -78,9 +101,9 @@ void main() {
         repository: repository,
       );
 
-      expect(find.text('Reflect together'), findsOneWidget);
-      expect(find.text('Check-in open'), findsOneWidget);
-      expect(find.text('Check in today first'), findsOneWidget);
+      expect(find.text('Reflect'), findsOneWidget);
+      expect(find.text('Check-in needed'), findsOneWidget);
+      expect(find.text('Check in first'), findsOneWidget);
       expect(find.text('Check in for today'), findsOneWidget);
       expect(find.text('How did today feel?'), findsNothing);
     });
@@ -121,10 +144,7 @@ void main() {
       await tester.tap(find.text('Respond'));
       await tester.pumpAndSettle();
 
-      expect(
-        find.text('What is this verse inviting in you today?'),
-        findsOneWidget,
-      );
+      expect(find.text('Response'), findsOneWidget);
       expect(find.text('Share response'), findsOneWidget);
       expect(find.text('Today\'s responses'), findsOneWidget);
       expect(find.text('Read'), findsOneWidget);
@@ -214,7 +234,7 @@ void main() {
           repository: repository,
         );
         expect(find.text('Checked in today'), findsOneWidget);
-        expect(find.text('One reflection'), findsOneWidget);
+        expect(find.text('Post open'), findsOneWidget);
 
         await tester.scrollUntilVisible(find.text('How did today feel?'), 180);
         await tester.pumpAndSettle();
@@ -224,18 +244,14 @@ void main() {
         expect(find.text('Hard'), findsOneWidget);
 
         await tester.scrollUntilVisible(
-          find.text(
-            'No reflections yet. The feed grows one honest post at a time.',
-          ),
+          find.text('Be the first steady note for this commitment.'),
           180,
         );
         await tester.pumpAndSettle();
 
         expect(find.text('Post reflection'), findsNothing);
         expect(
-          find.text(
-            'No reflections yet. The feed grows one honest post at a time.',
-          ),
+          find.text('Be the first steady note for this commitment.'),
           findsOneWidget,
         );
       },
@@ -376,9 +392,7 @@ void main() {
 
       expect(find.text('Tribe hangouts'), findsOneWidget);
       expect(
-        find.text(
-          'No live gatherings in Watchman yet. Start one when your tribe needs voice, prayer, or encouragement.',
-        ),
+        find.text('No live rooms yet. Start a short prayer check-in.'),
         findsOneWidget,
       );
       expect(find.text('Start tribe hangout'), findsOneWidget);
@@ -416,46 +430,27 @@ void main() {
       expect(find.text('Recommended tribes'), findsOneWidget);
       expect(find.text('Watchman'), findsOneWidget);
       expect(find.text('Join tribe'), findsOneWidget);
-      expect(find.text('What opens after joining'), findsOneWidget);
+      expect(find.text('After joining'), findsOneWidget);
       expect(find.text('Tribe hangouts'), findsNothing);
     });
 
-    testWidgets('Tribe exposes games and cross-tribe leaderboard scores', (
+    testWidgets('Tribe keeps joined workflow focused on rituals and invite', (
       tester,
     ) async {
-      final repository = _FakeVisionRepository(
-        primaryTribe: _tribeMembership,
-        gameLeaderboard: const [
-          TribeGameLeaderboardEntry(
-            rank: 1,
-            tribeName: 'Watchman Circle',
-            gameTitle: 'Verse Scramble',
-            score: 1240,
-            periodLabel: 'This week',
-          ),
-          TribeGameLeaderboardEntry(
-            rank: 2,
-            tribeName: 'Bridgebuilder Circle',
-            gameTitle: 'Journey with Jesus',
-            score: 980,
-            periodLabel: 'This week',
-          ),
-        ],
-      );
+      final repository = _FakeVisionRepository(primaryTribe: _tribeMembership);
 
       await tester.pumpVisionScreen(
         const TribeScreen(),
         repository: repository,
       );
 
-      expect(find.text('Play together'), findsWidgets);
       expect(find.text('Watchman'), findsWidgets);
-      await tester.scrollUntilVisible(find.text('This week\'s scores'), 180);
+      expect(find.text('Play together'), findsNothing);
+      await tester.scrollUntilVisible(find.text('Actions'), 180);
       await tester.pumpAndSettle();
-      expect(find.text('This week\'s scores'), findsOneWidget);
-      expect(find.text('Verse Scramble - This week'), findsOneWidget);
-      expect(find.text('1240'), findsOneWidget);
-      expect(find.text('Journey with Jesus'), findsOneWidget);
+      expect(find.text('Invite'), findsOneWidget);
+      expect(find.text('Hangout'), findsOneWidget);
+      expect(find.text('Weekly reflection'), findsOneWidget);
     });
 
     testWidgets('Tribe joins a recommendation and reveals joined workflow', (

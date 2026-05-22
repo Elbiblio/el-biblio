@@ -12,7 +12,8 @@ class EvangelismHelperScreen extends ConsumerStatefulWidget {
   const EvangelismHelperScreen({super.key});
 
   @override
-  ConsumerState<EvangelismHelperScreen> createState() => _EvangelismHelperScreenState();
+  ConsumerState<EvangelismHelperScreen> createState() =>
+      _EvangelismHelperScreenState();
 }
 
 class _EvangelismHelperScreenState extends ConsumerState<EvangelismHelperScreen>
@@ -34,13 +35,15 @@ class _EvangelismHelperScreenState extends ConsumerState<EvangelismHelperScreen>
     _tabController = TabController(length: _tabs.length, vsync: this);
     _tabController.addListener(() {
       if (!_tabController.indexIsChanging) {
-        ref.read(spiritualAidProvider.notifier)
+        ref
+            .read(spiritualAidProvider.notifier)
             .filterEvangelismByType(_tabs[_tabController.index].type);
       }
     });
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(spiritualAidProvider.notifier)
+      ref
+          .read(spiritualAidProvider.notifier)
           .filterEvangelismByType(_tabs.first.type);
     });
   }
@@ -98,20 +101,26 @@ class _EvangelismHelperScreenState extends ConsumerState<EvangelismHelperScreen>
                 isScrollable: true,
                 tabAlignment: TabAlignment.start,
                 labelColor: theme.colorScheme.primary,
-                unselectedLabelColor: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                unselectedLabelColor: theme.colorScheme.onSurface.withValues(
+                  alpha: 0.5,
+                ),
                 indicatorSize: TabBarIndicatorSize.label,
                 dividerHeight: 0,
                 padding: const EdgeInsets.symmetric(horizontal: 12),
-                tabs: _tabs.map((t) => Tab(
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(t.icon, size: 16),
-                      const SizedBox(width: 6),
-                      Text(t.label),
-                    ],
-                  ),
-                )).toList(),
+                tabs: _tabs
+                    .map(
+                      (t) => Tab(
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(t.icon, size: 16),
+                            const SizedBox(width: 6),
+                            Text(t.label),
+                          ],
+                        ),
+                      ),
+                    )
+                    .toList(),
               ),
               const SizedBox(height: 8),
 
@@ -228,7 +237,10 @@ class _EvangelismHelperScreenState extends ConsumerState<EvangelismHelperScreen>
               Row(
                 children: [
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 3,
+                    ),
                     decoration: BoxDecoration(
                       color: theme.colorScheme.primary.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(10),
@@ -277,6 +289,7 @@ class _EvangelismHelperScreenState extends ConsumerState<EvangelismHelperScreen>
   void _showContentDetail(EvangelismContent item) {
     showModalBottomSheet(
       context: context,
+      useRootNavigator: true,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (context) {
@@ -323,10 +336,14 @@ class _EvangelismHelperScreenState extends ConsumerState<EvangelismHelperScreen>
                         Container(
                           padding: const EdgeInsets.all(16),
                           decoration: BoxDecoration(
-                            color: theme.colorScheme.primary.withValues(alpha: 0.05),
+                            color: theme.colorScheme.primary.withValues(
+                              alpha: 0.05,
+                            ),
                             borderRadius: BorderRadius.circular(14),
                             border: Border.all(
-                              color: theme.colorScheme.primary.withValues(alpha: 0.15),
+                              color: theme.colorScheme.primary.withValues(
+                                alpha: 0.15,
+                              ),
                             ),
                           ),
                           child: Column(
@@ -362,7 +379,10 @@ class _EvangelismHelperScreenState extends ConsumerState<EvangelismHelperScreen>
                                 Navigator.pop(context);
                                 _linkToMissionAction(item);
                               },
-                              icon: const Icon(Icons.add_task_rounded, size: 18),
+                              icon: const Icon(
+                                Icons.add_task_rounded,
+                                size: 18,
+                              ),
                               label: const Text('Add to actions'),
                             ),
                           ),
@@ -413,7 +433,9 @@ class _EvangelismHelperScreenState extends ConsumerState<EvangelismHelperScreen>
   }
 
   void _linkToMissionAction(EvangelismContent item) {
-    ref.read(missionProvider.notifier).addAction(
+    ref
+        .read(missionProvider.notifier)
+        .addAction(
           title: item.title,
           description: item.body,
           evangelismContentId: item.id,

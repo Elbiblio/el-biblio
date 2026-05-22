@@ -1223,14 +1223,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                                     ),
                                   ),
                                   child: Text(
-                                    '"Your path is marked by faithful devotion. The Sacred Archive remembers every quiet return, every chapter received, and every promise kept."',
+                                    'Read. Pray. Reflect. This record updates as you show up.',
                                     style: Theme.of(context).textTheme.bodySmall
                                         ?.copyWith(
                                           height: 1.6,
                                           color: isDark
                                               ? const Color(0xFF888888)
                                               : const Color(0xFF78716C),
-                                          fontStyle: FontStyle.italic,
                                           fontWeight: FontWeight.w300,
                                         ),
                                     textAlign: TextAlign.center,

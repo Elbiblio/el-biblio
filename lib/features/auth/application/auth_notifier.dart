@@ -99,6 +99,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
     required String name,
     required String email,
     required String phone,
+    String? password,
     String? ageBand,
     String? inviteToken,
   }) async {
@@ -115,11 +116,14 @@ class AuthNotifier extends StateNotifier<AuthState> {
       final timestamp = DateTime.now().millisecondsSinceEpoch.toString();
       final segmentStart = timestamp.length > 6 ? timestamp.length - 6 : 0;
       final randomSegment = timestamp.substring(segmentStart).padLeft(6, '0');
-      final password = '$randomSegment${firstName.toLowerCase()}!1';
+      final generatedPassword = '$randomSegment${firstName.toLowerCase()}!1';
+      final resolvedPassword = password?.trim().isNotEmpty == true
+          ? password!.trim()
+          : generatedPassword;
 
       final signUpData = SignUpData(
         email: email,
-        password: password,
+        password: resolvedPassword,
         firstName: firstName,
         lastName: lastName.isNotEmpty ? lastName : null,
         phone: phone,
@@ -156,6 +160,42 @@ class AuthNotifier extends StateNotifier<AuthState> {
           errorMessage = 'Please enter a valid email address.';
         } else if (msg.contains('Invalid response format')) {
           errorMessage = 'Signup failed. Please try again.';
+        } else {
+          errorMessage = msg;
+        }
+      }
+      state = state.copyWith(isLoading: false, error: errorMessage);
+      return false;
+    }
+  }
+
+  Future<bool> signInWithPassword({
+    required String email,
+    required String password,
+  }) async {
+    try {
+      state = state.copyWith(isLoading: true, error: null);
+
+      final authResponse = await _repository.login(email.trim(), password);
+      await _saveAuthData(authResponse.token, authResponse.user, null);
+
+      state = state.copyWith(
+        token: authResponse.token,
+        user: authResponse.user,
+        isAuthenticated: true,
+        isRestoredSession: false,
+        isGuest: false,
+        isLoading: false,
+      );
+
+      await _syncPushToken(authResponse.user.id);
+      return true;
+    } catch (e) {
+      var errorMessage = 'Sign in failed';
+      if (e is Exception) {
+        final msg = e.toString().replaceFirst('Exception: ', '');
+        if (msg.contains('Invalid response format')) {
+          errorMessage = 'Sign in failed. Please try again.';
         } else {
           errorMessage = msg;
         }

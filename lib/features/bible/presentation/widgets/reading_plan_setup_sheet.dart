@@ -11,6 +11,7 @@ class ReadingPlanSetupSheet extends ConsumerWidget {
   static Future<void> show(BuildContext context) {
     return showModalBottomSheet<void>(
       context: context,
+      useRootNavigator: true,
       isScrollControlled: true,
       builder: (_) => const ReadingPlanSetupSheet(),
     );
@@ -36,9 +37,13 @@ class ReadingPlanSetupSheet extends ConsumerWidget {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    'Start Your Reading Journey',
-                    style: Theme.of(context).textTheme.headlineSmall,
+                  Expanded(
+                    child: Text(
+                      'Reading Plans',
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
                   ),
                   IconButton(
                     onPressed: () => Navigator.pop(context),
@@ -46,12 +51,16 @@ class ReadingPlanSetupSheet extends ConsumerWidget {
                   ),
                 ],
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 8),
               Text(
-                'Choose a Reading Plan',
-                style: Theme.of(context).textTheme.titleMedium,
+                'Pick a plan and reminder time.',
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.onSurface.withValues(alpha: 0.66),
+                ),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 16),
               Expanded(
                 child: Consumer(
                   builder: (context, ref, child) {
@@ -64,8 +73,11 @@ class ReadingPlanSetupSheet extends ConsumerWidget {
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            const Icon(Icons.calendar_month,
-                                size: 48, color: Colors.grey),
+                            const Icon(
+                              Icons.calendar_month,
+                              size: 48,
+                              color: Colors.grey,
+                            ),
                             const SizedBox(height: 16),
                             Text(
                               'No reading plans available',
@@ -86,10 +98,31 @@ class ReadingPlanSetupSheet extends ConsumerWidget {
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: ListTile(
-                            title: Text(plan.title),
+                            dense: true,
+                            isThreeLine: true,
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 10,
+                            ),
+                            title: Text(
+                              plan.title,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.titleMedium
+                                  ?.copyWith(fontWeight: FontWeight.w800),
+                            ),
                             subtitle: Text(
-                                '${plan.durationDays} days - ${plan.description ?? ''}'),
-                            trailing: const Icon(Icons.arrow_forward_ios),
+                              _planSummary(plan),
+                              maxLines: 3,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(
+                                context,
+                              ).textTheme.bodyMedium?.copyWith(height: 1.35),
+                            ),
+                            trailing: const Icon(
+                              Icons.arrow_forward_ios,
+                              size: 18,
+                            ),
                             onTap: () =>
                                 ReminderSetupSheet.show(context, ref, plan),
                           ),
@@ -105,6 +138,16 @@ class ReadingPlanSetupSheet extends ConsumerWidget {
       ),
     );
   }
+
+  String _planSummary(ReadingPlan plan) {
+    final description = plan.description?.trim();
+    if (description == null || description.isEmpty) {
+      return '${plan.durationDays} days';
+    }
+
+    final firstSentence = description.split(RegExp(r'(?<=[.!?])\s+')).first;
+    return '${plan.durationDays} days - $firstSentence';
+  }
 }
 
 class ReminderSetupSheet {
@@ -119,6 +162,7 @@ class ReminderSetupSheet {
 
     return showModalBottomSheet<void>(
       context: context,
+      useRootNavigator: true,
       isScrollControlled: true,
       builder: (context) => SafeArea(
         child: Padding(
@@ -137,8 +181,10 @@ class ReminderSetupSheet {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      'Set Reading Reminder',
-                      style: Theme.of(context).textTheme.titleLarge,
+                      'Reminder',
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
                     ),
                     IconButton(
                       onPressed: () => Navigator.pop(context),
@@ -173,10 +219,7 @@ class ReminderSetupSheet {
                   ),
                 ),
                 const SizedBox(height: 20),
-                Text(
-                  'Daily Reminder Time',
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
+                Text('Time', style: Theme.of(context).textTheme.titleMedium),
                 const SizedBox(height: 12),
                 InkWell(
                   onTap: () async {
@@ -203,7 +246,8 @@ class ReminderSetupSheet {
                         ),
                         Text(
                           selectedTime.format(context),
-                          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                          style: Theme.of(context).textTheme.bodyLarge
+                              ?.copyWith(
                                 color: Theme.of(context).colorScheme.primary,
                                 fontWeight: FontWeight.bold,
                               ),
@@ -225,7 +269,8 @@ class ReminderSetupSheet {
                         await PremiumFailureDialog.show(
                           context,
                           title: 'Could not start plan',
-                          message: 'Please check your connection and try again.',
+                          message:
+                              'Please check your connection and try again.',
                           primaryActionText: 'OK',
                         );
                         return;
@@ -262,7 +307,7 @@ class ReminderSetupSheet {
                         borderRadius: BorderRadius.circular(12),
                       ),
                     ),
-                    child: const Text('Start Reading Plan'),
+                    child: const Text('Start Plan'),
                   ),
                 ),
               ],

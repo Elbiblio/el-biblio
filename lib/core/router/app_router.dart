@@ -138,6 +138,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     navigatorKey: _rootNavigatorKey,
     initialLocation: AppRoutes.root,
     refreshListenable: refresh,
+    observers: [rootChromeRouteObserver],
     routes: <RouteBase>[
       GoRoute(
         path: AppRoutes.root,
@@ -414,6 +415,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       ShellRoute(
         navigatorKey: _shellNavigatorKey,
+        observers: [shellChromeRouteObserver],
         builder: (context, state, child) => AppShell(child: child),
         routes: [
           GoRoute(
@@ -545,6 +547,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             routes: [
               GoRoute(
                 path: 'new',
+                parentNavigatorKey: _rootNavigatorKey,
                 builder: (context, state) {
                   final extra = state.extra as Map<String, dynamic>?;
                   return NoteEditorScreen(
@@ -558,6 +561,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               ),
               GoRoute(
                 path: ':id',
+                parentNavigatorKey: _rootNavigatorKey,
                 builder: (context, state) {
                   final id = state.pathParameters['id'];
                   return NoteReaderScreen(noteId: id!);
@@ -565,6 +569,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                 routes: [
                   GoRoute(
                     path: 'edit',
+                    parentNavigatorKey: _rootNavigatorKey,
                     builder: (context, state) {
                       final id = state.pathParameters['id']!;
                       return NoteEditorScreen(noteId: id);
@@ -586,6 +591,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             routes: [
               GoRoute(
                 path: 'reminders',
+                parentNavigatorKey: _rootNavigatorKey,
                 builder: (context, state) => const ReminderSettingsScreen(),
               ),
             ],

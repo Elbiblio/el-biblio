@@ -52,7 +52,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
             onRefresh: () =>
                 ref.read(visionProvider.notifier).load(force: true),
             child: SafeListView(
-              bottomPadding: 150,
+              bottomPadding: shellChromeBottomPadding,
               padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
               children: [
                 Row(
@@ -171,8 +171,7 @@ class _DailyLoopHero extends ConsumerWidget {
         icon: LucideIcons.messageCircle,
         illustration: VisionIllustrationAsset.growth,
         title: 'Check-in complete',
-        body:
-            'Share one honest sentence with people keeping the same commitment, or keep the moment with God.',
+        body: 'Post one line, or keep it quiet.',
         primaryLabel: 'Reflect',
         primaryIcon: LucideIcons.send,
         onPrimary: () => context.go(AppRoutes.reflect),
@@ -190,8 +189,7 @@ class _DailyLoopHero extends ConsumerWidget {
         icon: LucideIcons.checkCircle,
         illustration: VisionIllustrationAsset.completion,
         title: 'Checked in today',
-        body:
-            'Your commitment is cared for. Read support when you want it, then move gently back into the day.',
+        body: 'Done for today.',
         primaryLabel: 'Open commitment',
         primaryIcon: LucideIcons.flag,
         onPrimary: () => context.go(AppRoutes.commit),
@@ -465,9 +463,17 @@ class _AfterCheckInPanel extends ConsumerWidget {
                   dense: true,
                 ),
               VisionActionTile(
-                icon: LucideIcons.gamepad2,
-                title: 'Play with tribe',
-                subtitle: state.primaryTribe?.tribe.displayName ?? 'Tribe',
+                icon: LucideIcons.helpCircle,
+                title: 'Answer question',
+                subtitle: 'One honest sentence',
+                onTap: () => context.go(AppRoutes.grow),
+                dense: true,
+              ),
+              VisionActionTile(
+                icon: LucideIcons.users,
+                title: 'Open tribe',
+                subtitle:
+                    state.primaryTribe?.tribe.displayName ?? 'Invite or join',
                 onTap: () => context.go(AppRoutes.tribe),
                 dense: true,
               ),
@@ -496,7 +502,7 @@ class _AmbientSupportPanel extends ConsumerWidget {
 
     return VisionPanel(
       icon: LucideIcons.users,
-      title: 'Ambient support',
+      title: 'Support',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -504,7 +510,7 @@ class _AmbientSupportPanel extends ConsumerWidget {
             VisionActionTile(
               icon: LucideIcons.users,
               title: 'Choose tribe',
-              subtitle: 'Commitment support opens after joining',
+              subtitle: 'Join for check-ins',
               onTap: () => context.go(AppRoutes.tribe),
               dense: true,
             )
@@ -575,7 +581,7 @@ class _DailyInsightPreview extends ConsumerWidget {
 
     return VisionPanel(
       icon: LucideIcons.helpCircle,
-      title: 'Daily faith question',
+      title: 'Question',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -583,8 +589,8 @@ class _DailyInsightPreview extends ConsumerWidget {
           const SizedBox(height: 12),
           VisionActionTile(
             icon: LucideIcons.helpCircle,
-            title: 'Answer today',
-            subtitle: 'One question',
+            title: 'Answer',
+            subtitle: 'Today',
             onTap: () => context.go(AppRoutes.grow),
             dense: true,
           ),

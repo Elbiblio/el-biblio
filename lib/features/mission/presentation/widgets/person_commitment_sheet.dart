@@ -12,6 +12,7 @@ class PersonCommitmentSheet extends ConsumerStatefulWidget {
   static Future<void> show(BuildContext context) {
     return showModalBottomSheet(
       context: context,
+      useRootNavigator: true,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (context) => const PersonCommitmentSheet(),
@@ -19,7 +20,8 @@ class PersonCommitmentSheet extends ConsumerStatefulWidget {
   }
 
   @override
-  ConsumerState<PersonCommitmentSheet> createState() => _PersonCommitmentSheetState();
+  ConsumerState<PersonCommitmentSheet> createState() =>
+      _PersonCommitmentSheetState();
 }
 
 class _PersonCommitmentSheetState extends ConsumerState<PersonCommitmentSheet> {
@@ -65,7 +67,9 @@ class _PersonCommitmentSheetState extends ConsumerState<PersonCommitmentSheet> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final mission = ref.watch(missionProvider);
-    final commitments = mission.personCommitments.where((c) => c.isActive).toList();
+    final commitments = mission.personCommitments
+        .where((c) => c.isActive)
+        .toList();
 
     return Container(
       height: MediaQuery.of(context).size.height * 0.85,
@@ -112,7 +116,9 @@ class _PersonCommitmentSheetState extends ConsumerState<PersonCommitmentSheet> {
                       Text(
                         'Track specific commitments to individuals',
                         style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                          color: theme.colorScheme.onSurface.withValues(
+                            alpha: 0.6,
+                          ),
                         ),
                       ),
                     ],
@@ -160,7 +166,10 @@ class _PersonCommitmentSheetState extends ConsumerState<PersonCommitmentSheet> {
     );
   }
 
-  Widget _buildCommitmentsList(ThemeData theme, List<PersonCommitment> commitments) {
+  Widget _buildCommitmentsList(
+    ThemeData theme,
+    List<PersonCommitment> commitments,
+  ) {
     if (commitments.isEmpty) {
       return Center(
         child: Padding(
@@ -246,7 +255,8 @@ class _PersonCommitmentSheetState extends ConsumerState<PersonCommitmentSheet> {
               return ChoiceChip(
                 label: Text(relationship),
                 selected: isSelected,
-                onSelected: (_) => setState(() => _selectedRelationship = relationship),
+                onSelected: (_) =>
+                    setState(() => _selectedRelationship = relationship),
                 selectedColor: Colors.purple.withValues(alpha: 0.2),
               );
             }).toList(),
@@ -352,21 +362,27 @@ class _PersonCommitmentSheetState extends ConsumerState<PersonCommitmentSheet> {
   Future<void> _submitCommitment() async {
     final name = _nameController.text.trim();
     if (name.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter a name')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Please enter a name')));
       return;
     }
 
     setState(() => _isSubmitting = true);
 
-    await ref.read(missionProvider.notifier).createPersonCommitment(
-      name: name,
-      relationship: _selectedRelationship,
-      needs: _needsController.text.trim().isNotEmpty ? _needsController.text.trim() : null,
-      notes: _notesController.text.trim().isNotEmpty ? _notesController.text.trim() : null,
-      tags: _selectedTags,
-    );
+    await ref
+        .read(missionProvider.notifier)
+        .createPersonCommitment(
+          name: name,
+          relationship: _selectedRelationship,
+          needs: _needsController.text.trim().isNotEmpty
+              ? _needsController.text.trim()
+              : null,
+          notes: _notesController.text.trim().isNotEmpty
+              ? _notesController.text.trim()
+              : null,
+          tags: _selectedTags,
+        );
 
     if (mounted) {
       setState(() {
@@ -383,6 +399,7 @@ class _PersonCommitmentSheetState extends ConsumerState<PersonCommitmentSheet> {
   void _showCommitmentDetails(PersonCommitment commitment) {
     showModalBottomSheet(
       context: context,
+      useRootNavigator: true,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (context) => _CommitmentDetailSheet(commitment: commitment),
@@ -391,10 +408,7 @@ class _PersonCommitmentSheetState extends ConsumerState<PersonCommitmentSheet> {
 }
 
 class _CommitmentCard extends StatelessWidget {
-  const _CommitmentCard({
-    required this.commitment,
-    required this.onTap,
-  });
+  const _CommitmentCard({required this.commitment, required this.onTap});
 
   final PersonCommitment commitment;
   final VoidCallback onTap;
@@ -449,7 +463,9 @@ class _CommitmentCard extends StatelessWidget {
                         Text(
                           commitment.relationship,
                           style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                            color: theme.colorScheme.onSurface.withValues(
+                              alpha: 0.6,
+                            ),
                           ),
                         ),
                       ],
@@ -457,7 +473,10 @@ class _CommitmentCard extends StatelessWidget {
                   ),
                   if (needsFollowUp)
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
                       decoration: BoxDecoration(
                         color: Colors.orange.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(4),
@@ -503,7 +522,9 @@ class _CommitmentCard extends StatelessWidget {
                     Text(
                       'Last contact: ${DateFormat('MMM d').format(commitment.lastContactAt!)}',
                       style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                        color: theme.colorScheme.onSurface.withValues(
+                          alpha: 0.5,
+                        ),
                         fontSize: 11,
                       ),
                     ),
@@ -551,10 +572,12 @@ class _CommitmentDetailSheet extends ConsumerStatefulWidget {
   final PersonCommitment commitment;
 
   @override
-  ConsumerState<_CommitmentDetailSheet> createState() => _CommitmentDetailSheetState();
+  ConsumerState<_CommitmentDetailSheet> createState() =>
+      _CommitmentDetailSheetState();
 }
 
-class _CommitmentDetailSheetState extends ConsumerState<_CommitmentDetailSheet> {
+class _CommitmentDetailSheetState
+    extends ConsumerState<_CommitmentDetailSheet> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -586,10 +609,7 @@ class _CommitmentDetailSheetState extends ConsumerState<_CommitmentDetailSheet> 
                     color: Colors.purple.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: Icon(
-                    Icons.person,
-                    color: Colors.purple.shade400,
-                  ),
+                  child: Icon(Icons.person, color: Colors.purple.shade400),
                 ),
                 const SizedBox(width: 16),
                 Expanded(
@@ -605,7 +625,9 @@ class _CommitmentDetailSheetState extends ConsumerState<_CommitmentDetailSheet> 
                       Text(
                         '${commitment.relationship} • ${commitment.committedActions.length} actions',
                         style: theme.textTheme.bodyMedium?.copyWith(
-                          color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                          color: theme.colorScheme.onSurface.withValues(
+                            alpha: 0.6,
+                          ),
                         ),
                       ),
                     ],
@@ -634,12 +656,7 @@ class _CommitmentDetailSheetState extends ConsumerState<_CommitmentDetailSheet> 
                   const SizedBox(height: 20),
                 ],
                 if (commitment.notes?.isNotEmpty ?? false) ...[
-                  _buildSection(
-                    'Notes',
-                    commitment.notes!,
-                    Icons.notes,
-                    theme,
-                  ),
+                  _buildSection('Notes', commitment.notes!, Icons.notes, theme),
                   const SizedBox(height: 20),
                 ],
                 if (commitment.tags.isNotEmpty) ...[
@@ -653,10 +670,16 @@ class _CommitmentDetailSheetState extends ConsumerState<_CommitmentDetailSheet> 
                   Wrap(
                     spacing: 8,
                     runSpacing: 8,
-                    children: commitment.tags.map((tag) => Chip(
-                      label: Text(tag),
-                      backgroundColor: Colors.purple.withValues(alpha: 0.1),
-                    )).toList(),
+                    children: commitment.tags
+                        .map(
+                          (tag) => Chip(
+                            label: Text(tag),
+                            backgroundColor: Colors.purple.withValues(
+                              alpha: 0.1,
+                            ),
+                          ),
+                        )
+                        .toList(),
                   ),
                   const SizedBox(height: 20),
                 ],
@@ -668,13 +691,17 @@ class _CommitmentDetailSheetState extends ConsumerState<_CommitmentDetailSheet> 
                 if (commitment.lastContactAt != null)
                   _buildInfoRow(
                     'Last Contact',
-                    DateFormat('MMMM d, yyyy').format(commitment.lastContactAt!),
+                    DateFormat(
+                      'MMMM d, yyyy',
+                    ).format(commitment.lastContactAt!),
                     theme,
                   ),
                 if (commitment.nextFollowUpAt != null)
                   _buildInfoRow(
                     'Next Follow-up',
-                    DateFormat('MMMM d, yyyy').format(commitment.nextFollowUpAt!),
+                    DateFormat(
+                      'MMMM d, yyyy',
+                    ).format(commitment.nextFollowUpAt!),
                     theme,
                     isHighlight: true,
                   ),
@@ -723,17 +750,18 @@ class _CommitmentDetailSheetState extends ConsumerState<_CommitmentDetailSheet> 
     );
   }
 
-  Widget _buildSection(String title, String content, IconData icon, ThemeData theme) {
+  Widget _buildSection(
+    String title,
+    String content,
+    IconData icon,
+    ThemeData theme,
+  ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           children: [
-            Icon(
-              icon,
-              size: 18,
-              color: theme.colorScheme.primary,
-            ),
+            Icon(icon, size: 18, color: theme.colorScheme.primary),
             const SizedBox(width: 8),
             Text(
               title,
@@ -751,16 +779,18 @@ class _CommitmentDetailSheetState extends ConsumerState<_CommitmentDetailSheet> 
             color: theme.colorScheme.surfaceContainerHighest,
             borderRadius: BorderRadius.circular(8),
           ),
-          child: Text(
-            content,
-            style: theme.textTheme.bodyMedium,
-          ),
+          child: Text(content, style: theme.textTheme.bodyMedium),
         ),
       ],
     );
   }
 
-  Widget _buildInfoRow(String label, String value, ThemeData theme, {bool isHighlight = false}) {
+  Widget _buildInfoRow(
+    String label,
+    String value,
+    ThemeData theme, {
+    bool isHighlight = false,
+  }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Row(
@@ -785,18 +815,19 @@ class _CommitmentDetailSheetState extends ConsumerState<_CommitmentDetailSheet> 
   }
 
   Future<void> _markContacted() async {
-    await ref.read(missionProvider.notifier).updatePersonCommitment(
-      widget.commitment.id,
-      lastContactAt: DateTime.now(),
-    );
+    await ref
+        .read(missionProvider.notifier)
+        .updatePersonCommitment(
+          widget.commitment.id,
+          lastContactAt: DateTime.now(),
+        );
     if (mounted) Navigator.pop(context);
   }
 
   Future<void> _archiveCommitment() async {
-    await ref.read(missionProvider.notifier).updatePersonCommitment(
-      widget.commitment.id,
-      isActive: false,
-    );
+    await ref
+        .read(missionProvider.notifier)
+        .updatePersonCommitment(widget.commitment.id, isActive: false);
     if (mounted) Navigator.pop(context);
   }
 }

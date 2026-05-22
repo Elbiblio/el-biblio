@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:convert';
+
 import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:logger/logger.dart';
 
@@ -8,7 +11,7 @@ class AppAnalyticsEvent {
   static const onboardingStarted = 'onboarding_started';
   static const onboardingStepCompleted = 'onboarding_step_completed';
   static const onboardingCompleted = 'onboarding_completed';
-  
+
   // Assessment / Calling Discovery
   static const assessmentStarted = 'assessment_started';
   static const assessmentCompleted = 'assessment_completed';
@@ -29,7 +32,7 @@ class AppAnalyticsEvent {
   static const soulCareDialogOpened = 'soul_care_dialog_opened';
   static const soulCareToolUsed = 'soul_care_tool_used';
   static const quickActionTapped = 'quick_action_tapped';
-  
+
   // Weekly Planning
   static const weeklyPlanViewed = 'weekly_plan_viewed';
   static const weeklyPrioritySet = 'weekly_priority_set';
@@ -50,7 +53,7 @@ class AppAnalyticsEvent {
   static const journalEntryEdited = 'journal_entry_edited';
   static const journalEntryDeleted = 'journal_entry_deleted';
   static const journalOpenedFromBible = 'journal_opened_from_bible';
-  
+
   // Meditation
   static const meditationStarted = 'meditation_started';
   static const meditationCompleted = 'meditation_completed';
@@ -68,7 +71,7 @@ class AppAnalyticsEvent {
   static const personPrayedFor = 'person_prayed_for';
   static const impactMemoryCreated = 'impact_memory_created';
   static const impactHistoryViewed = 'impact_history_viewed';
-  
+
   // Mission
   static const missionFocusSelected = 'mission_focus_selected';
   static const missionActionCreated = 'mission_action_created';
@@ -79,10 +82,12 @@ class AppAnalyticsEvent {
   static const growTogetherScreenViewed = 'grow_together_screen_viewed';
   static const accountabilityPartnerAdded = 'accountability_partner_added';
   static const accountabilityCheckInLogged = 'accountability_check_in_logged';
-  static const accountabilityCheckInRequested = 'accountability_check_in_requested';
-  static const accountabilityCheckInConfirmed = 'accountability_check_in_confirmed';
+  static const accountabilityCheckInRequested =
+      'accountability_check_in_requested';
+  static const accountabilityCheckInConfirmed =
+      'accountability_check_in_confirmed';
   static const communityPrayerShared = 'community_prayer_shared';
-  
+
   // Social
   static const inviteInitiated = 'invite_initiated';
   static const inviteCompleted = 'invite_completed';
@@ -102,7 +107,7 @@ class AppAnalyticsEvent {
   static const appBackgrounded = 'app_backgrounded';
   static const notificationReceived = 'notification_received';
   static const notificationTapped = 'notification_tapped';
-  
+
   // Legacy/deprecated constants for backward compatibility
   static const dailyCheckInCompleted = 'daily_check_in_completed';
   static const accountabilityPartnerSaved = 'accountability_partner_saved';
@@ -119,19 +124,11 @@ class AppAnalyticsService {
   final Logger _logger;
   final FirebaseAnalytics _analytics;
 
-  void track(
-    String eventName, {
-    Map<String, Object?> properties = const {},
-  }) {
+  void track(String eventName, {Map<String, Object?> properties = const {}}) {
     final normalized = <String, Object>{};
     for (final entry in properties.entries) {
-      final value = entry.value;
-      if (value == null) {
-        // Skip null values
-        continue;
-      } else if (value is DateTime) {
-        normalized[entry.key] = value.toIso8601String();
-      } else {
+      final value = _normalizeParameter(entry.value);
+      if (value != null) {
         normalized[entry.key] = value;
       }
     }
@@ -140,9 +137,51 @@ class AppAnalyticsService {
     _logger.i('analytics:$eventName ${normalized.isEmpty ? '{}' : normalized}');
 
     // Send to Firebase Analytics
-    _analytics.logEvent(
-      name: eventName,
-      parameters: normalized,
-    );
+    try {
+      unawaited(
+        _analytics.logEvent(name: eventName, parameters: normalized).catchError(
+          (Object error, StackTrace stackTrace) {
+            _logger.w(
+              'Firebase analytics event failed: $eventName',
+              error: error,
+              stackTrace: stackTrace,
+            );
+          },
+        ),
+      );
+    } catch (error, stackTrace) {
+      _logger.w(
+        'Firebase analytics event rejected: $eventName',
+        error: error,
+        stackTrace: stackTrace,
+      );
+    }
+  }
+
+  Object? _normalizeParameter(Object? value) {
+    if (value == null) return null;
+    if (value is String && value.isNotEmpty) return value;
+    if (value is int) return value;
+    if (value is double && value.isFinite) return value;
+    if (value is num && value.isFinite) return value;
+    if (value is bool) return value ? 1 : 0;
+    if (value is DateTime) return value.toIso8601String();
+
+    if (value is Iterable) {
+      final encoded = value
+          .where((item) => item != null)
+          .map((item) => item is DateTime ? item.toIso8601String() : '$item')
+          .where((item) => item.isNotEmpty)
+          .join(',');
+      return encoded.isEmpty ? null : encoded;
+    }
+
+    if (value is Map) {
+      final encoded = jsonEncode(value);
+      return encoded.isEmpty || encoded == '{}' ? null : encoded;
+    }
+
+    final fallback = '$value';
+    return fallback.isEmpty ? null : fallback;
   }
 }

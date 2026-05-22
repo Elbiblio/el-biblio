@@ -39,13 +39,11 @@ class _VisionReflectionComposerState
     if (!active.checkedInToday) {
       return VisionPanel(
         icon: LucideIcons.checkCircle,
-        title: 'Check in today first',
+        title: 'Check in first',
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'You can read the feed now. Share after you complete today.',
-            ),
+            const Text('Read now. Post after check-in.'),
             if (widget.showCheckInButton) ...[
               const SizedBox(height: 12),
               FilledButton.icon(
@@ -268,9 +266,7 @@ class VisionReflectionFeed extends ConsumerWidget {
       return const VisionPanel(
         icon: LucideIcons.messagesSquare,
         title: 'Reflection feed',
-        child: Text(
-          'No reflections yet. The feed grows one honest post at a time.',
-        ),
+        child: Text('Be the first steady note for this commitment.'),
       );
     }
 
@@ -429,6 +425,7 @@ class VisionReflectionCard extends ConsumerWidget {
   void _showVisibleProfile(BuildContext context, CommitmentReflection item) {
     showModalBottomSheet<void>(
       context: context,
+      useRootNavigator: true,
       showDragHandle: true,
       builder: (context) => _VisibleProfileSheet(item: item),
     );
@@ -463,8 +460,9 @@ class _VisibleProfileSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final safeBottom = MediaQuery.paddingOf(context).bottom;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+      padding: EdgeInsets.fromLTRB(20, 0, 20, 24 + safeBottom),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,

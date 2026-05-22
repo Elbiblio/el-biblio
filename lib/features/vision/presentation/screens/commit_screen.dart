@@ -61,7 +61,7 @@ class _CommitScreenState extends ConsumerState<CommitScreen> {
       body: RefreshIndicator(
         onRefresh: () => ref.read(visionProvider.notifier).load(force: true),
         child: SafeListView(
-          bottomPadding: 150,
+          bottomPadding: shellChromeBottomPadding,
           padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
           children: [
             _CommitHeader(active: active),
@@ -324,6 +324,7 @@ class _CommitScreenState extends ConsumerState<CommitScreen> {
   void _showNudgeHelp() {
     showModalBottomSheet<void>(
       context: context,
+      useRootNavigator: true,
       showDragHandle: true,
       builder: (context) => const _NudgeHelpSheet(),
     );
@@ -335,6 +336,7 @@ class _CommitScreenState extends ConsumerState<CommitScreen> {
   ) {
     showModalBottomSheet<void>(
       context: context,
+      useRootNavigator: true,
       isScrollControlled: true,
       showDragHandle: true,
       builder: (context) =>
@@ -345,6 +347,7 @@ class _CommitScreenState extends ConsumerState<CommitScreen> {
   void _showCommitmentChooser(List<CommitmentPlan> commitments) {
     showModalBottomSheet<void>(
       context: context,
+      useRootNavigator: true,
       isScrollControlled: true,
       showDragHandle: true,
       builder: (context) => _CommitmentChooserSheet(
@@ -371,12 +374,14 @@ class _CommitScreenState extends ConsumerState<CommitScreen> {
     var selected = active.dailyLoadCount;
     showModalBottomSheet<void>(
       context: context,
+      useRootNavigator: true,
       showDragHandle: true,
       builder: (sheetContext) {
+        final safeBottom = MediaQuery.paddingOf(sheetContext).bottom;
         return StatefulBuilder(
           builder: (context, setSheetState) {
             return Padding(
-              padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+              padding: EdgeInsets.fromLTRB(20, 0, 20, 24 + safeBottom),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -446,6 +451,7 @@ class _CommitScreenState extends ConsumerState<CommitScreen> {
   }) async {
     final joined = await showModalBottomSheet<bool>(
       context: context,
+      useRootNavigator: true,
       isScrollControlled: true,
       showDragHandle: true,
       builder: (context) => _CommitmentWalkthroughSheet(
@@ -582,14 +588,14 @@ class _NudgeEducationPanel extends StatelessWidget {
     final theme = Theme.of(context);
     return VisionPanel(
       icon: LucideIcons.bellRing,
-      title: 'Reminders are help, not pressure',
+      title: 'Reminders',
       trailing: IconButton(
         tooltip: 'Learn about reminders',
         onPressed: onLearnMore,
         icon: const Icon(LucideIcons.helpCircle, size: 20),
       ),
       child: Text(
-        'Begin with reminders you can keep. If three are not enough, ask for stronger support and name what God is forming in you.',
+        'Start small. Raise support only when you need more structure.',
         style: theme.textTheme.bodyMedium?.copyWith(height: 1.45),
       ),
     );
@@ -708,13 +714,13 @@ class _CommitmentChoiceGuide extends StatelessWidget {
     final theme = Theme.of(context);
     return VisionPanel(
       icon: LucideIcons.compass,
-      title: 'Best starting point',
+      title: 'Start here',
       trailing: Text('${recommended.durationDays} days'),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Start with one clear practice. The catalog stays available, but choosing from a smaller surface keeps the month from feeling noisy.',
+            'Pick one clear practice for the month.',
             style: theme.textTheme.bodyMedium?.copyWith(height: 1.45),
           ),
           const SizedBox(height: 12),
@@ -1011,8 +1017,9 @@ class _NudgeHelpSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final safeBottom = MediaQuery.paddingOf(context).bottom;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+      padding: EdgeInsets.fromLTRB(20, 0, 20, 24 + safeBottom),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1026,21 +1033,18 @@ class _NudgeHelpSheet extends StatelessWidget {
           const SizedBox(height: 10),
           const _ExpectationRow(
             icon: LucideIcons.bell,
-            title: 'They interrupt forgetfulness',
-            body:
-                'A reminder is a small check-in point. Tap it, do the action, then check in.',
+            title: 'Prompt',
+            body: 'Tap it, do the action, check in.',
           ),
           const _ExpectationRow(
             icon: LucideIcons.heartHandshake,
-            title: 'They are not shame',
-            body:
-                'Missing a reminder is information, not condemnation. Increase support when your season needs more structure.',
+            title: 'No shame',
+            body: 'Missed reminders show where support is needed.',
           ),
           const _ExpectationRow(
             icon: LucideIcons.sprout,
-            title: 'They can teach',
-            body:
-                'The faith walkthrough names the virtue being formed and the vice being weakened.',
+            title: 'Formation',
+            body: 'Each prompt names the virtue and next step.',
           ),
         ],
       ),
@@ -1060,6 +1064,7 @@ class _CommitmentLibrarySheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final safeBottom = MediaQuery.paddingOf(context).bottom;
     return DraggableScrollableSheet(
       expand: false,
       initialChildSize: 0.74,
@@ -1068,7 +1073,7 @@ class _CommitmentLibrarySheet extends StatelessWidget {
       builder: (context, controller) {
         return ListView(
           controller: controller,
-          padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+          padding: EdgeInsets.fromLTRB(20, 0, 20, 24 + safeBottom),
           children: [
             Text(
               'Commitment library',
@@ -1078,7 +1083,7 @@ class _CommitmentLibrarySheet extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              'Stay with one commitment at a time. Keep this library close for your next season.',
+              'Keep one active commitment.',
               style: theme.textTheme.bodyMedium?.copyWith(height: 1.42),
             ),
             const SizedBox(height: 16),
@@ -1126,6 +1131,7 @@ class _CommitmentChooserSheetState extends State<_CommitmentChooserSheet> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final safeBottom = MediaQuery.paddingOf(context).bottom;
     return DraggableScrollableSheet(
       expand: false,
       initialChildSize: 0.82,
@@ -1134,7 +1140,7 @@ class _CommitmentChooserSheetState extends State<_CommitmentChooserSheet> {
       builder: (context, controller) {
         return ListView(
           controller: controller,
-          padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+          padding: EdgeInsets.fromLTRB(20, 0, 20, 24 + safeBottom),
           children: [
             Text(
               'Compare commitments',
@@ -1144,7 +1150,7 @@ class _CommitmentChooserSheetState extends State<_CommitmentChooserSheet> {
             ),
             const SizedBox(height: 8),
             Text(
-              'Use this only when the recommended practice does not fit your actual season. Keep the choice concrete and monthly.',
+              'Choose one concrete practice.',
               style: theme.textTheme.bodyMedium?.copyWith(height: 1.42),
             ),
             const SizedBox(height: 16),
@@ -1382,8 +1388,9 @@ class _CommitmentWalkthroughSheetState
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final bottom = MediaQuery.of(context).viewInsets.bottom;
+    final safeBottom = MediaQuery.paddingOf(context).bottom;
     return Padding(
-      padding: EdgeInsets.fromLTRB(20, 0, 20, bottom + 24),
+      padding: EdgeInsets.fromLTRB(20, 0, 20, bottom + 24 + safeBottom),
       child: ListView(
         shrinkWrap: true,
         children: [
@@ -1428,14 +1435,12 @@ class _CommitmentWalkthroughSheetState
           const _ExpectationRow(
             icon: LucideIcons.bell,
             title: 'What reminders do',
-            body:
-                'They interrupt forgetfulness and help you check in. They are not a scorecard.',
+            body: 'They prompt the action and check-in.',
           ),
           const _ExpectationRow(
             icon: LucideIcons.messageCircle,
             title: 'What happens after',
-            body:
-                'Once you check in, you can share one short reflection with people keeping the same commitment.',
+            body: 'Check in, then share one short reflection.',
           ),
           const SizedBox(height: 8),
           Text(
@@ -1703,8 +1708,8 @@ class _ActiveCommitment extends ConsumerWidget {
               ),
               VisionActionTile(
                 icon: LucideIcons.layoutGrid,
-                title: 'Browse next',
-                subtitle: 'Current season stays active',
+                title: 'Browse library',
+                subtitle: 'Keep current season',
                 onTap: onBrowseNext,
                 dense: true,
               ),
@@ -1718,10 +1723,12 @@ class _ActiveCommitment extends ConsumerWidget {
   void _showSeasonReview(BuildContext context, CommitmentSeason active) {
     showModalBottomSheet<void>(
       context: context,
+      useRootNavigator: true,
       showDragHandle: true,
       builder: (context) {
+        final safeBottom = MediaQuery.paddingOf(context).bottom;
         return Padding(
-          padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+          padding: EdgeInsets.fromLTRB(20, 0, 20, 24 + safeBottom),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,

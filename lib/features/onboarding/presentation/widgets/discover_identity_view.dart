@@ -112,7 +112,7 @@ class _DiscoverIdentityViewState extends ConsumerState<DiscoverIdentityView> {
               maxOpacity: 0.28,
               rayCount: 9,
               child: Text(
-                'Find your best next step.',
+                'Find your compass.',
                 textAlign: TextAlign.center,
                 style: textTheme.headlineSmall?.copyWith(
                   fontWeight: FontWeight.w800,
@@ -123,7 +123,7 @@ class _DiscoverIdentityViewState extends ConsumerState<DiscoverIdentityView> {
           ),
           const SizedBox(height: 12),
           Text(
-            'Answer from your real life right now. The goal is a helpful next step, not a perfect label.',
+            'Choose the closest answer.',
             textAlign: TextAlign.center,
             style: textTheme.bodyMedium?.copyWith(
               color: theme.colorScheme.onSurface.withValues(alpha: 0.62),
@@ -161,9 +161,8 @@ class _DiscoverIdentityViewState extends ConsumerState<DiscoverIdentityView> {
         onContinue: state.exactAge == null ? null : _next,
       ),
       _DiscoveryStep.seasonCluster => _ClusterQuestion(
-        title: 'Where do you feel pulled right now?',
-        subtitle:
-            'Choose the closest area. A more practical question comes next.',
+        title: 'What needs attention?',
+        subtitle: 'Choose the closest area.',
         value: _seasonClusterId,
         clusters: CompassDiscoveryCatalog.seasonClusters,
         onChanged: (cluster) {
@@ -175,7 +174,7 @@ class _DiscoverIdentityViewState extends ConsumerState<DiscoverIdentityView> {
         },
       ),
       _DiscoveryStep.seasonDetail => _OptionQuestion(
-        title: 'Which sentence is closest to what is happening?',
+        title: 'Which sentence fits?',
         subtitle: selectedCluster?.description,
         value: state.compassSeasonArchetype,
         options: selectedCluster?.options ?? const [],
@@ -184,8 +183,7 @@ class _DiscoverIdentityViewState extends ConsumerState<DiscoverIdentityView> {
       ),
       _DiscoveryStep.pressure => _OptionQuestion(
         title: 'When stress rises, what do you usually do first?',
-        subtitle:
-            'Choose the honest pattern, not the answer you think sounds best.',
+        subtitle: 'Choose what happens first.',
         value: state.compassPressureArchetype,
         options: CompassDiscoveryCatalog.pressureOptionsFor([
           state.compassSeasonArchetype,
@@ -196,8 +194,7 @@ class _DiscoverIdentityViewState extends ConsumerState<DiscoverIdentityView> {
       ),
       _DiscoveryStep.postponed => _OptionQuestion(
         title: 'What faithful step do you keep delaying?',
-        subtitle:
-            'Delayed steps often reveal the kind of support you need next.',
+        subtitle: 'Delayed steps show the support you need.',
         value: state.compassPostponedArchetype,
         options: CompassDiscoveryCatalog.postponedOptionsFor([
           state.compassSeasonArchetype,
@@ -209,8 +206,7 @@ class _DiscoverIdentityViewState extends ConsumerState<DiscoverIdentityView> {
       ),
       _DiscoveryStep.peopleNeed => _OptionQuestion(
         title: 'What do people tend to trust you with?',
-        subtitle:
-            'Think about what friends, family, or church people naturally bring to you.',
+        subtitle: 'Think about what people bring to you.',
         value: state.compassPeopleNeedArchetype,
         options: CompassDiscoveryCatalog.peopleNeedOptionsFor([
           state.compassSeasonArchetype,
@@ -222,9 +218,8 @@ class _DiscoverIdentityViewState extends ConsumerState<DiscoverIdentityView> {
             _selectOption(value, notifier.setCompassPeopleNeedArchetype),
       ),
       _DiscoveryStep.distortion => _OptionQuestion(
-        title: 'What pattern can twist this gift in a worldly direction?',
-        subtitle:
-            'This is not shame. It helps turn your result into a practical commitment.',
+        title: 'What can twist this gift?',
+        subtitle: 'This shapes your first commitment.',
         value: state.compassDistortionFearArchetype,
         options: CompassDiscoveryCatalog.distortionOptionsFor([
           state.compassSeasonArchetype,
@@ -240,7 +235,7 @@ class _DiscoverIdentityViewState extends ConsumerState<DiscoverIdentityView> {
         primary == null
             ? _OptionQuestion(
                 title: 'One more answer is needed',
-                subtitle: 'Answer the previous question to finish this part.',
+                subtitle: 'Answer the previous question.',
                 value: null,
                 options: const [],
                 onChanged: (_) {},
@@ -286,7 +281,7 @@ class _AgeFieldState extends State<_AgeField> {
       ],
       decoration: InputDecoration(
         labelText: 'Age',
-        helperText: 'Private. Only the age band is sent with your compass.',
+        helperText: 'Private. Age band only.',
         prefixIcon: const Icon(Icons.lock_outline),
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
       ),
@@ -386,8 +381,7 @@ class _AgeQuestion extends StatelessWidget {
       children: [
         const _QuestionHeader(
           title: 'How old are you?',
-          subtitle:
-              'Your age band keeps the support age-aware. Your exact age stays off your profile.',
+          subtitle: 'Used only for age-aware support.',
         ),
         const SizedBox(height: 14),
         _AgeField(initialAge: initialAge, onChanged: onChanged),
@@ -680,14 +674,14 @@ class _CompassResultStory extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'One calling we see: ${primary.identity}',
+            'Calling: ${primary.identity}',
             style: theme.textTheme.titleMedium?.copyWith(
               fontWeight: FontWeight.w900,
             ),
           ),
           const SizedBox(height: 6),
           Text(
-            'Tribe direction: ${persona.tribe}. Current focus: ${state.compassSeasonName ?? 'Steady formation'}.',
+            'Tribe: ${persona.tribe}. Focus: ${state.compassSeasonName ?? 'Steady formation'}.',
             style: theme.textTheme.labelLarge?.copyWith(
               color: theme.colorScheme.primary,
               fontWeight: FontWeight.w800,
@@ -695,7 +689,7 @@ class _CompassResultStory extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           Text(
-            'You may be called $calling.',
+            'Called $calling.',
             style: theme.textTheme.bodyMedium?.copyWith(
               color: theme.colorScheme.onSurface.withValues(alpha: 0.72),
               height: 1.45,
@@ -703,7 +697,7 @@ class _CompassResultStory extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           Text(
-            'Detected maturity with this gift: ${state.spiritualAgeStage}. $maturity',
+            'Stage: ${state.spiritualAgeStage}. $maturity',
             style: theme.textTheme.bodyMedium?.copyWith(
               color: theme.colorScheme.onSurface.withValues(alpha: 0.72),
               height: 1.45,
@@ -711,7 +705,7 @@ class _CompassResultStory extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           Text(
-            'Watch for worldly distortions: $distortions.',
+            'Watch for: $distortions.',
             style: theme.textTheme.bodyMedium?.copyWith(
               color: theme.colorScheme.onSurface.withValues(alpha: 0.68),
               height: 1.5,

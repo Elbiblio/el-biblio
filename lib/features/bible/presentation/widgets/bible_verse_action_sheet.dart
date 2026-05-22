@@ -48,7 +48,10 @@ class BibleVerseActionSheet extends ConsumerWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 8,
+                ),
                 child: Text(
                   verse.reference ?? 'Verse Actions',
                   style: Theme.of(context).textTheme.titleLarge,
@@ -99,7 +102,9 @@ class BibleVerseActionSheet extends ConsumerWidget {
                 title: 'Share & Save',
                 children: [
                   _ActionTile(
-                    icon: verse.isBookmarked ? Icons.bookmark : Icons.bookmark_border,
+                    icon: verse.isBookmarked
+                        ? Icons.bookmark
+                        : Icons.bookmark_border,
                     iconColor: Colors.blue,
                     title: verse.isBookmarked ? 'Remove Bookmark' : 'Bookmark',
                     subtitle: 'Save this verse for later',
@@ -140,19 +145,22 @@ class BibleVerseActionSheet extends ConsumerWidget {
   void _copyVerseToClipboard(BuildContext context, BibleVerseContent verse) {
     final verseText = '${verse.reference ?? ""}\n\n${verse.text}';
     Clipboard.setData(ClipboardData(text: verseText));
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Verse copied to clipboard')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Verse copied to clipboard')));
   }
 
   void _explainVerse(BuildContext context, WidgetRef ref) {
     showModalBottomSheet(
       context: context,
+      useRootNavigator: true,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (bottomSheetContext) => VerseInsightSheet(
         verse: verse,
-        fetchInsight: () => ref.read(verseProvider.notifier).explainVerse(
+        fetchInsight: () => ref
+            .read(verseProvider.notifier)
+            .explainVerse(
               verseId: verse.id.toString(),
               reference: verse.reference ?? '',
               text: verse.text,
@@ -164,10 +172,7 @@ class BibleVerseActionSheet extends ConsumerWidget {
 }
 
 class _VerseActionSection extends StatelessWidget {
-  const _VerseActionSection({
-    required this.title,
-    required this.children,
-  });
+  const _VerseActionSection({required this.title, required this.children});
 
   final String title;
   final List<Widget> children;
@@ -212,7 +217,10 @@ class _ActionTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListTile(
-      leading: Icon(icon, color: iconColor ?? Theme.of(context).colorScheme.primary),
+      leading: Icon(
+        icon,
+        color: iconColor ?? Theme.of(context).colorScheme.primary,
+      ),
       title: Text(title),
       subtitle: Text(subtitle),
       onTap: onTap,

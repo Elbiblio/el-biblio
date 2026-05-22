@@ -15,6 +15,7 @@ class AccountabilityCheckInSheet extends ConsumerStatefulWidget {
   static Future<void> show(BuildContext context) {
     return showModalBottomSheet(
       context: context,
+      useRootNavigator: true,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (context) => const AccountabilityCheckInSheet(),
@@ -164,8 +165,9 @@ class _AccountabilityCheckInSheetState
                         Text(
                           'Share your progress with ${partner.name}',
                           style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSurface
-                                .withValues(alpha: 0.6),
+                            color: theme.colorScheme.onSurface.withValues(
+                              alpha: 0.6,
+                            ),
                           ),
                         ),
                       ],
@@ -271,7 +273,8 @@ class _AccountabilityCheckInSheetState
                 controller: _noteController,
                 maxLines: 3,
                 decoration: InputDecoration(
-                  hintText: 'Share what you accomplished this week, challenges you faced, or prayer requests...',
+                  hintText:
+                      'Share what you accomplished this week, challenges you faced, or prayer requests...',
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
@@ -295,9 +298,9 @@ class _AccountabilityCheckInSheetState
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
                       : const Icon(Icons.send_rounded),
-                  label: Text(_isSubmitting
-                      ? 'Sending...'
-                      : 'Request Check-in'),
+                  label: Text(
+                    _isSubmitting ? 'Sending...' : 'Request Check-in',
+                  ),
                 ),
               ),
             ],
@@ -322,8 +325,7 @@ class _AccountabilityCheckInSheetState
         return Container(
           decoration: BoxDecoration(
             color: theme.colorScheme.surface,
-            borderRadius:
-                const BorderRadius.vertical(top: Radius.circular(24)),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
           ),
           child: SafeArea(
             child: Padding(
@@ -353,16 +355,16 @@ class _AccountabilityCheckInSheetState
                           children: [
                             Text(
                               'Confirm Check-in',
-                              style:
-                                  theme.textTheme.titleLarge?.copyWith(
+                              style: theme.textTheme.titleLarge?.copyWith(
                                 fontWeight: FontWeight.w700,
                               ),
                             ),
                             Text(
                               'Verify ${partner.name}\'s progress',
                               style: theme.textTheme.bodySmall?.copyWith(
-                                color: theme.colorScheme.onSurface
-                                    .withValues(alpha: 0.6),
+                                color: theme.colorScheme.onSurface.withValues(
+                                  alpha: 0.6,
+                                ),
                               ),
                             ),
                           ],
@@ -377,11 +379,14 @@ class _AccountabilityCheckInSheetState
                     Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        color: theme.colorScheme.primary.withValues(alpha: 0.05),
+                        color: theme.colorScheme.primary.withValues(
+                          alpha: 0.05,
+                        ),
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
-                          color: theme.colorScheme.primary
-                              .withValues(alpha: 0.2),
+                          color: theme.colorScheme.primary.withValues(
+                            alpha: 0.2,
+                          ),
                         ),
                       ),
                       child: Column(
@@ -419,7 +424,9 @@ class _AccountabilityCheckInSheetState
                         .firstOrNull;
                     if (commitment == null) return const SizedBox.shrink();
 
-                    final isVerified = verifiedCommitments.contains(commitmentId);
+                    final isVerified = verifiedCommitments.contains(
+                      commitmentId,
+                    );
                     return CheckboxListTile(
                       value: isVerified,
                       onChanged: (value) {
@@ -476,10 +483,10 @@ class _AccountabilityCheckInSheetState
                             await ref
                                 .read(missionProvider.notifier)
                                 .confirmCheckIn(
-                                  confirmationNote:
-                                      confirmationController.text.trim(),
-                                  verifiedCommitmentIds:
-                                      verifiedCommitments.toList(),
+                                  confirmationNote: confirmationController.text
+                                      .trim(),
+                                  verifiedCommitmentIds: verifiedCommitments
+                                      .toList(),
                                 );
                             if (context.mounted) {
                               Navigator.pop(context);
@@ -508,7 +515,9 @@ class _AccountabilityCheckInSheetState
   Future<void> _submitRequest() async {
     setState(() => _isSubmitting = true);
 
-    await ref.read(missionProvider.notifier).requestCheckIn(
+    await ref
+        .read(missionProvider.notifier)
+        .requestCheckIn(
           note: _noteController.text.trim(),
           completedCommitmentIds: _selectedCommitments.toList(),
         );
@@ -517,11 +526,9 @@ class _AccountabilityCheckInSheetState
 
     if (mounted) {
       Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Check-in request sent!'),
-        ),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Check-in request sent!')));
     }
   }
 }

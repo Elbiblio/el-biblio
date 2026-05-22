@@ -6,10 +6,7 @@ import '../../../../shared/domain/models/activity.dart';
 import '../helpers/bible_library_helpers.dart' as helpers;
 
 class ReadingHistorySheet extends ConsumerWidget {
-  const ReadingHistorySheet({
-    super.key,
-    required this.onOpenReading,
-  });
+  const ReadingHistorySheet({super.key, required this.onOpenReading});
 
   final void Function(Activity activity) onOpenReading;
 
@@ -19,6 +16,7 @@ class ReadingHistorySheet extends ConsumerWidget {
   }) {
     return showModalBottomSheet<void>(
       context: context,
+      useRootNavigator: true,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (_) => ReadingHistorySheet(onOpenReading: onOpenReading),
@@ -56,8 +54,10 @@ class ReadingHistorySheet extends ConsumerWidget {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Icon(Icons.history,
-                      color: Theme.of(context).colorScheme.onSurface),
+                  Icon(
+                    Icons.history,
+                    color: Theme.of(context).colorScheme.onSurface,
+                  ),
                   const SizedBox(width: 12),
                   Text(
                     'Reading History',
@@ -80,8 +80,11 @@ class ReadingHistorySheet extends ConsumerWidget {
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          const Icon(Icons.history_outlined,
-                              size: 64, color: Colors.grey),
+                          const Icon(
+                            Icons.history_outlined,
+                            size: 64,
+                            color: Colors.grey,
+                          ),
                           const SizedBox(height: 16),
                           Text(
                             'No reading history yet',
@@ -90,10 +93,8 @@ class ReadingHistorySheet extends ConsumerWidget {
                           const SizedBox(height: 8),
                           Text(
                             'Start reading to build your history',
-                            style:
-                                Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                      color: Colors.grey,
-                                    ),
+                            style: Theme.of(context).textTheme.bodyMedium
+                                ?.copyWith(color: Colors.grey),
                           ),
                         ],
                       ),
@@ -106,9 +107,9 @@ class ReadingHistorySheet extends ConsumerWidget {
                         return Container(
                           margin: const EdgeInsets.only(bottom: 8),
                           decoration: BoxDecoration(
-                            color: Theme.of(context)
-                                .colorScheme
-                                .surfaceContainer,
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.surfaceContainer,
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: ListTile(
@@ -116,10 +117,9 @@ class ReadingHistorySheet extends ConsumerWidget {
                               width: 40,
                               height: 40,
                               decoration: BoxDecoration(
-                                color: Theme.of(context)
-                                    .colorScheme
-                                    .primary
-                                    .withValues(alpha: 0.1),
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.primary.withValues(alpha: 0.1),
                                 borderRadius: BorderRadius.circular(8),
                               ),
                               child: Icon(
@@ -134,9 +134,7 @@ class ReadingHistorySheet extends ConsumerWidget {
                             ),
                             subtitle: Text(
                               helpers.formatDate(activity.createdAt),
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .bodySmall
+                              style: Theme.of(context).textTheme.bodySmall
                                   ?.copyWith(color: Colors.grey),
                             ),
                             trailing: const Icon(Icons.chevron_right),

@@ -57,111 +57,138 @@ class _JournalScreenState extends ConsumerState<JournalScreen> {
               child: journalState.isLoading && journalState.notes.isEmpty
                   ? const Center(child: CircularProgressIndicator())
                   : journalState.error != null
-                      ? _buildErrorState(context, ref, journalState.error!)
-                      : RefreshIndicator(
-                          onRefresh: () async {
-                            await ref.read(journalProvider.notifier).loadNotes();
-                          },
-                          child: journalState.filteredNotes.isEmpty
-                              ? _buildEmptyState(context, ref)
-                              : SafeListView(
-                                  bottomPadding: 120,
-                                  padding: const EdgeInsets.only(left: 32, right: 32, top: 32),
-                                  children: _buildNoteList(journalState.filteredNotes, isDark, primaryTextColor, secondaryTextColor),
-                                ),
-                        ),
+                  ? _buildErrorState(context, ref, journalState.error!)
+                  : RefreshIndicator(
+                      onRefresh: () async {
+                        await ref.read(journalProvider.notifier).loadNotes();
+                      },
+                      child: journalState.filteredNotes.isEmpty
+                          ? _buildEmptyState(context, ref)
+                          : SafeListView(
+                              bottomPadding: 120,
+                              padding: const EdgeInsets.only(
+                                left: 32,
+                                right: 32,
+                                top: 32,
+                              ),
+                              children: _buildNoteList(
+                                journalState.filteredNotes,
+                                isDark,
+                                primaryTextColor,
+                                secondaryTextColor,
+                              ),
+                            ),
+                    ),
             ),
           ],
         ),
       ),
-      floatingActionButton: _buildFloatingActionButton(),
+      floatingActionButton: _buildFloatingActions(context),
     );
   }
 
-  Widget _buildFloatingActionButton() {
+  Widget _buildFloatingActions(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(28),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.2),
-            blurRadius: 12,
-            offset: const Offset(0, 6),
-          ),
-        ],
-      ),
-      child: FloatingActionButton.extended(
-        onPressed: () => _showVoiceRecordingBottomSheet(),
-        backgroundColor: isDark ? const Color(0xFF1e293b) : Colors.white,
-        foregroundColor: theme.colorScheme.primary,
-        elevation: 0,
-        icon: Container(
-          padding: const EdgeInsets.all(8),
+    final fabBackground = isDark ? const Color(0xFF1e293b) : Colors.white;
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        FloatingActionButton.small(
+          heroTag: 'journal_voice_note',
+          onPressed: _showVoiceRecordingBottomSheet,
+          backgroundColor: fabBackground,
+          foregroundColor: theme.colorScheme.primary,
+          elevation: 8,
+          tooltip: 'Voice note',
+          child: const Icon(Icons.mic, size: 20),
+        ),
+        const SizedBox(width: 12),
+        Container(
           decoration: BoxDecoration(
-            color: theme.colorScheme.primary.withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(28),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.18),
+                blurRadius: 12,
+                offset: const Offset(0, 6),
+              ),
+            ],
           ),
-          child: Icon(
-            Icons.mic,
-            color: theme.colorScheme.primary,
-            size: 20,
+          child: FloatingActionButton.extended(
+            heroTag: 'journal_new_note',
+            onPressed: () => context.push('${AppRoutes.journal}/new'),
+            backgroundColor: fabBackground,
+            foregroundColor: theme.colorScheme.primary,
+            elevation: 0,
+            icon: const Icon(Icons.add, size: 22),
+            label: Text(
+              'New Note',
+              style: TextStyle(
+                color: theme.colorScheme.primary,
+                fontWeight: FontWeight.w600,
+                fontSize: 14,
+              ),
+            ),
           ),
         ),
-        label: Text(
-          'Voice Note',
-          style: TextStyle(
-            color: theme.colorScheme.primary,
-            fontWeight: FontWeight.w600,
-            fontSize: 14,
-          ),
-        ),
-      ),
+      ],
     );
   }
 
   void _showVoiceRecordingBottomSheet() {
     showModalBottomSheet(
       context: context,
+      useRootNavigator: true,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (context) => VoiceRecorderBottomSheet(
         onNoteCreated: (text) {
-          ref.read(journalProvider.notifier).createNote(
-            'Voice Note',
-            jsonEncode([{'insert': '$text\n'}]),
-            isPublic: false,
-            isPinned: false,
-            isVoiceRecorded: true,
-            virtues: [],
-          );
+          ref
+              .read(journalProvider.notifier)
+              .createNote(
+                'Voice Note',
+                jsonEncode([
+                  {'insert': '$text\n'},
+                ]),
+                isPublic: false,
+                isPinned: false,
+                isVoiceRecorded: true,
+                virtues: [],
+              );
         },
       ),
     );
   }
 
-  List<Widget> _buildNoteList(List<Note> notes, bool isDark, Color primaryTextColor, Color secondaryTextColor) {
+  List<Widget> _buildNoteList(
+    List<Note> notes,
+    bool isDark,
+    Color primaryTextColor,
+    Color secondaryTextColor,
+  ) {
     final List<Widget> widgets = [];
-    
+
     for (int i = 0; i < notes.length; i++) {
       final note = notes[i];
-      widgets.add(_NoteArticleCard(
-        note: note,
-        isDark: isDark,
-        primaryTextColor: primaryTextColor,
-        secondaryTextColor: secondaryTextColor,
-        onTap: () => context.push('${AppRoutes.journal}/${note.id}'),
-        onDelete: () => _deleteNote(note.id!),
-      ));
-      
+      widgets.add(
+        _NoteArticleCard(
+          note: note,
+          isDark: isDark,
+          primaryTextColor: primaryTextColor,
+          secondaryTextColor: secondaryTextColor,
+          onTap: () => context.push('${AppRoutes.journal}/${note.id}'),
+          onDelete: () => _deleteNote(note.id!),
+        ),
+      );
+
       // Add separator except for the last item
       if (i < notes.length - 1) {
         widgets.add(const SizedBox(height: 48));
       }
     }
-    
+
     return widgets;
   }
 
@@ -169,7 +196,12 @@ class _JournalScreenState extends ConsumerState<JournalScreen> {
     ref.read(journalProvider.notifier).deleteNote(id);
   }
 
-  Widget _buildHeader(BuildContext context, WidgetRef ref, bool isDark, Color primaryTextColor) {
+  Widget _buildHeader(
+    BuildContext context,
+    WidgetRef ref,
+    bool isDark,
+    Color primaryTextColor,
+  ) {
     final journalState = ref.watch(journalProvider);
     final notifier = ref.read(journalProvider.notifier);
     final isPublic = journalState.showPublicNotes;
@@ -178,19 +210,14 @@ class _JournalScreenState extends ConsumerState<JournalScreen> {
 
     return Container(
       padding: const EdgeInsets.fromLTRB(32, 24, 32, 16),
-      color: (isDark ? theme.colorScheme.surface : tokens.palette.paper).withValues(alpha: 0.9),
+      color: (isDark ? theme.colorScheme.surface : tokens.palette.paper)
+          .withValues(alpha: 0.9),
       child: Column(
         children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              IconButton(
-                icon: const Icon(Icons.arrow_back_ios_new, size: 20, weight: 300),
-                onPressed: () => context.pop(),
-                color: tokens.palette.textSecondary,
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(),
-              ),
+              const SizedBox(width: 40),
               Text(
                 'Journal',
                 style: Theme.of(context).textTheme.brandTitle.copyWith(
@@ -218,19 +245,29 @@ class _JournalScreenState extends ConsumerState<JournalScreen> {
             const SizedBox(height: 24),
             TextField(
               decoration: InputDecoration(
-                hintText: isPublic ? 'Search community notes...' : 'Search journal entries...',
+                hintText: isPublic
+                    ? 'Search community notes...'
+                    : 'Search journal entries...',
                 hintStyle: Theme.of(context).textTheme.bodyMedium?.copyWith(
                   color: tokens.palette.textTertiary,
                   fontSize: 14,
                 ),
-                prefixIcon: Icon(Icons.search, color: tokens.palette.textTertiary),
+                prefixIcon: Icon(
+                  Icons.search,
+                  color: tokens.palette.textTertiary,
+                ),
                 filled: true,
-                fillColor: isDark ? theme.colorScheme.surfaceContainerHighest : tokens.palette.surface,
+                fillColor: isDark
+                    ? theme.colorScheme.surfaceContainerHighest
+                    : tokens.palette.surface,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                   borderSide: BorderSide.none,
                 ),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 0,
+                ),
               ),
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                 color: primaryTextColor,
@@ -272,7 +309,7 @@ class _JournalScreenState extends ConsumerState<JournalScreen> {
     final notifier = ref.read(journalProvider.notifier);
     final theme = Theme.of(context);
     final tokens = theme.tokens;
-    
+
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 8),
@@ -280,30 +317,46 @@ class _JournalScreenState extends ConsumerState<JournalScreen> {
         children: [
           if (journalState.selectedVirtues.isNotEmpty)
             Padding(
-               padding: const EdgeInsets.only(right: 12.0),
-               child: ActionChip(
-                 label: Text('Clear', style: Theme.of(context).textTheme.chipText.copyWith(fontSize: 12)),
-                 onPressed: () => notifier.clearFilters(),
-                 avatar: const Icon(Icons.close, size: 14),
-                 backgroundColor: isDark ? theme.colorScheme.surfaceContainerHighest : tokens.palette.surface,
-                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                 side: BorderSide.none,
-               ),
+              padding: const EdgeInsets.only(right: 12.0),
+              child: ActionChip(
+                label: Text(
+                  'Clear',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.chipText.copyWith(fontSize: 12),
+                ),
+                onPressed: () => notifier.clearFilters(),
+                avatar: const Icon(Icons.close, size: 14),
+                backgroundColor: isDark
+                    ? theme.colorScheme.surfaceContainerHighest
+                    : tokens.palette.surface,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                side: BorderSide.none,
+              ),
             ),
-          
+
           Wrap(
             spacing: 8,
             children: VirtueType.values.map((virtue) {
-              final isSelected = journalState.selectedVirtues.contains(virtue.name);
+              final isSelected = journalState.selectedVirtues.contains(
+                virtue.name,
+              );
               final color = _getVirtueColor(virtue.name, isDark);
-              
+
               return InkWell(
                 onTap: () => notifier.toggleVirtueFilter(virtue.name),
                 borderRadius: BorderRadius.circular(20),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 6,
+                  ),
                   decoration: BoxDecoration(
-                    color: isSelected ? color.withValues(alpha: 0.1) : Colors.transparent,
+                    color: isSelected
+                        ? color.withValues(alpha: 0.1)
+                        : Colors.transparent,
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(
                       color: isSelected ? color : tokens.palette.border,
@@ -326,12 +379,18 @@ class _JournalScreenState extends ConsumerState<JournalScreen> {
 
   Color _getVirtueColor(String virtue, bool isDark) {
     switch (virtue.toLowerCase()) {
-      case 'wisdom': return const Color(0xFFeab308);
-      case 'peace': return const Color(0xFF38bdf8);
-      case 'courage': return const Color(0xFFf87171);
-      case 'compassion': return const Color(0xFFf472b6);
-      case 'gratitude': return const Color(0xFF4ade80);
-      default: return isDark ? Colors.grey.shade500 : Colors.blueGrey.shade400;
+      case 'wisdom':
+        return const Color(0xFFeab308);
+      case 'peace':
+        return const Color(0xFF38bdf8);
+      case 'courage':
+        return const Color(0xFFf87171);
+      case 'compassion':
+        return const Color(0xFFf472b6);
+      case 'gratitude':
+        return const Color(0xFF4ade80);
+      default:
+        return isDark ? Colors.grey.shade500 : Colors.blueGrey.shade400;
     }
   }
 
@@ -342,7 +401,7 @@ class _JournalScreenState extends ConsumerState<JournalScreen> {
     required VoidCallback onTap,
   }) {
     final tokens = Theme.of(context).tokens;
-    
+
     return GestureDetector(
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
@@ -382,16 +441,12 @@ class _JournalScreenState extends ConsumerState<JournalScreen> {
   Widget _buildErrorState(BuildContext context, WidgetRef ref, String error) {
     final theme = Theme.of(context);
     final tokens = theme.tokens;
-    
+
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
-            Icons.error_outline,
-            size: 48,
-            color: tokens.palette.error,
-          ),
+          Icon(Icons.error_outline, size: 48, color: tokens.palette.error),
           const SizedBox(height: 24),
           Text(
             'Failed to load journal',
@@ -417,7 +472,7 @@ class _JournalScreenState extends ConsumerState<JournalScreen> {
               foregroundColor: theme.colorScheme.onPrimary,
             ),
             child: Text(
-              'Try Again', 
+              'Try Again',
               style: Theme.of(context).textTheme.buttonText,
             ),
           ),
@@ -428,19 +483,17 @@ class _JournalScreenState extends ConsumerState<JournalScreen> {
 
   Widget _buildEmptyState(BuildContext context, WidgetRef ref) {
     final journalState = ref.watch(journalProvider);
-    final hasFilters = journalState.searchQuery.isNotEmpty || journalState.selectedVirtues.isNotEmpty;
+    final hasFilters =
+        journalState.searchQuery.isNotEmpty ||
+        journalState.selectedVirtues.isNotEmpty;
     final theme = Theme.of(context);
     final tokens = theme.tokens;
-    
+
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
-            Icons.edit_note,
-            size: 48,
-            color: tokens.palette.textTertiary,
-          ),
+          Icon(Icons.edit_note, size: 48, color: tokens.palette.textTertiary),
           const SizedBox(height: 24),
           Text(
             hasFilters ? 'No notes found' : 'Your journal is empty',
@@ -450,7 +503,9 @@ class _JournalScreenState extends ConsumerState<JournalScreen> {
           ),
           const SizedBox(height: 8),
           Text(
-            hasFilters ? 'Try adjusting your filters' : 'Capture your reflections and insights',
+            hasFilters
+                ? 'Try adjusting your filters'
+                : 'Capture your reflections and insights',
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
               fontSize: 14,
               fontWeight: FontWeight.w300,
@@ -460,16 +515,17 @@ class _JournalScreenState extends ConsumerState<JournalScreen> {
           if (hasFilters) ...[
             const SizedBox(height: 24),
             TextButton(
-              onPressed: () => ref.read(journalProvider.notifier).clearFilters(),
+              onPressed: () =>
+                  ref.read(journalProvider.notifier).clearFilters(),
               style: TextButton.styleFrom(
                 foregroundColor: theme.colorScheme.onSurface,
               ),
               child: Text(
-                'Clear filters', 
+                'Clear filters',
                 style: Theme.of(context).textTheme.buttonText,
               ),
             ),
-          ]
+          ],
         ],
       ),
     );
@@ -495,16 +551,26 @@ class _NoteArticleCard extends StatelessWidget {
 
   Color _getVirtueColor(String virtue) {
     switch (virtue.toLowerCase()) {
-      case 'wisdom': return const Color(0xFFeab308);
-      case 'peace': return const Color(0xFF38bdf8);
-      case 'courage': return const Color(0xFFf87171);
-      case 'compassion': return const Color(0xFFf472b6);
-      case 'gratitude': return const Color(0xFF4ade80);
-      default: return isDark ? Colors.grey.shade700 : Colors.blueGrey.shade200;
+      case 'wisdom':
+        return const Color(0xFFeab308);
+      case 'peace':
+        return const Color(0xFF38bdf8);
+      case 'courage':
+        return const Color(0xFFf87171);
+      case 'compassion':
+        return const Color(0xFFf472b6);
+      case 'gratitude':
+        return const Color(0xFF4ade80);
+      default:
+        return isDark ? Colors.grey.shade700 : Colors.blueGrey.shade200;
     }
   }
 
-  Widget _buildNoteTextContent(BuildContext context, String text, Color secondaryTextColor) {
+  Widget _buildNoteTextContent(
+    BuildContext context,
+    String text,
+    Color secondaryTextColor,
+  ) {
     String? extracted;
 
     // Try to parse as Quill JSON first (can be a Map with ops or a List of operations)
@@ -519,12 +585,14 @@ class _NoteArticleCard extends StatelessWidget {
       }
 
       if (operations != null) {
-        extracted = operations.map((op) {
-          if (op is Map<String, dynamic>) {
-            return op['insert'] as String? ?? '';
-          }
-          return '';
-        }).join('');
+        extracted = operations
+            .map((op) {
+              if (op is Map<String, dynamic>) {
+                return op['insert'] as String? ?? '';
+              }
+              return '';
+            })
+            .join('');
       }
     } catch (_) {
       // Not JSON, treat as plain text
@@ -534,10 +602,9 @@ class _NoteArticleCard extends StatelessWidget {
 
     return Text(
       displayText,
-      style: Theme.of(context).textTheme.journalBody.copyWith(
-        fontSize: 14,
-        color: secondaryTextColor,
-      ),
+      style: Theme.of(
+        context,
+      ).textTheme.journalBody.copyWith(fontSize: 14, color: secondaryTextColor),
       maxLines: 2,
       overflow: TextOverflow.ellipsis,
     );
@@ -551,7 +618,8 @@ class _NoteArticleCard extends StatelessWidget {
 
     final timeAgoStr = timeago.format(note.updatedAt, locale: 'en_US');
     final visibilityStr = note.isPublic ? 'Public' : 'Private';
-    final hasMeditation = note.meditationSessionId != null &&
+    final hasMeditation =
+        note.meditationSessionId != null &&
         note.meditationSessionId!.isNotEmpty;
     final metadataText = hasMeditation
         ? '$timeAgoStr • $visibilityStr • After Meditation'
@@ -578,7 +646,9 @@ class _NoteArticleCard extends StatelessWidget {
                   Text(
                     metadataText.toUpperCase(),
                     style: Theme.of(context).textTheme.metadata.copyWith(
-                      color: isDark ? Colors.grey.shade500 : Colors.blueGrey.shade400,
+                      color: isDark
+                          ? Colors.grey.shade500
+                          : Colors.blueGrey.shade400,
                     ),
                   ),
                   const SizedBox(height: 12),
@@ -588,29 +658,31 @@ class _NoteArticleCard extends StatelessWidget {
                         Expanded(
                           child: Text(
                             note.title!,
-                            style: Theme.of(context).textTheme.journalTitle.copyWith(
-                              fontSize: 30,
-                              color: primaryTextColor,
-                            ),
+                            style: Theme.of(context).textTheme.journalTitle
+                                .copyWith(
+                                  fontSize: 30,
+                                  color: primaryTextColor,
+                                ),
                           ),
                         ),
                         if (note.isVoiceRecorded) ...[
                           const SizedBox(width: 12),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
                             decoration: BoxDecoration(
                               color: Colors.blue.withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: Colors.blue.withValues(alpha: 0.3)),
+                              border: Border.all(
+                                color: Colors.blue.withValues(alpha: 0.3),
+                              ),
                             ),
                             child: const Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Icon(
-                                  Icons.mic,
-                                  color: Colors.blue,
-                                  size: 14,
-                                ),
+                                Icon(Icons.mic, color: Colors.blue, size: 14),
                                 SizedBox(width: 4),
                                 Text(
                                   'Voice',
@@ -628,7 +700,10 @@ class _NoteArticleCard extends StatelessWidget {
                             note.meditationSessionId!.isNotEmpty) ...[
                           const SizedBox(width: 8),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
                             decoration: BoxDecoration(
                               color: Colors.deepPurple.withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(12),
@@ -662,7 +737,11 @@ class _NoteArticleCard extends StatelessWidget {
                     const SizedBox(height: 16),
                   ],
                   if (note.text?.isNotEmpty == true)
-                    _buildNoteTextContent(context, note.text!, secondaryTextColor),
+                    _buildNoteTextContent(
+                      context,
+                      note.text!,
+                      secondaryTextColor,
+                    ),
                 ],
               ),
             ),
@@ -678,7 +757,9 @@ class _NoteArticleCard extends StatelessWidget {
       builder: (BuildContext context) {
         return AlertDialog(
           title: const Text('Delete Journal Entry'),
-          content: Text('Are you sure you want to delete "${note.title ?? 'this journal entry'}"? This action cannot be undone.'),
+          content: Text(
+            'Are you sure you want to delete "${note.title ?? 'this journal entry'}"? This action cannot be undone.',
+          ),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(),

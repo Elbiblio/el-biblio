@@ -65,7 +65,7 @@ class _TheNoiseViewState extends State<TheNoiseView>
                     _RhythmHero(height: compact ? 166 : 202),
                     SizedBox(height: compact ? 26 : 34),
                     Text(
-                      'Make room for the life God is forming in you.',
+                      'Build one daily spiritual practice.',
                       style: textTheme.headlineMedium?.copyWith(
                         fontWeight: FontWeight.w800,
                         height: 1.08,
@@ -73,7 +73,7 @@ class _TheNoiseViewState extends State<TheNoiseView>
                     ),
                     const SizedBox(height: 14),
                     Text(
-                      'A daily path for faith, focus, and the people who help you keep going.',
+                      'Compass. Commitment. Tribe.',
                       style: textTheme.bodyLarge?.copyWith(
                         color: theme.colorScheme.onSurface.withValues(
                           alpha: 0.68,
