@@ -81,13 +81,7 @@ class ContactRepository extends BaseRepository {
       throw Exception('Permission denied');
     }
 
-    final contactId = await fc.FlutterContacts.native.showPicker();
-    if (contactId == null) {
-      return null;
-    }
-
-    final contact = await fc.FlutterContacts.get(
-      contactId,
+    final contact = await fc.FlutterContacts.native.showPicker(
       properties: _deviceContactProperties,
     );
     if (contact == null) {
