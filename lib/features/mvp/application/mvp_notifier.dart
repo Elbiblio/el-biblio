@@ -90,6 +90,7 @@ class MvpNotifier extends StateNotifier<MvpState> {
         commitmentTitle: membership.challenge.title,
         dailyAction: membership.challenge.dailyAction,
         nudgeCount: membership.nudgeCountPerDay,
+        requestPermissionIfNeeded: true,
       );
       state = state.copyWith(
         isLoading: false,

@@ -22,6 +22,7 @@ class PushNotificationService implements PushNotificationGateway {
   static final PushNotificationService _instance = PushNotificationService._();
   factory PushNotificationService() => _instance;
   PushNotificationService._();
+  static bool _backgroundHandlerRegistered = false;
 
   final FirebaseMessaging _firebaseMessaging = FirebaseMessaging.instance;
   final FlutterLocalNotificationsPlugin _localNotifications =
@@ -42,6 +43,12 @@ class PushNotificationService implements PushNotificationGateway {
       StreamController<String>.broadcast();
   @override
   Stream<String> get tokenStream => _tokenStreamController.stream;
+
+  static void registerBackgroundHandler() {
+    if (_backgroundHandlerRegistered) return;
+    FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+    _backgroundHandlerRegistered = true;
+  }
 
   /// Initialize Firebase and push notification services
   @override
@@ -71,11 +78,6 @@ class PushNotificationService implements PushNotificationGateway {
 
       // Handle messages when app is in background but opened
       FirebaseMessaging.onMessageOpenedApp.listen(_handleMessage);
-
-      // Handle background messages
-      FirebaseMessaging.onBackgroundMessage(
-        _firebaseMessagingBackgroundHandler,
-      );
 
       if (await _canInitializeTokenWithoutPrompt()) {
         await _initializeToken();

@@ -27,13 +27,13 @@ class MissionNotifier extends StateNotifier<MissionState> {
     required ServiceOpportunityRepository serviceOpportunityRepository,
     required Logger logger,
     required AppSettings initialSettings,
-  })  : _settingsNotifier = settingsNotifier,
-        _analytics = analytics,
-        _notificationService = notificationService,
-        _serviceOpportunityRepository = serviceOpportunityRepository,
-        _logger = logger,
-        _uuid = const Uuid(),
-        super(_stateFromSettings(initialSettings));
+  }) : _settingsNotifier = settingsNotifier,
+       _analytics = analytics,
+       _notificationService = notificationService,
+       _serviceOpportunityRepository = serviceOpportunityRepository,
+       _logger = logger,
+       _uuid = const Uuid(),
+       super(_stateFromSettings(initialSettings));
 
   final SettingsNotifier _settingsNotifier;
   final AppAnalyticsService _analytics;
@@ -63,9 +63,7 @@ class MissionNotifier extends StateNotifier<MissionState> {
     await _settingsNotifier.setPrimaryMissionFocus(focus.name);
     _analytics.track(
       AppAnalyticsEvent.missionFocusSelected,
-      properties: {
-        'focus': focus.name,
-      },
+      properties: {'focus': focus.name},
     );
   }
 
@@ -202,7 +200,7 @@ class MissionNotifier extends StateNotifier<MissionState> {
     try {
       final followUpDate = action.completedAt!.add(const Duration(days: 3));
       final personName = action.personName ?? 'someone';
-      
+
       await _notificationService.scheduleNotificationWithActions(
         id: _generateNotificationId(action.id, 'follow_up'),
         title: 'Follow up needed',
@@ -210,6 +208,7 @@ class MissionNotifier extends StateNotifier<MissionState> {
         channel: 'mission_follow_up',
         scheduledTime: followUpDate,
         payload: 'mission_follow_up:${action.id}',
+        requestPermissionIfNeeded: true,
       );
     } catch (e) {
       // Silently fail if notification scheduling fails
@@ -226,7 +225,9 @@ class MissionNotifier extends StateNotifier<MissionState> {
   Future<void> completeFollowUp(MissionAction action, {String? notes}) async {
     final updated = action.copyWith(
       followUpCompletedAt: DateTime.now(),
-      notes: notes != null ? '${action.notes ?? ''}\n\nFollow-up: $notes'.trim() : action.notes,
+      notes: notes != null
+          ? '${action.notes ?? ''}\n\nFollow-up: $notes'.trim()
+          : action.notes,
     );
 
     final actions = state.actions
@@ -237,14 +238,13 @@ class MissionNotifier extends StateNotifier<MissionState> {
     await _settingsNotifier.setMissionActions(actions);
 
     // Cancel the follow-up reminder since it's now complete
-    await _notificationService.cancelNotification(_generateNotificationId(action.id, 'follow_up'));
+    await _notificationService.cancelNotification(
+      _generateNotificationId(action.id, 'follow_up'),
+    );
 
     _analytics.track(
       AppAnalyticsEvent.missionActionCompleted,
-      properties: {
-        'focus': action.focus.name,
-        'follow_up_completed': true,
-      },
+      properties: {'focus': action.focus.name, 'follow_up_completed': true},
     );
   }
 
@@ -267,6 +267,7 @@ class MissionNotifier extends StateNotifier<MissionState> {
       _notificationService.scheduleWeeklyPartnerCheckInReminder(
         partnerName: companionDisplayName,
         isAiCompanion: true,
+        requestPermissionIfNeeded: true,
       ),
     );
 
@@ -311,14 +312,13 @@ class MissionNotifier extends StateNotifier<MissionState> {
     unawaited(
       _notificationService.scheduleWeeklyPartnerCheckInReminder(
         partnerName: name,
+        requestPermissionIfNeeded: true,
       ),
     );
 
     _analytics.track(
       AppAnalyticsEvent.accountabilityPartnerSaved,
-      properties: {
-        'has_contact': contact.isNotEmpty,
-      },
+      properties: {'has_contact': contact.isNotEmpty},
     );
   }
 
@@ -358,15 +358,14 @@ class MissionNotifier extends StateNotifier<MissionState> {
     if (index == -1) {
       profiles.insert(
         0,
-        PersonProfile.create(
-          name: trimmedName,
-          relationship: 'Friend',
-        ),
+        PersonProfile.create(name: trimmedName, relationship: 'Friend'),
       );
       return profiles;
     }
 
-    profiles[index] = profiles[index].copyWith(lastInteractionAt: DateTime.now());
+    profiles[index] = profiles[index].copyWith(
+      lastInteractionAt: DateTime.now(),
+    );
     return profiles;
   }
 
@@ -381,7 +380,8 @@ class MissionNotifier extends StateNotifier<MissionState> {
 
     final updatedCommitments = [...weeklyPlan.weeklyCommitments];
     final targetIndex = updatedCommitments.indexWhere(
-      (commitment) => commitment.category == _commitmentCategoryForFocus(action.focus),
+      (commitment) =>
+          commitment.category == _commitmentCategoryForFocus(action.focus),
     );
 
     if (targetIndex == -1) {
@@ -392,7 +392,9 @@ class MissionNotifier extends StateNotifier<MissionState> {
     final nextCount = increment
         ? (commitment.currentCount + 1).clamp(0, commitment.targetCount)
         : (commitment.currentCount - 1).clamp(0, commitment.targetCount);
-    updatedCommitments[targetIndex] = commitment.copyWith(currentCount: nextCount);
+    updatedCommitments[targetIndex] = commitment.copyWith(
+      currentCount: nextCount,
+    );
 
     await _settingsNotifier.setCurrentWeeklyPlan(
       weeklyPlan.copyWith(weeklyCommitments: updatedCommitments),
@@ -446,9 +448,7 @@ class MissionNotifier extends StateNotifier<MissionState> {
       verifiedCommitments: completedCommitmentIds,
     );
 
-    final updatedPartner = partner.copyWith(
-      pendingCheckInRequest: request,
-    );
+    final updatedPartner = partner.copyWith(pendingCheckInRequest: request);
 
     state = state.copyWith(accountabilityPartner: updatedPartner);
     await _settingsNotifier.setAccountabilityPartner(updatedPartner);
@@ -476,7 +476,8 @@ class MissionNotifier extends StateNotifier<MissionState> {
     final pendingRequest = partner.pendingCheckInRequest!;
     final confirmedRequest = pendingRequest.copyWith(
       confirmedAt: DateTime.now(),
-      confirmedByUserId: 'partner_user', // In real app, use actual partner user ID
+      confirmedByUserId:
+          'partner_user', // In real app, use actual partner user ID
       confirmationNote: confirmationNote,
       verifiedCommitments: verifiedCommitmentIds,
     );
@@ -511,9 +512,7 @@ class MissionNotifier extends StateNotifier<MissionState> {
       return;
     }
 
-    final updatedPartner = partner.copyWith(
-      pendingCheckInRequest: null,
-    );
+    final updatedPartner = partner.copyWith(pendingCheckInRequest: null);
 
     state = state.copyWith(accountabilityPartner: updatedPartner);
     await _settingsNotifier.setAccountabilityPartner(updatedPartner);
@@ -545,6 +544,7 @@ class MissionNotifier extends StateNotifier<MissionState> {
     unawaited(
       _notificationService.scheduleWeeklyPartnerCheckInReminder(
         partnerName: name,
+        requestPermissionIfNeeded: true,
       ),
     );
 
@@ -612,7 +612,8 @@ class MissionNotifier extends StateNotifier<MissionState> {
   }
 
   /// Update an existing person commitment
-  Future<void> updatePersonCommitment(String id, {
+  Future<void> updatePersonCommitment(
+    String id, {
     String? name,
     String? relationship,
     String? notes,
@@ -647,7 +648,9 @@ class MissionNotifier extends StateNotifier<MissionState> {
     required String actionId,
     required String personCommitmentId,
   }) async {
-    final index = state.personCommitments.indexWhere((c) => c.id == personCommitmentId);
+    final index = state.personCommitments.indexWhere(
+      (c) => c.id == personCommitmentId,
+    );
     if (index == -1) return;
 
     final commitment = state.personCommitments[index];
@@ -720,7 +723,8 @@ class MissionNotifier extends StateNotifier<MissionState> {
     DateTime? startDate,
     DateTime? endDate,
   }) {
-    final start = startDate ?? DateTime.now().subtract(const Duration(days: 30));
+    final start =
+        startDate ?? DateTime.now().subtract(const Duration(days: 30));
     final end = endDate ?? DateTime.now();
 
     final periodRecords = state.generosityRecords.where((r) {
@@ -731,7 +735,10 @@ class MissionNotifier extends StateNotifier<MissionState> {
     final time = periodRecords.where((r) => r.isTime);
     final resources = periodRecords.where((r) => r.isResource);
 
-    final totalFinancial = financial.fold<double>(0, (sum, r) => sum + (r.amount ?? 0));
+    final totalFinancial = financial.fold<double>(
+      0,
+      (sum, r) => sum + (r.amount ?? 0),
+    );
 
     return {
       'total_records': periodRecords.length,
@@ -779,6 +786,7 @@ class MissionNotifier extends StateNotifier<MissionState> {
       scheduledTime: followUpDate,
       payload: 'evangelism_followup:${conversation.id}',
       actionLabels: const ['Log Follow-up', 'Pray Now'],
+      requestPermissionIfNeeded: true,
     );
 
     _analytics.track(
@@ -799,17 +807,23 @@ class MissionNotifier extends StateNotifier<MissionState> {
     List<String>? newPrayerRequests,
     String? decisionMade,
   }) async {
-    final index = state.evangelismConversations.indexWhere((c) => c.id == conversationId);
+    final index = state.evangelismConversations.indexWhere(
+      (c) => c.id == conversationId,
+    );
     if (index == -1) return;
 
     final conversation = state.evangelismConversations[index];
     final updated = conversation.copyWith(
       followUpDates: [...conversation.followUpDates, DateTime.now()],
-      notes: notes != null ? '${conversation.notes ?? ''}\n\nFollow-up: $notes' : conversation.notes,
+      notes: notes != null
+          ? '${conversation.notes ?? ''}\n\nFollow-up: $notes'
+          : conversation.notes,
       responseType: newResponseType ?? conversation.responseType,
       prayerRequests: newPrayerRequests ?? conversation.prayerRequests,
       decisionMade: decisionMade,
-      decisionDate: decisionMade != null ? DateTime.now() : conversation.decisionDate,
+      decisionDate: decisionMade != null
+          ? DateTime.now()
+          : conversation.decisionDate,
       isOngoing: decisionMade != 'accepted' && decisionMade != 'declined',
     );
 
@@ -842,7 +856,8 @@ class MissionNotifier extends StateNotifier<MissionState> {
 
     try {
       // Try backend API first
-      final matches = await _serviceOpportunityRepository.getMatchedOpportunities();
+      final matches = await _serviceOpportunityRepository
+          .getMatchedOpportunities();
       _logger.i('Loaded ${matches.length} service matches from backend');
       return matches;
     } catch (e) {
@@ -899,7 +914,11 @@ class MissionNotifier extends StateNotifier<MissionState> {
 
       // Check burden alignment
       for (final burden in tendencies) {
-        if (oppBurdens.any((b) => burden.toLowerCase().contains(b) || b.contains(burden.toLowerCase()))) {
+        if (oppBurdens.any(
+          (b) =>
+              burden.toLowerCase().contains(b) ||
+              b.contains(burden.toLowerCase()),
+        )) {
           matchPoints += 2;
           matchReasons.add('Aligns with your burden for $burden');
         }
@@ -907,7 +926,11 @@ class MissionNotifier extends StateNotifier<MissionState> {
 
       // Check tendency alignment
       for (final tendency in tendencies) {
-        if (oppTendencies.any((t) => tendency.toLowerCase().contains(t) || t.contains(tendency.toLowerCase()))) {
+        if (oppTendencies.any(
+          (t) =>
+              tendency.toLowerCase().contains(t) ||
+              t.contains(tendency.toLowerCase()),
+        )) {
           matchPoints += 1;
           if (matchReasons.length < 3) {
             matchReasons.add('Matches your $tendency tendency');
@@ -919,23 +942,25 @@ class MissionNotifier extends StateNotifier<MissionState> {
       final score = (matchPoints / 6).clamp(0.0, 1.0);
 
       if (score > 0.3) {
-        matches.add(ServiceMatch(
-          opportunityId: opp['id'] as String,
-          title: opp['title'] as String,
-          matchScore: score,
-          matchReasons: matchReasons.isEmpty
-              ? ['General service opportunity']
-              : matchReasons.take(2).toList(),
-          category: opp['category'] as String,
-          burdenAlignment: oppBurdens.firstWhere(
-            (b) => tendencies.any((t) => t.toLowerCase().contains(b)),
-            orElse: () => '',
+        matches.add(
+          ServiceMatch(
+            opportunityId: opp['id'] as String,
+            title: opp['title'] as String,
+            matchScore: score,
+            matchReasons: matchReasons.isEmpty
+                ? ['General service opportunity']
+                : matchReasons.take(2).toList(),
+            category: opp['category'] as String,
+            burdenAlignment: oppBurdens.firstWhere(
+              (b) => tendencies.any((t) => t.toLowerCase().contains(b)),
+              orElse: () => '',
+            ),
+            tendencyAlignment: oppTendencies.firstWhere(
+              (t) => tendencies.any((ten) => ten.toLowerCase().contains(t)),
+              orElse: () => '',
+            ),
           ),
-          tendencyAlignment: oppTendencies.firstWhere(
-            (t) => tendencies.any((ten) => ten.toLowerCase().contains(t)),
-            orElse: () => '',
-          ),
-        ));
+        );
       }
     }
 
@@ -950,55 +975,68 @@ class MissionNotifier extends StateNotifier<MissionState> {
 
     // Add completed mission actions
     for (final action in state.completedActions) {
-      events.add(ImpactTimelineEvent(
-        id: 'action_${action.id}',
-        date: action.completedAt!,
-        type: ImpactType.action,
-        title: action.title,
-        description: action.description,
-        personName: action.personName,
-        focusType: action.focus,
-      ));
+      events.add(
+        ImpactTimelineEvent(
+          id: 'action_${action.id}',
+          date: action.completedAt!,
+          type: ImpactType.action,
+          title: action.title,
+          description: action.description,
+          personName: action.personName,
+          focusType: action.focus,
+        ),
+      );
     }
 
     // Add generosity records
     for (final record in state.generosityRecords) {
-      events.add(ImpactTimelineEvent(
-        id: 'generosity_${record.id}',
-        date: record.date,
-        type: ImpactType.generosity,
-        title: '${record.type.label}: ${record.description}',
-        description: record.impactDescription ?? 'Given to ${record.recipientName ?? 'someone in need'}',
-        recipientName: record.recipientName,
-        category: record.category,
-      ));
+      events.add(
+        ImpactTimelineEvent(
+          id: 'generosity_${record.id}',
+          date: record.date,
+          type: ImpactType.generosity,
+          title: '${record.type.label}: ${record.description}',
+          description:
+              record.impactDescription ??
+              'Given to ${record.recipientName ?? 'someone in need'}',
+          recipientName: record.recipientName,
+          category: record.category,
+        ),
+      );
     }
 
     // Add evangelism conversations
     for (final conversation in state.evangelismConversations) {
-      events.add(ImpactTimelineEvent(
-        id: 'evangelism_${conversation.id}',
-        date: conversation.date,
-        type: ImpactType.evangelism,
-        title: 'Shared faith with ${conversation.personName}',
-        description: conversation.contentShared ?? 'Gospel conversation',
-        personName: conversation.personName,
-        isOngoing: conversation.isOngoing,
-        decisionMade: conversation.decisionMade,
-      ));
+      events.add(
+        ImpactTimelineEvent(
+          id: 'evangelism_${conversation.id}',
+          date: conversation.date,
+          type: ImpactType.evangelism,
+          title: 'Shared faith with ${conversation.personName}',
+          description: conversation.contentShared ?? 'Gospel conversation',
+          personName: conversation.personName,
+          isOngoing: conversation.isOngoing,
+          decisionMade: conversation.decisionMade,
+        ),
+      );
     }
 
     // Add person commitment milestones
-    for (final commitment in state.personCommitments.where((c) => c.committedActions.isNotEmpty)) {
-      events.add(ImpactTimelineEvent(
-        id: 'commitment_${commitment.id}',
-        date: commitment.lastContactAt ?? commitment.createdAt,
-        type: ImpactType.relationship,
-        title: 'Helped ${commitment.name}',
-        description: '${commitment.committedActions.length} actions completed',
-        personName: commitment.name,
-        relationship: commitment.relationship,
-      ));
+    for (final commitment in state.personCommitments.where(
+      (c) => c.committedActions.isNotEmpty,
+    )) {
+      events.add(
+        ImpactTimelineEvent(
+          id: 'commitment_${commitment.id}',
+          date: commitment.lastContactAt ?? commitment.createdAt,
+          type: ImpactType.relationship,
+          title: 'Helped ${commitment.name}',
+          description:
+              '${commitment.committedActions.length} actions completed',
+          personName: commitment.name,
+          relationship: commitment.relationship,
+        ),
+      );
     }
 
     // Sort by date descending (most recent first)
@@ -1038,12 +1076,7 @@ class ImpactTimelineEvent {
   final String? relationship;
 }
 
-enum ImpactType {
-  action,
-  generosity,
-  evangelism,
-  relationship,
-}
+enum ImpactType { action, generosity, evangelism, relationship }
 
 extension ImpactTypeX on ImpactType {
   String get label {

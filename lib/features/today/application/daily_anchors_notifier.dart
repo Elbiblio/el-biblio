@@ -17,10 +17,10 @@ class DailyAnchorsNotifier extends StateNotifier<DailyAnchors> {
     required this.repository,
     required this.syncRepository,
     SpiritualPulseSyncRepository? spiritualPulseSyncRepository,
-  })  : _spiritualPulseSyncRepository = spiritualPulseSyncRepository,
-        super(DailyAnchors.empty(DateTime.now())) {
+  }) : _spiritualPulseSyncRepository = spiritualPulseSyncRepository,
+       super(DailyAnchors.empty(DateTime.now())) {
     loadToday();
-    
+
     // Listen to virtue changes and reload anchors
     ref.listen(settingsProvider, (previous, next) {
       if (previous?.primaryVirtue != next.primaryVirtue) {
@@ -58,7 +58,10 @@ class DailyAnchorsNotifier extends StateNotifier<DailyAnchors> {
     if (updated.isCompleted) {
       await ref
           .read(settingsProvider.notifier)
-          .registerDailyCheckIn(DateTime.now(), integrityScore: updated.integrityPoints);
+          .registerDailyCheckIn(
+            DateTime.now(),
+            integrityScore: updated.integrityPoints,
+          );
     }
 
     if (completed) {
@@ -74,10 +77,8 @@ class DailyAnchorsNotifier extends StateNotifier<DailyAnchors> {
 
   Future<void> startCommitment() async {
     final now = DateTime.now();
-    final updatedHabit = state.habit.copyWith(
-      commitmentStartTime: now,
-    );
-    
+    final updatedHabit = state.habit.copyWith(commitmentStartTime: now);
+
     final updatedAnchors = state.copyWith(habit: updatedHabit);
     await repository.save(updatedAnchors);
     state = updatedAnchors;
@@ -100,6 +101,7 @@ class DailyAnchorsNotifier extends StateNotifier<DailyAnchors> {
     await notificationService.showCommitmentLockInNotification(
       commitmentTitle: updatedHabit.displayTitle,
       virtueType: state.coreVirtue.type,
+      requestPermissionIfNeeded: true,
     );
   }
 
@@ -109,7 +111,7 @@ class DailyAnchorsNotifier extends StateNotifier<DailyAnchors> {
       commitmentCompletedTime: now,
       isCompleted: succeeded,
     );
-    
+
     final updatedAnchors = state.copyWith(habit: updatedHabit);
     await repository.save(updatedAnchors);
     state = updatedAnchors;
@@ -150,7 +152,8 @@ class DailyAnchorsNotifier extends StateNotifier<DailyAnchors> {
     // For now, we'll just log it and potentially integrate with daily anchors
     final settings = ref.read(settingsProvider);
     final dayKey = _dayKey(state.date);
-    final current = settings.spiritualPulseByDate[dayKey] ?? SpiritualPulseResponse.empty();
+    final current =
+        settings.spiritualPulseByDate[dayKey] ?? SpiritualPulseResponse.empty();
     final entry = SpiritualPulseEntry(
       type: type,
       timestamp: DateTime.now(),
@@ -167,7 +170,9 @@ class DailyAnchorsNotifier extends StateNotifier<DailyAnchors> {
       followUpAnswer: followUpAnswer ?? current.followUpAnswer,
       virtueFocus: virtueFocus ?? current.virtueFocus,
     );
-    await ref.read(settingsProvider.notifier).setSpiritualPulseForDate(state.date, response);
+    await ref
+        .read(settingsProvider.notifier)
+        .setSpiritualPulseForDate(state.date, response);
 
     // Sync to backend if available
     if (_spiritualPulseSyncRepository != null) {

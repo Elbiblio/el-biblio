@@ -449,9 +449,14 @@ class NotificationService {
     String? payload,
     List<String>? actionLabels,
     DateTimeComponents? matchDateTimeComponents,
+    bool requestPermissionIfNeeded = false,
   }) async {
     try {
-      await initialize();
+      if (!await _ensureNotificationPermission(
+        requestIfNeeded: requestPermissionIfNeeded,
+      )) {
+        return;
+      }
 
       final actions = actionLabels
           ?.asMap()
@@ -631,9 +636,14 @@ class NotificationService {
   Future<void> showCommitmentLockInNotification({
     required String commitmentTitle,
     VirtueType? virtueType,
+    bool requestPermissionIfNeeded = false,
   }) async {
     try {
-      await initialize();
+      if (!await _ensureNotificationPermission(
+        requestIfNeeded: requestPermissionIfNeeded,
+      )) {
+        return;
+      }
 
       // Create virtue icon bitmap if virtue type is provided
       AndroidBitmap? virtueIconBitmap;
@@ -742,9 +752,14 @@ class NotificationService {
     required String eveningTime,
     required bool morningEnabled,
     required bool eveningEnabled,
+    bool requestPermissionIfNeeded = false,
   }) async {
     try {
-      await initialize();
+      if (!await _ensureNotificationPermission(
+        requestIfNeeded: requestPermissionIfNeeded,
+      )) {
+        return;
+      }
 
       // Cancel existing reminders first
       await cancelDailyReminders();
@@ -793,9 +808,14 @@ class NotificationService {
   Future<void> scheduleWeeklyPartnerCheckInReminder({
     required String partnerName,
     bool isAiCompanion = false,
+    bool requestPermissionIfNeeded = false,
   }) async {
     try {
-      await initialize();
+      if (!await _ensureNotificationPermission(
+        requestIfNeeded: requestPermissionIfNeeded,
+      )) {
+        return;
+      }
       await _localNotificationsPlugin.cancel(id: weeklyPartnerCheckInId);
 
       final now = tz.TZDateTime.now(tz.local);
@@ -888,9 +908,14 @@ class NotificationService {
     required String deliveryTime,
     required String verseReference,
     required String verseText,
+    bool requestPermissionIfNeeded = false,
   }) async {
     try {
-      await initialize();
+      if (!await _ensureNotificationPermission(
+        requestIfNeeded: requestPermissionIfNeeded,
+      )) {
+        return;
+      }
       await _localNotificationsPlugin.cancel(id: companionDailyVerseId);
 
       final scheduledDateTime = _parseTime(deliveryTime);
@@ -970,11 +995,13 @@ class NotificationService {
     required String partnerName,
     required String cadence,
     bool isAiCompanion = false,
+    bool requestPermissionIfNeeded = false,
   }) async {
     if (cadence == 'weekly') {
       await scheduleWeeklyPartnerCheckInReminder(
         partnerName: partnerName,
         isAiCompanion: isAiCompanion,
+        requestPermissionIfNeeded: requestPermissionIfNeeded,
       );
       return;
     }
@@ -983,7 +1010,11 @@ class NotificationService {
     // the shared id rather than two cadences firing in parallel.
     bool cancelled = false;
     try {
-      await initialize();
+      if (!await _ensureNotificationPermission(
+        requestIfNeeded: requestPermissionIfNeeded,
+      )) {
+        return;
+      }
       await _localNotificationsPlugin.cancel(id: weeklyPartnerCheckInId);
       cancelled = true;
 
@@ -1238,10 +1269,20 @@ class NotificationService {
     return false;
   }
 
+  Future<bool> _ensureNotificationPermission({
+    required bool requestIfNeeded,
+  }) async {
+    await initialize();
+    if (!_platformAvailable) return false;
+    return requestIfNeeded
+        ? await requestPermissions()
+        : await areNotificationsEnabled();
+  }
+
   Future<bool> areNotificationsEnabled() async {
     try {
       await initialize();
-      if (!_platformAvailable) return true;
+      if (!_platformAvailable) return false;
       if (Platform.isAndroid) {
         final implementation = _localNotificationsPlugin
             .resolvePlatformSpecificImplementation<
@@ -1368,9 +1409,14 @@ class NotificationService {
     required String journeyTitle,
     required int currentDay,
     required int totalDays,
+    bool requestPermissionIfNeeded = false,
   }) async {
     try {
-      await initialize();
+      if (!await _ensureNotificationPermission(
+        requestIfNeeded: requestPermissionIfNeeded,
+      )) {
+        return;
+      }
 
       const androidDetails = AndroidNotificationDetails(
         'partner_check_ins',
@@ -1446,9 +1492,14 @@ class NotificationService {
     required int currentDay,
     required int totalDays,
     String? prayerIntention,
+    bool requestPermissionIfNeeded = false,
   }) async {
     try {
-      await initialize();
+      if (!await _ensureNotificationPermission(
+        requestIfNeeded: requestPermissionIfNeeded,
+      )) {
+        return;
+      }
 
       final subText = 'Day $currentDay of $totalDays';
       final expandedBody = prayerIntention != null && prayerIntention.isNotEmpty
@@ -1552,10 +1603,12 @@ class NotificationService {
     String? planWhen,
     String? planObstacle,
     AccountabilityTone accountabilityTone = AccountabilityTone.balanced,
+    bool requestPermissionIfNeeded = false,
   }) async {
     try {
-      await initialize();
-      if (!_platformAvailable) {
+      if (!await _ensureNotificationPermission(
+        requestIfNeeded: requestPermissionIfNeeded,
+      )) {
         return false;
       }
       await cancelCommitmentNudges(commitmentId);
@@ -1741,9 +1794,14 @@ class NotificationService {
     required String journeyTitle,
     required int milestoneDay,
     required String newRequirement,
+    bool requestPermissionIfNeeded = false,
   }) async {
     try {
-      await initialize();
+      if (!await _ensureNotificationPermission(
+        requestIfNeeded: requestPermissionIfNeeded,
+      )) {
+        return;
+      }
 
       final androidDetails = AndroidNotificationDetails(
         'journey_milestones',
@@ -1803,9 +1861,14 @@ class NotificationService {
     required String journeyTitle,
     required int durationDays,
     required String virtueAlignment,
+    bool requestPermissionIfNeeded = false,
   }) async {
     try {
-      await initialize();
+      if (!await _ensureNotificationPermission(
+        requestIfNeeded: requestPermissionIfNeeded,
+      )) {
+        return;
+      }
 
       final androidDetails = AndroidNotificationDetails(
         'journey_completions',

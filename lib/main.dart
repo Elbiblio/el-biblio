@@ -13,6 +13,7 @@ import 'package:timeago/timeago.dart' as timeago;
 import 'core/di/app_providers.dart';
 import 'core/router/app_router.dart';
 import 'core/services/notifications/notification_service.dart';
+import 'core/services/notifications/push_notification_service.dart';
 import 'core/services/xp_service.dart';
 import 'core/storage/hive_service.dart';
 import 'core/theme/app_theme.dart';
@@ -59,6 +60,7 @@ Future<void> _initializeFirebase() async {
 
   try {
     await Firebase.initializeApp().timeout(const Duration(seconds: 8));
+    PushNotificationService.registerBackgroundHandler();
   } on TimeoutException catch (e) {
     debugPrint('Firebase initialization timed out (continuing): $e');
   } catch (e) {

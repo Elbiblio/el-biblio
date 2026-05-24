@@ -275,6 +275,7 @@ class VisionNotifier extends StateNotifier<VisionState> {
           planWhen: membership.firstCheckInPlanWhen ?? planWhen,
           planObstacle: membership.firstCheckInPlanObstacle ?? planObstacle,
           accountabilityTone: tone,
+          requestPermissionIfNeeded: true,
         );
         if (!scheduled) {
           notificationWarning =
@@ -320,6 +321,7 @@ class VisionNotifier extends StateNotifier<VisionState> {
         planObstacle:
             membership.firstCheckInPlanObstacle ?? localContext?.obstacle,
         accountabilityTone: tone,
+        requestPermissionIfNeeded: true,
       );
       state = state.copyWith(
         activeCommitment: membership,

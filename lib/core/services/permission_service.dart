@@ -15,13 +15,11 @@ class PermissionService {
     final Map<String, bool> results = {};
 
     try {
-      // Audio recording permission (for speech-to-text in journal)
+      // Audio recording permission. Keep this scoped to meditation/voice use;
+      // contacts are requested only from invite/contact flows.
       results['record_audio'] = await _requestPermission(
         ph.Permission.microphone,
       );
-
-      // Contacts permission (for social features)
-      results['contacts'] = await _requestPermission(ph.Permission.contacts);
 
       // Platform-specific permissions
       if (Platform.isAndroid) {
@@ -47,9 +45,6 @@ class PermissionService {
     try {
       // Audio recording permission
       status['record_audio'] = await ph.Permission.microphone.status;
-
-      // Contacts permission
-      status['contacts'] = await ph.Permission.contacts.status;
 
       // Platform-specific
       if (Platform.isAndroid) {
@@ -81,7 +76,7 @@ class PermissionService {
     final status = await checkMeditationPermissions();
 
     // Critical permissions for core functionality
-    final criticalPermissions = ['record_audio', 'contacts'];
+    final criticalPermissions = ['record_audio'];
 
     for (final permission in criticalPermissions) {
       final permissionStatus = status[permission];

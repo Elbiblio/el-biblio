@@ -79,16 +79,18 @@ class CommitmentJourneyNotifier extends StateNotifier<CommitmentJourneyState> {
     state = state.copyWith(isLoading: true, clearError: true);
     try {
       final journey = await repository.getActiveJourney();
-      state = state.copyWith(
-        activeJourney: journey,
-        isLoading: false,
-      );
+      state = state.copyWith(activeJourney: journey, isLoading: false);
       // Reschedule tonight's check-in notification on every app restore so
       // the reminder survives device reboots and notification clearing.
       if (journey != null && journey.isActive) {
         try {
-          final journeyDefinition = await repository.getJourneyById(journey.journeyId);
-          await _scheduleCheckInNotifications(journeyDefinition, journey.prayerIntention);
+          final journeyDefinition = await repository.getJourneyById(
+            journey.journeyId,
+          );
+          await _scheduleCheckInNotifications(
+            journeyDefinition,
+            journey.prayerIntention,
+          );
         } catch (e) {
           log('Failed to reschedule check-in notification on restore: $e');
         }
@@ -136,7 +138,11 @@ class CommitmentJourneyNotifier extends StateNotifier<CommitmentJourneyState> {
       // Schedule evening check-in notifications
       // 6pm partner check-in, 8pm user fallback
       final journeyDefinition = await repository.getJourneyById(journeyId);
-      await _scheduleCheckInNotifications(journeyDefinition, prayerIntention);
+      await _scheduleCheckInNotifications(
+        journeyDefinition,
+        prayerIntention,
+        requestPermissionIfNeeded: true,
+      );
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString());
     }
@@ -151,7 +157,7 @@ class CommitmentJourneyNotifier extends StateNotifier<CommitmentJourneyState> {
     state = state.copyWith(isLoading: true, clearError: true);
     try {
       final updated = await repository.checkInToday();
-      
+
       // Check if we just reached a milestone
       final journey = await repository.getJourneyById(active.journeyId);
       int? milestoneReached;
@@ -168,7 +174,9 @@ class CommitmentJourneyNotifier extends StateNotifier<CommitmentJourneyState> {
 
       // Show milestone notification if reached
       if (milestoneReached != null) {
-        final milestone = journey.milestones.firstWhere((m) => m.day == milestoneReached);
+        final milestone = journey.milestones.firstWhere(
+          (m) => m.day == milestoneReached,
+        );
         await notificationService.showMilestoneReachedNotification(
           journeyTitle: journey.title,
           milestoneDay: milestoneReached,
@@ -230,10 +238,7 @@ class CommitmentJourneyNotifier extends StateNotifier<CommitmentJourneyState> {
       // Cancel all scheduled notifications
       await notificationService.cancelJourneyNotifications();
 
-      state = state.copyWith(
-        clearActiveJourney: true,
-        isLoading: false,
-      );
+      state = state.copyWith(clearActiveJourney: true, isLoading: false);
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString());
     }
@@ -257,15 +262,18 @@ class CommitmentJourneyNotifier extends StateNotifier<CommitmentJourneyState> {
     try {
       final journey = await getCurrentJourneyDetails();
       final currentAnchors = dailyAnchorsNotifier!.state;
-      
-      final requirement = journey.requirementForDay(state.activeJourney!.currentDay);
-      
+
+      final requirement = journey.requirementForDay(
+        state.activeJourney!.currentDay,
+      );
+
       final updatedHabit = currentAnchors.habit.copyWith(
         commitmentTitle: journey.title,
-        commitmentDescription: '$requirement\n\nIntention: ${state.activeJourney!.prayerIntention}',
+        commitmentDescription:
+            '$requirement\n\nIntention: ${state.activeJourney!.prayerIntention}',
         // No duration minutes for journey-based commitments - they're all-day practices
       );
-      
+
       final updatedAnchors = currentAnchors.copyWith(habit: updatedHabit);
       await dailyAnchorsNotifier!.repository.save(updatedAnchors);
       dailyAnchorsNotifier!.state = updatedAnchors;
@@ -332,8 +340,9 @@ class CommitmentJourneyNotifier extends StateNotifier<CommitmentJourneyState> {
   /// Partner is asked at 6pm, user gets fallback at 8pm if no partner response.
   Future<void> _scheduleCheckInNotifications(
     CommitmentJourney journey,
-    String prayerIntention,
-  ) async {
+    String prayerIntention, {
+    bool requestPermissionIfNeeded = false,
+  }) async {
     try {
       final active = state.activeJourney;
       if (active == null) return;
@@ -345,6 +354,7 @@ class CommitmentJourneyNotifier extends StateNotifier<CommitmentJourneyState> {
         currentDay: active.currentDay,
         totalDays: journey.duration.days,
         prayerIntention: prayerIntention,
+        requestPermissionIfNeeded: requestPermissionIfNeeded,
       );
 
       // When partner system is implemented:
