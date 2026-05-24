@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -48,7 +50,7 @@ class SettingsNotifier extends StateNotifier<AppSettings> {
 
   Future<void> _hydrate() async {
     state = await _storage.load();
-    _syncNotifications(state);
+    unawaited(_syncNotifications(state));
   }
 
   /// Persist settings with a single retry on failure.
@@ -67,7 +69,7 @@ class SettingsNotifier extends StateNotifier<AppSettings> {
     final next = AppSettings.defaults();
     state = next;
     await _storage.save(next);
-    _syncNotifications(next);
+    unawaited(_syncNotifications(next));
   }
 
   Future<void> markRecalibrationPromptShown(DateTime day) async {
@@ -185,7 +187,14 @@ class SettingsNotifier extends StateNotifier<AppSettings> {
 
     state = newSettings;
     await _persistWithRetry(newSettings);
-    _syncNotifications(newSettings);
+    unawaited(
+      _syncNotifications(
+        newSettings,
+        requestPermissions:
+            newSettings.morningReminderEnabled ||
+            newSettings.eveningReminderEnabled,
+      ),
+    );
     _analytics.track(
       AppAnalyticsEvent.onboardingCompleted,
       properties: {
@@ -287,7 +296,14 @@ class SettingsNotifier extends StateNotifier<AppSettings> {
 
     state = newSettings;
     await _persistWithRetry(newSettings);
-    _syncNotifications(newSettings);
+    unawaited(
+      _syncNotifications(
+        newSettings,
+        requestPermissions:
+            newSettings.morningReminderEnabled ||
+            newSettings.eveningReminderEnabled,
+      ),
+    );
     _analytics.track(
       AppAnalyticsEvent.onboardingCompleted,
       properties: {
@@ -546,7 +562,7 @@ class SettingsNotifier extends StateNotifier<AppSettings> {
     );
 
     // Reschedule notifications to cancel the 4pm reminder since they've checked in
-    _syncNotifications(next);
+    unawaited(_syncNotifications(next));
   }
 
   Future<void> markCommitmentWelcomeSeen() async {
@@ -875,25 +891,47 @@ class SettingsNotifier extends StateNotifier<AppSettings> {
     );
     state = next;
     await _storage.save(next);
-    await _syncNotifications(next);
+    await _syncNotifications(
+      next,
+      requestPermissions:
+          morningReminderEnabled == true || eveningReminderEnabled == true,
+    );
   }
 
-  Future<void> _syncNotifications(AppSettings settings) async {
-    final notificationService = NotificationService();
+  Future<void> _syncNotifications(
+    AppSettings settings, {
+    bool requestPermissions = false,
+  }) async {
+    try {
+      final notificationService = NotificationService();
+      final wantsDailyReminders =
+          settings.morningReminderEnabled || settings.eveningReminderEnabled;
+      final wantsAnyNotification =
+          wantsDailyReminders || settings.onboardingCompleted;
 
-    // Check permissions before scheduling
-    await notificationService.requestPermissions();
-    // For now, we just continue with scheduling since permissions are handled differently
+      final notificationsAllowed = requestPermissions && wantsAnyNotification
+          ? await notificationService.requestPermissions()
+          : await notificationService.areNotificationsEnabled();
 
-    await notificationService.scheduleDailyReminders(
-      morningTime: settings.morningTime,
-      eveningTime: settings.eveningTime,
-      morningEnabled: settings.morningReminderEnabled,
-      eveningEnabled: settings.eveningReminderEnabled,
-    );
+      if (!notificationsAllowed) {
+        await notificationService.cancelDailyReminders();
+        await notificationService.cancelNotification(3);
+        return;
+      }
 
-    // 4pm Check-in Reminder (if user hasn't checked in today)
-    await _scheduleCheckInReminder(settings, notificationService);
+      await notificationService.scheduleDailyReminders(
+        morningTime: settings.morningTime,
+        eveningTime: settings.eveningTime,
+        morningEnabled: settings.morningReminderEnabled,
+        eveningEnabled: settings.eveningReminderEnabled,
+      );
+
+      // 4pm Check-in Reminder (if user hasn't checked in today)
+      await _scheduleCheckInReminder(settings, notificationService);
+    } catch (e) {
+      // Notification sync is supportive, never launch-critical.
+      // Permission prompts are only requested from explicit reminder actions.
+    }
   }
 
   Future<void> _scheduleCheckInReminder(

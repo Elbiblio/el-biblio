@@ -125,6 +125,24 @@ void main() {
       expect(cleared.firstCheckInPlanObstacle, isNull);
     });
 
+    test('daily reminders default off for a fresh install', () {
+      final settings = AppSettings.defaults();
+
+      expect(settings.morningReminderEnabled, isFalse);
+      expect(settings.eveningReminderEnabled, isFalse);
+    });
+
+    test('missing reminder keys rehydrate as disabled', () {
+      final raw = AppSettings.defaults().toMap()
+        ..remove('morningReminderEnabled')
+        ..remove('eveningReminderEnabled');
+
+      final restored = AppSettings.fromMap(raw);
+
+      expect(restored.morningReminderEnabled, isFalse);
+      expect(restored.eveningReminderEnabled, isFalse);
+    });
+
     test('accountability tone and monthly review metadata round-trip', () {
       final startedAt = DateTime.utc(2026, 5, 1, 9);
       final nextReviewAt = DateTime.utc(2026, 6, 1, 9);

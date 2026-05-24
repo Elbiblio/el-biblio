@@ -164,8 +164,8 @@ class AppSettings {
       lifestyle: 'Student',
       morningTime: '07:30',
       eveningTime: '21:00',
-      morningReminderEnabled: true,
-      eveningReminderEnabled: true,
+      morningReminderEnabled: false,
+      eveningReminderEnabled: false,
       primaryVirtue: VirtueType.humility,
       streakCount: 0,
       longestStreakCount: 0,
@@ -281,8 +281,8 @@ class AppSettings {
       lifestyle: map['lifestyle'] as String? ?? 'Student',
       morningTime: map['morningTime'] as String? ?? '07:30',
       eveningTime: map['eveningTime'] as String? ?? '21:00',
-      morningReminderEnabled: map['morningReminderEnabled'] as bool? ?? true,
-      eveningReminderEnabled: map['eveningReminderEnabled'] as bool? ?? true,
+      morningReminderEnabled: map['morningReminderEnabled'] as bool? ?? false,
+      eveningReminderEnabled: map['eveningReminderEnabled'] as bool? ?? false,
       primaryVirtue:
           VirtueTypeX.fromStorage(map['primaryVirtue'] as String?) ??
           VirtueType.humility,

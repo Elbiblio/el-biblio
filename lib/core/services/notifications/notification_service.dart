@@ -95,9 +95,9 @@ class NotificationService {
       );
 
       final iosInitSettings = DarwinInitializationSettings(
-        requestAlertPermission: true,
-        requestBadgePermission: true,
-        requestSoundPermission: true,
+        requestAlertPermission: false,
+        requestBadgePermission: false,
+        requestSoundPermission: false,
         notificationCategories: [
           DarwinNotificationCategory(
             _dailyCheckInCategory,
@@ -1255,12 +1255,12 @@ class NotificationService {
               IOSFlutterLocalNotificationsPlugin
             >();
         final permissions = await implementation?.checkPermissions();
-        return permissions?.isEnabled ?? true;
+        return permissions?.isEnabled ?? false;
       }
     } catch (e) {
       debugPrint('NotificationService: Error checking permissions: $e');
     }
-    return true;
+    return false;
   }
 
   Stream<String> get pushTokenStream => const Stream.empty();

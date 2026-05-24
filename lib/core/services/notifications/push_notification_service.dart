@@ -24,20 +24,21 @@ class PushNotificationService implements PushNotificationGateway {
   PushNotificationService._();
 
   final FirebaseMessaging _firebaseMessaging = FirebaseMessaging.instance;
-  final FlutterLocalNotificationsPlugin _localNotifications = FlutterLocalNotificationsPlugin();
-  
+  final FlutterLocalNotificationsPlugin _localNotifications =
+      FlutterLocalNotificationsPlugin();
+
   bool _initialized = false;
   String? _currentToken;
   StreamSubscription<String>? _tokenSubscription;
   StreamSubscription<RemoteMessage>? _messageSubscription;
 
   // Callbacks for handling push notifications
-  final StreamController<RemoteMessage> _messageStreamController = 
+  final StreamController<RemoteMessage> _messageStreamController =
       StreamController<RemoteMessage>.broadcast();
   @override
   Stream<RemoteMessage> get messageStream => _messageStreamController.stream;
 
-  final StreamController<String> _tokenStreamController = 
+  final StreamController<String> _tokenStreamController =
       StreamController<String>.broadcast();
   @override
   Stream<String> get tokenStream => _tokenStreamController.stream;
@@ -56,9 +57,6 @@ class PushNotificationService implements PushNotificationGateway {
         // Don't rethrow - continue without push notifications
         return;
       }
-      
-      // Request notification permissions
-      await _requestPermissions();
 
       // Get initial message if app was opened from notification
       final initialMessage = await _firebaseMessaging.getInitialMessage();
@@ -67,16 +65,26 @@ class PushNotificationService implements PushNotificationGateway {
       }
 
       // Handle messages when app is in foreground
-      _messageSubscription = FirebaseMessaging.onMessage.listen(_handleForegroundMessage);
+      _messageSubscription = FirebaseMessaging.onMessage.listen(
+        _handleForegroundMessage,
+      );
 
       // Handle messages when app is in background but opened
       FirebaseMessaging.onMessageOpenedApp.listen(_handleMessage);
 
       // Handle background messages
-      FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+      FirebaseMessaging.onBackgroundMessage(
+        _firebaseMessagingBackgroundHandler,
+      );
 
-      // Get and monitor token changes
-      await _initializeToken();
+      if (await _canInitializeTokenWithoutPrompt()) {
+        await _initializeToken();
+      } else {
+        debugPrint(
+          'PushNotificationService: notification permission not granted; '
+          'skipping FCM token initialization.',
+        );
+      }
 
       _initialized = true;
     } catch (e) {
@@ -100,6 +108,24 @@ class PushNotificationService implements PushNotificationGateway {
     return settings.authorizationStatus == AuthorizationStatus.authorized;
   }
 
+  Future<bool> requestPermissions() async {
+    final granted = await _requestPermissions();
+    if (granted) {
+      await _initializeToken();
+    }
+    return granted;
+  }
+
+  Future<bool> _canInitializeTokenWithoutPrompt() async {
+    if (!Platform.isIOS && !Platform.isMacOS) {
+      return true;
+    }
+
+    final settings = await _firebaseMessaging.getNotificationSettings();
+    return settings.authorizationStatus == AuthorizationStatus.authorized ||
+        settings.authorizationStatus == AuthorizationStatus.provisional;
+  }
+
   /// Initialize FCM token and monitor for changes
   Future<void> _initializeToken() async {
     try {
@@ -115,7 +141,6 @@ class PushNotificationService implements PushNotificationGateway {
         _currentToken = newToken;
         _tokenStreamController.add(newToken);
       });
-
     } catch (e) {
       debugPrint('Failed to get FCM token: $e');
     }
@@ -128,10 +153,10 @@ class PushNotificationService implements PushNotificationGateway {
   /// Handle foreground messages
   void _handleForegroundMessage(RemoteMessage message) {
     debugPrint('Received foreground message: ${message.messageId}');
-    
+
     // Show local notification for foreground messages
     _showLocalNotification(message);
-    
+
     // Add to message stream for app to handle
     _messageStreamController.add(message);
   }
