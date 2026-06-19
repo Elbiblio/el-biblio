@@ -1,13 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:permission_handler/permission_handler.dart' as permissions;
 
+import '../../../../core/constants/app_routes.dart';
 import '../../../../core/di/app_providers.dart';
 import '../../../../core/models/accountability_tone.dart';
 import '../../../../shared/widgets/safe_bottom_padding.dart';
 import '../../../../shared/widgets/premium_success_dialog.dart';
 import '../../../../shared/widgets/vision_illustration.dart';
+import '../../../commit/presentation/widgets/schedule_picker_widget.dart';
+import '../../../commit/application/overlay_notification_service.dart';
+import '../../../commit/presentation/widgets/schedule_agreement_sheet.dart';
+import '../../../commit/domain/models/commitment_schedule.dart';
 import '../../domain/vision_models.dart';
 import '../widgets/commitment_daily_load_widgets.dart';
 import '../widgets/vision_action_tile.dart';
@@ -133,7 +139,7 @@ class _CommitScreenState extends ConsumerState<CommitScreen> {
                       setState(() => _selectedReplacement = replacement),
                   onReview: _selectedHabitSeed == null
                       ? null
-                      : () {
+                        : () {
                           final plan = _bestHabitCommitment(
                             state.recommendedCommitments,
                           );
@@ -147,6 +153,18 @@ class _CommitScreenState extends ConsumerState<CommitScreen> {
                             planObstacle: _habitObstacleCopy(),
                           );
                         },
+                ),
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  height: 52,
+                  child: FilledButton.icon(
+                    onPressed: () => GoRouter.of(context).push(
+                      AppRoutes.commitmentWizard,
+                    ),
+                    icon: const Icon(LucideIcons.sparkles, size: 20),
+                    label: const Text('Start a flexible commitment'),
+                  ),
                 ),
               ],
             ],
@@ -493,8 +511,32 @@ class _CommitScreenState extends ConsumerState<CommitScreen> {
       title: 'Commitment joined',
       message:
           'Your reminders are ready. Let them help you return without shame.',
-      primaryActionText: 'Continue',
+      primaryActionText: 'Set check-in schedule',
     );
+    if (!mounted) return;
+
+    final schedule = await showModalBottomSheet<CommitmentSchedule>(
+      context: context,
+      useRootNavigator: true,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (context) => ScheduleAgreementSheet(
+        commitmentId: plan.id,
+      ),
+    );
+
+    if (!mounted || schedule == null) return;
+
+    try {
+      await overlayNotificationService.scheduleFromSchedule(
+        schedule: schedule,
+        commitmentTitle: plan.title,
+        category: plan.category,
+        totalDays: plan.durationDays,
+      );
+    } catch (e) {
+      debugPrint('CommitScreen: Failed to schedule notifications: $e');
+    }
   }
 }
 
@@ -1361,9 +1403,9 @@ class _CommitmentWalkthroughSheet extends StatefulWidget {
 class _CommitmentWalkthroughSheetState
     extends State<_CommitmentWalkthroughSheet> {
   late int _nudges;
-  late final TextEditingController _whenController;
   late final TextEditingController _obstacleController;
   bool _joining = false;
+  List<TimeOfDay> _scheduleTimes = [];
 
   @override
   void initState() {
@@ -1371,7 +1413,6 @@ class _CommitmentWalkthroughSheetState
     _nudges = widget.initialNudges
         .clamp(widget.plan.nudgeMin, widget.plan.nudgeMax)
         .toInt();
-    _whenController = TextEditingController(text: widget.initialPlanWhen);
     _obstacleController = TextEditingController(
       text: widget.initialPlanObstacle,
     );
@@ -1379,9 +1420,14 @@ class _CommitmentWalkthroughSheetState
 
   @override
   void dispose() {
-    _whenController.dispose();
     _obstacleController.dispose();
     super.dispose();
+  }
+
+  String _scheduleTimesFormatted() {
+    return _scheduleTimes
+        .map((t) => '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}')
+        .join(', ');
   }
 
   @override
@@ -1444,21 +1490,25 @@ class _CommitmentWalkthroughSheetState
           ),
           const SizedBox(height: 8),
           Text(
-            'Your first check-in plan',
+            'Your check-in schedule',
             style: theme.textTheme.titleMedium?.copyWith(
               fontWeight: FontWeight.w800,
             ),
           ),
-          const SizedBox(height: 8),
-          TextField(
-            controller: _whenController,
-            decoration: const InputDecoration(
-              labelText: 'When will you usually do this?',
-              hintText: 'After prayer, lunch, work, or bedtime',
-              border: OutlineInputBorder(),
+          const SizedBox(height: 4),
+          Text(
+            'Set 1-3 times for daily overlay check-ins.',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
             ),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
+          SchedulePickerWidget(
+            initialTimes: const [],
+            onChanged: (times) => setState(() => _scheduleTimes = times),
+            maxTimes: 3,
+          ),
+          const SizedBox(height: 14),
           TextField(
             controller: _obstacleController,
             minLines: 2,
@@ -1502,7 +1552,7 @@ class _CommitmentWalkthroughSheetState
                     setState(() => _joining = true);
                     await widget.onJoin(
                       _nudges,
-                      _whenController.text,
+                      _scheduleTimesFormatted(),
                       _obstacleController.text,
                     );
                     if (mounted) {

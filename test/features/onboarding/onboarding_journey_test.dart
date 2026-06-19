@@ -19,18 +19,18 @@ void main() {
       notifier.dispose();
     });
 
-    test('Onboarding starts at problem step', () {
-      expect(notifier.state.step, OnboardingStep.theProblem);
+    test('Onboarding starts at connect step', () {
+      expect(notifier.state.step, OnboardingStep.connect);
     });
 
     test('Onboarding can advance through steps', () {
-      expect(notifier.state.step, OnboardingStep.theProblem);
+      expect(notifier.state.step, OnboardingStep.connect);
 
       notifier.next();
-      expect(notifier.state.step, OnboardingStep.theSolution);
+      expect(notifier.state.step, OnboardingStep.commit);
 
       notifier.next();
-      expect(notifier.state.step, OnboardingStep.yourIdentity);
+      expect(notifier.state.step, OnboardingStep.speak);
 
       notifier.next();
       expect(notifier.state.step, OnboardingStep.yourAccount);
@@ -40,13 +40,13 @@ void main() {
       notifier.next();
       notifier.next();
 
-      expect(notifier.state.step, OnboardingStep.yourIdentity);
+      expect(notifier.state.step, OnboardingStep.speak);
 
       notifier.back();
-      expect(notifier.state.step, OnboardingStep.theSolution);
+      expect(notifier.state.step, OnboardingStep.commit);
 
       notifier.back();
-      expect(notifier.state.step, OnboardingStep.theProblem);
+      expect(notifier.state.step, OnboardingStep.connect);
     });
 
     test('Full compass derives age band, archetype, and spiritual age', () {

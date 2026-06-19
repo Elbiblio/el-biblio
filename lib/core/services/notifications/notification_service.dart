@@ -56,6 +56,10 @@ class NotificationService {
 
   final FlutterLocalNotificationsPlugin _localNotificationsPlugin =
       FlutterLocalNotificationsPlugin();
+
+  /// Exposed for use by [OverlayNotificationService] so both services share
+  /// the same plugin instance and initialization state.
+  FlutterLocalNotificationsPlugin get plugin => _localNotificationsPlugin;
   final Dio _dio = Dio();
 
   static const String _actionDidThis = 'action_0';
@@ -146,6 +150,43 @@ class NotificationService {
               ),
             ],
           ),
+          // Heads-up overlay category (from OverlayNotificationService)
+          DarwinNotificationCategory(
+            'commitment_heads_up',
+            actions: <DarwinNotificationAction>[
+              DarwinNotificationAction.plain(
+                'check_in',
+                'I did this',
+                options: {DarwinNotificationActionOption.foreground},
+              ),
+              DarwinNotificationAction.plain(
+                'skip',
+                'Skip',
+                options: <DarwinNotificationActionOption>{},
+              ),
+            ],
+          ),
+          // Full-screen overlay category (from OverlayNotificationService)
+          DarwinNotificationCategory(
+            'commitment_checkin',
+            actions: <DarwinNotificationAction>[
+              DarwinNotificationAction.plain(
+                'check_in',
+                'I did this',
+                options: {DarwinNotificationActionOption.foreground},
+              ),
+              DarwinNotificationAction.plain(
+                'skip',
+                'Skip',
+                options: <DarwinNotificationActionOption>{},
+              ),
+              DarwinNotificationAction.plain(
+                'talk',
+                'Talk to companion',
+                options: {DarwinNotificationActionOption.foreground},
+              ),
+            ],
+          ),
         ],
       );
 
@@ -207,6 +248,15 @@ class NotificationService {
           break;
         case _actionCommitmentDone:
           _handleIDidThis(context, payload);
+          break;
+        // Overlay notification actions (from OverlayNotificationService)
+        case 'check_in':
+          _handleIDidThis(context, payload);
+          break;
+        case 'skip':
+          break;
+        case 'talk':
+          _goToRoute(AppRoutes.companionChat);
           break;
         default:
           break;
@@ -345,6 +395,27 @@ class NotificationService {
           payload == 'journey_completed' ||
           payload == 'partner_check_in_request') {
         _goToRoute(AppRoutes.today);
+      } else if (payload.startsWith('commitment_overlay:')) {
+        final parts = payload.split(':');
+        final commitmentId = parts.length >= 2 ? parts[1] : '';
+        final category = parts.length >= 3
+            ? Uri.decodeQueryComponent(parts[2])
+            : 'growth';
+        final title = parts.length >= 4
+            ? Uri.decodeQueryComponent(parts[3])
+            : 'Check-in';
+        final body = parts.length >= 5
+            ? Uri.decodeQueryComponent(parts[4])
+            : 'Time for your commitment.';
+        _goToRoute(
+          '${AppRoutes.overlayNotification}'
+          '?commitmentId=$commitmentId'
+          '&category=${Uri.encodeQueryComponent(category)}'
+          '&title=${Uri.encodeQueryComponent(title)}'
+          '&body=${Uri.encodeQueryComponent(body)}',
+        );
+      } else if (payload.startsWith('heads_up:')) {
+        _goToRoute(AppRoutes.commit);
       } else if (payload == 'commitment_check_in' ||
           payload.startsWith('commitment_check_in:') ||
           payload == 'mvp_commitment_check_in' ||
@@ -539,6 +610,9 @@ class NotificationService {
     String? largeIcon,
     String? bigPicture,
     bool repeatDaily = false,
+    List<AndroidNotificationAction>? actionButtons,
+    String? groupKey,
+    String? groupSummary,
   }) async {
     try {
       await initialize();
@@ -557,13 +631,16 @@ class NotificationService {
         );
       }
 
+      final hasBigPicture = bigPicturePath != null;
+      final hasLargeIcon = largeIconPath != null;
+
       AndroidNotificationDetails androidDetails;
       DarwinNotificationDetails iosDetails;
 
-      if (bigPicturePath != null) {
-        final bigPictureStyleInformation = BigPictureStyleInformation(
+      if (hasBigPicture) {
+        final bigPictureStyle = BigPictureStyleInformation(
           FilePathAndroidBitmap(bigPicturePath),
-          largeIcon: largeIconPath != null
+          largeIcon: hasLargeIcon
               ? FilePathAndroidBitmap(largeIconPath)
               : null,
           contentTitle: title,
@@ -578,11 +655,16 @@ class NotificationService {
           channelDescription: 'Rich Notifications',
           importance: Importance.max,
           priority: Priority.high,
-          styleInformation: bigPictureStyleInformation,
+          styleInformation: bigPictureStyle,
+          actions: actionButtons,
+          groupKey: groupKey,
+          setAsGroupSummary: groupSummary != null,
+          groupAlertBehavior: GroupAlertBehavior.all,
         );
 
         iosDetails = DarwinNotificationDetails(
           attachments: [DarwinNotificationAttachment(bigPicturePath)],
+          threadIdentifier: groupKey,
         );
       } else {
         androidDetails = AndroidNotificationDetails(
@@ -591,15 +673,41 @@ class NotificationService {
           channelDescription: 'Standard Notifications',
           importance: Importance.max,
           priority: Priority.high,
-          largeIcon: largeIconPath != null
+          largeIcon: hasLargeIcon
               ? FilePathAndroidBitmap(largeIconPath)
               : null,
+          actions: actionButtons,
+          groupKey: groupKey,
+          setAsGroupSummary: groupSummary != null,
+          groupAlertBehavior: GroupAlertBehavior.all,
         );
 
         iosDetails = DarwinNotificationDetails(
-          attachments: largeIconPath != null
+          attachments: hasLargeIcon
               ? [DarwinNotificationAttachment(largeIconPath)]
               : null,
+          threadIdentifier: groupKey,
+        );
+      }
+
+      if (groupKey != null && groupSummary != null) {
+        final summaryAndroid = AndroidNotificationDetails(
+          channel,
+          channel,
+          channelDescription: 'Group Summary',
+          importance: Importance.max,
+          priority: Priority.high,
+          groupKey: groupKey,
+          setAsGroupSummary: true,
+          groupAlertBehavior: GroupAlertBehavior.all,
+        );
+        await _localNotificationsPlugin.show(
+          id: id + 1000000,
+          title: groupSummary,
+          body: null,
+          notificationDetails: NotificationDetails(
+            android: summaryAndroid,
+          ),
         );
       }
 

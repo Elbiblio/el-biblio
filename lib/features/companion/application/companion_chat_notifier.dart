@@ -102,6 +102,34 @@ class CompanionChatNotifier extends StateNotifier<CompanionChatState> {
     await _persist();
   }
 
+  /// Seed a failure admission conversation opener.
+  /// Called when user missed a stop-bad-habit commitment.
+  Future<void> seedFailureAdmissionOpener({
+    required String habitName,
+    required int missedDays,
+    required int totalDays,
+    required String commitmentTitle,
+  }) async {
+    state = state.copyWith(mode: 'failure_admission');
+
+    final opener = _buildAdmissionOpener(habitName, missedDays);
+    await seedAssistantOpener(opener);
+  }
+
+  String _buildAdmissionOpener(String habitName, int missedDays) {
+    final openers = [
+      'I see you missed your commitment regarding $habitName. '
+          'That takes courage to admit. What happened?',
+      'Thank you for being honest about $habitName. '
+          'Every saint has a past. Tell me about it.',
+      'I noticed you slipped on $habitName. '
+          'That\'s okay — this is part of the journey. What\'s on your heart?',
+      'You showed up to admit something about $habitName. '
+          'That\'s already a victory. Talk to me.',
+    ];
+    return openers[missedDays % openers.length];
+  }
+
   Future<void> sendUserMessage(String text, {Map<String, dynamic>? context}) async {
     final trimmed = text.trim();
     if (trimmed.isEmpty || state.isSending) return;

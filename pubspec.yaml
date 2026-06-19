@@ -85,6 +85,7 @@ flutter:
   assets:
     - assets/images/
     - assets/audio/
+    - assets/audio/ambient/
     - assets/audio/countdown/
     - assets/audio/prompts/
     - assets/fonts/

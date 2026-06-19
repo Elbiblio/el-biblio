@@ -16,6 +16,9 @@ import '../../features/assessment/presentation/weekly_assessment_screen.dart';
 import '../../features/bible/presentation/bible_library_screen.dart';
 import '../../features/bible/presentation/reading_plan_detail_screen.dart';
 import '../../features/bible/presentation/bible_screen.dart';
+import '../../features/home/presentation/screens/home_screen.dart';
+import '../../features/connect/presentation/screens/connect_screen.dart';
+import '../../features/speak/presentation/screens/speak_screen.dart';
 import '../../features/journal/presentation/journal_screen.dart';
 import '../../features/journal/presentation/note_editor_screen.dart';
 import '../../features/journal/presentation/note_reader_screen.dart';
@@ -65,6 +68,9 @@ import '../../features/alignment/presentation/screens/habit_assessment_screen.da
 import '../../features/alignment/presentation/screens/habit_tracker_screen.dart';
 import '../../features/alignment/presentation/screens/forty_day_setup_screen.dart';
 import '../../features/alignment/presentation/screens/forty_day_progress_screen.dart';
+import '../../features/commit/presentation/screens/overlay_notification_screen.dart';
+import '../../features/commit/presentation/screens/commitment_wizard_screen.dart';
+import '../../features/commit/domain/models/commitment_schedule.dart';
 import '../../features/alignment/presentation/screens/career_alignment_screen.dart';
 import '../../features/faith_questions/presentation/screens/faith_questions_hub_screen.dart';
 import '../../features/faith_questions/presentation/screens/faith_faq_screen.dart';
@@ -419,6 +425,21 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state, child) => AppShell(child: child),
         routes: [
           GoRoute(
+            path: AppRoutes.home,
+            pageBuilder: (context, state) =>
+                _fadePage(child: const HomeScreen()),
+          ),
+          GoRoute(
+            path: AppRoutes.connect,
+            pageBuilder: (context, state) =>
+                _fadePage(child: const ConnectScreen()),
+          ),
+          GoRoute(
+            path: AppRoutes.speak,
+            pageBuilder: (context, state) =>
+                _fadePage(child: const SpeakScreen()),
+          ),
+          GoRoute(
             path: AppRoutes.today,
             pageBuilder: (context, state) =>
                 _fadePage(child: const TodayScreen()),
@@ -598,6 +619,38 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           ),
         ],
       ),
+      GoRoute(
+        path: AppRoutes.commitmentWizard,
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) => const CommitmentWizardScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.overlayNotification,
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) {
+          final commitmentId = int.tryParse(state.uri.queryParameters['commitmentId'] ?? '') ?? 0;
+          final category = state.uri.queryParameters['category'] ?? 'growth';
+          final now = TimeOfDay.now();
+          final notification = OverlayNotification(
+            id: 0,
+            commitmentId: commitmentId,
+            scheduledTime: now,
+            type: 'check_in',
+            title: state.uri.queryParameters['title'] ?? 'Check-in',
+            body: state.uri.queryParameters['body'] ?? 'Time for your commitment.',
+            persistent: true,
+            actionButtons: const [
+              OverlayAction.checkIn,
+              OverlayAction.skip,
+              OverlayAction.talkToCompanion,
+            ],
+          );
+          return OverlayNotificationScreen(
+            notification: notification,
+            category: category,
+          );
+        },
+      ),
     ],
     redirect: (context, state) {
       final settings = ref.read(settingsProvider);
@@ -605,6 +658,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       final loc = state.matchedLocation;
       final isOnboarding = loc == AppRoutes.onboarding;
       final isPostOnboarding = loc == AppRoutes.postOnboarding;
+      final isOverlay = loc == AppRoutes.overlayNotification;
       final isInvitePreview =
           state.uri.pathSegments.length == 2 &&
           state.uri.pathSegments.first == 'invite';
@@ -622,21 +676,24 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         if (!settings.onboardingCompleted && !auth.isRestoredSession) {
           return AppRoutes.onboarding;
         }
-        return AppRoutes.today;
+        return AppRoutes.home;
       }
 
       // Guard: must complete onboarding first
       if (!settings.onboardingCompleted && !auth.isRestoredSession) {
-        return isOnboarding || isInvitePreview ? null : AppRoutes.onboarding;
+        return isOnboarding || isInvitePreview || isOverlay ? null : AppRoutes.onboarding;
       }
 
+      // Overlay notification — always allow
+      if (isOverlay) return null;
+
       if (isPostOnboarding) {
-        return AppRoutes.today;
+        return AppRoutes.home;
       }
 
       // Already completed — redirect away from onboarding screens
       if (isOnboarding || isPostOnboarding) {
-        return AppRoutes.today;
+        return AppRoutes.home;
       }
 
       return null;

@@ -104,6 +104,33 @@ class CelebrationService {
     );
   }
 
+  /// Play commitment milestone celebration (25/50/75%)
+  void playCommitmentMilestone(BuildContext context, {required int percent}) {
+    playCelebration(
+      context: context,
+      key: 'commitment_milestone_$percent',
+      type: CelebrationType.commitmentMilestone,
+    );
+  }
+
+  /// Play commitment completion celebration (100%)
+  void playCommitmentComplete(BuildContext context) {
+    playCelebration(
+      context: context,
+      key: 'commitment_complete',
+      type: CelebrationType.commitmentComplete,
+    );
+  }
+
+  /// Play streak milestone celebration
+  void playStreakMilestone(BuildContext context, {required int streakDays}) {
+    playCelebration(
+      context: context,
+      key: 'streak_$streakDays',
+      type: CelebrationType.streakMilestone,
+    );
+  }
+
   /// Dispose specific controller
   void disposeController(String key) {
     _controllers[key]?.dispose();
@@ -137,6 +164,15 @@ class CelebrationService {
       case CelebrationType.general:
         soundService.playGameSuccess();
         break;
+      case CelebrationType.commitmentMilestone:
+        soundService.playGameSuccess();
+        break;
+      case CelebrationType.commitmentComplete:
+        soundService.playOnboardingSuccess();
+        break;
+      case CelebrationType.streakMilestone:
+        soundService.playGameLevelUp();
+        break;
     }
   }
 
@@ -151,6 +187,12 @@ class CelebrationService {
       case CelebrationType.levelUp:
         return const Duration(seconds: 5);
       case CelebrationType.general:
+        return const Duration(seconds: 3);
+      case CelebrationType.commitmentMilestone:
+        return const Duration(seconds: 4);
+      case CelebrationType.commitmentComplete:
+        return const Duration(seconds: 6);
+      case CelebrationType.streakMilestone:
         return const Duration(seconds: 3);
     }
   }
@@ -167,6 +209,12 @@ class CelebrationService {
         return 150;
       case CelebrationType.general:
         return 40;
+      case CelebrationType.commitmentMilestone:
+        return 100;
+      case CelebrationType.commitmentComplete:
+        return 200;
+      case CelebrationType.streakMilestone:
+        return 60;
     }
   }
 
@@ -200,8 +248,31 @@ class CelebrationService {
         ];
       case CelebrationType.general:
         return [
-          const Color(0xFF2196F3), // Blue
-          const Color(0xFF4CAF50), // Green
+          const Color(0xFF2196F3),
+          const Color(0xFF4CAF50),
+        ];
+      case CelebrationType.commitmentMilestone:
+        return [
+          const Color(0xFFFFD700),
+          const Color(0xFFFFA500),
+          const Color(0xFF4CAF50),
+          const Color(0xFF81C784),
+        ];
+      case CelebrationType.commitmentComplete:
+        return [
+          const Color(0xFFFFD700),
+          const Color(0xFFFFA500),
+          const Color(0xFFFF69B4),
+          const Color(0xFF00CED1),
+          const Color(0xFF9370DB),
+          const Color(0xFF4CAF50),
+        ];
+      case CelebrationType.streakMilestone:
+        return [
+          const Color(0xFFFF4500),
+          const Color(0xFFFF6347),
+          const Color(0xFFFFD700),
+          const Color(0xFFFFA500),
         ];
     }
   }
@@ -214,6 +285,9 @@ enum CelebrationType {
   activity,
   levelUp,
   general,
+  commitmentMilestone,
+  commitmentComplete,
+  streakMilestone,
 }
 
 /// Widget to display confetti overlay

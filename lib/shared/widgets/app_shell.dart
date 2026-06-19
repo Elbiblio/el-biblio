@@ -188,41 +188,29 @@ class _MinimizedShellNav extends StatelessWidget {
 
   static const List<_ShellDestination> _destinations = [
     _ShellDestination(
-      label: 'Today',
-      route: AppRoutes.today,
-      icon: LucideIcons.sun,
+      label: 'Home',
+      route: AppRoutes.home,
+      icon: LucideIcons.home,
       accent: _ShellAccent.primary,
       includeRoot: true,
+    ),
+    _ShellDestination(
+      label: 'Connect',
+      route: AppRoutes.connect,
+      icon: LucideIcons.users,
+      accent: _ShellAccent.connect,
     ),
     _ShellDestination(
       label: 'Commit',
       route: AppRoutes.commit,
       icon: LucideIcons.flag,
-      accent: _ShellAccent.commitment,
+      accent: _ShellAccent.commit,
     ),
     _ShellDestination(
-      label: 'Reflect',
-      route: AppRoutes.reflect,
+      label: 'Speak',
+      route: AppRoutes.speak,
       icon: LucideIcons.messageCircle,
-      accent: _ShellAccent.identity,
-    ),
-    _ShellDestination(
-      label: 'Tribe',
-      route: AppRoutes.tribe,
-      icon: LucideIcons.users,
-      accent: _ShellAccent.distraction,
-    ),
-    _ShellDestination(
-      label: 'Grow',
-      route: AppRoutes.grow,
-      icon: LucideIcons.sprout,
-      accent: _ShellAccent.growth,
-    ),
-    _ShellDestination(
-      label: 'Profile',
-      route: AppRoutes.profile,
-      icon: LucideIcons.userCircle,
-      accent: _ShellAccent.primary,
+      accent: _ShellAccent.speak,
     ),
   ];
 
@@ -529,7 +517,7 @@ class _ShellMenuItem extends StatelessWidget {
   }
 }
 
-enum _ShellAccent { primary, commitment, identity, distraction, growth }
+enum _ShellAccent { primary, connect, commit, speak }
 
 class _ShellDestination {
   const _ShellDestination({
@@ -554,10 +542,9 @@ class _ShellDestination {
   Color resolveAccent(AppThemeTokens tokens) {
     return switch (accent) {
       _ShellAccent.primary => tokens.palette.primary,
-      _ShellAccent.commitment => tokens.palette.commitmentColor,
-      _ShellAccent.identity => tokens.palette.identityColor,
-      _ShellAccent.distraction => tokens.palette.distractionColor,
-      _ShellAccent.growth => tokens.palette.growthColor,
+      _ShellAccent.connect => tokens.palette.identityColor,
+      _ShellAccent.commit => tokens.palette.commitmentColor,
+      _ShellAccent.speak => tokens.palette.growthColor,
     };
   }
 }

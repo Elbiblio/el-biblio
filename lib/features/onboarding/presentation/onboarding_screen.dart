@@ -10,9 +10,9 @@ import '../application/onboarding_notifier.dart';
 import '../application/onboarding_state.dart';
 import '../../../shared/widgets/primary_button.dart';
 import 'widgets/responsive_layout_builder.dart';
-import 'widgets/the_noise_view.dart';
-import 'widgets/the_solution_view.dart';
-import 'widgets/discover_identity_view.dart';
+import 'widgets/connect_view.dart';
+import 'widgets/commit_view.dart';
+import 'widgets/speak_view.dart';
 import 'widgets/your_account_view.dart';
 
 final _accountSignInModeProvider = StateProvider<bool>((ref) => false);
@@ -25,21 +25,21 @@ class OnboardingScreen extends ConsumerWidget {
 
   String _stepTitle(OnboardingStep step) {
     return switch (step) {
-      OnboardingStep.theProblem => 'Daily Check-in',
-      OnboardingStep.theSolution => 'Flow',
-      OnboardingStep.yourIdentity => 'Spiritual Compass',
+      OnboardingStep.connect => 'Connect',
+      OnboardingStep.commit => 'Commit',
+      OnboardingStep.speak => 'Speak',
       OnboardingStep.yourAccount => 'Account',
     };
   }
 
   String _getPrimaryButtonLabel(OnboardingState state) {
     return switch (state.step) {
-      OnboardingStep.theProblem => 'Begin',
-      OnboardingStep.theSolution => 'Start compass',
-      OnboardingStep.yourIdentity =>
+      OnboardingStep.connect =>
         _canAdvanceFromAssessment(state)
-            ? 'Create my account'
+            ? 'Continue to Commit'
             : 'Complete my compass',
+      OnboardingStep.commit => 'Continue to Speak',
+      OnboardingStep.speak => 'Create my account',
       OnboardingStep.yourAccount => 'Enter ElBiblio',
     };
   }
@@ -49,8 +49,14 @@ class OnboardingScreen extends ConsumerWidget {
   }
 
   bool _canAdvance(OnboardingState state) {
-    if (state.step == OnboardingStep.yourIdentity) {
+    if (state.step == OnboardingStep.connect) {
       return _canAdvanceFromAssessment(state);
+    }
+    if (state.step == OnboardingStep.commit) {
+      return state.commitmentChoice != null;
+    }
+    if (state.step == OnboardingStep.speak) {
+      return state.selectedCompanionId != null;
     }
     return true;
   }
@@ -72,9 +78,9 @@ class OnboardingScreen extends ConsumerWidget {
     OnboardingState state,
   ) {
     return switch (state.step) {
-      OnboardingStep.theProblem => const TheNoiseView(),
-      OnboardingStep.theSolution => const TheSolutionView(),
-      OnboardingStep.yourIdentity => const DiscoverIdentityView(),
+      OnboardingStep.connect => const ConnectView(),
+      OnboardingStep.commit => const CommitView(),
+      OnboardingStep.speak => const SpeakView(),
       OnboardingStep.yourAccount => YourAccountView(
         initialSignInMode: ref.watch(_accountSignInModeProvider),
         onSignUp: (name, email, password, phone) =>
@@ -239,18 +245,17 @@ class OnboardingScreen extends ConsumerWidget {
     const contentMaxWidth = 600.0;
     final showFooter =
         state.step != OnboardingStep.yourAccount &&
-        (state.step != OnboardingStep.yourIdentity ||
+        (state.step != OnboardingStep.connect ||
             state.hasFullCompassResult);
     final bodyAlignment =
-        state.step == OnboardingStep.theProblem ||
-            state.step == OnboardingStep.theSolution
+        state.step == OnboardingStep.connect
         ? Alignment.center
         : Alignment.topCenter;
 
     return Scaffold(
       backgroundColor: Colors.transparent,
       extendBodyBehindAppBar: false,
-      appBar: state.step == OnboardingStep.theProblem
+      appBar: state.step == OnboardingStep.connect
           ? null
           : AppBar(
               backgroundColor: Colors.transparent,
@@ -304,7 +309,7 @@ class OnboardingScreen extends ConsumerWidget {
             ),
           ),
           child: SafeArea(
-            top: state.step == OnboardingStep.theProblem,
+            top: state.step == OnboardingStep.connect,
             bottom: false,
             child: Align(
               alignment: bodyAlignment,
@@ -337,7 +342,7 @@ class OnboardingScreen extends ConsumerWidget {
   ) {
     final canAdvance = _canAdvance(state);
 
-    if (state.step == OnboardingStep.theProblem) {
+    if (state.step == OnboardingStep.connect) {
       return Container(
         padding: EdgeInsets.fromLTRB(
           ResponsiveSpacing.getHorizontalPadding(context),
@@ -374,7 +379,7 @@ class OnboardingScreen extends ConsumerWidget {
                   ref.read(_accountSignInModeProvider.notifier).state = true;
                   notifier.openAccount();
                 },
-                child: const Text('I already have an account'),
+                child: const Text('Sign in instead'),
               ),
             ],
           ),
@@ -396,11 +401,11 @@ class OnboardingScreen extends ConsumerWidget {
         child: Row(
           children: <Widget>[
             // Back button (not shown on first step)
-            if (state.step != OnboardingStep.theProblem)
+            if (state.step != OnboardingStep.connect)
               Expanded(
                 child: PrimaryButton(label: 'Back', onPressed: notifier.back),
               ),
-            if (state.step != OnboardingStep.theProblem)
+            if (state.step != OnboardingStep.connect)
               const SizedBox(width: 16),
             Expanded(
               child: PrimaryButton(
@@ -436,7 +441,7 @@ class OnboardingScreen extends ConsumerWidget {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: <Widget>[
-                  if (state.step != OnboardingStep.theProblem)
+                  if (state.step != OnboardingStep.connect)
                     SizedBox(
                       width: 160,
                       child: PrimaryButton(
@@ -444,7 +449,7 @@ class OnboardingScreen extends ConsumerWidget {
                         onPressed: notifier.back,
                       ),
                     ),
-                  if (state.step != OnboardingStep.theProblem)
+                  if (state.step != OnboardingStep.connect)
                     const SizedBox(width: 24),
                   SizedBox(
                     width: 240,

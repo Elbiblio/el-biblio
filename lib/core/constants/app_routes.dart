@@ -6,6 +6,9 @@ class AppRoutes {
   static const postOnboarding = '/post-onboarding';
   static const assessment = '/assessment';
   static const timeDiagnose = '/time-diagnose';
+  static const home = '/home';
+  static const connect = '/connect';
+  static const speak = '/speak';
   static const today = '/today';
   static const notifications = '/notifications';
   static const reflect = '/reflect';
@@ -52,4 +55,6 @@ class AppRoutes {
   static const companionChat = '/companion/chat';
   static const companionSelect = '/companion/select';
   static const churchesNearby = '/churches/nearby';
+  static const overlayNotification = '/overlay-notification';
+  static const commitmentWizard = '/commitment-wizard';
 }

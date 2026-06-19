@@ -5,15 +5,13 @@ import '../../assessment/domain/models/archetype_resonance.dart';
 import '../../today/domain/models/daily_anchors.dart';
 import '../domain/compass_discovery_catalog.dart';
 
-/// Phase 1 — the pre-signup portion of onboarding. Four screens only.
-/// Baseline, habits, struggles, commitment, companion, reminders all move
-/// to Phase 2/3 (post-signup) so the user gets through signup fast and
-/// the deeper work happens inside an authenticated session.
+/// 3-pillar onboarding: Connect → Commit → Speak → Signup.
+/// Each step maps to one of the app's three pillars.
 enum OnboardingStep {
-  theProblem, // The Noise
-  theSolution, // Deeper signal — clarity + pillars
-  yourIdentity, // Exact age + full spiritual compass
-  yourAccount, // Signup (merges ready + pre-onboarding signup)
+  connect,    // Who are you? Compass + tradition + prayer style
+  commit,     // What will you do? Commitment choice + schedule
+  speak,      // Who walks with you? Companion + tribe + accountability
+  yourAccount, // Signup
 }
 
 class OnboardingCompassData {
@@ -76,6 +74,11 @@ class OnboardingState {
     this.sovereigntyScore = 3,
     this.charityScore = 3,
     this.trustScore = 3,
+    this.prayerStyle,
+    this.tradition,
+    this.selectedCompanionId,
+    this.accountabilityLevel = 'solo',
+    this.commitmentChoice,
   });
 
   final OnboardingStep step;
@@ -126,6 +129,22 @@ class OnboardingState {
   final int sovereigntyScore;
   final int charityScore;
   final int trustScore;
+
+  /// Pillar-based onboarding fields.
+  /// Prayer style: contemplative, liturgical, spontaneous, varied.
+  final String? prayerStyle;
+
+  /// Christian tradition enum name (from ChristianTradition model).
+  final String? tradition;
+
+  /// Companion character id: raziel, naomi, james.
+  final String? selectedCompanionId;
+
+  /// Accountability level: solo, partner, circle.
+  final String accountabilityLevel;
+
+  /// Commitment type: good_habit, bad_habit, forty_day.
+  final String? commitmentChoice;
 
   bool get hasBaselineAnswers =>
       bibleReadingCadence != null &&
@@ -224,8 +243,8 @@ class OnboardingState {
       'typical_distractions': primary.typicalDistractions,
       'modern_addictions': primary.modernAddictions,
       'inversion_strategy': primary.inversionStrategy,
-      'primary_vice': primary.primaryVice?.name,
-      'secondary_vice': primary.secondaryVice?.name,
+      'primary_struggle': primary.primaryStruggle?.name,
+      'secondary_struggle': primary.secondaryStruggle?.name,
     };
   }
 
@@ -277,9 +296,9 @@ class OnboardingState {
   bool get isLastStep => step == OnboardingStep.yourAccount;
 
   int get currentStepIndex => switch (step) {
-    OnboardingStep.theProblem => 0,
-    OnboardingStep.theSolution => 1,
-    OnboardingStep.yourIdentity => 2,
+    OnboardingStep.connect => 0,
+    OnboardingStep.commit => 1,
+    OnboardingStep.speak => 2,
     OnboardingStep.yourAccount => 3,
   };
 
@@ -319,13 +338,18 @@ class OnboardingState {
     'sovereigntyScore': sovereigntyScore,
     'charityScore': charityScore,
     'trustScore': trustScore,
+    'prayerStyle': prayerStyle,
+    'tradition': tradition,
+    'selectedCompanionId': selectedCompanionId,
+    'accountabilityLevel': accountabilityLevel,
+    'commitmentChoice': commitmentChoice,
   };
 
   factory OnboardingState.fromJson(Map<String, dynamic> map) {
     final stepName = map['step'] as String?;
     final step = OnboardingStep.values.firstWhere(
       (s) => s.name == stepName,
-      orElse: () => OnboardingStep.theProblem,
+      orElse: () => OnboardingStep.connect,
     );
     return OnboardingState(
       step: step,
@@ -390,6 +414,11 @@ class OnboardingState {
       sovereigntyScore: (map['sovereigntyScore'] as num?)?.toInt() ?? 3,
       charityScore: (map['charityScore'] as num?)?.toInt() ?? 3,
       trustScore: (map['trustScore'] as num?)?.toInt() ?? 3,
+      prayerStyle: map['prayerStyle'] as String?,
+      tradition: map['tradition'] as String?,
+      selectedCompanionId: map['selectedCompanionId'] as String?,
+      accountabilityLevel: map['accountabilityLevel'] as String? ?? 'solo',
+      commitmentChoice: map['commitmentChoice'] as String?,
     );
   }
 
@@ -427,6 +456,15 @@ class OnboardingState {
     int? sovereigntyScore,
     int? charityScore,
     int? trustScore,
+    String? prayerStyle,
+    bool clearPrayerStyle = false,
+    String? tradition,
+    bool clearTradition = false,
+    String? selectedCompanionId,
+    bool clearCompanion = false,
+    String? accountabilityLevel,
+    String? commitmentChoice,
+    bool clearCommitmentChoice = false,
   }) {
     return OnboardingState(
       step: step ?? this.step,
@@ -469,6 +507,16 @@ class OnboardingState {
       sovereigntyScore: sovereigntyScore ?? this.sovereigntyScore,
       charityScore: charityScore ?? this.charityScore,
       trustScore: trustScore ?? this.trustScore,
+      prayerStyle: clearPrayerStyle ? null : (prayerStyle ?? this.prayerStyle),
+      tradition: clearTradition ? null : (tradition ?? this.tradition),
+      selectedCompanionId: clearCompanion
+          ? null
+          : (selectedCompanionId ?? this.selectedCompanionId),
+      accountabilityLevel:
+          accountabilityLevel ?? this.accountabilityLevel,
+      commitmentChoice: clearCommitmentChoice
+          ? null
+          : (commitmentChoice ?? this.commitmentChoice),
     );
   }
 }

@@ -42,7 +42,7 @@ class OnboardingNotifier extends StateNotifier<OnboardingState> {
       }
     }
     return OnboardingState(
-      step: OnboardingStep.theProblem,
+      step: OnboardingStep.connect,
       lifestyle: 'Student',
       morningTime: '07:30',
       eveningTime: '21:00',
@@ -75,9 +75,9 @@ class OnboardingNotifier extends StateNotifier<OnboardingState> {
 
   void next() {
     final nextStep = switch (state.step) {
-      OnboardingStep.theProblem => OnboardingStep.theSolution,
-      OnboardingStep.theSolution => OnboardingStep.yourIdentity,
-      OnboardingStep.yourIdentity => OnboardingStep.yourAccount,
+      OnboardingStep.connect => OnboardingStep.commit,
+      OnboardingStep.commit => OnboardingStep.speak,
+      OnboardingStep.speak => OnboardingStep.yourAccount,
       OnboardingStep.yourAccount => OnboardingStep.yourAccount,
     };
 
@@ -86,10 +86,10 @@ class OnboardingNotifier extends StateNotifier<OnboardingState> {
 
   void back() {
     final previousStep = switch (state.step) {
-      OnboardingStep.theProblem => OnboardingStep.theProblem,
-      OnboardingStep.theSolution => OnboardingStep.theProblem,
-      OnboardingStep.yourIdentity => OnboardingStep.theSolution,
-      OnboardingStep.yourAccount => OnboardingStep.yourIdentity,
+      OnboardingStep.connect => OnboardingStep.connect,
+      OnboardingStep.commit => OnboardingStep.connect,
+      OnboardingStep.speak => OnboardingStep.commit,
+      OnboardingStep.yourAccount => OnboardingStep.speak,
     };
 
     state = state.copyWith(step: previousStep);
@@ -445,5 +445,29 @@ class OnboardingNotifier extends StateNotifier<OnboardingState> {
 
   void setContactsImported(bool imported) {
     state = state.copyWith(contactsImported: imported);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Pillar-based onboarding setters
+  // ---------------------------------------------------------------------------
+
+  void setPrayerStyle(String? style) {
+    state = state.copyWith(prayerStyle: style);
+  }
+
+  void setTradition(String? tradition) {
+    state = state.copyWith(tradition: tradition);
+  }
+
+  void setSelectedCompanionId(String? id) {
+    state = state.copyWith(selectedCompanionId: id);
+  }
+
+  void setAccountabilityLevel(String level) {
+    state = state.copyWith(accountabilityLevel: level);
+  }
+
+  void setCommitmentChoice(String? choice) {
+    state = state.copyWith(commitmentChoice: choice);
   }
 }

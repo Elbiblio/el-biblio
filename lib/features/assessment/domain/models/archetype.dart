@@ -1,4 +1,4 @@
-import 'cardinal_vice.dart';
+import 'core_struggle.dart';
 
 class Archetype {
   final String name;
@@ -12,11 +12,11 @@ class Archetype {
   final List<String> charityCommitments;
   final String inversionStrategy;
 
-  /// The dominant cardinal vice this archetype tends toward when distorted.
-  final CardinalVice? primaryVice;
+  /// The dominant core struggle this archetype tends toward when distorted.
+  final CoreStruggle? primaryStruggle;
 
-  /// The secondary vice that reinforces the primary distortion pattern.
-  final CardinalVice? secondaryVice;
+  /// The secondary struggle that reinforces the primary distortion pattern.
+  final CoreStruggle? secondaryStruggle;
 
   /// Specific modern addiction patterns this archetype is most susceptible to.
   final List<String> modernAddictions;
@@ -32,8 +32,8 @@ class Archetype {
     this.disciplineCommitments = const [],
     this.charityCommitments = const [],
     this.inversionStrategy = '',
-    this.primaryVice,
-    this.secondaryVice,
+    this.primaryStruggle,
+    this.secondaryStruggle,
     this.modernAddictions = const [],
   });
 
@@ -82,8 +82,8 @@ class Archetype {
       ],
       inversionStrategy:
           'Your craving for novelty is actually a longing for the Creator. Channel it into discovering new facets of God\'s character through Scripture and prayer.',
-      primaryVice: CardinalVice.pride,
-      secondaryVice: CardinalVice.lust,
+      primaryStruggle: CoreStruggle.pride,
+      secondaryStruggle: CoreStruggle.lust,
       modernAddictions: [
         'Social media validation and image curation',
         'Entertainment and content binging',
@@ -124,8 +124,8 @@ class Archetype {
       ],
       inversionStrategy:
           'Your vigilance is a gift meant for intercession, not anxiety. When you feel the pull to monitor threats, redirect that energy into standing guard in prayer for those you love.',
-      primaryVice: CardinalVice.wrath,
-      secondaryVice: CardinalVice.pride,
+      primaryStruggle: CoreStruggle.wrath,
+      secondaryStruggle: CoreStruggle.pride,
       modernAddictions: [
         'Doomscrolling and catastrophizing',
         'Judgmental monitoring of others online',
@@ -167,8 +167,8 @@ class Archetype {
       ],
       inversionStrategy:
           'Your desire to control growth comes from a deep love for potential. Release the outcome to God and focus on faithful planting — He is the one who gives the increase.',
-      primaryVice: CardinalVice.gluttony,
-      secondaryVice: CardinalVice.sloth,
+      primaryStruggle: CoreStruggle.gluttony,
+      secondaryStruggle: CoreStruggle.sloth,
       modernAddictions: [
         'Comfort eating and shopping as stress relief',
         'Overworking to avoid surrendering control',
@@ -210,8 +210,8 @@ class Archetype {
       ],
       inversionStrategy:
           'Your boldness to start is a prophetic gift — but scattered seeds don\'t bear fruit. Ask God which field He wants you to focus on, and pour your fire into that one place.',
-      primaryVice: CardinalVice.pride,
-      secondaryVice: CardinalVice.greed,
+      primaryStruggle: CoreStruggle.pride,
+      secondaryStruggle: CoreStruggle.greed,
       modernAddictions: [
         'Self-promotion and personal branding obsession',
         'Novelty chasing — starting without finishing',
@@ -253,8 +253,8 @@ class Archetype {
       ],
       inversionStrategy:
           'Your gift of creating belonging is powerful — but it becomes hollow when driven by fear of rejection. First welcome yourself into God\'s love, then extend that welcome to others from overflow.',
-      primaryVice: CardinalVice.sloth,
-      secondaryVice: CardinalVice.gluttony,
+      primaryStruggle: CoreStruggle.sloth,
+      secondaryStruggle: CoreStruggle.gluttony,
       modernAddictions: [
         'People-pleasing and saying yes to everything',
         'Comfort escapism — eating, shopping, streaming',
@@ -295,8 +295,8 @@ class Archetype {
       ],
       inversionStrategy:
           'Your faithfulness in the background is not invisibility — it is the posture of Christ. But He also calls you to step forward. Your reliability is the foundation; now build something on it.',
-      primaryVice: CardinalVice.envy,
-      secondaryVice: CardinalVice.sloth,
+      primaryStruggle: CoreStruggle.envy,
+      secondaryStruggle: CoreStruggle.sloth,
       modernAddictions: [
         'Resentment scrolling — watching others get recognized',
         'Passive content consumption while neglecting own gifts',
@@ -338,8 +338,8 @@ class Archetype {
       ],
       inversionStrategy:
           'Your depth of insight is rare and precious — but insight without action is pride. God gave you eyes to see so that you can lead others into what He\'s revealing. Step out of the watchtower.',
-      primaryVice: CardinalVice.pride,
-      secondaryVice: CardinalVice.sloth,
+      primaryStruggle: CoreStruggle.pride,
+      secondaryStruggle: CoreStruggle.sloth,
       modernAddictions: [
         'Analysis paralysis and overthinking',
         'Spiritual pride from deep insights',
@@ -380,8 +380,8 @@ class Archetype {
       ],
       inversionStrategy:
           'Your gift of connection becomes your weakness when you connect everything except yourself to God. Build the bridge between your own soul and the Father first — then your bridges to others will carry real weight.',
-      primaryVice: CardinalVice.sloth,
-      secondaryVice: CardinalVice.envy,
+      primaryStruggle: CoreStruggle.sloth,
+      secondaryStruggle: CoreStruggle.envy,
       modernAddictions: [
         'People-pleasing across multiple platforms',
         'Identity diffusion — losing self in others\' needs',
@@ -422,8 +422,8 @@ class Archetype {
       ],
       inversionStrategy:
           'Your compassion is Christ-like, but the Savior complex is a counterfeit. You are not the healer — God is. Your role is to be present, point to Him, and let Him do the restoring through you.',
-      primaryVice: CardinalVice.pride,
-      secondaryVice: CardinalVice.gluttony,
+      primaryStruggle: CoreStruggle.pride,
+      secondaryStruggle: CoreStruggle.gluttony,
       modernAddictions: [
         'Emotional numbing through entertainment or food',
         'Savior complex — needing to fix everyone',
@@ -465,8 +465,8 @@ class Archetype {
       ],
       inversionStrategy:
           'Your drive for results is a gift from the God who loves fruitfulness. But the harvest belongs to Him, not you. When you feel the pull to measure and optimize, pause and ask: "Am I gathering for God\'s kingdom or my own?"',
-      primaryVice: CardinalVice.greed,
-      secondaryVice: CardinalVice.pride,
+      primaryStruggle: CoreStruggle.greed,
+      secondaryStruggle: CoreStruggle.pride,
       modernAddictions: [
         'Metrics obsession — followers, likes, productivity stats',
         'Workaholism disguised as harvest season',
@@ -507,8 +507,8 @@ class Archetype {
       ],
       inversionStrategy:
           'Your fire for justice is prophetic — but bitterness extinguishes it. Reformation without love becomes destruction. Let God purify your anger so it builds up what He wants built, not just tears down what offends you.',
-      primaryVice: CardinalVice.wrath,
-      secondaryVice: CardinalVice.pride,
+      primaryStruggle: CoreStruggle.wrath,
+      secondaryStruggle: CoreStruggle.pride,
       modernAddictions: [
         'Outrage addiction — always seeking the next fight',
         'Social media activism replacing real action',
@@ -550,8 +550,8 @@ class Archetype {
       ],
       inversionStrategy:
           'Your desire for order reflects God\'s nature as the great Architect. But when your systems become your security instead of God, they become a prison. Build with open hands — the blueprint belongs to Him.',
-      primaryVice: CardinalVice.pride,
-      secondaryVice: CardinalVice.greed,
+      primaryStruggle: CoreStruggle.pride,
+      secondaryStruggle: CoreStruggle.greed,
       modernAddictions: [
         'Perfectionism that delays obedience',
         'Over-planning as avoidance of surrender',

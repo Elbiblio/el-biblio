@@ -80,6 +80,55 @@ class SoundService {
     }
   }
 
+  bool _isCategoryAmbiencePlaying = false;
+
+  Future<void> playCategoryAmbience(String assetPath, {double volume = 0.08}) async {
+    if (_isCategoryAmbiencePlaying) return;
+
+    try {
+      _isCategoryAmbiencePlaying = true;
+      await _player.setReleaseMode(ReleaseMode.loop);
+      await _player.setVolume(volume);
+      await _player.play(AssetSource(assetPath));
+    } catch (_) {
+      _isCategoryAmbiencePlaying = false;
+    }
+  }
+
+  Future<void> fadeInCategoryAmbience(String assetPath, {double targetVolume = 0.10}) async {
+    if (_isCategoryAmbiencePlaying) return;
+
+    try {
+      _isCategoryAmbiencePlaying = true;
+      await _player.setReleaseMode(ReleaseMode.loop);
+
+      // Fade in gradually over 2 seconds
+      const steps = 10;
+      for (var i = 1; i <= steps; i++) {
+        await _player.setVolume(targetVolume * (i / steps));
+        await Future.delayed(const Duration(milliseconds: 200));
+        if (!_isCategoryAmbiencePlaying) return;
+      }
+    } catch (_) {
+      _isCategoryAmbiencePlaying = false;
+    }
+  }
+
+  Future<void> stopCategoryAmbience() async {
+    if (!_isCategoryAmbiencePlaying) return;
+
+    try {
+      // Quick fade out
+      await _player.setVolume(0.0);
+      await _player.stop();
+      await _player.setReleaseMode(ReleaseMode.release);
+    } catch (_) {
+      // Ignore audio shutdown failures.
+    } finally {
+      _isCategoryAmbiencePlaying = false;
+    }
+  }
+
   Future<void> playGameSuccess() async {
     try {
       await _sfxPlayer.setVolume(0.5);
@@ -153,6 +202,7 @@ class SoundService {
       await _sfxPlayer.stop();
     } catch (_) {}
     _isJourneyAmbiencePlaying = false;
+    _isCategoryAmbiencePlaying = false;
   }
 
   Future<void> dispose() async {

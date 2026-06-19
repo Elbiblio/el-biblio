@@ -10,7 +10,7 @@ void main() {
   group('OnboardingState JSON round-trip', () {
     test('empty state round-trips cleanly', () {
       const state = OnboardingState(
-        step: OnboardingStep.theProblem,
+        step: OnboardingStep.connect,
         lifestyle: 'Student',
         morningTime: '07:30',
         eveningTime: '21:00',
@@ -38,7 +38,7 @@ void main() {
 
     test('fully populated state survives round-trip', () {
       const state = OnboardingState(
-        step: OnboardingStep.yourIdentity,
+        step: OnboardingStep.speak,
         lifestyle: 'Work from Home',
         morningTime: '06:00',
         eveningTime: '20:45',
@@ -125,7 +125,7 @@ void main() {
 
     test('garbled input falls back to defaults without throwing', () {
       final decoded = OnboardingState.fromJson(const {});
-      expect(decoded.step, OnboardingStep.theProblem);
+      expect(decoded.step, OnboardingStep.connect);
       expect(decoded.lifestyle, 'Student');
       expect(decoded.primaryVirtue, VirtueType.humility);
       expect(decoded.sovereigntyScore, 3);
