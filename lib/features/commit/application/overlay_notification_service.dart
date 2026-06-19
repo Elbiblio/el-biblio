@@ -187,7 +187,7 @@ class OverlayNotificationService {
       androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
       matchDateTimeComponents: recurrence,
       payload:
-          'commitment_overlay:${notification.commitmentId}:$category:$encodedTitle:$encodedBody',
+          'commitment_overlay|${notification.commitmentId}|$category|$encodedTitle|$encodedBody',
     );
   }
 
@@ -242,7 +242,7 @@ class OverlayNotificationService {
       title: notification.title,
       body: notification.body,
       notificationDetails: showDetails,
-      payload: 'commitment_overlay:${notification.commitmentId}',
+      payload: 'commitment_overlay|${notification.commitmentId}',
     );
   }
 
@@ -278,6 +278,11 @@ class OverlayNotificationService {
     int consecutiveMisses = 0,
     int currentDay = 1,
   }) async {
+    // Cancel old notifications first, then create new ones.
+    // If the creation loop fails partway, the commitment may be left without
+    // notifications until the next scheduleFromSchedule call.
+    // Individual scheduling calls are wrapped in try-catch below so a single
+    // failure does not cascade — missing notifications are logged.
     await cancelAllForCommitment(schedule.commitmentId);
 
     final escalation = NotificationEscalation.levelForMisses(consecutiveMisses);
@@ -322,49 +327,61 @@ class OverlayNotificationService {
         final id = _headsUpBaseId + schedule.commitmentId * 100 + day * 10 + i;
 
         // Tier 1: Heads-up at check-in time, repeats weekly on this day
-        final headsUpNotification = OverlayNotification(
-          id: id,
-          commitmentId: schedule.commitmentId,
-          scheduledTime: time,
-          type: OverlayNotificationType.checkIn.value,
-          title: commitmentTitle,
-          body: body,
-          persistent: false,
-          actionButtons: const [
-            OverlayAction.checkIn,
-            OverlayAction.skip,
-          ],
-        );
+        try {
+          final headsUpNotification = OverlayNotification(
+            id: id,
+            commitmentId: schedule.commitmentId,
+            scheduledTime: time,
+            type: OverlayNotificationType.checkIn.value,
+            title: commitmentTitle,
+            body: body,
+            persistent: false,
+            actionButtons: const [
+              OverlayAction.checkIn,
+              OverlayAction.skip,
+            ],
+          );
 
-        await scheduleHeadsUp(
-          notification: headsUpNotification,
-          scheduledDate: scheduledDate,
-          category: category,
-          recurrence: DateTimeComponents.dayOfWeekAndTime,
-        );
+          await scheduleHeadsUp(
+            notification: headsUpNotification,
+            scheduledDate: scheduledDate,
+            category: category,
+            recurrence: DateTimeComponents.dayOfWeekAndTime,
+          );
+        } catch (e) {
+          debugPrint(
+            'scheduleFromSchedule: heads-up [$commitmentTitle|day$day|time$i] failed: $e',
+          );
+        }
 
         // Tier 2: Full-screen overlay 30s later, same weekly pattern
-        final overlayNotification = OverlayNotification(
-          id: _overlayBaseId + schedule.commitmentId * 100 + day * 10 + i,
-          commitmentId: schedule.commitmentId,
-          scheduledTime: time,
-          type: OverlayNotificationType.checkIn.value,
-          title: commitmentTitle,
-          body: body,
-          persistent: true,
-          actionButtons: const [
-            OverlayAction.checkIn,
-            OverlayAction.skip,
-            OverlayAction.talkToCompanion,
-          ],
-        );
+        try {
+          final overlayNotification = OverlayNotification(
+            id: _overlayBaseId + schedule.commitmentId * 100 + day * 10 + i,
+            commitmentId: schedule.commitmentId,
+            scheduledTime: time,
+            type: OverlayNotificationType.checkIn.value,
+            title: commitmentTitle,
+            body: body,
+            persistent: true,
+            actionButtons: const [
+              OverlayAction.checkIn,
+              OverlayAction.skip,
+              OverlayAction.talkToCompanion,
+            ],
+          );
 
-        await scheduleFullScreenOverlay(
-          notification: overlayNotification,
-          scheduledDate: scheduledDate.add(_overlayDelay),
-          category: category,
-          recurrence: DateTimeComponents.dayOfWeekAndTime,
-        );
+          await scheduleFullScreenOverlay(
+            notification: overlayNotification,
+            scheduledDate: scheduledDate.add(_overlayDelay),
+            category: category,
+            recurrence: DateTimeComponents.dayOfWeekAndTime,
+          );
+        } catch (e) {
+          debugPrint(
+            'scheduleFromSchedule: overlay [$commitmentTitle|day$day|time$i] failed: $e',
+          );
+        }
       }
     }
 
@@ -392,26 +409,33 @@ class OverlayNotificationService {
             },
           );
 
-          final preNotif = OverlayNotification(
-            id: _preReminderBaseId +
-                schedule.commitmentId * 100 +
-                day * 10 +
-                i,
-            commitmentId: schedule.commitmentId,
-            scheduledTime: TimeOfDay.fromDateTime(preDate),
-            type: OverlayNotificationType.struggleSupport.value,
-            title: 'Gentle reminder',
-            body: preBody,
-            persistent: false,
-            actionButtons: const [],
-          );
+          try {
+            final preNotif = OverlayNotification(
+              id: _preReminderBaseId +
+                  schedule.commitmentId * 100 +
+                  day * 10 +
+                  i,
+              commitmentId: schedule.commitmentId,
+              scheduledTime: TimeOfDay.fromDateTime(preDate),
+              type: OverlayNotificationType.struggleSupport.value,
+              title: 'Gentle reminder',
+              body: preBody,
+              persistent: false,
+              actionButtons: const [],
+            );
 
-          await scheduleHeadsUp(
-            notification: preNotif,
-            scheduledDate: preDate,
-            category: category,
-            recurrence: DateTimeComponents.dayOfWeekAndTime,
-          );
+            await scheduleHeadsUp(
+              notification: preNotif,
+              scheduledDate: preDate,
+              category: category,
+              recurrence: DateTimeComponents.dayOfWeekAndTime,
+            );
+          } catch (e) {
+            debugPrint(
+              'scheduleFromSchedule: pre-reminder '
+              '[$commitmentTitle|day$day|time$i] failed: $e',
+            );
+          }
         }
       }
     }

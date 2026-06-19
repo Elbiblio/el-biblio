@@ -20,16 +20,22 @@ enum NotificationActionOutcome { success, fallbackNavigation, failed }
 /// Must be a top-level function (not a class method) for flutter_local_notifications.
 @pragma('vm:entry-point')
 void _onBackgroundNotificationTapped(NotificationResponse response) {
-  // The app is brought to foreground by the OS; we only need to handle
-  // action button taps here. Simple notification taps are handled by
-  // onDidReceiveNotificationResponse once the app resumes.
+  // Persist the action to SharedPreferences so it can be processed when the
+  // app foreground isolate is ready. Without this, background action taps
+  // (the most common path when the phone is locked) would be silently lost.
   if (response.notificationResponseType ==
       NotificationResponseType.selectedNotificationAction) {
-    // Store the action in shared prefs so the app can process it on resume.
-    // The service singleton handles this via actionEvents stream when ready.
-    debugPrint(
-      'NotificationService [BG]: action=${response.actionId} payload=${response.payload}',
-    );
+    try {
+      WidgetsFlutterBinding.ensureInitialized();
+      SharedPreferences.getInstance().then((prefs) {
+        prefs.setString('pending_action_id', response.actionId ?? '');
+        prefs.setString('pending_action_payload', response.payload ?? '');
+      });
+    } catch (e) {
+      debugPrint(
+        'NotificationService [BG]: Could not persist action: $e',
+      );
+    }
   }
 }
 
@@ -92,6 +98,7 @@ class NotificationService {
     if (_initialized) return;
 
     try {
+      await _processPendingBackgroundAction();
       tz.initializeTimeZones();
 
       const androidInitSettings = AndroidInitializationSettings(
@@ -205,7 +212,7 @@ class NotificationService {
       _initialized = true;
     } catch (e, stackTrace) {
       _platformAvailable = false;
-      _initialized = true;
+      _initialized = false; // Allow retry on next access
       if (e.toString().contains('LateInitializationError') ||
           e.runtimeType.toString().contains('LateInitializationError')) {
         debugPrint(
@@ -217,6 +224,19 @@ class NotificationService {
         );
       }
     }
+  }
+
+  Future<void> _processPendingBackgroundAction() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final actionId = prefs.getString('pending_action_id');
+      final payload = prefs.getString('pending_action_payload');
+      if (actionId != null && actionId.isNotEmpty) {
+        await prefs.remove('pending_action_id');
+        await prefs.remove('pending_action_payload');
+        _handleNotificationAction(actionId, payload);
+      }
+    } catch (_) {}
   }
 
   void _onNotificationTapped(NotificationResponse response) {
@@ -395,8 +415,8 @@ class NotificationService {
           payload == 'journey_completed' ||
           payload == 'partner_check_in_request') {
         _goToRoute(AppRoutes.today);
-      } else if (payload.startsWith('commitment_overlay:')) {
-        final parts = payload.split(':');
+      } else if (payload.startsWith('commitment_overlay|')) {
+        final parts = payload.split('|');
         final commitmentId = parts.length >= 2 ? parts[1] : '';
         final category = parts.length >= 3
             ? Uri.decodeQueryComponent(parts[2])
@@ -1008,7 +1028,7 @@ class NotificationService {
   // resolved server-side or from the on-device verse pool so the companion
   // voice stays consistent with the active character.
 
-  static const int companionDailyVerseId = 7000;
+  static const int companionDailyVerseId = 70000;
 
   Future<void> scheduleCompanionDailyVerse({
     required String companionCode,
@@ -1326,22 +1346,14 @@ class NotificationService {
         final updateDate = DateTime.parse(lastUpdate);
         // Only restore if updated within last 24 hours
         if (DateTime.now().difference(updateDate).inHours < 24) {
-          if (morningScheduled && morningEnabled) {
-            await scheduleDailyReminders(
-              morningTime: morningTime,
-              eveningTime: eveningTime,
-              morningEnabled: true,
-              eveningEnabled: false,
-            );
-          }
-          if (eveningScheduled && eveningEnabled) {
-            await scheduleDailyReminders(
-              morningTime: morningTime,
-              eveningTime: eveningTime,
-              morningEnabled: false,
-              eveningEnabled: true,
-            );
-          }
+          // Call once with combined flags to avoid the second call's
+          // cancelDailyReminders() wiping the first call's scheduled reminder.
+          await scheduleDailyReminders(
+            morningTime: morningTime,
+            eveningTime: eveningTime,
+            morningEnabled: morningScheduled && morningEnabled,
+            eveningEnabled: eveningScheduled && eveningEnabled,
+          );
         }
       }
     } catch (e) {

@@ -26,7 +26,7 @@ class OverlayNotificationScreen extends StatefulWidget {
 
 class _OverlayNotificationScreenState
     extends State<OverlayNotificationScreen> {
-  final SoundService _soundService = SoundService();
+  final SoundService _soundService = SoundService.instance;
 
   @override
   void initState() {
@@ -153,7 +153,7 @@ class _OverlayNotificationScreenState
     switch (actionId) {
       case 'check_in': {
         final outcome = await NotificationService().executeDailyCheckInAction(
-          payload: 'commitment_overlay:${widget.notification.commitmentId}',
+          payload: 'commitment_overlay|${widget.notification.commitmentId}',
         );
         if (!mounted) return;
         if (outcome == NotificationActionOutcome.success) {

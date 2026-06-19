@@ -533,6 +533,10 @@ class _CommitScreenState extends ConsumerState<CommitScreen> {
         commitmentTitle: plan.title,
         category: plan.category,
         totalDays: plan.durationDays,
+        // Day 1, 0 misses for a freshly joined commitment.
+        // Pass actual values from the vision provider on reschedule.
+        currentDay: 1,
+        consecutiveMisses: 0,
       );
     } catch (e) {
       debugPrint('CommitScreen: Failed to schedule notifications: $e');

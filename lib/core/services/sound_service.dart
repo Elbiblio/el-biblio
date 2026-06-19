@@ -2,7 +2,16 @@ import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/services.dart';
 
 class SoundService {
+  /// Shared instance. Use this instead of creating new instances to avoid
+  /// leaking audio players and re-initializing the audio context.
+  static SoundService? _instance;
+  static SoundService get instance => _instance ??= SoundService._();
+
   SoundService({AudioPlayer? player}) : _player = player ?? AudioPlayer() {
+    _initAudio();
+  }
+
+  SoundService._() : _player = AudioPlayer() {
     _initAudio();
   }
 

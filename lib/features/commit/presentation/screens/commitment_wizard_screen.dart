@@ -209,6 +209,9 @@ class _CommitmentWizardScreenState
             commitmentTitle: plan.title,
             category: plan.category,
             totalDays: plan.durationDays,
+            // Day 1, 0 misses for a freshly joined commitment.
+            currentDay: 1,
+            consecutiveMisses: 0,
           );
         } catch (e) {
           debugPrint('CommitmentWizard: Failed to schedule notifications: $e');
