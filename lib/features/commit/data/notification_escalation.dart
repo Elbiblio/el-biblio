@@ -43,8 +43,10 @@ class NotificationEscalation {
   }
 
   /// Whether to send a pre-reminder before the main check-in.
+  /// Starts at companionInvolvement (3+ consecutive misses) so the first two
+  /// missed days feel like grace, not nagging.
   static bool shouldSendPreReminder(EscalationLevel level) =>
-      level.index >= EscalationLevel.withPreReminder.index;
+      level.index >= EscalationLevel.companionInvolvement.index;
 
   /// Whether to notify the accountability partner.
   static bool shouldNotifyPartner(EscalationLevel level) =>

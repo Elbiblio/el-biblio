@@ -5,6 +5,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 
 import '../../../../core/constants/app_routes.dart';
 import '../../../../core/di/app_providers.dart';
+import '../../../../core/services/celebration_service.dart';
 import '../../../../core/theme/app_theme_tokens.dart';
 import '../../../../core/storage/app_settings.dart';
 import '../../../../shared/widgets/safe_bottom_padding.dart';
@@ -91,11 +92,22 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                       title: state.isReadOnly
                           ? 'Reconnect to continue'
                           : 'Something needs a retry',
-                      child: Text(
-                        state.error!,
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          height: 1.45,
-                        ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            state.error!,
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              height: 1.45,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          TextButton.icon(
+                            onPressed: () => ref.read(visionProvider.notifier).load(force: true),
+                            icon: const Icon(Icons.refresh),
+                            label: const Text('Try again'),
+                          ),
+                        ],
                       ),
                     ),
                     const SizedBox(height: 14),
@@ -233,13 +245,7 @@ class _DailyLoopHero extends ConsumerWidget {
                       );
                       return;
                     }
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(
-                          '${active.totalRequiredItemCount}/${active.totalRequiredItemCount} marked today.',
-                        ),
-                      ),
-                    );
+                        CelebrationService.instance.playDailyCheckInCompletion(context);
                   },
           ),
           const SizedBox(height: 10),

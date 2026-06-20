@@ -7,6 +7,7 @@ import 'package:permission_handler/permission_handler.dart' as permissions;
 import '../../../../core/constants/app_routes.dart';
 import '../../../../core/di/app_providers.dart';
 import '../../../../core/models/accountability_tone.dart';
+import '../../../../core/services/celebration_service.dart';
 import '../../../../shared/widgets/safe_bottom_padding.dart';
 import '../../../../shared/widgets/premium_success_dialog.dart';
 import '../../../../shared/widgets/vision_illustration.dart';
@@ -1737,11 +1738,7 @@ class _ActiveCommitment extends ConsumerWidget {
                     .checkIn();
                 if (!context.mounted) return;
                 if (completed) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Today marked complete!'),
-                    ),
-                  );
+                  CelebrationService.instance.playDailyCheckInCompletion(context);
                   return;
                 }
                 ScaffoldMessenger.of(context).showSnackBar(
