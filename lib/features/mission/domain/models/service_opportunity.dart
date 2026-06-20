@@ -36,10 +36,10 @@ class ServiceOpportunity with _$ServiceOpportunity {
   factory ServiceOpportunity.fromMap(Map<String, dynamic> map) {
     return ServiceOpportunity(
       id: map['id']?.toString() ?? '',
-      title: map['title'] as String,
-      description: map['description'] as String,
-      category: map['category'] as String,
-      timeCommitment: map['time_commitment'] as String,
+      title: map['title'] as String? ?? '',
+      description: map['description'] as String? ?? '',
+      category: map['category'] as String? ?? '',
+      timeCommitment: map['time_commitment'] as String? ?? '',
       organization: map['organization'] as String?,
       contactInfo: map['contact_info'] as String?,
       requiredSkills: (map['required_skills'] as List<dynamic>?)?.cast<String>(),

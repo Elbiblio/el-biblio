@@ -42,8 +42,8 @@ class CompanionConversation {
   factory CompanionConversation.fromMap(Map<String, dynamic> map) {
     final rawMessages = map['messages'] as List<dynamic>? ?? const [];
     return CompanionConversation(
-      threadKey: map['threadKey'] as String,
-      characterCode: map['characterCode'] as String,
+      threadKey: map['threadKey'] as String? ?? '',
+      characterCode: map['characterCode'] as String? ?? '',
       messages: rawMessages
           .whereType<Map>()
           .map((m) => CompanionMessage.fromMap(Map<String, dynamic>.from(m)))

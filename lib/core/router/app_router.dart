@@ -668,7 +668,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       }
 
       if (auth.isInitialized && !auth.isAuthenticated) {
-        return isOnboarding || isInvitePreview ? null : AppRoutes.onboarding;
+        return isOnboarding || isInvitePreview || isOverlay
+            ? null
+            : AppRoutes.onboarding;
       }
 
       // Root redirect

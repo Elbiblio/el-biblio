@@ -32,7 +32,7 @@ class GenerosityRecord with _$GenerosityRecord {
       id: map['id'] as String,
       type: map['type'] as String,
       description: map['description'] as String,
-      date: DateTime.parse(map['date'] as String),
+      date: DateTime.tryParse(map['date']?.toString() ?? '') ?? DateTime.now(),
       amount: (map['amount'] as num?)?.toDouble(),
       currency: map['currency'] as String? ?? 'USD',
       recipientName: map['recipient_name'] as String?,

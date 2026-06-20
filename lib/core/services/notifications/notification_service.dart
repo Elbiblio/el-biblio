@@ -82,6 +82,7 @@ class NotificationService {
   static const int _ledOffMs = 500;
 
   bool _initialized = false;
+  bool _initializing = false;
   bool _platformAvailable = true;
   Future<void> Function()? _dailyCheckInActionHandler;
   final StreamController<NotificationActionEvent> _actionEventsController =
@@ -95,7 +96,8 @@ class NotificationService {
   }
 
   Future<void> initialize() async {
-    if (_initialized) return;
+    if (_initialized || _initializing) return;
+    _initializing = true;
 
     try {
       await _processPendingBackgroundAction();
@@ -173,6 +175,27 @@ class NotificationService {
               ),
             ],
           ),
+          // Immediate overlay category (from OverlayNotificationService.showImmediate)
+          DarwinNotificationCategory(
+            'commitment_overlay',
+            actions: <DarwinNotificationAction>[
+              DarwinNotificationAction.plain(
+                'check_in',
+                'I did this',
+                options: {DarwinNotificationActionOption.foreground},
+              ),
+              DarwinNotificationAction.plain(
+                'skip',
+                'Skip',
+                options: <DarwinNotificationActionOption>{},
+              ),
+              DarwinNotificationAction.plain(
+                'talk',
+                'Talk to companion',
+                options: {DarwinNotificationActionOption.foreground},
+              ),
+            ],
+          ),
           // Full-screen overlay category (from OverlayNotificationService)
           DarwinNotificationCategory(
             'commitment_checkin',
@@ -210,7 +233,9 @@ class NotificationService {
       );
 
       _initialized = true;
+      _initializing = false;
     } catch (e, stackTrace) {
+      _initializing = false;
       _platformAvailable = false;
       _initialized = false; // Allow retry on next access
       if (e.toString().contains('LateInitializationError') ||
@@ -258,20 +283,17 @@ class NotificationService {
     try {
       switch (actionId) {
         case _actionDidThis:
-          _handleIDidThis(context, payload);
+        case _actionCommitmentDone:
+        case 'check_in':
+          _handleIDidThis(context, payload).catchError((e) {
+            debugPrint('NotificationService: _handleIDidThis error: $e');
+          });
           break;
         case _actionJournal:
           _handleJournalAction(context, payload);
           break;
         case _actionCommitmentView:
           _goToRoute(AppRoutes.commit);
-          break;
-        case _actionCommitmentDone:
-          _handleIDidThis(context, payload);
-          break;
-        // Overlay notification actions (from OverlayNotificationService)
-        case 'check_in':
-          _handleIDidThis(context, payload);
           break;
         case 'skip':
           break;
@@ -1801,7 +1823,7 @@ class NotificationService {
         }
 
         await _localNotificationsPlugin.zonedSchedule(
-          id: 60000 + commitmentId * 10 + i,
+          id: 40000000 + commitmentId * 100 + i,
           title: commitmentTitle,
           body: _commitmentNudgeBody(
             dailyAction: dailyAction,
@@ -1900,7 +1922,7 @@ class NotificationService {
       }
       for (var i = 0; i < 10; i++) {
         await _localNotificationsPlugin.cancel(
-          id: 60000 + commitmentId * 10 + i,
+          id: 40000000 + commitmentId * 100 + i,
         );
       }
     } catch (e) {
@@ -2074,5 +2096,9 @@ class NotificationService {
         'NotificationService: Error cancelling journey notifications: $e',
       );
     }
+  }
+
+  void dispose() {
+    _actionEventsController.close();
   }
 }

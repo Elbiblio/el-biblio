@@ -120,11 +120,11 @@ class ServiceOpportunityRepository {
 
   ServiceMatch _parseServiceMatch(Map<String, dynamic> json) {
     return ServiceMatch(
-      opportunityId: json['service_opportunity_id'] as String? ?? json['id'] as String,
-      title: json['title'] as String,
+      opportunityId: json['service_opportunity_id'] as String? ?? json['id'] as String? ?? '',
+      title: json['title'] as String? ?? '',
       matchScore: (json['match_score'] as num?)?.toDouble() ?? 0.0,
       matchReasons: (json['match_reasons'] as List<dynamic>?)?.cast<String>() ?? [],
-      category: json['category'] as String,
+      category: json['category'] as String? ?? '',
       burdenAlignment: json['burden_alignment'] as String?,
       tendencyAlignment: json['tendency_alignment'] as String?,
     );

@@ -27,26 +27,22 @@ class PersonCommitment with _$PersonCommitment {
 
   factory PersonCommitment.fromMap(Map<String, dynamic> map) {
     return PersonCommitment(
-      id: map['id'] as String,
-      personProfileId: map['person_profile_id'] as String,
-      name: map['name'] as String,
-      relationship: map['relationship'] as String,
+      id: map['id'] as String? ?? '',
+      personProfileId: map['person_profile_id'] as String? ?? '',
+      name: map['name'] as String? ?? '',
+      relationship: map['relationship'] as String? ?? '',
       notes: map['notes'] as String?,
       needs: map['needs'] as String?,
       tags: (map['tags'] as List<dynamic>?)?.cast<String>(),
       isActive: map['is_active'] as bool? ?? true,
-      lastContactAt: map['last_contact_at'] != null
-          ? DateTime.parse(map['last_contact_at'] as String)
-          : null,
+      lastContactAt: DateTime.tryParse(map['last_contact_at']?.toString() ?? ''),
       nextFollowUpAt: map['next_follow_up_at'] != null
           ? DateTime.parse(map['next_follow_up_at'] as String)
           : null,
       committedActionIds:
           (map['committed_action_ids'] as List<dynamic>?)?.cast<String>(),
       metadata: map['metadata'] as Map<String, dynamic>?,
-      createdAt: map['created_at'] != null
-          ? DateTime.parse(map['created_at'] as String)
-          : null,
+      createdAt: DateTime.tryParse(map['created_at']?.toString() ?? ''),
       updatedAt: map['updated_at'] != null
           ? DateTime.parse(map['updated_at'] as String)
           : null,

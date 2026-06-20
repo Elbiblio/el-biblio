@@ -20,9 +20,9 @@ class OverlayNotificationService {
 
   static const String _overlayChannelId = 'commitment_overlay';
   static const String _headsUpChannelId = 'commitment_heads_up';
-  static const int _overlayBaseId = 9000;
-  static const int _headsUpBaseId = 8000;
-  static const int _preReminderBaseId = 18000;
+  static const int _overlayBaseId = 20000000;
+  static const int _headsUpBaseId = 10000000;
+  static const int _preReminderBaseId = 30000000;
   static const Duration _overlayDelay = Duration(seconds: 30);
 
   Future<void> initialize() async {
@@ -252,15 +252,15 @@ class OverlayNotificationService {
 
   Future<void> cancelAllForCommitment(int commitmentId) async {
     for (var d = 1; d <= 7; d++) {
-      for (var i = 0; i < 10; i++) {
+      for (var i = 0; i < 20; i++) {
         await _localNotifications.cancel(
-          id: _overlayBaseId + commitmentId * 100 + d * 10 + i,
+          id: _overlayBaseId + commitmentId * 1000 + d * 10 + i,
         );
         await _localNotifications.cancel(
-          id: _headsUpBaseId + commitmentId * 100 + d * 10 + i,
+          id: _headsUpBaseId + commitmentId * 1000 + d * 10 + i,
         );
         await _localNotifications.cancel(
-          id: _preReminderBaseId + commitmentId * 100 + d * 10 + i,
+          id: _preReminderBaseId + commitmentId * 1000 + d * 10 + i,
         );
       }
     }
@@ -324,7 +324,7 @@ class OverlayNotificationService {
           },
         );
 
-        final id = _headsUpBaseId + schedule.commitmentId * 100 + day * 10 + i;
+        final id = _headsUpBaseId + schedule.commitmentId * 1000 + day * 10 + i;
 
         // Tier 1: Heads-up at check-in time, repeats weekly on this day
         try {
@@ -357,7 +357,7 @@ class OverlayNotificationService {
         // Tier 2: Full-screen overlay 30s later, same weekly pattern
         try {
           final overlayNotification = OverlayNotification(
-            id: _overlayBaseId + schedule.commitmentId * 100 + day * 10 + i,
+            id: _overlayBaseId + schedule.commitmentId * 1000 + day * 10 + i,
             commitmentId: schedule.commitmentId,
             scheduledTime: time,
             type: OverlayNotificationType.checkIn.value,
@@ -412,7 +412,7 @@ class OverlayNotificationService {
           try {
             final preNotif = OverlayNotification(
               id: _preReminderBaseId +
-                  schedule.commitmentId * 100 +
+                  schedule.commitmentId * 1000 +
                   day * 10 +
                   i,
               commitmentId: schedule.commitmentId,

@@ -34,11 +34,11 @@ class AccountabilityCheckIn with _$AccountabilityCheckIn {
       id: map['id']?.toString() ?? '',
       requesterUserId: map['requester_user_id']?.toString() ?? '',
       partnerUserId: map['partner_user_id']?.toString() ?? '',
-      weekStartDate: DateTime.parse(map['week_start_date'] as String),
+      weekStartDate: DateTime.tryParse(map['week_start_date']?.toString() ?? '') ?? DateTime.now(),
       requesterNote: map['requester_note'] as String?,
       verifiedCommitmentIds:
           (map['verified_commitment_ids'] as List<dynamic>?)?.cast<String>(),
-      requestedAt: DateTime.parse(map['requested_at'] as String),
+      requestedAt: DateTime.tryParse(map['requested_at']?.toString() ?? '') ?? DateTime.now(),
       confirmedAt: map['confirmed_at'] != null
           ? DateTime.parse(map['confirmed_at'] as String)
           : null,

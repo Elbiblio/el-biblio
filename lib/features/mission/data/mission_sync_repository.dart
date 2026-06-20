@@ -15,6 +15,12 @@ class MissionSyncRepository extends BaseRepository {
 
   final DioClient _dioClient;
 
+  List<Map<String, dynamic>> _payload(dynamic responseData) {
+    if (responseData is List) return responseData.cast<Map<String, dynamic>>();
+    if (responseData is Map && responseData['data'] is List) return (responseData['data'] as List).cast<Map<String, dynamic>>();
+    return [];
+  }
+
   // ========== Mission Actions ==========
   Future<List<MissionAction>> fetchActions({String? focus}) async {
     return guard(() async {
@@ -28,13 +34,9 @@ class MissionSyncRepository extends BaseRepository {
         queryParameters: queryParams.isNotEmpty ? queryParams : null,
       );
 
-      final data = response.data;
-      if (data == null) return [];
-
-      return data.map((json) {
-        final map = json as Map<String, dynamic>;
-        return MissionAction.fromMap(map);
-      }).toList();
+      return _payload(response.data)
+          .map((json) => MissionAction.fromMap(json))
+          .toList();
     }, operation: 'fetch_mission_actions');
   }
 
@@ -117,13 +119,9 @@ class MissionSyncRepository extends BaseRepository {
         queryParameters: queryParams.isNotEmpty ? queryParams : null,
       );
 
-      final data = response.data;
-      if (data == null) return [];
-
-      return data.map((json) {
-        final map = json as Map<String, dynamic>;
-        return EvangelismConversation.fromMap(map);
-      }).toList();
+      return _payload(response.data)
+          .map((json) => EvangelismConversation.fromMap(json))
+          .toList();
     }, operation: 'fetch_evangelism_conversations');
   }
 
@@ -190,13 +188,9 @@ class MissionSyncRepository extends BaseRepository {
         queryParameters: queryParams.isNotEmpty ? queryParams : null,
       );
 
-      final data = response.data;
-      if (data == null) return [];
-
-      return data.map((json) {
-        final map = json as Map<String, dynamic>;
-        return GenerosityRecord.fromMap(map);
-      }).toList();
+      return _payload(response.data)
+          .map((json) => GenerosityRecord.fromMap(json))
+          .toList();
     }, operation: 'fetch_generosity_records');
   }
 
@@ -249,13 +243,9 @@ class MissionSyncRepository extends BaseRepository {
         queryParameters: queryParams.isNotEmpty ? queryParams : null,
       );
 
-      final data = response.data;
-      if (data == null) return [];
-
-      return data.map((json) {
-        final map = json as Map<String, dynamic>;
-        return PersonCommitment.fromMap(map);
-      }).toList();
+      return _payload(response.data)
+          .map((json) => PersonCommitment.fromMap(json))
+          .toList();
     }, operation: 'fetch_person_commitments');
   }
 
@@ -314,13 +304,9 @@ class MissionSyncRepository extends BaseRepository {
         queryParameters: queryParams.isNotEmpty ? queryParams : null,
       );
 
-      final data = response.data;
-      if (data == null) return [];
-
-      return data.map((json) {
-        final map = json as Map<String, dynamic>;
-        return ServiceOpportunity.fromMap(map);
-      }).toList();
+      return _payload(response.data)
+          .map((json) => ServiceOpportunity.fromMap(json))
+          .toList();
     }, operation: 'fetch_service_opportunities');
   }
 
@@ -330,13 +316,9 @@ class MissionSyncRepository extends BaseRepository {
         '/service-opportunities/generate-matches',
       );
 
-      final data = response.data;
-      if (data == null) return [];
-
-      return data.map((json) {
-        final map = json as Map<String, dynamic>;
-        return ServiceOpportunity.fromMap(map['service_opportunity'] ?? map);
-      }).toList();
+      return _payload(response.data)
+          .map((json) => ServiceOpportunity.fromMap(json['service_opportunity'] ?? json))
+          .toList();
     }, operation: 'generate_service_matches');
   }
 

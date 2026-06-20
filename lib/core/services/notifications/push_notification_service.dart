@@ -42,6 +42,7 @@ class PushNotificationService implements PushNotificationGateway {
 
   final StreamController<String> _tokenStreamController =
       StreamController<String>.broadcast();
+  StreamSubscription<RemoteMessage>? _onMessageOpenedAppSubscription;
   @override
   Stream<String> get tokenStream => _tokenStreamController.stream;
 
@@ -79,6 +80,7 @@ class PushNotificationService implements PushNotificationGateway {
       );
       await _localNotifications.initialize(
         settings: initSettings,
+        onDidReceiveNotificationResponse: _onLocalNotificationTapped,
       );
 
       // Get initial message if app was opened from notification
@@ -93,7 +95,8 @@ class PushNotificationService implements PushNotificationGateway {
       );
 
       // Handle messages when app is in background but opened
-      FirebaseMessaging.onMessageOpenedApp.listen(_handleMessage);
+      _onMessageOpenedAppSubscription =
+          FirebaseMessaging.onMessageOpenedApp.listen(_handleMessage);
 
       if (await _canInitializeTokenWithoutPrompt()) {
         await _initializeToken();
@@ -184,6 +187,15 @@ class PushNotificationService implements PushNotificationGateway {
     _messageStreamController.add(message);
   }
 
+  /// Handle tap on a local notification shown by this service
+  void _onLocalNotificationTapped(NotificationResponse response) {
+    if (response.payload != null && response.payload!.isNotEmpty) {
+      debugPrint(
+        'PushNotificationService: local notification tapped: ${response.payload}',
+      );
+    }
+  }
+
   /// Show local notification for foreground messages
   Future<void> _showLocalNotification(RemoteMessage message) async {
     const AndroidNotificationDetails androidPlatformChannelSpecifics =
@@ -265,6 +277,7 @@ class PushNotificationService implements PushNotificationGateway {
   void dispose() {
     _tokenSubscription?.cancel();
     _messageSubscription?.cancel();
+    _onMessageOpenedAppSubscription?.cancel();
     _messageStreamController.close();
     _tokenStreamController.close();
   }

@@ -43,11 +43,13 @@ class CommitmentSchedule {
   factory CommitmentSchedule.fromJson(Map<String, dynamic> json) {
     final times = (json['checkInTimes'] as List<dynamic>? ?? [])
         .map((e) {
-          final parts = (e as String).split(':');
-          return TimeOfDay(
-            hour: int.tryParse(parts[0]) ?? 8,
-            minute: int.tryParse(parts[1]) ?? 0,
-          );
+          final parts = (e?.toString() ?? '').split(':');
+          if (parts.length >= 2) {
+            final hour = int.tryParse(parts[0].trim()) ?? 0;
+            final minute = int.tryParse(parts[1].trim()) ?? 0;
+            return TimeOfDay(hour: hour, minute: minute);
+          }
+          return const TimeOfDay(hour: 0, minute: 0);
         })
         .toList();
 
@@ -55,7 +57,7 @@ class CommitmentSchedule {
       commitmentId: json['commitmentId'] as int? ?? 0,
       checkInTimes: times,
       activeDays: (json['activeDays'] as List<dynamic>? ?? [1, 2, 3, 4, 5, 6, 7])
-          .map((e) => e as int)
+          .map((e) => (e as num).toInt())
           .toList(),
       skipDaysAllowed: json['skipDaysAllowed'] as int? ?? 2,
       overlayEnabled: json['overlayEnabled'] as bool? ?? true,

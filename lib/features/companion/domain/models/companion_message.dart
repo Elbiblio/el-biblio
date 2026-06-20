@@ -66,7 +66,7 @@ class CompanionMessage {
 
   factory CompanionMessage.fromMap(Map<String, dynamic> map) {
     return CompanionMessage(
-      id: map['id'] as String,
+      id: map['id'] as String? ?? '',
       role: CompanionMessageRoleX.fromStorage(map['role'] as String?),
       content: map['content'] as String? ?? '',
       createdAt: DateTime.tryParse(map['createdAt'] as String? ?? '') ??

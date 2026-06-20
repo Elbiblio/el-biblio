@@ -40,7 +40,7 @@ class EvangelismConversation with _$EvangelismConversation {
       responseType: map['response_type'] as String?,
       notes: map['notes'] as String?,
       prayerRequests: (map['prayer_requests'] as List<dynamic>?)?.cast<String>(),
-      conversationDate: DateTime.parse(map['conversation_date'] as String),
+      conversationDate: DateTime.tryParse(map['conversation_date']?.toString() ?? '') ?? DateTime.now(),
       isOngoing: map['is_ongoing'] as bool? ?? true,
       decisionMade: map['decision_made'] as String?,
       decisionDate: map['decision_date'] != null

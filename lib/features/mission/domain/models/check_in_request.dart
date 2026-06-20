@@ -28,9 +28,9 @@ class CheckInRequest {
   factory CheckInRequest.fromMap(Map<String, dynamic> map) {
     return CheckInRequest(
       id: map['id'] as String,
-      requestedAt: DateTime.parse(map['requestedAt'] as String),
+      requestedAt: DateTime.tryParse(map['requestedAt']?.toString() ?? '') ?? DateTime.now(),
       requestedByUserId: map['requestedByUserId'] as String,
-      weekStartDate: DateTime.parse(map['weekStartDate'] as String),
+      weekStartDate: DateTime.tryParse(map['weekStartDate']?.toString() ?? '') ?? DateTime.now(),
       note: map['note'] as String?,
       confirmedAt: map['confirmedAt'] == null
           ? null

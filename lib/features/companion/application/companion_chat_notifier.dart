@@ -58,12 +58,17 @@ class CompanionChatNotifier extends StateNotifier<CompanionChatState> {
     required String threadKey,
     required String mode,
     required this.repository,
-    required this.character,
-  }) : super(CompanionChatState.empty(threadKey, mode));
+    required Ref ref,
+  })  : _ref = ref,
+        super(CompanionChatState.empty(threadKey, mode));
 
   final CompanionRepository repository;
-  final CompanionCharacter character;
+  final Ref _ref;
   final _uuid = const Uuid();
+
+  CompanionCharacter get _character => _ref.read(
+        companionProvider.select((s) => s.activeCharacter ?? CompanionCharacter.naomi),
+      );
 
   Future<void> load() async {
     final convo = await repository.loadConversation(state.threadKey);
@@ -95,7 +100,7 @@ class CompanionChatNotifier extends StateNotifier<CompanionChatState> {
       role: CompanionMessageRole.assistant,
       content: content,
       createdAt: DateTime.now(),
-      characterCode: character.code,
+      characterCode: _character.code,
     );
     final next = [...state.messages, msg];
     state = state.copyWith(messages: next, mood: CompanionMood.warm);
@@ -139,7 +144,7 @@ class CompanionChatNotifier extends StateNotifier<CompanionChatState> {
       role: CompanionMessageRole.user,
       content: trimmed,
       createdAt: DateTime.now(),
-      characterCode: character.code,
+      characterCode: _character.code,
     );
 
     final pendingId = _uuid.v4();
@@ -148,7 +153,7 @@ class CompanionChatNotifier extends StateNotifier<CompanionChatState> {
       role: CompanionMessageRole.assistant,
       content: '',
       createdAt: DateTime.now(),
-      characterCode: character.code,
+      characterCode: _character.code,
       pending: true,
     );
 
@@ -185,7 +190,7 @@ class CompanionChatNotifier extends StateNotifier<CompanionChatState> {
     try {
       final stream = repository.chatStream(
         threadKey: state.threadKey,
-        character: character,
+        character: _character,
         message: trimmed,
         mode: state.mode,
         context: context,
@@ -267,7 +272,7 @@ class CompanionChatNotifier extends StateNotifier<CompanionChatState> {
   Future<void> _persist() async {
     final conversation = CompanionConversation(
       threadKey: state.threadKey,
-      characterCode: character.code,
+      characterCode: _character.code,
       messages: state.messages.where((m) => !m.pending).toList(),
       updatedAt: DateTime.now(),
       mode: state.mode,
@@ -295,14 +300,11 @@ class CompanionChatKey {
 
 final companionChatProvider = StateNotifierProvider.family<
     CompanionChatNotifier, CompanionChatState, CompanionChatKey>((ref, key) {
-  final character = ref.watch(
-    companionProvider.select((s) => s.activeCharacter ?? CompanionCharacter.naomi),
-  );
   final notifier = CompanionChatNotifier(
     threadKey: key.threadKey,
     mode: key.mode,
     repository: ref.watch(companionRepositoryProvider),
-    character: character,
+    ref: ref,
   );
   notifier.load();
   return notifier;

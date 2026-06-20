@@ -1554,13 +1554,16 @@ class _CommitmentWalkthroughSheetState
                 ? null
                 : () async {
                     setState(() => _joining = true);
-                    await widget.onJoin(
-                      _nudges,
-                      _scheduleTimesFormatted(),
-                      _obstacleController.text,
-                    );
-                    if (mounted) {
-                      setState(() => _joining = false);
+                    try {
+                      await widget.onJoin(
+                        _nudges,
+                        _scheduleTimesFormatted(),
+                        _obstacleController.text,
+                      );
+                    } finally {
+                      if (mounted) {
+                        setState(() => _joining = false);
+                      }
                     }
                   },
             icon: _joining
