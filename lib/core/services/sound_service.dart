@@ -7,6 +7,7 @@ class SoundService {
   static SoundService? _instance;
   static SoundService get instance => _instance ??= SoundService._();
 
+  @Deprecated('Use SoundService.instance instead to avoid leaking audio players')
   SoundService({AudioPlayer? player}) : _player = player ?? AudioPlayer() {
     _initAudio();
   }

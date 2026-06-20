@@ -1801,7 +1801,7 @@ class NotificationService {
         }
 
         await _localNotificationsPlugin.zonedSchedule(
-          id: 7000 + commitmentId * 10 + i,
+          id: 60000 + commitmentId * 10 + i,
           title: commitmentTitle,
           body: _commitmentNudgeBody(
             dailyAction: dailyAction,
@@ -1900,7 +1900,7 @@ class NotificationService {
       }
       for (var i = 0; i < 10; i++) {
         await _localNotificationsPlugin.cancel(
-          id: 7000 + commitmentId * 10 + i,
+          id: 60000 + commitmentId * 10 + i,
         );
       }
     } catch (e) {

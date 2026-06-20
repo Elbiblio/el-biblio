@@ -100,7 +100,7 @@ class ServiceOpportunityRepository {
       if (maxLevel != null) queryParams['level'] = maxLevel;
 
       final response = await _dioClient.get(
-        '/api/challenges',
+        '/challenges',
         queryParameters: queryParams,
       );
 

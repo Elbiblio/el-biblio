@@ -216,7 +216,7 @@ class CommitmentSeason {
   final double? completionPercentOverride;
 
   bool get checkedInToday {
-    if (todayItems.length > 1) {
+    if (todayItems.isNotEmpty) {
       return totalRequiredItemCount > 0 &&
           completedTodayItemCount >= totalRequiredItemCount;
     }

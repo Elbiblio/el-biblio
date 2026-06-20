@@ -30,6 +30,7 @@ class PushNotificationService implements PushNotificationGateway {
 
   bool _initialized = false;
   String? _currentToken;
+  int _nextId = 1 << 30;
   StreamSubscription<String>? _tokenSubscription;
   StreamSubscription<RemoteMessage>? _messageSubscription;
 
@@ -64,6 +65,21 @@ class PushNotificationService implements PushNotificationGateway {
         // Don't rethrow - continue without push notifications
         return;
       }
+
+      // Initialize local notifications plugin for foreground display
+      const androidInit = AndroidInitializationSettings('@mipmap/ic_launcher');
+      const iosInit = DarwinInitializationSettings(
+        requestAlertPermission: false,
+        requestBadgePermission: false,
+        requestSoundPermission: false,
+      );
+      const initSettings = InitializationSettings(
+        android: androidInit,
+        iOS: iosInit,
+      );
+      await _localNotifications.initialize(
+        settings: initSettings,
+      );
 
       // Get initial message if app was opened from notification
       final initialMessage = await _firebaseMessaging.getInitialMessage();
@@ -193,7 +209,7 @@ class PushNotificationService implements PushNotificationGateway {
     );
 
     await _localNotifications.show(
-      id: message.hashCode,
+      id: _nextId++,
       title: message.notification?.title ?? 'New Message',
       body: message.notification?.body ?? 'You have a new message',
       notificationDetails: platformChannelSpecifics,

@@ -319,7 +319,7 @@ final missionProvider = StateNotifierProvider<MissionNotifier, MissionState>((
 });
 
 final soundServiceProvider = Provider<SoundService>((ref) {
-  final service = SoundService();
+  final service = SoundService.instance;
   ref.onDispose(service.dispose);
   return service;
 });

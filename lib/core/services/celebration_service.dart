@@ -146,7 +146,7 @@ class CelebrationService {
   }
 
   void _playSound(CelebrationType type) {
-    final soundService = SoundService();
+    final soundService = SoundService.instance;
     
     switch (type) {
       case CelebrationType.onboarding:

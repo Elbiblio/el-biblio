@@ -570,7 +570,6 @@ class VisionRepository {
   List<dynamic> _payloadList(Map<String, dynamic>? response) {
     final data = _payload(response);
     if (data is List) return data;
-    if (data is Map && data['data'] is List) return data['data'] as List;
     return const [];
   }
 }

@@ -1732,7 +1732,15 @@ class _ActiveCommitment extends ConsumerWidget {
                 final completed = await ref
                     .read(visionProvider.notifier)
                     .checkIn();
-                if (!context.mounted || completed) return;
+                if (!context.mounted) return;
+                if (completed) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Today marked complete!'),
+                    ),
+                  );
+                  return;
+                }
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
                     content: Text(

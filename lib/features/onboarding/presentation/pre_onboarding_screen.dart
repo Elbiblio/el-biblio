@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/constants/app_routes.dart';
 import '../../../core/di/app_providers.dart';
 
 class PreOnboardingScreen extends ConsumerStatefulWidget {
@@ -80,7 +81,7 @@ class _PreOnboardingScreenState extends ConsumerState<PreOnboardingScreen> {
           phone: fullPhone,
         );
         if (mounted) {
-          context.go('/today');
+          context.go(AppRoutes.today);
         }
       } else {
         if (mounted) {
