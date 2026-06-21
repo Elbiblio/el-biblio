@@ -15,6 +15,7 @@ class _DailyWelcomeOverlayState extends State<DailyWelcomeOverlay>
   late final Animation<double> _fadeAnimation;
   late final Animation<double> _rotationAnimation;
   late final Animation<double> _scaleAnimation;
+  late final Animation<double> _burstAnimation;
 
   @override
   void initState() {
@@ -42,6 +43,12 @@ class _DailyWelcomeOverlayState extends State<DailyWelcomeOverlay>
       CurvedAnimation(
         parent: _controller,
         curve: const Interval(0.0, 1.0, curve: Curves.easeOut),
+      ),
+    );
+    _burstAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _controller,
+        curve: const Interval(0.3, 0.7, curve: Curves.easeOut),
       ),
     );
 
@@ -74,6 +81,8 @@ class _DailyWelcomeOverlayState extends State<DailyWelcomeOverlay>
       );
     }
 
+    final size = MediaQuery.of(context).size;
+
     return AnimatedBuilder(
       animation: _controller,
       builder: (context, child) {
@@ -84,6 +93,23 @@ class _DailyWelcomeOverlayState extends State<DailyWelcomeOverlay>
               Positioned.fill(
                 child: Container(
                   color: colors.surface.withValues(alpha: 0.0),
+                ),
+              ),
+              // Centre burst sparkle — peaks at the sound's brightest moment
+              Positioned(
+                top: size.height * 0.28,
+                left: size.width * 0.5 - 28,
+                child: Opacity(
+                  opacity: (_burstAnimation.value * (1 - _burstAnimation.value) * 4)
+                      .clamp(0.0, 1.0),
+                  child: Transform.scale(
+                    scale: 0.4 + _burstAnimation.value * 1.2,
+                    child: Icon(
+                      Icons.auto_awesome_rounded,
+                      size: 56,
+                      color: colors.primary.withValues(alpha: 0.9),
+                    ),
+                  ),
                 ),
               ),
               Positioned(

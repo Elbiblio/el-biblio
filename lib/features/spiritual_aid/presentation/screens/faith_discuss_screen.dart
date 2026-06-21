@@ -4,7 +4,9 @@ import 'package:go_router/go_router.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../../../../core/constants/app_routes.dart';
+import '../../../../core/services/sound_service.dart';
 import '../../../../core/theme/app_theme_tokens.dart';
+import '../../../../shared/widgets/ambient_scope.dart';
 import '../../application/spiritual_aid_notifier.dart';
 import '../../domain/models/faith_prompt.dart';
 import '../widgets/category_chips.dart';
@@ -32,7 +34,10 @@ class _FaithDiscussScreenState extends ConsumerState<FaithDiscussScreen> {
     final theme = Theme.of(context);
     final tokens = theme.tokens;
 
-    return Scaffold(
+    return AmbientScope(
+      asset: SoundService.ambientPrayerAsset,
+      volume: 0.07,
+      child: Scaffold(
       body: Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(
@@ -129,6 +134,7 @@ class _FaithDiscussScreenState extends ConsumerState<FaithDiscussScreen> {
             ],
           ),
         ),
+      ),
       ),
     );
   }

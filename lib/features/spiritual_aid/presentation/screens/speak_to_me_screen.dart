@@ -3,7 +3,9 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:share_plus/share_plus.dart';
 
+import '../../../../core/services/sound_service.dart';
 import '../../../../core/services/tts_service.dart';
+import '../../../../shared/widgets/ambient_scope.dart';
 import '../../../companion/application/companion_notifier.dart';
 import '../../../companion/domain/models/companion_character.dart';
 import '../../../companion/domain/models/companion_mood.dart';
@@ -75,7 +77,10 @@ class _SpeakToMeScreenState extends ConsumerState<SpeakToMeScreen>
     final state = ref.watch(spiritualAidProvider);
     final verse = state.currentVerse;
 
-    return Scaffold(
+    return AmbientScope(
+      asset: SoundService.ambientPrayerAsset,
+      volume: 0.07,
+      child: Scaffold(
       body: AnimatedBuilder(
         animation: _bgController,
         builder: (context, _) {
@@ -97,6 +102,7 @@ class _SpeakToMeScreenState extends ConsumerState<SpeakToMeScreen>
             ),
           );
         },
+      ),
       ),
     );
   }

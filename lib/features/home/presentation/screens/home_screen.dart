@@ -58,7 +58,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     if (ModalRoute.of(context)?.isCurrent != true) return;
 
     setState(() => _showWelcome = true);
-    await ref.read(soundServiceProvider).playWelcomeShiny();
+    // Fire sound on the next frame so the overlay widget is mounted and
+    // animating before audio starts — keeps sound/visual perfectly in sync.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ref.read(soundServiceProvider).playWelcomeShiny();
+    });
     await ref.read(settingsProvider.notifier).markWelcomeShownForToday();
   }
 

@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/di/app_providers.dart';
+import '../../../../core/services/sound_service.dart';
 import '../../../../core/services/tts_service.dart';
+import '../../../../shared/widgets/ambient_scope.dart';
 import '../../../../core/theme/app_theme_tokens.dart';
 import '../../application/spiritual_aid_notifier.dart';
 import '../../domain/models/quick_prayer.dart';
@@ -47,7 +49,10 @@ class _QuickPrayerScreenState extends ConsumerState<QuickPrayerScreen>
     final theme = Theme.of(context);
     final tokens = theme.tokens;
 
-    return Scaffold(
+    return AmbientScope(
+      asset: SoundService.ambientPrayerAsset,
+      volume: 0.07,
+      child: Scaffold(
       body: Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(
@@ -125,6 +130,7 @@ class _QuickPrayerScreenState extends ConsumerState<QuickPrayerScreen>
             ],
           ),
         ),
+      ),
       ),
     );
   }

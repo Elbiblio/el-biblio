@@ -30,6 +30,11 @@ class SoundService {
   static const String ambientTodayAsset = 'audio/ambient/ambient-today.mp3';
   static const String ambientBibleAsset = 'audio/ambient/ambient-bible.mp3';
   static const String ambientCommunityAsset = 'audio/ambient/community.mp3';
+  static const String ambientCommitmentAsset = 'audio/ambient/mountain.mp3';
+  static const String ambientPrayerAsset = 'audio/ambient/stars.mp3';
+  static const String ambientAssessmentAsset = 'audio/ambient/field.mp3';
+  static const String ambientReflectionAsset = 'audio/ambient/forest.mp3';
+  static const String ambientSoulCareAsset = 'audio/ambient/sunset.mp3';
   static const String bellMeditationAsset = 'audio/bell-meditation.mp3';
   static const String chimeGentleAsset = 'audio/chime-gentle.mp3';
   static const String successBellAsset = 'audio/success_bell.mp3';

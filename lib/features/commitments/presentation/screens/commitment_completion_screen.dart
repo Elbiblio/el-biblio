@@ -57,6 +57,15 @@ class _CommitmentCompletionScreenState
 
     _celebrateController.forward();
     _contentController.forward();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ref.read(soundServiceProvider).playSuccessBell();
+      Future.delayed(const Duration(milliseconds: 800), () {
+        if (!mounted) return;
+        ref.read(soundServiceProvider).playLevelUp();
+      });
+    });
   }
 
   @override

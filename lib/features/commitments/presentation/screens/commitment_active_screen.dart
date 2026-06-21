@@ -6,7 +6,9 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/app_routes.dart';
 import '../../../../core/di/app_providers.dart';
+import '../../../../core/services/sound_service.dart';
 import '../../../../core/theme/app_theme_tokens.dart';
+import '../../../../shared/widgets/ambient_scope.dart';
 import '../../domain/models/graduated_commitment.dart';
 import '../widgets/commitment_timer.dart';
 import '../widgets/tier_badge.dart';
@@ -86,7 +88,10 @@ class _CommitmentActiveScreenState
       );
     }
 
-    return Scaffold(
+    return AmbientScope(
+      asset: SoundService.ambientCommitmentAsset,
+      volume: 0.07,
+      child: Scaffold(
       body: Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(
@@ -163,7 +168,10 @@ class _CommitmentActiveScreenState
 
                       // Motivational verse
                       GestureDetector(
-                        onTap: _cycleVerse,
+                        onTap: () {
+                          ref.read(soundServiceProvider).playPaperRustle();
+                          _cycleVerse();
+                        },
                         child: Container(
                           width: double.infinity,
                           padding: const EdgeInsets.all(16),
@@ -221,6 +229,7 @@ class _CommitmentActiveScreenState
                         child: FilledButton.icon(
                           onPressed: state.canComplete
                               ? () {
+                                  ref.read(soundServiceProvider).playChimeGentle();
                                   ref
                                       .read(
                                           graduatedCommitmentProvider.notifier)
@@ -265,6 +274,7 @@ class _CommitmentActiveScreenState
             ],
           ),
         ),
+      ),
       ),
     );
   }
