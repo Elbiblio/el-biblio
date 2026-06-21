@@ -5,7 +5,9 @@ import 'package:lucide_icons/lucide_icons.dart';
 
 import '../../../../core/constants/app_routes.dart';
 import '../../../../core/di/app_providers.dart';
+import '../../../../core/services/sound_service.dart';
 import '../../../../core/theme/app_theme_tokens.dart';
+import '../../../../shared/widgets/ambient_scope.dart';
 import '../../../../shared/widgets/safe_bottom_padding.dart';
 import '../../../assessment/domain/models/archetype.dart';
 import '../../../vision/domain/vision_models.dart';
@@ -38,7 +40,10 @@ class _ConnectScreenState extends ConsumerState<ConnectScreen> {
         ? Archetype.allArchetypes.where((a) => a.name == archetypeId).firstOrNull
         : null;
 
-    return Scaffold(
+    return AmbientScope(
+      asset: SoundService.ambientCommunityAsset,
+      volume: 0.07,
+      child: Scaffold(
       body: Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(
@@ -91,6 +96,7 @@ class _ConnectScreenState extends ConsumerState<ConnectScreen> {
             ),
           ),
         ),
+      ),
       ),
     );
   }

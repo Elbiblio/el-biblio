@@ -118,7 +118,10 @@ class _JournalScreenState extends ConsumerState<JournalScreen> {
           ),
           child: FloatingActionButton.extended(
             heroTag: 'journal_new_note',
-            onPressed: () => context.push('${AppRoutes.journal}/new'),
+            onPressed: () {
+              ref.read(soundServiceProvider).playPaperRustle();
+              context.push('${AppRoutes.journal}/new');
+            },
             backgroundColor: fabBackground,
             foregroundColor: theme.colorScheme.primary,
             elevation: 0,
@@ -178,7 +181,10 @@ class _JournalScreenState extends ConsumerState<JournalScreen> {
           isDark: isDark,
           primaryTextColor: primaryTextColor,
           secondaryTextColor: secondaryTextColor,
-          onTap: () => context.push('${AppRoutes.journal}/${note.id}'),
+          onTap: () {
+            ref.read(soundServiceProvider).playPaperRustle();
+            context.push('${AppRoutes.journal}/${note.id}');
+          },
           onDelete: () => _deleteNote(note.id!),
         ),
       );

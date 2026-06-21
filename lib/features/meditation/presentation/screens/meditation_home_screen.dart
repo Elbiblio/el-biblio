@@ -5,6 +5,8 @@ import 'package:lucide_icons/lucide_icons.dart';
 
 import '../../../../core/constants/app_routes.dart';
 import '../../../../core/di/app_providers.dart';
+import '../../../../core/services/sound_service.dart';
+import '../../../../shared/widgets/ambient_scope.dart';
 import '../../data/soul_care_catalog.dart';
 import '../../domain/models/meditation_session.dart';
 import '../../domain/models/meditation_enums.dart';
@@ -49,6 +51,7 @@ class _MeditationHomeScreenState extends ConsumerState<MeditationHomeScreen> {
   }
 
   Future<void> _openSessionScreen() async {
+    ref.read(soundServiceProvider).playTransition();
     await context.push('${AppRoutes.meditation}/session');
     if (!mounted) return;
     await _loadData();
@@ -191,7 +194,10 @@ class _MeditationHomeScreenState extends ConsumerState<MeditationHomeScreen> {
       return sum + (session.durationMinutes * session.completedCount);
     });
 
-    return Scaffold(
+    return AmbientScope(
+      asset: SoundService.bellMeditationAsset,
+      volume: 0.06,
+      child: Scaffold(
       backgroundColor: bgColor,
       body: SafeArea(
         bottom: false,
@@ -540,6 +546,7 @@ class _MeditationHomeScreenState extends ConsumerState<MeditationHomeScreen> {
             const SliverToBoxAdapter(child: SizedBox(height: 40)),
           ],
         ),
+      ),
       ),
     );
   }

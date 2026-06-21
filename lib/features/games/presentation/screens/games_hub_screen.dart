@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../../../../core/constants/app_routes.dart';
 import '../../../../core/constants/clarity_copy.dart';
+import '../../../../core/di/app_providers.dart';
 import '../../application/journey_game_notifier.dart';
 import '../widgets/game_hub_card.dart';
 
@@ -61,7 +62,10 @@ class GamesHubScreen extends ConsumerWidget {
                 subtitle: 'Arrange and guess Bible verses',
                 icon: LucideIcons.shuffle,
                 color: const Color(0xFF5e7153),
-                onTap: () => context.push('/games/verse-scramble'),
+                onTap: () {
+                  ref.read(soundServiceProvider).playTap();
+                  context.push('/games/verse-scramble');
+                },
                 trailing: Row(
                   children: [
                     Icon(Icons.bolt, size: 16, color: Colors.amber.shade600),
@@ -85,7 +89,10 @@ class GamesHubScreen extends ConsumerWidget {
                 subtitle: 'Walk through the life of Christ',
                 icon: LucideIcons.mapPin,
                 color: const Color(0xFF3B82C4),
-                onTap: () => context.push('/games/journey'),
+                onTap: () {
+                  ref.read(soundServiceProvider).playTap();
+                  context.push('/games/journey');
+                },
                 trailing: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -149,7 +156,10 @@ class GamesHubScreen extends ConsumerWidget {
                 subtitle: ClarityCopy.faithQuestionsSubtitle,
                 icon: LucideIcons.helpCircle,
                 color: const Color(0xFF7B68EE),
-                onTap: () => context.push(AppRoutes.faithQuestions),
+                onTap: () {
+                  ref.read(soundServiceProvider).playTap();
+                  context.push(AppRoutes.faithQuestions);
+                },
                 trailing: Row(
                   children: [
                     Icon(
