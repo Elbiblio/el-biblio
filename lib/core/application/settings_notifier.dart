@@ -623,6 +623,20 @@ class SettingsNotifier extends StateNotifier<AppSettings> {
     await _persistWithRetry(next);
   }
 
+  Future<void> setSoundEnabled(bool enabled) async {
+    final next = state.copyWith(soundEnabled: enabled);
+    state = next;
+    await _persistWithRetry(next);
+  }
+
+  Future<void> markWelcomeShownForToday() async {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final next = state.copyWith(lastWelcomeDate: today);
+    state = next;
+    await _persistWithRetry(next);
+  }
+
   Future<void> setCompassSeasonSignal({
     required String archetype,
     required int supportScore,

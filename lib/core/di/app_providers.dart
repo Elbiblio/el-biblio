@@ -324,8 +324,15 @@ final missionProvider = StateNotifierProvider<MissionNotifier, MissionState>((
 });
 
 final soundServiceProvider = Provider<SoundService>((ref) {
-  final service = SoundService.instance;
-  ref.onDispose(service.dispose);
+  final settings = ref.watch(settingsProvider);
+  final service = SoundService(soundEnabled: settings.soundEnabled);
+
+  ref.listen<bool>(
+    settingsProvider.select((s) => s.soundEnabled),
+    (_, next) => service.setSoundEnabled(next),
+  );
+
+  ref.onDispose(() => service.dispose());
   return service;
 });
 

@@ -434,6 +434,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     required Color mutedTextColor,
     required Color surfaceColor,
   }) {
+    final soundEnabled = ref.watch(settingsProvider.select((s) => s.soundEnabled));
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
@@ -451,6 +453,44 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             ).textTheme.sectionHeader.copyWith(color: mutedTextColor),
           ),
           const SizedBox(height: 16),
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: Theme.of(
+                  context,
+                ).colorScheme.primaryContainer.withValues(alpha: 0.5),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                soundEnabled ? Icons.volume_up_outlined : Icons.volume_off_outlined,
+                color: Theme.of(context).colorScheme.onPrimaryContainer,
+                size: 20,
+              ),
+            ),
+            title: Text(
+              'Sound',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+                color: primaryTextColor,
+              ),
+            ),
+            subtitle: Text(
+              'Play subtle sounds for actions and screens',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: primaryTextColor.withValues(alpha: 0.7),
+              ),
+            ),
+            trailing: Switch(
+              value: soundEnabled,
+              onChanged: (val) {
+                ref.read(settingsProvider.notifier).setSoundEnabled(val);
+              },
+            ),
+          ),
+          const SizedBox(height: 8),
           ListTile(
             contentPadding: EdgeInsets.zero,
             leading: Container(

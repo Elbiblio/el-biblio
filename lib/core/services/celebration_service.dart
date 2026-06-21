@@ -37,9 +37,10 @@ class CelebrationService {
     required String key,
     CelebrationType type = CelebrationType.general,
     VoidCallback? onComplete,
+    SoundService? soundService,
   }) {
     // Play sound
-    _playSound(type);
+    _playSound(type, soundService: soundService);
 
     // Create confetti
     final controller = createConfetti(
@@ -145,15 +146,14 @@ class CelebrationService {
     _controllers.clear();
   }
 
-  void _playSound(CelebrationType type) {
-    final soundService = SoundService.instance;
-    
+  void _playSound(CelebrationType type, {SoundService? soundService}) {
+    if (soundService == null) return;
     switch (type) {
       case CelebrationType.onboarding:
         soundService.playOnboardingSuccess();
         break;
       case CelebrationType.dailyCheckIn:
-        soundService.playGameLevelUp(); // Reuse level up sound
+        soundService.playGameLevelUp();
         break;
       case CelebrationType.activity:
         soundService.playGameSuccess();

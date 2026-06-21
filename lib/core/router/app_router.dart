@@ -79,6 +79,7 @@ import '../../features/faith_questions/presentation/screens/faith_quiz_screen.da
 import '../../features/faith_questions/presentation/screens/faith_quiz_results_screen.dart';
 import '../theme/app_animations.dart';
 import '../../shared/widgets/app_shell.dart';
+import 'sound_route_observer.dart';
 
 /// Subtle fast-fade page transition for shell routes (bottom-nav tabs).
 Page<void> _fadePage({required Widget child, LocalKey? key}) {
@@ -141,11 +142,13 @@ final _routerRefreshProvider = Provider<_RouterRefreshNotifier>((ref) {
 final appRouterProvider = Provider<GoRouter>((ref) {
   final refresh = ref.watch(_routerRefreshProvider);
 
+  final soundObserver = SoundRouteObserver(ref.read(soundServiceProvider));
+
   return GoRouter(
     navigatorKey: _rootNavigatorKey,
     initialLocation: AppRoutes.root,
     refreshListenable: refresh,
-    observers: [rootChromeRouteObserver],
+    observers: [rootChromeRouteObserver, soundObserver],
     routes: <RouteBase>[
       GoRoute(
         path: AppRoutes.root,

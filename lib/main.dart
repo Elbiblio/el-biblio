@@ -13,6 +13,7 @@ import 'package:timeago/timeago.dart' as timeago;
 import 'core/constants/app_routes.dart';
 import 'core/di/app_providers.dart';
 import 'core/router/app_router.dart';
+import 'core/services/sound_lifecycle_observer.dart';
 import 'core/services/notifications/notification_service.dart';
 import 'core/services/notifications/push_notification_service.dart';
 import 'core/services/overlay_response_service.dart';
@@ -297,10 +298,22 @@ class CompassApp extends ConsumerStatefulWidget {
 }
 
 class _CompassAppState extends ConsumerState<CompassApp> {
+  SoundLifecycleObserver? _soundObserver;
+
   @override
   void initState() {
     super.initState();
     _handleOverlayAction();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _soundObserver = SoundLifecycleObserver(ref);
+      _soundObserver!.initialize();
+    });
+  }
+
+  @override
+  void dispose() {
+    _soundObserver?.dispose();
+    super.dispose();
   }
 
   Future<void> _handleOverlayAction() async {

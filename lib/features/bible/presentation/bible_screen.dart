@@ -7,6 +7,8 @@ import 'dart:async';
 import '../../../../core/constants/app_routes.dart';
 import '../../../../core/di/app_providers.dart';
 import '../../../../core/services/analytics/app_analytics_service.dart';
+import '../../../../core/services/sound_service.dart';
+import '../../../../shared/widgets/ambient_scope.dart';
 import '../application/bible_notifier.dart';
 import '../domain/models/bible_content.dart';
 import 'widgets/bible_verse_action_sheet.dart';
@@ -176,7 +178,10 @@ class _BibleScreenState extends ConsumerState<BibleScreen> {
       }
     });
 
-    return Scaffold(
+    return AmbientScope(
+      asset: SoundService.ambientBibleAsset,
+      volume: 0.08,
+      child: Scaffold(
       appBar: AppBar(
         title: _buildTitleSelector(context, bibleState, bibleNotifier),
         centerTitle: true,
@@ -384,6 +389,7 @@ class _BibleScreenState extends ConsumerState<BibleScreen> {
                 ],
               ),
             ),
+      ),
     );
   }
 

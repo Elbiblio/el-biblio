@@ -74,6 +74,8 @@ class AppSettings {
     this.lastCommitmentReviewAt,
     this.commitmentMonthlyReviewOutcome,
     this.onboardingDraft,
+    this.soundEnabled = true,
+    this.lastWelcomeDate,
   });
 
   final AppThemeMode themeMode;
@@ -156,6 +158,12 @@ class AppSettings {
   /// `onboardingCompleted == false`. Cleared after signup success.
   final String? onboardingDraft;
 
+  /// Whether sound effects and ambient audio are enabled (default: true).
+  final bool soundEnabled;
+
+  /// The last date the daily welcome overlay was shown (date-only, no time).
+  final DateTime? lastWelcomeDate;
+
   factory AppSettings.defaults() {
     return const AppSettings(
       themeMode: AppThemeMode.adaptive,
@@ -216,6 +224,8 @@ class AppSettings {
       lastCommitmentReviewAt: null,
       commitmentMonthlyReviewOutcome: null,
       onboardingDraft: null,
+      soundEnabled: true,
+      lastWelcomeDate: null,
     );
   }
 
@@ -425,6 +435,10 @@ class AppSettings {
             map['commitmentMonthlyReviewOutcome'] as String?,
           ),
       onboardingDraft: map['onboardingDraft'] as String?,
+      soundEnabled: map['soundEnabled'] as bool? ?? true,
+      lastWelcomeDate: map['lastWelcomeDate'] == null
+          ? null
+          : DateTime.tryParse(map['lastWelcomeDate'] as String),
     );
   }
 
@@ -504,6 +518,8 @@ class AppSettings {
       'commitmentMonthlyReviewOutcome':
           commitmentMonthlyReviewOutcome?.storageValue,
       'onboardingDraft': onboardingDraft,
+      'soundEnabled': soundEnabled,
+      'lastWelcomeDate': lastWelcomeDate?.toIso8601String(),
     };
   }
 
@@ -566,6 +582,8 @@ class AppSettings {
     DateTime? lastCommitmentReviewAt,
     CommitmentMonthlyReviewOutcome? commitmentMonthlyReviewOutcome,
     String? onboardingDraft,
+    bool? soundEnabled,
+    DateTime? lastWelcomeDate,
     bool clearCompanionCharacter = false,
     bool clearChristianLifeBaseline = false,
     bool clearAccountabilityPartner = false,
@@ -669,6 +687,8 @@ class AppSettings {
       onboardingDraft: clearOnboardingDraft
           ? null
           : (onboardingDraft ?? this.onboardingDraft),
+      soundEnabled: soundEnabled ?? this.soundEnabled,
+      lastWelcomeDate: lastWelcomeDate ?? this.lastWelcomeDate,
     );
   }
 }

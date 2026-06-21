@@ -1,16 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 
 import '../../../../core/constants/app_routes.dart';
+import '../../../../core/di/app_providers.dart';
 import '../../../../core/services/celebration_service.dart';
 import '../../../../core/services/notifications/notification_service.dart';
-import '../../../../core/services/sound_service.dart';
 import '../../../commit/domain/models/commitment_schedule.dart';
 import '../../../commit/presentation/widgets/commitment_backdrop.dart';
 import '../../../commit/data/commitment_media_catalog.dart';
 
-class OverlayNotificationScreen extends StatefulWidget {
+class OverlayNotificationScreen extends ConsumerStatefulWidget {
   const OverlayNotificationScreen({
     super.key,
     required this.notification,
@@ -21,14 +22,13 @@ class OverlayNotificationScreen extends StatefulWidget {
   final String category;
 
   @override
-  State<OverlayNotificationScreen> createState() =>
+  ConsumerState<OverlayNotificationScreen> createState() =>
       _OverlayNotificationScreenState();
 }
 
 class _OverlayNotificationScreenState
-    extends State<OverlayNotificationScreen>
+    extends ConsumerState<OverlayNotificationScreen>
     with SingleTickerProviderStateMixin {
-  final SoundService _soundService = SoundService.instance;
   late final AnimationController _fadeController;
   late final Animation<double> _fadeAnimation;
   late final Animation<Offset> _slideAnimation;
@@ -58,7 +58,7 @@ class _OverlayNotificationScreenState
   @override
   void dispose() {
     _fadeController.dispose();
-    _soundService.stopCategoryAmbience();
+    ref.read(soundServiceProvider).stopCategoryAmbience();
     super.dispose();
   }
 
@@ -68,9 +68,9 @@ class _OverlayNotificationScreenState
     if (soundPath == null) return;
 
     final assetPath = soundPath.replaceFirst('assets/', '');
-    _soundService.fadeInCategoryAmbience(
+    ref.read(soundServiceProvider).playCategoryAmbience(
       assetPath,
-      targetVolume: 0.10,
+      volume: 0.10,
     );
   }
 
@@ -177,7 +177,7 @@ class _OverlayNotificationScreenState
   }
 
   Future<void> _handleAction(String actionId) async {
-    _soundService.stopCategoryAmbience();
+    ref.read(soundServiceProvider).stopCategoryAmbience();
     switch (actionId) {
       case 'check_in': {
         final outcome = await NotificationService().executeDailyCheckInAction(

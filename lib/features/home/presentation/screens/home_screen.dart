@@ -5,11 +5,14 @@ import 'package:lucide_icons/lucide_icons.dart';
 
 import '../../../../core/constants/app_routes.dart';
 import '../../../../core/di/app_providers.dart';
+import '../../../../core/services/sound_service.dart';
 import '../../../../core/theme/app_theme_tokens.dart';
+import '../../../../shared/widgets/ambient_scope.dart';
 import '../../../../shared/widgets/safe_bottom_padding.dart';
 import '../../../commit/application/failure_protocol_service.dart';
 import '../../../companion/presentation/widgets/companion_bubble.dart';
 import '../../../today/presentation/widgets/recalibration_suggestion_dialog.dart';
+import '../widgets/daily_welcome_overlay.dart';
 import '../../../today/presentation/widgets/streak_badge.dart';
 import '../../../today/presentation/widgets/time_diagnose_suggestion_dialog.dart';
 import '../../../vision/application/vision_state.dart';
@@ -25,13 +28,38 @@ class HomeScreen extends ConsumerStatefulWidget {
 }
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
+  bool _showWelcome = false;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(visionProvider.notifier).load();
       _checkForMissedDaysAndShowSuggestion();
+      _maybeShowWelcome();
     });
+  }
+
+  Future<void> _maybeShowWelcome() async {
+    final settings = ref.read(settingsProvider);
+    if (!settings.onboardingCompleted) return;
+
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final last = settings.lastWelcomeDate;
+    if (last != null &&
+        last.year == today.year &&
+        last.month == today.month &&
+        last.day == today.day) {
+      return;
+    }
+
+    if (!mounted) return;
+    if (ModalRoute.of(context)?.isCurrent != true) return;
+
+    setState(() => _showWelcome = true);
+    await ref.read(soundServiceProvider).playWelcomeShiny();
+    await ref.read(settingsProvider.notifier).markWelcomeShownForToday();
   }
 
   Future<void> _checkForMissedDaysAndShowSuggestion() async {
@@ -106,24 +134,29 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final theme = Theme.of(context);
     final tokens = theme.tokens;
 
-    return Scaffold(
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: tokens.pageGradient,
-          ),
-        ),
-        child: SafeArea(
-          bottom: false,
-          child: RefreshIndicator(
-            onRefresh: () =>
-                ref.read(visionProvider.notifier).load(force: true),
-            child: SafeListView(
-              bottomPadding: shellChromeBottomPadding,
-              padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
-              children: [
+    return AmbientScope(
+      asset: SoundService.ambientHomeAsset,
+      volume: 0.08,
+      child: Scaffold(
+      body: Stack(
+        children: [
+          Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: tokens.pageGradient,
+              ),
+            ),
+            child: SafeArea(
+              bottom: false,
+              child: RefreshIndicator(
+                onRefresh: () =>
+                    ref.read(visionProvider.notifier).load(force: true),
+                child: SafeListView(
+                  bottomPadding: shellChromeBottomPadding,
+                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+                  children: [
                 Row(
                   children: [
                     Expanded(
@@ -217,9 +250,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   _QuickActions(),
                 ],
               ],
+                ),
+              ),
             ),
           ),
-        ),
+          if (_showWelcome)
+            Positioned.fill(
+              child: DailyWelcomeOverlay(
+                onComplete: () {
+                  if (mounted) setState(() => _showWelcome = false);
+                },
+              ),
+            ),
+        ],
+      ),
       ),
     );
   }

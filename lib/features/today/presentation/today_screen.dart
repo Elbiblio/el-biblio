@@ -13,6 +13,8 @@ import '../../commitments/presentation/widgets/commitment_welcome_dialog.dart';
 import '../../companion/presentation/widgets/ai_partner_invite_card.dart';
 import '../../companion/presentation/widgets/companion_bubble.dart';
 import '../domain/models/daily_anchors.dart';
+import '../../../../shared/widgets/ambient_scope.dart';
+import '../../../../core/services/sound_service.dart';
 import 'widgets/assessment_prompt_widget.dart';
 import 'widgets/commitment_completion_dialog.dart';
 import 'widgets/commitment_waiting_dialog.dart';
@@ -221,7 +223,10 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
           now.day,
         ).toIso8601String()];
 
-    return Scaffold(
+    return AmbientScope(
+      asset: SoundService.ambientTodayAsset,
+      volume: 0.08,
+      child: Scaffold(
       body: Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(
@@ -327,6 +332,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
             ],
           ),
         ),
+      ),
       ),
     );
   }
