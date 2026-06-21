@@ -33,7 +33,6 @@ import '../../features/vision/presentation/screens/commit_screen.dart';
 import '../../features/vision/presentation/screens/grow_screen.dart';
 import '../../features/vision/presentation/screens/notifications_screen.dart';
 import '../../features/vision/presentation/screens/reflect_screen.dart';
-import '../../features/today/presentation/today_screen.dart';
 import '../../features/vision/presentation/screens/tribe_screen.dart';
 import '../../features/profile/presentation/about_screen.dart';
 import '../../features/profile/presentation/profile_screen.dart';
@@ -460,10 +459,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       // Secondary routes live outside the shell so they render as full-screen
       // pages with their own back affordance and never hide the shell menu.
-      GoRoute(
-        path: AppRoutes.today,
-        builder: (context, state) => const TodayScreen(),
-      ),
       GoRoute(
         path: AppRoutes.notifications,
         builder: (context, state) => const NotificationsScreen(),

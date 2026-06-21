@@ -21,7 +21,6 @@ void main() {
     expect(shouldShowShellChrome(AppRoutes.connect), isTrue);
     expect(shouldShowShellChrome(AppRoutes.commit), isTrue);
     expect(shouldShowShellChrome(AppRoutes.speak), isTrue);
-    expect(shouldShowShellChrome(AppRoutes.today), isFalse);
     expect(shouldShowShellChrome(AppRoutes.reflect), isFalse);
     expect(shouldShowShellChrome(AppRoutes.tribe), isFalse);
     expect(shouldShowShellChrome(AppRoutes.grow), isFalse);

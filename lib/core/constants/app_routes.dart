@@ -9,7 +9,6 @@ class AppRoutes {
   static const home = '/home';
   static const connect = '/connect';
   static const speak = '/speak';
-  static const today = '/today';
   static const notifications = '/notifications';
   static const reflect = '/reflect';
   static const commit = '/commit';
