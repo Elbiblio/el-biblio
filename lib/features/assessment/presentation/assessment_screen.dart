@@ -568,7 +568,7 @@ class _AssessmentScreenState extends ConsumerState<AssessmentScreen>
                 child: ElevatedButton(
                   onPressed: selectedArchetypes.isNotEmpty
                       ? () {
-                          ref.read(soundServiceProvider).playTransition();
+                          ref.read(soundServiceProvider).playChimeGentle();
                           // Save archetypes to state
                           ref
                               .read(assessmentProvider.notifier)

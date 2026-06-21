@@ -184,7 +184,7 @@ class ReadingPlanDetailScreen extends ConsumerWidget {
                     onPressed: planState.isLoading
                         ? null
                         : () async {
-                            ref.read(soundServiceProvider).playPageTurn();
+                            ref.read(soundServiceProvider).playChimeGentle();
                             final success = await ref
                                 .read(readingPlanProvider.notifier)
                                 .startPlan(plan.id);

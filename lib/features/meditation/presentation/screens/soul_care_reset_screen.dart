@@ -146,8 +146,8 @@ class _SoulCareResetScreenState extends ConsumerState<SoulCareResetScreen>
     final primary = theme.colorScheme.primary;
 
     return AmbientScope(
-      asset: SoundService.ambientReflectionAsset,
-      volume: 0.07,
+      asset: SoundService.ambientSoulCareAsset,
+      volume: 0.09,
       child: Scaffold(
       backgroundColor: isDark ? const Color(0xFF0a0a0a) : const Color(0xFFF5F0EB),
       body: SafeArea(

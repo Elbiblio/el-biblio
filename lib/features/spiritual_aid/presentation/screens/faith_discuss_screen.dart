@@ -36,7 +36,7 @@ class _FaithDiscussScreenState extends ConsumerState<FaithDiscussScreen> {
 
     return AmbientScope(
       asset: SoundService.ambientPrayerAsset,
-      volume: 0.07,
+      volume: 0.08,
       child: Scaffold(
       body: Container(
         decoration: BoxDecoration(

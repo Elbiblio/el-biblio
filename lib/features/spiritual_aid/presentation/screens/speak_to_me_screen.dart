@@ -79,7 +79,7 @@ class _SpeakToMeScreenState extends ConsumerState<SpeakToMeScreen>
 
     return AmbientScope(
       asset: SoundService.ambientPrayerAsset,
-      volume: 0.07,
+      volume: 0.08,
       child: Scaffold(
       body: AnimatedBuilder(
         animation: _bgController,

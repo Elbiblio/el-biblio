@@ -39,6 +39,15 @@ class _AmbientScopeState extends ConsumerState<AmbientScope> {
   }
 
   @override
+  void didUpdateWidget(AmbientScope oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.asset != widget.asset ||
+        oldWidget.volume != widget.volume) {
+      _startAmbient();
+    }
+  }
+
+  @override
   void dispose() {
     _stopAmbient();
     super.dispose();

@@ -6,6 +6,8 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/app_routes.dart';
 import '../../../../core/di/app_providers.dart';
+import '../../../../core/services/sound_service.dart';
+import '../../../../shared/widgets/ambient_scope.dart';
 import '../../../../core/theme/app_theme_tokens.dart';
 import '../../data/commitment_catalog.dart';
 import '../widgets/tier_badge.dart';
@@ -93,7 +95,10 @@ class _CommitmentCompletionScreenState
         ? CommitmentCatalog.getByLevel(progress.currentLevel)
         : null;
 
-    return Scaffold(
+    return AmbientScope(
+      asset: SoundService.ambientCommitmentAsset,
+      volume: 0.09,
+      child: Scaffold(
       body: Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(
@@ -327,6 +332,7 @@ class _CommitmentCompletionScreenState
             ],
           ),
         ),
+      ),
       ),
     );
   }

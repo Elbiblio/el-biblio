@@ -195,8 +195,8 @@ class _MeditationHomeScreenState extends ConsumerState<MeditationHomeScreen> {
     });
 
     return AmbientScope(
-      asset: SoundService.bellMeditationAsset,
-      volume: 0.06,
+      asset: SoundService.ambientSoulCareAsset,
+      volume: 0.07,
       child: Scaffold(
       backgroundColor: bgColor,
       body: SafeArea(

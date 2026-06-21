@@ -51,7 +51,7 @@ class _QuickPrayerScreenState extends ConsumerState<QuickPrayerScreen>
 
     return AmbientScope(
       asset: SoundService.ambientPrayerAsset,
-      volume: 0.07,
+      volume: 0.08,
       child: Scaffold(
       body: Container(
         decoration: BoxDecoration(

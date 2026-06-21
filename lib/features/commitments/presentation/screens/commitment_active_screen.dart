@@ -90,7 +90,7 @@ class _CommitmentActiveScreenState
 
     return AmbientScope(
       asset: SoundService.ambientCommitmentAsset,
-      volume: 0.07,
+      volume: 0.09,
       child: Scaffold(
       body: Container(
         decoration: BoxDecoration(
