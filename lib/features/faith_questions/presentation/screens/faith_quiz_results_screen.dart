@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import '../../../../core/di/app_providers.dart';
 import '../../application/faith_questions_notifier.dart';
 import '../../data/faith_quiz_level_catalog.dart';
 
@@ -19,6 +20,15 @@ class FaithQuizResultsScreen extends ConsumerWidget {
     final correct = state.sessionCorrect;
     final total = state.quizQuestions.length;
     final passed = correct >= quizLevel.requiredCorrect;
+
+    // Play completion sound once on first build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (passed) {
+        ref.read(soundServiceProvider).playSuccessBell();
+      } else {
+        ref.read(soundServiceProvider).playComplete();
+      }
+    });
     final xpEarned = passed ? quizLevel.xpReward : (quizLevel.xpReward ~/ 3);
     final hasNextLevel = level < 10 && passed;
 

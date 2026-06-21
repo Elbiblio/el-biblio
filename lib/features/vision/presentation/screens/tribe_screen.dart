@@ -6,7 +6,9 @@ import 'package:lucide_icons/lucide_icons.dart';
 
 import '../../../../core/constants/app_routes.dart';
 import '../../../../core/di/app_providers.dart';
+import '../../../../core/services/sound_service.dart';
 import '../../../../core/theme/app_theme_tokens.dart';
+import '../../../../shared/widgets/ambient_scope.dart';
 import '../../../../shared/widgets/safe_bottom_padding.dart';
 import '../../../../shared/widgets/premium_success_dialog.dart';
 import '../../../../shared/widgets/vision_illustration.dart';
@@ -70,7 +72,10 @@ class _TribeScreenState extends ConsumerState<TribeScreen> {
     final tokens = theme.tokens;
     final hasTribe = state.primaryTribe != null;
 
-    return Scaffold(
+    return AmbientScope(
+      asset: SoundService.ambientCommunityAsset,
+      volume: 0.07,
+      child: Scaffold(
       body: Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(
@@ -146,6 +151,7 @@ class _TribeScreenState extends ConsumerState<TribeScreen> {
             ),
           ),
         ),
+      ),
       ),
     );
   }

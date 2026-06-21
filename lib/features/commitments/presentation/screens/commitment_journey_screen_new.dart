@@ -49,7 +49,10 @@ class _CommitmentJourneyScreenNewState
     // Check if milestone was reached and show notification
     final state = ref.read(commitmentJourneyProvider);
     if (state.justReachedMilestone != null && mounted) {
+      ref.read(soundServiceProvider).playSuccessBell();
       _showMilestoneDialog(state.justReachedMilestone!);
+    } else if (mounted) {
+      ref.read(soundServiceProvider).playChimeGentle();
     }
   }
 

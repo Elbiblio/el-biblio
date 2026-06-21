@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import '../../../../core/di/app_providers.dart';
 import '../../application/faith_questions_notifier.dart';
 import '../../application/faith_questions_state.dart';
 import '../../data/faith_quiz_level_catalog.dart';
@@ -478,6 +479,15 @@ class _ActiveQuizView extends StatelessWidget {
                           onTap: () {
                             HapticFeedback.mediumImpact();
                             notifier.submitAnswer(i);
+                            // Sound plays after state updates
+                            WidgetsBinding.instance.addPostFrameCallback((_) {
+                              final s = ref.read(faithQuestionsProvider);
+                              if (s.lastAnswerCorrect == true) {
+                                ref.read(soundServiceProvider).playCorrect();
+                              } else if (s.lastAnswerCorrect == false) {
+                                ref.read(soundServiceProvider).playWrong();
+                              }
+                            });
                           },
                         );
                       }),

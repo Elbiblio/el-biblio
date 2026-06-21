@@ -238,6 +238,7 @@ class _NoteEditorScreenState extends ConsumerState<NoteEditorScreen> {
       }
 
       if (mounted) {
+        ref.read(soundServiceProvider).playSuccess();
         context.pop();
       }
     } finally {

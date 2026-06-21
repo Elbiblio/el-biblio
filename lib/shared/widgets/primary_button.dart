@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-class PrimaryButton extends StatelessWidget {
+import '../../core/di/app_providers.dart';
+
+enum PrimaryButtonSound { none, tap }
+
+class PrimaryButton extends ConsumerWidget {
   const PrimaryButton({
     required this.label,
     required this.onPressed,
@@ -8,6 +13,7 @@ class PrimaryButton extends StatelessWidget {
     this.icon,
     this.expanded = false,
     this.semanticLabel,
+    this.sound = PrimaryButtonSound.tap,
   });
 
   final String label;
@@ -15,14 +21,25 @@ class PrimaryButton extends StatelessWidget {
   final IconData? icon;
   final bool expanded;
   final String? semanticLabel;
+  final PrimaryButtonSound sound;
+
+  VoidCallback? _wrap(WidgetRef ref, VoidCallback? cb) {
+    if (cb == null || sound == PrimaryButtonSound.none) return cb;
+    return () {
+      ref.read(soundServiceProvider).playTap();
+      cb();
+    };
+  }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final wrappedPress = _wrap(ref, onPressed);
+
     final button = Semantics(
       button: true,
       label: semanticLabel ?? label,
       child: FilledButton.icon(
-        onPressed: onPressed,
+        onPressed: wrappedPress,
         icon: icon == null ? const SizedBox.shrink() : Icon(icon, size: 18),
         label: Text(label),
       ),
@@ -33,7 +50,7 @@ class PrimaryButton extends StatelessWidget {
         button: true,
         label: semanticLabel ?? label,
         child: FilledButton(
-          onPressed: onPressed,
+          onPressed: wrappedPress,
           child: Text(label),
         ),
       );
