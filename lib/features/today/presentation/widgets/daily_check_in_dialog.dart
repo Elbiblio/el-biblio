@@ -203,7 +203,7 @@ class _DailyCheckInDialogState extends ConsumerState<DailyCheckInDialog> {
 
   void _playActivityCompletion() {
     // Play sound
-    ref.read(soundServiceProvider).playGameSuccess();
+    ref.read(soundServiceProvider).playCorrect();
     
     // Trigger confetti
     _confettiController.play();

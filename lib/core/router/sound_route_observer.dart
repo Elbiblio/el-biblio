@@ -13,15 +13,23 @@ class SoundRouteObserver extends RouteObserver<PageRoute<dynamic>> {
 
   final SoundService _soundService;
 
+  // Only stop ambient for full page transitions, not modal sheets or dialogs.
+  static bool _isPageRoute(Route<dynamic>? route) =>
+      route is PageRoute<dynamic>;
+
   @override
   void didPop(Route<dynamic> route, Route<dynamic>? previousRoute) {
-    _soundService.stopAmbient();
+    if (_isPageRoute(route) && _isPageRoute(previousRoute)) {
+      _soundService.stopAmbient();
+    }
     super.didPop(route, previousRoute);
   }
 
   @override
   void didReplace({Route<dynamic>? newRoute, Route<dynamic>? oldRoute}) {
-    _soundService.stopAmbient();
+    if (_isPageRoute(newRoute) || _isPageRoute(oldRoute)) {
+      _soundService.stopAmbient();
+    }
     super.didReplace(newRoute: newRoute, oldRoute: oldRoute);
   }
 }

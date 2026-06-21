@@ -54,7 +54,11 @@ class _AmbientScopeState extends ConsumerState<AmbientScope> {
   }
 
   void _stopAmbient() {
-    ref.read(soundServiceProvider).stopAmbient();
+    try {
+      ref.read(soundServiceProvider).stopAmbient();
+    } catch (_) {
+      // Provider may already be disposed during hot-restart or app shutdown.
+    }
   }
 
   @override

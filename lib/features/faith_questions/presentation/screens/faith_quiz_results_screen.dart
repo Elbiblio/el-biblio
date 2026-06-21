@@ -6,11 +6,35 @@ import '../../../../core/di/app_providers.dart';
 import '../../application/faith_questions_notifier.dart';
 import '../../data/faith_quiz_level_catalog.dart';
 
-class FaithQuizResultsScreen extends ConsumerWidget {
+class FaithQuizResultsScreen extends ConsumerStatefulWidget {
   const FaithQuizResultsScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<FaithQuizResultsScreen> createState() =>
+      _FaithQuizResultsScreenState();
+}
+
+class _FaithQuizResultsScreenState
+    extends ConsumerState<FaithQuizResultsScreen> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final state = ref.read(faithQuestionsProvider);
+      final level = state.activeQuizLevel ?? 1;
+      final quizLevel = FaithQuizLevelCatalog.getLevel(level);
+      final passed = state.sessionCorrect >= quizLevel.requiredCorrect;
+      if (passed) {
+        ref.read(soundServiceProvider).playSuccessBell();
+      } else {
+        ref.read(soundServiceProvider).playComplete();
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final state = ref.watch(faithQuestionsProvider);
     final notifier = ref.read(faithQuestionsProvider.notifier);
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -21,14 +45,6 @@ class FaithQuizResultsScreen extends ConsumerWidget {
     final total = state.quizQuestions.length;
     final passed = correct >= quizLevel.requiredCorrect;
 
-    // Play completion sound once on first build
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (passed) {
-        ref.read(soundServiceProvider).playSuccessBell();
-      } else {
-        ref.read(soundServiceProvider).playComplete();
-      }
-    });
     final xpEarned = passed ? quizLevel.xpReward : (quizLevel.xpReward ~/ 3);
     final hasNextLevel = level < 10 && passed;
 

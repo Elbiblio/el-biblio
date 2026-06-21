@@ -324,9 +324,11 @@ final missionProvider = StateNotifierProvider<MissionNotifier, MissionState>((
 });
 
 final soundServiceProvider = Provider<SoundService>((ref) {
-  final settings = ref.watch(settingsProvider);
-  final service = SoundService(soundEnabled: settings.soundEnabled);
+  // Read once — never recreated when settings change, avoiding orphaned AudioPlayers.
+  final initialSettings = ref.read(settingsProvider);
+  final service = SoundService(soundEnabled: initialSettings.soundEnabled);
 
+  // Push subsequent sound-enabled changes without recreating the service.
   ref.listen<bool>(
     settingsProvider.select((s) => s.soundEnabled),
     (_, next) => service.setSoundEnabled(next),
