@@ -27,14 +27,26 @@ All audio assets in this directory are licensed under **Creative Commons CC0 1.0
 
 ## Ambient Loops
 
-| File | Source URL | Author | License |
-|------|-----------|--------|---------|
-| `ambient/ambient-home.mp3` | stub copy of garden.mp3 | — | CC0 |
-| `ambient/ambient-today.mp3` | stub copy of dawn.mp3 | — | CC0 |
-| `ambient/ambient-bible.mp3` | stub copy of forest.mp3 | — | CC0 |
-| `ambient/garden.mp3` | TODO | TODO | CC0 |
-| `ambient/dawn.mp3` | TODO | TODO | CC0 |
-| `ambient/forest.mp3` | TODO | TODO | CC0 |
+All ambient loops sourced from the **US National Park Service Rocky Mountain National Park
+Sound Library** (https://www.nps.gov/romo/learn/photosmultimedia/sounds-ambient-soundscapes.htm).
+Recorded by J. Job, NPS. **Public Domain** — no restrictions on use. Attribution appreciated:
+*"National Park Service, Rocky Mountain National Park"*
+
+Processed: downsampled to 96 kbps mono MP3 for mobile use via ffmpeg.
+
+| File | Original NPS Filename | Description | License |
+|------|-----------------------|-------------|---------|
+| `ambient/mountain.mp3` | `romo-WindAmbientGemLakeROMO52516Final1.mp3` | Wind at Gem Lake — sparse high-altitude wind | Public Domain (NPS) |
+| `ambient/field.mp3` | `romo-TundraAmbientROMO6916MedicineBowTrailFinal1.mp3` | Tundra at Medicine Bow Trail — open, expansive | Public Domain (NPS) |
+| `ambient/forest.mp3` | `romo-ForestAmbientNearLawnLakeROMO52616Final1.mp3` | Forest near Lawn Lake — birds, trees | Public Domain (NPS) |
+| `ambient/sunset.mp3` | `romo-MoraineParkAmbient51916Final1.mp3` | Evening at Moraine Park — frogs, hummingbirds, dusk | Public Domain (NPS) |
+| `ambient/stars.mp3` | `romo-MoraineWetlandAmbientROMO51816Final1.mp3` | Dawn wetland Moraine Park — still, peaceful | Public Domain (NPS) |
+| `ambient/ambient-home.mp3` | `romo-DawnAmbientROMO6916SunValleyTrailFinal1.mp3` | Dawn at Sun Valley Trail — river, uplifting | Public Domain (NPS) |
+| `ambient/ambient-bible.mp3` | `romo-FinchLakeAmbientROMO62016Final1.mp3` | Morning at Finch Lake — alpine lake, contemplative | Public Domain (NPS) |
+| `ambient/ambient-today.mp3` | `romo-StreamAmbientROMO52516BlackCanyonTrailFinal1.mp3` | Stream at Black Canyon Trail — flowing water, morning | Public Domain (NPS) |
+| `ambient/community.mp3` | stub (to be replaced) | — | — |
+| `ambient/garden.mp3` | legacy stub | — | — |
+| `ambient/dawn.mp3` | legacy stub | — | — |
 
 ---
 
