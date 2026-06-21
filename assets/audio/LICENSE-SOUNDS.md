@@ -44,7 +44,8 @@ Processed: downsampled to 96 kbps mono MP3 for mobile use via ffmpeg.
 | `ambient/ambient-home.mp3` | `romo-DawnAmbientROMO6916SunValleyTrailFinal1.mp3` | Dawn at Sun Valley Trail — river, uplifting | Public Domain (NPS) |
 | `ambient/ambient-bible.mp3` | `romo-FinchLakeAmbientROMO62016Final1.mp3` | Morning at Finch Lake — alpine lake, contemplative | Public Domain (NPS) |
 | `ambient/ambient-today.mp3` | `romo-StreamAmbientROMO52516BlackCanyonTrailFinal1.mp3` | Stream at Black Canyon Trail — flowing water, morning | Public Domain (NPS) |
-| `ambient/community.mp3` | stub (to be replaced) | — | — |
+| `ambient/community.mp3` | [BigSoundBank s2789](https://bigsoundbank.com/messe-orgue-et-chant-1-s2789.html) `UPLOAD/mp3/2789.mp3` | Mass organ + chants, Basilica Notre-Dame de Montligeon, France. Author: Joseph SARDIN | CC0 (Public Domain) |
+| `ambient/community-quiet.mp3` | [BigSoundBank s0506](https://bigsoundbank.com/office-cathedral-of-chartres-s0506.html) `UPLOAD/mp3/0506.mp3` | Chartres Cathedral evening office, ~20 worshippers. Author: Joseph SARDIN | CC0 (Public Domain) |
 | `ambient/garden.mp3` | legacy stub | — | — |
 | `ambient/dawn.mp3` | legacy stub | — | — |
 
