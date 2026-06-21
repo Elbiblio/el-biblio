@@ -11,7 +11,7 @@ class CommitmentMediaCatalog {
     'prayer': CommitmentMedia(
       category: 'prayer',
       backgroundImage: 'assets/images/backdrops/prayer.jpg',
-      ambientSound: 'assets/audio/ambient/dawn.mp3',
+      ambientSound: 'assets/audio/ambient/stars.mp3',
       accentColor: Color(0xFFFFB74D),
       mood: 'contemplative',
     ),
@@ -39,7 +39,7 @@ class CommitmentMediaCatalog {
     'growth': CommitmentMedia(
       category: 'growth',
       backgroundImage: 'assets/images/backdrops/garden.jpg',
-      ambientSound: 'assets/audio/ambient/garden.mp3',
+      ambientSound: 'assets/audio/ambient/ambient-today.mp3',
       accentColor: Color(0xFF4CAF50),
       mood: 'hopeful',
     ),

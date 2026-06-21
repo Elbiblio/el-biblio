@@ -40,7 +40,7 @@ class ReadingPlanDetailScreen extends ConsumerWidget {
 
     return AmbientScope(
       asset: SoundService.ambientBibleAsset,
-      volume: 0.06,
+      volume: 0.08,
       child: Scaffold(
       appBar: AppBar(
         title: const Text('Reading Plan'),

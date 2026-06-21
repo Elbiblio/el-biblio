@@ -80,7 +80,7 @@ class _BibleLibraryScreenState extends ConsumerState<BibleLibraryScreen> {
 
     return AmbientScope(
       asset: SoundService.ambientBibleAsset,
-      volume: 0.06,
+      volume: 0.08,
       child: Scaffold(
       backgroundColor: bgColor,
       body: SafeArea(
