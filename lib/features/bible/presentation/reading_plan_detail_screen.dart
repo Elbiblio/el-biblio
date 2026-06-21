@@ -4,6 +4,8 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/app_routes.dart';
 import '../../../core/di/app_providers.dart';
+import '../../../core/services/sound_service.dart';
+import '../../../shared/widgets/ambient_scope.dart';
 import '../../../shared/widgets/premium_success_dialog.dart';
 import '../domain/models/reading_plan.dart';
 
@@ -36,7 +38,10 @@ class ReadingPlanDetailScreen extends ConsumerWidget {
       });
     }
 
-    return Scaffold(
+    return AmbientScope(
+      asset: SoundService.ambientBibleAsset,
+      volume: 0.06,
+      child: Scaffold(
       appBar: AppBar(
         title: const Text('Reading Plan'),
       ),
@@ -167,6 +172,7 @@ class ReadingPlanDetailScreen extends ConsumerWidget {
                           Icons.chevron_right,
                           color: colorScheme.onSurface.withValues(alpha: 0.35),
                         ),
+                        onTap: () => ref.read(soundServiceProvider).playPageTurn(),
                       );
                     },
                   ),
@@ -178,6 +184,7 @@ class ReadingPlanDetailScreen extends ConsumerWidget {
                     onPressed: planState.isLoading
                         ? null
                         : () async {
+                            ref.read(soundServiceProvider).playPageTurn();
                             final success = await ref
                                 .read(readingPlanProvider.notifier)
                                 .startPlan(plan.id);
@@ -270,6 +277,7 @@ class ReadingPlanDetailScreen extends ConsumerWidget {
             ],
           ),
         ),
+      ),
       ),
     );
   }

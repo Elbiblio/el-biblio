@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:confetti/confetti.dart';
+import '../../../../core/di/app_providers.dart';
 import '../../application/journey_game_notifier.dart';
 
 class JourneyCompleteScreen extends ConsumerStatefulWidget {
@@ -30,8 +31,10 @@ class _JourneyCompleteScreenState extends ConsumerState<JourneyCompleteScreen>
     _scaleAnim = CurvedAnimation(parent: _animCtrl, curve: Curves.elasticOut);
 
     Future.delayed(const Duration(milliseconds: 300), () {
+      if (!mounted) return;
       _confettiController.play();
       _animCtrl.forward();
+      ref.read(soundServiceProvider).playLevelUp();
     });
   }
 

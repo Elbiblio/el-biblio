@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import '../../../../core/services/sound_service.dart';
+import '../../../../shared/widgets/ambient_scope.dart';
 import '../../application/faith_questions_notifier.dart';
 import '../../data/faith_question_catalog.dart';
 import '../widgets/faq_question_card.dart';
@@ -30,7 +32,10 @@ class _FaithFaqScreenState extends ConsumerState<FaithFaqScreen> {
 
     final questions = notifier.getFilteredQuestions();
 
-    return Scaffold(
+    return AmbientScope(
+      asset: SoundService.ambientReflectionAsset,
+      volume: 0.06,
+      child: Scaffold(
       body: SafeArea(
         child: Column(
           children: [
@@ -179,6 +184,7 @@ class _FaithFaqScreenState extends ConsumerState<FaithFaqScreen> {
             ),
           ],
         ),
+      ),
       ),
     );
   }

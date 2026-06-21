@@ -8,6 +8,8 @@ import 'package:path_provider/path_provider.dart';
 import 'dart:io';
 import '../../../../core/constants/app_routes.dart';
 import '../../../../core/di/app_providers.dart';
+import '../../../../core/services/sound_service.dart';
+import '../../../../shared/widgets/ambient_scope.dart';
 import '../../../../core/services/analytics/app_analytics_service.dart';
 import '../application/assessment_notifier.dart';
 import '../domain/models/archetype_resonance.dart';
@@ -52,8 +54,10 @@ class _AssessmentResultsScreenState
     ));
     _animationController.forward();
 
-    // Track assessment completion
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ref.read(soundServiceProvider).playSuccessBell();
+      // Track assessment completion
       ref.read(analyticsProvider).track(AppAnalyticsEvent.assessmentCompleted);
     });
   }
@@ -185,7 +189,10 @@ class _AssessmentResultsScreenState
     //
     // Replace the hardcoded _CallingGapCard below with dynamic values when enabled.
 
-    return Scaffold(
+    return AmbientScope(
+      asset: SoundService.ambientAssessmentAsset,
+      volume: 0.06,
+      child: Scaffold(
       backgroundColor: bgColor,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
@@ -443,6 +450,7 @@ class _AssessmentResultsScreenState
             ),
           ),
         ),
+      ),
       ),
     );
   }

@@ -3,6 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../../../../core/constants/app_routes.dart';
+import '../../../../core/di/app_providers.dart';
+import '../../../../core/services/sound_service.dart';
+import '../../../../shared/widgets/ambient_scope.dart';
 import '../../application/faith_questions_notifier.dart';
 import '../../../companion/application/companion_notifier.dart';
 import '../../../companion/domain/models/companion_character.dart';
@@ -26,7 +29,10 @@ class FaithQuestionsHubScreen extends ConsumerWidget {
     final completedCount = progress.completedLevels.length;
     final accuracyPct = (progress.accuracy * 100).toStringAsFixed(0);
 
-    return Scaffold(
+    return AmbientScope(
+      asset: SoundService.ambientReflectionAsset,
+      volume: 0.06,
+      child: Scaffold(
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
@@ -84,6 +90,7 @@ class FaithQuestionsHubScreen extends ConsumerWidget {
                     icon: LucideIcons.messageCircle,
                     color: const Color(0xFF7C3AED),
                     onTap: () {
+                      ref.read(soundServiceProvider).playTap();
                       final uri =
                           '${AppRoutes.companionChat}?thread=hard-questions&mode=hard_questions&title=${Uri.encodeQueryComponent('Hard questions')}';
                       context.push(uri);
@@ -106,7 +113,10 @@ class FaithQuestionsHubScreen extends ConsumerWidget {
                 subtitle: 'Search tough questions Christians ask',
                 icon: LucideIcons.helpCircle,
                 color: const Color(0xFF6366F1),
-                onTap: () => context.push('/faith-questions/faq'),
+                onTap: () {
+                  ref.read(soundServiceProvider).playTap();
+                  context.push('/faith-questions/faq');
+                },
                 trailing: Row(
                   children: [
                     const Icon(LucideIcons.search,
@@ -131,7 +141,10 @@ class FaithQuestionsHubScreen extends ConsumerWidget {
                 subtitle: '10-level progressive knowledge challenge',
                 icon: LucideIcons.trophy,
                 color: const Color(0xFFD97706),
-                onTap: () => context.push('/faith-questions/quiz'),
+                onTap: () {
+                  ref.read(soundServiceProvider).playTap();
+                  context.push('/faith-questions/quiz');
+                },
                 trailing: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -225,6 +238,7 @@ class FaithQuestionsHubScreen extends ConsumerWidget {
             ],
           ),
         ),
+      ),
       ),
     );
   }

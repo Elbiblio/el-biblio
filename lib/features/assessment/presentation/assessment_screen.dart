@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/constants/app_routes.dart';
+import '../../../../core/di/app_providers.dart';
+import '../../../../core/services/sound_service.dart';
+import '../../../../shared/widgets/ambient_scope.dart';
 import '../domain/models/archetype.dart';
 import 'widgets/interactive_compass_wheel.dart';
 import '../application/assessment_notifier.dart';
@@ -65,7 +68,10 @@ class _AssessmentScreenState extends ConsumerState<AssessmentScreen>
     final bgColor = isDark ? const Color(0xFF221D10) : const Color(0xFFF8F7F5);
     final textColor = isDark ? Colors.white : Colors.black87;
 
-    return Scaffold(
+    return AmbientScope(
+      asset: SoundService.ambientAssessmentAsset,
+      volume: 0.06,
+      child: Scaffold(
       backgroundColor: bgColor,
       appBar: AppBar(
         backgroundColor: bgColor.withValues(alpha: 0.8),
@@ -562,6 +568,7 @@ class _AssessmentScreenState extends ConsumerState<AssessmentScreen>
                 child: ElevatedButton(
                   onPressed: selectedArchetypes.isNotEmpty
                       ? () {
+                          ref.read(soundServiceProvider).playTransition();
                           // Save archetypes to state
                           ref
                               .read(assessmentProvider.notifier)
@@ -593,6 +600,7 @@ class _AssessmentScreenState extends ConsumerState<AssessmentScreen>
             ),
           ],
         ),
+      ),
       ),
     );
   }

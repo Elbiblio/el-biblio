@@ -4,8 +4,10 @@ import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 
 import '../../../../core/constants/app_routes.dart';
-import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/di/app_providers.dart';
+import '../../../../core/services/sound_service.dart';
+import '../../../../core/theme/app_text_styles.dart';
+import '../../../../shared/widgets/ambient_scope.dart';
 import '../../../shared/domain/models/activity.dart';
 import '../../bible/application/bible_notifier.dart';
 import '../../bible/domain/models/bible_content.dart';
@@ -76,7 +78,10 @@ class _BibleLibraryScreenState extends ConsumerState<BibleLibraryScreen> {
         ? Colors.white10
         : Colors.black.withValues(alpha: 0.05);
 
-    return Scaffold(
+    return AmbientScope(
+      asset: SoundService.ambientBibleAsset,
+      volume: 0.06,
+      child: Scaffold(
       backgroundColor: bgColor,
       body: SafeArea(
         bottom: false,
@@ -196,6 +201,7 @@ class _BibleLibraryScreenState extends ConsumerState<BibleLibraryScreen> {
               ),
           ],
         ),
+      ),
       ),
     );
   }
@@ -502,9 +508,12 @@ class _BibleLibraryScreenState extends ConsumerState<BibleLibraryScreen> {
                     ),
                     onTap: plan.plan == null
                         ? null
-                        : () => context.push(
-                            '${AppRoutes.biblePlanDetails}/${plan.plan!.id}',
-                          ),
+                        : () {
+                            ref.read(soundServiceProvider).playPageTurn();
+                            context.push(
+                              '${AppRoutes.biblePlanDetails}/${plan.plan!.id}',
+                            );
+                          },
                   ),
                 );
               }).toList(),
@@ -661,7 +670,10 @@ class _BibleLibraryScreenState extends ConsumerState<BibleLibraryScreen> {
                         imageGradientColors: helpers.getGradientColors(
                           plan.plan?.themeId,
                         ),
-                        onTap: () => _navigateToPlanReading(context, plan),
+                        onTap: () {
+                          ref.read(soundServiceProvider).playPageTurn();
+                          _navigateToPlanReading(context, plan);
+                        },
                       ),
                     );
                   }).toList(),
