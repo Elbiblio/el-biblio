@@ -58,7 +58,7 @@ class _OverlayNotificationScreenState
   @override
   void dispose() {
     _fadeController.dispose();
-    ref.read(soundServiceProvider).stopCategoryAmbience();
+    ref.read(soundServiceProvider).stopAmbient();
     super.dispose();
   }
 
@@ -68,10 +68,7 @@ class _OverlayNotificationScreenState
     if (soundPath == null) return;
 
     final assetPath = soundPath.replaceFirst('assets/', '');
-    ref.read(soundServiceProvider).playCategoryAmbience(
-      assetPath,
-      volume: 0.10,
-    );
+    ref.read(soundServiceProvider).playAmbient(assetPath, volume: 0.10);
   }
 
   @override
@@ -177,7 +174,7 @@ class _OverlayNotificationScreenState
   }
 
   Future<void> _handleAction(String actionId) async {
-    ref.read(soundServiceProvider).stopCategoryAmbience();
+    ref.read(soundServiceProvider).stopAmbient();
     switch (actionId) {
       case 'check_in': {
         final outcome = await NotificationService().executeDailyCheckInAction(

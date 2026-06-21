@@ -150,28 +150,28 @@ class CelebrationService {
     if (soundService == null) return;
     switch (type) {
       case CelebrationType.onboarding:
-        soundService.playOnboardingSuccess();
+        soundService.playSuccessBell();
         break;
       case CelebrationType.dailyCheckIn:
-        soundService.playGameLevelUp();
+        soundService.playLevelUp();
         break;
       case CelebrationType.activity:
-        soundService.playGameSuccess();
+        soundService.playCorrect();
         break;
       case CelebrationType.levelUp:
-        soundService.playGameLevelUp();
+        soundService.playLevelUp();
         break;
       case CelebrationType.general:
-        soundService.playGameSuccess();
+        soundService.playCorrect();
         break;
       case CelebrationType.commitmentMilestone:
-        soundService.playGameSuccess();
+        soundService.playCorrect();
         break;
       case CelebrationType.commitmentComplete:
-        soundService.playOnboardingSuccess();
+        soundService.playSuccessBell();
         break;
       case CelebrationType.streakMilestone:
-        soundService.playGameLevelUp();
+        soundService.playLevelUp();
         break;
     }
   }

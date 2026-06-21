@@ -615,7 +615,7 @@ class _VerseGameScreenState extends ConsumerState<VerseGameScreen>
     // Edge-detect state changes for visual effects
     ref.listen(verseGameProvider.select((s) => s.state), (prev, next) {
       if (next == GameState.success && prev != GameState.success) {
-        ref.read(soundServiceProvider).playGameSuccess();
+        ref.read(soundServiceProvider).playCorrect();
         HapticFeedback.heavyImpact();
         setState(() {
           _showParticles = true;
@@ -629,11 +629,11 @@ class _VerseGameScreenState extends ConsumerState<VerseGameScreen>
         }
       } else if (next == GameState.sessionComplete &&
           prev != GameState.sessionComplete) {
-        ref.read(soundServiceProvider).playGameSuccess();
+        ref.read(soundServiceProvider).playCorrect();
         HapticFeedback.heavyImpact();
         _confettiController.play();
       } else if (next == GameState.failed && prev != GameState.failed) {
-        ref.read(soundServiceProvider).playGameFail();
+        ref.read(soundServiceProvider).playWrong();
         HapticFeedback.heavyImpact();
         setState(() {
           _triggerShake = true;
@@ -1389,7 +1389,7 @@ class _VerseGameScreenState extends ConsumerState<VerseGameScreen>
                       borderRadius: BorderRadius.circular(12),
                       onTap: gameState.state == GameState.playing
                           ? () {
-                              ref.read(soundServiceProvider).playGameTap();
+                              ref.read(soundServiceProvider).playTap();
                               HapticFeedback.mediumImpact();
                               if (gameState.currentMode == GameMode.arrange) {
                                 if (isSelected) {

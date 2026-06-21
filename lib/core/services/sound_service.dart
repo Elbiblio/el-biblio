@@ -37,16 +37,10 @@ class SoundService {
   static const String correctAsset = 'audio/correct.mp3';
   static const String wrongAsset = 'audio/wrong.mp3';
 
-  // ── Legacy asset constants (kept for backward compatibility) ────────────
-  static const String onboardingSuccessAsset = 'audio/success_bell.mp3';
-  static const String gameTapAsset = 'audio/ding.wav';
-  static const String gameFailAsset = 'audio/wrong.mp3';
+  // ── Game-specific asset constants ────────────────────────────────────────
   static const String gameTimeoutAsset = 'audio/timeout.mp3';
-  static const String gameLevelUpAsset = 'audio/level-up.mp3';
   static const String gameOverAsset = 'audio/game-over.mp3';
   static const String gameTickAsset = 'audio/tick-tock.wav';
-  static const String gameSuccessAsset = 'audio/correct.mp3';
-  static const String journeyAmbientAsset = 'audio/ambient.mp3';
 
   bool get soundEnabled => _soundEnabled;
 
@@ -137,21 +131,13 @@ class SoundService {
   Future<void> playCorrect() => _playSfx(correctAsset, volume: 0.5);
   Future<void> playWrong() => _playSfx(wrongAsset, volume: 0.35);
 
-  // ── Backward-compat aliases (kept so existing callers compile) ───────────
-  Future<void> playOnboardingSuccess({double volume = 0.7}) => playSuccessBell();
-  Future<void> playGameTap() => playTap();
-  Future<void> playGameSuccess() => playCorrect();
-  Future<void> playGameFail() => playWrong();
+  // ── Game-specific sounds (no generic semantic equivalent) ───────────────
   Future<void> playGameTick() => _playSfx(gameTickAsset, volume: 0.1);
   Future<void> playGameTimeout() => _playSfx(gameTimeoutAsset, volume: 0.4);
-  Future<void> playGameLevelUp() => playLevelUp();
   Future<void> playGameOver() => _playSfx(gameOverAsset, volume: 0.5);
   Future<void> playJourneyAmbience({double volume = 0.12}) =>
       playAmbient(ambientHomeAsset, volume: volume);
   Future<void> stopJourneyAmbience() => stopAmbient();
-  Future<void> playCategoryAmbience(String assetPath, {double volume = 0.08}) =>
-      playAmbient(assetPath, volume: volume);
-  Future<void> stopCategoryAmbience() => stopAmbient();
 
   // ── Ambient methods ──────────────────────────────────────────────────────
   Future<void> playAmbient(String asset, {double volume = 0.10}) async {

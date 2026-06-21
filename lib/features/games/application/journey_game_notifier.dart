@@ -105,7 +105,7 @@ class JourneyGameNotifier extends StateNotifier<JourneyGameState> {
       return; // locked
     }
     final event = _repository.getEvent(order);
-    _ref.read(soundServiceProvider).playGameTap();
+    _ref.read(soundServiceProvider).playTap();
     state = state.copyWith(
       phase: JourneyPhase.viewingEvent,
       currentEvent: event,
@@ -120,7 +120,7 @@ class JourneyGameNotifier extends StateNotifier<JourneyGameState> {
   /// Start the quiz for the currently viewed event
   void startQuiz() {
     if (state.currentEvent == null) return;
-    _ref.read(soundServiceProvider).playGameTap();
+    _ref.read(soundServiceProvider).playTap();
     state = state.copyWith(
       phase: JourneyPhase.quiz,
       currentQuestionIndex: 0,
@@ -139,9 +139,9 @@ class JourneyGameNotifier extends StateNotifier<JourneyGameState> {
     final question = event.questions[state.currentQuestionIndex];
     final correct = answerIndex == question.correctIndex;
     if (correct) {
-      _ref.read(soundServiceProvider).playGameSuccess();
+      _ref.read(soundServiceProvider).playCorrect();
     } else {
-      _ref.read(soundServiceProvider).playGameFail();
+      _ref.read(soundServiceProvider).playWrong();
     }
 
     int scoreGain = 0;
@@ -229,14 +229,14 @@ class JourneyGameNotifier extends StateNotifier<JourneyGameState> {
     final updatedProgress = await _repository.getProgress();
 
     if (updatedProgress.isComplete) {
-      _ref.read(soundServiceProvider).playGameLevelUp();
+      _ref.read(soundServiceProvider).playLevelUp();
       state = state.copyWith(
         phase: JourneyPhase.journeyComplete,
         progress: updatedProgress,
         lastXpEarned: xpEarned,
       );
     } else {
-      _ref.read(soundServiceProvider).playGameLevelUp();
+      _ref.read(soundServiceProvider).playLevelUp();
       state = state.copyWith(
         phase: JourneyPhase.eventComplete,
         progress: updatedProgress,

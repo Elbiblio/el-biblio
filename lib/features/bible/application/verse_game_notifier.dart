@@ -904,7 +904,7 @@ class VerseGameNotifier extends StateNotifier<VerseGameState> {
       if (state.state != GameState.playing) return;
       if (state.timeLeft > 0) {
         state = state.copyWith(timeLeft: state.timeLeft - 1);
-        _ref.read(soundServiceProvider).playGameTick();
+        _ref.read(soundServiceProvider).playGameTick(); // tick has no semantic alias yet
       } else {
         timer.cancel();
         _handleTimeUp();
@@ -930,7 +930,7 @@ class VerseGameNotifier extends StateNotifier<VerseGameState> {
     state = state.copyWith(state: GameState.failed, lives: newLives);
 
     // Play timeout sound for immediate feedback
-    _ref.read(soundServiceProvider).playGameTimeout();
+    _ref.read(soundServiceProvider).playGameTimeout(); // timeout has no semantic alias yet
 
     _scheduleNextAfterResult();
   }
@@ -1020,7 +1020,7 @@ class VerseGameNotifier extends StateNotifier<VerseGameState> {
     }
 
     state = state.copyWith(hintsRemaining: state.hintsRemaining - 1);
-    _ref.read(soundServiceProvider).playGameTap();
+    _ref.read(soundServiceProvider).playTap();
   }
 
   void _useArrangeHint() {
@@ -1076,7 +1076,7 @@ class VerseGameNotifier extends StateNotifier<VerseGameState> {
 
     const bonusTime = 10;
     state = state.copyWith(timeLeft: state.timeLeft + bonusTime);
-    _ref.read(soundServiceProvider).playGameLevelUp();
+    _ref.read(soundServiceProvider).playLevelUp();
   }
 
   void useRevealWord() {
@@ -1122,7 +1122,7 @@ class VerseGameNotifier extends StateNotifier<VerseGameState> {
             100, // Base points + time bonus * multiplier
       );
       // Play level-up sound for positive reinforcement
-      _ref.read(soundServiceProvider).playGameLevelUp();
+      _ref.read(soundServiceProvider).playLevelUp();
     } else {
       final newLives = state.lives - 1;
       state = state.copyWith(
@@ -1132,7 +1132,7 @@ class VerseGameNotifier extends StateNotifier<VerseGameState> {
       );
       // If lives are exhausted, play game-over sound
       if (newLives <= 0) {
-        _ref.read(soundServiceProvider).playGameOver();
+        _ref.read(soundServiceProvider).playGameOver(); // game-over has no semantic alias yet
       }
     }
 
