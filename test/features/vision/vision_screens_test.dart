@@ -16,7 +16,6 @@ import 'package:elbiblio/features/vision/domain/vision_models.dart';
 import 'package:elbiblio/features/vision/presentation/screens/commit_screen.dart';
 import 'package:elbiblio/features/vision/presentation/screens/grow_screen.dart';
 import 'package:elbiblio/features/vision/presentation/screens/reflect_screen.dart';
-import 'package:elbiblio/features/vision/presentation/screens/today_screen.dart';
 import 'package:elbiblio/features/vision/presentation/screens/tribe_screen.dart';
 import 'package:elbiblio/features/vision/presentation/widgets/daily_verse_social_card.dart';
 import 'package:flutter/material.dart';
@@ -65,28 +64,6 @@ void main() {
       await tester.scrollUntilVisible(find.text('Add support: 5/day'), 180);
       await tester.pumpAndSettle();
       expect(find.text('Add support: 5/day'), findsOneWidget);
-    });
-
-    testWidgets('Today after check-in keeps the daily loop visible', (
-      tester,
-    ) async {
-      final repository = _FakeVisionRepository(
-        activeCommitment: _season(checkedInToday: true),
-        primaryTribe: _tribeMembership,
-        dailyQuestion: _dailyQuestion,
-      );
-
-      await tester.pumpVisionScreen(
-        const TodayScreen(),
-        repository: repository,
-      );
-
-      expect(find.text('Check-in complete'), findsOneWidget);
-      expect(find.text('Reflect'), findsWidgets);
-      await tester.scrollUntilVisible(find.text('Answer question'), 180);
-      await tester.pumpAndSettle();
-      expect(find.text('Answer question'), findsOneWidget);
-      expect(find.text('Open tribe'), findsOneWidget);
     });
 
     testWidgets('Reflect gates posting until an unchecked season checks in', (

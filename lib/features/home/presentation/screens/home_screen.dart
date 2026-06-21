@@ -7,8 +7,14 @@ import '../../../../core/constants/app_routes.dart';
 import '../../../../core/di/app_providers.dart';
 import '../../../../core/theme/app_theme_tokens.dart';
 import '../../../../shared/widgets/safe_bottom_padding.dart';
+import '../../../commit/application/failure_protocol_service.dart';
+import '../../../companion/presentation/widgets/companion_bubble.dart';
+import '../../../today/presentation/widgets/recalibration_suggestion_dialog.dart';
+import '../../../today/presentation/widgets/streak_badge.dart';
+import '../../../today/presentation/widgets/time_diagnose_suggestion_dialog.dart';
 import '../../../vision/application/vision_state.dart';
 import '../../../vision/domain/vision_models.dart';
+import '../../../vision/presentation/widgets/commitment_daily_load_widgets.dart';
 import '../../../vision/presentation/widgets/vision_panel.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
@@ -24,7 +30,57 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(visionProvider.notifier).load();
+      _checkForMissedDaysAndShowSuggestion();
     });
+  }
+
+  Future<void> _checkForMissedDaysAndShowSuggestion() async {
+    final missedDays = await ref
+        .read(dailyAnchorsProvider.notifier)
+        .getConsecutiveMissedDays();
+    if (!mounted || missedDays < 2) return;
+
+    final settings = ref.read(settingsProvider);
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final lastPrompt = settings.lastRecalibrationPromptDate;
+    final lastPromptDay = lastPrompt == null
+        ? null
+        : DateTime(lastPrompt.year, lastPrompt.month, lastPrompt.day);
+
+    if (lastPromptDay == today) return;
+
+    final active = ref.read(visionProvider).activeCommitment;
+    final protocol = ref.read(failureProtocolServiceProvider);
+    final failureState = active != null ? protocol.evaluate(active) : FailureState.empty;
+    final habitName = active?.plan.title ?? 'your commitment';
+
+    await ref
+        .read(settingsProvider.notifier)
+        .markRecalibrationPromptShown(today);
+
+    if (!mounted) return;
+    await RecalibrationSuggestionDialog.show(
+      context,
+      missedDays: missedDays,
+      failureState: failureState,
+      habitName: habitName,
+      admissionOptions: protocol.admissionOptions(),
+      onRecordAdmission: (admittedTo) async {
+        if (active == null) return;
+        await protocol.recordAdmission(
+          commitmentId: active.plan.id,
+          habitId: active.plan.id.toString(),
+          habitName: active.plan.title,
+          missedDay: active.currentDay,
+          missedDate: today.subtract(Duration(days: missedDays)),
+          admittedTo: admittedTo,
+        );
+      },
+      onOpenTimeDiagnose: () {
+        TimeDiagnoseSuggestionDialog.show(context);
+      },
+    );
   }
 
   String _greeting() {
@@ -74,11 +130,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            '${_greeting()}, Friend.',
-                            style: theme.textTheme.headlineMedium?.copyWith(
-                              fontWeight: FontWeight.w800,
-                            ),
+                          Row(
+                            children: [
+                              Text(
+                                '${_greeting()}, Friend.',
+                                style: theme.textTheme.headlineMedium?.copyWith(
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              const StreakBadge(),
+                            ],
                           ),
                           const SizedBox(height: 4),
                           Text(
@@ -120,11 +182,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     ),
                     const SizedBox(height: 16),
                   ],
+                  const CompanionBubble(),
+                  const SizedBox(height: 16),
                   if (state.activeCommitment != null) ...[
                     _ActiveCommitmentSummary(
                       active: state.activeCommitment!,
                       onCheckIn: () => context.go(AppRoutes.commit),
                     ),
+                    const SizedBox(height: 16),
+                    _TribePulseCard(),
                     const SizedBox(height: 16),
                   ] else ...[
                     VisionPanel(
@@ -144,6 +210,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       icon: LucideIcons.flag,
                       onPressed: () => context.go(AppRoutes.commit),
                     ),
+                    const SizedBox(height: 16),
+                    _TribePulseCard(),
                     const SizedBox(height: 16),
                   ],
                   _QuickActions(),
@@ -168,33 +236,82 @@ class _ActiveCommitmentSummary extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
     return VisionPanel(
       icon: LucideIcons.flag,
       title: active.plan.title,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          LinearProgressIndicator(
-            value: active.progress,
-            backgroundColor:
-                theme.colorScheme.onSurface.withValues(alpha: 0.10),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            '${active.completedDaysCount} / ${active.plan.durationDays} days — ${active.completionPercentLabel}',
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurface.withValues(alpha: 0.62),
-            ),
+          CommitmentSnapshotBanner(active: active),
+          const SizedBox(height: 12),
+          CommitmentProgressStrip(active: active),
+          const SizedBox(height: 12),
+          CommitmentDailyChecklist(
+            items: active.todayItems,
+            onItemTap: (_) {},
           ),
           const SizedBox(height: 12),
           SizedBox(
             width: double.infinity,
-            child: OutlinedButton.icon(
+            child: FilledButton.icon(
               onPressed: onCheckIn,
               icon: const Icon(LucideIcons.checkCircle, size: 18),
               label: const Text('Check in'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TribePulseCard extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final state = ref.watch(visionProvider);
+    final pulse = state.tribePulse;
+    final theme = Theme.of(context);
+
+    return VisionPanel(
+      icon: LucideIcons.users,
+      title: 'Tribe pulse',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (state.primaryTribe == null)
+            Text(
+              'Join a tribe to share the journey.',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.62),
+              ),
+            )
+          else if (pulse.items.isEmpty)
+            Text(
+              pulse.returnedCount > 0
+                  ? '${pulse.returnedCount} people checked in today.'
+                  : 'Your check-in can be today\'s first signal.',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.62),
+              ),
+            )
+          else
+            ...pulse.items.take(3).map(
+              (item) => ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: Icon(GrowthJourneyEvent.iconForKey(item.iconKey)),
+                title: Text(item.text),
+                dense: true,
+              ),
+            ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () => context.push(AppRoutes.tribe),
+              icon: const Icon(LucideIcons.users, size: 18),
+              label: Text(
+                state.primaryTribe == null ? 'Find tribe' : 'Open tribe',
+              ),
             ),
           ),
         ],
@@ -225,22 +342,22 @@ class _QuickActions extends StatelessWidget {
             _QuickActionChip(
               icon: LucideIcons.bookOpen,
               label: 'Bible',
-              onTap: () => context.go(AppRoutes.bible),
+              onTap: () => context.push(AppRoutes.bible),
             ),
             _QuickActionChip(
               icon: LucideIcons.feather,
               label: 'Journal',
-              onTap: () => context.go(AppRoutes.journal),
+              onTap: () => context.push(AppRoutes.journal),
             ),
             _QuickActionChip(
               icon: LucideIcons.headphones,
               label: 'Meditate',
-              onTap: () => context.go(AppRoutes.meditation),
+              onTap: () => context.push(AppRoutes.meditation),
             ),
             _QuickActionChip(
               icon: LucideIcons.messagesSquare,
               label: 'Companion',
-              onTap: () => context.go(AppRoutes.companionChat),
+              onTap: () => context.push(AppRoutes.companionChat),
             ),
           ],
         ),
@@ -285,7 +402,7 @@ class _NotificationButton extends ConsumerWidget {
       children: [
         IconButton(
           icon: const Icon(LucideIcons.bell),
-          onPressed: () => context.go(AppRoutes.notifications),
+          onPressed: () => context.push(AppRoutes.notifications),
         ),
         if (unread > 0)
           Positioned(

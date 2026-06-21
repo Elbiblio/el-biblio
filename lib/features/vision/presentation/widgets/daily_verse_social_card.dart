@@ -649,7 +649,7 @@ class _DailyVerseSocialSheetState
     final hostContext = widget.hostContext;
     Navigator.of(context).pop();
     if (hostContext.mounted) {
-      hostContext.go(AppRoutes.profile);
+      hostContext.push(AppRoutes.profile);
     }
   }
 

@@ -53,6 +53,7 @@ class AppRoutes {
   static const weeklyAssessment = '/weekly-assessment';
   static const companion = '/companion';
   static const companionChat = '/companion/chat';
+  static const companionCall = '/companion/call';
   static const companionSelect = '/companion/select';
   static const churchesNearby = '/churches/nearby';
   static const overlayNotification = '/overlay-notification';

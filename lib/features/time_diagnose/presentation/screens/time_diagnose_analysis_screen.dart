@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../core/constants/app_routes.dart';
 import '../../application/time_diagnose_notifier.dart';
 import '../../domain/models/time_diagnose_models.dart';
 
@@ -255,8 +256,8 @@ class TimeDiagnoseAnalysisScreen extends ConsumerWidget {
               child: Center(
                 child: TextButton(
                   onPressed: () {
-                    // Navigate to root/today screen
-                    context.go('/');
+                    // Navigate home
+                    context.go(AppRoutes.home);
                   },
                   child: const Text(
                     'SKIP FOR NOW',

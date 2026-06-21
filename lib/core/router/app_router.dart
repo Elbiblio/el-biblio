@@ -33,7 +33,7 @@ import '../../features/vision/presentation/screens/commit_screen.dart';
 import '../../features/vision/presentation/screens/grow_screen.dart';
 import '../../features/vision/presentation/screens/notifications_screen.dart';
 import '../../features/vision/presentation/screens/reflect_screen.dart';
-import '../../features/vision/presentation/screens/today_screen.dart';
+import '../../features/today/presentation/today_screen.dart';
 import '../../features/vision/presentation/screens/tribe_screen.dart';
 import '../../features/profile/presentation/about_screen.dart';
 import '../../features/profile/presentation/profile_screen.dart';
@@ -49,6 +49,7 @@ import '../../features/app_lock/presentation/screens/app_lock_limit_reached_scre
 import '../../features/social/presentation/invite_screen.dart';
 import '../../features/commitments/presentation/screens/commitment_journey_screen_new.dart';
 import '../../features/companion/presentation/screens/companion_chat_screen.dart';
+import '../../features/speak/presentation/screens/companion_call_screen.dart';
 import '../../features/churches/presentation/screens/church_finder_screen.dart';
 import '../../features/commitments/presentation/screens/journey_selection_screen.dart';
 import '../../features/commitments/presentation/screens/commitment_active_screen.dart';
@@ -383,6 +384,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         },
       ),
       GoRoute(
+        path: AppRoutes.companionCall,
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) {
+          final threadKey = state.uri.queryParameters['thread'];
+          return CompanionCallScreen(threadKey: threadKey);
+        },
+      ),
+      GoRoute(
         path: AppRoutes.churchesNearby,
         parentNavigatorKey: _rootNavigatorKey,
         builder: (context, state) => const ChurchFinderScreen(),
@@ -435,187 +444,176 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                 _fadePage(child: const ConnectScreen()),
           ),
           GoRoute(
-            path: AppRoutes.speak,
-            pageBuilder: (context, state) =>
-                _fadePage(child: const SpeakScreen()),
-          ),
-          GoRoute(
-            path: AppRoutes.today,
-            pageBuilder: (context, state) =>
-                _fadePage(child: const TodayScreen()),
-          ),
-          GoRoute(
-            path: AppRoutes.notifications,
-            pageBuilder: (context, state) =>
-                _fadePage(child: const NotificationsScreen()),
-          ),
-          GoRoute(
-            path: AppRoutes.reflect,
-            pageBuilder: (context, state) =>
-                _fadePage(child: const ReflectScreen()),
-          ),
-          GoRoute(
             path: AppRoutes.commit,
             pageBuilder: (context, state) =>
                 _fadePage(child: const CommitScreen()),
           ),
           GoRoute(
-            path: AppRoutes.tribe,
+            path: AppRoutes.speak,
             pageBuilder: (context, state) =>
-                _fadePage(child: const TribeScreen()),
+                _fadePage(child: const SpeakScreen()),
+          ),
+        ],
+      ),
+      // Secondary routes live outside the shell so they render as full-screen
+      // pages with their own back affordance and never hide the shell menu.
+      GoRoute(
+        path: AppRoutes.today,
+        builder: (context, state) => const TodayScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.notifications,
+        builder: (context, state) => const NotificationsScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.reflect,
+        builder: (context, state) => const ReflectScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.tribe,
+        builder: (context, state) => const TribeScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.legacyChallenge,
+        redirect: (context, state) => AppRoutes.commit,
+      ),
+      GoRoute(
+        path: AppRoutes.legacyTribes,
+        redirect: (context, state) => AppRoutes.tribe,
+      ),
+      GoRoute(
+        path: AppRoutes.legacyQuestions,
+        redirect: (context, state) => AppRoutes.grow,
+      ),
+      GoRoute(
+        path: AppRoutes.act,
+        builder: (context, state) => const MissionHubScreen(),
+        routes: [
+          GoRoute(
+            path: 'history',
+            parentNavigatorKey: _rootNavigatorKey,
+            builder: (context, state) => const ImpactHistoryScreen(),
           ),
           GoRoute(
-            path: AppRoutes.legacyChallenge,
-            redirect: (context, state) => AppRoutes.commit,
+            path: 'opportunities',
+            parentNavigatorKey: _rootNavigatorKey,
+            builder: (context, state) => const ServiceOpportunitiesScreen(),
           ),
           GoRoute(
-            path: AppRoutes.legacyTribes,
-            redirect: (context, state) => AppRoutes.tribe,
+            path: 'people/:id',
+            parentNavigatorKey: _rootNavigatorKey,
+            builder: (context, state) =>
+                PersonProfileScreen(personId: state.pathParameters['id']!),
+          ),
+        ],
+      ),
+      GoRoute(
+        path: AppRoutes.growTogether,
+        builder: (context, state) => const GrowTogetherScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.grow,
+        builder: (context, state) => const GrowScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.assessment,
+        builder: (context, state) => const FearFirstAssessmentScreen(),
+        routes: [
+          GoRoute(
+            path: 'compass',
+            parentNavigatorKey: _rootNavigatorKey,
+            builder: (context, state) => const AssessmentScreen(),
           ),
           GoRoute(
-            path: AppRoutes.legacyQuestions,
-            redirect: (context, state) => AppRoutes.grow,
+            path: 'quick-results',
+            parentNavigatorKey: _rootNavigatorKey,
+            builder: (context, state) => const AssessmentResultsScreen(),
           ),
           GoRoute(
-            path: AppRoutes.act,
-            pageBuilder: (context, state) =>
-                _fadePage(child: const MissionHubScreen()),
+            path: 'rating',
+            parentNavigatorKey: _rootNavigatorKey,
+            builder: (context, state) => const AssessmentRatingScreen(),
+          ),
+          GoRoute(
+            path: 'path',
+            parentNavigatorKey: _rootNavigatorKey,
+            builder: (context, state) => const AssessmentPathScreen(),
+          ),
+          GoRoute(
+            path: 'action-plan',
+            parentNavigatorKey: _rootNavigatorKey,
+            builder: (context, state) => const AssessmentActionPlanScreen(),
+          ),
+          GoRoute(
+            path: 'results',
+            parentNavigatorKey: _rootNavigatorKey,
+            builder: (context, state) => const AssessmentResultsScreen(),
+          ),
+          GoRoute(
+            path: 'calling-profile',
+            parentNavigatorKey: _rootNavigatorKey,
+            builder: (context, state) => const CallingProfileScreen(),
+          ),
+        ],
+      ),
+      GoRoute(
+        path: AppRoutes.bible,
+        builder: (context, state) => const BibleLibraryScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.meditation,
+        builder: (context, state) => const MeditationHomeScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.journal,
+        builder: (context, state) => const JournalScreen(),
+        routes: [
+          GoRoute(
+            path: 'new',
+            parentNavigatorKey: _rootNavigatorKey,
+            builder: (context, state) {
+              final extra = state.extra as Map<String, dynamic>?;
+              return NoteEditorScreen(
+                initialTitle: extra?['initialTitle'] as String?,
+                initialText: extra?['initialText'] as String?,
+                initialVirtues: extra?['initialVirtues'] as List<String>?,
+                meditationSessionId:
+                    extra?['meditationSessionId'] as String?,
+              );
+            },
+          ),
+          GoRoute(
+            path: ':id',
+            parentNavigatorKey: _rootNavigatorKey,
+            builder: (context, state) {
+              final id = state.pathParameters['id'];
+              return NoteReaderScreen(noteId: id!);
+            },
             routes: [
               GoRoute(
-                path: 'history',
-                parentNavigatorKey: _rootNavigatorKey,
-                builder: (context, state) => const ImpactHistoryScreen(),
-              ),
-              GoRoute(
-                path: 'opportunities',
-                parentNavigatorKey: _rootNavigatorKey,
-                builder: (context, state) => const ServiceOpportunitiesScreen(),
-              ),
-              GoRoute(
-                path: 'people/:id',
-                parentNavigatorKey: _rootNavigatorKey,
-                builder: (context, state) =>
-                    PersonProfileScreen(personId: state.pathParameters['id']!),
-              ),
-            ],
-          ),
-          GoRoute(
-            path: AppRoutes.growTogether,
-            pageBuilder: (context, state) =>
-                _fadePage(child: const GrowTogetherScreen()),
-          ),
-          GoRoute(
-            path: AppRoutes.grow,
-            pageBuilder: (context, state) =>
-                _fadePage(child: const GrowScreen()),
-          ),
-          GoRoute(
-            path: AppRoutes.assessment,
-            pageBuilder: (context, state) =>
-                _fadePage(child: const FearFirstAssessmentScreen()),
-            routes: [
-              GoRoute(
-                path: 'compass',
-                parentNavigatorKey: _rootNavigatorKey,
-                builder: (context, state) => const AssessmentScreen(),
-              ),
-              GoRoute(
-                path: 'quick-results',
-                parentNavigatorKey: _rootNavigatorKey,
-                builder: (context, state) => const AssessmentResultsScreen(),
-              ),
-              GoRoute(
-                path: 'rating',
-                parentNavigatorKey: _rootNavigatorKey,
-                builder: (context, state) => const AssessmentRatingScreen(),
-              ),
-              GoRoute(
-                path: 'path',
-                parentNavigatorKey: _rootNavigatorKey,
-                builder: (context, state) => const AssessmentPathScreen(),
-              ),
-              GoRoute(
-                path: 'action-plan',
-                parentNavigatorKey: _rootNavigatorKey,
-                builder: (context, state) => const AssessmentActionPlanScreen(),
-              ),
-              GoRoute(
-                path: 'results',
-                parentNavigatorKey: _rootNavigatorKey,
-                builder: (context, state) => const AssessmentResultsScreen(),
-              ),
-              GoRoute(
-                path: 'calling-profile',
-                parentNavigatorKey: _rootNavigatorKey,
-                builder: (context, state) => const CallingProfileScreen(),
-              ),
-            ],
-          ),
-          GoRoute(
-            path: AppRoutes.bible,
-            pageBuilder: (context, state) =>
-                _fadePage(child: const BibleLibraryScreen()),
-          ),
-          GoRoute(
-            path: AppRoutes.meditation,
-            pageBuilder: (context, state) =>
-                _fadePage(child: const MeditationHomeScreen()),
-          ),
-          GoRoute(
-            path: AppRoutes.journal,
-            pageBuilder: (context, state) =>
-                _fadePage(child: const JournalScreen()),
-            routes: [
-              GoRoute(
-                path: 'new',
+                path: 'edit',
                 parentNavigatorKey: _rootNavigatorKey,
                 builder: (context, state) {
-                  final extra = state.extra as Map<String, dynamic>?;
-                  return NoteEditorScreen(
-                    initialTitle: extra?['initialTitle'] as String?,
-                    initialText: extra?['initialText'] as String?,
-                    initialVirtues: extra?['initialVirtues'] as List<String>?,
-                    meditationSessionId:
-                        extra?['meditationSessionId'] as String?,
-                  );
+                  final id = state.pathParameters['id']!;
+                  return NoteEditorScreen(noteId: id);
                 },
-              ),
-              GoRoute(
-                path: ':id',
-                parentNavigatorKey: _rootNavigatorKey,
-                builder: (context, state) {
-                  final id = state.pathParameters['id'];
-                  return NoteReaderScreen(noteId: id!);
-                },
-                routes: [
-                  GoRoute(
-                    path: 'edit',
-                    parentNavigatorKey: _rootNavigatorKey,
-                    builder: (context, state) {
-                      final id = state.pathParameters['id']!;
-                      return NoteEditorScreen(noteId: id);
-                    },
-                  ),
-                ],
               ),
             ],
           ),
+        ],
+      ),
+      GoRoute(
+        path: AppRoutes.games,
+        builder: (context, state) => const GamesHubScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.profile,
+        builder: (context, state) => const ProfileScreen(),
+        routes: [
           GoRoute(
-            path: AppRoutes.games,
-            pageBuilder: (context, state) =>
-                _fadePage(child: const GamesHubScreen()),
-          ),
-          GoRoute(
-            path: AppRoutes.profile,
-            pageBuilder: (context, state) =>
-                _fadePage(child: const ProfileScreen()),
-            routes: [
-              GoRoute(
-                path: 'reminders',
-                parentNavigatorKey: _rootNavigatorKey,
-                builder: (context, state) => const ReminderSettingsScreen(),
-              ),
-            ],
+            path: 'reminders',
+            parentNavigatorKey: _rootNavigatorKey,
+            builder: (context, state) => const ReminderSettingsScreen(),
           ),
         ],
       ),
@@ -689,11 +687,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       // Overlay notification — always allow
       if (isOverlay) return null;
 
-      if (isPostOnboarding) {
-        return AppRoutes.home;
-      }
-
-      // Already completed — redirect away from onboarding screens
+      // Already completed — redirect away from onboarding/post-onboarding screens
       if (isOnboarding || isPostOnboarding) {
         return AppRoutes.home;
       }

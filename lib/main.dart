@@ -10,10 +10,12 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:window_manager/window_manager.dart';
 import 'package:timeago/timeago.dart' as timeago;
 
+import 'core/constants/app_routes.dart';
 import 'core/di/app_providers.dart';
 import 'core/router/app_router.dart';
 import 'core/services/notifications/notification_service.dart';
 import 'core/services/notifications/push_notification_service.dart';
+import 'core/services/overlay_response_service.dart';
 import 'core/services/xp_service.dart';
 import 'core/storage/hive_service.dart';
 import 'core/theme/app_theme.dart';
@@ -287,11 +289,39 @@ class StartupErrorApp extends StatelessWidget {
   }
 }
 
-class CompassApp extends ConsumerWidget {
+class CompassApp extends ConsumerStatefulWidget {
   const CompassApp({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<CompassApp> createState() => _CompassAppState();
+}
+
+class _CompassAppState extends ConsumerState<CompassApp> {
+  @override
+  void initState() {
+    super.initState();
+    _handleOverlayAction();
+  }
+
+  Future<void> _handleOverlayAction() async {
+    final action = await OverlayResponseService.instance.getOverlayAction();
+    if (action == null || action['action'] == null) return;
+    await OverlayResponseService.instance.consumeOverlayAction();
+    if (!mounted) return;
+    final router = ref.read(appRouterProvider);
+    switch (action['action']) {
+      case 'check_in':
+        router.push(AppRoutes.commit);
+      case 'talk':
+        router.push(AppRoutes.companionChat);
+      case 'skip':
+      default:
+        router.go(AppRoutes.home);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final appTheme = ref.watch(themeProvider);
     final router = ref.watch(appRouterProvider);
     ref.watch(pendingCompassSyncProvider);

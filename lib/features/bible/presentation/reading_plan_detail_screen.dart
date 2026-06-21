@@ -261,7 +261,7 @@ class ReadingPlanDetailScreen extends ConsumerWidget {
 
                             if (!context.mounted) return;
 
-                            context.go(AppRoutes.bible);
+                            context.push(AppRoutes.bible);
                           },
                     child: Text(planState.isLoading ? 'Starting…' : 'Start this plan'),
                   ),

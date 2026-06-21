@@ -105,7 +105,7 @@ class MeditationCompleteView extends ConsumerWidget {
               child: FilledButton.icon(
                 onPressed: () {
                   notifier.resetToSetup();
-                  context.go(AppRoutes.today);
+                  context.go(AppRoutes.home);
                 },
                 icon: const Icon(Icons.home_outlined, size: 20),
                 label: const Text('Finish'),

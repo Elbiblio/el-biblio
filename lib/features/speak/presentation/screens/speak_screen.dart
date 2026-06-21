@@ -7,6 +7,8 @@ import '../../../../core/constants/app_routes.dart';
 import '../../../../core/di/app_providers.dart';
 import '../../../../core/theme/app_theme_tokens.dart';
 import '../../../../shared/widgets/safe_bottom_padding.dart';
+import '../../../companion/presentation/widgets/companion_bubble.dart';
+import '../../../spiritual_aid/data/prayer_catalog.dart';
 import '../../../vision/domain/vision_models.dart';
 import '../../../vision/presentation/widgets/vision_panel.dart';
 
@@ -65,65 +67,27 @@ class _SpeakScreenState extends ConsumerState<SpeakScreen> {
                   ),
                 ),
                 const SizedBox(height: 20),
-                _CompanionCard(
-                  onOpenCompanion: () => context.go(AppRoutes.companionChat),
-                ),
+                const CompanionBubble(),
                 const SizedBox(height: 16),
                 _TribeFeedCard(
                   tribe: state.primaryTribe,
                   pulse: state.tribePulse,
-                  onOpenTribe: () => context.go(AppRoutes.tribe),
+                  onOpenTribe: () => context.push(AppRoutes.tribe),
                 ),
                 const SizedBox(height: 16),
                 _PrayerCard(
                   onOpenPrayer: () =>
-                      context.go('${AppRoutes.spiritualAid}/prayers'),
-                  onOpenSpiritualAid: () => context.go(AppRoutes.spiritualAid),
+                      context.push('${AppRoutes.spiritualAid}/prayers'),
+                  onOpenSpiritualAid: () => context.push(AppRoutes.spiritualAid),
                 ),
                 const SizedBox(height: 16),
                 _AccountabilityCard(
-                  onOpenMission: () => context.go(AppRoutes.act),
+                  onOpenMission: () => context.push(AppRoutes.act),
                 ),
               ],
             ),
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _CompanionCard extends StatelessWidget {
-  const _CompanionCard({required this.onOpenCompanion});
-
-  final VoidCallback onOpenCompanion;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return VisionPanel(
-      icon: LucideIcons.messageCircle,
-      title: 'Your Companion',
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Your AI companion walks with you daily. Talk, reflect, and grow together.',
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: theme.colorScheme.onSurface.withValues(alpha: 0.62),
-            ),
-          ),
-          const SizedBox(height: 12),
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton.icon(
-              onPressed: onOpenCompanion,
-              icon: const Icon(LucideIcons.messageCircle, size: 16),
-              label: const Text('Talk Now'),
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -219,6 +183,7 @@ class _PrayerCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final prayer = PrayerCatalog.all.first;
 
     return VisionPanel(
       icon: LucideIcons.bookOpen,
@@ -227,9 +192,19 @@ class _PrayerCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Quick prayers, scripture, and guided reflection.',
+            prayer.title,
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            prayer.body,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
             style: theme.textTheme.bodyMedium?.copyWith(
               color: theme.colorScheme.onSurface.withValues(alpha: 0.62),
+              height: 1.45,
             ),
           ),
           const SizedBox(height: 12),

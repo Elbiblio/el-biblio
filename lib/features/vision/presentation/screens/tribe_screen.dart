@@ -88,6 +88,16 @@ class _TribeScreenState extends ConsumerState<TribeScreen> {
               bottomPadding: shellChromeBottomPadding,
               padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
               children: [
+                Row(
+                  children: [
+                    IconButton(
+                      icon: const Icon(LucideIcons.chevronLeft),
+                      tooltip: 'Back',
+                      onPressed: () => Navigator.of(context).maybePop(),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
                 _TribeHero(
                   state: state,
                   onVisibilityPressed: _openVisibilitySettings,

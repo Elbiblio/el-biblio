@@ -297,7 +297,7 @@ class _CommitmentJourneyScreenNewState
                         ref
                             .read(commitmentJourneyProvider.notifier)
                             .acknowledgeCompletion();
-                        context.go(AppRoutes.today);
+                        context.go(AppRoutes.home);
                       },
                       child: const Text('Continue'),
                     ),

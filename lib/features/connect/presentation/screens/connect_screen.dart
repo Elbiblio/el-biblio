@@ -73,18 +73,19 @@ class _ConnectScreenState extends ConsumerState<ConnectScreen> {
                 const SizedBox(height: 20),
                 _IdentityCard(
                   archetype: archetype,
-                  onReassess: () => context.go(AppRoutes.assessment),
+                  onReassess: () => context.push(AppRoutes.assessment),
                 ),
                 const SizedBox(height: 16),
                 _TribeCard(
                   tribe: state.primaryTribe,
-                  onOpenTribe: () => context.go(AppRoutes.tribe),
-                  onFindTribe: () => context.go(AppRoutes.tribe),
+                  pulse: state.tribePulse,
+                  onOpenTribe: () => context.push(AppRoutes.tribe),
+                  onFindTribe: () => context.push(AppRoutes.tribe),
                 ),
                 const SizedBox(height: 16),
                 _GrowthJourneyCard(
                   onWeeklyAssessment: () =>
-                      context.go(AppRoutes.weeklyAssessment),
+                      context.push(AppRoutes.weeklyAssessment),
                 ),
               ],
             ),
@@ -149,7 +150,7 @@ class _IdentityCard extends StatelessWidget {
             child: OutlinedButton.icon(
               onPressed: onReassess,
               icon: const Icon(LucideIcons.refreshCw, size: 16),
-              label: const Text(  'Reassess'),
+              label: const Text('Reassess'),
             ),
           ),
         ],
@@ -161,11 +162,13 @@ class _IdentityCard extends StatelessWidget {
 class _TribeCard extends StatelessWidget {
   const _TribeCard({
     required this.tribe,
+    required this.pulse,
     required this.onOpenTribe,
     required this.onFindTribe,
   });
 
   final TribeMembership? tribe;
+  final TribePulse pulse;
   final VoidCallback onOpenTribe;
   final VoidCallback onFindTribe;
 
@@ -188,11 +191,38 @@ class _TribeCard extends StatelessWidget {
             ),
             const SizedBox(height: 4),
             Text(
-              tribe!.tribe.description,
+              '${pulse.activeMembersCount} active today',
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.onSurface.withValues(alpha: 0.62),
               ),
             ),
+            if (pulse.items.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              for (final item in pulse.items.take(3))
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 4),
+                  child: Row(
+                    children: [
+                      Icon(
+                        GrowthJourneyEvent.iconForKey(item.iconKey),
+                        size: 16,
+                        color: theme.colorScheme.onSurface
+                            .withValues(alpha: 0.5),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          item.text,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurface
+                                .withValues(alpha: 0.7),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+            ],
             const SizedBox(height: 12),
             SizedBox(
               width: double.infinity,

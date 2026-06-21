@@ -325,21 +325,21 @@ class NotificationService {
     }
 
     if (outcome == NotificationActionOutcome.fallbackNavigation) {
-      _goToRoute(AppRoutes.today);
+      _goToRoute(AppRoutes.home);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Great! Complete your check-in on the Today screen.'),
+          content: Text('Great! Complete your check-in from the Home screen.'),
           duration: Duration(seconds: 3),
         ),
       );
       return;
     }
 
-    _goToRoute(AppRoutes.today);
+    _goToRoute(AppRoutes.home);
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text(
-          'Could not record check-in automatically. Please confirm it on Today.',
+          'Could not record check-in automatically. Please confirm it from Home.',
         ),
         duration: Duration(seconds: 3),
       ),
@@ -436,7 +436,7 @@ class NotificationService {
           payload == 'journey_milestone' ||
           payload == 'journey_completed' ||
           payload == 'partner_check_in_request') {
-        _goToRoute(AppRoutes.today);
+        _goToRoute(AppRoutes.home);
       } else if (payload.startsWith('commitment_overlay|')) {
         final parts = payload.split('|');
         final commitmentId = parts.length >= 2 ? parts[1] : '';

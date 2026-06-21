@@ -2,11 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/app_routes.dart';
+import '../../../../features/commit/application/failure_protocol_service.dart';
 
 class RecalibrationSuggestionDialog {
   static Future<void> show(
     BuildContext context, {
     required int missedDays,
+    required FailureState failureState,
+    required String habitName,
+    required List<AdmissionOption> admissionOptions,
+    required void Function(String admittedTo) onRecordAdmission,
     required VoidCallback onOpenTimeDiagnose,
   }) {
     return showDialog(
@@ -14,6 +19,12 @@ class RecalibrationSuggestionDialog {
       barrierDismissible: true,
       builder: (context) {
         final theme = Theme.of(context);
+        final protocol = FailureProtocolService();
+        final message = failureState.level == FailureLevel.none
+            ? (missedDays == 1
+                ? 'You missed a day. Receive grace, then choose a reminder you can keep.'
+                : 'You\'ve had a $missedDays-day break. Receive grace, then choose a simpler way to return.')
+            : protocol.messageForLevel(failureState.level, habitName);
 
         return Dialog(
           shape: RoundedRectangleBorder(
@@ -43,7 +54,9 @@ class RecalibrationSuggestionDialog {
                     const SizedBox(width: 12),
                     Expanded(
                       child: Text(
-                        'Begin again with grace',
+                        failureState.level == FailureLevel.none
+                            ? 'Begin again with grace'
+                            : 'You missed $habitName',
                         style: theme.textTheme.titleLarge?.copyWith(
                           fontWeight: FontWeight.w700,
                         ),
@@ -57,14 +70,33 @@ class RecalibrationSuggestionDialog {
                 ),
                 const SizedBox(height: 12),
                 Text(
-                  missedDays == 1
-                      ? 'You missed a day. Receive grace, then choose a reminder you can keep.'
-                      : 'You\'ve had a $missedDays-day break. Receive grace, then choose a simpler way to return.',
+                  message,
                   style: theme.textTheme.bodyMedium?.copyWith(
                     color: theme.colorScheme.onSurface.withValues(alpha: 0.8),
                     height: 1.35,
                   ),
                 ),
+                if (failureState.level != FailureLevel.none) ...[
+                  const SizedBox(height: 16),
+                  Text(
+                    'Reach out',
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  ...admissionOptions.map((option) => ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: Icon(_iconForOption(option.key)),
+                    title: Text(option.label),
+                    subtitle: Text(option.description),
+                    onTap: () {
+                      onRecordAdmission(option.key);
+                      Navigator.of(context).pop();
+                      _routeForOption(context, option.key);
+                    },
+                  )),
+                ],
                 const SizedBox(height: 16),
                 FilledButton.icon(
                   onPressed: () {
@@ -92,5 +124,30 @@ class RecalibrationSuggestionDialog {
         );
       },
     );
+  }
+
+  static IconData _iconForOption(String key) {
+    return switch (key) {
+      'companion' => Icons.chat_bubble_outline,
+      'partner' => Icons.people_outline,
+      'circle' => Icons.groups_outlined,
+      'prayer' => Icons.book_outlined,
+      _ => Icons.arrow_forward,
+    };
+  }
+
+  static void _routeForOption(BuildContext context, String key) {
+    switch (key) {
+      case 'companion':
+        context.push(AppRoutes.companionChat);
+      case 'partner':
+        context.push(AppRoutes.growTogether);
+      case 'circle':
+        context.push(AppRoutes.tribe);
+      case 'prayer':
+        context.push('${AppRoutes.spiritualAid}/prayers');
+      default:
+        context.push(AppRoutes.home);
+    }
   }
 }

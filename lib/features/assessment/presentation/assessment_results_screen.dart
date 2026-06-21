@@ -146,7 +146,7 @@ class _AssessmentResultsScreenState
               const Text('No archetypes selected'),
               const SizedBox(height: 16),
               TextButton(
-                onPressed: () => context.go(AppRoutes.assessment),
+                onPressed: () => context.push(AppRoutes.assessment),
                 child: const Text('Go back'),
               ),
             ],
@@ -402,7 +402,7 @@ class _AssessmentResultsScreenState
                           );
                         }
                         if (mounted) {
-                          router.go(AppRoutes.today);
+                          router.go(AppRoutes.home);
                         }
                       },
                       style: ElevatedButton.styleFrom(

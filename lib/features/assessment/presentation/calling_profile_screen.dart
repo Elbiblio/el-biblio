@@ -303,7 +303,7 @@ class _CallingProfileScreenState extends ConsumerState<CallingProfileScreen> {
                practiceName.toLowerCase().contains('reflect')) {
       context.push(AppRoutes.journal);
     } else {
-      context.push(AppRoutes.today);
+      context.push(AppRoutes.home);
     }
   }
 }

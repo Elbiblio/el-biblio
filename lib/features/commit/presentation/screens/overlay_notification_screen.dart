@@ -188,7 +188,7 @@ class _OverlayNotificationScreenState
           CelebrationService.instance.playDailyCheckInCompletion(context);
           context.go(AppRoutes.commit);
         } else {
-          context.go(AppRoutes.today);
+          context.go(AppRoutes.home);
         }
         break;
       }
@@ -207,7 +207,7 @@ class _OverlayNotificationScreenState
             ),
           );
         }
-        context.pop();
+        context.go(AppRoutes.home);
         break;
     }
   }

@@ -11,6 +11,7 @@ import '../../features/assessment/application/calling_profile_service.dart';
 import '../../features/assessment/application/assessment_notifier.dart';
 import '../../features/assessment/application/pending_compass_sync_service.dart';
 import '../../features/assessment/data/assessment_api_repository.dart';
+import '../../features/commit/application/failure_protocol_service.dart';
 import '../../features/bible/application/bible_notifier.dart';
 import '../../features/bible/application/bible_reading_notifier.dart';
 import '../../features/bible/application/reading_plan_notifier.dart';
@@ -284,6 +285,10 @@ final settingsStorageProvider = Provider<SettingsStorage>((ref) {
 
 final callingProfileServiceProvider = Provider<CallingProfileService>((ref) {
   return CallingProfileService();
+});
+
+final failureProtocolServiceProvider = Provider<FailureProtocolService>((ref) {
+  return FailureProtocolService();
 });
 
 final settingsProvider = StateNotifierProvider<SettingsNotifier, AppSettings>((

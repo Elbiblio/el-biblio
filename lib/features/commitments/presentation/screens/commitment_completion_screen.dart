@@ -303,9 +303,9 @@ class _CommitmentCompletionScreenState
                               ref
                                   .read(graduatedCommitmentProvider.notifier)
                                   .acknowledgeCompletion();
-                              context.go(AppRoutes.today);
+                              context.go(AppRoutes.home);
                             },
-                            child: const Text('Back to Today'),
+                            child: const Text('Back to Home'),
                           ),
                         ),
 

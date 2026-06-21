@@ -10,7 +10,7 @@ void main() {
       'lib/features/onboarding/presentation/widgets/the_solution_view.dart',
       'lib/features/onboarding/presentation/widgets/discover_identity_view.dart',
       'lib/features/onboarding/presentation/widgets/your_account_view.dart',
-      'lib/features/vision/presentation/screens/today_screen.dart',
+      'lib/features/today/presentation/today_screen.dart',
       'lib/features/vision/presentation/screens/reflect_screen.dart',
       'lib/features/vision/presentation/screens/commit_screen.dart',
       'lib/features/vision/presentation/screens/tribe_screen.dart',
@@ -118,7 +118,7 @@ void main() {
 
     expect(settings, contains('firstCheckInPlanWhen'));
     expect(repository, contains('check_in_plan_when'));
-    expect(onboarding, contains('context.go(AppRoutes.today)'));
+    expect(onboarding, contains('context.go(AppRoutes.home)'));
     expect(commit, contains('planWhen: planWhen'));
     expect(reflect, contains('reportReflection'));
     expect(hangout, contains('reportHangout'));

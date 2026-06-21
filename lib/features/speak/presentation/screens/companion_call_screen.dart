@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../companion/application/companion_notifier.dart';
 import '../../../companion/domain/models/companion_character.dart';
+import '../../../../core/services/tts_service.dart';
 
 /// Full-screen companion call experience.
 ///
@@ -25,6 +26,7 @@ class _CompanionCallScreenState extends ConsumerState<CompanionCallScreen>
   late AnimationController _pulseController;
   late Animation<double> _pulseAnimation;
   bool _interactionActive = true;
+  final TTSService _ttsService = TTSService();
 
   @override
   void initState() {
@@ -36,11 +38,25 @@ class _CompanionCallScreenState extends ConsumerState<CompanionCallScreen>
     _pulseAnimation = Tween<double>(begin: 0.8, end: 1.2).animate(
       CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
     );
+    _startCall();
+  }
+
+  Future<void> _startCall() async {
+    await _ttsService.initialize();
+    final character = ref.read(
+      companionProvider.select((s) => s.activeCharacter ?? CompanionCharacter.naomi),
+    );
+    await _ttsService.speak(
+      'Hi, this is ${character.name}. I\'m here with you right now. What would you like to do?',
+      volume: 0.8,
+    );
   }
 
   @override
   void dispose() {
     _pulseController.dispose();
+    _ttsService.stop();
+    _ttsService.dispose();
     super.dispose();
   }
 
@@ -48,18 +64,18 @@ class _CompanionCallScreenState extends ConsumerState<CompanionCallScreen>
     if (!_interactionActive) return;
     setState(() => _interactionActive = false);
 
-    switch (action) {
-      case 'done':
-        _endCall('I\'m with you. Let\'s try again tomorrow. One day at a time.');
-      case 'help':
-        _endCall('Let\'s talk this through in chat. I\'m right here.');
-      case 'later':
-        _endCall('I\'ll check in on you later. You\'re not alone.');
-    }
+    final response = switch (action) {
+      'done' => 'I\'m with you. Let\'s try again tomorrow. One day at a time.',
+      'help' => 'Let\'s talk this through in chat. I\'m right here.',
+      'later' => 'I\'ll check in on you later. You\'re not alone.',
+      _ => 'I\'m here with you.',
+    };
+    _ttsService.speak(response, volume: 0.8);
+    _endCall(response);
   }
 
   void _endCall(String message) {
-    Future.delayed(const Duration(seconds: 1), () {
+    Future.delayed(const Duration(seconds: 3), () {
       if (mounted) Navigator.of(context).pop(message);
     });
   }

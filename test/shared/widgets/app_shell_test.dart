@@ -17,12 +17,15 @@ void main() {
   });
 
   test('shell chrome only shows on top-level destinations', () {
-    expect(shouldShowShellChrome(AppRoutes.today), isTrue);
+    expect(shouldShowShellChrome(AppRoutes.home), isTrue);
+    expect(shouldShowShellChrome(AppRoutes.connect), isTrue);
     expect(shouldShowShellChrome(AppRoutes.commit), isTrue);
-    expect(shouldShowShellChrome(AppRoutes.reflect), isTrue);
-    expect(shouldShowShellChrome(AppRoutes.tribe), isTrue);
-    expect(shouldShowShellChrome(AppRoutes.grow), isTrue);
-    expect(shouldShowShellChrome(AppRoutes.profile), isTrue);
+    expect(shouldShowShellChrome(AppRoutes.speak), isTrue);
+    expect(shouldShowShellChrome(AppRoutes.today), isFalse);
+    expect(shouldShowShellChrome(AppRoutes.reflect), isFalse);
+    expect(shouldShowShellChrome(AppRoutes.tribe), isFalse);
+    expect(shouldShowShellChrome(AppRoutes.grow), isFalse);
+    expect(shouldShowShellChrome(AppRoutes.profile), isFalse);
     expect(shouldShowShellChrome(AppRoutes.notifications), isFalse);
     expect(shouldShowShellChrome(AppRoutes.bible), isFalse);
     expect(shouldShowShellChrome(AppRoutes.journal), isFalse);

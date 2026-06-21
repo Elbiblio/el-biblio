@@ -68,6 +68,16 @@ class _ReflectScreenState extends ConsumerState<ReflectScreen> {
               bottomPadding: shellChromeBottomPadding,
               padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
               children: [
+                Row(
+                  children: [
+                    IconButton(
+                      icon: const Icon(LucideIcons.chevronLeft),
+                      tooltip: 'Back',
+                      onPressed: () => Navigator.of(context).maybePop(),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
                 _ReflectHeader(state: state),
                 const SizedBox(height: 14),
                 if (state.error?.isNotEmpty == true) ...[

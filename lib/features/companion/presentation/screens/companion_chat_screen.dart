@@ -176,6 +176,15 @@ class _CompanionChatScreenState extends ConsumerState<CompanionChatScreen> {
         title: Text(widget.title ?? character.displayName),
         backgroundColor: Colors.transparent,
         elevation: 0,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.phone_in_talk_outlined),
+            tooltip: 'Voice call',
+            onPressed: () => context.push(
+              '${AppRoutes.companionCall}?thread=${widget.threadKey}',
+            ),
+          ),
+        ],
       ),
       body: SafeArea(
         child: Column(

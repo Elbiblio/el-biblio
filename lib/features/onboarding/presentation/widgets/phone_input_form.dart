@@ -79,7 +79,7 @@ class _PhoneInputFormState extends ConsumerState<PhoneInputForm> {
 
         if (mounted) {
           // Navigate to main app
-          context.go(AppRoutes.today);
+          context.go(AppRoutes.home);
         }
       } else {
         if (mounted) {

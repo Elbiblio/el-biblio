@@ -44,6 +44,12 @@ class BibleLibraryHeader extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
+              IconButton(
+                icon: const Icon(LucideIcons.chevronLeft),
+                tooltip: 'Back',
+                color: textColor,
+                onPressed: () => Navigator.of(context).maybePop(),
+              ),
               Expanded(
                 child: Row(
                   children: [

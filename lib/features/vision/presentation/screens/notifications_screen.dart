@@ -53,7 +53,13 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                   children: [
                     IconButton(
                       tooltip: 'Back',
-                      onPressed: () => context.go(AppRoutes.today),
+                      onPressed: () {
+                        if (Navigator.of(context).canPop()) {
+                          context.pop();
+                        } else {
+                          context.go(AppRoutes.home);
+                        }
+                      },
                       icon: const Icon(LucideIcons.chevronLeft),
                     ),
                     const SizedBox(width: 4),

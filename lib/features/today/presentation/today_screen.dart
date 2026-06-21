@@ -24,6 +24,7 @@ import 'widgets/journey_check_in_section.dart';
 import 'widgets/mission_next_step_card.dart' show MissionNextStepCard;
 import 'widgets/physical_activity_guide.dart';
 import 'widgets/prayer_guide_dialog.dart';
+import '../../commit/application/failure_protocol_service.dart';
 import 'widgets/recalibration_suggestion_dialog.dart';
 import 'widgets/soul_care_dialog.dart';
 import 'widgets/spiritual_pulse_widget.dart';
@@ -76,6 +77,11 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
 
     if (lastPromptDay == today) return;
 
+    final active = ref.read(visionProvider).activeCommitment;
+    final protocol = ref.read(failureProtocolServiceProvider);
+    final failureState = active != null ? protocol.evaluate(active) : FailureState.empty;
+    final habitName = active?.plan.title ?? 'your commitment';
+
     await ref
         .read(settingsProvider.notifier)
         .markRecalibrationPromptShown(today);
@@ -84,6 +90,20 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
     await RecalibrationSuggestionDialog.show(
       context,
       missedDays: missedDays,
+      failureState: failureState,
+      habitName: habitName,
+      admissionOptions: protocol.admissionOptions(),
+      onRecordAdmission: (admittedTo) async {
+        if (active == null) return;
+        await protocol.recordAdmission(
+          commitmentId: active.plan.id,
+          habitId: active.plan.id.toString(),
+          habitName: active.plan.title,
+          missedDay: active.currentDay,
+          missedDate: today.subtract(Duration(days: missedDays)),
+          admittedTo: admittedTo,
+        );
+      },
       onOpenTimeDiagnose: () {
         TimeDiagnoseSuggestionDialog.show(context);
       },
@@ -214,6 +234,20 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
           bottom: false,
           child: CustomScrollView(
             slivers: [
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
+                  child: Row(
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.arrow_back),
+                        tooltip: 'Back',
+                        onPressed: () => Navigator.of(context).maybePop(),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
               _adaptiveSection(
                 layout: layout,
                 child: TodayHeader(onHelpTap: _showQuickHelp),

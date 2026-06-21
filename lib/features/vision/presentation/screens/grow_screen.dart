@@ -53,6 +53,16 @@ class _GrowScreenState extends ConsumerState<GrowScreen> {
               bottomPadding: shellChromeBottomPadding,
               padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
               children: [
+                Row(
+                  children: [
+                    IconButton(
+                      icon: const Icon(LucideIcons.chevronLeft),
+                      tooltip: 'Back',
+                      onPressed: () => Navigator.of(context).maybePop(),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
                 _GrowHero(state: state),
                 if (state.error?.isNotEmpty == true) ...[
                   const SizedBox(height: 14),
@@ -173,7 +183,7 @@ class _GrowHero extends ConsumerWidget {
               children: [
                 if (tribeName == null)
                   FilledButton.tonalIcon(
-                    onPressed: () => context.go(AppRoutes.tribe),
+                    onPressed: () => context.push(AppRoutes.tribe),
                     icon: const Icon(LucideIcons.users, size: 18),
                     label: const Text('Find tribe'),
                   ),

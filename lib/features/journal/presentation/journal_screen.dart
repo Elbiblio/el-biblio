@@ -217,7 +217,11 @@ class _JournalScreenState extends ConsumerState<JournalScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const SizedBox(width: 40),
+              IconButton(
+                icon: const Icon(Icons.arrow_back),
+                tooltip: 'Back',
+                onPressed: () => Navigator.of(context).maybePop(),
+              ),
               Text(
                 'Journal',
                 style: Theme.of(context).textTheme.brandTitle.copyWith(

@@ -136,7 +136,7 @@ class OnboardingScreen extends ConsumerWidget {
 
     if (!context.mounted) return;
     CelebrationService.instance.playOnboardingCompletion(context);
-    context.go(AppRoutes.today);
+    context.go(AppRoutes.home);
   }
 
   Future<void> _handleSignIn(
@@ -166,7 +166,7 @@ class OnboardingScreen extends ConsumerWidget {
     await _completeLocalOnboarding(ref, onboardingState);
 
     if (!context.mounted) return;
-    context.go(AppRoutes.today);
+    context.go(AppRoutes.home);
   }
 
   Future<void> _completeLocalOnboarding(

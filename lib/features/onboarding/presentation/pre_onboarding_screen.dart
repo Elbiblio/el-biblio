@@ -81,7 +81,7 @@ class _PreOnboardingScreenState extends ConsumerState<PreOnboardingScreen> {
           phone: fullPhone,
         );
         if (mounted) {
-          context.go(AppRoutes.today);
+          context.go(AppRoutes.home);
         }
       } else {
         if (mounted) {
