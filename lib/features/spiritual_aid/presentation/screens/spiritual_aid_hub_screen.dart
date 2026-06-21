@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/app_routes.dart';
+import '../../../../core/di/app_providers.dart';
 import '../../../../core/theme/app_theme_tokens.dart';
 import '../widgets/spiritual_aid_hub_card.dart';
 
@@ -98,7 +99,10 @@ class SpiritualAidHubScreen extends ConsumerWidget {
                           'Read, listen, or pray along word by word.',
                       gradient: [colorScheme.primary, colorScheme.primary.withValues(alpha: 0.8)],
                       badge: '40+ prayers',
-                      onTap: () => context.push('${AppRoutes.spiritualAid}/prayers'),
+                      onTap: () {
+                        ref.read(soundServiceProvider).playTransition();
+                        context.push('${AppRoutes.spiritualAid}/prayers');
+                      },
                     ),
                     const SizedBox(height: 16),
 
@@ -109,7 +113,10 @@ class SpiritualAidHubScreen extends ConsumerWidget {
                           'Reflect, journal, and share.',
                       gradient: [colorScheme.secondary, colorScheme.secondary.withValues(alpha: 0.8)],
                       badge: 'Daily prompt',
-                      onTap: () => context.push('${AppRoutes.spiritualAid}/discuss'),
+                      onTap: () {
+                        ref.read(soundServiceProvider).playTransition();
+                        context.push('${AppRoutes.spiritualAid}/discuss');
+                      },
                     ),
                     const SizedBox(height: 16),
 
@@ -119,7 +126,10 @@ class SpiritualAidHubScreen extends ConsumerWidget {
                       description: 'Let God speak through His Word. '
                           'Tap to receive a verse just for this moment.',
                       gradient: [colorScheme.tertiary, colorScheme.tertiary.withValues(alpha: 0.8)],
-                      onTap: () => context.push('${AppRoutes.spiritualAid}/speak'),
+                      onTap: () {
+                        ref.read(soundServiceProvider).playTransition();
+                        context.push('${AppRoutes.spiritualAid}/speak');
+                      },
                     ),
                     const SizedBox(height: 16),
 
@@ -130,7 +140,10 @@ class SpiritualAidHubScreen extends ConsumerWidget {
                           'Verse cards, guides, and conversation starters.',
                       gradient: [colorScheme.outline, colorScheme.outline.withValues(alpha: 0.8)],
                       badge: '30+ resources',
-                      onTap: () => context.push('${AppRoutes.spiritualAid}/evangelism'),
+                      onTap: () {
+                        ref.read(soundServiceProvider).playTransition();
+                        context.push('${AppRoutes.spiritualAid}/evangelism');
+                      },
                     ),
                     const SizedBox(height: 32),
                   ]),

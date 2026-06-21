@@ -520,6 +520,7 @@ class _GenerosityTrackerSheetState
         );
 
     if (mounted) {
+      ref.read(soundServiceProvider).playSuccess();
       setState(() {
         _isSubmitting = false;
         _showForm = false;

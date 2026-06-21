@@ -68,6 +68,7 @@ class _WeeklyAssessmentScreenState
   void _nextStep() {
     if (_currentStep < _totalSteps - 1) {
       HapticService.selection();
+      ref.read(soundServiceProvider).playTransition();
       _pageController.animateToPage(
         _currentStep + 1,
         duration: AppAnimations.normal,
@@ -154,6 +155,7 @@ class _WeeklyAssessmentScreenState
           .setCurrentWeeklyPlan(weeklyPlan);
     } finally {
       if (mounted) {
+        ref.read(soundServiceProvider).playComplete();
         setState(() => _isGenerating = false);
         context.pop();
       }

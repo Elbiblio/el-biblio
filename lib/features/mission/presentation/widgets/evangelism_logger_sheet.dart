@@ -483,6 +483,7 @@ class _EvangelismLoggerSheetState extends ConsumerState<EvangelismLoggerSheet> {
         );
 
     if (mounted) {
+      ref.read(soundServiceProvider).playSuccess();
       setState(() {
         _isSubmitting = false;
         _showForm = false;

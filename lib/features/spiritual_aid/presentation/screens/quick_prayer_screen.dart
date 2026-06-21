@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/di/app_providers.dart';
 import '../../../../core/services/tts_service.dart';
 import '../../../../core/theme/app_theme_tokens.dart';
 import '../../application/spiritual_aid_notifier.dart';
@@ -286,11 +287,16 @@ class _PrayWithMeSheetState extends State<_PrayWithMeSheet> {
                 duration: const Duration(milliseconds: 400),
                 child: SizedBox(
                   width: double.infinity,
-                  child: FilledButton(
-                    onPressed: _isComplete
-                        ? () => Navigator.of(context).pop()
-                        : null,
-                    child: const Text('Amen'),
+                  child: Consumer(
+                    builder: (context, ref, _) => FilledButton(
+                      onPressed: _isComplete
+                          ? () {
+                              ref.read(soundServiceProvider).playChimeGentle();
+                              Navigator.of(context).pop();
+                            }
+                          : null,
+                      child: const Text('Amen'),
+                    ),
                   ),
                 ),
               ),

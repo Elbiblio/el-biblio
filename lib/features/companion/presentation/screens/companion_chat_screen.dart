@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/app_routes.dart';
+import '../../../../core/di/app_providers.dart';
 import '../../application/companion_chat_notifier.dart';
 import '../../application/companion_notifier.dart';
 import '../../domain/models/companion_character.dart';
@@ -149,6 +150,7 @@ class _CompanionChatScreenState extends ConsumerState<CompanionChatScreen> {
     final character =
         ref.read(companionProvider).activeCharacter ?? CompanionCharacter.naomi;
     CompanionHaptics.acknowledge(character);
+    ref.read(soundServiceProvider).playTap();
     _controller.clear();
     final notifier = ref.read(companionChatProvider(_chatKey).notifier);
     await notifier.sendUserMessage(text);

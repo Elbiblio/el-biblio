@@ -5,6 +5,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../../../core/di/app_providers.dart';
 import '../../application/church_finder_notifier.dart';
 import '../../domain/models/church.dart';
 
@@ -95,7 +96,13 @@ class _ChurchFinderScreenState extends ConsumerState<ChurchFinderScreen> {
                 )
               else
                 ...state.churches.map(
-                  (c) => _ChurchTile(church: c, onTap: () => _openInOsm(c)),
+                  (c) => _ChurchTile(
+                    church: c,
+                    onTap: () {
+                      ref.read(soundServiceProvider).playTap();
+                      _openInOsm(c);
+                    },
+                  ),
                 ),
             ],
             const SizedBox(height: 64),
