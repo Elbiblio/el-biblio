@@ -329,7 +329,7 @@ class SoundService {
 }
 ```
 
-> **Note:** keep the old `playGameTap`, `playGameSuccess`, etc. methods as thin aliases to the new methods during the migration so existing callers continue to compile. Remove them after Task 6.
+> **Note:** keep the old `playGameTap`, `playGameSuccess`, etc. methods as thin aliases to the new methods during the migration so existing callers continue to compile. Remove them after Task 8.
 
 - [ ] **Step 2: Update `app_providers.dart`**
 
