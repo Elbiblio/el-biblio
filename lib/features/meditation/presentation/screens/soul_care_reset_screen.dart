@@ -4,6 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../core/di/app_providers.dart';
+import '../../../../core/services/sound_service.dart';
+import '../../../../shared/widgets/ambient_scope.dart';
 import '../../data/soul_care_catalog.dart';
 import '../../domain/models/soul_care_session.dart';
 
@@ -114,7 +117,9 @@ class _SoulCareResetScreenState extends ConsumerState<SoulCareResetScreen>
     setState(() => _phase = _Phase.prayer);
     // Show prayer for remaining time, then complete
     _timer = Timer(const Duration(seconds: 12), () {
-      if (mounted) setState(() => _phase = _Phase.complete);
+      if (!mounted) return;
+      setState(() => _phase = _Phase.complete);
+      ref.read(soundServiceProvider).playChimeGentle();
     });
   }
 
@@ -140,7 +145,10 @@ class _SoulCareResetScreenState extends ConsumerState<SoulCareResetScreen>
     final isDark = theme.brightness == Brightness.dark;
     final primary = theme.colorScheme.primary;
 
-    return Scaffold(
+    return AmbientScope(
+      asset: SoundService.ambientReflectionAsset,
+      volume: 0.07,
+      child: Scaffold(
       backgroundColor: isDark ? const Color(0xFF0a0a0a) : const Color(0xFFF5F0EB),
       body: SafeArea(
         child: Column(
@@ -204,6 +212,7 @@ class _SoulCareResetScreenState extends ConsumerState<SoulCareResetScreen>
               ),
           ],
         ),
+      ),
       ),
     );
   }

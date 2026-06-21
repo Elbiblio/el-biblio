@@ -4,7 +4,9 @@ import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 
 import '../../../../core/di/app_providers.dart';
+import '../../../../core/services/sound_service.dart';
 import '../../../../core/theme/app_text_styles.dart';
+import '../../../../shared/widgets/ambient_scope.dart';
 import '../../../../core/theme/app_theme_tokens.dart';
 import '../../application/habit_notifier.dart';
 import '../../domain/models/habit_assessment.dart';
@@ -31,7 +33,10 @@ class _HabitTrackerScreenState extends ConsumerState<HabitTrackerScreen> {
     final tokens = Theme.of(context).tokens;
     final state = ref.watch(habitProvider);
 
-    return Scaffold(
+    return AmbientScope(
+      asset: SoundService.ambientAssessmentAsset,
+      volume: 0.06,
+      child: Scaffold(
       backgroundColor: tokens.palette.background,
       appBar: AppBar(
         title: const Text('Habit Tracker'),
@@ -48,6 +53,7 @@ class _HabitTrackerScreenState extends ConsumerState<HabitTrackerScreen> {
           : state.activeHabits.isEmpty
               ? _buildEmptyState(context, tokens)
               : _buildContent(context, tokens, state),
+      ),
     );
   }
 
@@ -162,8 +168,10 @@ class _HabitTrackerScreenState extends ConsumerState<HabitTrackerScreen> {
             ...state.filteredHabits.where((h) => h.isBadHabit).map((habit) {
               return HabitStreakCard(
                 habit: habit,
-                onCheckIn: () =>
-                    ref.read(habitProvider.notifier).checkInHabit(habit.id),
+                onCheckIn: () {
+                  ref.read(soundServiceProvider).playChimeGentle();
+                  ref.read(habitProvider.notifier).checkInHabit(habit.id);
+                },
               );
             }),
             const SizedBox(height: 16),
@@ -181,8 +189,10 @@ class _HabitTrackerScreenState extends ConsumerState<HabitTrackerScreen> {
             ...state.filteredHabits.where((h) => !h.isBadHabit).map((habit) {
               return HabitStreakCard(
                 habit: habit,
-                onCheckIn: () =>
-                    ref.read(habitProvider.notifier).checkInHabit(habit.id),
+                onCheckIn: () {
+                  ref.read(soundServiceProvider).playChimeGentle();
+                  ref.read(habitProvider.notifier).checkInHabit(habit.id);
+                },
               );
             }),
           ],

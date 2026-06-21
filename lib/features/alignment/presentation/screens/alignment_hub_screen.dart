@@ -4,7 +4,9 @@ import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 
 import '../../../../core/di/app_providers.dart';
+import '../../../../core/services/sound_service.dart';
 import '../../../../core/theme/app_text_styles.dart';
+import '../../../../shared/widgets/ambient_scope.dart';
 import '../../../../core/theme/app_theme_tokens.dart';
 import '../widgets/alignment_hub_card.dart';
 
@@ -34,7 +36,10 @@ class _AlignmentHubScreenState extends ConsumerState<AlignmentHubScreen> {
     final fortyDayState = ref.watch(fortyDayProvider);
     final profile = alignmentState.currentProfile;
 
-    return Scaffold(
+    return AmbientScope(
+      asset: SoundService.ambientAssessmentAsset,
+      volume: 0.06,
+      child: Scaffold(
       backgroundColor: tokens.palette.background,
       body: CustomScrollView(
         slivers: [
@@ -153,6 +158,7 @@ class _AlignmentHubScreenState extends ConsumerState<AlignmentHubScreen> {
                         )
                       : null,
                   onTap: () {
+                    ref.read(soundServiceProvider).playTap();
                     if (fortyDayState.hasActiveGoal) {
                       context.push('/alignment/forty-day-progress');
                     } else {
@@ -171,7 +177,10 @@ class _AlignmentHubScreenState extends ConsumerState<AlignmentHubScreen> {
                       ? 'Your ${profile.archetypeName} identity reveals how your spiritual clarity shapes your professional calling.'
                       : 'Complete your spiritual identity profile to unlock career clarity insights.',
                   onTap: profile != null
-                      ? () => context.push('/alignment/career')
+                      ? () {
+                          ref.read(soundServiceProvider).playTap();
+                          context.push('/alignment/career');
+                        }
                       : null,
                 ),
                 const SizedBox(height: 24),
@@ -217,6 +226,7 @@ class _AlignmentHubScreenState extends ConsumerState<AlignmentHubScreen> {
             ),
           ),
         ],
+      ),
       ),
     );
   }
